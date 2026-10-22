@@ -290,12 +290,13 @@ jobs:
             adb shell am set-debug-app --persistent com.android.chrome
             adb shell 'echo "chrome --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/chat-read-send.yaml
-            node scripts/mobile-perf.mjs startup --package "$APP_ID" --mark inbox --runs 5 --out "$RUNNER_TEMP/perf-inbox.json"
+            mkdir -p "$RUNNER_TEMP/perf"
+            node scripts/mobile-perf.mjs startup --package "$APP_ID" --mark inbox --runs 5 --out "$RUNNER_TEMP/perf/inbox.json"
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/perf-open-room.yaml
             adb shell dumpsys gfxinfo "$APP_ID" reset
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/perf-scroll-room.yaml
-            node scripts/mobile-perf.mjs frames --package "$APP_ID" --out "$RUNNER_TEMP/perf-scroll.json"
-            node scripts/mobile-perf.mjs check "$RUNNER_TEMP/perf-inbox.json" "$RUNNER_TEMP/perf-scroll.json"
+            node scripts/mobile-perf.mjs frames --package "$APP_ID" --out "$RUNNER_TEMP/perf/scroll.json"
+            node scripts/mobile-perf.mjs check "$RUNNER_TEMP/perf/inbox.json" "$RUNNER_TEMP/perf/scroll.json"
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/push-open-room.yaml
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/call-join.yaml
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/offline-send-relaunch.yaml
@@ -305,6 +306,14 @@ jobs:
             node scripts/mobile-a11y-audit.mjs --package "$APP_ID" --min-dp 44 --warn --out "$RUNNER_TEMP/a11y-room.json"
             adb shell settings put system font_scale 1.0
             adb shell cmd uimode night no
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          # One night's numbers: `mobile-perf.mjs tighten` reads five of these (runbook).
+          name: unichat-perf-android-nightly
+          path: ${{ runner.temp }}/perf/*.json
+          if-no-files-found: ignore
+          retention-days: 90
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -363,6 +372,8 @@ jobs:
       UNICHAT_API_URL: https://api.example.invalid
       UNICHAT_APP_URL: https://app.example.invalid
       SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      # The startup marks the low-end leg times (data/logger.ts › perfMark); this APK never leaves the matrix.
+      UNICHAT_PERF_MARKS: "1"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -395,8 +406,9 @@ jobs:
     # Audit "no-visual-or-matrix": the PR smoke runs on one API 35 emulator only. Here the same
     # cold start runs on the oldest Android the app installs on (React Native's minSdk 24), two
     # middle releases, and API 35 with 2 GB of RAM (a low-end phone); each leg keeps a
-    # screenshot of the sign-in screen in light and dark mode for a person to compare. OEM skins
-    # (Samsung, Xiaomi) need a device farm (runbook).
+    # screenshot of the sign-in screen in light and dark mode for a person to compare. The
+    # 2 GB leg also times five cold starts against perf-budget.json › android-2gb (audit: the
+    # cheapest low-end proxy measured nothing). OEM skins (Samsung, Xiaomi) need a device farm (runbook).
     needs: android-matrix-build
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -407,7 +419,7 @@ jobs:
           - { api: 24, target: default, ram: 3072, label: api24 }
           - { api: 29, target: default, ram: 3072, label: api29 }
           - { api: 33, target: google_apis, ram: 3072, label: api33 }
-          - { api: 35, target: google_apis, ram: 2048, label: api35-2gb }
+          - { api: 35, target: google_apis, ram: 2048, label: api35-2gb, perf: android-2gb }
     name: android-matrix (${{ matrix.label }})
     steps:
       - uses: actions/checkout@v4
@@ -417,6 +429,10 @@ jobs:
         with:
           name: unichat-matrix-apk
           path: ${{ runner.temp }}/apk
+      # scripts/mobile-perf.mjs times the low-end leg's cold starts.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -449,6 +465,16 @@ jobs:
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
             adb exec-out screencap -p > "${{ runner.temp }}/screens/${{ matrix.label }}-dark.png"
             adb shell cmd uimode night no
+            if [ -n "${{ matrix.perf }}" ]; then mkdir -p "${{ runner.temp }}/perf" && node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 5 --out "${{ runner.temp }}/perf/startup.json"; fi
+            if [ -n "${{ matrix.perf }}" ]; then node scripts/mobile-perf.mjs check --profile "${{ matrix.perf }}" "${{ runner.temp }}/perf/startup.json"; fi
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.perf
+        with:
+          # One night's numbers: `mobile-perf.mjs tighten` reads five of these (runbook).
+          name: unichat-perf-${{ matrix.perf }}
+          path: ${{ runner.temp }}/perf/*.json
+          if-no-files-found: ignore
+          retention-days: 90
       - uses: actions/upload-artifact@v4
         if: always()
         with:

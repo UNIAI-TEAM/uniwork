@@ -60,6 +60,7 @@ describe("initSentry", () => {
       attachScreenshot: false,
       attachViewHierarchy: false,
       tracesSampleRate: 0.1,
+      profilesSampleRate: 0.5,
       integrations: [sentryNavigation],
       enableAppStartTracking: true,
       enableNativeFramesTracking: true,
@@ -84,6 +85,7 @@ describe("initSentry", () => {
     const options = sdk.init.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(options).not.toHaveProperty("dist");
     expect(options.tracesSampleRate).toBe(1);
+    expect(options.profilesSampleRate).toBe(1);
     expect(sdk.setTags).toHaveBeenCalledWith({ channel: "none", update_id: "embedded", runtime_version: "unknown", os: "android" });
   });
 

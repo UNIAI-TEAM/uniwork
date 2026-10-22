@@ -46,6 +46,10 @@ export function initSentry({ dsn, environment, info }: SentryStart): boolean {
     attachViewHierarchy: false,
     // A tenth of production sessions trace app start and screen loads; every dev and staging one.
     tracesSampleRate: environment === "production" ? 0.1 : 1,
+    // Half of those traced production sessions (5 % of all) carry a Hermes profile: a slow screen load, frozen
+    // frame or JS stall then comes with the stack that spent the time. A profile holds function names and
+    // timings, no chat content (audit perf-budgets-unmeasured).
+    profilesSampleRate: environment === "production" ? 0.5 : 1,
     integrations: [sentryNavigation],
     // App start (cold and warm), slow and frozen frames and JS stalls ride on those spans (the SDK's defaults, said here).
     enableAppStartTracking: true,

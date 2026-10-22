@@ -96,9 +96,12 @@ simulator iOS với bản Release ký ad-hoc, cùng điều kiện native ở PR
 `flows/a11y-large-text-dark.yaml` (màn đăng nhập cuộn được, vẫn tới nút) rồi `scripts/mobile-a11y-audit.mjs` (dump
 uiautomator: mọi điều khiển của app có tên và ≥ 48 dp; hitSlop không thấy được trong dump nên nightly audit phòng ở
 44 dp, chỉ cảnh báo); rồi `scripts/mobile-perf.mjs` đo kích
-thước APK và 5 lần mở lạnh — tới khung đầu và tới mốc `first-screen` — theo `perf-budget.json`; nightly đo thêm mở lạnh
-tới `inbox` và khung/bộ nhớ khi cuộn phòng dài, runbook › Đo hiệu năng trên thiết bị). Mốc là `perfMark(name)` của
-`data/logger.ts` (một dòng `UniChatPerf mark=<tên>` trong log máy, mỗi tên một lần mỗi tiến trình), chỉ bản build với
+thước APK và 5 lần mở lạnh — tới khung đầu, tới mốc `js-boot` và tới mốc `first-screen` — theo `perf-budget.json`
+(profile `android`); `ios-release` đo 5 lần mở lạnh trên simulator (profile `ios-simulator`), chặng 2 GB của nightly
+matrix theo profile `android-2gb`; nightly đo thêm mở lạnh tới `inbox` và khung/bộ nhớ khi cuộn phòng dài, runbook ›
+Đo hiệu năng trên thiết bị, gồm cách `tighten` đặt trần từ 5 run). Mốc là `perfMark(name)` của
+`data/logger.ts` (một dòng `UniChatPerf mark=<tên> at=<ms>` trong log máy và, cho iOS, trong tệp của
+`data/perf/marks-file.ts`, mỗi tên một lần mỗi tiến trình), chỉ bản build với
 `UNICHAT_PERF_MARKS=1` (`extra.perfMarks`) mới ghi; mốc mới thì thêm vào `scripts/mobile-perf.mjs`. Thêm gói làm bundle nặng hơn trần thì nâng trần cùng
 commit, ghi lý do; bundle nhỏ đi thì hạ trần. Không có script `build`.
 Thêm gói native bằng `pnpm --filter @uniwork/chat-mobile exec expo install <pkg>`;

@@ -28,7 +28,8 @@
   `ErrorBoundary` export ở `app/_layout.tsx` (root) và `[org]/[ws]/_layout.tsx`
   (workspace), cả hai vẽ `components/ui/error-fallback.tsx`. Hiệu năng khi có DSN (S5): mở app (lạnh/ấm), mỗi
   lần tải màn (TTID tự động; TTFD bằng `ScreenFullyDrawn` của `data/sentry.ts` ở tab Chat khi có danh sách phòng
-  và ở phòng khi có trang mới nhất), khung chậm/đơ và JS stall, mẫu 10 % phiên production; transaction đi qua
+  và ở phòng khi có trang mới nhất), khung chậm/đơ và JS stall, mẫu 10 % phiên production, và profile Hermes trên
+  một nửa số đó (`profilesSampleRate` 0,5 ở production — 5 % phiên — và 1 ở dev/staging); transaction đi qua
   `scrubTransaction` (`lib/redact.ts`: mô tả và data của span mang URL request). Danh tính build:
   `lib/build-info.ts` (thuần) ← `data/build-info.ts` (expo-application,
   expo-updates) → header `X-Client-Version`/`-OS`/`-Update-Id`

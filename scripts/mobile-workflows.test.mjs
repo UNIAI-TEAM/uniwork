@@ -530,12 +530,21 @@ test("the smoke and the nightly time the app on the emulator against perf-budget
   assert.match(smoke, /mobile-perf\.mjs apk /, "the smoke measures the APK");
   assert.match(smoke, /mobile-perf\.mjs startup --package com\.uniworkos\.chat --mark first-screen --runs 5/, "and five cold starts to the first screen");
   assert.match(smoke, /mobile-perf\.mjs check /, "and holds them to the budget");
+  assert.match(smoke, /name: unichat-perf-android\n/, "and keeps the numbers for `tighten`");
+
+  // iOS (audit perf-budgets-unmeasured): the simulator build is timed too, against its own profile.
+  const ios = verify.get("ios-release") ?? "";
+  assert.match(ios, /^\s+UNICHAT_PERF_MARKS: "1"$/m, "the simulator build writes its startup marks");
+  assert.match(ios, /mobile-perf\.mjs ios-startup --udid "\$UDID" --bundle com\.uniworkos\.chat --mark first-screen --runs 5/);
+  assert.match(ios, /mobile-perf\.mjs check --profile ios-simulator /);
+  assert.match(ios, /name: unichat-perf-ios-simulator\n/);
 
   const nightly = jobsOf(read("chat-mobile-verify.yml")).jobs.get("android") ?? "";
   assert.match(nightly, /^\s+UNICHAT_PERF_MARKS: "1"$/m, "the nightly's APK logs its startup marks");
   assert.match(nightly, /mobile-perf\.mjs startup --package "\$APP_ID" --mark inbox/, "cold starts to the inbox, signed in");
   assert.match(nightly, /dumpsys gfxinfo "\$APP_ID" reset\n[^\n]*perf-scroll-room\.yaml\n[^\n]*mobile-perf\.mjs frames/, "frames counted over the scroll alone");
-  assert.match(nightly, /mobile-perf\.mjs check "\$RUNNER_TEMP\/perf-inbox\.json" "\$RUNNER_TEMP\/perf-scroll\.json"/);
+  assert.match(nightly, /mobile-perf\.mjs check "\$RUNNER_TEMP\/perf\/inbox\.json" "\$RUNNER_TEMP\/perf\/scroll\.json"/);
+  assert.match(nightly, /name: unichat-perf-android-nightly\n/);
 
   // Store binaries and OTA updates never carry the flag.
   const production = jobsOf(read("chat-mobile-verify.yml")).jobs.get("android-production") ?? "";
@@ -609,9 +618,18 @@ test("the nightly builds with eas build --local, fails a scheduled run without i
 test("the nightly runs the cold-start smoke on an Android matrix and keeps screenshots of each leg", () => {
   const { jobs } = jobsOf(read("chat-mobile-verify.yml"));
   const matrix = jobs.get("android-matrix") ?? "";
-  const legs = [...matrix.matchAll(/- \{ api: (\d+), target: \w+, ram: (\d+), label: [\w-]+ \}/g)].map((m) => ({ api: Number(m[1]), ram: Number(m[2]) }));
+  const legs = [...matrix.matchAll(/- \{ api: (\d+), target: \w+, ram: (\d+), label: [\w-]+(?:, perf: ([\w-]+))? \}/g)].map((m) => ({
+    api: Number(m[1]),
+    ram: Number(m[2]),
+    perf: m[3],
+  }));
   assert.ok(legs.some((l) => l.api === 24), "React Native's minSdk 24");
   assert.ok(legs.some((l) => l.api >= 35 && l.ram <= 2048), "a 2 GB device on the newest API");
+  // Audit perf-budgets-unmeasured: the low-end leg is timed and held to its own ceilings.
+  assert.equal(legs.find((l) => l.ram <= 2048)?.perf, "android-2gb", "the 2 GB leg is measured");
+  assert.match(matrix, /mobile-perf\.mjs startup --package com\.uniworkos\.chat --mark first-screen --runs 5/);
+  assert.match(matrix, /mobile-perf\.mjs check --profile "\$\{\{ matrix\.perf \}\}"/);
+  assert.match(jobs.get("android-matrix-build") ?? "", /^\s+UNICHAT_PERF_MARKS: "1"$/m, "the matrix APK logs its startup marks");
   assert.ok(legs.length >= 4);
   assert.match(matrix, /fail-fast: false/, "one red leg does not hide the others");
   assert.match(matrix, /maestro-retry\.sh test flows\/smoke-launch\.yaml\n\s+adb exec-out screencap -p > /);

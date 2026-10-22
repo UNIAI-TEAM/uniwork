@@ -386,9 +386,10 @@ jobs:
           script: |
             adb install "${{ runner.temp }}/apk/app-release.apk"
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
-            node scripts/mobile-perf.mjs apk "${{ runner.temp }}/apk/app-release.apk" --out "${{ runner.temp }}/perf-apk.json"
-            node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 5 --out "${{ runner.temp }}/perf-startup.json"
-            node scripts/mobile-perf.mjs check "${{ runner.temp }}/perf-apk.json" "${{ runner.temp }}/perf-startup.json"
+            mkdir -p "${{ runner.temp }}/perf"
+            node scripts/mobile-perf.mjs apk "${{ runner.temp }}/apk/app-release.apk" --out "${{ runner.temp }}/perf/apk.json"
+            node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 5 --out "${{ runner.temp }}/perf/startup.json"
+            node scripts/mobile-perf.mjs check "${{ runner.temp }}/perf/apk.json" "${{ runner.temp }}/perf/startup.json"
             adb shell settings put system font_scale 2.0
             adb shell cmd uimode night yes
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/a11y-large-text-dark.yaml
@@ -398,6 +399,14 @@ jobs:
             adb install -r -t "${{ runner.temp }}"/androidtest/*.apk
             adb shell am instrument -w expo.modules.unichatcalls.test/androidx.test.runner.AndroidJUnitRunner | tee "${{ runner.temp }}/instrument.txt"
             grep -q '^OK (' "${{ runner.temp }}/instrument.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          # One run's numbers: `mobile-perf.mjs tighten` reads five of these (runbook).
+          name: unichat-perf-android
+          path: ${{ runner.temp }}/perf/*.json
+          if-no-files-found: ignore
+          retention-days: 90
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -422,6 +431,8 @@ jobs:
       UNICHAT_API_URL: https://api.example.invalid
       UNICHAT_APP_URL: https://app.example.invalid
       SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      # The startup marks the cold-start timing reads (data/perf/marks-file.ts); outside the fingerprint, never in a store build.
+      UNICHAT_PERF_MARKS: "1"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -474,6 +485,22 @@ jobs:
       - name: Cold start reaches sign-in on the simulator
         working-directory: apps/chat-mobile/maestro
         run: ${{ github.workspace }}/scripts/maestro-retry.sh --device "$UDID" test flows/smoke-launch.yaml
+      # Audit perf-budgets-unmeasured: iOS had no startup number at all. Five cold starts of the same binary, timed
+      # to the bundle's first line and to the sign-in screen, held to perf-budget.json › ios-simulator.
+      - name: Cold start timing on the simulator
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/perf"
+          node scripts/mobile-perf.mjs ios-startup --udid "$UDID" --bundle com.uniworkos.chat --mark first-screen --runs 5 --out "$RUNNER_TEMP/perf/ios-startup.json"
+          node scripts/mobile-perf.mjs check --profile ios-simulator "$RUNNER_TEMP/perf/ios-startup.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          # One run's numbers: `mobile-perf.mjs tighten` reads five of these (runbook).
+          name: unichat-perf-ios-simulator
+          path: ${{ runner.temp }}/perf/*.json
+          if-no-files-found: ignore
+          retention-days: 90
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

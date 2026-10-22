@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { METRICS, check, launchToMark, median, parseAmStart, parseEpochLine, parseGfxinfo, parseMeminfo, table } from "./mobile-perf.mjs";
+import { METRICS, PROFILES, budgetOf, check, launchToMark, marksSince, median, parseAmStart, parseEpochLine, parseGfxinfo, parseMark, parseMeminfo, table, tighten } from "./mobile-perf.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 
@@ -84,8 +84,65 @@ test("holds only what was measured against its ceiling", () => {
   assert.match(md, /\| cold start to first frame, Android's TotalTime \(ms\) \| 1500 \| 3000 \| 50% left \|/);
 });
 
-test("perf-budget.json has a ceiling for every metric, and nothing else", () => {
+test("a mark's line names it, with its own time when the build says it", () => {
+  assert.deepEqual(parseMark("UniChatPerf mark=js-boot at=1729584000420"), { name: "js-boot", at: 1729584000420 });
+  assert.deepEqual(parseMark("UniChatPerf mark=first-screen"), { name: "first-screen", at: null });
+  assert.equal(parseMark("Running \"main\""), null);
+});
+
+test("a mark that carries its time is timed by it, not by when it was logged", () => {
+  // js-boot is logged once boot turns the marks on, after the moment it names.
+  const log = [
+    "1729584000.000  500  520 I ActivityTaskManager: START u0 {cmp=com.uniworkos.chat/.MainActivity} from uid 2000",
+    "1729584001.300 4321 4400 I ReactNativeJS: UniChatPerf mark=js-boot at=1729584000650",
+    "1729584001.900 4321 4400 I ReactNativeJS: UniChatPerf mark=first-screen at=1729584001880",
+  ].join("\n");
+  assert.equal(launchToMark(log, "com.uniworkos.chat", "js-boot"), 650);
+  assert.equal(launchToMark(log, "com.uniworkos.chat", "first-screen"), 1880);
+});
+
+test("reads the iOS marks file against the host's launch time, ignoring an earlier launch's marks", () => {
+  const file = ["UniChatPerf mark=js-boot at=900", "UniChatPerf mark=js-boot at=1400", "UniChatPerf mark=first-screen at=2600", "noise"].join("\n");
+  assert.deepEqual(marksSince(file, 1000), { "js-boot": 400, "first-screen": 1600 });
+  assert.deepEqual(marksSince("", 1000), {});
+});
+
+test("tightens each ceiling to the worst of five runs + 15 %, never upward, and keeps one with too few runs", () => {
+  const runs = [
+    { coldStartTtidMs: 1000, coldStartFirstScreenMs: 2000, apkMB: 60.1 },
+    { coldStartTtidMs: 1100, coldStartFirstScreenMs: 2100, apkMB: 60.1 },
+    { coldStartTtidMs: 1200, coldStartFirstScreenMs: 2050, apkMB: 60.2 },
+    { coldStartTtidMs: 1050, coldStartFirstScreenMs: 2200, apkMB: 60.2 },
+    { coldStartTtidMs: 1150, coldStartFirstScreenMs: 2000 },
+  ];
+  const { rows, next, complete } = tighten(runs, { coldStartTtidMs: 3000, coldStartFirstScreenMs: 2400, apkMB: 90 });
+  assert.equal(next.coldStartTtidMs, 1380, "1200 × 1.15");
+  assert.equal(next.coldStartFirstScreenMs, 2400, "2200 × 1.15 = 2530 is above the ceiling: kept");
+  assert.equal(next.apkMB, 90, "four runs measured the APK: kept");
+  assert.equal(complete, false);
+  assert.deepEqual(rows.find((r) => r.key === "apkMB"), { key: "apkMB", runs: 4, from: 90, to: 90, worst: null });
+  // Tenths for MB and percent, rounded up.
+  const mb = tighten(Array.from({ length: 5 }, () => ({ apkMB: 60.04, scrollJankyPercent: 4.01 })), { apkMB: 90, scrollJankyPercent: 30 });
+  assert.deepEqual(mb.next, { apkMB: 69.1, scrollJankyPercent: 4.7 });
+  assert.equal(mb.complete, true);
+});
+
+test("a profile the budget does not have is an error, not a run with no ceiling", () => {
+  assert.throws(() => budgetOf({ android: {} }, "android-1gb"), /no profile "android-1gb"/);
+  assert.throws(() => budgetOf({ android: {} }, "ios-simulator"), /no profile "ios-simulator"/);
+  assert.deepEqual(budgetOf({ android: { apkMB: 1 } }, "android"), { apkMB: 1 });
+});
+
+test("perf-budget.json: android has a ceiling for every metric, the other profiles a subset, and nothing else", () => {
   const budget = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/perf-budget.json"), "utf8"));
-  assert.deepEqual(Object.keys(budget.android).sort(), METRICS.map(([key]) => key).sort());
-  for (const [key, value] of Object.entries(budget.android)) assert.ok(typeof value === "number" && value > 0, `${key} is a positive number`);
+  const keys = METRICS.map(([key]) => key);
+  assert.deepEqual(Object.keys(budget.android).sort(), [...keys].sort());
+  assert.deepEqual(Object.keys(budget).filter((k) => k !== "_" && k !== "provisional").sort(), [...PROFILES].sort());
+  for (const profile of PROFILES) {
+    for (const [key, value] of Object.entries(budget[profile])) {
+      assert.ok(keys.includes(key), `${profile}.${key} is a metric`);
+      assert.ok(typeof value === "number" && value > 0, `${profile}.${key} is a positive number`);
+    }
+  }
+  for (const p of budget.provisional) assert.ok(PROFILES.includes(p), `provisional names a profile: ${p}`);
 });

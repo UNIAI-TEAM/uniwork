@@ -4,6 +4,7 @@
 // a breadcrumb, so a report carries the steps that led to it. `error` with an
 // Error also reports it (data/report.ts decides whether it is worth a report).
 // Messages are reason codes and ids; data/report.ts redacts what slips in.
+import { JS_BOOT_AT } from "./perf/boot-clock";
 import { breadcrumb, reportError, type ReportLevel } from "./report";
 
 type Data = Record<string, unknown>;
@@ -73,18 +74,34 @@ export function argsLogger(scope: string): ArgsLogger {
 
 // Startup marks for on-device measurement (scripts/mobile-perf.mjs): only a build made with
 // UNICHAT_PERF_MARKS=1 logs them, to the device log (logcat's ReactNativeJS tag), where CI reads each mark's
-// time against the launch's. Each mark once per process: a mark is a moment of this start, not an event.
+// time against the launch's. Each mark once per process: a mark is a moment of this start, not an event. A
+// line carries the mark's own time (`at=`, epoch ms): js-boot is logged once marks are on, after the moment
+// it names. iOS's release log drops console.info, so boot passes a sink that keeps them in a file there.
 let perfMarks = false;
+let perfSink: ((text: string) => void) | null = null;
 const marked = new Set<string>();
+const markLines: string[] = [];
 
-/** Boot (data/boot.ts): whether this build logs its startup marks. */
-export function enablePerfMarks(on: boolean): void {
+function logMark(name: string, at: number): void {
+  if (marked.has(name)) return;
+  marked.add(name);
+  const line = `UniChatPerf mark=${name} at=${at}`;
+  markLines.push(line);
+  console.info(line);
+  perfSink?.(markLines.join("\n"));
+}
+
+/**
+ * Boot (data/boot.ts): whether this build logs its startup marks, and where else they go. Turning them on
+ * logs "js-boot", the moment the bundle started (data/perf/boot-clock.ts).
+ */
+export function enablePerfMarks(on: boolean, sink?: (text: string) => void): void {
   perfMarks = on;
+  perfSink = on ? (sink ?? null) : null;
+  if (on) logMark("js-boot", JS_BOOT_AT);
 }
 
 /** The first time this process reaches `name` ("first-screen", "inbox"), in a build that measures itself. */
 export function perfMark(name: string): void {
-  if (!perfMarks || marked.has(name)) return;
-  marked.add(name);
-  console.info(`UniChatPerf mark=${name}`);
+  if (perfMarks) logMark(name, Date.now());
 }

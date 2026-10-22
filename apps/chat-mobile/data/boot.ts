@@ -11,6 +11,7 @@ import { appEnvironment, perfMarksOn, runtimeFromExtra, sentryDsn } from "@/lib/
 import { api } from "./api";
 import { buildInfo } from "./build-info";
 import { enablePerfMarks } from "./logger";
+import { writePerfMarks } from "./perf/marks-file";
 import { initSentry } from "./sentry";
 
 let booted = false;
@@ -20,7 +21,8 @@ export function bootRuntime(): void {
   booted = true;
   const extra = Constants.expoConfig?.extra;
   initSentry({ dsn: sentryDsn(extra), environment: appEnvironment(extra), info: buildInfo() });
-  enablePerfMarks(perfMarksOn(extra));
+  // A measured build (UNICHAT_PERF_MARKS=1) also keeps its marks in a file: iOS's release log has no room for them.
+  enablePerfMarks(perfMarksOn(extra), writePerfMarks);
   configureRuntime(runtimeFromExtra(extra));
   api.setClientIdentity(clientHeaders(buildInfo()));
 }

@@ -101,13 +101,22 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   mốc `first-screen` (màn đầu vẽ xong dưới splash vừa nhấc). Nightly Android (`chat-mobile-verify.yml`, tài khoản
   staging): 5 lần mở lạnh tới mốc `inbox` (danh sách phòng đã vẽ, đã đăng nhập), rồi `perf-open-room.yaml` mở
   `MAESTRO_ROOM_ID`, reset `dumpsys gfxinfo`, `perf-scroll-room.yaml` cuộn lùi 20 lần rồi xuống lại; đo % khung giật,
-  khung p90 và PSS. Mốc là một dòng `UniChatPerf mark=<tên>` trong logcat (`ReactNativeJS`), chỉ bản build với
+  khung p90 và PSS. Mỗi lần mở lạnh còn đo tới mốc `js-boot` (dòng đầu của bundle, `data/perf/boot-clock.ts`): trước
+  nó là phần native, sau nó là đồ thị module JS và boot. Chặng 2 GB của `android-matrix` (nightly) đo 5 lần mở lạnh
+  tới `first-screen` theo profile `android-2gb`; `ios-release` (mỗi PR chạm iOS) đo 5 lần mở lạnh bản Release trên
+  simulator theo profile `ios-simulator` (`simctl launch`, mốc đọc từ tệp `Documents/unichat-perf-marks.txt` của app —
+  log release của iOS bỏ `console.info`; `data/perf/marks-file.ts`). Mốc là một dòng `UniChatPerf mark=<tên> at=<ms>`
+  trong logcat (`ReactNativeJS`), chỉ bản build với
   `UNICHAT_PERF_MARKS=1` mới ghi (`data/logger.ts › perfMark`; `extra` nằm ngoài fingerprint) — không bản store hay OTA
   nào đặt nó (`scripts/mobile-workflows.test.mjs`). Emulator không có GPU: số khung để so giữa các bản, không phải lời
-  hứa về một điện thoại; cảm nhận trên máy thật là việc của Sentry (mục Kiểm tra 8).
-  Trần đặt 2026-10-22 là **tạm**: chưa run nào đo app này, nên chúng chỉ bắt hồi quy thô. Sau 5 run xanh đầu tiên của
-  mỗi job, đặt mỗi trần = số tệ nhất trong 5 run + 15 % trong một commit trích các run; từ đó trần chỉ hạ, và chỉ nâng
-  trong commit thêm sức nặng, ghi lý do. Phòng `MAESTRO_ROOM_ID` cần ≥ 500 tin để lần cuộn tải nhiều trang: gieo một lần
+  hứa về một điện thoại; cảm nhận trên máy thật là việc của Sentry (mục Kiểm tra 8, kèm profile Hermes ở 5 % phiên).
+  Trần đặt 2026-10-22 là **tạm** (profile nằm trong `provisional` của `perf-budget.json`, summary ghi "provisional
+  ceilings"): chưa run nào đo app này, nên chúng chỉ bắt hồi quy thô. Mỗi job tải số của run lên artifact
+  `unichat-perf-android` (PR), `unichat-perf-android-nightly`, `unichat-perf-android-2gb`, `unichat-perf-ios-simulator`
+  (giữ 90 ngày). Sau 5 run xanh của một job: `gh run download <run> -n <artifact> -D runs/<run>` cho từng run, rồi
+  `node scripts/mobile-perf.mjs tighten --profile <android|android-2gb|ios-simulator> runs/*/*.json` in đề xuất và
+  `--write` ghi: mỗi trần = số tệ nhất + 15 %, không bao giờ cao hơn trần cũ, profile rời `provisional` khi mọi chỉ số
+  có đủ 5 run. Commit đó trích URL các run; từ đó trần chỉ hạ, và chỉ nâng trong commit thêm sức nặng, ghi lý do. Phòng `MAESTRO_ROOM_ID` cần ≥ 500 tin để lần cuộn tải nhiều trang: gieo một lần
   bằng một access token của tài khoản thử (`TOKEN`), id workspace (`WS_ID`) và URL API staging (`API`):
   `for i in $(seq 1 500); do curl -fsS -X POST "$API/api/v1/workspaces/$WS_ID/chat/rooms/$MAESTRO_ROOM_ID/messages"
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json'
@@ -671,7 +680,9 @@ lại — nhạc chuông, màn toàn màn hình, push khi app bị kill, OEM. Ch
 8. Hiệu năng (khi bản build có `SENTRY_DSN`): Sentry › Performance, lọc release đó. Transaction `app.start.cold`/
    `app.start.warm` cho thời gian mở app; mỗi màn là một transaction điều hướng với `ui.load.initial_display` (TTID) và,
    ở tab Chat và một phòng, `ui.load.full_display` (TTFD: danh sách phòng / trang tin mới nhất đã vẽ); khung chậm/đơ và
-   JS stall nằm trong measurements của chúng. Mẫu 10 % phiên production, mọi phiên dev/staging. So sánh TTFD p75 giữa
+   JS stall nằm trong measurements của chúng. Mẫu 10 % phiên production, mọi phiên dev/staging; một nửa phiên được mẫu
+   ở production (5 % tổng) và mọi phiên dev/staging mang profile Hermes (`profilesSampleRate`): mở transaction chậm →
+   tab Profile cho stack đã tiêu thời gian trên luồng JS (tên hàm và thời gian, không nội dung). So sánh TTFD p75 giữa
    hai release trước khi mở rộng rollout. Alert hiệu năng của Sentry (thiết lập một lần, khi có dự án Sentry —
    Alerts › Create › Performance/Metric, môi trường `production`, mỗi release): `app.start.cold` p75 > 3 s trong 1 giờ;
    TTFD (`ui.load.full_display`) p75 của transaction tab Chat > 2,5 s và của phòng > 2 s; tỷ lệ khung đơ

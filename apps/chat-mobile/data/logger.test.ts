@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { argsLogger, createLogger, enablePerfMarks, perfMark } from "./logger";
+import { JS_BOOT_AT } from "./perf/boot-clock";
 import { installReportSink, type ReportSink } from "./report";
 
 const sink = {
@@ -90,14 +91,33 @@ describe("argsLogger", () => {
 });
 
 describe("perfMark", () => {
-  it("logs each startup mark once, and only in a build that measures itself", () => {
+  it("logs each startup mark once with its time, js-boot first, and only in a build that measures itself", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_729_584_001_900);
     perfMark("first-screen");
     expect(console.info).not.toHaveBeenCalled();
-    enablePerfMarks(true);
+    const sink = vi.fn();
+    enablePerfMarks(true, sink);
     perfMark("first-screen");
     perfMark("first-screen");
     perfMark("inbox");
-    expect(vi.mocked(console.info).mock.calls).toEqual([["UniChatPerf mark=first-screen"], ["UniChatPerf mark=inbox"]]);
+    // js-boot is the moment the bundle started (data/perf/boot-clock.ts), logged when the marks turn on.
+    expect(vi.mocked(console.info).mock.calls).toEqual([
+      [`UniChatPerf mark=js-boot at=${JS_BOOT_AT}`],
+      ["UniChatPerf mark=first-screen at=1729584001900"],
+      ["UniChatPerf mark=inbox at=1729584001900"],
+    ]);
+    // The sink gets every mark so far, each time: a file rewritten whole (data/perf/marks-file.ts).
+    expect(sink).toHaveBeenCalledTimes(3);
+    expect(sink).toHaveBeenLastCalledWith(
+      [`UniChatPerf mark=js-boot at=${JS_BOOT_AT}`, "UniChatPerf mark=first-screen at=1729584001900", "UniChatPerf mark=inbox at=1729584001900"].join("\n"),
+    );
+    // Off again: no mark, no sink; on without a sink still logs.
+    enablePerfMarks(false, sink);
+    perfMark("settings");
+    enablePerfMarks(true);
+    perfMark("settings");
+    expect(sink).toHaveBeenCalledTimes(3);
+    expect(console.info).toHaveBeenLastCalledWith("UniChatPerf mark=settings at=1729584001900");
     enablePerfMarks(false);
   });
 });
