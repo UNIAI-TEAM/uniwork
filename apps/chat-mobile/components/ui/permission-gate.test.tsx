@@ -7,6 +7,7 @@ import { getCameraPermissionsAsync, requestCameraPermissionsAsync } from "expo-i
 import * as Notifications from "expo-notifications";
 import { Linking } from "react-native";
 import { answerPrimer, usePrimerStore } from "@/data/stores/permission-primer-store";
+import { systemUiOpen } from "@/data/system-ui";
 import { ensureCallPermissions, permissionGate } from "./permission-gate";
 
 jest.mock("expo-image-picker", () => ({
@@ -38,7 +39,11 @@ describe("permissionGate on the expo permission modules", () => {
 
   it("explains first, then asks the system only after Continue", async () => {
     jest.mocked(getRecordingPermissionsAsync).mockResolvedValueOnce(status(false) as never);
-    jest.mocked(requestRecordingPermissionsAsync).mockResolvedValueOnce(status(true) as never);
+    jest.mocked(requestRecordingPermissionsAsync).mockImplementationOnce(async () => {
+      // The system prompt is a screen the app waits on: no critical update reloads under it.
+      expect(systemUiOpen()).toBe(true);
+      return status(true) as never;
+    });
     const granted = permissionGate.ensure("microphone", "voice");
     await settle();
     expect(usePrimerStore.getState().request).toEqual({ kind: "microphone", reason: "voice", step: "prime" });
@@ -46,6 +51,7 @@ describe("permissionGate on the expo permission modules", () => {
     answerPrimer(true);
     await expect(granted).resolves.toBe(true);
     expect(requestRecordingPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(systemUiOpen()).toBe(false);
   });
 
   it("keeps the system prompt for later on Not now", async () => {

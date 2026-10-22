@@ -6,6 +6,7 @@ import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 import { secureSessionStorage } from "../secure-storage";
+import { whileSystemUiOpen } from "../system-ui";
 import { MobileSession, deviceLabel, type MobileSessionConfig } from "./session";
 import { createTransport } from "./transport";
 
@@ -28,9 +29,10 @@ export function resolveAuthConfig(expoConfig: ExpoConfigLike | null, os: string)
   };
 }
 
-/** the callback URL the consent page redirected to, or null when the person dismissed the sheet */
+/** the callback URL the consent page redirected to, or null when the person dismissed the sheet; while the sheet
+ *  is up nothing reloads the app under it (data/system-ui.ts) */
 export async function openAuthBrowser(authorizationUrl: string, redirectUri: string): Promise<string | null> {
-  const result = await WebBrowser.openAuthSessionAsync(authorizationUrl, redirectUri);
+  const result = await whileSystemUiOpen(() => WebBrowser.openAuthSessionAsync(authorizationUrl, redirectUri));
   return result.type === "success" ? result.url : null;
 }
 

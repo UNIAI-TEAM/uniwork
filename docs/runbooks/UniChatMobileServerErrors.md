@@ -36,7 +36,7 @@
 - Lỗi do bản OTA: dừng nó. Đang rollout dở thì `eas update:revert-update-rollout --group <group>`; đã 100 % thì phát lại
   bản trước (`eas update:republish --group <group trước> --private-key-path <khoá>`) hoặc
   `eas update:roll-back-to-embedded --channel production` — runbook `unichat-mobile-release.md` › Khắc phục. Bản sửa
-  phát lại với `critical` để máy áp dụng ngay khi vào nền.
+  phát lại với `critical` để máy áp dụng sau một phút ở nền (hay lúc quay lại sau ≥ 10 phút).
 - Lỗi do bản store: halt staged rollout ("UniChat mobile promote" › `halt`), sửa bằng OTA nếu chỉ là JS; nếu không,
   bản store mới. Bản cũ hỏng hẳn: `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION` buộc cập nhật — chỉ khi bản mới đã có trên store.
 - Lỗi do server vừa deploy: rollback server (runbook `ApiErrorRateHigh` › Khắc phục), rồi sửa server để nhận cả hai

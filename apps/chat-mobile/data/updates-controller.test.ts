@@ -28,7 +28,17 @@ vi.mock("./report", async (original) => ({
   breadcrumb: (_category: string, message: string, _level: string, data?: Record<string, unknown>) => crumbs.push({ message, data }),
 }));
 
-import { CHECK_INTERVAL_MS, FIRST_CHECK_DELAY_MS, createUpdatesController, isCriticalManifest, startUpdatesController, type UpdatesControllerDeps } from "./updates-controller";
+import {
+  APPLY_AFTER_AWAY_MS,
+  APPLY_ON_RETURN_MS,
+  CHECK_INTERVAL_MS,
+  FIRST_CHECK_DELAY_MS,
+  createUpdatesController,
+  isCriticalManifest,
+  startUpdatesController,
+  type UpdatesController,
+  type UpdatesControllerDeps,
+} from "./updates-controller";
 
 const criticalManifest = { extra: { expoClient: { extra: { criticalUpdate: true } } } };
 
@@ -40,6 +50,8 @@ function harness(overrides: Partial<UpdatesControllerDeps> = {}) {
     fetch: vi.fn(async () => ({ isNew: true, manifest: criticalManifest })),
     reload: vi.fn(async () => undefined),
     callActive: vi.fn(() => false),
+    systemUiOpen: vi.fn(() => false),
+    inBackground: vi.fn(() => true),
     now: () => now,
     ...overrides,
   };
@@ -48,6 +60,13 @@ function harness(overrides: Partial<UpdatesControllerDeps> = {}) {
 }
 
 beforeEach(() => void crumbs.splice(0));
+afterEach(() => void vi.useRealTimers());
+
+/** A trip to the background long enough for a critical update to be applied there. */
+async function away(controller: UpdatesController) {
+  await controller.onBackground();
+  await vi.advanceTimersByTimeAsync(APPLY_AFTER_AWAY_MS);
+}
 
 describe("isCriticalManifest", () => {
   it("reads extra.expoClient.extra.criticalUpdate, and nothing else", () => {
@@ -99,42 +118,95 @@ describe("createUpdatesController", () => {
     expect(check).toHaveBeenCalledTimes(1);
   });
 
-  it("applies a critical update when the app goes to the background, once", async () => {
+  it("applies a critical update once the app has stayed in the background a minute, once", async () => {
+    vi.useFakeTimers();
     const { deps, controller, advance } = harness();
-    await controller.onBackground();
+    await away(controller);
     expect(deps.reload).not.toHaveBeenCalled();
     advance(FIRST_CHECK_DELAY_MS);
     await controller.onActive();
     expect(crumbs.at(-1)).toEqual({ message: "update downloaded", data: { critical: true, isNew: true } });
     expect(deps.reload).not.toHaveBeenCalled();
     await controller.onBackground();
+    await vi.advanceTimersByTimeAsync(APPLY_AFTER_AWAY_MS - 1);
+    expect(deps.reload).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
     expect(deps.reload).toHaveBeenCalledTimes(1);
     expect(crumbs.at(-1)?.message).toBe("applying critical update");
-    await controller.onBackground();
+    await away(controller);
     expect(deps.reload).toHaveBeenCalledTimes(1);
   });
 
+  it("never reloads on a quick trip out: the sign-in tab, a picker or a permission prompt the app opened", async () => {
+    vi.useFakeTimers();
+    const { deps, controller, advance } = harness();
+    advance(FIRST_CHECK_DELAY_MS);
+    await controller.onActive();
+    // Back from the Custom Tab or the picker within the minute: nothing happens.
+    await controller.onBackground();
+    await controller.onBackground();
+    await vi.advanceTimersByTimeAsync(APPLY_AFTER_AWAY_MS - 1_000);
+    advance(APPLY_AFTER_AWAY_MS - 1_000);
+    await controller.onActive();
+    await vi.advanceTimersByTimeAsync(APPLY_AFTER_AWAY_MS);
+    expect(deps.reload).not.toHaveBeenCalled();
+    // A system screen the app waits on is still up after the minute (a long sign-in): it waits for the next trip.
+    deps.systemUiOpen.mockReturnValue(true);
+    await away(controller);
+    expect(deps.reload).not.toHaveBeenCalled();
+    expect(crumbs.at(-1)?.message).toBe("critical update waits for the system screen");
+    deps.systemUiOpen.mockReturnValue(false);
+    await controller.onActive();
+    await away(controller);
+    expect(deps.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies on the return from a long absence when the OS froze it in the background, not after a short one", async () => {
+    vi.useFakeTimers();
+    const inBackground = vi.fn(() => false);
+    const { deps, controller, advance } = harness({ inBackground });
+    advance(FIRST_CHECK_DELAY_MS);
+    await controller.onActive();
+    // iOS froze JS: the timer fires late, on the way back, and leaves it to onActive.
+    await away(controller);
+    advance(APPLY_ON_RETURN_MS - 1);
+    await controller.onActive();
+    expect(deps.reload).not.toHaveBeenCalled();
+    await away(controller);
+    advance(APPLY_ON_RETURN_MS);
+    await controller.onActive();
+    expect(deps.reload).toHaveBeenCalledTimes(1);
+    expect(deps.check).toHaveBeenCalledTimes(1);
+  });
+
   it("never reloads under a call: the update waits for the next trip to the background", async () => {
+    vi.useFakeTimers();
     const callActive = vi.fn(() => true);
     const { deps, controller, advance } = harness({ callActive });
     advance(FIRST_CHECK_DELAY_MS);
     await controller.onActive();
-    await controller.onBackground();
+    await away(controller);
     expect(deps.reload).not.toHaveBeenCalled();
     expect(crumbs.at(-1)?.message).toBe("critical update waits for the call");
+    // A long absence under a call: the return does not reload either, and the usual check goes on.
+    advance(APPLY_ON_RETURN_MS + CHECK_INTERVAL_MS);
+    await controller.onActive();
+    expect(deps.reload).not.toHaveBeenCalled();
+    expect(deps.check).toHaveBeenCalledTimes(2);
     callActive.mockReturnValue(false);
-    await controller.onBackground();
+    await away(controller);
     expect(deps.reload).toHaveBeenCalledTimes(1);
   });
 
   it("leaves a plain update for the next cold start, and reads the check's manifest when the fetch has none", async () => {
+    vi.useFakeTimers();
     const { deps, controller, advance } = harness({
       check: vi.fn(async () => ({ isAvailable: true, manifest: { extra: {} } })),
       fetch: vi.fn(async () => ({ isNew: false })),
     });
     advance(FIRST_CHECK_DELAY_MS);
     await controller.onActive();
-    await controller.onBackground();
+    await away(controller);
     expect(deps.reload).not.toHaveBeenCalled();
     expect(crumbs.at(-1)).toEqual({ message: "update downloaded", data: { critical: false, isNew: false } });
   });
@@ -143,14 +215,16 @@ describe("createUpdatesController", () => {
     ["the check", { isAvailable: false, isRollBackToEmbedded: true }, { isNew: false }],
     ["the fetch", { isAvailable: true }, { isNew: true, isRollBackToEmbedded: true }],
   ])("treats a roll-back-to-embedded directive from %s as critical", async (_where, found, fetched) => {
+    vi.useFakeTimers();
     const { deps, controller, advance } = harness({ check: vi.fn(async () => found), fetch: vi.fn(async () => fetched) });
     advance(FIRST_CHECK_DELAY_MS);
     await controller.onActive();
-    await controller.onBackground();
+    await away(controller);
     expect(deps.reload).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a failed check or reload to a breadcrumb", async () => {
+    vi.useFakeTimers();
     const { controller, advance } = harness({ check: vi.fn(async () => Promise.reject(new Error("Network request failed"))) });
     advance(FIRST_CHECK_DELAY_MS);
     await controller.onActive();
@@ -159,7 +233,7 @@ describe("createUpdatesController", () => {
     const failing = harness({ reload: vi.fn(async () => Promise.reject("busy")) });
     failing.advance(FIRST_CHECK_DELAY_MS);
     await failing.controller.onActive();
-    await failing.controller.onBackground();
+    await away(failing.controller);
     expect(crumbs.at(-1)).toEqual({ message: "critical update reload failed", data: { reason: "busy" } });
   });
 });
@@ -179,19 +253,26 @@ describe("startUpdatesController", () => {
     vi.clearAllMocks();
   });
 
-  it("checks a minute after launch while open, and applies a critical update in the background unless a call is on", async () => {
+  it("checks a minute after launch while open, and applies a critical update a minute into the background unless a call is on", async () => {
     const stop = startUpdatesController();
     await vi.advanceTimersByTimeAsync(FIRST_CHECK_DELAY_MS);
     expect(updates.checkForUpdateAsync).toHaveBeenCalledTimes(1);
     call.status = "active";
+    appState.currentState = "background";
+    appState.listener?.("background");
+    await vi.advanceTimersByTimeAsync(APPLY_AFTER_AWAY_MS);
+    expect(updates.reloadAsync).not.toHaveBeenCalled();
+    call.status = "ended";
+    appState.currentState = "active";
+    appState.listener?.("active");
+    appState.listener?.("inactive");
+    appState.currentState = "background";
     appState.listener?.("background");
     await vi.advanceTimersByTimeAsync(0);
     expect(updates.reloadAsync).not.toHaveBeenCalled();
-    call.status = "ended";
-    appState.listener?.("inactive");
-    appState.listener?.("background");
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(APPLY_AFTER_AWAY_MS);
     expect(updates.reloadAsync).toHaveBeenCalledTimes(1);
+    appState.currentState = "active";
     vi.setSystemTime(Date.now() + CHECK_INTERVAL_MS);
     appState.listener?.("active");
     await vi.advanceTimersByTimeAsync(0);

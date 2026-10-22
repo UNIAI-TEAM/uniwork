@@ -334,8 +334,10 @@ bản OTA với bản store mới nhất trên kênh, khác thì **warning** (th
 Sentry. Job summary ghi runtime, group (thứ `eas update:edit` và lệnh revert nhận) và id bản Android của OTA. App tải
 bản mới lúc mở; ngoài ra khi quay lại foreground (một phút sau lúc mở, rồi tối đa 30 phút một lần,
 `data/updates-controller.ts`) app hỏi lại và tải. Bản thường áp dụng ở lần mở lạnh sau. **Bản `critical`** (và lệnh
-`eas update:roll-back-to-embedded`) được áp dụng ngay lần kế tiếp app vào nền mà không có cuộc gọi nào đang reo hay
-đang nói — không bao giờ trước mặt người dùng; dùng cho bản sửa crash hay lỗi dữ liệu, không cho bản thường (mỗi lần
+`eas update:roll-back-to-embedded`) được áp dụng khi app đã ở nền liên tục một phút (Android), hay lúc người dùng quay
+lại sau ≥ 10 phút vắng (iOS đóng băng app ở nền), khi không có cuộc gọi nào đang reo hay đang nói và không có màn hệ thống
+app đang chờ (đăng nhập Google/UniWork, chọn ảnh/tệp, hộp xin quyền) — không bao giờ lúc người dùng vừa rời app một
+chút; dùng cho bản sửa crash hay lỗi dữ liệu, không cho bản thường (mỗi lần
 áp dụng là một lần app khởi động lại khi người dùng quay lại). Breadcrumb `updates` trong Sentry ghi lúc tải và lúc áp
 dụng. Mỗi máy chạy một bản OTA báo về Sentry dưới release riêng `<bundle id>@<version>+<build>.ota.<id bản Android>`
 (bản nhúng trong binary vẫn là `<bundle id>@<version>+<build>`), nên crash-free sessions được tính cho từng bản OTA,

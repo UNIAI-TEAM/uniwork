@@ -9,6 +9,7 @@ import { Linking } from "react-native";
 import { createPermissionGate, type PermissionKind, type PermissionState } from "@/data/permissions";
 import { openDeviceStore } from "@/data/storage/device-store";
 import { presentPrimer } from "@/data/stores/permission-primer-store";
+import { whileSystemUiOpen } from "@/data/system-ui";
 
 type Ask = () => Promise<PermissionState>;
 
@@ -27,7 +28,7 @@ const REQUEST: Record<PermissionKind, Ask> = {
 const state = ({ granted, canAskAgain }: PermissionState): PermissionState => ({ granted, canAskAgain });
 
 export const permissionGate = createPermissionGate({
-  api: { read: async (kind) => state(await READ[kind]()), request: async (kind) => state(await REQUEST[kind]()) },
+  api: { read: async (kind) => state(await READ[kind]()), request: async (kind) => state(await whileSystemUiOpen(REQUEST[kind])) },
   present: presentPrimer,
   openSettings: () => Linking.openSettings(),
   openStore: openDeviceStore,

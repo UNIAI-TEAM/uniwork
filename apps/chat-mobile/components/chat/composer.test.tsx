@@ -7,6 +7,7 @@ import type { ChatMentionCandidate } from "@/lib/mentions";
 import { render, viText } from "@/test/render";
 import { Composer } from "./composer";
 import { useVoiceRecorder } from "./use-voice-recorder";
+import { systemUiOpen } from "@/data/system-ui";
 
 jest.mock("./use-voice-recorder", () => ({ VOICE_MAX_MS: 120_000, useVoiceRecorder: jest.fn() }));
 jest.mock("expo-image-picker", () => ({
@@ -226,7 +227,11 @@ describe("Composer", () => {
     const p = props();
     const pick = jest.mocked(ImagePicker.launchImageLibraryAsync);
     const asset = { uri: "file:///p.jpg", fileName: "p.jpg", mimeType: "image/jpeg", fileSize: 1_000, width: 1, height: 1 };
-    pick.mockResolvedValueOnce({ canceled: false, assets: [asset] } as never);
+    pick.mockImplementationOnce(async () => {
+      // The picker is a system screen the app waits on: no critical update reloads under it.
+      expect(systemUiOpen()).toBe(true);
+      return { canceled: false, assets: [asset] } as never;
+    });
     await render(<Composer {...p} />);
     const photo = async () => {
       await fireEvent.press(screen.getByRole("button", { name: viText("chat.composer_attach") }));
@@ -234,6 +239,7 @@ describe("Composer", () => {
     };
     await photo();
     expect(p.onSendFile).toHaveBeenCalledWith({ uri: "file:///p.jpg", name: "p.jpg", mimeType: "image/jpeg", size: 1_000 });
+    expect(systemUiOpen()).toBe(false);
 
     pick.mockResolvedValueOnce({ canceled: false, assets: [{ ...asset, fileName: "virus.exe", mimeType: "application/x-msdownload" }] } as never);
     await photo();

@@ -46,6 +46,7 @@ import { useDraftPersistence } from "./use-drafts";
 import { useVoiceRecorder, VOICE_MAX_MS, type VoiceClip } from "./use-voice-recorder";
 import { VoiceWave } from "./voice-wave";
 import { toast } from "@/data/stores/toast-store";
+import { whileSystemUiOpen } from "@/data/system-ui";
 
 const TYPING_DEBOUNCE_MS = 600;
 
@@ -185,12 +186,15 @@ export function Composer(props: Props) {
   };
 
   const pickPhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.85,
-      // A HEIC original is not on the server's list; ask iOS for a JPEG.
-      preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
-    });
+    // A system screen the app waits on: no critical update reloads under it (data/system-ui.ts).
+    const result = await whileSystemUiOpen(() =>
+      ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.85,
+        // A HEIC original is not on the server's list; ask iOS for a JPEG.
+        preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+      }),
+    );
     const asset = result.canceled ? null : result.assets[0];
     if (!asset) return;
     const name = asset.fileName || `photo-${Date.now()}.jpg`;
@@ -199,7 +203,7 @@ export function Composer(props: Props) {
   };
 
   const pickFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({ type: CHAT_FILE_PICKER_TYPES, copyToCacheDirectory: true });
+    const result = await whileSystemUiOpen(() => DocumentPicker.getDocumentAsync({ type: CHAT_FILE_PICKER_TYPES, copyToCacheDirectory: true }));
     const asset = result.canceled ? null : result.assets[0];
     if (!asset) return;
     // Android's provider may know no type or size and hands JS null for either, not a missing key.

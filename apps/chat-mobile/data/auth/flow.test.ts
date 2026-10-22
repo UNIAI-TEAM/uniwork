@@ -14,6 +14,7 @@ vi.mock("expo-constants", () => ({
 }));
 vi.mock("react-native", () => ({ Platform: { OS: "android" } }));
 
+import { systemUiOpen } from "../system-ui";
 import { authConfig, openAuthBrowser, resolveAuthConfig, session } from "./flow";
 import { MobileSession } from "./session";
 
@@ -46,7 +47,11 @@ describe("auth flow composition", () => {
   });
 
   it("hands the authorization URL and redirect to the system auth session and returns the callback URL or null", async () => {
-    browser.openAuthSessionAsync.mockResolvedValueOnce({ type: "success", url: "uniworkchat-dev://auth/callback?code=c&state=s" });
+    browser.openAuthSessionAsync.mockImplementationOnce(async () => {
+      // The sheet is a system screen the app waits on: no critical update reloads under it.
+      expect(systemUiOpen()).toBe(true);
+      return { type: "success", url: "uniworkchat-dev://auth/callback?code=c&state=s" };
+    });
     expect(await openAuthBrowser("https://uniwork.example/authorize", "uniworkchat-dev://auth/callback")).toBe(
       "uniworkchat-dev://auth/callback?code=c&state=s",
     );
@@ -56,5 +61,6 @@ describe("auth flow composition", () => {
     );
     browser.openAuthSessionAsync.mockResolvedValueOnce({ type: "dismiss" });
     expect(await openAuthBrowser("https://uniwork.example/authorize", "uniworkchat-dev://auth/callback")).toBeNull();
+    expect(systemUiOpen()).toBe(false);
   });
 });

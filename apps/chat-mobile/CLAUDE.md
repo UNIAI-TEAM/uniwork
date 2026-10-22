@@ -799,7 +799,11 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   **đỏ** trừ khi tick `allow_missing_crash_reporting`. Input `critical` đặt `UNICHAT_CRITICAL_UPDATE=1` →
   `extra.criticalUpdate` trong manifest (ngoài fingerprint): `data/updates-controller.ts` (khởi ở `app/_layout.tsx`)
   hỏi lại EAS khi quay lại foreground (một phút sau lúc mở, rồi ≥ 30 phút một lần), tải, và chỉ bản critical hay lệnh
-  roll-back-to-embedded mới được áp dụng — lúc app vào nền, không có cuộc gọi; còn lại chờ lần mở lạnh sau. Không phát OTA từ laptop
+  roll-back-to-embedded mới được áp dụng — khi app đã ở nền liên tục `APPLY_AFTER_AWAY_MS` (1 phút; Android cho JS chạy
+  ở nền), hay lúc quay lại sau ≥ `APPLY_ON_RETURN_MS` (10 phút; iOS đóng băng JS nên hẹn giờ không chạy), không có
+  cuộc gọi và không có màn hệ thống mà app đang chờ (`data/system-ui.ts › whileSystemUiOpen`: trang đăng nhập, chọn
+  ảnh/tệp, hộp xin quyền — Android đưa app vào nền khi chúng mở, nên chuyến ra ngắn không bao giờ reload); còn lại chờ
+  lần mở lạnh sau. Màn hệ thống mới mà app chờ kết quả thì bọc bằng `whileSystemUiOpen`. Không phát OTA từ laptop
   trừ khi CI hỏng (runbook).
   `scripts/mobile-workflows.test.mjs` giữ các lời hứa của các workflow mobile (verify
   trước EAS, chỉ Android, phiên bản ghim, nightly đỏ khi thiếu cấu hình, OTA
