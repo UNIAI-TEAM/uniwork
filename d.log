@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+da02be7189233a9311e81c1938ea0e54fde8b311
+da02be718 chore: merge the fixed G5-G7 root 3e15fbefb into the UNI-2084 lane
+3e15fbefb test(scripts): exempt the three develop (ci) commits from the history check
+ed27dca38 chore: merge the develop-sync fix (develop 59253aa47) into the G5-G7 root
+ba1140463 test(chat): give the auth-loading skeleton a QueryClient
