@@ -757,13 +757,15 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 		},
 		audit.ActionChatReportCreated: func(t *testing.T, f *auditFixture) {
-			w := f.build(t)
+			f.addMember(t)
+			w := f.workspace
 			if _, err := f.chat.ReportChat(f.ctx, f.owner.ID, w.ID, ReportChatInput{UserID: f.member.ID, Reason: "spam"}); err != nil {
 				t.Fatal(err)
 			}
 		},
 		audit.ActionChatReportResolved: func(t *testing.T, f *auditFixture) {
-			w := f.build(t)
+			f.addMember(t)
+			w := f.workspace
 			report, err := f.chat.ReportChat(f.ctx, f.owner.ID, w.ID, ReportChatInput{UserID: f.member.ID, Reason: "harassment"})
 			if err != nil {
 				t.Fatal(err)

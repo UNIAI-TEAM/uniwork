@@ -267,7 +267,9 @@ func TestAdminStatusLeavesAClosedOrganizationArchived(t *testing.T) {
 // organization commit together, and a report is closed only once.
 func TestAdminChatReportQueue(t *testing.T) {
 	f := newAuditFixture(t)
-	w := f.build(t)
+	// The person reported must belong to the organization (ReportChat answers 404 otherwise).
+	f.addMember(t)
+	w := f.workspace
 	ctx := context.Background()
 	report, err := f.chat.ReportChat(ctx, f.owner.ID, w.ID, ReportChatInput{UserID: f.member.ID, Reason: "harassment", Details: "private words of the reporter"})
 	if err != nil {
