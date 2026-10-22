@@ -34,7 +34,8 @@ func (f *fixture) notificationOf(t *testing.T, push outbox.Row) db.Notification 
 
 // Spec M3 §2: a call rings the callee's phone through a push "X đang gọi"
 // that lives 60 seconds, opens the call, and is not held back by presence: an
-// open desktop still rings, the phone is the background path.
+// open desktop still rings, the phone is the background path. A subscribed
+// browser gets the same push (UNI-1965), so a closed page still rings.
 func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 	f := newFixture(t)
 	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
@@ -44,7 +45,7 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
-	// A browser too: it rings in-app through realtime, so the call push is the phone's only.
+	// A browser too: UNI-1965 delivers the call push to subscribed browsers whose page is closed.
 	f.subscribe(t, f.member.ID, "https://push.example/member-browser")
 	now := time.Now()
 	spy := &spySender{}
@@ -82,11 +83,15 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 		Tag:   "chat_call:" + dm.ID,
 		TTL:   60,
 	}
-	if len(spy.sent) != 1 || spy.sent[0] != want || spy.endpoints[0] != "ExponentPushToken[member]" {
-		t.Fatalf("sent = %+v to %v, want %+v to the phone only", spy.sent, spy.endpoints, want)
+	if len(spy.sent) != 2 || spy.sent[0] != want || spy.sent[1] != want {
+		t.Fatalf("sent = %+v, want %+v to the phone and the browser", spy.sent, want)
+	}
+	gotEndpoints := map[string]bool{spy.endpoints[0]: true, spy.endpoints[1]: true}
+	if !gotEndpoints["ExponentPushToken[member]"] || !gotEndpoints["https://push.example/member-browser"] {
+		t.Fatalf("sent to %v, want the phone and the browser", spy.endpoints)
 	}
 	if n := f.notificationOf(t, f.lastEvent(t, TopicPush)); !n.PushedAt.Valid {
-		t.Fatalf("a call push the browser did not get left the row pending: %+v", n)
+		t.Fatalf("a delivered call push left the row pending: %+v", n)
 	}
 
 	// Answered on another device before the notify lane ran: nothing more.
@@ -121,7 +126,7 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 	if err := pc.Handle(f.ctx, ended); err != nil {
 		t.Fatal(err)
 	}
-	if len(spy.sent) != 1 {
+	if len(spy.sent) != 2 {
 		t.Fatalf("a call that ended was pushed: %+v", spy.sent)
 	}
 	if n := f.notificationOf(t, ended); !n.ReadAt.Valid {
@@ -162,7 +167,7 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 	if err := pc.Handle(f.ctx, raced); err != nil {
 		t.Fatal(err)
 	}
-	if len(spy.sent) != 1 || !f.notificationOf(t, raced).ReadAt.Valid {
+	if len(spy.sent) != 2 || !f.notificationOf(t, raced).ReadAt.Valid {
 		t.Fatalf("a ring answered before the push lane was pushed or left open: %+v", spy.sent)
 	}
 	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-push-race"); err != nil {
@@ -179,7 +184,7 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 	if err := pc.Handle(f.ctx, behind); err != nil {
 		t.Fatal(err)
 	}
-	if len(spy.sent) != 1 || !f.notificationOf(t, behind).ReadAt.Valid {
+	if len(spy.sent) != 2 || !f.notificationOf(t, behind).ReadAt.Valid {
 		t.Fatalf("a ring past its window was pushed or left open: %+v", spy.sent)
 	}
 	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-push-5"); err != nil {
