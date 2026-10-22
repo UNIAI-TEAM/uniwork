@@ -1,7 +1,7 @@
 #!/usr/bin/env groovy
 
 /**
- * UniWork production-app: build develop → Harbor push → human approve →
+ * UniWork production-app: build main → Harbor push → human approve →
  * Helm digest rollout on reap-eng-prod-k8s.
  *
  * Images: uniwork-be, uniwork-fe, uniwork-office-engine (always).
@@ -26,8 +26,8 @@ pipeline {
   parameters {
     string(
       name: 'BRANCH',
-      defaultValue: 'develop',
-      description: 'Must be develop for production-app'
+      defaultValue: 'main',
+      description: 'Must be main for production-app'
     )
     booleanParam(
       name: 'DEPLOY',
@@ -86,8 +86,8 @@ pipeline {
         stage('Guard') {
           steps {
             script {
-              if (params.BRANCH != 'develop') {
-                error("production-app refuses BRANCH=${params.BRANCH}; use develop")
+              if (params.BRANCH != 'main') {
+                error("production-app refuses BRANCH=${params.BRANCH}; use main")
               }
             }
           }
@@ -219,7 +219,7 @@ pipeline {
         expression { return params.DEPLOY }
       }
       steps {
-        input message: 'Deploy develop images (be + fe + office-engine) to reap-eng-prod-k8s?', ok: 'Deploy'
+        input message: 'Deploy main images (be + fe + office-engine) to reap-eng-prod-k8s?', ok: 'Deploy'
       }
     }
 

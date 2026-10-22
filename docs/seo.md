@@ -46,6 +46,28 @@ www must be configured separately before that redirect can receive traffic.
 Verify host forwarding at the deployed edge: the application must see the public
 host, not an internal service hostname.
 
+## Search Console exclusions (22 October 2026)
+
+`/login` and `/register` are account forms, intentionally excluded from the
+public catalog and sitemap with both robots metadata and an X-Robots-Tag
+`noindex, nofollow`. Their appearance under "Excluded by noindex" is expected;
+do not remove that policy to make the report reach zero exclusions.
+
+`/learn/office-files-and-ai` is different: the production response was HTTP 200,
+`index, follow`, with a self canonical and sitemap entry. Search Console's
+"Crawled - currently not indexed" does not identify a noindex implementation
+error or prove a particular content-quality cause. The guide now adds a worked
+DOCX/AI review and practical opening/saving/AI troubleshooting in English and
+Vietnamese. The Office product page links directly to its localized guide;
+the existing guide-directory and return links remain. Copy keeps web and desktop
+capabilities distinct, with no new compatibility or automated-sharing promises.
+
+After deploying these changes, inspect the article's live URL and rendered HTML
+in Search Console. A recrawl request can be made for the updated article; do not
+request removal of the intended account-form exclusions. Google decides whether
+and when to index the article. Passing application checks is not evidence that
+Google has indexed it or that real crawler IPs bypass a production WAF.
+
 ## Rendering and loading
 
 Public copy is rendered in the initial HTML. A request-scoped i18n instance gets

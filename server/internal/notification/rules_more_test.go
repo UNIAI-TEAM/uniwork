@@ -209,3 +209,70 @@ func TestRuleChatFollowUpCreated(t *testing.T) {
 		t.Fatalf("live message url = %q err=%v", u, err)
 	}
 }
+
+func TestFollowUpNotificationClosesWhenDoneOrDeleted(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+		Name: "follow-up", Visibility: "public", MemberUserIDs: []string{f.member.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg1, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{Body: "một"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fu1, err := chat.CreateFollowUp(f.ctx, f.owner.ID, f.wsID, msg1.ID, "nhớ", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.follow_up.created")
+	got := f.inbox(t, f.owner.ID)
+	if len(got) != 1 || got[0].ReadAt.Valid {
+		t.Fatalf("follow-up inbox unread = %+v", got)
+	}
+	if len(f.inbox(t, f.member.ID)) != 0 {
+		t.Fatal("member should not receive the owner's follow-up row")
+	}
+	if _, err := chat.CompleteFollowUp(f.ctx, f.owner.ID, f.wsID, fu1.ID); err != nil {
+		t.Fatal(err)
+	}
+	got = f.inbox(t, f.owner.ID)
+	if len(got) != 1 || !got[0].ReadAt.Valid {
+		t.Fatalf("after complete: %+v", got)
+	}
+
+	msg2, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{Body: "hai"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fu2, err := chat.CreateFollowUp(f.ctx, f.owner.ID, f.wsID, msg2.ID, "xóa", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.follow_up.created")
+	got = f.inbox(t, f.owner.ID)
+	if len(got) != 2 || got[0].ReadAt.Valid {
+		t.Fatalf("second follow-up unread = %+v", got)
+	}
+	if err := chat.DeleteFollowUp(f.ctx, f.owner.ID, f.wsID, fu2.ID); err != nil {
+		t.Fatal(err)
+	}
+	got = f.inbox(t, f.owner.ID)
+	if len(got) != 2 || !got[0].ReadAt.Valid {
+		t.Fatalf("after delete: %+v", got)
+	}
+	since := time.Now().Add(-24 * time.Hour)
+	undigested, err := f.q.ListUndigestedNotifications(f.ctx, db.ListUndigestedNotificationsParams{
+		UserID: f.owner.ID, CreatedAt: pgtype.Timestamptz{Time: since, Valid: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range undigested {
+		if row.Kind == KindChatFollowUp && !row.ReadAt.Valid {
+			t.Fatalf("undigested follow-up = %+v", row)
+		}
+	}
+}
