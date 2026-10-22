@@ -1389,6 +1389,14 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDocumentOwnersBulkTransferred: func(t *testing.T, f *auditFixture) {
+			svc, _ := f.document(t)
+			f.addMember(t)
+			bulk := NewOrganizationMemberDocumentService(f.orgMem, svc)
+			if _, err := bulk.TransferMemberDocuments(f.ctx, Human(f.owner.ID), f.orgID, f.owner.ID, MemberDocumentsTransferInput{ToUserID: f.member.ID}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentEditRequestAnswered: func(t *testing.T, f *auditFixture) {
 			svc, docID, req := f.documentEditRequest(t)
 			if _, err := svc.AnswerDocumentEditRequest(f.ctx, Human(f.owner.ID), docID, req.Request.ID, AnswerDocumentEditRequestInput{Decision: "decline", LockID: req.Request.LockID}); err != nil {
@@ -2052,6 +2060,7 @@ func auditActions() []string {
 		audit.ActionDocumentAccessRequestDeclined,
 		audit.ActionDocumentAccessRequestCancelled,
 		audit.ActionDocumentOwnerTransferred,
+		audit.ActionDocumentOwnersBulkTransferred,
 		audit.ActionDocumentVersionCreated,
 		audit.ActionDocumentVersionRestored,
 		audit.ActionDocumentCommitIntentRenewed,
