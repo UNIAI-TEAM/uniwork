@@ -28,7 +28,7 @@ beforeEach(() => {
     if (path.startsWith("/api/v1/ai/conversations/") && init?.method) return Promise.resolve({ ...conversations[0], title: "Mới" });
     return Promise.resolve({});
   });
-  useAiPanelStore.setState({ open: true, conversationId: "c1", workspaceId: "ws1", fullPage: false });
+  useAiPanelStore.setState({ open: true, conversationId: "c1", workspaceId: "ws1" });
 });
 
 function mount() {
@@ -47,16 +47,11 @@ async function openHistory() {
 }
 
 describe("AskUniHeader", () => {
-  it("offers no full-page button on a phone", async () => {
-    const width = window.innerWidth;
-    window.innerWidth = 500;
-    try {
-      mount();
-      await screen.findByRole("button", { name: "Lịch sử hội thoại: Task quá hạn" });
-      await waitFor(() => expect(screen.queryByRole("button", { name: "Mở rộng toàn trang" })).toBeNull());
-    } finally {
-      window.innerWidth = width;
-    }
+  it("has no full-page button", async () => {
+    mount();
+    await screen.findByRole("button", { name: "Lịch sử hội thoại: Task quá hạn" });
+    expect(screen.queryByRole("button", { name: "Mở rộng toàn trang" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Thu về thanh bên" })).toBeNull();
   });
 
   it("sends one rename for a double Enter", async () => {
@@ -88,14 +83,10 @@ describe("AskUniHeader", () => {
     expect(useAiPanelStore.getState().conversationId).toBe("c2");
   });
 
-  it("starts a new conversation, toggles full page and closes", async () => {
+  it("starts a new conversation, and closes", async () => {
     mount();
     fireEvent.click(await screen.findByRole("button", { name: "Hội thoại mới" }));
     expect(useAiPanelStore.getState().conversationId).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Mở rộng toàn trang" }));
-    expect(useAiPanelStore.getState().fullPage).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Thu về thanh bên" }));
-    expect(useAiPanelStore.getState().fullPage).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
     expect(useAiPanelStore.getState().open).toBe(false);
   });

@@ -34,7 +34,7 @@ beforeEach(() => {
     if (init?.method) return Promise.resolve({ ...conversations[0], title: "Mới" });
     return Promise.resolve({});
   });
-  useAiPanelStore.setState({ open: true, conversationId: "c1", workspaceId: "ws1", fullPage: false });
+  useAiPanelStore.setState({ open: true, conversationId: "c1", workspaceId: "ws1" });
 });
 
 async function open() {

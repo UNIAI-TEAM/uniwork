@@ -27,7 +27,7 @@ beforeEach(() => {
     if (path === "/api/v1/workspaces/ws1/ai/conversations") return Promise.resolve({ conversations: [] });
     return Promise.resolve({});
   });
-  useAiPanelStore.setState({ open: false, conversationId: null, workspaceId: null, fullPage: false });
+  useAiPanelStore.setState({ open: false, conversationId: null, workspaceId: null });
 });
 
 afterEach(() => {
@@ -60,15 +60,13 @@ describe("AskUniDock", () => {
     expect(screen.getByRole("separator", { name: "Đổi độ rộng Hỏi UNI" })).toBeInTheDocument();
   });
 
-  it("hides the content panel in full page and keeps it mounted", async () => {
+  it("ignores a stale fullPage flag: content stays visible and the handle shows", async () => {
     window.innerWidth = 1280;
-    useAiPanelStore.setState({ open: true, fullPage: true });
+    useAiPanelStore.setState({ open: true, fullPage: true } as never);
     mount();
     await screen.findByRole("complementary", { name: "Hỏi UNI" });
-    expect(screen.getByText("trang chính")).toBeInTheDocument();
-    expect(screen.getByText("trang chính")).not.toBeVisible();
-    useAiPanelStore.getState().setFullPage(false);
-    await waitFor(() => expect(screen.getByText("trang chính")).toBeVisible());
+    expect(screen.getByText("trang chính")).toBeVisible();
+    expect(screen.getByRole("separator", { name: "Đổi độ rộng Hỏi UNI" })).toBeInTheDocument();
   });
 
   it("opens a full-screen sheet on mobile", async () => {

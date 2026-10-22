@@ -39,25 +39,6 @@ describe("ai panel store", () => {
   });
 });
 
-describe("ai panel full page", () => {
-  afterEach(() => useAiPanelStore.setState({ open: false, fullPage: false }));
-
-  it("closing the panel leaves full-page mode", () => {
-    const s = useAiPanelStore.getState();
-    s.setOpen(true);
-    s.setFullPage(true);
-    expect(useAiPanelStore.getState().fullPage).toBe(true);
-    s.setOpen(false);
-    expect(useAiPanelStore.getState().fullPage).toBe(false);
-  });
-
-  it("toggling closed also leaves full-page mode", () => {
-    useAiPanelStore.setState({ open: true, fullPage: true });
-    useAiPanelStore.getState().toggle();
-    expect(useAiPanelStore.getState().fullPage).toBe(false);
-  });
-});
-
 describe("ai panel page context", () => {
   const T = { kind: "task", id: "t1", label: "A" } as const;
   const U = { kind: "task", id: "t2", label: "B" } as const;

@@ -5804,8 +5804,6 @@
     "history_current": "Current",
     "history_group": { "today": "Today", "yesterday": "Yesterday", "week": "Last 7 days", "older": "Older" },
     "rename_conversation": "Rename conversation",
-    "full_page": "Expand to full page",
-    "exit_full_page": "Back to the sidebar",
     "delete_conversation": "Delete conversation",
     "sources": "Sources",
     "you": "You",

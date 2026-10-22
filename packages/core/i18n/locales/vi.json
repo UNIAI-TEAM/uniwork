@@ -5800,8 +5800,6 @@
     "history_current": "Hiện tại",
     "history_group": { "today": "Hôm nay", "yesterday": "Hôm qua", "week": "7 ngày qua", "older": "Cũ hơn" },
     "rename_conversation": "Đổi tên hội thoại",
-    "full_page": "Mở rộng toàn trang",
-    "exit_full_page": "Thu về thanh bên",
     "delete_conversation": "Xóa hội thoại",
     "sources": "Nguồn",
     "you": "Bạn",

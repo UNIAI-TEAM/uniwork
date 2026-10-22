@@ -50,7 +50,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.clearAllMocks();
-  useAiPanelStore.setState({ open: false, conversationId: null, pendingFocus: null, workspaceId: null, fullPage: false });
+  useAiPanelStore.setState({ open: false, conversationId: null, pendingFocus: null, workspaceId: null });
   localStorage.clear();
 });
 
