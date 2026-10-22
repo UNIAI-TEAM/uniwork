@@ -102,7 +102,10 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
 - Dịch vụ khởi lúc boot: `data/app-startup.ts`; nối nền tảng ở composition root (`app/_layout.tsx`,
   `app/(app)/_layout.tsx`).
 - Gói native: `pnpm --filter @uniwork/chat-mobile exec expo install <pkg>`; đổi native thì bump `version` (runtime
-  theo fingerprint).
+  theo fingerprint). iOS không link `@expo/ui`, `@expo/dom-webview`, `expo-symbols` (`expo.autolinking.ios.exclude`
+  trong `package.json`): app không gọi chúng trên iOS mà chúng tốn chừng 1,6 s đăng ký native trước khi bundle chạy
+  (đo trên simulator CI); dùng `@expo/ui`, một SF Symbol (`expo-symbols`) hay component DOM trên iOS thì gỡ tên đó
+  khỏi danh sách trước (`native-modules.test.ts`).
 
 ## Lệnh
 

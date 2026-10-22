@@ -25,6 +25,13 @@
         "buildFromSource": [
           "expo-notifications"
         ]
+      },
+      "ios": {
+        "exclude": [
+          "@expo/ui",
+          "@expo/dom-webview",
+          "expo-symbols"
+        ]
       }
     }
   },

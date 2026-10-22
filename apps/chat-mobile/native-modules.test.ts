@@ -169,6 +169,44 @@ describe("native build wiring", () => {
     expect(gradle).toContain("project(':expo-notifications')");
     expect(pkg.expo?.autolinking?.android?.buildFromSource).toContain("expo-notifications");
   });
+
+  // ExpoModulesCore registers every linked module before the bundle runs, one after another; on the CI
+  // simulator @expo/ui alone (about 70 SwiftUI views) cost 1.4-1.8 s of that, for modules the iOS app
+  // never calls. A platform-level exclude replaces a top-level one, and Android needs @expo/ui (the
+  // expo-router toolbar), so the list lives under `ios` only and names nothing the iOS bundle holds.
+  describe("iOS autolinking exclusions", () => {
+    interface Autolinking {
+      exclude?: string[];
+      android?: { exclude?: string[] };
+      ios?: { exclude?: string[] };
+    }
+    const autolinking = (JSON.parse(read("package.json")) as { expo?: { autolinking?: Autolinking } }).expo?.autolinking;
+    const iosExclude = autolinking?.ios?.exclude ?? [];
+
+    it("excludes on iOS only, never at the top level or on Android", () => {
+      expect(autolinking?.exclude).toBeUndefined();
+      expect(autolinking?.android?.exclude).toBeUndefined();
+      expect(iosExclude).toEqual(expect.arrayContaining(["@expo/ui", "@expo/dom-webview", "expo-symbols"]));
+    });
+
+    it("excludes no package the iOS bundle imports", () => {
+      const composition = JSON.parse(read("bundle-composition.json")) as { ios: { name: string }[] };
+      const bundled = composition.ios.map((entry) => entry.name);
+      expect(bundled.length).toBeGreaterThan(0);
+      expect(iosExclude.filter((name) => bundled.includes(name))).toEqual([]);
+    });
+
+    it("autolinking for apple drops the excluded modules and keeps the router's", { timeout: 60_000 }, () => {
+      const out = execFileSync("npx", ["expo-modules-autolinking", "resolve", "-p", "apple", "--json"], {
+        cwd: appRoot,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      const linked = (JSON.parse(out) as { modules: { packageName: string }[] }).modules.map((module) => module.packageName);
+      expect(linked.filter((name) => iosExclude.includes(name))).toEqual([]);
+      expect(linked).toEqual(expect.arrayContaining(["expo-router", "expo-glass-effect"]));
+    });
+  });
 });
 
 // lintVitalRelease cannot see that UniChatMessagingService is a Service (firebase-messaging is only
