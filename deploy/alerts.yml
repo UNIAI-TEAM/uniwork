@@ -339,3 +339,24 @@ groups:
           summary: "p75 LCP vượt 2,5 giây"
           description: "p75 Largest Contentful Paint đo từ trình duyệt người dùng (RUM) vượt 2,5 giây liên tục 30 phút (hiện {{ $value | humanizeDuration }})."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/WebVitalsLCPPoor.md
+
+  - name: uniwork-app-builds
+    rules:
+      # One store version or one OTA of UniChat mobile gets far more 5xx than the rest: a release that breaks a server
+      # contract, or a server change that breaks a release still in the field. The series carry the build
+      # (uniwork_http_client_requests_total, labels bounded by internal/metrics/http.go); 0.05 req/s keeps a build with
+      # a handful of phones from paging on two errors.
+      - alert: UniChatMobileServerErrors
+        expr: |
+          (
+            sum by (client_version, client_update) (rate(uniwork_http_client_requests_total{platform="mobile",status_class="5xx"}[15m]))
+              / sum by (client_version, client_update) (rate(uniwork_http_client_requests_total{platform="mobile"}[15m]))
+          ) > 0.05
+          and sum by (client_version, client_update) (rate(uniwork_http_client_requests_total{platform="mobile"}[15m])) > 0.05
+        for: 10m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Một bản UniChat mobile nhận 5xx trên 5% request"
+          description: "Bản {{ $labels.client_version }} (OTA {{ $labels.client_update }}) nhận 5xx trên {{ $value | humanizePercentage }} request của nó suốt 10 phút."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatMobileServerErrors.md

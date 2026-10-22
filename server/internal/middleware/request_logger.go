@@ -167,6 +167,9 @@ func RequestLogger(next http.Handler) http.Handler {
 				attrs = append(attrs, "client_os", os)
 			}
 		}
+		if update := ClientUpdateIDFromContext(r.Context()); update != "" {
+			attrs = append(attrs, "client_update_id", update)
+		}
 
 		switch {
 		case status >= 500:
