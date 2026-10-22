@@ -4,7 +4,10 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { JOBS, verdict } from "./mobile-verify-gate.mjs";
 
-const scope = (mobile, native, result = "success", ios = native) => ({ result, outputs: { mobile: String(mobile), native: String(native), ios: String(ios) } });
+const scope = (mobile, native, result = "success", ios = native, e2e = native) => ({
+  result,
+  outputs: { mobile: String(mobile), native: String(native), ios: String(ios), e2e: String(e2e) },
+});
 const all = (result) => Object.fromEntries(Object.keys(JOBS).filter((job) => job !== "scope").map((job) => [job, { result, outputs: {} }]));
 
 test("a change outside the app passes with every check skipped", () => {
@@ -39,6 +42,20 @@ test("an Android-only caller needs the Android builds and not the iOS one", () =
   // A caller that ships iOS gets it required.
   assert.equal(verdict({ scope: scope(true, true, "success", true), ...all("success"), "ios-release": { result: "skipped" } }).ok, false);
   assert.equal(verdict({ scope: scope(false, false, "success", true), ...all("success"), checks: { result: "skipped" } }).ok, false, "ios implies mobile");
+});
+
+// Review P2: a change to the signed-in flows, the seed or the server code they go through needs android-e2e without
+// needing the native release builds.
+test("an e2e-only change needs the signed-in flows and nothing native", () => {
+  const needs = { scope: scope(false, false, "success", false, true), ...all("skipped"), "android-e2e": { result: "success" } };
+  assert.equal(verdict(needs).ok, true);
+  for (const result of ["failure", "cancelled", "skipped"]) {
+    assert.equal(verdict({ ...needs, "android-e2e": { result } }).ok, false, `android-e2e ${result}`);
+  }
+  assert.equal(JOBS["android-e2e"], "e2e");
+  // A scope job from before the e2e output still needs the flows for a native change.
+  const old = { result: "success", outputs: { mobile: "true", native: "true", ios: "true" } };
+  assert.equal(verdict({ scope: old, ...all("success"), "android-e2e": { result: "skipped" } }).ok, false);
 });
 
 test("a scope job that failed, or a job the gate does not know, fails the gate", () => {

@@ -25,7 +25,7 @@ Bản audit mobile 2026-10-22 (chiều "Kiểm thử & quality gates", 5.5/10) t
    bằng API của GitHub (chỉ admin chạy, CI không chạy). `scripts/branch-protection.test.mjs` giữ để mỗi tên là một job
    có thật, chạy ở mọi PR vào hai nhánh, không bị path filter, không phải matrix.
 2. Mobile có đúng một check bắt buộc: job `gate` (`UniChat mobile gate`) của `mobile-verify.yml`, chạy `if: always()`
-   sau mọi job khác và đỏ khi một job mà thay đổi cần (theo output `mobile`/`native` của `scope`) không `success`
+   sau mọi job khác và đỏ khi một job mà thay đổi cần (theo output `mobile`/`native`/`e2e`/`ios` của `scope`) không `success`
    (`scripts/mobile-verify-gate.mjs`).
 3. `mobile-verify.yml` chạy ở mọi PR, không path filter; job `scope` quyết phần việc. `mobile=true` khi thay đổi chạm
    `MOBILE_PATHS` của `scripts/mobile-native-scope.mjs`, gồm cả hợp đồng phía server mà test của app đọc

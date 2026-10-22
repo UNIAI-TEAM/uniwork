@@ -36,7 +36,9 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
 - `mobile-verify.yml` chạy ở **mọi** PR vào `main`/`develop` (không path filter: job `gate` là check bắt buộc), push
   thì theo `MOBILE_PATHS` của `scripts/mobile-native-scope.mjs`. Job `scope` quyết `mobile` (thay đổi chạm app, thứ app
   import, đồ thị cài đặt, bốn workflow mobile, runbook này, và hợp đồng phía server mà test app đọc:
-  `docs/events/CATALOGUE.md`, `server/internal/handler/dto/sdo/**`) và `native`. Job `gate` (`UniChat mobile gate`)
+  `docs/events/CATALOGUE.md`, `server/internal/handler/dto/sdo/**`), `native` và `e2e` (khi `native`, hoặc khi thay đổi
+  chạm thứ các luồng đã đăng nhập chạy ngoài binary: ba flow, subflow và script Maestro, seed, code chat và đăng nhập
+  desktop của server, trang đồng ý của web). Job `gate` (`UniChat mobile gate`)
   chạy cuối dù các job khác ra sao và đỏ khi một job thay đổi cần mà không `success` — bị skip vì `scope` hỏng cũng đỏ
   (`scripts/mobile-verify-gate.mjs`; GitHub coi job skip là xanh nên không require từng job). Thêm job vào workflow thì
   thêm vào `JOBS` của script đó (`scripts/mobile-workflows.test.mjs` đỏ nếu quên). Với PR có `mobile`: job `mobile` (typecheck, lint, test vitest sàn
@@ -83,8 +85,10 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   socket) chạy ở mọi PR chạm binary trên server dựng trong job (mục dưới). Tài khoản thứ hai đăng nhập ngay trong
   flow (`maestro/scripts/peer-session.js`, `MAESTRO_CALLER_EMAIL` + `MAESTRO_CALLER_PASSWORD`): access token sống 15
   phút, nên không giữ token trong secret.
-- **Luồng đã đăng nhập trên PR** (`mobile-verify.yml` › `android-e2e`, audit "nightly-never-scheduled"; mỗi PR chạm
-  binary, trong `JOBS` của `scripts/mobile-verify-gate.mjs`). Job dựng cả hệ thống trong runner như job `e2e` của
+- **Luồng đã đăng nhập trên PR** (`mobile-verify.yml` › `android-e2e`, audit "nightly-never-scheduled"; mỗi PR có
+  output `e2e` của `scope` — chạm binary, hoặc chạm `chat-read-send`/`offline-send-relaunch`/`background-resume.yaml`,
+  `maestro/subflows/**`, `maestro/scripts/**`, `scripts/mobile-e2e-seed.mjs`, `server/internal/{handler,service}/chat*.go`,
+  route chat và auth, `desktop_auth.go`, trang `/auth/desktop` của web — trong `JOBS` của `scripts/mobile-verify-gate.mjs`). Job dựng cả hệ thống trong runner như job `e2e` của
   `ci.yml`: `postgres:16` và `redis:7` là service container, server Go (migrate rồi chạy, `APP_ENV=development`,
   `DEV_VERIFICATION_CODE=123456`, file vào đĩa local, `DESKTOP_AUTH_CLIENTS` nhận redirect `uniworkchat-dev://`), bản
   build Next production cho trang đăng nhập và đồng ý. `scripts/mobile-e2e-seed.mjs` tạo qua API (đúng đường onboarding

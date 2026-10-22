@@ -120,7 +120,9 @@ matrix theo profile `android-2gb`; nightly đo thêm mở lạnh tới `inbox` v
 `data/perf/marks-file.ts`, mỗi tên một lần mỗi tiến trình), chỉ bản build với
 `UNICHAT_PERF_MARKS=1` (`extra.perfMarks`) mới ghi; mốc mới thì thêm vào `scripts/mobile-perf.mjs`. Thêm gói làm bundle nặng hơn trần thì nâng trần cùng
 commit, ghi lý do; bundle nhỏ đi thì hạ trần. Không có script `build`.
-Cùng điều kiện native, `android-e2e` chạy các luồng đã đăng nhập trên một UniWork dựng ngay trong job (server Go trên
+Khi `native`, và cả khi PR chỉ chạm thứ các luồng đó chạy ngoài binary (chính các flow, subflow và script Maestro, seed,
+code chat và đăng nhập desktop của server, trang đồng ý của web: output `e2e` của `scripts/mobile-native-scope.mjs`),
+`android-e2e` chạy các luồng đã đăng nhập trên một UniWork dựng ngay trong job (server Go trên
 service container Postgres/Redis, bản build Next production cho trang đăng nhập), seed qua API bằng
 `scripts/mobile-e2e-seed.mjs`: đăng nhập qua trình duyệt hệ thống, đọc và gửi (`chat-read-send.yaml`), gửi offline sống
 qua kill (`offline-send-relaunch.yaml`), tin người khác viết lúc app ở nền (`background-resume.yaml`). APK là biến thể

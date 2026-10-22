@@ -7,7 +7,7 @@
 // A job GitHub skips reports success to branch protection, so requiring the
 // jobs themselves proves nothing: a scope job that crashed would skip the
 // native builds and the PR would merge green. The gate knows which jobs the
-// change needed (the scope job's mobile / native / ios outputs) and fails unless
+// change needed (the scope job's mobile / native / e2e / ios outputs) and fails unless
 // each of those succeeded; a job it did not need may only be skipped or pass.
 //
 //   NEEDS='${{ toJSON(needs) }}' node scripts/mobile-verify-gate.mjs
@@ -21,8 +21,9 @@ export const JOBS = {
   "doctor-bundle": "mobile",
   "android-release": "native",
   "android-smoke": "native",
-  // The signed-in flows on the hermetic server: whenever the binary is built.
-  "android-e2e": "native",
+  // The signed-in flows on the hermetic server: whenever the binary is built, and when
+  // the flows, their scripts, the seed or the server code they go through change.
+  "android-e2e": "e2e",
   // Its own output: the Android-only callers (the store release, the OTA update)
   // force the native build without iOS (mobile-verify.yml › inputs.ios).
   "ios-release": "ios",
@@ -40,6 +41,8 @@ export function verdict(needs) {
     native: scope?.outputs?.native === "true",
     ios: scope?.outputs?.ios === "true",
   };
+  // native implies e2e: the flows drive the binary that changed.
+  wanted.e2e = scope?.outputs?.e2e === "true" || wanted.native;
   const rows = Object.entries(JOBS).map(([job, when]) => {
     const result = needs[job]?.result ?? "missing";
     // native or ios implies mobile: a binary is never built for a change the checks skip.

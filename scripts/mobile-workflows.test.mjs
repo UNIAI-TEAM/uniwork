@@ -365,10 +365,12 @@ test("the gate needs every job, always runs, and each job runs exactly when the 
 // Audit "nightly-never-scheduled": no signed-in device flow gated a merge. android-e2e starts the stack itself, so a
 // PR proves sign-in, send/receive, the outbox across a kill and a second account's message after a background, with
 // nothing but what the workflow brings.
-test("every PR that reaches the binary runs the signed-in flows against a server it starts, reading no secret", () => {
+test("every PR that needs the signed-in flows runs them against a server it starts, reading no secret", () => {
   const { jobs } = jobsOf(read("mobile-verify.yml"));
   const job = jobs.get("android-e2e") ?? "";
-  assert.match(job, /^ {4}if: needs\.scope\.outputs\.native == 'true'$/m);
+  // Review P2: not only native: a change to the flows, the seed or the server code they go through needs them too.
+  assert.match(job, /^ {4}if: needs\.scope\.outputs\.e2e == 'true'$/m);
+  assert.match(jobs.get("scope") ?? "", /^ {6}e2e: \$\{\{ steps\.decide\.outputs\.e2e \}\}$/m, "the scope job outputs e2e");
   assert.match(job, /^ {6}postgres:$/m, "Postgres as a service container");
   assert.match(job, /^ {6}redis:$/m, "Redis as a service container");
   assert.doesNotMatch(job, /secrets\./, "a PR job reads no secret");
@@ -440,8 +442,8 @@ test("the scope job builds natively when the release calls it, even for a re-pus
   // A plain push with a known base defers to the diff, and iOS follows the native answer.
   assert.equal(decide({ EVENT: "push" }), "ios=false");
   // Review P2: the callers ship Android only, so a forced build leaves iOS out unless asked.
-  const android = "mobile=true\nnative=true\nios=false";
-  const all = "mobile=true\nnative=true\nios=true";
+  const android = "mobile=true\nnative=true\ne2e=true\nios=false";
+  const all = "mobile=true\nnative=true\ne2e=true\nios=true";
   assert.equal(decide({ EVENT: "push", FORCE_NATIVE: "true" }), android);
   assert.equal(decide({ EVENT: "push", FORCE_NATIVE: "true", WANT_IOS: "true" }), all);
   assert.equal(decide({ EVENT: "push", REF: "refs/tags/chat-mobile-v1.2.3" }), android);

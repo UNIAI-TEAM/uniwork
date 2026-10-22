@@ -8,7 +8,11 @@ name: Mobile Verify
 #
 #   scope           mobile=true when the change touches the app, what it
 #                   imports or a contract its tests read (event catalogue,
-#                   response SDOs); native=true when it reaches the binary
+#                   response SDOs); native=true when it reaches the binary;
+#                   e2e=true when native is, or when it touches what the
+#                   signed-in flows run besides the binary (the flows, their
+#                   subflow and scripts, the seed, the server's chat and
+#                   desktop sign-in code, the web's consent page)
 #   checks          typecheck, lint, the vitest unit suite (100% floor) and
 #                   the jest-expo component and route suites, knip, the native
 #                   module versions, ktlint over the local modules' Kotlin, the
@@ -38,8 +42,8 @@ name: Mobile Verify
 #                   apps/chat-mobile/perf-budget.json (scripts/mobile-perf.mjs);
 #                   then runs the calls module's instrumented test APK
 #                   (modules/unichat-calls/android/src/androidTest).
-#   android-e2e     the signed-in golden flows on every PR that reaches the
-#                   binary, against a hermetic UniWork started in the job (the
+#   android-e2e     the signed-in golden flows on every PR that needs them
+#                   (the scope's e2e output), against a hermetic UniWork started in the job (the
 #                   Go server on Postgres and Redis service containers, the
 #                   production web build for the sign-in pages), seeded through
 #                   the API (scripts/mobile-e2e-seed.mjs): sign in through the
@@ -163,6 +167,7 @@ jobs:
       mobile: ${{ steps.decide.outputs.mobile }}
       native: ${{ steps.decide.outputs.native }}
       ios: ${{ steps.decide.outputs.ios }}
+      e2e: ${{ steps.decide.outputs.e2e }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -188,7 +193,7 @@ jobs:
             # for iOS only when the caller ships iOS.
             ios=false
             if [ "$WANT_IOS" = "true" ]; then ios=true; fi
-            printf 'mobile=true\nnative=true\nios=%s\n' "$ios" | tee -a "$GITHUB_OUTPUT"
+            printf 'mobile=true\nnative=true\ne2e=true\nios=%s\n' "$ios" | tee -a "$GITHUB_OUTPUT"
           elif [ "$EVENT" = "pull_request" ]; then
             # iOS builds whenever Android does.
             node scripts/mobile-native-scope.mjs --base "$PR_BASE" --head "$GITHUB_SHA" | sed -n 's/^native=/ios=/p' | tee -a "$GITHUB_OUTPUT"
@@ -196,7 +201,7 @@ jobs:
             node scripts/mobile-native-scope.mjs --base "$PUSH_BEFORE" --head "$GITHUB_SHA" | sed -n 's/^native=/ios=/p' | tee -a "$GITHUB_OUTPUT"
           else
             # Dispatched, or a push with no known base: build both.
-            printf 'mobile=true\nnative=true\nios=true\n' | tee -a "$GITHUB_OUTPUT"
+            printf 'mobile=true\nnative=true\ne2e=true\nios=true\n' | tee -a "$GITHUB_OUTPUT"
           fi
 
   checks:
@@ -458,7 +463,9 @@ jobs:
     # as ci.yml's e2e job does for the web, so sending, receiving and the outbox block a merge.
     name: Android signed-in flows (hermetic server)
     needs: scope
-    if: needs.scope.outputs.native == 'true'
+    # The binary, the flows, their scripts, the seed or the server code they go through
+    # changed (scripts/mobile-native-scope.mjs › e2e).
+    if: needs.scope.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     services:

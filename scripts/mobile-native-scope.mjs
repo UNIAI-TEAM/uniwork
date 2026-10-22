@@ -17,11 +17,19 @@
 // closure, scripts/mobile-core-graph.mjs). Everything else still runs
 // typecheck, lint, tests and the JS bundle budget.
 //
+// e2e: does it need the signed-in flows (android-e2e)? Whenever native is (the
+// binary they drive changed), and when the change touches what those flows
+// run besides the binary: the three flows, their subflow and scripts, the
+// seed, and the server and web code the flows go through (the chat handlers,
+// services and routes, the desktop sign-in and its consent page). Without
+// this a PR that broke one of them passed the gate with the job skipped and
+// the next unrelated native PR turned red.
+//
 //   node scripts/mobile-native-scope.mjs --base <sha> [--head <sha>]
 //   echo "<changed paths>" | node scripts/mobile-native-scope.mjs --stdin
 //
-// Prints mobile=true|false and native=true|false (also to $GITHUB_OUTPUT) and
-// the paths that decided native.
+// Prints mobile=, native= and e2e=true|false (also to $GITHUB_OUTPUT) and
+// the paths that decided native and e2e.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -44,6 +52,16 @@ const INSTALL_GRAPH = new Set([
   "scripts/maestro-retry.sh",
   "scripts/mobile-apk-scan.mjs",
 ]);
+
+// What android-e2e runs besides the binary (paths from the repo root; tests excluded).
+const E2E_PATHS = [
+  /^apps\/chat-mobile\/maestro\/flows\/(?:chat-read-send|offline-send-relaunch|background-resume)\.yaml$/,
+  /^apps\/chat-mobile\/maestro\/(?:subflows|scripts)\//,
+  /^scripts\/mobile-e2e-seed\.mjs$/,
+  /^server\/internal\/(?:handler|service)\/(?:chat[^/]*|desktop_auth)(?<!_test)\.go$/,
+  /^server\/internal\/handler\/router\/(?:chat[^/]*|auth)(?<!_test)\.go$/,
+  /^apps\/web\/app\/\(auth\)\/auth\/desktop\//,
+];
 
 // GitHub `paths` globs: mobile-verify.yml's push filter is exactly this list.
 export const MOBILE_PATHS = [
@@ -115,6 +133,16 @@ export function nativePaths(changed, coreFiles = runtimeClosure()) {
   });
 }
 
+/** The changed paths the signed-in flows run besides the binary; empty when none. */
+export function e2ePaths(changed) {
+  return changed.filter((file) => E2E_PATHS.some((re) => re.test(file)));
+}
+
+/** Whether the change needs android-e2e: it reaches the binary, or what the flows run besides it. */
+export function needsE2e(changed, coreFiles) {
+  return e2ePaths(changed).length > 0 || nativePaths(changed, coreFiles).length > 0;
+}
+
 function changedFiles(argv) {
   if (argv.includes("--stdin")) return fs.readFileSync(0, "utf8").split("\n").map((l) => l.trim()).filter(Boolean);
   const arg = (name) => {
@@ -133,8 +161,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const hits = nativePaths(changed, coreFiles);
   const native = hits.length > 0;
   const mobile = touchesMobile(changed, coreFiles);
+  const e2e = native || e2ePaths(changed).length > 0;
   console.log(`mobile=${mobile}`);
   console.log(`native=${native}`);
-  for (const file of hits.slice(0, 20)) console.log(`  ${file}`);
-  if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `mobile=${mobile}\nnative=${native}\n`);
+  console.log(`e2e=${e2e}`);
+  for (const file of [...new Set([...hits, ...e2ePaths(changed)])].slice(0, 20)) console.log(`  ${file}`);
+  if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `mobile=${mobile}\nnative=${native}\ne2e=${e2e}\n`);
 }
