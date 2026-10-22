@@ -1,5 +1,6 @@
 {
-  "$comment": "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand.",
+  "$comment": "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedLines (the ratchet) in a reviewed PR.",
+  "copiedLines": 5488,
   "copies": {
     "apps/chat-mobile/components/chat/use-chat-media.ts": {
       "packages/views/chat/use-chat-media-url.ts": "f9ab781619ddc93ef6bc24b31bf1fba1db5d839a8e1148eb4b6b7404596b9afd"
@@ -32,14 +33,10 @@
       "packages/core/chat/thread-hooks.ts": "5bc995cb60f1b595b879ec635a88e236c60458976213e9a1573dbe39ab147e91"
     },
     "apps/chat-mobile/data/chat-api.ts": {
-      "packages/core/api/endpoints/chat-channels.ts": "5f3abf07b5eb9f9695dfd55943aa2ace89e47b961631e912f91f47682f99778a",
       "packages/core/api/endpoints/chat-follow-ups.ts": "eb59130cb4ae1ded248f7e3794b954b46a00e0de5fedef4140b03903a80a6e90",
       "packages/core/api/endpoints/chat-links.ts": "8feab86e7af5dcd5d7d3bd2ba41e3947d0e6434f6b6fd269911869544685658b",
-      "packages/core/api/endpoints/chat-media.ts": "d7674d57c1af842fdcdf13c6751f3eeb3603d6be15d49a535b6dd33e55a91320",
-      "packages/core/api/endpoints/chat-messages.ts": "07b0e5273b3c0e80ad8f3c9caf6ff00d105ff1ce5776684f55242139022e3deb",
-      "packages/core/api/endpoints/chat-rooms.ts": "6dab926396418cb4ef2dfe6716ad1849ed0dfd242f49761dea54e180711e6f39",
-      "packages/core/api/endpoints/chat-threads.ts": "e93f67664ca9dcc650b146bd2d38f30d842ba6d2df27fcb504a28b0e9acb78db",
-      "packages/core/api/endpoints/chat-voice.ts": "b04b811253fede1bc585b4cda86edd8dfd1c86cc68238616a41a3787187b7ab0"
+      "packages/core/api/endpoints/tasks.ts": "22da34793d4599aef6323d57e5bee4fa3be33b84038fe0af60dd67e1447350ec",
+      "packages/core/api/endpoints/workspaces.ts": "9a01a8b55ffe7b3165cd67c7a1181a298838c1cfb4ee67acdfa688a200c32359"
     },
     "apps/chat-mobile/data/chat-cache.ts": {
       "packages/core/chat/realtime-cache.ts": "51671370440377658ffdbaf8ccbdcf848d96aa1e52e27e95ce093f48f44ad58f"
@@ -73,7 +70,7 @@
       "packages/views/settings/components/delete-account-dialog.tsx": "2cc14fea7b44dfd08ce9c488a43b33949bd6fcbdec13bd9ed9bc4f8f210d34e2"
     },
     "apps/chat-mobile/lib/ai-consent.ts": {
-      "apps/web/features/landing/privacy-content.ts": "ad5c0090e85bc465d9c10ae3bf9f948d5ba0658d3d69dcc8ba02f4abf843a006"
+      "apps/web/features/landing/privacy-content.ts": "ae5eb7fefdcced3f65946278f9f83a236e8af92bdece7b3dee07ba93f39fb6f8"
     },
     "apps/chat-mobile/lib/album.ts": {
       "packages/views/chat/native-chat-message-grouping.ts": "1e784e27b31710190a89031d43875d9af3ac15f7d11c3b4610a34cd5099beb2f"
@@ -97,14 +94,11 @@
       "packages/views/chat/chat-file-accept.ts": "36eade4e1d09ea6598d5b3d12f12818e3497905402d690f098ef64880cd6bf29"
     },
     "apps/chat-mobile/lib/legal-links.ts": {
-      "apps/web/features/landing/privacy-content.ts": "ad5c0090e85bc465d9c10ae3bf9f948d5ba0658d3d69dcc8ba02f4abf843a006",
-      "apps/web/platform/site-information.ts": "d8e8f9a5e534374edd4dbd834c8699ef0449fcfe6205a0dfc90355fce2ed3c88"
+      "apps/web/features/landing/privacy-content.ts": "ae5eb7fefdcced3f65946278f9f83a236e8af92bdece7b3dee07ba93f39fb6f8",
+      "apps/web/platform/site-information.ts": "832076f4952d42644e7fa61d36d59bf576da93917bb4ce5f17f9891dbfe20d39"
     },
     "apps/chat-mobile/lib/media-body.ts": {
       "packages/views/chat/chat-expression-utils.ts": "f5f0a0f88762b9aaadcab0e8df3186fd8ff09e03b4687360dc8c7fda8018ca95"
-    },
-    "apps/chat-mobile/lib/mentions.ts": {
-      "packages/views/chat/chat-mention-utils.ts": "b58e3ffa3d66f57fb5ffe7f0eda822f751bef34313cf6f79c5614d1a118d77bd"
     },
     "apps/chat-mobile/lib/message-display.ts": {
       "packages/views/chat/chat-poll-message-row.tsx": "39f51af3bc7237a3c3009b914bb559ad682a4b181fea420c6041e7e17d7a9641",
@@ -123,7 +117,7 @@
     "apps/chat-mobile/lib/rooms-display.ts": {
       "packages/core/chat/room-preferences-store.ts": "982346eee63a31ef1f501805d97c7679e4edaffeddf38f4ba534b5e41fecea4c",
       "packages/views/chat/chat-room-moderation-utils.ts": "08179510c1875610028999767c6192dd6c40d17b2e9f24a0c598ce95a5181779",
-      "packages/views/chat/chat-sidebar-preview.ts": "dabd4f316cea7ff062e1d1cfa59b8355ea52a7eb97cf6a230d3db39da0e52796",
+      "packages/views/chat/chat-sidebar-preview.ts": "a919f583ffcc954fd33779d40135ebf8f368d6dadcc65dd853993f8e1abb8514",
       "packages/views/chat/chat-sidebar-unified-row.tsx": "7b471da9a3fb5eb9609620fa09dfdc51ef3202a867926de76df726a842033061",
       "packages/views/chat/chat-sidebar-unified.ts": "b271ef83330d4ec0c03771e369319544bede91d0f1086586d451d1981c3c2942",
       "packages/views/chat/use-resolved-room-permissions.ts": "d61fc450e7306dd5adbac71608fd50dd5c47c368caf4def1acf6799b95aa5b32"

@@ -13,6 +13,7 @@ import {
   resolveActiveMentionQuery,
   serializeComposerDraftToMessageBody,
   messageMentionsUser,
+  type ChatMentionCandidate,
 } from "./chat-mention-utils";
 
 describe("chat-mention-utils", () => {
@@ -255,3 +256,61 @@ describe("chat-mention-utils", () => {
     expect(getActiveMentionQuery("", 0)).toBeNull();
   });
 });
+
+describe("mention edge cases (from the phone's suite)", () => {
+  const person = (user_id: string, display_name: string, email = "") => ({ user_id, display_name, email });
+
+  it("writes @all with the default label when the room's label sanitizes away", () => {
+    expect(serializeComposerDraftToMessageBody("@all hi", [], "]")).toBe("[@all](mention://all/all) hi");
+  });
+
+  it("merges a room profile with the workspace member, skips an unknown roster id, and splits shared names twice", () => {
+    const candidates = buildChatMentionCandidates(
+      "group",
+      "me",
+      [person("u1", "Lan", "lan@a.vn"), person("u3", "Minh", "minh@a.vn"), person("u4", "Minh", "minh@b.vn")],
+      { u1: person("u1", "", ""), u2: person("", "", ""), u5: person("u5", "", "") },
+      (member) => member.display_name || member.email || member.user_id,
+      ["u1", "ghost", "u3", "u4", "u5"],
+    );
+    expect(candidates).toEqual([
+      { kind: "member", userId: "u1", label: "Lan", email: "lan@a.vn" },
+      { kind: "member", userId: "u3", label: "Minh (minh) (u3)", email: "minh@a.vn" },
+      { kind: "member", userId: "u4", label: "Minh (minh) (u4)", email: "minh@b.vn" },
+      { kind: "member", userId: "u5", label: "u5", email: "" },
+    ]);
+  });
+
+  it("suffixes a shared name by user id when there is no email", () => {
+    const candidates = buildChatMentionCandidates(
+      "workspace",
+      "me",
+      [person("u1", "An"), person("u2", "An")],
+      {},
+      (member) => member.display_name,
+    );
+    expect(candidates.map((candidate) => candidate.label)).toEqual(["An (u1)", "An (u2)"]);
+  });
+
+  it("resolves the active query through every early exit", () => {
+    const people: ChatMentionCandidate[] = [
+      { kind: "all", label: "all" },
+      { kind: "member", userId: "u0", label: "" },
+      { kind: "member", userId: "u1", label: "Tuấn Hoàng" },
+      { kind: "member", userId: "u2", label: "Zed", email: "lan.anh@x.vn" },
+    ];
+    expect(resolveActiveMentionQuery("@tu", 3, people, "all")).toEqual({ start: 0, query: "tu" });
+    expect(resolveActiveMentionQuery("hello", 5, people, "all")).toBeNull();
+    expect(resolveActiveMentionQuery("@ ", 2, people, "all")).toBeNull();
+    expect(resolveActiveMentionQuery("@a\nb", 4, people, "all")).toBeNull();
+    expect(resolveActiveMentionQuery("](@ab c", 7, people, "all")).toBeNull();
+    expect(resolveActiveMentionQuery("@x](y z", 7, people, "all")).toBeNull();
+    expect(resolveActiveMentionQuery("@tuan ", 6, people, "all")).toEqual({ start: 0, query: "tuan " });
+    expect(resolveActiveMentionQuery("@lan anh", 8, people, "all")).toEqual({ start: 0, query: "lan anh" });
+  });
+
+  it("filters candidates that have no email by label alone", () => {
+    expect(filterMentionCandidates([{ kind: "member", userId: "u1", label: "Lan" }], "minh", { allLabel: "all", includeAll: false })).toEqual([]);
+  });
+});
+

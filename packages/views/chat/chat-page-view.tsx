@@ -46,7 +46,7 @@ import { useChatReminderNotifications } from "./use-chat-reminder-notify";
 import { chatErrorMessage } from "./chat-error-message";
 import { chatHeaderTitle, workspaceRoomTitle } from "./chat-page-utils";
 import { useChatPageNames } from "./use-chat-page-names";
-import { buildChatMentionCandidates } from "./chat-mention-utils";
+import { buildChatMentionCandidates } from "@uniwork/core/chat/chat-mention-utils";
 import { applyKnownPeopleToRoomPreviews } from "./chat-sidebar-preview";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import { ChatPageAuthLoading } from "./chat-page-auth-loading";

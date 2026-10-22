@@ -293,7 +293,8 @@ const cases: Case[] = [
     path: `${W}/chat/messages/m1/forward`,
     method: "POST",
     body: { target_room_ids: ["r2", "r3"] },
-    good: { messages: [{ ...msg, id: "m2", room_id: "r2" }, { ...msg, id: "m3", room_id: "r3" }] },
+    // The server answers each copy as {room_id, message_id} (sdo.ChatForwardedMessageDTO), not a whole message.
+    good: { messages: [{ room_id: "r2", message_id: "m2" }, { room_id: "r3", message_id: "m3" }, { room_id: 1 }] },
     read: 2,
     fallback: 0,
   },

@@ -22,16 +22,18 @@ nhau; test đó đi theo import bắc cầu của từng mục nên mục không
 tách file ở core, không nới lint. Fixture: `lib/lint-boundary.test.ts`.
 Logic thuần dùng chung nằm ở core và được import (UNI-2053 S7: `chat/search-fold`, `chat/initials`,
 `chat/identity-tint`, `chat/contact-labels`, `chat/typing-label`, `chat/voice-call-{types,kind,invites,duration}`,
-`chat/room-timeline-pages` — trang timeline và mọi phép thuần trên nó, tách khỏi `room-timeline.ts` của core —
-web và điện thoại cùng một bản; thêm mục thì thêm vào `core-allowlist.json` và `exports` của core). Endpoint dùng chung
-là factory nhận transport (`api/endpoints/chat-users-api` — tra cứu, chặn, biệt danh; `chat-presence-api` — nhịp hiện
-diện): web bind `request` của `http.ts` (`chat-users.ts`, `chat-presence.ts` chỉ còn dòng bind), điện thoại bind
-transport của nó qua `toChatRequest` (`data/chat-api.ts`); schema mà cả hai đọc (`ChatUnreadSummarySchema`,
-`ChatRoomSharedSummarySchema` trong `chat-schemas`, `ChatCatchUpResponseSchema` của `types/ai`) cũng là của core. Endpoint
-chat còn lại trong `data/chat-api.ts` vẫn là bản copy: chuyển từng nhóm thành factory như hai nhóm trên là việc tiếp theo,
-`web-copies.json` đếm phần còn lại. Logic khác của web:
+`chat/room-timeline-pages` — trang timeline và mọi phép thuần trên nó, tách khỏi `room-timeline.ts` của core —,
+`chat/chat-mention-utils` — token nhắc tên, nháp composer, bộ chọn nhắc tên —; web và điện thoại cùng một bản; thêm mục thì
+thêm vào `core-allowlist.json` và `exports` của core). Endpoint dùng chung là factory nhận transport
+(`api/endpoints/chat-{rooms,messages,threads,channels,media,forward,voice,users,presence}-api`, đọc câu trả lời qua
+`chat-endpoint-kit`): web bind `request` của `http.ts` (file endpoint web chỉ còn dòng bind cộng phần multipart của
+trình duyệt), điện thoại bind transport của nó qua `toChatRequest` (`data/chat-api.ts`). Còn lại trong `data/chat-api.ts`:
+gửi multipart (phần tệp `{uri}` của React Native), câu trả lời chỉ điện thoại đọc (cuộc gọi đi, đang ghi âm) và bản đọc
+gọn của follow-up, liên kết tin, task, thành viên workspace — bản copy, `web-copies.json` đếm. Logic khác của web:
 **copy, ghi nguồn ở comment đầu file** ("Copied/Ported from …", "← packages/…"), test parity — không import.
-`web-copies.json` ghi sha256 của từng file nguồn web mà mỗi bản copy nêu, lúc bản copy được rà lần cuối;
+`web-copies.json` ghi sha256 của từng file nguồn web mà mỗi bản copy nêu, lúc bản copy được rà lần cuối, và
+`copiedLines` — tổng số dòng của mọi bản copy, một ratchet chỉ đi xuống (`--write` hạ nó khi bản copy co lại, không bao
+giờ nâng; test đỏ khi bản copy dài ra; nâng là sửa tay trong PR có lý do vì sao không chia sẻ được qua core);
 `scripts/mobile-web-copies.test.mjs` (chạy cả ở `ci.yml`, nên PR chỉ sửa web cũng đỏ) đỏ khi một nguồn đổi, khi có
 bản copy mới chưa ghi, hay khi header và manifest lệch. Rà bản copy (port bản sửa hoặc quyết định không áp dụng) rồi
 `node scripts/mobile-web-copies.mjs --write`.
@@ -381,7 +383,7 @@ một dòng thì ghi lý do ở dòng trên.
   plan `2026-10-17-unichat-mobile-chat.md`). Ba lớp:
   `lib/*` thuần, copy từ web có ghi nguồn và test parity chạy đúng case của
   test web (`rooms-display`, `typing-display`, `timeline-display`,
-  `send-pipeline`, `mentions`, `file-accept`, `media-body`,
+  `send-pipeline`, `file-accept`, `media-body`,
   `people-display`, `message-display`, `room-list`; hash nguồn ở `web-copies.json`); `data/*` — endpoint
   (`chat-api.ts`, mỗi endpoint một case malformed), key riêng
   (`queries/chat-keys.ts`, không import `chatKeys` web; mỗi resource một module và một key factory — `chatKeys`

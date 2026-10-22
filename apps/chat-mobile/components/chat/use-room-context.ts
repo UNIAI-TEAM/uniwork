@@ -14,7 +14,7 @@ import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useIsOnline } from "@/components/people/use-is-online";
 import { nicknamesOptions, roomMembersOptions, roomsOptions, workspaceMembersOptions } from "@/data/queries/chat";
-import { buildChatMentionCandidates } from "@/lib/mentions";
+import { buildChatMentionCandidates } from "@uniwork/core/chat/chat-mention-utils";
 import { buildChatNameContext, senderLabelFor } from "@/lib/people-display";
 import { roomTitle } from "@/lib/room-list";
 import { canSendInRoom } from "@/lib/rooms-display";

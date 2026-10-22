@@ -15,7 +15,7 @@ import type { ChatRoomMemberRecord, ChatRoomRecord } from "@uniwork/core/api/end
 import { isPlaceholderChatDisplayName, type ChatRoomPreview } from "@uniwork/core/chat/chat-room-helpers";
 import { isRoomSendBlocked, mergeRoomMemberPermissions } from "@uniwork/core/chat/room-permissions-utils";
 import { describeChatMediaBody, type ChatMediaLabels } from "./media-body";
-import { deserializeMessageBodyToComposerDraft } from "./mentions";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { givenNameOf } from "@uniwork/core/chat/initials";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { foldedIncludes } from "@uniwork/core/chat/search-fold";

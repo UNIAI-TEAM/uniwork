@@ -104,6 +104,7 @@
     "./chat/room-bulletin-store": "./chat/room-bulletin-store.ts",
     "./chat/poll-utils": "./chat/poll-utils.ts",
     "./chat/search-fold": "./chat/search-fold.ts",
+    "./chat/chat-mention-utils": "./chat/chat-mention-utils.ts",
     "./chat/initials": "./chat/initials.ts",
     "./chat/identity-tint": "./chat/identity-tint.ts",
     "./chat/voice-call-types": "./chat/voice-call-types.ts",

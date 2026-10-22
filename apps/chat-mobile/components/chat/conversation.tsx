@@ -44,7 +44,7 @@ import { draftKey } from "@/lib/drafts";
 import { countNewSince } from "@/lib/arrivals";
 import { chatRoutes } from "@/lib/chat-routes";
 import { linkWindows, taskIdsByMessage as readTaskIds } from "@/lib/link-windows";
-import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { messagePreviewText } from "@/lib/message-display";
 import { buildMessageRowModels, type MessageRowModel, type Receipt } from "@/lib/message-row-model";
 import type { PendingFile } from "@/lib/send-pipeline";

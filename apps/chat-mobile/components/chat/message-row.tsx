@@ -19,7 +19,7 @@ import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { bubbleCorners } from "@/lib/conversation-display";
 import { senderNameClass } from "@/lib/sender-colors";
-import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { messagePreviewText, messageView, pendingPreviewText } from "@/lib/message-display";
 import { messageLinks, spokenLink } from "@/lib/message-format";
 import type { Receipt } from "@/lib/message-row-model";

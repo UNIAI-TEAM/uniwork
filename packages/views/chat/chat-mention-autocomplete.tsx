@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
-import type { ChatMentionCandidate } from "./chat-mention-utils";
+import type { ChatMentionCandidate } from "@uniwork/core/chat/chat-mention-utils";
 import { initialsOf } from "@uniwork/core/chat/initials";
 import { foldVi } from "@uniwork/core/chat/search-fold";
 import { chatPersonFaceClass } from "./chat-person-card";

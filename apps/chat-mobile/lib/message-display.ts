@@ -8,7 +8,7 @@ import { isPollExpired } from "@uniwork/core/chat/poll-utils";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { isChatImageContentType, resolveChatFileContentType } from "./file-accept";
 import { parseChatMediaMessageBody } from "./media-body";
-import { deserializeMessageBodyToComposerDraft } from "./mentions";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { formatChatSidebarPreviewText } from "./rooms-display";
 import type { PendingSend } from "./send-pipeline";
 

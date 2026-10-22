@@ -2,7 +2,7 @@ import {
   isPlaceholderChatDisplayName,
   resolveChatNicknameForUser,
 } from "@uniwork/core/chat/contacts-store";
-import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { describeChatMediaBody, parseChatMediaMessageBody, type ChatMediaLabels } from "./chat-expression-utils";
 import { givenNameOf } from "@uniwork/core/chat/initials";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";

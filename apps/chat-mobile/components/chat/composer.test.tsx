@@ -4,7 +4,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { Platform } from "react-native";
 import { toast } from "@/data/stores/toast-store";
-import type { ChatMentionCandidate } from "@/lib/mentions";
+import type { ChatMentionCandidate } from "@uniwork/core/chat/chat-mention-utils";
 import { render, viText } from "@/test/render";
 import { Composer } from "./composer";
 import { useVoiceRecorder } from "./use-voice-recorder";

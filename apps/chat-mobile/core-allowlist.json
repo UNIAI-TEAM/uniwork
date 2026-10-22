@@ -32,5 +32,13 @@
   "chat/room-timeline-pages",
   "api/endpoints/chat-users-api",
   "api/endpoints/chat-presence-api",
-  "types/ai"
+  "types/ai",
+  "api/endpoints/chat-rooms-api",
+  "api/endpoints/chat-messages-api",
+  "api/endpoints/chat-threads-api",
+  "api/endpoints/chat-channels-api",
+  "api/endpoints/chat-media-api",
+  "api/endpoints/chat-forward-api",
+  "api/endpoints/chat-voice-api",
+  "chat/chat-mention-utils"
 ]

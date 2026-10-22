@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { appFiles, COPY_MARK, copyHeaderOf, drift, headerOf, MANIFEST, pathsNamedIn, readManifest, scanCopies, sourcesIn } from "./mobile-web-copies.mjs";
+import { appFiles, COPY_MARK, copiedLines, copyHeaderOf, drift, headerOf, MANIFEST, nextCeiling, pathsNamedIn, readManifest, scanCopies, sourcesIn } from "./mobile-web-copies.mjs";
 
 // ADR 0011 keeps views and the stateful core modules out of the phone, so some
 // web logic is copied into apps/chat-mobile. A copy names its source in its
@@ -17,6 +17,24 @@ test("every copy in the app is recorded against the current hash of each web sou
       `against its source (port the fix, or decide it does not apply), then run node scripts/mobile-web-copies.mjs --write and commit ${MANIFEST}:\n` +
       lines.join("\n"),
   );
+});
+
+test("the copied lines never grow past the ratchet the manifest records", () => {
+  const { copiedLines: ceiling } = readManifest();
+  assert.equal(typeof ceiling, "number", `${MANIFEST} has no copiedLines ratchet: run node scripts/mobile-web-copies.mjs --write`);
+  const lines = copiedLines();
+  assert.ok(
+    lines <= ceiling,
+    `The phone's copies of web code grew to ${lines} lines, past the ratchet's ${ceiling}. Move the logic into a ` +
+      "pure core module (an endpoint factory, a function taking its dependencies) and import it instead; raise " +
+      `copiedLines in ${MANIFEST} by hand only in a reviewed PR that says why it cannot be shared.`,
+  );
+});
+
+test("the ratchet only goes down", () => {
+  assert.equal(nextCeiling(4000, 5000), 4000);
+  assert.equal(nextCeiling(5200, 5000), 5000);
+  assert.equal(nextCeiling(4000, undefined), 4000);
 });
 
 test("the manifest records copies only, each with at least one source", () => {

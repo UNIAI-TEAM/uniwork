@@ -1,4 +1,8 @@
-import { foldVi, foldedIncludes } from "@uniwork/core/chat/search-fold";
+// Mention tokens in a chat body and the composer's mention picker: how a
+// member or @all is written into a stored body, read back into a draft, and
+// offered while typing. Pure, so the web (packages/views/chat) and the phone
+// (apps/chat-mobile, ADR 0011) import the same code.
+import { foldVi, foldedIncludes } from "./search-fold";
 
 export type ChatMentionCandidate = {
   kind: "member" | "all";

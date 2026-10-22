@@ -7,7 +7,7 @@
 // attach sheet, a pill field holds the input and the sticker button, a round
 // brand button sends or records; the reply/edit banner is a card above it.
 // Mentions are typed as "@Tên" and stored as tokens on send
-// (lib/mentions.ts › serializeComposerDraftToMessageBody), as on the web.
+// (@uniwork/core/chat/chat-mention-utils › serializeComposerDraftToMessageBody), as on the web.
 // S6: the home-indicator inset under the composer shrinks with the keyboard's
 // own progress, frame by frame (react-native-keyboard-controller), instead of
 // jumping after the keyboard finished moving.
@@ -40,7 +40,7 @@ import {
   resolveActiveMentionQuery,
   serializeComposerDraftToMessageBody,
   type ChatMentionCandidate,
-} from "@/lib/mentions";
+} from "@uniwork/core/chat/chat-mention-utils";
 import type { PendingFile } from "@/lib/send-pipeline";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
