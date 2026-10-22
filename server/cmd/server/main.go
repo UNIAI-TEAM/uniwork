@@ -300,6 +300,18 @@ func main() {
 	// Presence lives in Redis when there is one, so every replica sees the same
 	// online set and a transition is announced once; nil keeps it in process.
 	chatSvc.SetPresenceStore(rdb)
+	// Call sessions are journaled in Redis when there is one, so a restart or a
+	// deploy keeps the calls ringing and under way (chat_voice_journal.go).
+	chatSvc.SetVoiceCallJournal(rdb)
+	if rdb != nil {
+		restoreCtx, cancelRestore := context.WithTimeout(ctx, 5*time.Second)
+		if n, err := chatSvc.RestoreVoiceCalls(restoreCtx); err != nil {
+			log.Warn("chat: voice calls not restored from the journal", "restored", n, "err", err)
+		} else if n > 0 {
+			log.Info("chat: voice calls restored from the journal", "restored", n)
+		}
+		cancelRestore()
+	}
 	taskSvc.Chat = chatSvc
 	meetingSvc.Chat = chatSvc
 	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)

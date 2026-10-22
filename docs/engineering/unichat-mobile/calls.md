@@ -149,7 +149,10 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   user agent `expo/android; call-ui`), bản Android cũ giữ push hiển thị, iPhone không nhận push đổ chuông khi công tắc
   `unichat_mobile_calls_ios` tắt (mặc định; server gộp nó vào `unichat_mobile_calls` của máy gửi `X-Client-OS: ios`, nên
   iPhone cũng ẩn nút gọi — chưa có CallKit/PushKit); `chat.voice.ring_closed` (outbox, cùng transaction đóng hàng ring) → push data-only "kết thúc"
-  tới máy Android; cuộc gọi 1-1 nhỡ là "Cuộc gọi nhỡ từ X" trên `missed_calls`.
+  tới máy Android; cuộc gọi 1-1 nhỡ là "Cuộc gọi nhỡ từ X" trên `missed_calls`. Phiên cuộc gọi của server (ai đang đổ
+  chuông, đã nghe, đã từ chối) được ghi nhật ký vào Redis (`server/internal/service/chat_voice_journal.go`) nên restart
+  hay deploy giữa lúc đổ chuông không làm mất danh sách chờ, push đổ chuông đang xếp hàng hay quyền gác máy của người
+  gọi.
   Kotlin có test JVM trên Robolectric (`modules/unichat-calls/android/src/test`, SDK 34 vì CI chạy JDK 17): token khởi
   chạy (chỉ token của chính thông báo đó mới cho hiện trên màn khoá và Nghe, token thu hồi/hết hạn/giả thì không),
   `PendingActions` (giữ 10 mục mới nhất, lấy một lần), và thông báo như hệ thống nhận (`CallStyle` thật, `FLAG_INSISTENT`,

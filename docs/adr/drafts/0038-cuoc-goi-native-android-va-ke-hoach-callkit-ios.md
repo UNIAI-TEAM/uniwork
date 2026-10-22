@@ -98,5 +98,8 @@ Mất / phải trả:
   Android có thể từ chối khởi động service đó, khi ấy hành động chờ tới lần mở app sau (người gọi vẫn được
   đồng hồ đổ chuông kết thúc).
 - Trạng thái đổ chuông ở server vẫn là bộ nhớ của một process (`chat_voice.go`), nên `ring_closed` cũng chỉ
-  đúng với một replica; chuyển sang Redis/DB là việc riêng (lộ trình audit, giai đoạn 3).
+  đúng với một replica. Từ 2026-10-22 mỗi thay đổi phiên được ghi nhật ký vào Redis (`chat_voice_journal.go`, hết hạn
+  cùng phiên), process mới đọc lại lúc khởi động và đọc qua khi không giữ phiên: restart hay deploy không còn làm mất
+  cuộc gọi đang đổ chuông. Nhiều replica cùng sửa một cuộc gọi vẫn chưa đúng (bản đồ trong process vẫn là nguồn
+  quyết định); deploy hiện chạy một replica.
 - iOS chưa có trải nghiệm tương đương cho tới khi PushKit + CallKit land.

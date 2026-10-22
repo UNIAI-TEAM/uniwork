@@ -120,15 +120,21 @@ func (sess voiceCallSession) expired(now time.Time) bool {
 	return now.Sub(sess.invitedAt) > voiceCallUnansweredTTL
 }
 
-// loadVoiceCallSession treats an expired session as gone and drops it.
+// loadVoiceCallSession treats an expired session as gone and drops it. A
+// session this process does not hold is looked up in the journal (a call
+// rung before a restart, chat_voice_journal.go) and kept here once found.
 func loadVoiceCallSession(key string) (voiceCallSession, bool) {
 	raw, ok := voiceCallSessions.Load(key)
 	if !ok {
-		return voiceCallSession{}, false
+		found, inJournal := journalLoad(key)
+		if !inJournal {
+			return voiceCallSession{}, false
+		}
+		raw, _ = voiceCallSessions.LoadOrStore(key, found)
 	}
 	sess := raw.(voiceCallSession)
 	if sess.expired(time.Now()) {
-		voiceCallSessions.Delete(key)
+		deleteVoiceCallSession(key)
 		return voiceCallSession{}, false
 	}
 	return sess, true
@@ -141,7 +147,7 @@ func sweepVoiceCallSessions(now time.Time) {
 	}
 	voiceCallSessions.Range(func(key, value any) bool {
 		if sess, ok := value.(voiceCallSession); ok && sess.expired(now) {
-			voiceCallSessions.Delete(key)
+			deleteVoiceCallSession(key.(string))
 		}
 		return true
 	})
@@ -169,7 +175,7 @@ func (s *ChatService) trackVoiceCallParticipant(roomID, callID, userID string) {
 		return
 	}
 	sess.participantIDs = appendVoiceCallParticipantID(sess.participantIDs, userID)
-	voiceCallSessions.Store(key, sess)
+	storeVoiceCallSession(key, sess)
 }
 
 // trackVoiceCallInvite refuses a call_id that is still live: every room member
@@ -194,7 +200,7 @@ func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, c
 		participantIDs: []string{callerID},
 		inviteeIDs:     inviteeIDs,
 	}
-	voiceCallSessions.Store(key, sess)
+	storeVoiceCallSession(key, sess)
 	sweepVoiceCallSessions(now)
 	return nil
 }
@@ -204,7 +210,7 @@ func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, c
 func dropVoiceCallInvite(roomID, callID string) {
 	voiceCallSessionsMu.Lock()
 	defer voiceCallSessionsMu.Unlock()
-	voiceCallSessions.Delete(voiceCallSessionKey(roomID, callID))
+	deleteVoiceCallSession(voiceCallSessionKey(roomID, callID))
 }
 
 // VoiceCallRinging reports whether a call still rings for userID: it is live
@@ -227,7 +233,7 @@ func trackVoiceCallDecline(roomID, callID, userID string) bool {
 		return false
 	}
 	sess.declinedIDs = append(slices.Clone(sess.declinedIDs), userID)
-	voiceCallSessions.Store(key, sess)
+	storeVoiceCallSession(key, sess)
 	return true
 }
 
@@ -258,7 +264,7 @@ func (s *ChatService) trackVoiceCallAccept(roomID, callID, userID string) {
 	}
 	now := time.Now()
 	sess.acceptedAt = &now
-	voiceCallSessions.Store(key, sess)
+	storeVoiceCallSession(key, sess)
 }
 
 // requireDMVoiceAllowed rejects voice signaling when either party blocked the other.
@@ -638,6 +644,13 @@ func (s *ChatService) finalizeVoiceCall(
 	key := voiceCallSessionKey(room.ID, callID)
 	voiceCallSessionsMu.Lock()
 	raw, ok := voiceCallSessions.LoadAndDelete(key)
+	if !ok {
+		// A call rung before this process started (a restart, a deploy): the journal still holds it.
+		raw, ok = journalLoad(key)
+	}
+	if ok {
+		deleteVoiceCallSession(key)
+	}
 	voiceCallSessionsMu.Unlock()
 	if !ok {
 		return nil
