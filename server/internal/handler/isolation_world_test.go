@@ -1073,7 +1073,8 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/audit/retention", tn.token, map[string]any{"retain_days": 180})
 	w.call(t, "PUT", ws+"/chat/users/"+tn.peerID+"/nickname", tn.token, map[string]any{"nickname": m + " nick"})
 	w.call(t, "POST", ws+"/chat/users/"+tn.thirdID+"/block", tn.peerToken, nil)
-	w.call(t, "POST", ws+"/chat/reports", tn.peerToken, map[string]any{"message_id": tn.ids["message"], "reason": "spam", "details": m + " report"})
+	report := w.call(t, "POST", ws+"/chat/reports", tn.peerToken, map[string]any{"message_id": tn.ids["message"], "reason": "spam", "details": m + " report"})
+	tn.ids["chatReport"], _ = report["id"].(string)
 	w.call(t, "POST", ws+"/chat/threads/"+tn.ids["channelMessage"]+"/task-sync", tn.token, map[string]any{"task_id": tn.ids["task2"]})
 	// A call ringing in the group: the voice routes act on a live call.
 	w.call(t, "POST", ws+"/chat/rooms/"+tn.ids["room"]+"/voice/invite", tn.token, map[string]any{"call_id": tn.ids["callID"]})

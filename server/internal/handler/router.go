@@ -250,6 +250,8 @@ func New(d Deps) http.Handler {
 		CreateDemoRequest:          h.createDemoRequest,
 		AdminListDemoRequests:      h.adminListDemoRequests,
 		AdminUpdateDemoRequest:     h.adminUpdateDemoRequest,
+		AdminListChatReports:       h.adminListChatReports,
+		AdminResolveChatReport:     h.adminResolveChatReport,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,
 		AdminGetOrganization:       h.adminGetOrganization,

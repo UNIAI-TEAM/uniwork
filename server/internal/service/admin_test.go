@@ -260,3 +260,58 @@ func TestAdminStatusLeavesAClosedOrganizationArchived(t *testing.T) {
 		t.Fatalf("a refused change wrote %d admin_actions rows", len(rows))
 	}
 }
+
+// The operator's queue of chat reports (store UGC policy): every organization's
+// reports with ids, reason and status but never the reporter's words; an admin
+// closes one with a reason, admin_actions and an audit row in the report's own
+// organization commit together, and a report is closed only once.
+func TestAdminChatReportQueue(t *testing.T) {
+	f := newAuditFixture(t)
+	w := f.build(t)
+	ctx := context.Background()
+	report, err := f.chat.ReportChat(ctx, f.owner.ID, w.ID, ReportChatInput{UserID: f.member.ID, Reason: "harassment", Details: "private words of the reporter"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	queue, err := f.admin.ListChatReports(ctx, "open", 0, 0)
+	if err != nil || queue.Total != 1 || queue.OpenCount != 1 || queue.OldestOpenAt == nil || len(queue.Reports) != 1 {
+		t.Fatalf("open queue: %v %+v", err, queue)
+	}
+	row := queue.Reports[0]
+	if row.ID != report.ID || row.OrganizationID != f.orgID || row.TargetUserID != f.member.ID || row.CreatedBy != f.owner.ID || row.Reason != "harassment" || row.Status != "open" || row.MessageID.Valid {
+		t.Fatalf("queue row: %+v", row)
+	}
+	var invalid ValidationError
+	if _, err := f.admin.ListChatReports(ctx, "nonsense", 0, 0); !errors.As(err, &invalid) {
+		t.Fatalf("unknown status: %v", err)
+	}
+
+	if _, err := f.admin.ResolveChatReport(ctx, CLIActor, report.ID, "short"); !errors.Is(err, ErrReasonTooShort) {
+		t.Fatalf("short reason: %v", err)
+	}
+	if _, err := f.admin.ResolveChatReport(ctx, CLIActor, "01NOSUCHREPORT0000000000000", "asked the owner to remove the messages"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown report: %v", err)
+	}
+	resolved, err := f.admin.ResolveChatReport(ctx, CLIActor, report.ID, "asked the owner to remove the messages")
+	if err != nil || resolved.Status != "resolved" || resolved.OrganizationID != f.orgID {
+		t.Fatalf("resolve: %v %+v", err, resolved)
+	}
+	if _, err := f.admin.ResolveChatReport(ctx, CLIActor, report.ID, "asked the owner to remove the messages"); !errors.Is(err, ErrConflict) {
+		t.Fatalf("second resolve: %v", err)
+	}
+
+	actions, err := f.q.ListAdminActionsByTarget(ctx, db.ListAdminActionsByTargetParams{TargetType: "chat_report", TargetID: report.ID, Limit: 10})
+	if err != nil || len(actions) != 1 || actions[0].Action != audit.ActionChatReportResolved || actions[0].Reason != "asked the owner to remove the messages" {
+		t.Fatalf("admin_actions: %v %+v", err, actions)
+	}
+	rows, err := f.q.AdminListAuditEventsByCorrelation(ctx, actions[0].TraceID.String)
+	if err != nil || len(rows) != 1 || rows[0].Action != audit.ActionChatReportResolved || rows[0].OrganizationID != f.orgID || rows[0].ResourceID != report.ID {
+		t.Fatalf("audit row in the report's organization: %v %+v", err, rows)
+	}
+
+	after, err := f.admin.ListChatReports(ctx, "", 0, 0)
+	if err != nil || after.Total != 1 || after.OpenCount != 0 || after.OldestOpenAt != nil || after.Reports[0].Status != "resolved" {
+		t.Fatalf("queue after resolve: %v %+v", err, after)
+	}
+}

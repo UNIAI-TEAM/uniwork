@@ -425,3 +425,93 @@ func (s *AdminService) recordAdmin(ctx context.Context, q *db.Queries, traceID, 
 		Before: b, After: a, Reason: strings.TrimSpace(reason), TraceID: nullText(traceID),
 	})
 }
+
+// ChatReportQueue is one page of the operator's queue of chat reports plus
+// how many wait and since when (the 24-hour promise of the terms of use).
+type ChatReportQueue struct {
+	Reports      []db.AdminListChatReportsRow
+	Total        int64
+	OpenCount    int64
+	OldestOpenAt *time.Time
+}
+
+// ListChatReports is the operator's queue (store UGC policy, Apple 1.2): every
+// organization's reports, newest first, filtered by status (open | resolved).
+// Ids, reason, status and time only: never the reporter's words or the message.
+func (s *AdminService) ListChatReports(ctx context.Context, status string, limit, offset int32) (ChatReportQueue, error) {
+	if status != "" && status != "open" && status != "resolved" {
+		return ChatReportQueue{}, Invalid("status phải là open hoặc resolved")
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	rows, err := s.q.AdminListChatReports(ctx, db.AdminListChatReportsParams{Status: nullText(status), Limit: limit, Offset: offset})
+	if err != nil {
+		return ChatReportQueue{}, err
+	}
+	queue, err := s.q.AdminChatReportQueue(ctx)
+	if err != nil {
+		return ChatReportQueue{}, err
+	}
+	out := ChatReportQueue{Reports: rows, OpenCount: queue.OpenCount}
+	if len(rows) > 0 {
+		out.Total = rows[0].TotalCount
+	}
+	if queue.OldestOpenAt.Valid {
+		at := queue.OldestOpenAt.Time
+		out.OldestOpenAt = &at
+	}
+	return out, nil
+}
+
+// ResolveChatReport closes one open report after the operator has acted on it
+// (asked the organization to remove the content, or suspended it). The row,
+// admin_actions and an audit row in the report's organization commit together,
+// so its owners and admins see that the platform handled it. A report already
+// resolved answers ErrConflict; an unknown id ErrNotFound.
+func (s *AdminService) ResolveChatReport(ctx context.Context, adminID, reportID, reason string) (db.AdminResolveChatReportRow, error) {
+	if err := checkReason(reason); err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	ctx, traceID := ensureTrace(ctx)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	before, err := q.AdminGetChatReportForUpdate(ctx, reportID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.AdminResolveChatReportRow{}, ErrNotFound
+	}
+	if err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	if before.Status != "open" {
+		return db.AdminResolveChatReportRow{}, ErrConflict
+	}
+	after, err := q.AdminResolveChatReport(ctx, reportID)
+	if err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	old, next := map[string]any{"status": before.Status}, map[string]any{"status": after.Status}
+	if err := s.recordAdmin(ctx, q, traceID, adminID, audit.ActionChatReportResolved, "chat_report", reportID, old, next, reason); err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		Actor: audit.User(adminID), Action: audit.ActionChatReportResolved,
+		ResourceType: "chat_report", ResourceID: reportID,
+		Changes:  audit.Diff(old, next),
+		Metadata: map[string]any{"reason": reason, "platform_admin": true},
+	}); err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	return after, nil
+}

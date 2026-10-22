@@ -378,3 +378,14 @@ groups:
           summary: "Một bản UniChat Android không đổ chuông cuộc gọi bằng màn native"
           description: "Bản {{ $labels.client_version }}: {{ $value | humanizePercentage }} push cuộc gọi trong 1 giờ chỉ thành thông báo thường hoặc không hiện gì."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatCallRingsDegraded.md
+      # A member reported a message or a person in UniChat (store UGC policy, Apple 1.2): the terms of use promise the
+      # operator acts on every report within 24 hours. The audit counter of chat.report.created is the trigger; the
+      # console's queue (/admin/chat-reports) is where it is read and closed. Not a page: a ticket for the operator.
+      - alert: UniChatReportFiled
+        expr: sum(increase(uniwork_audit_events_total{action="chat.report.created"}[30m])) > 0
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Có báo cáo vi phạm mới trong UniChat"
+          description: "{{ $value | humanize }} báo cáo tin nhắn hoặc người trong 30 phút qua; xử lý trong 24 giờ ở /admin/chat-reports."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatReportFiled.md

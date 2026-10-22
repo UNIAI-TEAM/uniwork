@@ -755,6 +755,16 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatReportResolved: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			report, err := f.chat.ReportChat(f.ctx, f.owner.ID, w.ID, ReportChatInput{UserID: f.member.ID, Reason: "harassment"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.admin.ResolveChatReport(f.ctx, CLIActor, report.ID, "asked the owner to remove the messages"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatRoomCreated: func(t *testing.T, f *auditFixture) { f.newDM(t) },
 		audit.ActionChatRoomMemberAdded: func(t *testing.T, f *auditFixture) {
 			// A group needs three organization members; inviting the third is
@@ -1912,6 +1922,7 @@ func auditActions() []string {
 		audit.ActionChatVoiceTranscribed,
 		audit.ActionChatMessageForwarded,
 		audit.ActionChatReportCreated,
+		audit.ActionChatReportResolved,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,

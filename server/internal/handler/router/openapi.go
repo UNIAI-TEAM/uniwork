@@ -231,6 +231,10 @@ func pathParamSDI(path string) any {
 		return struct {
 			DemoRequestID string `path:"demoRequestID" description:"ULID yêu cầu demo"`
 		}{}
+	case "chatReportID":
+		return struct {
+			ChatReportID string `path:"chatReportID" description:"ULID báo cáo tin nhắn hoặc người" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+		}{}
 	case "taskID":
 		return struct {
 			TaskID string `path:"taskID" description:"ULID công việc hoặc identifier PREFIX-N (prefix không phân biệt hoa thường)" example:"ALP-42"`

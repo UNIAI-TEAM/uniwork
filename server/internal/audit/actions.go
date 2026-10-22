@@ -140,6 +140,9 @@ const (
 	// A member reported a message or a person (store UGC policy); the
 	// organization's owners and admins read it in the audit trail.
 	ActionChatReportCreated = "chat.report.created"
+	// The platform operator closed a report from the console's queue (store UGC policy: every report
+	// is acted on within 24 hours); the organization's owners and admins see that it was handled.
+	ActionChatReportResolved = "chat.report.resolved"
 
 	ActionSubscriptionChanged    = "subscription.changed"
 	ActionBillingInvoiceRefunded = "billing.invoice_refunded"

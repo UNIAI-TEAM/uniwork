@@ -862,6 +862,10 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		// Demo requests are platform rows, not tenant data, and the fixture
 		// has none; the admin route answers an unknown id with 404.
 		return "01J8X4DEM0N1P2Q3R4S5T6U7V8"
+	case "{chatReportID}":
+		// A's report (the peer's, seeded in buildActivity): the platform route
+		// answers 404 to everyone without a platform role, whatever the id.
+		return tn.get(t, "chatReport")
 	case "{traceID}":
 		return "0af7651916cd43dd8448eb211c80319c"
 	case "{sessionId}":

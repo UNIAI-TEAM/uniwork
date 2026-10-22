@@ -5795,7 +5795,8 @@
       "quota": "Quota",
       "system": "System",
       "overview": "Overview",
-      "demo_requests": "Demo requests"
+      "demo_requests": "Demo requests",
+      "chat_reports": "Reports"
     },
     "common": {
       "retry": "Retry",
@@ -6218,6 +6219,50 @@
       "update": "Update",
       "update_title": "Update demo request",
       "update_error": "Could not update the request. Please try again.",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {{page}}"
+    },
+    "chat_reports": {
+      "title": "Reports",
+      "description": "Reports of messages and people in UniChat, from every organization. The terms of use promise each report is acted on within 24 hours. The console sees ids and the reason only, never the message or the reporter's words.",
+      "filter": "Filter reports",
+      "all": "All",
+      "status": {
+        "open": "Open",
+        "resolved": "Resolved"
+      },
+      "refresh": "Refresh",
+      "queue_open_one": "{{count}} report waiting, the oldest since {{since}}",
+      "queue_open_other": "{{count}} reports waiting, the oldest since {{since}}",
+      "queue_clear": "No report is waiting.",
+      "overdue": "Over 24 hours",
+      "empty": "No reports",
+      "empty_description": "Reports that match the filter appear here once someone sends one.",
+      "load_error": "Couldn't load the reports",
+      "retry_hint": "Refresh to try again.",
+      "organization": "Organization",
+      "reason_label": "Reason",
+      "subject": "Reported",
+      "reporter": "Reporter",
+      "status_label": "Status",
+      "received": "Sent",
+      "action": "Action",
+      "person": "Person {{id}}",
+      "message": "Message {{id}}",
+      "reason": {
+        "spam": "Spam or scam",
+        "harassment": "Harassment or bullying",
+        "hate": "Hate or discrimination",
+        "sexual": "Sexual content",
+        "violence": "Violence or threats",
+        "self_harm": "Self-harm",
+        "other": "Something else"
+      },
+      "resolve": "Close report",
+      "resolve_title": "Close this report",
+      "resolve_description": "Say what was done: the organization was asked to deactivate the poster, the organization was suspended, or the report was unfounded. The organization's owner sees that the report was handled.",
+      "resolve_error": "Couldn't close the report. Try again.",
       "previous": "Previous",
       "next": "Next",
       "page": "Page {{page}}"

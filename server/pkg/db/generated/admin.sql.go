@@ -11,6 +11,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const adminChatReportQueue = `-- name: AdminChatReportQueue :one
+SELECT count(*)::bigint AS open_count, min(created_at)::timestamptz AS oldest_open_at
+FROM chat_reports WHERE status = 'open'
+`
+
+type AdminChatReportQueueRow struct {
+	OpenCount    int64              `json:"open_count"`
+	OldestOpenAt pgtype.Timestamptz `json:"oldest_open_at"`
+}
+
+// tenant: platform
+// How many reports wait and since when: the console's banner and the 24-hour promise.
+func (q *Queries) AdminChatReportQueue(ctx context.Context) (AdminChatReportQueueRow, error) {
+	row := q.db.QueryRow(ctx, adminChatReportQueue)
+	var i AdminChatReportQueueRow
+	err := row.Scan(&i.OpenCount, &i.OldestOpenAt)
+	return i, err
+}
+
 const adminConfirmInvoiceRefund = `-- name: AdminConfirmInvoiceRefund :one
 UPDATE invoices SET
   refund_confirm_reason = $1,
@@ -158,6 +177,30 @@ func (q *Queries) AdminCountPaymentIntents(ctx context.Context, arg AdminCountPa
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const adminGetChatReportForUpdate = `-- name: AdminGetChatReportForUpdate :one
+SELECT id, organization_id, workspace_id, status FROM chat_reports WHERE id = $1 FOR UPDATE
+`
+
+type AdminGetChatReportForUpdateRow struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	Status         string `json:"status"`
+}
+
+// tenant: platform
+func (q *Queries) AdminGetChatReportForUpdate(ctx context.Context, id string) (AdminGetChatReportForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, adminGetChatReportForUpdate, id)
+	var i AdminGetChatReportForUpdateRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.Status,
+	)
+	return i, err
 }
 
 const adminGetDemoRequest = `-- name: AdminGetDemoRequest :one
@@ -371,6 +414,80 @@ func (q *Queries) AdminListAuditEventsByCorrelation(ctx context.Context, correla
 			&i.ResourceID,
 			&i.RequestID,
 			&i.OccurredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminListChatReports = `-- name: AdminListChatReports :many
+
+SELECT r.id, r.organization_id, o.slug AS organization_slug, o.name AS organization_name, o.status AS organization_status,
+  r.workspace_id, r.room_id, r.message_id, r.target_user_id, r.reason, r.status, r.created_by, r.created_at,
+  count(*) OVER ()::bigint AS total_count
+FROM chat_reports r
+JOIN organizations o ON o.id = r.organization_id
+WHERE ($1::text IS NULL OR r.status = $1::text)
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT $3 OFFSET $2
+`
+
+type AdminListChatReportsParams struct {
+	Status pgtype.Text `json:"status"`
+	Offset int32       `json:"offset"`
+	Limit  int32       `json:"limit"`
+}
+
+type AdminListChatReportsRow struct {
+	ID                 string             `json:"id"`
+	OrganizationID     string             `json:"organization_id"`
+	OrganizationSlug   string             `json:"organization_slug"`
+	OrganizationName   string             `json:"organization_name"`
+	OrganizationStatus string             `json:"organization_status"`
+	WorkspaceID        string             `json:"workspace_id"`
+	RoomID             pgtype.Text        `json:"room_id"`
+	MessageID          pgtype.Text        `json:"message_id"`
+	TargetUserID       string             `json:"target_user_id"`
+	Reason             string             `json:"reason"`
+	Status             string             `json:"status"`
+	CreatedBy          string             `json:"created_by"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	TotalCount         int64              `json:"total_count"`
+}
+
+// The operator's queue of chat reports (store UGC policy, Apple 1.2: the operator acts on every report within 24
+// hours). Ids, the reason, the status and when: the reporter's own words (details) and the reported message never
+// leave through here, as nothing of content does from this file.
+// tenant: platform
+func (q *Queries) AdminListChatReports(ctx context.Context, arg AdminListChatReportsParams) ([]AdminListChatReportsRow, error) {
+	rows, err := q.db.Query(ctx, adminListChatReports, arg.Status, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminListChatReportsRow{}
+	for rows.Next() {
+		var i AdminListChatReportsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OrganizationSlug,
+			&i.OrganizationName,
+			&i.OrganizationStatus,
+			&i.WorkspaceID,
+			&i.RoomID,
+			&i.MessageID,
+			&i.TargetUserID,
+			&i.Reason,
+			&i.Status,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}
@@ -1073,6 +1190,31 @@ func (q *Queries) AdminRequestPartialInvoiceRefund(ctx context.Context, arg Admi
 		&i.RefundReason,
 		&i.RefundConfirmReason,
 		&i.PaymentIntentID,
+	)
+	return i, err
+}
+
+const adminResolveChatReport = `-- name: AdminResolveChatReport :one
+UPDATE chat_reports SET status = 'resolved' WHERE id = $1 AND status = 'open'
+RETURNING id, organization_id, workspace_id, status
+`
+
+type AdminResolveChatReportRow struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	Status         string `json:"status"`
+}
+
+// tenant: platform
+func (q *Queries) AdminResolveChatReport(ctx context.Context, id string) (AdminResolveChatReportRow, error) {
+	row := q.db.QueryRow(ctx, adminResolveChatReport, id)
+	var i AdminResolveChatReportRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.Status,
 	)
 	return i, err
 }

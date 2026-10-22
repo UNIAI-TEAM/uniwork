@@ -5749,7 +5749,8 @@
       "quota": "Hạn mức",
       "system": "Hệ thống",
       "overview": "Tổng quan",
-      "demo_requests": "Yêu cầu demo"
+      "demo_requests": "Yêu cầu demo",
+      "chat_reports": "Báo cáo vi phạm"
     },
     "common": {
       "retry": "Thử lại",
@@ -6172,6 +6173,49 @@
       "update": "Cập nhật",
       "update_title": "Cập nhật yêu cầu demo",
       "update_error": "Chưa cập nhật được. Hãy thử lại.",
+      "previous": "Trước",
+      "next": "Tiếp",
+      "page": "Trang {{page}}"
+    },
+    "chat_reports": {
+      "title": "Báo cáo vi phạm",
+      "description": "Báo cáo tin nhắn và người dùng trong UniChat của mọi tổ chức. Điều khoản sử dụng hứa xử lý mỗi báo cáo trong 24 giờ. Console chỉ thấy mã và lý do, không bao giờ thấy nội dung tin hay lời mô tả.",
+      "filter": "Lọc báo cáo",
+      "all": "Tất cả",
+      "status": {
+        "open": "Đang chờ",
+        "resolved": "Đã xử lý"
+      },
+      "refresh": "Tải lại",
+      "queue_open": "{{count}} báo cáo đang chờ, lâu nhất từ {{since}}",
+      "queue_clear": "Không còn báo cáo nào chờ xử lý.",
+      "overdue": "Quá 24 giờ",
+      "empty": "Không có báo cáo",
+      "empty_description": "Báo cáo khớp bộ lọc sẽ hiện tại đây khi có người gửi.",
+      "load_error": "Không tải được báo cáo",
+      "retry_hint": "Hãy tải lại để thử một lần nữa.",
+      "organization": "Tổ chức",
+      "reason_label": "Lý do",
+      "subject": "Bị báo cáo",
+      "reporter": "Người báo cáo",
+      "status_label": "Trạng thái",
+      "received": "Gửi lúc",
+      "action": "Thao tác",
+      "person": "Người {{id}}",
+      "message": "Tin {{id}}",
+      "reason": {
+        "spam": "Spam hoặc lừa đảo",
+        "harassment": "Quấy rối hoặc bắt nạt",
+        "hate": "Thù ghét hoặc phân biệt đối xử",
+        "sexual": "Nội dung khiêu dâm",
+        "violence": "Bạo lực hoặc đe doạ",
+        "self_harm": "Tự gây hại",
+        "other": "Lý do khác"
+      },
+      "resolve": "Đóng báo cáo",
+      "resolve_title": "Đóng báo cáo này",
+      "resolve_description": "Ghi việc đã làm: đã yêu cầu tổ chức vô hiệu hoá người đăng, đã tạm ngưng tổ chức, hay báo cáo không có cơ sở. Chủ sở hữu tổ chức thấy báo cáo đã được xử lý.",
+      "resolve_error": "Chưa đóng được báo cáo. Hãy thử lại.",
       "previous": "Trước",
       "next": "Tiếp",
       "page": "Trang {{page}}"

@@ -313,12 +313,23 @@ func TestAIPackageOnlyCallsAiQueries(t *testing.T) {
 // reaches a content service (task, chat, meeting) — metadata only (F-11 §5.1).
 func TestAdminQueriesStayInAdminService(t *testing.T) {
 	demoQueries := regexp.MustCompile(`\bq\.(AdminListDemoRequests|AdminCountDemoRequests|AdminGetDemoRequest|AdminUpdateDemoRequest)\(`)
+	// The operator's queue of chat reports lives in admin.go itself: never beside the chat service that reads messages.
+	reportQueries := regexp.MustCompile(`\bq\.(AdminListChatReports|AdminChatReportQueue|AdminGetChatReportForUpdate|AdminResolveChatReport)\(`)
 	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride|AdminListInvoices|AdminCountInvoices|AdminListPaymentIntents|AdminCountPaymentIntents|AdminGetInvoiceByID|AdminMarkInvoiceRefunded|AdminRequestInvoiceRefund|AdminRequestPartialInvoiceRefund|AdminConfirmInvoiceRefund|AdminRevertInvoiceRefundRequest|AdminPatchInvoiceRefundProviderRef)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
 		slash := filepath.ToSlash(path)
+		if !strings.HasSuffix(slash, "internal/service/admin.go") && !strings.Contains(slash, "pkg/db/generated/") {
+			src, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if reportQueries.Match(src) {
+				t.Errorf("%s calls a chat report queue query; only service/admin.go may", path)
+			}
+		}
 		if strings.HasSuffix(slash, "internal/service/admin_demo_requests.go") {
 			return nil
 		}
