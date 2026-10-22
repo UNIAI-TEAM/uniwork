@@ -122,6 +122,13 @@ type AskStreamFollowupsDTO struct {
 	Followups []string `json:"followups" description:"Câu hỏi gợi ý tiếp theo, tối đa 3, chỉ để đọc dữ liệu" example:"[\"Việc nào trễ nhất?\"]"`
 }
 
+// AskStreamTitleDTO is the data of event title, sent after done when UNI named
+// a new conversation.
+type AskStreamTitleDTO struct {
+	ConversationID string `json:"conversation_id" description:"Hội thoại vừa được UNI đặt tên" example:"01J8Z3Q4X5Y6A7B8C9D0E1F2G3"`
+	Title          string `json:"title" description:"Tên ngắn UNI đặt cho hội thoại, tối đa 40 ký tự" example:"Việc trễ dự án Q4"`
+}
+
 // AskStreamUsageDTO is the tokens of a streamed turn.
 type AskStreamUsageDTO struct {
 	InputTokens      int `json:"input_tokens" description:"Token đầu vào của cả lượt, cộng mọi lần gọi model" example:"812"`

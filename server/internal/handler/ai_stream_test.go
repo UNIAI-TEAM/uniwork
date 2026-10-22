@@ -101,7 +101,11 @@ func TestAskUniStreamWritesEventsInOrder(t *testing.T) {
 		t.Fatalf("headers %v", res.Header)
 	}
 	frames := collectFrames(readSSE(res.Body))
+	// The first answer of a conversation is named: a title frame follows done.
 	names := eventsOf(frames)
+	if n := len(names); n > 0 && names[n-1] == "title" {
+		names = names[:n-1]
+	}
 	if len(names) < 4 || names[0] != "run" || names[len(names)-1] != "done" || names[len(names)-2] != "citations" {
 		t.Fatalf("events %v", names)
 	}
@@ -417,7 +421,7 @@ func TestAskUniStreamWritesFollowupsBeforeDone(t *testing.T) {
 	frames := collectFrames(readSSE(postStream(t, srv, wsID, owner, map[string]any{"question": "việc nào trễ?", "locale": "vi"}).Body))
 	names := eventsOf(frames)
 	at := slices.Index(names, "followups")
-	if at < 0 || at != len(names)-2 || names[len(names)-1] != "done" {
+	if at < 0 || at != len(names)-3 || names[len(names)-2] != "done" || names[len(names)-1] != "title" {
 		t.Fatalf("events %v", names)
 	}
 	var deltas strings.Builder
@@ -498,5 +502,39 @@ func TestAskUniStreamRegenerateReplacesTheAnswer(t *testing.T) {
 	msgs, _ := list["messages"].([]any)
 	if len(msgs) != 2 || msgs[1].(map[string]any)["id"] != again.Message.ID {
 		t.Fatalf("messages %v", list)
+	}
+}
+
+// The first answer of a conversation names it: a title frame follows done.
+func TestAskUniStreamWritesTitleAfterDone(t *testing.T) {
+	fake := &provider.Fake{StreamChunk: 4, Reply: func(req provider.CompletionRequest) provider.CompletionResponse {
+		if strings.Contains(req.System, "Name this conversation") {
+			return provider.CompletionResponse{Text: "\"Việc trễ.\"", UsagePresent: true, InputTokens: 3, StopReason: "end_turn"}
+		}
+		return provider.CompletionResponse{Text: "Xong.", UsagePresent: true, InputTokens: 5, StopReason: "end_turn"}
+	}}
+	srv, owner, _, wsID := askWorld(t, fake)
+	frames := collectFrames(readSSE(postStream(t, srv, wsID, owner, map[string]any{"question": "việc nào trễ?", "locale": "vi"}).Body))
+	names := eventsOf(frames)
+	if len(names) < 2 || names[len(names)-2] != "done" || names[len(names)-1] != "title" {
+		t.Fatalf("events %v", names)
+	}
+	var run struct {
+		ConversationID string `json:"conversation_id"`
+	}
+	var title struct {
+		ConversationID string `json:"conversation_id"`
+		Title          string `json:"title"`
+	}
+	for _, f := range frames {
+		switch f.event {
+		case "run":
+			_ = json.Unmarshal([]byte(f.data), &run)
+		case "title":
+			_ = json.Unmarshal([]byte(f.data), &title)
+		}
+	}
+	if title.Title != "Việc trễ" || title.ConversationID == "" || title.ConversationID != run.ConversationID {
+		t.Fatalf("title %+v run %+v", title, run)
 	}
 }

@@ -13,6 +13,7 @@ const (
 	PromptCopilotAnswerV2    = "copilot_answer@2"
 	PromptCopilotAnswerV3    = "copilot_answer@3"
 	PromptCopilotAnswerV4    = "copilot_answer@4"
+	PromptConversationTitle  = "conversation_title@1"
 	PromptChatCatchUp        = "chat_catchup@2"
 	PromptChatCallSummary    = "chat_call_summary@1"
 	PromptEmailThreadSummary = "email_thread_summary@2"
@@ -271,6 +272,13 @@ Leave the block out when none fits.
 ` + UntrustedFooter,
 		Render: renderCopilotAgentV4,
 	})
+	// conversation_title@1 names a new Ask UNI conversation after its first
+	// answer (P2b); free text, no tools.
+	register(Prompt{
+		ID: "conversation_title", Version: 1,
+		System: "Name this conversation in 2 to 6 words, in the language of the question. Reply with the name only, no quotes or punctuation at the end.\n" + UntrustedFooter,
+		Render: renderConversationTitle,
+	})
 
 	register(Prompt{
 		ID: "chat_catchup", Version: 1,
@@ -436,6 +444,20 @@ func renderCopilotAgent(vars map[string]any) string {
 // decides when the question's own language is unclear.
 func renderCopilotAgentV4(vars map[string]any) string {
 	return copilotAgentTurn(vars, "Answer in the language the question is written in. If that is unclear, use %s.\n")
+}
+
+// titleAnswerMax is how much of the answer the title prompt reads, in runes.
+const titleAnswerMax = 400
+
+// renderConversationTitle is the user turn of conversation_title@1: the
+// question and the start of the answer, each untrusted.
+func renderConversationTitle(vars map[string]any) string {
+	answer := []rune(str(vars, "answer"))
+	if len(answer) > titleAnswerMax {
+		answer = answer[:titleAnswerMax]
+	}
+	return fmt.Sprintf("Question:\n<untrusted source=\"question\">%s</untrusted>\n\nAnswer:\n<untrusted source=\"answer\">%s</untrusted>\n",
+		EscapeUntrusted(str(vars, "question")), EscapeUntrusted(string(answer)))
 }
 
 // copilotAgentTurn writes the agent's user turn under langLine, a format

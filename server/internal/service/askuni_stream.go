@@ -12,7 +12,7 @@ import (
 type AskSink func(AskEvent)
 
 // AskEvent is one event of a streamed turn. Name selects the field that
-// carries it: run, step, sources, delta, citations, followups, done or error.
+// carries it: run, step, sources, delta, citations, followups, done, title or error.
 type AskEvent struct {
 	Name      string
 	Run       *AskRunEvent
@@ -22,6 +22,7 @@ type AskEvent struct {
 	Sources   []AskCitation // the sources a step numbered for the first time
 	Followups []string      // the dock's follow-up questions; sent only when there are some
 	Done      *AskResult
+	Title     *AskTitleEvent // the generated name of a new conversation, after done
 	Code      string
 }
 

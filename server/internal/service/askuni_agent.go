@@ -343,6 +343,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	if err != nil {
 		return AskResult{}, err
 	}
+	// A conversation with nothing stored yet gets its name from this answer; a
+	// regenerate always has an answer already.
+	first := len(rows) == 0 && base.Regenerates == ""
 	if base.Regenerates != "" {
 		// The model sees the conversation as it was before the question it
 		// answers again: neither that question nor the old answer.
@@ -568,7 +571,14 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	if in.Dock {
 		answer, followups = splitFollowups(answer)
 	}
-	return s.finishAgent(sctx, emit, res, w, conv, base, answer, "", agentCitations(answer, book), resp.UsageEventID, steps, followups)
+	res, err = s.finishAgent(sctx, emit, res, w, conv, base, answer, "", agentCitations(answer, book), resp.UsageEventID, steps, followups)
+	if err == nil && first && in.Dock && ctx.Err() == nil {
+		// After done, so the answer is never held back by the name.
+		if title, ok := s.generateTitle(ctx, Human(userID), w.OrganizationID, w.ID, conv.ID, question, answer); ok {
+			emit.emit(AskEvent{Name: "title", Title: &AskTitleEvent{ConversationID: conv.ID, Title: title}})
+		}
+	}
+	return res, err
 }
 
 // finishAgent stores the turn with the last call's usage row. Its text

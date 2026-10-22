@@ -76,6 +76,10 @@ func writeAskEvent(sw *sseWriter, ev service.AskEvent) {
 				Usage:   sdo.AskStreamUsageDTO{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, CacheReadTokens: u.CacheReadTokens, CacheWriteTokens: u.CacheWriteTokens},
 			})
 		}
+	case "title":
+		if ev.Title != nil {
+			sw.event("title", sdo.AskStreamTitleDTO{ConversationID: ev.Title.ConversationID, Title: ev.Title.Title})
+		}
 	case "error":
 		sw.event("error", sdo.AskStreamErrorDTO{Code: ev.Code})
 	}

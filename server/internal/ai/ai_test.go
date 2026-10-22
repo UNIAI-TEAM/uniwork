@@ -121,8 +121,9 @@ func TestSystemPromptsEndWithUntrustedFooter(t *testing.T) {
 			t.Errorf("%s: system prompt does not end with the untrusted footer", k)
 		}
 		// copilot_answer@2, @3 and @4 are the prompts with no OutputSchema: the
-		// schema would switch the tools off for the agent.
-		if p.Key() != k || (len(p.OutputSchema) == 0 && k != PromptCopilotAnswerV2 && k != PromptCopilotAnswerV3 && k != PromptCopilotAnswerV4) || p.Render == nil {
+		// schema would switch the tools off for the agent. The title prompt is
+		// free text.
+		if p.Key() != k || (len(p.OutputSchema) == 0 && k != PromptCopilotAnswerV2 && k != PromptCopilotAnswerV3 && k != PromptCopilotAnswerV4 && k != PromptConversationTitle) || p.Render == nil {
 			t.Errorf("%s: incomplete prompt", k)
 		}
 	}
@@ -184,8 +185,11 @@ func TestPromptSnapshots(t *testing.T) {
 		PromptCopilotAnswerV2: copilotAgent,
 		PromptCopilotAnswerV3: copilotAgent,
 		PromptCopilotAnswerV4: copilotAgent,
-		"chat_catchup@1":      catchUp,
-		PromptChatCatchUp:     catchUp,
+		PromptConversationTitle: {
+			"question": "Việc nào trễ trong dự án Q4?", "answer": "Có 2 việc trễ [S1] [S2].",
+		},
+		"chat_catchup@1":  catchUp,
+		PromptChatCatchUp: catchUp,
 		PromptChatCallSummary: {
 			"locale": "vi", "today": "2026-09-16", "duration": "1:05", "participants": "An, Bình",
 			"sources": RenderSources([]Source{
