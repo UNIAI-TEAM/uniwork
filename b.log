@@ -1,0 +1,10 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/notification -count=1 -race -v -run '^TestCallInvitePushesTheCalleeWhileItRings$' > /tmp/n.log 2>&1); rc=$?; grep -vE "^=== (RUN|PAUSE|CONT)" /tmp/n.log | tail -60; echo; echo "DIAG_CALL_INVITE_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+    chat_call_test.go:86: sent = [{Title:Chủ Nhóm đang gọi Body: URL:http://app.test/notif-org/notif-ws/chat?room=01M5H9AYJEYKR37TBG7HCFZMH9&call=call-push-1 Tag:chat_call:01M5H9AYJEYKR37TBG7HCFZMH9 TTL:60} {Title:Chủ Nhóm đang gọi Body: URL:http://app.test/notif-org/notif-ws/chat?room=01M5H9AYJEYKR37TBG7HCFZMH9&call=call-push-1 Tag:chat_call:01M5H9AYJEYKR37TBG7HCFZMH9 TTL:60}] to [ExponentPushToken[member] https://push.example/member-browser], want {Title:Chủ Nhóm đang gọi Body: URL:http://app.test/notif-org/notif-ws/chat?room=01M5H9AYJEYKR37TBG7HCFZMH9&call=call-push-1 Tag:chat_call:01M5H9AYJEYKR37TBG7HCFZMH9 TTL:60} to the phone only
+--- FAIL: TestCallInvitePushesTheCalleeWhileItRings (0.81s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/notification	0.857s
+FAIL
+
+DIAG_CALL_INVITE_EXIT=1

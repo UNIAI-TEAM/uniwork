@@ -1,0 +1,13 @@
+$ (. scripts/local-env.sh && cd server && go test ./migrations -count=1 -v -run '^TestTenantReasonsSitOnTenantQueries$' > /tmp/m.log 2>&1); rc=$?; tail -60 /tmp/m.log; echo; echo "DIAG_TENANT_REASONS_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+=== RUN   TestTenantReasonsSitOnTenantQueries
+    query_scope_test.go:80: `-- tenant:` on queries that already name their tenant or touch no tenant table; drop the line:
+          chat.sql: GetChatRoomWallpaperForUpdate
+          chat.sql: SetChatRoomWallpaper
+--- FAIL: TestTenantReasonsSitOnTenantQueries (0.05s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/migrations	0.055s
+FAIL
+
+DIAG_TENANT_REASONS_EXIT=1

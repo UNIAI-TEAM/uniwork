@@ -1,0 +1,14 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/handler -count=1 -timeout 60m -v -run '^TestIsolationMatrix$' > /tmp/h.log 2>&1); rc=$?; grep -nE "isolation_[a-z_]+_test\.go:[0-9]+:|^\s+--- FAIL" /tmp/h.log | head -80; echo; echo "DIAG_ISOLATION_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+1070:    isolation_matrix_test.go:118: PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}: B's owner = 400, want refusal: {"error":{"code":"invalid_request","message":"no fields to update"}}
+1115:    isolation_matrix_test.go:118: POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/wallpaper: B's owner = 400, want refusal: {"error":{"code":"invalid_request","message":"multipart field \"file\" is required"}}
+1928:    isolation_matrix_test.go:186: mixed PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}: B's owner = 400, want refusal: {"error":{"code":"invalid_request","message":"no fields to update"}}
+1973:    isolation_matrix_test.go:186: mixed POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/wallpaper: B's owner = 400, want refusal: {"error":{"code":"invalid_request","message":"multipart field \"file\" is required"}}
+2384:    isolation_matrix_test.go:258: member-of-both mixed PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}: B's owner (also a member of A) = 400, want refusal: {"error":{"code":"invalid_request","message":"no fields to update"}}
+2429:    isolation_matrix_test.go:258: member-of-both mixed POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/wallpaper: B's owner (also a member of A) = 400, want refusal: {"error":{"code":"invalid_request","message":"multipart field \"file\" is required"}}
+3286:    --- FAIL: TestIsolationMatrix/cross-tenant (195.66s)
+3289:    --- FAIL: TestIsolationMatrix/mixed (68.24s)
+3295:    --- FAIL: TestIsolationMatrix/member-of-both (159.04s)
+
+DIAG_ISOLATION_EXIT=1
