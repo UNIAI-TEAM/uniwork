@@ -33,8 +33,10 @@ function ChannelPanel({ manifest, channel, onChoose }: { manifest: ReleasesManif
   const entry = manifest.channels[channel];
   const latest = entry ? latestRelease(entry) : undefined;
   if (!entry || !latest) return <ComingSoon channel={channel} alternative={defaultChannel(manifest)} onChoose={onChoose} />;
+  // The layout depends on the visitor's system, so the skeleton stays until the browser has answered: nothing swaps after paint.
+  if (!device.settled) return <DownloadSkeleton />;
   return <div className="office-dl-panel">
-    <OsGroups files={releaseFiles(latest)} meta={{ version: latest.version, date: date(latest.published_at) }} device={device} apt={<AptInstall suite={entry.apt_suite} />} />
+    <OsGroups files={releaseFiles(latest)} meta={{ version: latest.version, date: date(latest.published_at), channel }} device={device} apt={<AptInstall suite={entry.apt_suite} />} />
     <WhatsNew release={latest} />
     <History releases={entry.releases.filter((release) => release !== latest)} />
   </div>;
@@ -49,12 +51,12 @@ function Fallback({ onRetry }: { onRetry: () => void }) {
   const suite = installers[0]?.channel ?? "dev";
   return <div className="office-dl-panel">
     <ManifestError onRetry={onRetry} />
-    {status === "loading" ? <DownloadSkeleton /> : installers.length > 0 && <OsGroups files={installerFiles(installers)} meta={{ version }} device={device} apt={<AptInstall suite={suite} />} />}
+    {status === "loading" || !device.settled ? <DownloadSkeleton /> : installers.length > 0 && <OsGroups files={installerFiles(installers)} meta={{ version }} device={device} apt={<AptInstall suite={suite} />} />}
   </div>;
 }
 
 /**
- * The Download section of /apps/office (UNI-2098 r3): the heading with the
+ * The Download section of /apps/office (UNI-2098 r4): the heading with the
  * release channel switch, the builds grouped by Windows / macOS / Linux (apt
  * inside Linux), what is new and the earlier versions. The manifest is read in the
  * browser after hydration, so the server and the first client render agree on

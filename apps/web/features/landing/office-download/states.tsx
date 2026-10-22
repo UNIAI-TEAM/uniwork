@@ -9,15 +9,19 @@ import { MarketingLink as Link } from "../../../platform/marketing-link";
 import type { ReleaseChannel } from "./manifest";
 import type { NewVersion } from "./use-releases";
 
-/** Same boxes as the loaded section (three OS groups, the update line), so nothing moves when the manifest arrives. */
+/** The shape most visitors get (their system as the spotlight, two other cards), so a desktop visitor sees nothing move. */
 export function DownloadSkeleton() {
   const { t } = useTranslation();
   return <div className="office-dl-skeleton" aria-busy="true">
     <p className="office-dl-loading" role="status"><Spinner />{t("landing.office.download.states.loading")}</p>
-    <div className="office-dl-groups" aria-hidden>{[0, 1, 2].map((n) => <div key={n} className="office-dl-group is-skeleton">
+    <div className="office-dl-spot is-skeleton" aria-hidden>
+      <div className="office-dl-spot-copy"><Skeleton className="office-dl-pill-skeleton" /><Skeleton className="office-dl-title-skeleton" /><Skeleton className="office-dl-line-skeleton is-short" /><Skeleton className="office-dl-hero-skeleton" /></div>
+      <div className="office-dl-spot-media"><Skeleton className="office-dl-media-skeleton" /></div>
+    </div>
+    <div className="office-dl-others is-secondary" aria-hidden><div className="office-dl-groups">{[0, 1].map((n) => <div key={n} className="office-dl-group is-skeleton">
       <div className="office-dl-group-head"><Skeleton className="office-dl-tile-skeleton" /><div className="office-dl-group-name"><Skeleton className="office-dl-line-skeleton" /><Skeleton className="office-dl-line-skeleton is-short" /></div></div>
-      <div className="office-dl-builds">{(n === 1 || n === 2 ? [0, 1] : [0]).map((m) => <Skeleton key={m} className="office-dl-build-skeleton" />)}</div>
-    </div>)}</div>
+      <div className="office-dl-builds">{[0, 1].map((m) => <Skeleton key={m} className="office-dl-build-skeleton" />)}</div>
+    </div>)}</div></div>
   </div>;
 }
 
