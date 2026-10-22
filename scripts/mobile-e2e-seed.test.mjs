@@ -134,5 +134,9 @@ test("every MAESTRO_* name a flow or a peer script reads is one the seed provide
     seeded.add(key);
   // Set by the workflow, not the seed: the build's link scheme.
   seeded.add("MAESTRO_APP_SCHEME");
+  // Set by apps/chat-mobile/scripts/store-screenshots.mjs for flows/store-screenshots.yaml: where the
+  // shots go, and whether the calls tab is shown (Android only while iPhone calls are off).
+  seeded.add("MAESTRO_SHOT_DIR");
+  seeded.add("MAESTRO_CALLS");
   assert.deepEqual([...read].filter((key) => !seeded.has(key)).sort(), []);
 });
