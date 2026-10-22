@@ -54,15 +54,29 @@ test("vitals are read for the latest complete day, crash and ANR rates joined pe
   await assert.rejects(playVitals({ packageName: "other", token: "tok", fetchImpl: fakeReporting().fetchImpl }), /answered 404: no message/);
 });
 
-test("Google's bad-behaviour thresholds stop a version code once enough people used it", () => {
+test("Google's bad-behaviour thresholds stop a version code once enough people used it and are behind the rate", () => {
   assert.equal(CRASH_RATE_FLOOR, 0.0109);
   assert.equal(ANR_RATE_FLOOR, 0.0047);
   const day = "2026-09-30";
-  assert.deepEqual(vitalsReasons({ crashRate: 0.011, anrRate: 0.0048, users: 20, day }, 20), [
-    "Play vitals: user-perceived crash rate 1.10 % over 20 users on 2026-09-30",
-    "Play vitals: user-perceived ANR rate 0.48 % over 20 users on 2026-09-30",
+  const t = { minUsers: 20, minAffected: 3 };
+  assert.deepEqual(vitalsReasons({ crashRate: 0.011, anrRate: 0.0048, users: 700, day }, t), [
+    "Play vitals: user-perceived crash rate 1.10 % over 700 users (8 people) on 2026-09-30",
+    "Play vitals: user-perceived ANR rate 0.48 % over 700 users (3 people) on 2026-09-30",
   ]);
-  assert.deepEqual(vitalsReasons({ crashRate: 0.05, anrRate: 0.05, users: 19, day }, 20), [], "too few people to say");
-  assert.deepEqual(vitalsReasons({ crashRate: 0.0109, anrRate: null, users: 500, day }, 20), []);
-  assert.deepEqual(vitalsReasons(null, 20), []);
+  assert.deepEqual(vitalsReasons({ crashRate: 0.05, anrRate: 0.05, users: 19, day }, t), [], "too few people to say");
+  assert.deepEqual(vitalsReasons({ crashRate: 0.0109, anrRate: null, users: 500, day }, t), []);
+  assert.deepEqual(vitalsReasons(null, t), []);
+});
+
+// Review finding: one day of Play data at pilot scale. One person's crash among 20 users is a 5 % crash rate, and
+// one ANR among 200 a 0.5 % ANR rate; neither is a pattern, and the Sentry rule needs 3 crashed people.
+test("one person's crash or ANR does not halt a pilot", () => {
+  const t = { minUsers: 20, minAffected: 3 };
+  const day = "2026-09-30";
+  assert.deepEqual(vitalsReasons({ crashRate: 1 / 20, anrRate: 1 / 200, users: 20, day }, t), []);
+  assert.deepEqual(vitalsReasons({ crashRate: 2 / 91, anrRate: 2 / 91, users: 91, day }, t), [], "two is not yet a pattern");
+  assert.deepEqual(vitalsReasons({ crashRate: 3 / 40, anrRate: null, users: 40, day }, t), [
+    "Play vitals: user-perceived crash rate 7.50 % over 40 users (3 people) on 2026-09-30",
+  ]);
+  assert.deepEqual(vitalsReasons({ crashRate: 1 / 20, anrRate: null, users: 20, day }, { minUsers: 20, minAffected: 1 }).length, 1, "a pilot may lower the bar");
 });

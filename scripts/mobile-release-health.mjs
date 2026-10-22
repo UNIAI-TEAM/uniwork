@@ -16,7 +16,7 @@
 //   - a new crash: an unhandled issue first seen in this release, hit by at least 2 people;
 //   - an OTA that at least 2 phones could not launch (data/release/launch-health.ts reports it);
 //   - Android only: Play's user-perceived crash rate > 1.09 % or ANR rate > 0.47 % for the version code (the latest
-//     complete day; scripts/mobile-play-vitals.mjs).
+//     complete day; scripts/mobile-play-vitals.mjs), with at least as many people behind it as the crashed-users rule.
 // How it is stopped, by platform:
 //   - an OTA still rolling out: `eas update:revert-update-rollout --group` (phones go back to the update before it);
 //   - an Android store build: its staged rollout halted on the first of production, beta, alpha that has it;
@@ -109,7 +109,7 @@ export function reasonsOf(r, t) {
     if (issue.users >= t.newCrashMinUsers) reasons.push(`new crash ${issue.shortId} hit ${issue.users} people${issue.permalink ? ` (${issue.permalink})` : ""}`);
   }
   if (r.launchFailureUsers >= t.launchFailureMinUsers) reasons.push(`${r.launchFailureUsers} phones could not launch this update`);
-  reasons.push(...vitalsReasons(r.vitals, t.vitalsMinUsers));
+  reasons.push(...vitalsReasons(r.vitals, { minUsers: t.vitalsMinUsers, minAffected: t.minCrashedUsers }));
   return reasons;
 }
 
@@ -287,7 +287,7 @@ export async function main(argv, { env = process.env, fetchImpl = fetch, eas, lo
   const rules =
     `Stop at: crash-free < ${pct(t.floor)} over ≥ ${t.minSessions} sessions (< ${pct(t.severeFloor)} over ≥ ${t.severeMinSessions}); ` +
     `≥ ${t.minCrashedUsers} people crashed; a new crash hitting ≥ ${t.newCrashMinUsers} people; ≥ ${t.launchFailureMinUsers} phones unable to launch an OTA; ` +
-    `Play vitals over Google's bad-behaviour thresholds (≥ ${t.vitalsMinUsers} users).`;
+    `Play vitals over Google's bad-behaviour thresholds (≥ ${t.vitalsMinUsers} users, ≥ ${t.minCrashedUsers} of them affected).`;
   const text = `### UniChat release health (${options.app}: ${channels.join(", ")}, last 24 h)\n\n${rules}\n\n${lines.join("\n")}\n`;
   summary(text);
   log(text);

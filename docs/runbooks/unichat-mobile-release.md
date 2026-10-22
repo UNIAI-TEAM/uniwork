@@ -370,8 +370,10 @@ trong Sentry theo tên app tự đặt — `<bundle id>@<version>+<build>.<andro
 - một bản OTA mà **≥ 2 máy** không khởi động được (issue `OtaLaunchError`, tag `failed_update_id`, do
   `data/release/launch-health.ts` báo — kể cả khi bản đó chưa có phiên nào vì máy chưa từng chạy được nó);
 - chỉ Android: **Play vitals** của version code (ngày đủ dữ liệu gần nhất, trễ 1–2 ngày) vượt ngưỡng "bad behaviour"
-  của Google — user-perceived crash rate > 1,09 % hoặc ANR rate > 0,47 % trên ≥ 20 người (`scripts/mobile-play-vitals.mjs`;
-  service account cần quyền "View app quality information", thiếu thì chỉ cảnh báo).
+  của Google — user-perceived crash rate > 1,09 % hoặc ANR rate > 0,47 % trên ≥ 20 người **và** tỉ lệ đó ứng với ≥ 3
+  người (cùng ngưỡng `UNICHAT_HEALTH_MIN_CRASHED_USERS` của luật Sentry: Play chỉ cho một ngày, nên ở cỡ pilot một
+  người crash trên 20–91 người đã vượt 1,09 %) (`scripts/mobile-play-vitals.mjs`; service account cần quyền "View app
+  quality information", thiếu thì chỉ cảnh báo).
 
 Pilot nhỏ: hạ các con số bằng repository variables `UNICHAT_HEALTH_MIN_SESSIONS`, `UNICHAT_HEALTH_SEVERE_MIN_SESSIONS`,
 `UNICHAT_HEALTH_MIN_CRASHED_USERS`, `UNICHAT_HEALTH_NEW_CRASH_MIN_USERS`, `UNICHAT_HEALTH_LAUNCH_FAILURE_MIN_USERS`,

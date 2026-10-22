@@ -45,8 +45,11 @@ test("a small cohort is stopped by people crashing and by a new crash, not only 
   assert.deepEqual(reasonsOf(record({ sessions: 8, newCrashes: fresh }), t), ["new crash UNICHAT-1F hit 2 people (https://sentry.io/i/1)"]);
   assert.deepEqual(reasonsOf(record({ newCrashes: [{ shortId: "X", users: 4, permalink: null }] }), t), ["new crash X hit 4 people"]);
   assert.deepEqual(reasonsOf(record({ updateId: OTA, launchFailureUsers: 2 }), t), ["2 phones could not launch this update"]);
-  const vitals = { crashRate: 0.002, anrRate: 0.006, users: 40, day: "2026-10-21" };
-  assert.deepEqual(reasonsOf(record({ vitals }), t), ["Play vitals: user-perceived ANR rate 0.60 % over 40 users on 2026-10-21"]);
+  const vitals = { crashRate: 0.002, anrRate: 0.006, users: 600, day: "2026-10-21" };
+  assert.deepEqual(reasonsOf(record({ vitals }), t), ["Play vitals: user-perceived ANR rate 0.60 % over 600 users (4 people) on 2026-10-21"]);
+  // One ANR among 40 users is 2.5 %, but one person: the vitals bar is the crashed-users rule's count.
+  assert.deepEqual(reasonsOf(record({ vitals: { ...vitals, anrRate: 1 / 40, users: 40 } }), t), []);
+  assert.equal(reasonsOf(record({ vitals: { ...vitals, anrRate: 1 / 40, users: 40 } }), { ...t, minCrashedUsers: 1 }).length, 1);
 });
 
 test("collect joins launch failures and Play's vitals to the releases Sentry has, and adds the ones it has not", () => {

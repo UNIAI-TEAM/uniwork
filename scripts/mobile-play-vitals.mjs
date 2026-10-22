@@ -2,7 +2,8 @@
 // "thresholds-unreachable-at-pilot-scale": only Sentry's crash-free rate was gated, and an ANR — the app frozen for
 // five seconds — never reaches Sentry as a crash). Google's own "bad behaviour" thresholds, the ones Play uses to
 // demote an app in the store, are the floor: user-perceived crash rate 1.09 %, user-perceived ANR rate 0.47 %, over
-// the latest complete day Play has (it lags a day or two, so this backs the hourly Sentry rules, never replaces them).
+// the latest complete day Play has (it lags a day or two, so this backs the hourly Sentry rules, never replaces them),
+// and only once enough people stand behind the rate (vitalsReasons).
 // Node built-ins only; scripts/mobile-release-health.mjs reads it with the service account's reporting token.
 export const REPORTING_SCOPE = "https://www.googleapis.com/auth/playdeveloperreporting";
 const API = "https://playdeveloperreporting.googleapis.com/v1beta1/apps";
@@ -67,12 +68,25 @@ export async function playVitals({ packageName, token, fetchImpl }) {
   return byCode;
 }
 
-/** Why a version code's vitals stop its rollout (empty when they do not, or too few people used it to say). */
-export function vitalsReasons(vitals, minUsers) {
+/**
+ * Why a version code's vitals stop its rollout (empty when they do not). Both a rate over Google's floor and enough
+ * people behind it: Play reports one day, so at pilot scale one person's crash is already over 1.09 % of 91 users and
+ * one ANR over 0.47 % of 212 — Google's own floors are 28-day rates for exactly that reason. `minUsers` is the day's
+ * users below which nothing is said, `minAffected` the people the rate stands for (round(rate × users)), the same bar
+ * as the Sentry rule's crashed users.
+ */
+export function vitalsReasons(vitals, { minUsers, minAffected }) {
   if (!vitals || vitals.users < minUsers) return [];
   const pct = (v) => `${(v * 100).toFixed(2)} %`;
   const reasons = [];
-  if (vitals.crashRate !== null && vitals.crashRate > CRASH_RATE_FLOOR) reasons.push(`Play vitals: user-perceived crash rate ${pct(vitals.crashRate)} over ${vitals.users} users on ${vitals.day}`);
-  if (vitals.anrRate !== null && vitals.anrRate > ANR_RATE_FLOOR) reasons.push(`Play vitals: user-perceived ANR rate ${pct(vitals.anrRate)} over ${vitals.users} users on ${vitals.day}`);
+  for (const [label, rate, floor] of [
+    ["crash", vitals.crashRate, CRASH_RATE_FLOOR],
+    ["ANR", vitals.anrRate, ANR_RATE_FLOOR],
+  ]) {
+    if (rate === null || rate <= floor) continue;
+    const affected = Math.round(rate * vitals.users);
+    if (affected < minAffected) continue;
+    reasons.push(`Play vitals: user-perceived ${label} rate ${pct(rate)} over ${vitals.users} users (${affected} people) on ${vitals.day}`);
+  }
   return reasons;
 }
