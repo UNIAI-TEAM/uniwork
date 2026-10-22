@@ -2413,6 +2413,7 @@ type User struct {
 	AiConsentVersion     pgtype.Text        `json:"ai_consent_version"`
 	AiConsentAt          pgtype.Timestamptz `json:"ai_consent_at"`
 	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	AiOptOutAt           pgtype.Timestamptz `json:"ai_opt_out_at"`
 }
 
 type WebhookInbox struct {

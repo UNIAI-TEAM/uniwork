@@ -90,14 +90,22 @@ WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- The person's answer to the AI processing notice (Apple 5.1.2(i)). A NULL
--- version withdraws consent and clears the time with it.
+-- version withdraws consent (or declines it) and clears the time with it;
+-- declining also keeps the person's messages out of every AI request
+-- (ai_opt_out_at), which agreeing again lifts.
 -- name: SetUserAIConsent :one
 UPDATE users SET
   ai_consent_version = sqlc.narg('version'),
   ai_consent_at      = CASE WHEN sqlc.narg('version')::text IS NULL THEN NULL ELSE now() END,
+  ai_opt_out_at      = CASE WHEN sqlc.narg('version')::text IS NULL THEN now() ELSE NULL END,
   updated_at         = now()
 WHERE id = sqlc.arg('id') AND deleted_at IS NULL
 RETURNING *;
+
+-- name: ListAIOptedOutUserIDs :many
+-- Of these people, the ones who declined AI processing: what they wrote stays
+-- out of every AI request, whoever makes it (service/ai_opt_out.go).
+SELECT id FROM users WHERE id = ANY(sqlc.arg('ids')::text[]) AND ai_opt_out_at IS NOT NULL;
 
 -- name: SetUserPushPreviewsHidden :one
 -- Keeps the first time it was hidden, so turning it on twice changes nothing.

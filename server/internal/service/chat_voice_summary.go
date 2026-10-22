@@ -127,10 +127,19 @@ func (s *ChatService) HandleVoiceCallCompleted(ctx context.Context, payload map[
 	if err != nil {
 		return err
 	}
+	senders := make([]string, 0, len(rows))
+	for _, row := range rows {
+		senders = append(senders, row.SenderID)
+	}
+	optOuts, err := loadAIOptOuts(ctx, s.q, senders)
+	if err != nil {
+		return err
+	}
 	sources := make([]ai.Source, 0, len(rows)+1)
 	idByHref := map[string]string{}
 	for _, row := range rows {
-		if row.ID == callLogID {
+		// A member who declined AI processing is left out of the summary (Apple 5.1.2(i)).
+		if row.ID == callLogID || optOuts.excludes(row.SenderID) {
 			continue
 		}
 		excerpt := strings.TrimSpace(row.Body)

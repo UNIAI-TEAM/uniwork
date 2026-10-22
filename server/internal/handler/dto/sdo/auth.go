@@ -28,6 +28,7 @@ type UserDTO struct {
 	PlatformRole            string          `json:"platform_role,omitempty" description:"admin hoặc support khi là nhân sự nền tảng; nền tảng bắt buộc MFA" example:"support"`
 	AIConsentVersion        *string         `json:"ai_consent_version" description:"Phiên bản thông báo xử lý AI người dùng đã đồng ý; null khi chưa đồng ý hoặc đã rút lại" example:"2026-10-anthropic"`
 	AIConsentAt             *string         `json:"ai_consent_at" description:"Thời điểm đồng ý xử lý AI (RFC3339); null khi chưa đồng ý" example:"2026-10-21T08:00:00Z"`
+	AIOptOutAt              *string         `json:"ai_opt_out_at" description:"Thời điểm người dùng từ chối (hay rút lại) xử lý AI (RFC3339): từ đó tin của họ không vào yêu cầu AI nào, dù ai yêu cầu; null khi không từ chối" example:"2026-10-22T08:00:00Z"`
 	PushPreviews            bool            `json:"push_previews" description:"true khi push được hiện nội dung; false khi người dùng ẩn (chính sách của tổ chức có thể ẩn dù đây là true)" example:"true"`
 }
 

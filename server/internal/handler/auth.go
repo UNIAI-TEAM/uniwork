@@ -55,6 +55,10 @@ func toUserDTO(u db.User) sdo.UserDTO {
 		v, at := u.AiConsentVersion.String, u.AiConsentAt.Time.Format(time.RFC3339)
 		out.AIConsentVersion, out.AIConsentAt = &v, &at
 	}
+	if u.AiOptOutAt.Valid {
+		at := u.AiOptOutAt.Time.Format(time.RFC3339)
+		out.AIOptOutAt = &at
+	}
 	return out
 }
 
