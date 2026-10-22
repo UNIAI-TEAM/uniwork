@@ -1,5 +1,5 @@
-import { request } from "../http";
 import { createChatThreadsApi } from "./chat-threads-api";
+import { webChatRequest } from "./chat-web-request";
 
 export type { ChatThreadRecord } from "./chat-threads-api";
 
@@ -11,4 +11,4 @@ export const {
   unfollowChatThread,
   markChatThreadRead,
   listFollowedChatThreads,
-} = createChatThreadsApi((path, opts) => request(path, opts));
+} = createChatThreadsApi(webChatRequest);

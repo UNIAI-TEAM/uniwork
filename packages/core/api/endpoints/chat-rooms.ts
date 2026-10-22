@@ -3,6 +3,7 @@ import { createChatRoomsApi } from "./chat-rooms-api";
 import { readRoom } from "./chat-endpoint-kit";
 import { enc } from "./chat-schemas";
 import type { ChatRoomRecord } from "./chat-schemas";
+import { webChatRequest } from "./chat-web-request";
 
 // The web's binding of the shared chat room endpoints (chat-rooms-api.ts) to its transport.
 export const {
@@ -20,7 +21,7 @@ export const {
   ensureWorkspaceChatRoom,
   getChatRoom,
   patchChatRoom,
-} = createChatRoomsApi((path, opts) => request(path, opts));
+} = createChatRoomsApi(webChatRequest);
 
 /** Sets a group's avatar; PNG, JPEG, GIF or WebP up to 2 MiB. A browser File, so it stays off the JSON factory. */
 export async function uploadChatRoomAvatar(

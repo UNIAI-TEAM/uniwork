@@ -3,6 +3,7 @@ import { readMessage } from "./chat-endpoint-kit";
 import { createChatMessagesApi, type ChatDocumentShareLevel } from "./chat-messages-api";
 import { enc } from "./chat-schemas";
 import type { ChatMessageRecord } from "./chat-schemas";
+import { webChatRequest } from "./chat-web-request";
 
 export type { ChatDocumentShareLevel, ChatSearchScope } from "./chat-messages-api";
 
@@ -24,7 +25,7 @@ export const {
   toggleChatMessagePin,
   listWorkspaceChatMessages,
   sendWorkspaceChatMessage,
-} = createChatMessagesApi((path, opts) => request(path, opts));
+} = createChatMessagesApi(webChatRequest);
 
 // The multipart sends below carry a browser Blob, so they stay on the web's own transport.
 const roomMessages = (workspaceId: string, roomId: string) =>

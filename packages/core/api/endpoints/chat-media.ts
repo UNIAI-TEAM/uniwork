@@ -1,5 +1,5 @@
-import { request } from "../http";
 import { createChatMediaApi } from "./chat-media-api";
+import { webChatRequest } from "./chat-web-request";
 
 // The web's binding of the shared chat media endpoints (chat-media-api.ts) to its transport.
 export const {
@@ -9,4 +9,4 @@ export const {
   listTrendingChatStickers,
   getChatMediaStatus,
   getChatRoomSharedSummary,
-} = createChatMediaApi((path, opts) => request(path, opts));
+} = createChatMediaApi(webChatRequest);

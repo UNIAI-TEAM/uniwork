@@ -1,5 +1,5 @@
-import { request } from "../http";
 import { createChatChannelsApi } from "./chat-channels-api";
+import { webChatRequest } from "./chat-web-request";
 
 export type { CreateChatChannelInput, ListChatChannelsOpts, UpdateChatChannelInput } from "./chat-channels-api";
 
@@ -12,4 +12,4 @@ export const {
   archiveChatChannel,
   unarchiveChatChannel,
   listProjectChatChannels,
-} = createChatChannelsApi((path, opts) => request(path, opts));
+} = createChatChannelsApi(webChatRequest);

@@ -3,6 +3,7 @@ import { ApiError, request, requestBlob } from "../http";
 import { parseWithFallback } from "../schema";
 import { createChatVoiceApi } from "./chat-voice-api";
 import { enc } from "./chat-schemas";
+import { webChatRequest } from "./chat-web-request";
 
 // The web's binding of the shared call signalling endpoints (chat-voice-api.ts) to its transport.
 export const {
@@ -12,7 +13,7 @@ export const {
   signalChatVoiceAccept,
   signalChatVoiceHangup,
   signalChatTyping,
-} = createChatVoiceApi((path, opts) => request(path, opts));
+} = createChatVoiceApi(webChatRequest);
 
 const ChatVoiceRecordingSchema = z.object({
   recording: z
