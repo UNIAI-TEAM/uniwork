@@ -47,8 +47,8 @@ export function pageStructuredData(path: string, locale: SupportedLocale, origin
   const absolute = (href: string) => new URL(marketingHref(href, locale), origin).href;
   const organizationId = `${origin}/#organization`;
   const websiteId = `${origin}/#website`;
-  const parent = path.startsWith("/features/") ? "/features" : path.startsWith("/learn/") ? "/learn" : path.startsWith("/solutions/") ? "/solutions" : path.startsWith("/apps/") ? "/apps" : null;
-  const crumbs = [{ name: "UniWork", item: absolute("/") }, ...(parent ? [{ name: seoCopy(marketingRoute(parent)!.key, locale).title, item: absolute(parent) }] : []), ...(path !== "/" ? [{ name: copy.title, item: absolute(path) }] : [])];
+  const parent = path.startsWith("/features/") ? "/features" : path.startsWith("/learn/") ? "/learn" : path.startsWith("/solutions/") ? "/solutions" : path === "/apps/office/versions" ? "/apps/office" : path.startsWith("/apps/") ? "/apps" : null;
+  const crumbs = [{ name: "UniWork", item: absolute("/") }, ...(parent === "/apps/office" ? [{ name: seoCopy("apps", locale).title, item: absolute("/apps") }] : []), ...(parent ? [{ name: seoCopy(marketingRoute(parent)!.key, locale).title, item: absolute(parent) }] : []), ...(path !== "/" ? [{ name: copy.title, item: absolute(path) }] : [])];
   const graph: Record<string, unknown>[] = [
     { "@type": "Organization", "@id": organizationId, name: siteInformation.name, url: origin, logo: `${origin}/icon.svg`, ...(siteInformation.legalName ? { legalName: siteInformation.legalName } : {}), ...(siteInformation.supportEmail ? { email: siteInformation.supportEmail } : {}) },
     { "@type": "WebSite", "@id": websiteId, name: "UniWork", url: origin, inLanguage: ["en", "vi"], publisher: { "@id": organizationId } },

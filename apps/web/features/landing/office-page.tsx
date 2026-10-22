@@ -19,10 +19,14 @@ import "./marketing-chapters.css";
 import "./office.css";
 
 const SECTIONS = [
-  { id: OFFICE_BUSINESS_ANCHOR, labelKey: "landing.apps.bar.overview" },
   { id: OFFICE_EDITOR_ANCHOR, labelKey: "landing.apps.bar.editors" },
   { id: "office-download", labelKey: "landing.apps.bar.download" },
   { id: "office-faq", labelKey: "landing.apps.bar.faq" },
+] as const;
+// The two pages of the app (UNI-2098); the bar's own "Tổng quan" anchor gave way to the first tab.
+const PAGES = [
+  { href: paths.apps.office(), labelKey: "landing.office.tabs.overview", current: true },
+  { href: paths.apps.officeVersions(), labelKey: "landing.office.tabs.versions", current: false },
 ] as const;
 const WORKS = [{ key: "open", icon: FolderOpen }, { key: "version", icon: RotateCcwClock }, { key: "share", icon: MessageSquare }] as const;
 
@@ -37,7 +41,7 @@ export function OfficePage() {
   const { t } = useTranslation();
   const [active, setActive] = useState<OfficeEditorKey>("docs");
   return <MarketingShell className="office-site apps-site" closingTitle="landing.office.closing" closingAction={{ href: `${paths.apps.office()}#${OFFICE_EDITOR_ANCHOR}`, labelKey: "landing.office.hero.explore", icon: "arrow" }}>
-    <AppBar app="office" sections={SECTIONS} cta={{ href: "#office-download", label: t("landing.office.hero.trial"), short: t("landing.apps.bar.short") }} />
+    <AppBar app="office" sections={SECTIONS} pages={PAGES} cta={{ href: "#office-download", label: t("landing.office.hero.trial"), short: t("landing.apps.bar.short") }} />
     <div className="chapter-world office-world">
     <section id={OFFICE_BUSINESS_ANCHOR} className="office-hero chapter-width" aria-labelledby="office-title">
       <div className="office-hero-copy">

@@ -1,0 +1,194 @@
+/*
+ * UniOffice versions page (UNI-2098). Tokens only; selectors carry
+ * .versions-site so they outrank marketing-pages.css's page-wide heading,
+ * paragraph and list rules. It extends office.css / apps.css, it adds no new look.
+ */
+.versions-site .ver-hero { display: grid; justify-items: center; gap: 12px; padding-block: 56px 24px; text-align: center; }
+.versions-site .ver-hero h1 { margin: 0; font-size: clamp(36px, 3.4vw, 52px); font-weight: 800; line-height: 1.1; letter-spacing: -.035em; text-wrap: balance; }
+.versions-site .ver-hero .office-sub { margin: 0; max-width: 62ch; color: var(--muted-foreground); }
+.versions-site .ver-main { display: flex; flex-direction: column; gap: 32px; padding-bottom: 96px; }
+.versions-site .ver-tabs { gap: 12px; }
+.versions-site .ver-panel { display: flex; flex-direction: column; gap: 32px; }
+.versions-site .ver-panel:not([hidden]) { display: flex; }
+
+/* Channel switch: the overview's tab look, with the latest version under each name. */
+.versions-site .ver-channels { gap: 6px; }
+.versions-site .ver-channel { flex-direction: column; gap: 0; min-width: 150px; min-height: 56px; padding-block: 6px; }
+.versions-site .ver-channel span { font-size: var(--text-body); font-weight: 600; }
+.versions-site .ver-channel small { font-size: var(--text-caption); font-weight: 400; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.versions-site .ver-channel[data-active] small { color: inherit; opacity: .85; }
+.versions-site .ver-channel-hint { margin: 0; text-align: center; font-size: var(--text-body); color: var(--muted-foreground); }
+
+/* Card: the landing's raised surface. */
+.versions-site .ver-card { display: flex; flex-direction: column; gap: 20px; padding: 32px 36px; border-radius: 24px; border: 1px solid var(--input); background: var(--surface-raised); }
+.versions-site .ver-card-head { display: flex; align-items: flex-start; gap: 16px; }
+.versions-site .ver-card-head h3 { margin: 0; font-size: var(--text-title-sm); font-weight: 700; letter-spacing: -.015em; }
+.versions-site .ver-card-head p { margin: 4px 0 0; max-width: 56ch; font-size: var(--text-body); line-height: 1.55; color: var(--muted-foreground); }
+.versions-site .ver-card-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: 12px; background: var(--brand-subtle); color: var(--brand-subtle-foreground); }
+.versions-site .ver-card-icon svg { width: 22px; height: 22px; }
+.versions-site .ver-muted { margin: 0; color: var(--muted-foreground); font-size: var(--text-body); }
+
+/* Latest version. */
+.versions-site .ver-latest { scroll-margin-top: 168px; }
+.versions-site .ver-latest-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 32px; }
+.versions-site .ver-eyebrow { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; font-size: var(--text-caption); font-weight: 600; color: var(--muted-foreground); }
+.versions-site .ver-latest h2 { margin: 0; font-size: clamp(30px, 3vw, 44px); font-weight: 800; line-height: 1.1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.versions-site .ver-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; font-size: var(--text-body); color: var(--muted-foreground); }
+.versions-site .ver-meta span:last-child, .versions-site .ver-history-sha { font-family: var(--font-mono); font-size: var(--text-caption); }
+.versions-site .ver-latest-body { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 32px; padding-top: 24px; border-top: 1px solid var(--border); }
+.versions-site .ver-latest-files > h3, .versions-site .ver-notes-panel > h3, .versions-site .ver-history-panel h3 { margin: 0 0 14px; font-size: var(--text-body); font-weight: 700; }
+.versions-site .ver-notes-panel { min-width: 0; padding: 20px 22px; border-radius: 16px; background: var(--muted); align-self: start; }
+.versions-site .ver-history-panel .ver-notes-panel { background: var(--muted); }
+
+/* Badges. */
+.versions-site .ver-badge { height: 24px; gap: 5px; padding-inline: 10px; font-size: var(--text-caption); font-weight: 600; }
+.versions-site .ver-badge svg { width: 13px; height: 13px; }
+.versions-site .ver-badge.is-signed { background: var(--success-soft); color: var(--success-soft-foreground); }
+.versions-site .ver-badge.is-unsigned { background: var(--warning-soft); color: var(--warning-soft-foreground); }
+.versions-site .ver-badge.is-own { background: var(--brand-subtle); color: var(--brand-subtle-foreground); }
+.versions-site .ver-badge.is-channel { background: var(--info-soft); color: var(--info-soft-foreground); }
+
+/* Files by system. */
+.versions-site .ver-files-wrap { display: flex; flex-direction: column; gap: 18px; }
+.versions-site .ver-os { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 12px; border: 1px solid var(--border); border-radius: 16px; background: var(--background); }
+.versions-site .ver-os[data-own] { border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); }
+.versions-site .ver-os-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.versions-site .ver-os-head > svg { width: 18px; height: 18px; color: var(--muted-foreground); }
+.versions-site .ver-os-head h4 { margin: 0; margin-right: 4px; font-size: var(--text-body-lg); font-weight: 700; }
+.versions-site .ver-files { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.versions-site .ver-file { display: grid; grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1.35fr) auto; align-items: center; gap: 8px 16px; padding-block: 10px; border-top: 1px solid var(--border); }
+.versions-site .ver-file:first-child { border-top: 0; }
+.versions-site .ver-file-name { display: flex; flex-direction: column; min-width: 0; }
+.versions-site .ver-file-name strong { font-size: var(--text-body); font-weight: 600; }
+.versions-site .ver-file-name span { font-size: var(--text-caption); color: var(--muted-foreground); }
+.versions-site .ver-file-size { font-size: var(--text-body); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.versions-site .ver-file-sha { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.versions-site .ver-file-sha-label { margin-right: 4px; white-space: nowrap; font-size: var(--text-caption); font-weight: 600; color: var(--muted-foreground); }
+.versions-site .ver-file-sha code { overflow: hidden; display: inline-flex; align-items: center; gap: 6px; min-width: 0; min-height: 28px; padding: 0 8px; border-radius: 8px; background: var(--muted); font-family: var(--font-mono); font-size: var(--text-caption); white-space: nowrap; }
+.versions-site .ver-file-sha code[data-copied] { background: var(--success-soft); color: var(--success-soft-foreground); font-family: inherit; font-weight: 600; }
+.versions-site .ver-file-sha code svg { width: 13px; height: 13px; }
+.versions-site .ver-copy svg { width: 15px; height: 15px; }
+.versions-site .ver-copy[data-copied] { color: var(--success-soft-foreground); }
+.versions-site .ver-file-action { min-height: 44px; gap: 8px; border-radius: 10px; padding-inline: 16px; font-weight: 600; }
+.versions-site .ver-file-action svg { width: 16px; height: 16px; }
+.versions-site .ver-os-note { display: flex; align-items: flex-start; gap: 8px; margin: 2px 0 0; padding-top: 10px; border-top: 1px dashed var(--border); font-size: var(--text-caption); line-height: 1.55; color: var(--muted-foreground); }
+.versions-site .ver-os-note svg { width: 15px; height: 15px; flex: none; margin-top: 1px; }
+.versions-site .ver-checksums { margin: 0; font-size: var(--text-caption); }
+.versions-site .ver-checksums a, .versions-site .ver-apt-foot a { color: var(--brand); font-weight: 500; }
+.versions-site .ver-checksums a:hover, .versions-site .ver-apt-foot a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Release notes: rendered markdown, in the card's own scale. */
+.versions-site .ver-notes { display: flex; flex-direction: column; gap: 10px; font-size: var(--text-body); line-height: 1.6; }
+.versions-site .ver-notes h4 { margin: 8px 0 0; font-size: var(--text-body); font-weight: 700; }
+.versions-site .ver-notes h4:first-child { margin-top: 0; }
+.versions-site .ver-notes p { margin: 0; font-size: inherit; color: var(--muted-foreground); }
+.versions-site .ver-notes ul, .versions-site .ver-notes ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.versions-site .ver-notes ul { list-style: disc; }
+.versions-site .ver-notes ol { list-style: decimal; }
+.versions-site .ver-notes li { color: var(--foreground); }
+.versions-site .ver-notes li::marker { color: var(--faint-foreground); }
+.versions-site .ver-notes code { padding: 1px 6px; border-radius: 6px; background: var(--background); font-family: var(--font-mono); font-size: .88em; }
+.versions-site .ver-notes a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+
+/* apt and self-update, side by side. */
+.versions-site .ver-aside { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.versions-site .ver-apt-steps { display: flex; flex-direction: column; gap: 16px; margin: 0; padding: 0; list-style: none; }
+.versions-site .ver-apt-step-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.versions-site .ver-apt-step-head h4 { margin: 0; margin-right: auto; font-size: var(--text-body); font-weight: 600; }
+.versions-site .ver-apt-n { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 999px; background: var(--brand-subtle); color: var(--brand-subtle-foreground); font-size: var(--text-caption); font-weight: 700; }
+.versions-site .ver-code { margin: 0; padding: 14px 16px; overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--muted); font-family: var(--font-mono); font-size: var(--text-caption); line-height: 1.65; white-space: pre; }
+.versions-site .ver-code code { font: inherit; }
+.versions-site .ver-apt-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; font-size: var(--text-body); }
+.versions-site .ver-copy-all { min-height: 36px; border: 1px solid var(--input); background: var(--background); }
+.versions-site .ver-apt-note { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: var(--text-body); line-height: 1.55; color: var(--muted-foreground); }
+.versions-site .ver-apt-note svg { width: 16px; height: 16px; flex: none; margin-top: 3px; }
+.versions-site .ver-update-list { display: flex; flex-direction: column; margin: 0; }
+.versions-site .ver-update-list > div { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; padding-block: 14px; border-top: 1px solid var(--border); }
+.versions-site .ver-update-list dt { font-size: var(--text-body); font-weight: 700; }
+.versions-site .ver-update-list dd { margin: 0; font-size: var(--text-body); line-height: 1.55; color: var(--muted-foreground); }
+
+/* Quiet notes: a state that says what happened without shouting. */
+.versions-site .ver-quiet { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--warning-soft); color: var(--warning-soft-foreground); }
+.versions-site .ver-quiet > svg { width: 18px; height: 18px; flex: none; margin-top: 2px; }
+.versions-site .ver-quiet p { margin: 0; font-size: var(--text-body); line-height: 1.55; color: inherit; }
+.versions-site .ver-quiet.is-block { align-items: center; padding: 18px 22px; border-color: var(--input); background: var(--surface-raised); color: var(--foreground); }
+.versions-site .ver-quiet.is-block > svg { color: var(--destructive-soft-foreground); }
+.versions-site .ver-quiet.is-block > div { flex: 1; }
+.versions-site .ver-quiet .ver-muted { color: var(--muted-foreground); }
+.versions-site .ver-fallback { display: flex; flex-direction: column; }
+.versions-site .ver-fallback h2, .versions-site .ver-section-head h2 { margin: 0; font-size: var(--text-title-lg); font-weight: 700; letter-spacing: -.02em; }
+.versions-site .ver-fallback .app-dl { margin-top: 20px; }
+.versions-site .ver-state { align-items: center; padding-block: 64px; text-align: center; }
+.versions-site .ver-state h2 { margin: 0; font-size: var(--text-title-lg); font-weight: 700; }
+.versions-site .ver-state p { margin: 0; max-width: 52ch; font-size: var(--text-body-lg); line-height: 1.6; color: var(--muted-foreground); }
+.versions-site .ver-state-icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; background: var(--muted); color: var(--muted-foreground); }
+.versions-site .ver-state-icon svg { width: 26px; height: 26px; }
+
+/* History: one line per version until opened. */
+.versions-site .ver-section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; margin-bottom: 14px; }
+.versions-site .ver-section-head p, .versions-site .ver-quiet-line { margin: 0; font-size: var(--text-body); color: var(--muted-foreground); }
+.versions-site .ver-history-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border: 1px solid var(--input); border-radius: 20px; background: var(--surface-raised); overflow: hidden; }
+.versions-site .ver-history-item + .ver-history-item { border-top: 1px solid var(--border); }
+.versions-site .ver-history-trigger { display: grid; grid-template-columns: minmax(0, 1.3fr) 150px minmax(0, 1fr) 20px; align-items: center; gap: 16px; width: 100%; min-height: 60px; padding: 0 24px; border: 0; background: none; color: var(--foreground); text-align: left; cursor: pointer; font-size: var(--text-body); }
+.versions-site .ver-history-trigger:hover { background: var(--surface-hover); }
+.versions-site .ver-history-trigger strong { font-size: var(--text-body-lg); font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.versions-site .ver-history-trigger time { color: var(--muted-foreground); }
+.versions-site .ver-history-trigger > svg { width: 18px; height: 18px; color: var(--muted-foreground); transition: transform .2s; }
+.versions-site .ver-history-trigger[data-panel-open] > svg { transform: rotate(180deg); }
+.versions-site .ver-history-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr); gap: 24px; padding: 8px 24px 28px; }
+.versions-site .ver-history-panel .ver-notes-panel { order: 0; }
+
+/* Loading: same boxes as the loaded page. */
+.versions-site .ver-skeleton { display: flex; flex-direction: column; gap: 20px; }
+.versions-site .ver-loading { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0; font-size: var(--text-body); color: var(--muted-foreground); }
+.versions-site .ver-tabs-skeleton { display: flex; justify-content: center; gap: 6px; }
+.versions-site .ver-skeleton-tab { width: 150px; height: 56px; border-radius: 10px; }
+.versions-site .ver-latest-skeleton { min-height: 560px; }
+.versions-site .ver-skeleton-title { width: 280px; max-width: 70%; height: 44px; }
+.versions-site .ver-skeleton-rows { display: flex; flex-direction: column; gap: 14px; }
+.versions-site .ver-skeleton-row { height: 96px; border-radius: 16px; }
+.versions-site .ver-skeleton-line { height: 16px; }
+.versions-site .ver-skeleton-line.is-short { width: 140px; }
+
+/* New-version notice: fixed, non-modal, never shifts the page. */
+.versions-site .ver-notice { position: fixed; z-index: 60; inset-inline: 0; bottom: 24px; display: flex; align-items: center; gap: 14px; width: fit-content; max-width: calc(100vw - 32px); margin-inline: auto; padding: 10px 10px 10px 20px; border: 1px solid var(--input); border-radius: 16px; background: var(--surface-raised); box-shadow: 0 18px 40px -16px color-mix(in srgb, var(--foreground) 45%, transparent); }
+.versions-site .ver-notice p { margin: 0; font-size: var(--text-body); font-weight: 500; color: var(--foreground); }
+.versions-site .ver-notice-dot { width: 10px; height: 10px; flex: none; border-radius: 999px; background: var(--brand); }
+.versions-site .ver-notice .app-dl-button, .versions-site .ver-notice button { flex: none; }
+
+@media (max-width: 1099px) {
+  .versions-site .ver-latest-body, .versions-site .ver-aside, .versions-site .ver-history-panel { grid-template-columns: minmax(0, 1fr); }
+  .versions-site .ver-file { grid-template-columns: minmax(0, 1fr) auto; }
+  .versions-site .ver-file-name { grid-column: 1; }
+  .versions-site .ver-file-size { grid-column: 2; grid-row: 1; justify-self: end; }
+  .versions-site .ver-file-sha { grid-column: 1 / -1; }
+  .versions-site .ver-file-action { grid-column: 1 / -1; width: 100%; }
+}
+@media (max-width: 767px) {
+  .versions-site .ver-hero { padding-block: 36px 16px; }
+  .versions-site .ver-main { gap: 24px; padding-bottom: 72px; }
+  .versions-site .ver-channels { width: 100%; overflow-x: visible; }
+  .versions-site .ver-channel { flex: 1; min-width: 0; padding-inline: 6px; }
+  .versions-site .ver-channel small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .versions-site .ver-card { padding: 22px 18px; border-radius: 20px; gap: 18px; }
+  .versions-site .ver-latest h2 { font-size: 28px; }
+  .versions-site .ver-notes-panel { padding: 16px; }
+  .versions-site .ver-os { padding: 12px; }
+  .versions-site .ver-update-list > div { grid-template-columns: 1fr; gap: 2px; }
+  .versions-site .ver-history-trigger { grid-template-columns: minmax(0, 1fr) 20px; grid-template-rows: auto auto; row-gap: 2px; min-height: 68px; padding: 10px 16px; }
+  .versions-site .ver-history-trigger strong { grid-column: 1; }
+  .versions-site .ver-history-trigger time { grid-column: 1; grid-row: 2; }
+  .versions-site .ver-history-trigger .ver-history-sha { display: none; }
+  .versions-site .ver-history-trigger > svg { grid-column: 2; grid-row: 1 / span 2; }
+  .versions-site .ver-history-panel { padding: 4px 16px 20px; }
+  .versions-site .ver-quiet.is-block { flex-wrap: wrap; }
+  .versions-site .ver-quiet.is-block > button { width: 100%; }
+  .versions-site .ver-notice { inset-inline: 12px; bottom: 12px; width: auto; max-width: none; flex-wrap: wrap; padding: 14px; }
+  .versions-site .ver-notice p { flex: 1 1 calc(100% - 32px); }
+  .versions-site .ver-notice > button:nth-of-type(1) { flex: 1; }
+  .versions-site .ver-skeleton-tab { flex: 1; width: auto; }
+  .versions-site .ver-latest-skeleton { min-height: 520px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .versions-site .ver-history-trigger > svg { transition: none; }
+}

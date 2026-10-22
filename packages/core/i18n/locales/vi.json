@@ -9465,7 +9465,88 @@
       },
       "installersError": "Không tải được danh sách bản cài đặt. Kiểm tra kết nối rồi thử lại.",
       "retry": "Thử lại",
-      "closing": "Đưa bộ ứng dụng văn phòng về cùng workspace của nhóm."
+      "closing": "Đưa bộ ứng dụng văn phòng về cùng workspace của nhóm.",
+      "tabs": {
+        "overview": "Tổng quan",
+        "versions": "Phiên bản"
+      },
+      "versions": {
+        "title": "Phiên bản UniOffice",
+        "sub": "Mọi bản đã phát hành theo kênh, kèm ghi chú thay đổi, mã SHA-256 và cách để UniOffice tự cập nhật.",
+        "cta": "Tải bản mới nhất",
+        "channelsLabel": "Kênh phát hành",
+        "channel": {
+          "stable": "Ổn định",
+          "beta": "Beta",
+          "dev": "Dev"
+        },
+        "channelHint": {
+          "stable": "Dành cho dùng hằng ngày.",
+          "beta": "Bản thử trước khi lên kênh Ổn định.",
+          "dev": "Bản mới nhất, có thể chưa ổn định."
+        },
+        "soon": "Sắp có",
+        "latest": "Bản mới nhất",
+        "releasedOn": "Phát hành {{date}}",
+        "build": "Bản dựng {{sha}}",
+        "downloads": "Tải về",
+        "download": "Tải về",
+        "downloadFile": "Tải {{file}}",
+        "sha": "SHA-256",
+        "copySha": "Sao chép SHA-256 của {{file}}",
+        "signed": "Đã ký số",
+        "unsigned": "Chưa ký số",
+        "unsignedNote": {
+          "windows": "Bản Windows này chưa ký số: SmartScreen có thể cảnh báo ở lần mở đầu. Đối chiếu SHA-256 nếu cần.",
+          "macos": "Bản macOS này chưa ký số: macOS có thể chặn ở lần mở đầu. Đối chiếu SHA-256 nếu cần.",
+          "linux": "Gói Linux này chưa ký số. Đối chiếu SHA-256 trước khi cài."
+        },
+        "checksums": "Tải tệp {{file}} cho mọi bản tải",
+        "notes": "Có gì mới",
+        "notesEmpty": "Phiên bản này chưa có ghi chú.",
+        "openVersion": "Xem chi tiết phiên bản {{version}}",
+        "history": {
+          "title": "Các phiên bản trước",
+          "hint": "Mỗi kênh giữ 5 phiên bản gần nhất.",
+          "none": "Kênh này chưa có phiên bản trước."
+        },
+        "autoUpdate": {
+          "title": "UniOffice tự cập nhật thế nào",
+          "sub": "Mỗi hệ điều hành có một cách, không cần tải lại bộ cài.",
+          "windows": "Tự cập nhật ngay trong ứng dụng.",
+          "macos": "Tự cập nhật ngay trong ứng dụng.",
+          "linux": "Bản .deb cập nhật qua apt (apt upgrade). Bản AppImage tự cập nhật trong ứng dụng."
+        },
+        "states": {
+          "loading": "Đang tải danh sách phiên bản…",
+          "soonTitle": "Kênh {{channel}} sắp có",
+          "soonBody": "Chưa có phiên bản nào được phát hành ở kênh {{channel}}. Khi có, nó sẽ hiện ở đây.",
+          "soonAction": "Xem kênh {{channel}}",
+          "emptyTitle": "Chưa có phiên bản nào được phát hành",
+          "emptyBody": "Trong lúc chờ, bạn vẫn mở và sửa file Office ngay trên web, trong mục Tài liệu.",
+          "error": "Không tải được danh sách phiên bản.",
+          "errorFallback": "Bên dưới là các bản cài đặt hiện hành, có thể chưa phải bản mới nhất.",
+          "fallbackTitle": "Bản cài đặt hiện hành"
+        },
+        "update": {
+          "notice": "Có phiên bản mới {{version}} ở kênh {{channel}}.",
+          "action": "Tải lại",
+          "dismiss": "Bỏ qua thông báo"
+        },
+        "aptPlaceholder": {
+          "title": "Cài qua apt",
+          "sub": "Cho Ubuntu và Debian 64-bit. Thêm kho một lần, sau đó apt giữ UniOffice luôn mới.",
+          "step1": "Thêm khóa ký",
+          "step2": "Thêm nguồn apt (kênh {{suite}})",
+          "step3": "Cập nhật danh sách và cài",
+          "copy": "Sao chép",
+          "copyStep": "Sao chép lệnh: {{title}}",
+          "copyAll": "Sao chép cả ba bước",
+          "keyAsc": "Cần khóa dạng văn bản? Tải key.asc",
+          "upgrade": "Về sau chỉ cần chạy {{command}}.",
+          "deb": "Đã cài bằng tệp .deb? Gói đã tự thêm nguồn này, bạn không cần làm các bước trên."
+        }
+      }
     },
     "unichat": {
       "hero": {
@@ -9709,7 +9790,8 @@
         "faq": "Hỏi đáp",
         "all": "Tất cả ứng dụng",
         "short": "Tải",
-        "sections": "Mục trong trang"
+        "sections": "Mục trong trang",
+        "pages": "Trang {{app}}"
       },
       "download": {
         "device": "Máy của bạn",

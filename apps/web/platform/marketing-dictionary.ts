@@ -45,7 +45,7 @@ export const loadMarketingDictionary = cache(async (locale: SupportedLocale, pat
   // `apps` rides on every lean page: the header's Apps menu reads it.
   const publicLanding = lean ? {
     ...Object.fromEntries(["nav", "cta", "footer", "final", "productPages", "catalog", "solutions", "studio", "workforce", "businessOs", "meetings", "demo", "apps"].map(key => [key, landing[key]])),
-    office: path === "/apps/office" ? landing.office : { editions: (landing.office as Record<string, unknown>).editions },
+    office: path === "/apps/office" || path === "/apps/office/versions" ? landing.office : { editions: (landing.office as Record<string, unknown>).editions },
     ...(path === "/apps/unichat" ? { unichat: landing.unichat } : {}),
   } : landing;
   return {

@@ -194,7 +194,7 @@ describe("the Office page", () => {
     await render({ flags: {}, office_installers: installers });
     const bar = container.querySelector("[data-app-bar=office]");
     expect(bar?.querySelector(".app-bar-root")?.getAttribute("href")).toBe(paths.apps.root());
-    expect(hrefs("[data-app-bar=office] .app-bar-links a")).toEqual(["#office-business", "#office-editors", "#office-download", "#office-faq"]);
+    expect(hrefs("[data-app-bar=office] .app-bar-links a")).toEqual(["#office-editors", "#office-download", "#office-faq"]);
     for (const id of ["office-business", "office-editors", "office-download", "office-faq"]) expect(container.querySelector(`#${id}`)).not.toBeNull();
     expect(bar?.querySelector(".app-bar-cta")?.getAttribute("href")).toBe("#office-download");
     expect(bar?.querySelector(".app-bar-cta-long")?.textContent).toBe("Tải dùng thử");

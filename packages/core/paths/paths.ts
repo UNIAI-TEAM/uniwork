@@ -67,6 +67,8 @@ export const paths = {
   apps: {
     root: () => "/apps",
     office: () => "/apps/office",
+    /** UniOffice's released versions per channel, with the apt repository (UNI-2098). */
+    officeVersions: () => "/apps/office/versions",
     unichat: () => "/apps/unichat",
   },
   about: () => "/about",

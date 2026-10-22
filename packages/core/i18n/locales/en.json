@@ -9475,7 +9475,88 @@
       },
       "installersError": "We couldn't load the list of installers. Check your connection and try again.",
       "retry": "Try again",
-      "closing": "Bring the office apps home to your team's workspace."
+      "closing": "Bring the office apps home to your team's workspace.",
+      "tabs": {
+        "overview": "Overview",
+        "versions": "Versions"
+      },
+      "versions": {
+        "title": "UniOffice versions",
+        "sub": "Every released version by channel, with release notes, SHA-256 checksums and how UniOffice keeps itself up to date.",
+        "cta": "Download the latest",
+        "channelsLabel": "Release channel",
+        "channel": {
+          "stable": "Stable",
+          "beta": "Beta",
+          "dev": "Dev"
+        },
+        "channelHint": {
+          "stable": "For everyday use.",
+          "beta": "A preview of what is headed for Stable.",
+          "dev": "The newest builds, possibly unstable."
+        },
+        "soon": "Coming soon",
+        "latest": "Latest version",
+        "releasedOn": "Released {{date}}",
+        "build": "Build {{sha}}",
+        "downloads": "Downloads",
+        "download": "Download",
+        "downloadFile": "Download {{file}}",
+        "sha": "SHA-256",
+        "copySha": "Copy the SHA-256 of {{file}}",
+        "signed": "Signed",
+        "unsigned": "Unsigned",
+        "unsignedNote": {
+          "windows": "This Windows build is not code-signed, so SmartScreen may warn the first time you open it. Check the SHA-256 if in doubt.",
+          "macos": "This macOS build is not signed, so macOS may block it the first time. Check the SHA-256 if in doubt.",
+          "linux": "This Linux package is not signed. Check the SHA-256 before installing."
+        },
+        "checksums": "Download {{file}} for every file",
+        "notes": "What's new",
+        "notesEmpty": "This version has no release notes.",
+        "openVersion": "Show details for version {{version}}",
+        "history": {
+          "title": "Earlier versions",
+          "hint": "Each channel keeps its 5 most recent versions.",
+          "none": "This channel has no earlier versions yet."
+        },
+        "autoUpdate": {
+          "title": "How UniOffice updates itself",
+          "sub": "Each system has its own way, and you never need to download the installer again.",
+          "windows": "Updates itself inside the app.",
+          "macos": "Updates itself inside the app.",
+          "linux": ".deb installs update through apt (apt upgrade). The AppImage updates itself inside the app."
+        },
+        "states": {
+          "loading": "Loading the list of versions…",
+          "soonTitle": "The {{channel}} channel is coming soon",
+          "soonBody": "No version has been released on the {{channel}} channel yet. It will show up here once there is one.",
+          "soonAction": "See the {{channel}} channel",
+          "emptyTitle": "No version has been released yet",
+          "emptyBody": "Meanwhile you can still open and edit Office files on the web, under Documents.",
+          "error": "Could not load the list of versions.",
+          "errorFallback": "Below are the current installers, which may not be the latest.",
+          "fallbackTitle": "Current installers"
+        },
+        "update": {
+          "notice": "A new version, {{version}}, is out on the {{channel}} channel.",
+          "action": "Reload",
+          "dismiss": "Dismiss notice"
+        },
+        "aptPlaceholder": {
+          "title": "Install with apt",
+          "sub": "For 64-bit Ubuntu and Debian. Add the repository once, and apt keeps UniOffice up to date.",
+          "step1": "Add the signing key",
+          "step2": "Add the apt source ({{suite}} suite)",
+          "step3": "Update the package list and install",
+          "copy": "Copy",
+          "copyStep": "Copy command: {{title}}",
+          "copyAll": "Copy all three steps",
+          "keyAsc": "Need the text key? Download key.asc",
+          "upgrade": "Afterwards, just run {{command}}.",
+          "deb": "Installed from the .deb file? It already added this source, so you can skip the steps above."
+        }
+      }
     },
     "unichat": {
       "hero": {
@@ -9719,7 +9800,8 @@
         "faq": "FAQ",
         "all": "All apps",
         "short": "Get",
-        "sections": "Page sections"
+        "sections": "Page sections",
+        "pages": "{{app}} pages"
       },
       "download": {
         "device": "Your device",
