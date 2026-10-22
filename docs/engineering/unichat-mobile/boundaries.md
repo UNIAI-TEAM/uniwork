@@ -35,7 +35,9 @@ gọn của follow-up, liên kết tin, task, thành viên workspace — bản c
 `web-copies.json` ghi sha256 của từng file nguồn web mà mỗi bản copy nêu, lúc bản copy được rà lần cuối, và
 `copiedCodeChars` — cỡ code của mọi bản copy (ký tự không phải khoảng trắng, bỏ dòng comment, nên xuống dòng hay thụt lề
 không làm nó đổi), một ratchet chỉ đi xuống (`--write` hạ nó khi bản copy co lại, không bao giờ nâng; test đỏ khi bản copy
-lớn ra; nâng là sửa tay trong PR có lý do vì sao không chia sẻ được qua core);
+lớn ra; nâng là sửa tay trong PR có lý do vì sao không chia sẻ được qua core). Cạnh ratchet là `target`: cỡ đích
+(54 000 ký tự, khoảng 1 500 dòng code), hạn `by` (launch + 1, đặt tay) và lý do; `--write` giữ nguyên nó, test đỏ khi
+quá hạn mà ratchet còn trên đích, nên dời hạn cũng là sửa tay trong PR có lý do;
 `scripts/mobile-web-copies.test.mjs` (chạy cả ở `ci.yml`, nên PR chỉ sửa web cũng đỏ) đỏ khi một nguồn đổi, khi có
 bản copy mới chưa ghi, hay khi header và manifest lệch. Rà bản copy (port bản sửa hoặc quyết định không áp dụng) rồi
 `node scripts/mobile-web-copies.mjs --write`.

@@ -32,7 +32,8 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
 - Phần mirror từ repo `usf` (`apps/mobile`) ghi "Ported from usf apps/mobile/<path>" ở đầu file và sạch tên thương
   hiệu usf (`scripts/no-usf-leak.test.mjs`).
 - Thứ còn phải copy ghi nguồn ở comment đầu file; `web-copies.json` ghi hash nguồn và ratchet `copiedCodeChars` chỉ đi
-  xuống (`scripts/mobile-web-copies.test.mjs`, chạy cả ở `ci.yml`). Rà bản copy rồi `node scripts/mobile-web-copies.mjs
+  xuống, cùng `target` (cỡ đích, hạn `by`, lý do): quá hạn mà ratchet còn trên đích thì test đỏ
+  (`scripts/mobile-web-copies.test.mjs`, chạy cả ở `ci.yml`). Rà bản copy rồi `node scripts/mobile-web-copies.mjs
   --write`. Bản copy mới phải có lý do vì sao không thành module core được.
 
 ## Luật có test giữ

@@ -1,6 +1,11 @@
 {
-  "$comment": "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedCodeChars (the ratchet) in a reviewed PR.",
+  "$comment": "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedCodeChars (the ratchet) or move target in a reviewed PR.",
   "copiedCodeChars": 136363,
+  "target": {
+    "copiedCodeChars": 54000,
+    "by": "2027-02-28",
+    "why": "About 1,500 code lines (36 characters a line) by launch + 1: what is left after the send path, the realtime frame table and the display helpers move behind core modules that take their host's keys, transport and viewer."
+  },
   "copies": {
     "apps/chat-mobile/components/chat/use-chat-media.ts": {
       "packages/views/chat/use-chat-media-url.ts": "f9ab781619ddc93ef6bc24b31bf1fba1db5d839a8e1148eb4b6b7404596b9afd"

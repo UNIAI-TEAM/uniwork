@@ -19,6 +19,13 @@
 // edit of the manifest in a reviewed PR that says why the new copy could not
 // be a shared core module.
 //
+// Beside the ratchet sits its goal: `target` — a size in the same unit
+// (about 1,500 code lines), the date by which the copies must be down to it
+// (launch + 1, set by hand) and why. --write keeps it as it is; the test fails
+// once that date has passed with the ratchet still above it, so the goal
+// cannot quietly lapse. Moving the date is a reviewed edit like raising the
+// ratchet.
+//
 //   node scripts/mobile-web-copies.mjs          print what changed (exit 1 if anything did)
 //   node scripts/mobile-web-copies.mjs --write  record the current hashes, after reviewing each copy
 import { createHash } from "node:crypto";
@@ -127,6 +134,35 @@ export function nextCeiling(current, recorded) {
   return typeof recorded === "number" && recorded < current ? recorded : current;
 }
 
+/** The manifest --write records: the copies as they are, the ratchet lowered, the target kept. */
+export function nextManifest(copies, size, recorded) {
+  const manifest = {
+    $comment:
+      "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedCodeChars (the ratchet) or move target in a reviewed PR.",
+    copiedCodeChars: nextCeiling(size, recorded?.copiedCodeChars),
+  };
+  if (recorded?.target) manifest.target = recorded.target;
+  manifest.copies = Object.fromEntries(Object.entries(copies).sort().map(([file, sources]) => [file, Object.fromEntries(sources.map((s) => [s, hashOf(s)]))]));
+  return manifest;
+}
+
+/** Why the ratchet's target fails today, or null: missing, malformed, not below the ratchet's start, or overdue. */
+export function targetProblem(manifest, today = new Date()) {
+  const { target, copiedCodeChars: ceiling } = manifest;
+  if (!target || typeof target.copiedCodeChars !== "number" || typeof target.by !== "string" || !target.why) {
+    return `${MANIFEST} has no target {copiedCodeChars, by, why} beside the ratchet`;
+  }
+  const by = Date.parse(`${target.by}T23:59:59Z`);
+  if (Number.isNaN(by)) return `${MANIFEST} target.by is not a YYYY-MM-DD date: ${target.by}`;
+  if (today.getTime() > by && ceiling > target.copiedCodeChars) {
+    return (
+      `The phone still copies ${ceiling} code characters of web code, past the target of ${target.copiedCodeChars} due ${target.by}. ` +
+      "Move the remaining copies behind core modules (see apps/chat-mobile/CLAUDE.md), or move target.by in a reviewed PR that says why."
+    );
+  }
+  return null;
+}
+
 export function readManifest() {
   return JSON.parse(fs.readFileSync(path.join(root, MANIFEST), "utf8"));
 }
@@ -160,11 +196,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const size = copiedCodeChars(copies);
     let recorded;
     try {
-      recorded = readManifest().copiedCodeChars;
+      recorded = readManifest();
     } catch {
       recorded = undefined;
     }
-    const ceiling = nextCeiling(size, recorded);
+    const manifest = nextManifest(copies, size, recorded);
+    const ceiling = manifest.copiedCodeChars;
     if (size > ceiling) {
       console.error(
         `${MANIFEST}: the copies grew to ${size} code characters, past the ratchet's ${ceiling}. ` +
@@ -172,14 +209,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       );
       process.exitCode = 1;
     }
-    const manifest = {
-      $comment:
-        "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedCodeChars (the ratchet) in a reviewed PR.",
-      copiedCodeChars: ceiling,
-      copies: Object.fromEntries(Object.entries(copies).sort().map(([file, sources]) => [file, Object.fromEntries(sources.map((s) => [s, hashOf(s)]))])),
-    };
     fs.writeFileSync(path.join(root, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
-    console.log(`${MANIFEST}: ${Object.keys(copies).length} copies, ${size} code characters (ratchet ${ceiling})`);
+    const goal = manifest.target ? `, target ${manifest.target.copiedCodeChars} by ${manifest.target.by}` : "";
+    console.log(`${MANIFEST}: ${Object.keys(copies).length} copies, ${size} code characters (ratchet ${ceiling}${goal})`);
   } else {
     const lines = drift(copies);
     for (const line of lines) console.log(line);

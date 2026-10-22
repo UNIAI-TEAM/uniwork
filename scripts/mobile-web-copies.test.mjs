@@ -1,6 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { appFiles, codeChars, COPY_MARK, copiedCodeChars, copyHeaderOf, drift, headerOf, MANIFEST, nextCeiling, pathsNamedIn, readManifest, scanCopies, sourcesIn } from "./mobile-web-copies.mjs";
+import {
+  appFiles,
+  codeChars,
+  COPY_MARK,
+  copiedCodeChars,
+  copyHeaderOf,
+  drift,
+  headerOf,
+  MANIFEST,
+  nextCeiling,
+  nextManifest,
+  pathsNamedIn,
+  readManifest,
+  scanCopies,
+  sourcesIn,
+  targetProblem,
+} from "./mobile-web-copies.mjs";
 
 // ADR 0011 keeps views and the stateful core modules out of the phone, so some
 // web logic is copied into apps/chat-mobile. A copy names its source in its
@@ -29,6 +45,33 @@ test("the copies never grow past the ratchet the manifest records", () => {
       "pure core module (an endpoint factory, a function taking its dependencies) and import it instead; raise " +
       `copiedCodeChars in ${MANIFEST} by hand only in a reviewed PR that says why it cannot be shared.`,
   );
+});
+
+// A ratchet with no goal only says "not worse": the copies dropped about 8% in
+// the remediation that added it and nothing said how far they still had to go.
+test("the ratchet has a dated target below it, and the copies reach it by that date", () => {
+  const manifest = readManifest();
+  assert.equal(targetProblem(manifest), null, targetProblem(manifest) ?? "");
+  assert.ok(manifest.target.copiedCodeChars < manifest.copiedCodeChars || copiedCodeChars() <= manifest.target.copiedCodeChars);
+});
+
+test("the target fails when missing, malformed or overdue, and not before its date", () => {
+  const target = { copiedCodeChars: 50_000, by: "2027-02-28", why: "launch + 1" };
+  assert.match(targetProblem({ copiedCodeChars: 90_000 }), /no target/);
+  assert.match(targetProblem({ copiedCodeChars: 90_000, target: { ...target, why: "" } }), /no target/);
+  assert.match(targetProblem({ copiedCodeChars: 90_000, target: { ...target, by: "soon" } }), /not a YYYY-MM-DD/);
+  assert.equal(targetProblem({ copiedCodeChars: 90_000, target }, new Date("2027-02-28T12:00:00Z")), null);
+  assert.match(targetProblem({ copiedCodeChars: 90_000, target }, new Date("2027-03-01T00:00:01Z")), /past the target of 50000 due 2027-02-28/);
+  assert.equal(targetProblem({ copiedCodeChars: 49_000, target }, new Date("2027-06-01T00:00:00Z")), null);
+});
+
+test("--write lowers the ratchet and keeps the target as it was", () => {
+  const target = { copiedCodeChars: 50_000, by: "2027-02-28", why: "launch + 1" };
+  const written = nextManifest({}, 80_000, { copiedCodeChars: 90_000, target, copies: {} });
+  assert.equal(written.copiedCodeChars, 80_000);
+  assert.deepEqual(written.target, target);
+  assert.equal(nextManifest({}, 95_000, { copiedCodeChars: 90_000, target, copies: {} }).copiedCodeChars, 90_000);
+  assert.equal(nextManifest({}, 1_000, undefined).target, undefined);
 });
 
 test("the ratchet counts code, not layout: wrapping a line or adding a comment does not move it", () => {
