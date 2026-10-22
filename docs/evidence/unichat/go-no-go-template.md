@@ -31,7 +31,7 @@ Mỗi dòng trỏ tới bằng chứng (bình luận UNI-1838, run CI, ảnh). M
 | Số | Mục tiêu | Thực tế |
 | --- | --- | --- |
 | Ngày làm việc liên tục | ≥ 10 | … |
-| Người dùng hằng ngày / người trong danh sách (thấp nhất, trung bình) | ≥ 80 % | … % / … % |
+| Người dùng hằng ngày / người trong danh sách (thấp nhất, trung bình) — người riêng biệt có request đã xác thực từ app mỗi ngày, query Loki ở `docs/runbooks/unichat-mobile-release.md` › Thống kê sản phẩm theo bản | ≥ 80 % | … % / … % |
 | Sự cố mất tin / trùng tin | 0 | … |
 | Sự cố bảo mật | 0 | … |
 | P1 mở / đóng trong 2 ngày làm việc | tất cả | … / … |

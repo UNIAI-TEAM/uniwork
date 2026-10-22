@@ -17,7 +17,7 @@ import (
 
 // /mobile/events (audit "no-product-analytics"): signed in, capped at 4 KiB and 20
 // events, always 204, and only known events and results become counters, labelled by
-// OS and store version from the X-Client-* headers — never by person or organization.
+// OS, store version and OTA update from the X-Client-* headers — never by person or organization.
 func TestMobileEventsEndpoint(t *testing.T) {
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
 	token, err := minter.Mint("01J8X4USER0000000000000001")
@@ -34,6 +34,7 @@ func TestMobileEventsEndpoint(t *testing.T) {
 		req.Header.Set("X-Client-Platform", "mobile")
 		req.Header.Set("X-Client-Version", "0.3.0")
 		req.Header.Set("X-Client-OS", "android")
+		req.Header.Set("X-Client-Update-Id", "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b")
 		if bearer {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
@@ -54,7 +55,7 @@ func TestMobileEventsEndpoint(t *testing.T) {
 	if c := post(h, batch, true); c != http.StatusNoContent {
 		t.Fatalf("batch: %d, want 204", c)
 	}
-	if got := testutil.ToFloat64(events.Events.WithLabelValues("message_send", "sent", "android", "0.3.0")); got != 1 {
+	if got := testutil.ToFloat64(events.Events.WithLabelValues("message_send", "sent", "android", "0.3.0", "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b")); got != 1 {
 		t.Fatalf("message_send sent = %v, want 1", got)
 	}
 	if n := testutil.CollectAndCount(events.Events, "uniwork_mobile_events_total"); n != 4 {
@@ -70,7 +71,7 @@ func TestMobileEventsEndpoint(t *testing.T) {
 	if c := post(h, many, true); c != http.StatusNoContent {
 		t.Fatalf("25 events: %d", c)
 	}
-	if got := testutil.ToFloat64(events.Events.WithLabelValues("app_open", "warm", "android", "0.3.0")); got != 20 {
+	if got := testutil.ToFloat64(events.Events.WithLabelValues("app_open", "warm", "android", "0.3.0", "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b")); got != 20 {
 		t.Fatalf("a batch counts at most 20 events, got %v", got)
 	}
 	// Without a metrics registry the route still answers 204.

@@ -14,8 +14,8 @@ const maxMobileEventsBody = 4096
 const maxMobileEventsPerBatch = 20
 
 // mobileEvents is POST /api/v1/mobile/events: UniChat mobile's anonymous
-// product events (data/analytics.ts), turned into counters by OS and store
-// version and nothing else — no person, organization or content is recorded.
+// product events (data/analytics.ts), turned into counters by OS, store
+// version and OTA update and nothing else — no person, organization or content is recorded.
 // Always 204: the app never retries or shows an analytics failure.
 func (h *handlers) mobileEvents(w http.ResponseWriter, r *http.Request) {
 	var in sdi.MobileEventsSDI
@@ -24,11 +24,12 @@ func (h *handlers) mobileEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.MobileEvents != nil {
 		_, version, os := mw.ClientMetadataFromContext(r.Context())
+		update := mw.ClientUpdateIDFromContext(r.Context())
 		for i, event := range in.Events {
 			if i == maxMobileEventsPerBatch {
 				break
 			}
-			h.MobileEvents.Observe(event.Name, event.Result, os, version, event.DurationMs)
+			h.MobileEvents.Observe(event.Name, event.Result, os, version, update, event.DurationMs)
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)

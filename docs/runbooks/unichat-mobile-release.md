@@ -301,13 +301,18 @@ thiếu thiết lập là đỏ. Chạy tay ("Run workflow") mặc định `dry_
 5xx theo bản app (mục Kiểm tra).
 
 **Thống kê sản phẩm theo bản (audit "no-product-analytics")**: ngoài crash-free, một bản được đánh giá theo cách
-người dùng dùng nó — `uniwork_mobile_events_total{event,result,os,client_version}` và
-`uniwork_mobile_event_duration_seconds{event,os}` (Prometheus, từ `data/analytics.ts`; ẩn danh, người dùng tắt được).
-So bản mới với bản trước trong cùng khung giờ: tỷ lệ gửi hỏng
+người dùng dùng nó — `uniwork_mobile_events_total{event,result,os,client_version,client_update}` và
+`uniwork_mobile_event_duration_seconds{event,os,client_version}` (Prometheus, từ `data/analytics.ts`; ẩn danh, người
+dùng tắt được), vẽ sẵn ở dashboard Grafana **UniWork · UniChat mobile** (`deploy/grafana/dashboards/unichat-mobile.json`:
+lần mở, tỷ lệ gửi được, mở từ push, tỷ lệ nối cuộc gọi theo version và theo bản OTA, p75 màn đầu / gửi / nối gọi theo
+version, tỷ lệ 5xx theo bản build). So bản mới với bản trước trong cùng khung giờ: tỷ lệ gửi hỏng
 `sum by (client_version) (rate(uniwork_mobile_events_total{event="message_send",result="failed"}[1h])) / sum by
 (client_version) (rate(uniwork_mobile_events_total{event="message_send"}[1h]))`, tỷ lệ nối cuộc gọi được, số lần mở từ
 push, và p75 `first_screen`. Một bản làm tỷ lệ gửi hỏng hay nối cuộc gọi hỏng tăng rõ là lý do dừng mở rộng dù
-crash-free vẫn đạt. Số người dùng hằng ngày cho go/no-go lấy từ phiên đăng nhập phía server, không từ bộ đếm này.
+crash-free vẫn đạt. Số người dùng hằng ngày cho go/no-go không lấy từ bộ đếm này (ẩn danh, không đếm người): đếm người
+riêng biệt có request đã xác thực từ app trong log truy cập, mỗi ngày —
+Loki `count(count by (user_id) (count_over_time({container=~".*server.*"} | json | client_platform="mobile" | user_id != "" [1d])))`
+— chia cho số người trong danh sách pilot.
 
 **Bản cài trực tiếp (chưa có store)**: `eas build -p android --profile preview` cho link tải APK. iOS ad hoc cần Apple
 Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios --profile preview`.

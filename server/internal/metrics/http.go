@@ -1,10 +1,12 @@
 package metrics
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -35,11 +37,15 @@ const (
 
 // The client headers are the caller's to set: only the app platforms are
 // counted, a version must be MAJOR.MINOR.PATCH and an update id a UUID (or
-// "embedded"), and each label keeps at most a few distinct values per
-// process — anything past that is "other", so no caller can grow the series.
+// "embedded"), only a request the server authenticated (MarkAuthenticated)
+// may put a value into a label, and each label keeps at most a few distinct
+// values per process — anything past that is "other", so no caller can grow
+// the series. A value nobody has sent for clientLabelIdle gives its slot (and
+// its series) to the next one, so a long-lived pod keeps naming new builds.
 const (
 	maxClientVersions = 16
 	maxClientUpdates  = 24
+	clientLabelIdle   = 24 * time.Hour
 )
 
 var (
@@ -51,29 +57,63 @@ var (
 // worth a series; the web ships with the server and has one version.
 var countedPlatforms = map[string]bool{"mobile": true, "desktop": true}
 
-// labelBudget admits the first max distinct values of a label and maps every
-// later one to "other".
+// labelBudget admits at most max distinct values of a label and maps every
+// later one to "other". When it is full, the value least recently seen gives
+// up its slot if nobody sent it for idle; evict then drops that value's series,
+// so the exported series stay bounded too.
 type labelBudget struct {
-	mu   sync.Mutex
-	max  int
-	seen map[string]struct{}
+	mu    sync.Mutex
+	max   int
+	idle  time.Duration
+	now   func() time.Time
+	seen  map[string]time.Time
+	evict func(value string)
 }
 
-func newLabelBudget(max int) *labelBudget {
-	return &labelBudget{max: max, seen: map[string]struct{}{}}
+func newLabelBudget(max int, evict func(string)) *labelBudget {
+	return &labelBudget{max: max, idle: clientLabelIdle, now: time.Now, seen: map[string]time.Time{}, evict: evict}
 }
 
 func (b *labelBudget) admit(v string) string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	now := b.now()
 	if _, ok := b.seen[v]; ok {
+		b.seen[v] = now
 		return v
 	}
 	if len(b.seen) >= b.max {
-		return "other"
+		oldest, at := "", now
+		for value, seen := range b.seen {
+			if seen.Before(at) {
+				oldest, at = value, seen
+			}
+		}
+		if oldest == "" || now.Sub(at) < b.idle {
+			return "other"
+		}
+		delete(b.seen, oldest)
+		if b.evict != nil {
+			b.evict(oldest)
+		}
 	}
-	b.seen[v] = struct{}{}
+	b.seen[v] = now
 	return v
+}
+
+// authMark is set by the auth middleware, inside the metrics middleware, once
+// the request carries a verified user (middleware.WithUserID).
+type authMark struct{ ok atomic.Bool }
+
+type authMarkKey struct{}
+
+// MarkAuthenticated records that the request's caller was authenticated, so
+// its client headers may name a label value. A context without the metrics
+// middleware above it is left as is.
+func MarkAuthenticated(ctx context.Context) {
+	if mark, ok := ctx.Value(authMarkKey{}).(*authMark); ok {
+		mark.ok.Store(true)
+	}
 }
 
 // statusClass is "2xx".."5xx".
@@ -82,24 +122,31 @@ func statusClass(status int) string {
 }
 
 // clientLabels are the client series' labels for a request, or nil when it
-// is not from a counted app build. A 401 is not admitted into the budgets:
-// an unauthenticated caller cannot use up the label values.
-func (m *HTTPMetrics) clientLabels(r *http.Request, status int) prometheus.Labels {
+// is not from a counted app build. Only an authenticated request is admitted
+// into the budgets: public routes (config, plans, sign-in) answer anyone, and
+// an anonymous caller must not use up the label values the next bad build needs.
+func (m *HTTPMetrics) clientLabels(r *http.Request, signedIn bool, status int) prometheus.Labels {
 	platform := r.Header.Get(headerClientPlatform)
 	if !countedPlatforms[platform] {
 		return nil
 	}
 	version, update := "other", "other"
-	if v := r.Header.Get(headerClientVersion); clientVersionRe.MatchString(v) && status != http.StatusUnauthorized {
+	if v := r.Header.Get(headerClientVersion); signedIn && clientVersionRe.MatchString(v) {
 		version = m.versions.admit(v)
 	}
-	if u := r.Header.Get(headerClientUpdateID); clientUpdateRe.MatchString(u) && status != http.StatusUnauthorized {
+	if u := r.Header.Get(headerClientUpdateID); signedIn && clientUpdateRe.MatchString(u) {
 		update = m.updates.admit(u)
 	}
 	return prometheus.Labels{"platform": platform, "client_version": version, "client_update": update, "status_class": statusClass(status)}
 }
 
 func NewHTTPMetrics() *HTTPMetrics {
+	clients := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "uniwork",
+		Subsystem: "http",
+		Name:      "client_requests_total",
+		Help:      "HTTP answers to first-party app builds (mobile, desktop), by store version, OTA update and status class.",
+	}, []string{"platform", "client_version", "client_update", "status_class"})
 	return &HTTPMetrics{
 		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "uniwork",
@@ -120,14 +167,9 @@ func NewHTTPMetrics() *HTTPMetrics {
 			Name:      "in_flight_requests",
 			Help:      "Current number of in-flight HTTP requests served by the API server.",
 		}),
-		clients: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "uniwork",
-			Subsystem: "http",
-			Name:      "client_requests_total",
-			Help:      "HTTP answers to first-party app builds (mobile, desktop), by store version, OTA update and status class.",
-		}, []string{"platform", "client_version", "client_update", "status_class"}),
-		versions: newLabelBudget(maxClientVersions),
-		updates:  newLabelBudget(maxClientUpdates),
+		clients:  clients,
+		versions: newLabelBudget(maxClientVersions, func(v string) { clients.DeletePartialMatch(prometheus.Labels{"client_version": v}) }),
+		updates:  newLabelBudget(maxClientUpdates, func(u string) { clients.DeletePartialMatch(prometheus.Labels{"client_update": u}) }),
 	}
 }
 
@@ -150,7 +192,8 @@ func (m *HTTPMetrics) Middleware(next http.Handler) http.Handler {
 
 		start := time.Now()
 		ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
-		next.ServeHTTP(ww, r)
+		mark := &authMark{}
+		next.ServeHTTP(ww, r.WithContext(context.WithValue(r.Context(), authMarkKey{}, mark)))
 
 		status := ww.Status()
 		if status == 0 {
@@ -165,7 +208,7 @@ func (m *HTTPMetrics) Middleware(next http.Handler) http.Handler {
 		}
 		m.requests.With(labels).Inc()
 		m.duration.With(labels).Observe(time.Since(start).Seconds())
-		if client := m.clientLabels(r, status); client != nil {
+		if client := m.clientLabels(r, mark.ok.Load(), status); client != nil {
 			m.clients.With(client).Inc()
 		}
 	})

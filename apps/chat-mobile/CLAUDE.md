@@ -279,8 +279,8 @@ một dòng thì ghi lý do ở dòng trên.
   ẩn danh — `app_open` cold/warm, `first_screen` (ms từ lúc JS chạy), `message_send` sent/failed (`observeChatSends` của
   `data/chat-send.ts`, ms từ lúc viết), `push_open` chat/call/other, `call_connect` connected/failed (từ store cuộc gọi)
   — gửi theo lô ≤ 20 mỗi phút và khi vào nền tới `POST /api/v1/mobile/events` (server chỉ cộng bộ đếm
-  `uniwork_mobile_events_total` / histogram `uniwork_mobile_event_duration_seconds` theo OS và version; không lưu gì của
-  người hay nội dung); không thử lại, hàng tối đa 60. Tắt ở Cài đặt › Quyền riêng tư và bảo mật (`usageStats` trong
+  `uniwork_mobile_events_total` theo OS, version và bản OTA / histogram `uniwork_mobile_event_duration_seconds` theo OS
+  và version; dashboard `deploy/grafana/dashboards/unichat-mobile.json`; không lưu gì của người hay nội dung); không thử lại, hàng tối đa 60. Tắt ở Cài đặt › Quyền riêng tư và bảo mật (`usageStats` trong
   `lib/app-lock.ts`, mặc định bật; tắt thì hàng bị bỏ). Sự kiện mới thì thêm vào `ProductEvent` và vào tập đóng
   `mobileEventResults` của `server/internal/metrics/mobile_events.go` cùng commit, và cập nhật bảng Quyền riêng tư của
   `store/listing.md`. Lỗi một thao tác → `toast.error(...)`

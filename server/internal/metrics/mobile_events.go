@@ -8,12 +8,14 @@ import (
 // /api/v1/mobile/events) into counters and one duration histogram: how often
 // the app is opened, messages go out or fail, pushes are opened and calls
 // connect, and how long the first screen, a send and a call connect take, per
-// OS and store version. Aggregates only: no person, organization, room or
+// OS, store version and OTA update (so a rollout is judged per release and per
+// update). Aggregates only: no person, organization, room or
 // message is a label or stored anywhere (store/listing.md › Quyền riêng tư).
 type MobileEvents struct {
 	Events    *prometheus.CounterVec
 	Durations *prometheus.HistogramVec
 	versions  *labelBudget
+	updates   *labelBudget
 }
 
 // mobileEventResults is the closed set of events and their results; anything
@@ -34,17 +36,25 @@ var mobileEventTimed = map[string]bool{"first_screen": true, "message_send": tru
 const maxMobileEventSeconds = 600
 
 func NewMobileEvents() *MobileEvents {
+	events := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "uniwork_mobile_events_total",
+		Help: "UniChat mobile product events (opens, sends, push opens, call connects), by result, OS, store version and OTA update.",
+	}, []string{"event", "result", "os", "client_version", "client_update"})
+	// Durations carry the store version but not the OTA: buckets times updates
+	// would be the one label set that could grow past a few thousand series.
+	durations := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "uniwork_mobile_event_duration_seconds",
+		Help:    "How long UniChat mobile took to draw its first screen, send a message or connect a call, by OS and store version.",
+		Buckets: []float64{0.1, 0.25, 0.5, 1, 1.5, 2, 3, 5, 8, 13, 21, 34, 60},
+	}, []string{"event", "os", "client_version"})
 	return &MobileEvents{
-		Events: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "uniwork_mobile_events_total",
-			Help: "UniChat mobile product events (opens, sends, push opens, call connects), by result, OS and store version.",
-		}, []string{"event", "result", "os", "client_version"}),
-		Durations: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "uniwork_mobile_event_duration_seconds",
-			Help:    "How long UniChat mobile took to draw its first screen, send a message or connect a call, by OS.",
-			Buckets: []float64{0.1, 0.25, 0.5, 1, 1.5, 2, 3, 5, 8, 13, 21, 34, 60},
-		}, []string{"event", "os"}),
-		versions: newLabelBudget(maxClientVersions),
+		Events:    events,
+		Durations: durations,
+		versions: newLabelBudget(maxClientVersions, func(v string) {
+			events.DeletePartialMatch(prometheus.Labels{"client_version": v})
+			durations.DeletePartialMatch(prometheus.Labels{"client_version": v})
+		}),
+		updates: newLabelBudget(maxClientUpdates, func(u string) { events.DeletePartialMatch(prometheus.Labels{"client_update": u}) }),
 	}
 }
 
@@ -53,22 +63,26 @@ func (m *MobileEvents) Collectors() []prometheus.Collector {
 }
 
 // Observe records one event; false (and nothing recorded) for an unknown
-// event or result. durationMs is only read for a timed event.
-func (m *MobileEvents) Observe(event, result, os, version string, durationMs *float64) bool {
+// event or result. durationMs is only read for a timed event. The route is
+// behind RequireAuth, so a version or update id here came with a session.
+func (m *MobileEvents) Observe(event, result, os, version, update string, durationMs *float64) bool {
 	if m == nil || !mobileEventResults[event][result] {
 		return false
 	}
 	if os != "ios" && os != "android" {
 		os = "other"
 	}
-	label := "other"
+	versionLabel, updateLabel := "other", "other"
 	if clientVersionRe.MatchString(version) {
-		label = m.versions.admit(version)
+		versionLabel = m.versions.admit(version)
 	}
-	m.Events.WithLabelValues(event, result, os, label).Inc()
+	if clientUpdateRe.MatchString(update) {
+		updateLabel = m.updates.admit(update)
+	}
+	m.Events.WithLabelValues(event, result, os, versionLabel, updateLabel).Inc()
 	if durationMs != nil && mobileEventTimed[event] {
 		if seconds := *durationMs / 1000; seconds >= 0 && seconds <= maxMobileEventSeconds {
-			m.Durations.WithLabelValues(event, os).Observe(seconds)
+			m.Durations.WithLabelValues(event, os, versionLabel).Observe(seconds)
 		}
 	}
 	return true

@@ -17,7 +17,10 @@
    sum by (client_version, client_update, status_class) (rate(uniwork_http_client_requests_total{platform="mobile"}[15m]))
    ```
    Một `client_update` mới (OTA vừa phát) là nghi phạm số một; một `client_version` mới là bản store vừa lên. `other`
-   gom những giá trị vượt ngân sách nhãn (16 version, 24 update mỗi tiến trình) hay sai dạng — xem log ở bước 2.
+   gom những giá trị vượt ngân sách nhãn (16 version, 24 update mỗi tiến trình; giá trị không ai gửi trong 24 giờ nhường
+   chỗ cho giá trị mới), sai dạng, hay đến từ request chưa xác thực (route công khai như `/config`, đăng nhập: chỉ request
+   đã xác thực mới được đặt tên bản build) — xem log ở bước 2. Dashboard **UniWork · UniChat mobile** có panel tỷ lệ 5xx
+   theo bản build.
 2. Route nào? Log truy cập có `client_platform=mobile`, `client_version`, `client_update_id` trên mỗi dòng:
    Loki `{container=~".*server.*"} | json | client_update_id = "<id>" | status >= 500`, đếm theo `path`.
 3. Bản OTA đó là gì: GitHub → Actions → "UniChat mobile OTA update", summary của run ghi group và id bản Android;
