@@ -137,7 +137,7 @@ test("perf-budget.json: android has a ceiling for every metric, the other profil
   const budget = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/perf-budget.json"), "utf8"));
   const keys = METRICS.map(([key]) => key);
   assert.deepEqual(Object.keys(budget.android).sort(), [...keys].sort());
-  assert.deepEqual(Object.keys(budget).filter((k) => k !== "_" && k !== "provisional").sort(), [...PROFILES].sort());
+  assert.deepEqual(Object.keys(budget).filter((k) => !["_", "provisional", "provisionalUntil"].includes(k)).sort(), [...PROFILES].sort());
   for (const profile of PROFILES) {
     for (const [key, value] of Object.entries(budget[profile])) {
       assert.ok(keys.includes(key), `${profile}.${key} is a metric`);
@@ -145,4 +145,14 @@ test("perf-budget.json: android has a ceiling for every metric, the other profil
     }
   }
   for (const p of budget.provisional) assert.ok(PROFILES.includes(p), `provisional names a profile: ${p}`);
+});
+
+// Audit "perf-budgets-uncalibrated": the ceilings were set before any run measured the app. They are debt with a date:
+// past it, a profile still provisional fails here until `tighten --write` sets it from five measured runs.
+test("perf-budget.json: provisional ceilings have a deadline, and none outlives it", () => {
+  const budget = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/perf-budget.json"), "utf8"));
+  if ((budget.provisional ?? []).length === 0) return;
+  assert.match(budget.provisionalUntil ?? "", /^\d{4}-\d{2}-\d{2}$/, "provisional profiles name the day they must be measured by");
+  const today = new Date().toISOString().slice(0, 10);
+  assert.ok(today <= budget.provisionalUntil, `still provisional after ${budget.provisionalUntil}: ${budget.provisional.join(", ")} — run tighten (runbook › Đo hiệu năng trên thiết bị)`);
 });

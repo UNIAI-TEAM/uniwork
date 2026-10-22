@@ -123,6 +123,8 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   `node scripts/mobile-perf.mjs tighten --profile <android|android-2gb|ios-simulator> runs/*/*.json` in đề xuất và
   `--write` ghi: mỗi trần = số tệ nhất + 15 %, không bao giờ cao hơn trần cũ, profile rời `provisional` khi mọi chỉ số
   có đủ 5 run. Commit đó trích URL các run; từ đó trần chỉ hạ, và chỉ nâng trong commit thêm sức nặng, ghi lý do.
+  Trần tạm có hạn: qua `provisionalUntil` (2026-12-31) mà profile còn trong `provisional` thì
+  `scripts/mobile-perf.test.mjs` đỏ — đo rồi `tighten`, không lùi ngày nếu không ghi lý do trong body commit.
   **A/B danh sách tin** (`unichat_mobile_timeline_recycled`, FlashList 2 thay FlatList đảo ngược): (1) nightly như
   thường 5 đêm làm mốc; (2) bật override mức người dùng cho tài khoản `MAESTRO_TEST_EMAIL` ở console admin (hay
   `FF_UNICHAT_MOBILE_TIMELINE_RECYCLED=true` trên staging) và chạy 5 đêm nữa; so `scrollJankyPercent`,
