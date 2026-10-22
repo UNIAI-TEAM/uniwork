@@ -20,7 +20,10 @@
   cuộc gọi không bắt đầu/không nối được (breadcrumb + lỗi qua `reportError`); `data/sentry.ts` cài Sentry làm sink khi có DSN (release
   `<appId>@<version>+<build>`, tag `channel`/`update_id`/`runtime_version`,
   không ảnh màn hình, không replay, `beforeSend` qua `lib/redact.ts`: email,
-  token, query URL, push token, callback PKCE). Log qua `data/logger.ts`
+  token, query URL, push token, callback PKCE, mọi đoạn trong ngoặc kép hay ngoặc kép cong (tên, phòng, tiêu đề mà
+  lời báo lỗi trích), và cả giá trị của `ApiError` — lời của server có thể lặp lại chữ người dùng gõ, nên chỉ còn
+  `[server message]`, status/code/endpoint đi bằng tag). Privacy policy (`apps/web/features/landing/privacy-content.ts`)
+  nói đúng điều này: app không đưa nội dung tin hay tên vào báo cáo, bộ lọc là lớp thứ hai; đổi bộ lọc thì sửa câu đó. Log qua `data/logger.ts`
   (`createLogger(scope)`: breadcrumb luôn, console chỉ ở dev; `argsLogger` cho
   `ws-client`, chỉ giữ số và boolean) — `no-console` đỏ trong `app/`,
   `components/`, `data/`, `lib/` trừ chính logger (fixture

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { REDACTED, endpointShape, redactData, redactText, scrubBreadcrumb, scrubEvent, scrubTransaction } from "./redact";
+import { REDACTED, SERVER_MESSAGE, endpointShape, redactData, redactText, scrubBreadcrumb, scrubEvent, scrubTransaction } from "./redact";
 
 describe("redactText", () => {
   // The cases of packages/core/analytics/redact-exception.test.ts that apply to a phone.
@@ -16,6 +16,16 @@ describe("redactText", () => {
     expect(redactText("uniworkchat://auth/callback?code=abc&state=def")).toBe(`uniworkchat://auth/callback?${REDACTED}`);
     expect(redactText("uniworkchat-dev://open#frag")).toBe(`uniworkchat-dev://open?${REDACTED}`);
     expect(redactText("wss://api.example/api/v1/ws?workspace_slug=a/b")).toBe(`wss://api.example/api/v1/ws?${REDACTED}`);
+  });
+
+  // A name, a room or a task title reaches an error message quoted ("room “Kế toán” is archived"): the quotes go
+  // with their words. ASCII single quotes stay: they carry code ('foo' of undefined), not people.
+  it("redacts what sits between double or typographic quotes", () => {
+    expect(redactText('slug "ke-toan" is taken')).toBe(`slug "${REDACTED}" is taken`);
+    expect(redactText("phòng “Kế toán nội bộ” đã lưu trữ")).toBe(`phòng “${REDACTED}” đã lưu trữ`);
+    expect(redactText("‘Minh’ and «Lan»")).toBe(`‘${REDACTED}’ and «${REDACTED}»`);
+    expect(redactText("Cannot read property 'name' of undefined")).toBe("Cannot read property 'name' of undefined");
+    expect(redactText('empty "" stays')).toBe('empty "" stays');
   });
 
   it("leaves what is not a non-empty string as it is", () => {
@@ -62,13 +72,23 @@ describe("scrubEvent", () => {
     });
     expect(event).toEqual({
       message: `failed for ${REDACTED}`,
-      exception: { values: [{ type: "ApiError", value: `GET https://a.example/x?${REDACTED}` }, { type: "Error", value: undefined }] },
+      exception: { values: [{ type: "ApiError", value: SERVER_MESSAGE }, { type: "Error", value: undefined }] },
       breadcrumbs: [{ message: `Bearer ${REDACTED}`, data: undefined }],
       request: { url: `https://a.example/y?${REDACTED}` },
       user: { id: "u1" },
       extra: { note: `sent to ${REDACTED}`, nested: "[object]" },
       level: "error",
     });
+  });
+
+  // The text of an ApiError is the server's own message, which may echo what a person typed or a name: the report
+  // keeps the status, code and endpoint as tags (data/report.ts), never the words.
+  it("drops the server's words from an ApiError, whatever they say", () => {
+    const event = scrubEvent({ exception: { values: [{ type: "ApiError", value: "member Trần Minh is not in this room" }, { type: "TypeError", value: "x is undefined" }] } });
+    expect(event.exception?.values).toEqual([
+      { type: "ApiError", value: SERVER_MESSAGE },
+      { type: "TypeError", value: "x is undefined" },
+    ]);
   });
 
   it("drops a user without an id and leaves absent sections absent", () => {

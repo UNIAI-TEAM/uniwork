@@ -7,14 +7,23 @@
 
 export const REDACTED = "[redacted]";
 
+/** What an ApiError's value becomes: the server's words may echo a name or what someone typed. */
+export const SERVER_MESSAGE = "[server message]";
+
 // Order matters: tokens with a known prefix first, then URL queries (so a
-// URL's host is kept), then emails, then any long opaque run (JWTs, refresh
-// tokens, PKCE codes, ULIDs).
+// URL's host is kept), then emails, then whatever sits between double or
+// typographic quotes (a name, a room or a task title an error message quotes;
+// ASCII single quotes carry code, as in 'name' of undefined, and stay), then
+// any long opaque run (JWTs, refresh tokens, PKCE codes, ULIDs).
 const PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/\bBearer\s+[^\s"',;]+/gi, `Bearer ${REDACTED}`],
   [/ExponentPushToken\[[^\]]*\]/g, `ExponentPushToken[${REDACTED}]`],
   [/((?:https?|wss?|file|exp|uniworkchat(?:-dev)?):\/\/[^\s?#"']*)[?#][^\s"']*/gi, `$1?${REDACTED}`],
   [/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi, REDACTED],
+  [/"[^"\n]+"/g, `"${REDACTED}"`],
+  [/“[^”\n]+”/g, `“${REDACTED}”`],
+  [/‘[^’\n]+’/g, `‘${REDACTED}’`],
+  [/«[^»\n]+»/g, `«${REDACTED}»`],
   [/\b[A-Za-z0-9_-]{24,}\b/g, REDACTED],
 ];
 
@@ -45,7 +54,7 @@ export interface ScrubbableBreadcrumb {
 
 export interface ScrubbableEvent {
   message?: string;
-  exception?: { values?: { value?: string }[] };
+  exception?: { values?: { type?: string; value?: string }[] };
   breadcrumbs?: ScrubbableBreadcrumb[];
   request?: { url?: string; query_string?: unknown; cookies?: unknown; headers?: Record<string, string>; data?: unknown };
   user?: { id?: string | number; [key: string]: unknown };
@@ -60,13 +69,18 @@ export function scrubBreadcrumb<B extends ScrubbableBreadcrumb>(breadcrumb: B): 
 /**
  * Sentry's beforeSend: messages, exception values, breadcrumbs, the request
  * and extra lose their sensitive parts; the user keeps only the opaque id
- * (never email, name or IP). Types and stack frames are code locations and
- * stay as they are.
+ * (never email, name or IP). An ApiError's value is the server's own message,
+ * which may echo what a person typed: it goes whole, and the report keeps the
+ * status, code and endpoint as tags (data/report.ts). Types and stack frames
+ * are code locations and stay as they are.
  */
 export function scrubEvent<E extends ScrubbableEvent>(event: E): E {
   const out: E = { ...event, message: redactText(event.message) };
   if (event.exception?.values) {
-    out.exception = { ...event.exception, values: event.exception.values.map((v) => ({ ...v, value: redactText(v.value) })) };
+    out.exception = {
+      ...event.exception,
+      values: event.exception.values.map((v) => ({ ...v, value: v.type === "ApiError" ? SERVER_MESSAGE : redactText(v.value) })),
+    };
   }
   if (event.breadcrumbs) out.breadcrumbs = event.breadcrumbs.map(scrubBreadcrumb);
   if (event.request) out.request = { url: redactText(event.request.url) };
