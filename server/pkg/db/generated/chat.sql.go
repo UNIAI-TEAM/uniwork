@@ -1151,7 +1151,6 @@ type GetChatRoomWallpaperForUpdateRow struct {
 	WallpaperFileID pgtype.Text `json:"wallpaper_file_id"`
 }
 
-// tenant: by-id
 func (q *Queries) GetChatRoomWallpaperForUpdate(ctx context.Context, arg GetChatRoomWallpaperForUpdateParams) (GetChatRoomWallpaperForUpdateRow, error) {
 	row := q.db.QueryRow(ctx, getChatRoomWallpaperForUpdate, arg.ID, arg.OrganizationID)
 	var i GetChatRoomWallpaperForUpdateRow
@@ -3099,7 +3098,6 @@ type SetChatRoomWallpaperParams struct {
 	OrganizationID  string      `json:"organization_id"`
 }
 
-// tenant: by-id
 func (q *Queries) SetChatRoomWallpaper(ctx context.Context, arg SetChatRoomWallpaperParams) error {
 	_, err := q.db.Exec(ctx, setChatRoomWallpaper,
 		arg.WallpaperPreset,
