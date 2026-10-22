@@ -3,6 +3,10 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/auth"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestUpdateChatRoomWallpaperPreset_DMMemberAllowed(t *testing.T) {
@@ -25,11 +29,16 @@ func TestUpdateChatRoomWallpaperPreset_DMMemberAllowed(t *testing.T) {
 func TestUpdateChatRoomWallpaperPreset_GroupMemberForbidden(t *testing.T) {
 	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
-	addOrgMember(t, q, w.OrganizationID, ub.ID)
-	addWorkspaceMember(t, q, w.ID, ub.ID)
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	uc := registerVerified(t, q, as, "chat-wallpaper-c@example.com", "C")
+	// A group needs two members besides its creator.
+	for _, u := range []db.User{ub, uc} {
+		addOrgMember(t, q, w.OrganizationID, u.ID)
+		addWorkspaceMember(t, q, w.ID, u.ID)
+	}
 	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{
 		Name:          "wallpaper group",
-		MemberUserIDs: []string{ub.ID},
+		MemberUserIDs: []string{ub.ID, uc.ID},
 	})
 	if err != nil {
 		t.Fatal(err)
