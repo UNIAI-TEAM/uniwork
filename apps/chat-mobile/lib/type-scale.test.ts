@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { BADGE_MAX_FONT_SCALE } from "./type-scale";
+import { BADGE_MAX_FONT_SCALE, isLargeText, LARGE_TEXT_SCALE, TAB_LABEL_MAX_FONT_SCALE } from "./type-scale";
 import typeScale from "./type-scale.json";
 import { cn } from "./utils";
 
@@ -25,6 +25,15 @@ describe("text roles", () => {
     expect(typeScale.body).toEqual([16, 24]);
     expect(sizes.every((size) => size !== undefined && Number.isInteger(size) && size >= 11)).toBe(true);
     expect(BADGE_MAX_FONT_SCALE).toBeGreaterThan(1);
+  });
+
+  it("switch to stacked layouts from the first accessibility size, and cap tab labels below it", () => {
+    expect(isLargeText(1)).toBe(false);
+    expect(isLargeText(1.35)).toBe(false);
+    expect(isLargeText(LARGE_TEXT_SCALE)).toBe(true);
+    expect(isLargeText(2)).toBe(true);
+    expect(TAB_LABEL_MAX_FONT_SCALE).toBeGreaterThan(1);
+    expect(TAB_LABEL_MAX_FONT_SCALE).toBeLessThan(LARGE_TEXT_SCALE);
   });
 
   it("are font sizes to cn(), so a role and a colour on one element both stay", () => {

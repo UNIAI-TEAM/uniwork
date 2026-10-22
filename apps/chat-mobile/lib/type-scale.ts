@@ -11,3 +11,18 @@
 
 /** How far a badge's count grows with the system text size. */
 export const BADGE_MAX_FONT_SCALE = 1.4;
+
+/**
+ * Where the accessibility text sizes begin: iOS's first "Larger Accessibility Size" (AX1) is about 1.6× the
+ * default, and Android's 200 % is 2.0. From here a row that sets a name, icons and a time side by side stacks
+ * them instead (Slack, Messages; Material's reflow at 200 %): one line truncated to "Ng…" is no use to anyone.
+ */
+export const LARGE_TEXT_SCALE = 1.6;
+
+/** A tab label grows this far with the system text size, as a native tab bar's fixed label does not at all. */
+export const TAB_LABEL_MAX_FONT_SCALE = 1.3;
+
+/** Whether the system text size is one of the accessibility sizes (LARGE_TEXT_SCALE). */
+export function isLargeText(fontScale: number): boolean {
+  return fontScale >= LARGE_TEXT_SCALE;
+}

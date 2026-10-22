@@ -4,19 +4,22 @@
 // menu) and the message's follow-up (follow it later, or done / to a task /
 // drop it); edit / delete for one's own message, report for someone else's
 // (store UGC policy). A local message that did not go gets retry / delete
-// instead.
+// instead. The column fits the window it opens on (lib/action-menu-layout.ts):
+// on a short phone or at a large text size the lifted message shows fewer
+// lines and the menu scrolls, so every row stays reachable.
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform, Pressable, View } from "react-native";
+import { Platform, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 import { CallAwareModal } from "@/components/ui/call-aware-modal";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { useAfterDismiss } from "@/components/ui/action-sheet";
 import { useRipple } from "@/components/ui/ripple";
 import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
+import { actionMenuLayout } from "@/lib/action-menu-layout";
 import { FOLLOW_UP_HOURS } from "@/lib/follow-ups";
 import type { ChatFollowUp } from "@/data/chat-api-schemas";
 import { messagePreviewText, messageView, pendingPreviewText } from "@/lib/message-display";
@@ -91,6 +94,9 @@ export function MessageActionsSheet(props: Props) {
   const reactionSlop = { top: reactionTap.hitSlop, bottom: reactionTap.hitSlop };
   const rowRipple = useRipple();
   const rowHeight = Platform.OS === "android" ? "min-h-12" : "min-h-[46px]";
+  const window = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const menuScroll = useRef<ScrollView>(null);
   const record = message?.record;
   const items: MenuItem[] = [];
   if (message?.pending) {
@@ -191,6 +197,16 @@ export function MessageActionsSheet(props: Props) {
   const mine = new Set(record?.my_reactions ?? []);
   const pending = message?.pending;
   const preview = record ? messagePreviewText(record, t) : pending ? pendingPreviewText(pending, t) : "";
+  const layout = actionMenuLayout({
+    windowWidth: window.width,
+    windowHeight: window.height,
+    fontScale: window.fontScale,
+    insetTop: insets.top,
+    insetBottom: insets.bottom,
+    reactions: Boolean(record),
+    senderName: !own && Boolean(props.senderName),
+    avatar: Boolean(props.avatar),
+  });
 
   return (
     <CallAwareModal visible={message !== null} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose} onDismiss={onDismiss}>
@@ -201,7 +217,14 @@ export function MessageActionsSheet(props: Props) {
         </BlurView>
       </Pressable>
       {/* box-none: a tap between the pieces reaches the backdrop and closes. */}
-      <SafeAreaView pointerEvents="box-none" className={cn("flex-1 justify-center gap-2.5 px-4", own ? "items-end" : "items-start")}>
+      {/* One modal layer to VoiceOver, and its two-finger scrub closes it, as every BottomSheet does. */}
+      <SafeAreaView
+        pointerEvents="box-none"
+        accessibilityViewIsModal
+        onAccessibilityEscape={onClose}
+        testID="message-actions"
+        className={cn("flex-1 justify-center gap-2.5 px-4", own ? "items-end" : "items-start")}
+      >
         {message && record ? (
           <View className={cn("flex-row items-center gap-0.5 rounded-full bg-card p-1.5 shadow-lg", props.avatar && "ml-9")}>
             {QUICK_REACTIONS.map(([emoji, labelKey]) => (
@@ -247,7 +270,7 @@ export function MessageActionsSheet(props: Props) {
                   {props.senderName}
                 </Text>
               ) : null}
-              <Text className={cn("text-body", own ? "text-chat-bubble-own-foreground" : "text-foreground")} numberOfLines={6}>
+              <Text className={cn("text-body", own ? "text-chat-bubble-own-foreground" : "text-foreground")} numberOfLines={layout.previewLines}>
                 {preview}
               </Text>
               <Text className={cn("self-end text-meta", own ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>
@@ -257,48 +280,59 @@ export function MessageActionsSheet(props: Props) {
           </View>
         ) : null}
         {items.length > 0 ? (
-          <View className={cn("w-64 overflow-hidden rounded-2xl bg-card shadow-xl", props.avatar && "ml-9")}>
-            {props.seenBy && props.seenBy.length > 0 ? (
-              <View
-                className="min-h-12 flex-row items-center gap-2.5 px-3.5"
-                accessible
-                accessibilityLabel={t("chat.seen_by_count", { count: props.seenBy.length })}
-              >
-                <Ionicons name="checkmark-done" size={20} color={theme.primary} />
-                <Text className="flex-1 text-subhead text-foreground">{t("chat.seen_by_count", { count: props.seenBy.length })}</Text>
-                <View className="flex-row">
-                  {props.seenBy.slice(0, 3).map((member, index) => (
-                    <View key={member.user_id} className={cn("rounded-full border-2 border-card", index > 0 && "-ml-2")}>
-                      <PersonAvatar name={member.display_name} size={22} seed={member.user_id} />
-                    </View>
-                  ))}
+          <View className={cn("overflow-hidden rounded-2xl bg-card shadow-xl", props.avatar && "ml-9")} style={{ width: layout.menuWidth }}>
+            {/* Capped at the height the window has left; past it the rows scroll (iOS flashes the bar to say so). */}
+            <ScrollView
+              ref={menuScroll}
+              style={{ maxHeight: layout.menuMaxHeight }}
+              persistentScrollbar
+              onContentSizeChange={(_, height) => {
+                if (height > layout.menuMaxHeight) menuScroll.current?.flashScrollIndicators();
+              }}
+              testID="message-actions-menu"
+            >
+              {props.seenBy && props.seenBy.length > 0 ? (
+                <View
+                  className="min-h-12 flex-row items-center gap-2.5 px-3.5"
+                  accessible
+                  accessibilityLabel={t("chat.seen_by_count", { count: props.seenBy.length })}
+                >
+                  <Ionicons name="checkmark-done" size={20} color={theme.primary} />
+                  <Text className="flex-1 text-subhead text-foreground">{t("chat.seen_by_count", { count: props.seenBy.length })}</Text>
+                  <View className="flex-row">
+                    {props.seenBy.slice(0, 3).map((member, index) => (
+                      <View key={member.user_id} className={cn("rounded-full border-2 border-card", index > 0 && "-ml-2")}>
+                        <PersonAvatar name={member.display_name} size={22} seed={member.user_id} />
+                      </View>
+                    ))}
+                  </View>
                 </View>
-              </View>
-            ) : null}
-            {items.map((item, index) => {
-              const divider = (index > 0 && items[index - 1]?.group !== item.group) || (index === 0 && Boolean(props.seenBy?.length));
-              return (
-                <View key={item.key}>
-                  {divider ? <View className="h-1.5 bg-muted" /> : null}
-                  <Pressable
-                    android_ripple={rowRipple}
-                    accessibilityRole="button"
-                    // The label, not the children: the icon's glyph is a character a screen reader would spell.
-                    accessibilityLabel={item.hint ? `${item.label}, ${item.hint}` : item.label}
-                    onPress={() => choose(item.onPress)}
-                    className={cn(
-                      rowHeight,
-                      "flex-row items-center gap-3 px-3.5 active:bg-secondary",
-                      index > 0 && !divider && "border-t border-border",
-                    )}
-                  >
-                    <Ionicons name={item.icon} size={20} color={item.destructive ? theme.destructive : theme.mutedForeground} />
-                    <Text className={cn("flex-1 text-subhead", item.destructive ? "text-destructive" : "text-foreground")}>{item.label}</Text>
-                    {item.hint ? <Text className="text-caption text-muted-foreground">{item.hint}</Text> : null}
-                  </Pressable>
-                </View>
-              );
-            })}
+              ) : null}
+              {items.map((item, index) => {
+                const divider = (index > 0 && items[index - 1]?.group !== item.group) || (index === 0 && Boolean(props.seenBy?.length));
+                return (
+                  <View key={item.key}>
+                    {divider ? <View className="h-1.5 bg-muted" /> : null}
+                    <Pressable
+                      android_ripple={rowRipple}
+                      accessibilityRole="button"
+                      // The label, not the children: the icon's glyph is a character a screen reader would spell.
+                      accessibilityLabel={item.hint ? `${item.label}, ${item.hint}` : item.label}
+                      onPress={() => choose(item.onPress)}
+                      className={cn(
+                        rowHeight,
+                        "flex-row items-center gap-3 px-3.5 active:bg-secondary",
+                        index > 0 && !divider && "border-t border-border",
+                      )}
+                    >
+                      <Ionicons name={item.icon} size={20} color={item.destructive ? theme.destructive : theme.mutedForeground} />
+                      <Text className={cn("flex-1 text-subhead", item.destructive ? "text-destructive" : "text-foreground")}>{item.label}</Text>
+                      {item.hint ? <Text className="text-caption text-muted-foreground">{item.hint}</Text> : null}
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </ScrollView>
           </View>
         ) : null}
       </SafeAreaView>

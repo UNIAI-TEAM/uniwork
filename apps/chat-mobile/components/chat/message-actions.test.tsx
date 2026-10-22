@@ -1,7 +1,8 @@
 // The long-press menu offers "Report" on someone else's message only (store
 // UGC policy); one's own message keeps edit and delete.
-import { fireEvent, screen } from "@testing-library/react-native";
-import { Platform } from "react-native";
+import { fireEvent, screen, within } from "@testing-library/react-native";
+import { Dimensions, Platform, ScrollView, StyleSheet } from "react-native";
+import { actionMenuLayout } from "@/lib/action-menu-layout";
 import { toTimelineMessage } from "@/lib/timeline-display";
 import { render, viText } from "@/test/render";
 import { MessageActionsSheet } from "./message-actions";
@@ -158,5 +159,65 @@ describe("MessageActionsSheet › commands", () => {
     ];
     await render(<MessageActionsSheet {...props(false)} seenBy={seenBy} />);
     expect(screen.getByLabelText(viText("chat.seen_by_count", { count: 2 }))).toBeOnTheScreen();
+  });
+});
+
+describe("MessageActionsSheet › fit", () => {
+  /** A 360 × 640 dp Android phone at the given text size (the test's safe-area insets are zero). */
+  const phone = (fontScale: number) => jest.spyOn(Dimensions, "get").mockReturnValue({ width: 360, height: 640, scale: 2, fontScale });
+  // One's own text message with an open follow-up, read by a group: the longest menu there is (eleven rows and seen-by).
+  const longest = () => ({
+    ...props(true),
+    followUp: { id: "f1", message_id: "m1", note: "", due_at: null, completed_at: null },
+    seenBy: [{ user_id: "u3", display_name: "Lan" }],
+  });
+
+  it("caps the menu at the height the window has left and scrolls the rows past it, Delete included", async () => {
+    phone(1);
+    await render(<MessageActionsSheet {...longest()} />);
+    const menu = screen.getByTestId("message-actions-menu");
+    const expected = actionMenuLayout({
+      windowWidth: 360,
+      windowHeight: 640,
+      fontScale: 1,
+      insetTop: 0,
+      insetBottom: 0,
+      reactions: true,
+      senderName: false,
+      avatar: false,
+    });
+    expect(StyleSheet.flatten(menu.props.style)).toEqual(expect.objectContaining({ maxHeight: expected.menuMaxHeight }));
+    expect(within(menu).getByRole("button", { name: viText("chat.action_delete") })).toBeOnTheScreen();
+    expect(within(menu).getByLabelText(viText("chat.seen_by_count", { count: 1 }))).toBeOnTheScreen();
+    expect(screen.getByText("chào").props.numberOfLines).toBe(expected.previewLines);
+  });
+
+  it("lifts two lines of the message and widens the card at the largest text size", async () => {
+    phone(2);
+    await render(<MessageActionsSheet {...longest()} />);
+    expect(screen.getByText("chào").props.numberOfLines).toBe(2);
+    const card = screen.getByTestId("message-actions-menu").parent;
+    expect(card).not.toBeNull();
+    expect(StyleSheet.flatten(card?.props.style)).toEqual(expect.objectContaining({ width: 328 }));
+  });
+
+  it("flashes the scroll bar when the rows overflow the cap, and not when they fit", async () => {
+    phone(1);
+    const flash = jest.spyOn(ScrollView.prototype, "flashScrollIndicators").mockImplementation(() => undefined);
+    await render(<MessageActionsSheet {...longest()} />);
+    const menu = screen.getByTestId("message-actions-menu");
+    await fireEvent(menu, "contentSizeChange", 256, 100);
+    expect(flash).not.toHaveBeenCalled();
+    await fireEvent(menu, "contentSizeChange", 256, 2000);
+    expect(flash).toHaveBeenCalledTimes(1);
+  });
+
+  it("is one modal layer to VoiceOver, closed by its escape scrub", async () => {
+    const p = props(false);
+    await render(<MessageActionsSheet {...p} />);
+    const column = screen.getByTestId("message-actions");
+    expect(column.props.accessibilityViewIsModal).toBe(true);
+    await fireEvent(column, "accessibilityEscape");
+    expect(p.onClose).toHaveBeenCalledTimes(1);
   });
 });
