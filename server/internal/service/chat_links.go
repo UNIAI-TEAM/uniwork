@@ -69,6 +69,10 @@ func errChatThreadAlreadySynced() error {
 	return coded(http.StatusConflict, "chat_thread_already_synced", "thread đã nối với một task khác")
 }
 
+func errChatTaskAlreadySynced() error {
+	return coded(http.StatusConflict, "chat_task_already_synced", "task đã nối với một thread khác")
+}
+
 func errChatThreadSyncPrivate() error {
 	return coded(http.StatusBadRequest, "chat_thread_sync_private", "không thể đồng bộ thread của phòng riêng tư sang task")
 }
@@ -269,27 +273,6 @@ func (s *ChatService) LinkChatMessage(
 		return ChatMessageLinkRow{}, err
 	}
 	return s.insertMessageLink(ctx, userID, room, msg, targetType, targetID, chatLinkRelationMentions)
-}
-
-// ListChatMessageLinks returns links for one message.
-func (s *ChatService) ListChatMessageLinks(
-	ctx context.Context, userID, workspaceID, messageID string,
-) ([]ChatMessageLinkRow, error) {
-	_, msg, err := s.loadMessageForLink(ctx, userID, workspaceID, messageID)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := s.q.ListChatMessageLinksByMessage(ctx, db.ListChatMessageLinksByMessageParams{
-		MessageID: msg.ID, WorkspaceID: workspaceID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]ChatMessageLinkRow, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, chatMessageLinkRow(row))
-	}
-	return out, nil
 }
 
 // maxRoomMessageLinkIDs caps one batch: a timeline page is 50 messages and the
@@ -503,6 +486,14 @@ func (s *ChatService) SyncThreadTask(
 			return existing, nil
 		}
 		return db.ChatThreadTaskLink{}, errChatThreadAlreadySynced()
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return db.ChatThreadTaskLink{}, err
+	}
+	if other, err := s.q.GetChatThreadTaskLinkByTask(ctx, taskID); err == nil {
+		if other.ThreadRootID != root.ID {
+			return db.ChatThreadTaskLink{}, errChatTaskAlreadySynced()
+		}
+		return other, nil
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return db.ChatThreadTaskLink{}, err
 	}

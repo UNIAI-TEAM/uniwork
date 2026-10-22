@@ -221,6 +221,20 @@ describe("chat-mention-utils", () => {
     expect(filterMentionCandidates(people, "tuan", { allLabel: "all" }).some((item) => item.userId === "u1")).toBe(true);
   });
 
+  it("caps the list so a large room stays fast", () => {
+    const members = Array.from({ length: 50 }, (_, i) => ({
+      kind: "member" as const,
+      userId: `u${i}`,
+      label: `Person ${i}`,
+      email: `p${i}@example.com`,
+    }));
+    const withAll = filterMentionCandidates(members, "", { allLabel: "all" });
+    expect(withAll).toHaveLength(21);
+    expect(withAll[0]?.kind).toBe("all");
+    const withoutAll = filterMentionCandidates(members, "", { allLabel: "all", includeAll: false });
+    expect(withoutAll).toHaveLength(20);
+  });
+
   it("filters with includeAll disabled", () => {
     expect(
       filterMentionCandidates(
