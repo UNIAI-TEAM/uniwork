@@ -10244,6 +10244,7 @@
         "refusal_title_files": "Chưa tải lên được các tệp này",
         "share_toggle": "Chia sẻ với workspace",
         "share_hint": "Áp dụng cho mọi tệp trong lần tải lên này. Thư mục vẫn riêng tư.",
+        "share_hint_workspace": "Áp dụng cho mọi tệp trong lần tải lên này. Thư mục mới sẽ hiện với cả workspace.",
         "share_hint_files": "Áp dụng cho mọi tệp trong lần tải lên này.",
         "share_inherited": "Thư mục đích đang chia sẻ với workspace nên các tệp cũng vậy.",
         "cancel": "Hủy",

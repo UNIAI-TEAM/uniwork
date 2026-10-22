@@ -19,7 +19,7 @@ import {
   type FolderUploadTransport,
 } from "@uniwork/core/documents/folder-upload";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
-import { nodeLevel, siblingsOf } from "../document-tree-model";
+import { newFolderIsWorkspaceVisible, nodeLevel, siblingsOf } from "../document-tree-model";
 import { runErrorMessage, type FolderUploadMode } from "./folder-upload-copy";
 import { FolderUploadDialog } from "./folder-upload-dialog";
 import { FolderUploadReportDialog } from "./folder-upload-report-dialog";
@@ -34,6 +34,8 @@ interface Destination {
   level: number;
   siblingNames: string[];
   shared: boolean;
+  /** Outside My Folder (ADR 0037): folders created here are visible to the workspace. The root means My Folder, so never. */
+  inWorkspace: boolean;
 }
 
 interface StagedFolder {
@@ -180,6 +182,7 @@ export function useFolderUpload({
       level: parentId ? (nodeLevel(tree, parentId) ?? 1) : 1,
       siblingNames: siblingsOf(tree, parentId).map((node) => node.title),
       shared: parentShared,
+      inWorkspace: folderId !== null && newFolderIsWorkspaceVisible(tree, folderId),
     };
   }, [folderId, myFolderId, destinationName, tree, parentShared]);
 
@@ -459,6 +462,7 @@ export function useFolderUpload({
             plan={plan}
             destinationName={head?.destination.name ?? destinationName}
             parentShared={head?.destination.shared ?? false}
+            destinationInWorkspace={head?.destination.inWorkspace ?? false}
             queued={Math.max(0, queue.length - 1)}
             pending={pending}
             waiting={waiting}
