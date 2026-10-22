@@ -64,7 +64,7 @@ describe("AskUniPanel empty state", () => {
       if (path.endsWith("/ai/conversations")) return Promise.resolve({ conversations: [] });
       return composerRoutes(path);
     });
-    useAiPanelStore.setState({ conversationId: null, workspaceId: "ws1", page: null, pageDismissed: null, pendingFocus: null });
+    useAiPanelStore.setState({ conversationId: null, workspaceId: "ws1", page: null, pageDismissed: null, pendingFocus: null, focus: null });
     resetAuthStoreForTests();
     setSessionUser(user);
   });
@@ -106,8 +106,44 @@ describe("AskUniPanel empty state", () => {
   });
 
   it("is gone once a conversation is open", async () => {
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/conversations/c1/messages") ? { messages: [{ id: "a1", role: "assistant", content: "Đã tải xong", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" }] } : path.endsWith("/ai/conversations") ? { conversations: [] } : {}),
+    );
     useAiPanelStore.setState({ conversationId: "c1" });
     mount();
+    await screen.findByText("Đã tải xong");
+    expect(screen.getByText("Đã tải xong")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Hỏi UNI về công việc" })).toBeNull();
+  });
+
+  it("hides while the first turn streams", async () => {
+    requestStreamMock.mockImplementation((..._args: unknown[]) => new Promise(() => {}) as never);
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Hôm nay tôi nên làm gì trước?" }));
+    await vi.waitFor(() => expect(screen.queryByRole("heading", { name: "Hỏi UNI về công việc" })).toBeNull());
+  });
+
+  it("two quick clicks send one request", async () => {
+    mount();
+    const b = await screen.findByRole("button", { name: "Hôm nay tôi nên làm gì trước?" });
+    fireEvent.click(b);
+    fireEvent.click(b);
+    await vi.waitFor(() => expect(askBody()).toBeDefined());
+    expect(requestStreamMock.mock.calls.filter(([p]) => String(p).endsWith("/ai/ask/stream"))).toHaveLength(1);
+  });
+
+  it("a hand-picked focus beats the page for the set, the chip and the send", async () => {
+    useAiPanelStore.setState({ page: { kind: "project", id: "P", label: "Dự án P" }, pendingFocus: { kind: "task", id: "T", label: "Việc T" } });
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Tóm tắt task này" }));
+    await vi.waitFor(() => expect(askBody()).toBeDefined());
+    expect(askBody()?.focus).toEqual({ kind: "task", id: "T" });
+  });
+
+  it("removing the hand-picked chip brings the page set back", async () => {
+    useAiPanelStore.setState({ page: { kind: "project", id: "P", label: "Dự án P" }, focus: { kind: "task", id: "T", label: "Việc T" } });
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: /Bỏ phạm vi.*Việc T/ }));
+    expect(await screen.findByRole("button", { name: "Tóm tắt tiến độ dự án này" })).toBeInTheDocument();
   });
 });

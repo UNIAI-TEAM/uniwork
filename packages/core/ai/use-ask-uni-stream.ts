@@ -75,6 +75,17 @@ export function useAskUniStream(wsId: string) {
     };
   }, [wsId, boundWs, abort]);
 
+  // A new conversation (or one left for an empty one) forgets the old turn, so the empty state returns.
+  const conversationId = useAiPanelStore((s) => s.conversationId);
+  const prevConversation = useRef(conversationId);
+  useEffect(() => {
+    if (prevConversation.current !== null && conversationId === null) {
+      abort();
+      setState(IDLE);
+    }
+    prevConversation.current = conversationId;
+  }, [conversationId, abort]);
+
   const ask = useCallback(
     (input: AskUniInput) => {
       abort();

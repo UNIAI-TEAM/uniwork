@@ -10,13 +10,11 @@ import { useWorkspace } from "../layout/workspace-context";
 import { entityKindIcon } from "./ask-uni-entity";
 import { AskUniEditor, type AskUniEditorHandle, type AskUniQuestion } from "./ask-uni-editor";
 import { AskUniModelPicker, useAskModelSelection } from "./ask-uni-model-picker";
-import { useShownPage } from "./ask-uni-page-context";
+import { useEffectiveFocus, useShownPage } from "./ask-uni-page-context";
 import { AskUniScopePicker } from "./ask-uni-scope-picker";
 
 const MAX_MENTIONS = 5;
 const EMPTY: AskUniQuestion = { question: "", mentions: [] };
-
-type Focus = NonNullable<AskUniInput["focus"]> & { label: string };
 
 function Chip({ label, remove, onRemove, icon: Icon }: { label: string; remove: string; onRemove: () => void; icon?: LucideIcon }) {
   return (
@@ -43,10 +41,13 @@ export function AskUniComposer({
 }) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "ai" });
   const { workspace } = useWorkspace();
+  const focus = useAiPanelStore((s) => s.focus);
+  const setFocus = useAiPanelStore((s) => s.setFocus);
   const conversationId = useAiPanelStore((s) => s.conversationId);
   const pendingFocus = useAiPanelStore((s) => s.pendingFocus);
   const clearPendingFocus = useAiPanelStore((s) => s.clearPendingFocus);
   const page = useShownPage();
+  const sent = useEffectiveFocus();
   const dismissPage = useAiPanelStore((s) => s.dismissPage);
   const { model, effort } = useAskModelSelection(workspace.id);
 
@@ -54,7 +55,6 @@ export function AskUniComposer({
   const root = useRef<HTMLDivElement>(null);
   const wasStreaming = useRef(streaming);
   const [draft, setDraft] = useState<AskUniQuestion>(EMPTY);
-  const [focus, setFocus] = useState<Focus | null>(null);
   const kindLabel = (kind: string) => t(`scope.kind.${kind}`, { defaultValue: kind });
 
   // Typing starts at once when the panel opens and when a conversation is chosen.
@@ -76,17 +76,14 @@ export function AskUniComposer({
   // An entry point's focus becomes the chip once.
   useEffect(() => {
     if (!pendingFocus) return;
-    const kind = kindLabel(pendingFocus.kind);
-    setFocus({ kind: pendingFocus.kind, id: pendingFocus.id, label: pendingFocus.label ? `${kind}: ${pendingFocus.label}` : kind });
+    setFocus({ kind: pendingFocus.kind, id: pendingFocus.id, label: pendingFocus.label });
     clearPendingFocus();
     box.current?.focus();
-    // kindLabel only reads the language, which a pending focus does not outlive.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingFocus, clearPendingFocus]);
+  }, [pendingFocus, clearPendingFocus, setFocus]);
 
   // A hand-picked focus wins over the page; a removed page chip stays off until another page.
   const shownPage = focus ? null : page;
-  const sent = focus ?? shownPage;
+  const focusLabel = focus ? (focus.label ? `${kindLabel(focus.kind)}: ${focus.label}` : kindLabel(focus.kind)) : "";
   const placeholderKind = sent?.kind;
   const pageLabel = shownPage ? t("page_chip", { label: shownPage.label || kindLabel(shownPage.kind) }) : "";
 
@@ -114,8 +111,8 @@ export function AskUniComposer({
         {focus ? (
           <div className="flex flex-wrap gap-1.5">
             <Chip
-              label={focus.label}
-              remove={t("scope.remove", { name: focus.label })}
+              label={focusLabel}
+              remove={t("scope.remove", { name: focusLabel })}
               onRemove={() => {
                 setFocus(null);
                 box.current?.focus();
@@ -150,7 +147,7 @@ export function AskUniComposer({
               box.current?.focus();
               return false;
             }}
-            onPick={(p) => setFocus({ kind: p.kind, id: p.id, label: `${kindLabel(p.kind)}: ${p.title}` })}
+            onPick={(p) => setFocus({ kind: p.kind, id: p.id, label: p.title })}
           />
           <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
             <AskUniModelPicker />

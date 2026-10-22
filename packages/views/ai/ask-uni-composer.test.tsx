@@ -70,7 +70,7 @@ beforeEach(() => {
   resetAuthStoreForTests();
   requestMock.mockReset();
   requestMock.mockImplementation(composerRoutes);
-  useAiPanelStore.setState({ conversationId: "c1", workspaceId: "ws1", pendingFocus: null, open: true, page: null, pageDismissed: null });
+  useAiPanelStore.setState({ conversationId: "c1", workspaceId: "ws1", pendingFocus: null, open: true, page: null, focus: null, pageDismissed: null });
   useAskModelChoice.setState({ model: "", effort: "" });
 });
 

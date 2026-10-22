@@ -3,7 +3,21 @@ import { useAiPanelStore } from "./store";
 
 describe("ai panel store", () => {
   afterEach(() => {
-    useAiPanelStore.setState({ open: false, conversationId: null, pendingFocus: null, workspaceId: null });
+    useAiPanelStore.setState({ open: false, conversationId: null, pendingFocus: null, focus: null, workspaceId: null });
+  });
+
+  it("setFocus stores the hand-picked focus; a new conversation and a workspace change clear it", () => {
+    const s = useAiPanelStore.getState();
+    s.bindWorkspace("w1");
+    s.setFocus({ kind: "task", id: "t1", label: "A" });
+    expect(useAiPanelStore.getState().focus).toEqual({ kind: "task", id: "t1", label: "A" });
+    s.select("c1");
+    expect(useAiPanelStore.getState().focus).not.toBeNull();
+    s.select(null);
+    expect(useAiPanelStore.getState().focus).toBeNull();
+    s.setFocus({ kind: "task", id: "t1" });
+    s.bindWorkspace("w2");
+    expect(useAiPanelStore.getState().focus).toBeNull();
   });
 
   it("drops the selected conversation and focus when the workspace changes", () => {

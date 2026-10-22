@@ -29,3 +29,10 @@ export function useShownPage() {
   const dismissed = useAiPanelStore((s) => s.pageDismissed);
   return page && `${page.kind}:${page.id}` !== dismissed ? page : null;
 }
+
+/** What a question is about: the hand-picked object, else the open page. */
+export function useEffectiveFocus() {
+  const focus = useAiPanelStore((s) => s.focus);
+  const page = useShownPage();
+  return focus ?? page;
+}

@@ -270,6 +270,26 @@ describe("useAskUniStream", () => {
     await waitFor(() => expect(result.current.state).toMatchObject({ status: "error", errorCode: "ai_unavailable" }));
   });
 
+  it.each(["done", "stopped", "error"] as const)("a new conversation after a %s first turn is idle again", (end) => {
+    const { result } = setup();
+    act(() => result.current.ask({ question: "q" }));
+    emit({ type: "run", runId: "r1", conversationId: "c1" });
+    if (end === "error") emit({ type: "error", code: "internal" });
+    else emit({ type: "done", message: msg({ notice: end === "stopped" ? "stopped" : "" }), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
+    expect(result.current.state.status).toBe(end);
+    act(() => useAiPanelStore.getState().select(null));
+    expect(result.current.state).toMatchObject({ status: "idle", conversationId: null });
+  });
+
+  it("a new conversation mid-turn aborts it", () => {
+    const { result } = setup();
+    act(() => result.current.ask({ question: "q" }));
+    emit({ type: "run", runId: "r1", conversationId: "c1" });
+    act(() => useAiPanelStore.getState().select(null));
+    expect(opts.signal.aborted).toBe(true);
+    expect(result.current.state.status).toBe("idle");
+  });
+
   it("a stream that ends without done or error is an error", async () => {
     const { result } = setup();
     act(() => result.current.ask({ question: "q" }));
