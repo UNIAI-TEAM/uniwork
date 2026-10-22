@@ -83,13 +83,13 @@ groups:
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/OutboxLagHigh.md
 
       - alert: QueueLagUnreadable
-        expr: min_over_time(uniwork_outbox_lag_up[5m]) == 0 or min by (queue) (min_over_time(uniwork_meeting_queue_lag_up[5m])) == 0
+        expr: min_over_time(uniwork_outbox_lag_up[5m]) == 0 or min by (queue) (min_over_time(uniwork_meeting_queue_lag_up[5m])) == 0 or max(max_over_time(uniwork_chat_reports_up[5m])) == 0
         for: 5m
         labels:
           severity: "2"
         annotations:
           summary: "Không đọc được độ trễ hàng đợi"
-          description: "Truy vấn đo lag của outbox hoặc webhook inbox lỗi hoặc quá thời gian suốt 5 phút: OutboxLagHigh và WebhookInboxLagHigh không thể kêu khi gauge vắng mặt."
+          description: "Truy vấn đo lag của outbox, webhook inbox hoặc hàng đợi báo cáo UniChat lỗi hoặc quá thời gian suốt 5 phút: OutboxLagHigh, WebhookInboxLagHigh, UniChatReportFiled và UniChatReportOverdue không thể kêu khi gauge vắng mặt."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/QueueLagUnreadable.md
 
       - alert: OutboxDeadLetter
@@ -379,13 +379,24 @@ groups:
           description: "Bản {{ $labels.client_version }}: {{ $value | humanizePercentage }} push cuộc gọi trong 1 giờ chỉ thành thông báo thường hoặc không hiện gì."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatCallRingsDegraded.md
       # A member reported a message or a person in UniChat (store UGC policy, Apple 1.2): the terms of use promise the
-      # operator acts on every report within 24 hours. The audit counter of chat.report.created is the trigger; the
-      # console's queue (/admin/chat-reports) is where it is read and closed. Not a page: a ticket for the operator.
+      # operator acts on every report within 24 hours. Both rules read queue state (metrics.ChatReportQueueCollector, the
+      # open rows of chat_reports at scrape time), never the chat.report.created counter: that series is born at 1 with
+      # the first report a process records, so increase() misses it, and it forgets a report 30 minutes after it lands.
+      # Filed stays on while any report is open (a ticket); Overdue pages once the oldest has waited 20 hours.
+      # The collector's own read failing (uniwork_chat_reports_up = 0) is QueueLagUnreadable.
       - alert: UniChatReportFiled
-        expr: sum(increase(uniwork_audit_events_total{action="chat.report.created"}[30m])) > 0
+        expr: max(uniwork_chat_reports_open) > 0
         labels:
           severity: "3"
         annotations:
-          summary: "Có báo cáo vi phạm mới trong UniChat"
-          description: "{{ $value | humanize }} báo cáo tin nhắn hoặc người trong 30 phút qua; xử lý trong 24 giờ ở /admin/chat-reports."
+          summary: "Có báo cáo vi phạm đang chờ trong UniChat"
+          description: "{{ $value | humanize }} báo cáo tin nhắn hoặc người đang chờ; xử lý trong 24 giờ ở /admin/chat-reports."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatReportFiled.md
+      - alert: UniChatReportOverdue
+        expr: max(uniwork_chat_reports_oldest_open_age_seconds) > 20 * 3600
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Một báo cáo vi phạm UniChat đã chờ quá 20 giờ"
+          description: "Báo cáo mở lâu nhất đã chờ {{ $value | humanizeDuration }}; điều khoản hứa xử lý trong 24 giờ. Mở /admin/chat-reports ngay."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatReportOverdue.md

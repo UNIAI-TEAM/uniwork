@@ -116,7 +116,7 @@ và tin bị báo cáo, **ai đã báo cáo** (sheet báo cáo nói điều này
 chủ sở hữu/quản trị viên thì cũng thấy). Lời mô tả của người báo cáo không vào nhật ký (nhật ký không xoá được, không
 chứa chữ tự do); chủ sở hữu đọc nó trong bản xuất dữ liệu của tổ chức. **Nhà vận hành** thấy mọi báo cáo trong hàng
 đợi của console (`/admin/chat-reports`: tổ chức, lý do, người và tin bị báo cáo, người báo cáo, thời điểm — không nội
-dung, không lời mô tả) và nhận alert `UniChatReportFiled` khi có báo cáo mới (runbook cùng tên); đóng báo cáo kèm lý
+dung, không lời mô tả) và nhận alert `UniChatReportFiled` khi có báo cáo đang chờ, `UniChatReportOverdue` khi một báo cáo chờ quá 20 giờ (runbook cùng tên); đóng báo cáo kèm lý
 do ghi `chat.report.resolved` vào nhật ký của tổ chức. Người dùng và reviewer cũng báo cáo thẳng qua
 `contact@unicomhub.com` (chính sách riêng tư nói vậy). Chưa ai xoá được tin của người khác (chỉ người gửi): gỡ nội dung
 nghĩa là vô hiệu hoá người đăng hay tạm ngưng tổ chức. Chặn: chi tiết cuộc trò chuyện riêng hoặc thành

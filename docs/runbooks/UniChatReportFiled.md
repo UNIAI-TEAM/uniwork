@@ -1,12 +1,14 @@
-# UniChatReportFiled — có báo cáo vi phạm mới trong UniChat
+# UniChatReportFiled — có báo cáo vi phạm đang chờ trong UniChat
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** `deploy/alerts.yml` (nhóm `uniwork-app-builds`) · **Metric:** `uniwork_audit_events_total{action="chat.report.created"}`
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** `deploy/alerts.yml` (nhóm `uniwork-app-builds`) · **Metric:** `uniwork_chat_reports_open` (`metrics.ChatReportQueueCollector`, đọc các dòng `chat_reports` đang mở lúc scrape)
 
 ## Triệu chứng
 
-- Alert `UniChatReportFiled` bật: trong 30 phút qua có ít nhất một báo cáo tin nhắn hoặc người (nhấn giữ tin › Báo cáo,
-  chi tiết cuộc trò chuyện › Báo cáo) trên web, máy tính hay điện thoại. Không phải sự cố hệ thống: là việc của nhà vận
+- Alert `UniChatReportFiled` bật: có ít nhất một báo cáo tin nhắn hoặc người (nhấn giữ tin › Báo cáo, chi tiết cuộc trò
+  chuyện › Báo cáo) từ web, máy tính hay điện thoại đang mở. Alert đọc trạng thái hàng đợi, không đếm tốc độ: nó bật
+  ngay từ báo cáo đầu tiên và **còn bật tới khi mọi báo cáo được đóng**. Không phải sự cố hệ thống: là việc của nhà vận
   hành.
+- Báo cáo chờ quá 20 giờ thì [UniChatReportOverdue](UniChatReportOverdue.md) (sev 2) kêu thêm.
 - Điều khoản sử dụng (`/terms#acceptable-use`) và ghi chú cho reviewer của App Store/Play hứa nhà vận hành xem mọi báo
   cáo **trong 24 giờ**; Apple 1.2 đòi gỡ nội dung và loại người đăng trong thời hạn đó. Chủ sở hữu và quản trị viên của
   tổ chức cũng thấy báo cáo trong Nhật ký hoạt động của họ và xử lý được trước.
@@ -30,10 +32,13 @@
 - Xong việc (đã xử lý, hay báo cáo không có cơ sở): bấm "Đóng báo cáo" trên dòng đó, ghi lý do ≥ 10 ký tự (vd. "đã yêu cầu
   chủ sở hữu gỡ tin, đã gỡ 14:20"). Một dòng `admin_actions` và một dòng audit `chat.report.resolved` trong tổ chức đó
   được ghi cùng transaction: chủ sở hữu thấy nhà vận hành đã xử lý.
-- Alert tự tắt sau 30 phút không có báo cáo mới; báo cáo còn mở vẫn nằm trong hàng đợi tới khi được đóng.
+- Alert tắt khi báo cáo mở cuối cùng được đóng (`uniwork_chat_reports_open` về 0), không tự tắt theo thời gian.
 
 ## Leo thang
 
 - Nội dung có dấu hiệu phạm pháp (xâm hại trẻ em, đe doạ tính mạng, khủng bố): báo ngay người giữ pháp chế của công ty và
   làm theo nghĩa vụ báo cáo với cơ quan chức năng; tạm ngưng tổ chức nếu cần ngăn lan rộng, không chờ tổ chức tự xử lý.
-- Hàng đợi có báo cáo mở quá 20 giờ: báo người trực vận hành kế tiếp ở kênh `#uniwork-incident` để kịp hạn 24 giờ.
+- Hàng đợi có báo cáo mở quá 20 giờ: [UniChatReportOverdue](UniChatReportOverdue.md) tự kêu (sev 2); báo người trực
+  vận hành kế tiếp ở kênh `#uniwork-incident` để kịp hạn 24 giờ.
+- Gauge vắng mặt (`uniwork_chat_reports_up` = 0): [QueueLagUnreadable](QueueLagUnreadable.md) kêu; trong lúc đó mở thẳng
+  `/admin/chat-reports` mỗi vài giờ.

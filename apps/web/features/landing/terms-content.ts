@@ -9,8 +9,8 @@ import type { GuideContent } from "./guide-content";
  * Google Play's UGC policy want the terms to forbid objectionable content and
  * abusive users with no tolerance and to say how reports are handled: the
  * section with the fixed anchor #acceptable-use does, and its 24-hour
- * commitment is what the operator's queue (/admin/chat-reports, alert
- * UniChatReportFiled) and contact inbox have to honour. It promises only
+ * commitment is what the operator's queue (/admin/chat-reports, alerts
+ * UniChatReportFiled and UniChatReportOverdue) and contact inbox have to honour. It promises only
  * what the operator and an organization can do today: deactivate a member,
  * suspend an organization; no one deletes another member's message. The App Store section carries
  * Apple's minimum terms for a custom EULA. A statement about the product

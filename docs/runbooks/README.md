@@ -19,14 +19,15 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `BILLING_VNPAY_WEBHOOK` | 2 | billing webhook dead letter trong 15 phút | [BILLING_VNPAY_WEBHOOK.md](BILLING_VNPAY_WEBHOOK.md) |
 | `AiCostSpike` | 2 | chi phí AI 1 giờ > 3× trung bình 7 ngày | [AiCostSpike.md](AiCostSpike.md) |
 | `WebhookInboxLagHigh` | 2 | webhook LiveKit chờ xử lý > 30 s | [WebhookInboxLagHigh.md](WebhookInboxLagHigh.md) |
-| `QueueLagUnreadable` | 2 | không đọc được lag outbox hoặc webhook inbox suốt 5 phút | [QueueLagUnreadable.md](QueueLagUnreadable.md) |
+| `QueueLagUnreadable` | 2 | không đọc được lag outbox, webhook inbox hoặc hàng đợi báo cáo UniChat suốt 5 phút | [QueueLagUnreadable.md](QueueLagUnreadable.md) |
 | `RealtimePublishSlow` | 3 | p95 commit → frame > 1 s | [RealtimePublishSlow.md](RealtimePublishSlow.md) |
 | `RealtimeSlowEvictions` | 3 | > 25 client WebSocket bị đuổi trong 10 phút | [RealtimeSlowEvictions.md](RealtimeSlowEvictions.md) |
 | `RealtimeRedisXReadErrors` | 3 | > 30 lỗi XREAD Redis trong 5 phút, kéo dài 10 phút | [RealtimeRedisXReadErrors.md](RealtimeRedisXReadErrors.md) |
 | `GraphProjectorLagHigh` | 3 | Work Graph chiếu chậm hơn nguồn | [GraphProjectorLagHigh.md](GraphProjectorLagHigh.md) |
 | `WebVitalsLCPPoor` | 3 | p75 LCP > 2,5 s trong 30 phút | [WebVitalsLCPPoor.md](WebVitalsLCPPoor.md) |
 | `UniChatMobileServerErrors` | 2 | một bản UniChat mobile (version + OTA) nhận 5xx > 5 % request trong 15 phút | [UniChatMobileServerErrors.md](UniChatMobileServerErrors.md) |
-| `UniChatReportFiled` | 3 | một thành viên báo cáo tin nhắn hoặc người trong UniChat (30 phút qua); điều khoản hứa xử lý trong 24 giờ | [UniChatReportFiled.md](UniChatReportFiled.md) |
+| `UniChatReportFiled` | 3 | có báo cáo tin nhắn hoặc người trong UniChat đang chờ (bật tới khi mọi báo cáo được đóng); điều khoản hứa xử lý trong 24 giờ | [UniChatReportFiled.md](UniChatReportFiled.md) |
+| `UniChatReportOverdue` | 2 | báo cáo UniChat mở lâu nhất đã chờ quá 20 giờ (hạn 24 giờ) | [UniChatReportOverdue.md](UniChatReportOverdue.md) |
 | `UniChatCallRingsDegraded` | 3 | một bản UniChat Android: > 10 % push cuộc gọi trong 1 giờ (≥ 20) không thành màn đổ chuông native | [UniChatCallRingsDegraded.md](UniChatCallRingsDegraded.md) |
 | `OfficeChangeFeedLagHigh` | 2 | change feed Office trễ > 300 s trong 10 phút (pending G7-D1) | [OfficeChangeFeedLagHigh.md](OfficeChangeFeedLagHigh.md) |
 | `OfficeLeaseRevokeFailed` | 2 | revoke lease offline fail-closed không ghi được (pending G7-D1) | [OfficeLeaseRevokeFailed.md](OfficeLeaseRevokeFailed.md) |

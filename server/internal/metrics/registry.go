@@ -62,6 +62,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		reg.MustRegister(NewDocumentLagCollector(opts.Pool))
 		reg.MustRegister(NewOutboxLagCollector(opts.Pool))
 		reg.MustRegister(NewGraphDirtyCollector(opts.Pool))
+		reg.MustRegister(NewChatReportQueueCollector(opts.Pool))
 	}
 	if opts.Realtime != nil {
 		reg.MustRegister(NewRealtimeCollector(opts.Realtime))

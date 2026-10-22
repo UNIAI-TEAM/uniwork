@@ -4,7 +4,9 @@
 
 ## Triệu chứng
 
-- Alert `QueueLagUnreadable`: `uniwork_outbox_lag_up` hoặc `uniwork_meeting_queue_lag_up{queue}` bằng 0 suốt 5 phút.
+- Alert `QueueLagUnreadable`: `uniwork_outbox_lag_up` hoặc `uniwork_meeting_queue_lag_up{queue}` bằng 0 suốt 5 phút,
+  hoặc không bản server nào đọc được hàng đợi báo cáo UniChat (`uniwork_chat_reports_up` bằng 0 ở mọi bản suốt 5 phút):
+  khi đó [UniChatReportFiled](UniChatReportFiled.md) và [UniChatReportOverdue](UniChatReportOverdue.md) cũng câm.
 - Panel tuổi dòng chờ của outbox hoặc webhook inbox trống: khi truy vấn đo lỗi hoặc quá thời gian, gauge lag vắng mặt thay vì báo 0, nên [OutboxLagHigh](OutboxLagHigh.md) và [WebhookInboxLagHigh](WebhookInboxLagHigh.md) không thể kêu.
 - Thường đi cùng DB quá tải: chính lúc hàng đợi dễ nghẽn nhất.
 
@@ -14,12 +16,14 @@
    ```promql
    uniwork_outbox_lag_up
    uniwork_meeting_queue_lag_up
+   uniwork_chat_reports_up
    ```
 2. DB có đang quá tải không? Xem dashboard *UniWork · DB* (pool chờ, p95 query) và [ApiLatencyP95High](ApiLatencyP95High.md). Truy vấn đo lag có timeout riêng; DB chậm làm nó hết giờ trước.
 3. Đo tay độ trễ bằng SQL, không qua collector:
    ```sql
    SELECT now() - min(created_at) FROM outbox_events WHERE status IN ('PENDING', 'PROCESSING');
    SELECT now() - min(received_at) FROM webhook_inbox WHERE status IN ('PENDING', 'PROCESSING');
+   SELECT count(*), now() - min(created_at) FROM chat_reports WHERE status = 'open';
    ```
 4. Log của collector: `kubectl -n uniwork logs deploy/uniwork-be --since=15m | grep -i lag`.
 
@@ -27,6 +31,8 @@
 
 - DB quá tải: xử lý theo [ApiLatencyP95High](ApiLatencyP95High.md). Gauge tự trở lại khi truy vấn đo chạy kịp.
 - Độ trễ đo tay lớn: xử lý tiếp theo [OutboxLagHigh](OutboxLagHigh.md) hoặc [WebhookInboxLagHigh](WebhookInboxLagHigh.md) như khi alert đó kêu.
+- Hàng đợi báo cáo UniChat không đọc được: trong lúc chờ gauge trở lại, mở `/admin/chat-reports` (hay chạy SQL ở bước 3)
+  mỗi vài giờ — hạn xử lý báo cáo vẫn là 24 giờ.
 - Bảng sự kiện phình to: job retention (`server/internal/service/event_retention.go`) xoá dòng đã xong theo lô mỗi giờ; sau đợt xoá đầu tiên nên `VACUUM (ANALYZE)` các bảng `outbox_events`, `webhook_inbox`, `meeting_provider_events`.
 
 ## Leo thang
