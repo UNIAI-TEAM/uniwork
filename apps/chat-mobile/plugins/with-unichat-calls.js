@@ -52,8 +52,16 @@ const COMPONENTS = {
 /** Above expo-notifications' ExpoFirebaseMessagingService (-1), so FCM hands a message to this one. */
 const MESSAGING_PRIORITY = "1";
 
+const TOOLS = "http://schemas.android.com/tools";
+
+/**
+ * tools:ignore="Instantiatable": the class does extend Service (ExpoFirebaseMessagingService → FirebaseMessagingService),
+ * but expo-notifications takes firebase-messaging as an `implementation` dependency, so the app's lint classpath cannot
+ * see the chain and lintVitalRelease failed the first EAS release build (aa6009fc) on a false "must extend Service".
+ * The Kotlin compiler is the check that it is one: the class would not compile otherwise.
+ */
 const MESSAGING_SERVICE = {
-  $: { "android:name": `${PACKAGE}.UniChatMessagingService`, "android:exported": "false" },
+  $: { "android:name": `${PACKAGE}.UniChatMessagingService`, "android:exported": "false", "tools:ignore": "Instantiatable" },
   "intent-filter": [{ $: { "android:priority": MESSAGING_PRIORITY }, action: [{ $: { "android:name": "com.google.firebase.MESSAGING_EVENT" } }] }],
 };
 
@@ -96,6 +104,7 @@ const withUniChatCalls = (config, options) => {
       application[tag] = [...kept, ...nodes];
     }
     const manifest = mod.modResults.manifest;
+    manifest.$ = { ...manifest.$, "xmlns:tools": TOOLS };
     const queries = manifest.queries?.[0] ?? {};
     const listed = new Set((queries.package ?? []).map((node) => node.$["android:name"]));
     queries.package = [...(queries.package ?? []), ...AUTOSTART_PACKAGES.filter((name) => !listed.has(name)).map((name) => ({ $: { "android:name": name } }))];
