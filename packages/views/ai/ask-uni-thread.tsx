@@ -158,6 +158,7 @@ export function AskUniThread({
     content: state.message?.content ?? state.draft,
     citations: state.message?.citations ?? state.citations,
     notice: state.message?.notice ?? (state.status === "stopped" ? "stopped" : ""),
+    model: state.message?.model ?? state.model,
   };
   // `[S#]` numbers carry across this conversation's answers (the server seeds the book from them), so this map resolves a
   // marker an answer does not cite itself; each answer's own citations still win. Only this conversation's stream adds to it.

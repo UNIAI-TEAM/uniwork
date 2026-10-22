@@ -6048,6 +6048,7 @@
       "label": "Choose a model",
       "auto": "Auto",
       "auto_current": "Auto · Currently: {{model}}",
+      "auto_description": "UNI picks the right model for each question.",
       "effort": "Effort",
       "effort_auto": "Auto",
       "effort_low": "Low",
@@ -6076,6 +6077,7 @@
     },
     "empty": {
       "title": "Ask UNI about your work",
+      "title_anthropic": "What should Claude look into?",
       "task": {
         "1": "Summarize this task",
         "2": "Where is this task stuck?",

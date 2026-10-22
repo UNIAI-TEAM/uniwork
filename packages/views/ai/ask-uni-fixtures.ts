@@ -18,10 +18,10 @@ export const workspace: Workspace = {
 };
 
 export const MODELS = [
-  { key: "haiku", speed: 5, intelligence: 3, cost: 1, enabled: true },
-  { key: "sonnet", speed: 4, intelligence: 4, cost: 2, enabled: true },
-  { key: "opus", speed: 2, intelligence: 5, cost: 5, enabled: true },
-  { key: "fable", speed: 3, intelligence: 4, cost: 3, enabled: false },
+  { key: "haiku", provider: "anthropic", speed: 5, intelligence: 3, cost: 1, enabled: true },
+  { key: "sonnet", provider: "anthropic", speed: 4, intelligence: 4, cost: 2, enabled: true },
+  { key: "opus", provider: "anthropic", speed: 2, intelligence: 5, cost: 5, enabled: true },
+  { key: "fable", provider: "anthropic", speed: 3, intelligence: 4, cost: 3, enabled: false },
 ];
 
 export const capabilities = (models = MODELS) => ({

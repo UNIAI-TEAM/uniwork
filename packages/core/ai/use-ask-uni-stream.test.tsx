@@ -25,6 +25,7 @@ const msg = (over: Record<string, unknown> = {}) => ({
   followups: [],
   focus: null,
   mentions: [],
+  model: "",
   created_at: "t",
   ...over,
 });

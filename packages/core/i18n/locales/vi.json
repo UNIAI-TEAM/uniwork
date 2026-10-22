@@ -6041,6 +6041,7 @@
       "label": "Chọn model",
       "auto": "Tự động",
       "auto_current": "Tự động · Hiện tại: {{model}}",
+      "auto_description": "UNI chọn model hợp với từng câu hỏi.",
       "effort": "Mức nỗ lực",
       "effort_auto": "Tự động",
       "effort_low": "Thấp",
@@ -6069,6 +6070,7 @@
     },
     "empty": {
       "title": "Hỏi UNI về công việc",
+      "title_anthropic": "Cần Claude tìm hiểu gì?",
       "task": {
         "1": "Tóm tắt task này",
         "2": "Task này đang vướng ở đâu?",

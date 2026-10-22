@@ -12,10 +12,10 @@ import { AskUniThread, type AskUniStream } from "./ask-uni-thread";
 
 initI18n();
 
-const IDLE: AskStreamState = { status: "idle", question: "", conversationId: null, draft: "", steps: [], sources: {}, followups: [], regenerateOf: null, citations: [], message: null, errorCode: null };
+const IDLE: AskStreamState = { status: "idle", question: "", conversationId: null, draft: "", steps: [], sources: {}, followups: [], regenerateOf: null, model: "", citations: [], message: null, errorCode: null };
 const history = [
-  { id: "u1", role: "user", content: "Task nào quá hạn?", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" },
-  { id: "a1", role: "assistant", content: "Có 3 task quá hạn.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" },
+  { id: "u1", role: "user", content: "Task nào quá hạn?", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "" },
+  { id: "a1", role: "assistant", content: "Có 3 task quá hạn.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "" },
 ];
 
 const user: User = {
@@ -73,11 +73,11 @@ describe("AskUniThread", () => {
   });
 
   it("shows the finished turn once and keeps its steps line", async () => {
-    const answer = { id: "a2", role: "assistant", content: "Xong rồi.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" };
+    const answer = { id: "a2", role: "assistant", content: "Xong rồi.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "" };
     requestMock.mockImplementation((path: string) =>
       Promise.resolve(
         path === "/api/v1/ai/conversations/c1/messages"
-          ? { messages: [...history, { id: "pending-a2", role: "user", content: "Còn gì nữa?", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" }, answer] }
+          ? { messages: [...history, { id: "pending-a2", role: "user", content: "Còn gì nữa?", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "" }, answer] }
           : {},
       ),
     );
@@ -116,7 +116,7 @@ describe("AskUniThread", () => {
   });
 
   it("shows the finished answer from the stream until the cache has it", async () => {
-    const answer = { id: "a2", role: "assistant", content: "Chưa có trong cache.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" };
+    const answer = { id: "a2", role: "assistant", content: "Chưa có trong cache.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "" };
     mount(stream({ status: "done", question: "Hỏi mới?", message: answer }));
     expect(await screen.findByText("Chưa có trong cache.")).toBeInTheDocument();
     expect(screen.getByText("Hỏi mới?")).toBeInTheDocument();
@@ -210,7 +210,7 @@ describe("AskUniThread sources", () => {
   });
 });
 
-const msg = (o: Record<string, unknown>) => ({ id: "x", role: "assistant", content: "", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "", ...o });
+const msg = (o: Record<string, unknown>) => ({ id: "x", role: "assistant", content: "", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "", ...o });
 const serve = (messages: unknown[]) =>
   requestMock.mockImplementation((path: string) =>
     Promise.resolve(path === "/api/v1/ai/conversations/c1/messages" ? { messages } : {}),
@@ -299,7 +299,8 @@ describe("AskUniThread meta and context", () => {
       mount(stream());
       await screen.findByText("Nay");
       expect(screen.getByText("An · 3/6 08:05")).toBeInTheDocument();
-      expect(screen.getByText("UNI · 09:30")).toBeInTheDocument();
+      // The answer's name is set apart from its time.
+      expect(screen.getByText("UNI").parentElement).toHaveTextContent(/^UNI · 09:30$/);
     } finally {
       vi.useRealTimers();
     }

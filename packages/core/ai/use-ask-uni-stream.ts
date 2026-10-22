@@ -24,6 +24,8 @@ export interface AskStreamState {
   followups: string[];
   /** The answer being regenerated, or null for a fresh question. */
   regenerateOf: string | null;
+  /** The model key the turn asked for; "" for Auto. The stored answer's own `model` replaces it on done. */
+  model: string;
   citations: AiCitation[];
   message: AiMessage | null;
   errorCode: string | null;
@@ -38,6 +40,7 @@ const IDLE: AskStreamState = {
   sources: {},
   followups: [],
   regenerateOf: null,
+  model: "",
   citations: [],
   message: null,
   errorCode: null,
@@ -94,7 +97,7 @@ export function useAskUniStream(wsId: string) {
       ctrl.current = controller;
       turnConversation.current = input.conversation_id ?? null;
       const regenerateOf = input.regenerate_message_id ?? null;
-      setState({ ...IDLE, status: "streaming", question: input.question, conversationId: input.conversation_id ?? null, regenerateOf });
+      setState({ ...IDLE, status: "streaming", question: input.question, conversationId: input.conversation_id ?? null, regenerateOf, model: input.model ?? "" });
       let finished = false;
       const current = () => seq.current === mySeq && !controller.signal.aborted;
 
@@ -145,6 +148,7 @@ export function useAskUniStream(wsId: string) {
                 followups: [],
                 focus: null,
                 mentions: [],
+                model: "",
                 created_at: e.message.created_at,
               };
               qc.setQueryData<AiMessage[]>(aiKeys.messages(conversationId), (old) => [...(old ?? []), userEcho, e.message]);

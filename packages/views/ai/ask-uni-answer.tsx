@@ -12,6 +12,7 @@ import { dropEchoedNames } from "./ask-uni-text";
 import { AskUniEntityChip, AskUniSources, InLinkContext } from "./ask-uni-entity";
 import { AskUniContextChips } from "./ask-uni-context-chips";
 import { AskUniMessageMeta } from "./ask-uni-meta";
+import { useAskModelLook } from "./ask-uni-provider";
 import { AskUniProgress } from "./ask-uni-steps";
 
 const NOTICES = new Set(["no_sources", "empty_answer", "agent_failed", "refused", "stopped", "interrupted"]);
@@ -19,7 +20,7 @@ const NOTICES = new Set(["no_sources", "empty_answer", "agent_failed", "refused"
 const PARTIAL = new Set(["stopped", "interrupted"]);
 const CITE_TOKEN = /\[S(\d+)\]/g;
 
-export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps" | "focus" | "mentions" | "created_at">>;
+export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps" | "focus" | "mentions" | "model" | "created_at">>;
 
 // How an answer or a question shows a link that isInAppHref lets through.
 const inAppLink = ({ href, children }: { href: string; children: ReactNode }) => (
@@ -88,6 +89,7 @@ export function AskUniMessageTurn({
     () => new Map([...(sources ?? []), ...message.citations.map((c): [string, AiCitation] => [c.source_id, c])]),
     [sources, message.citations],
   );
+  const look = useAskModelLook(wsId, message.role === "assistant" ? (message.model ?? "") : "");
   if (message.role === "user") {
     return (
       <li className="flex flex-col items-end gap-1">
@@ -112,7 +114,7 @@ export function AskUniMessageTurn({
     <li className="flex flex-col items-start">
       <div className="w-full min-w-0">
         <div className="mb-1">
-          <AskUniMessageMeta from="assistant" createdAt={message.created_at ?? ""} />
+          <AskUniMessageMeta from="assistant" createdAt={message.created_at ?? ""} model={message.model ?? ""} look={look} />
         </div>
         <AskUniProgress steps={steps ?? message.steps ?? []} running={streaming} writing={writing} />
         {message.content ? <AnswerBody content={message.content} byId={byId} wsId={wsId} streaming={streaming} /> : null}

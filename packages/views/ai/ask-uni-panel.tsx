@@ -18,7 +18,7 @@ export function AskUniPanel() {
   const conversationId = useAiPanelStore((s) => s.conversationId);
   // The panel owns the stream so the thread and the composer share one live turn.
   const stream = useAskUniStream(workspace.id);
-  const { model, effort } = useAskModelSelection(workspace.id);
+  const { model, effort, look } = useAskModelSelection(workspace.id);
   const focus = useEffectiveFocus();
   const streaming = stream.state.status === "streaming";
   // A new conversation with nothing in flight starts from suggestions for the open page.
@@ -26,11 +26,12 @@ export function AskUniPanel() {
   const askSuggestion = (question: string) =>
     stream.ask({ question, focus: focus ? { kind: focus.kind, id: focus.id } : undefined, mentions: [], model, effort, locale: i18n.language });
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background" data-slot="ask-uni-panel">
+    // A provider's look re-points the panel's colour slots (tokens.css); Auto keeps UNI's.
+    <div className="flex h-full min-h-0 flex-col bg-background" data-slot="ask-uni-panel" data-ask-provider={look ?? undefined}>
       <AskUniHeader />
       <div className="flex min-h-0 flex-1 flex-col" data-slot="ask-uni-body">
         {empty ? (
-          <AskUniEmptyState kind={focus?.kind ?? null} onAsk={askSuggestion} disabled={streaming} />
+          <AskUniEmptyState kind={focus?.kind ?? null} onAsk={askSuggestion} disabled={streaming} model={model} look={look} />
         ) : (
           <AskUniThread
             conversationId={conversationId}

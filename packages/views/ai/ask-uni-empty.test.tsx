@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAiPanelStore } from "@uniwork/core/ai";
+import { useAskModelChoice } from "@uniwork/core/ai/model-choice";
 import { initI18n } from "@uniwork/core/i18n";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -37,6 +38,18 @@ describe("AskUniEmptyState", () => {
     }
   });
 
+  it("welcomes with UNI for Auto and with Claude and the model's description for a Claude model", () => {
+    const { unmount } = render(<AskUniEmptyState kind={null} onAsk={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Hỏi UNI về công việc" })).toBeInTheDocument();
+    expect(screen.getByText("UNI chọn model hợp với từng câu hỏi.")).toBeInTheDocument();
+    expect(document.querySelector("[data-mark]")).toHaveAttribute("data-mark", "uni");
+    unmount();
+    render(<AskUniEmptyState kind={null} onAsk={vi.fn()} model="opus" look="anthropic" />);
+    expect(screen.getByRole("heading", { name: "Cần Claude tìm hiểu gì?" })).toBeInTheDocument();
+    expect(screen.getByText("Suy luận sâu nhất, hợp câu hỏi phức tạp nhưng chậm và tốn hạn mức hơn.")).toBeInTheDocument();
+    expect(document.querySelector("[data-mark]")).toHaveAttribute("data-mark", "anthropic");
+  });
+
   it("asks the clicked question", () => {
     const onAsk = vi.fn();
     render(<AskUniEmptyState kind="task" onAsk={onAsk} />);
@@ -65,6 +78,7 @@ describe("AskUniPanel empty state", () => {
       return composerRoutes(path);
     });
     useAiPanelStore.setState({ conversationId: null, workspaceId: "ws1", page: null, pageDismissed: null, pendingFocus: null, focus: null });
+    useAskModelChoice.setState({ model: "", effort: "" });
     resetAuthStoreForTests();
     setSessionUser(user);
   });
@@ -103,6 +117,24 @@ describe("AskUniPanel empty state", () => {
     useAiPanelStore.setState({ page: { kind: "thread", id: "x", label: "" } });
     mount();
     expect(await screen.findByRole("button", { name: "Việc nào đang chờ tôi duyệt?" })).toBeInTheDocument();
+  });
+
+  it("takes Claude's look and welcome while a Claude model is picked, UNI's for Auto", async () => {
+    mount();
+    expect(await screen.findByRole("heading", { name: "Hỏi UNI về công việc" })).toBeInTheDocument();
+    const panel = document.querySelector('[data-slot="ask-uni-panel"]')!;
+    expect(panel).not.toHaveAttribute("data-ask-provider");
+    act(() => {
+      useAskModelChoice.setState({ model: "opus" });
+    });
+    expect(await screen.findByRole("heading", { name: "Cần Claude tìm hiểu gì?" })).toBeInTheDocument();
+    expect(panel).toHaveAttribute("data-ask-provider", "anthropic");
+    // A model the organization switched off is Auto, and so is its look.
+    act(() => {
+      useAskModelChoice.setState({ model: "fable" });
+    });
+    expect(await screen.findByRole("heading", { name: "Hỏi UNI về công việc" })).toBeInTheDocument();
+    expect(panel).not.toHaveAttribute("data-ask-provider");
   });
 
   it("is gone once a conversation is open", async () => {

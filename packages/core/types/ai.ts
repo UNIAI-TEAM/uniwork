@@ -3,6 +3,8 @@ import { z } from "zod";
 /** Mirrors server/internal/handler/dto/sdo/ai.go. Lenient on the wire. */
 export const AiModelOptionSchema = z.object({
   key: z.string(),
+  // Whose model it is ("anthropic", …); "" when unknown, which reads as UNI's own look.
+  provider: z.string().catch(""),
   speed: z.number().catch(0),
   intelligence: z.number().catch(0),
   cost: z.number().catch(0),
@@ -60,6 +62,8 @@ export const AiMessageSchema = z.object({
   followups: z.array(z.string()).catch([]),
   focus: AiContextRefSchema.nullable().catch(null),
   mentions: z.array(AiContextRefSchema).catch([]),
+  // The model key the asker chose for an answer; "" for Auto and for answers stored before it was kept.
+  model: z.string().catch(""),
   created_at: z.string().optional().default(""),
 });
 export type AiMessage = Omit<z.infer<typeof AiMessageSchema>, "role"> & { role: "user" | "assistant" | (string & {}) };

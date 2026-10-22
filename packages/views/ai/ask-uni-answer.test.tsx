@@ -11,7 +11,7 @@ initI18n();
 const cite = { source_id: "S1", kind: "task", title: "Thiết kế trang chủ", quote: "Hạn thứ sáu, chưa có người nhận", href: "/acme/team/tasks/T1" };
 
 function msg(over: Partial<AiMessage> = {}): AiMessage {
-  return { id: "m1", role: "assistant", content: "", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "", ...over };
+  return { id: "m1", role: "assistant", content: "", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "", ...over };
 }
 
 function mount(message: AiMessage, props: Partial<Parameters<typeof AskUniMessageTurn>[0]> = {}) {
@@ -233,5 +233,14 @@ describe("AskUniMessageTurn", () => {
     expect(screen.getByText("a_b").closest("code")).not.toBeNull();
     expect(screen.getByText("ngoài").closest("a")).toBeNull();
     expect(screen.getByRole("link", { name: "trong" })).toHaveAttribute("href", "/o/w/tasks/T1");
+  });
+
+  it("names the model that answered, UNI for Auto", () => {
+    const { unmount } = mount(msg({ content: "a", model: "opus" }));
+    expect(screen.getByText(/Opus 5\.5/)).toBeInTheDocument();
+    expect(screen.queryByText(/^UNI/)).toBeNull();
+    unmount();
+    mount(msg({ content: "a" }));
+    expect(screen.getByText(/^UNI/)).toBeInTheDocument();
   });
 });
