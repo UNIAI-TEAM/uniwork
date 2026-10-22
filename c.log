@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/views test > /tmp/vt.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|ERROR|threshold" /tmp/vt.log | tail -15; echo; echo "VIEWS_TEST_EXIT=$rc"
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  documents/documents-row-menu.test.tsx > Chuyển vào thùng rác and Lưu trữ > asks first for the trash item: no archive call until the dialog is confirmed
+ Test Files  1 failed | 752 passed (753)
+      Tests  1 failed | 7666 passed (7667)
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 test: `vitest run --coverage`
+
+VIEWS_TEST_EXIT=1

@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/views typecheck > /tmp/x.log 2>&1; rc=$?; tail -5 /tmp/x.log; echo; echo "VIEWS_TC_EXIT=$rc"
+ 8: 0x1cf93d1  [node]
+Aborted
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 typecheck: `tsc --noEmit`
+Exit status 134
+
+VIEWS_TC_EXIT=134

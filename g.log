@@ -1,0 +1,7 @@
+$ pnpm --filter @uniwork/core lint > /tmp/x.log 2>&1; rc=$?; tail -15 /tmp/x.log; echo; echo "CORE_LINT_EXIT=$rc"
+
+> @uniwork/core@0.0.0 lint /workspace/packages/core
+> eslint . --max-warnings 0
+
+
+CORE_LINT_EXIT=0

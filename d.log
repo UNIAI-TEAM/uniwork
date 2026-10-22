@@ -1,0 +1,7 @@
+$ pnpm --filter @uniwork/core typecheck > /tmp/x.log 2>&1; rc=$?; tail -5 /tmp/x.log; echo; echo "CORE_TC_EXIT=$rc"
+
+> @uniwork/core@0.0.0 typecheck /workspace/packages/core
+> tsc --noEmit
+
+
+CORE_TC_EXIT=0

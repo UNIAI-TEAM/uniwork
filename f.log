@@ -1,0 +1,7 @@
+$ pnpm --filter @uniwork/web typecheck > /tmp/x.log 2>&1; rc=$?; tail -5 /tmp/x.log; echo; echo "WEB_TC_EXIT=$rc"
+
+> @uniwork/web@0.0.0 typecheck /workspace/apps/web
+> tsc --noEmit
+
+
+WEB_TC_EXIT=0
