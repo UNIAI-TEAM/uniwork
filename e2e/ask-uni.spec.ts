@@ -129,8 +129,9 @@ test("docked Ask UNI offers the page chip, @ mentions a task and keeps the steps
   const orgId = await onboard(page, "Chủ Nhắc", `Nhắc ${stamp}`, "Đội Nhắc");
   test.skip(!(await page.getByRole("button", { name: /Hỏi UNI/ }).isVisible().catch(() => false)), "AI provider not configured on this server");
 
+  // Steps exist only when ask_uni_agent is on. It is not a public flag, so /config cannot confirm an
+  // override; the steps line below is asserted only when the server already runs the agent.
   await setFlag("ask_uni_stream", orgId, true);
-  await setFlag("ask_uni_agent", orgId, true);
   try {
     const title = `Việc nhắc ${stamp}`;
     await page.reload();
@@ -150,7 +151,8 @@ test("docked Ask UNI offers the page chip, @ mentions a task and keeps the steps
     // "@" opens the object picker; it needs real key events, not fill().
     const box = dock.getByLabel("Câu hỏi cho UNI");
     await box.click();
-    await box.pressSequentially(`@${title.slice(0, 9)}`);
+    // One word: the picker's query ends at a space.
+    await box.pressSequentially(`@${stamp}`);
     await page.getByRole("option", { name: new RegExp(title) }).click();
     await box.pressSequentially(" thế nào?");
     await dock.getByRole("button", { name: "Gửi" }).click();
@@ -169,7 +171,8 @@ test("docked Ask UNI offers the page chip, @ mentions a task and keeps the steps
 
     // Reload, reopen the conversation from the history: the stored answer keeps its steps line.
     await page.reload();
-    await page.keyboard.press("ControlOrMeta+j");
+    // The button, not ⌘J: a key pressed before hydration is lost.
+    await page.getByRole("button", { name: "Hỏi UNI", exact: true }).click();
     await expect(dock).toBeVisible();
     await dock.getByRole("button", { name: /^Lịch sử hội thoại/ }).click();
     await page.getByRole("group", { name: "Lịch sử hội thoại" }).getByRole("button").first().click();
@@ -182,7 +185,6 @@ test("docked Ask UNI offers the page chip, @ mentions a task and keeps the steps
       test.info().annotations.push({ type: "note", description: "run had no tool steps; steps line not asserted" });
     }
   } finally {
-    await setFlag("ask_uni_agent", orgId, false);
     await setFlag("ask_uni_stream", orgId, false);
   }
 });
