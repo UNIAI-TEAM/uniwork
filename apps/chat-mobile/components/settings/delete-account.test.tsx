@@ -155,7 +155,8 @@ describe("DeleteAccountSection", () => {
 
       deleteAccount.mockResolvedValueOnce(undefined);
       await fireEvent.changeText(slugInput(), " Mot-Minh ");
-      await confirm();
+      // The keyboard's Done sends it as the button does.
+      await fireEvent(slugInput(), "submitEditing");
       expect(deleteAccount).toHaveBeenLastCalledWith({ password: "pw", close_organization: "mot-minh" });
       expect(useAuthStore.getState().accountDeleted).toHaveBeenCalledTimes(1);
     });

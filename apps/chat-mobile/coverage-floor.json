@@ -42,6 +42,12 @@
       "functions": 100,
       "lines": 100
     },
+    "components/app/update-nudge.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/brand/unichat-logo.tsx": {
       "statements": 100,
       "branches": 100,
@@ -241,6 +247,12 @@
       "lines": 100
     },
     "components/chat/report-sheet.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/reported-message-row.tsx": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -517,6 +529,12 @@
       "lines": 100
     },
     "components/settings/background-calls-rows.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/delete-account-owner.tsx": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
