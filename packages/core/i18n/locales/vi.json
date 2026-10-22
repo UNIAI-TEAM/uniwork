@@ -1650,7 +1650,12 @@
       "revokeTitle": "Thu hồi {{client}}?",
       "revokeBody": "Ứng dụng của {{user}} mất quyền đọc dữ liệu tổ chức ngay.",
       "revoked": "Đã thu hồi {{client}}",
-      "revokeFailed": "Không thu hồi được. Thử lại."
+      "revokeFailed": "Không thu hồi được. Thử lại.",
+      "askModelsTitle": "Model của Hỏi UNI",
+      "askModelsDescription": "Chọn model mà thành viên được dùng khi hỏi UNI. Model tắt sẽ không hiện trong menu chọn model.",
+      "askModelsAuto": "Tự động",
+      "askModelsAutoNote": "Luôn bật: UNI tự chọn model phù hợp.",
+      "askModelsSaveFailed": "Không lưu được thay đổi. Thử lại."
     },
     "state": {
       "load_error": "Không tải được phần này.",
@@ -5784,6 +5789,13 @@
     "new_conversation": "Hội thoại mới",
     "conversations": "Gần đây",
     "untitled": "Hội thoại mới",
+    "history": "Lịch sử hội thoại",
+    "history_with": "Lịch sử hội thoại: {{title}}",
+    "resize": "Đổi độ rộng Hỏi UNI",
+    "history_empty": "Chưa có hội thoại nào",
+    "rename_conversation": "Đổi tên hội thoại",
+    "full_page": "Mở rộng toàn trang",
+    "exit_full_page": "Thu về thanh bên",
     "delete_conversation": "Xóa hội thoại",
     "sources": "Nguồn",
     "you": "Bạn",
@@ -5791,7 +5803,42 @@
     "usage_tokens": "{{in}} vào · {{out}} ra",
     "notice": {
       "no_sources": "Chưa có dữ liệu nào bạn được xem khớp với câu hỏi này.",
-      "unavailable": "UNI chưa trả lời được câu này."
+      "unavailable": "UNI chưa trả lời được câu này.",
+      "empty_answer": "UNI không có nội dung nào để trả lời. Hãy hỏi lại hoặc nêu cụ thể hơn.",
+      "agent_failed": "UNI gặp sự cố khi tìm dữ liệu. Hãy thử lại.",
+      "refused": "UNI không thể trả lời câu hỏi này.",
+      "stopped": "Đã dừng trước khi trả lời xong.",
+      "interrupted": "Câu trả lời bị gián đoạn nên chưa đầy đủ."
+    },
+    "steps": {
+      "seen": "Đã xem {{list}}",
+      "task_other": "{{count}} task",
+      "meeting_other": "{{count}} cuộc họp",
+      "document_other": "{{count}} tài liệu",
+      "project_other": "{{count}} dự án",
+      "chat_other": "{{count}} đoạn chat"
+    },
+    "cite": {
+      "label": "Nguồn {{n}}",
+      "open": "Mở"
+    },
+    "actions": {
+      "copy": "Sao chép",
+      "copied": "Đã sao chép",
+      "regenerate": "Trả lời lại",
+      "helpful": "Hữu ích",
+      "not_helpful": "Chưa đúng",
+      "feedback_title": "Câu trả lời chưa đúng ở đâu?",
+      "reason": {
+        "wrong_facts": "Sai thông tin",
+        "missing_sources": "Thiếu nguồn",
+        "not_helpful": "Không giúp được",
+        "other": "Lý do khác"
+      },
+      "note_label": "Ghi chú (không bắt buộc)",
+      "note_placeholder": "Cho UNI biết thêm…",
+      "note_count": "{{count}}/{{max}}",
+      "send_feedback": "Gửi phản hồi"
     },
     "errors": {
       "ai_quota_exceeded": "Tổ chức đã hết hạn mức token AI của tháng.",
@@ -5812,7 +5859,77 @@
     "hint_send": "gửi",
     "hint_newline": "xuống dòng",
     "key_enter": "Enter",
-    "key_shift": "Shift"
+    "key_shift": "Shift",
+    "composer_label": "Câu hỏi cho UNI",
+    "stop": "Dừng",
+    "mention": {
+      "people": "Người",
+      "tasks": "Task",
+      "documents": "Tài liệu",
+      "meetings": "Cuộc họp",
+      "projects": "Dự án",
+      "empty": "Không có kết quả",
+      "list": "Gợi ý nhắc tới",
+      "remove": "Bỏ {{name}}",
+      "limit": "Chỉ nhắc được tối đa {{max}} đối tượng trong một câu hỏi.",
+      "count": "{{count}} gợi ý"
+    },
+    "scope": {
+      "add": "Thêm phạm vi",
+      "title": "Giới hạn câu hỏi vào",
+      "search": "Tìm dự án, cuộc họp, tài liệu, phòng chat",
+      "projects": "Dự án",
+      "meetings": "Cuộc họp",
+      "documents": "Tài liệu",
+      "rooms": "Phòng chat",
+      "empty": "Không có kết quả",
+      "remove": "Bỏ phạm vi {{name}}",
+      "kind": {
+        "task": "Task",
+        "meeting": "Cuộc họp",
+        "document": "Tài liệu",
+        "project": "Dự án",
+        "room": "Phòng chat",
+        "email_thread": "Email",
+        "thread": "Luồng chat",
+        "message": "Tin nhắn"
+      }
+    },
+    "ask_about_task": "Hỏi UNI về task này",
+    "ask_about_meeting": "Hỏi UNI về cuộc họp này",
+    "ask_about_document": "Hỏi UNI về tài liệu này",
+    "ask_about_project": "Hỏi UNI về dự án này",
+    "ask_about_room": "Hỏi UNI về cuộc trò chuyện này",
+    "model": {
+      "label": "Chọn model",
+      "auto": "Tự động",
+      "auto_current": "Tự động · Hiện tại: {{model}}",
+      "effort": "Mức nỗ lực",
+      "effort_auto": "Tự động",
+      "effort_low": "Thấp",
+      "effort_medium": "Vừa",
+      "effort_high": "Cao",
+      "speed": "Tốc độ",
+      "intelligence": "Trí tuệ",
+      "cost": "Chi phí",
+      "bar": "{{label}} {{value}}/5",
+      "opus_note": "Opus dùng nhiều hạn mức token hơn các model khác.",
+      "label_with": "Chọn model: {{model}}"
+    },
+    "models": {
+      "haiku": {
+        "name": "Haiku 5.5",
+        "description": "Nhanh và nhẹ nhất, hợp câu hỏi ngắn và tra cứu nhanh."
+      },
+      "sonnet": {
+        "name": "Sonnet 5.5",
+        "description": "Cân bằng giữa tốc độ và chất lượng; đây là lựa chọn của Tự động."
+      },
+      "opus": {
+        "name": "Opus 5.5",
+        "description": "Suy luận sâu nhất, hợp câu hỏi phức tạp nhưng chậm và tốn hạn mức hơn."
+      }
+    }
   },
   "admin": {
     "title": "Quản trị nền tảng",

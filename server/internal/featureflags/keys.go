@@ -70,6 +70,7 @@ var catalogue = []Flag{
 	{Key: "mcp_connector", Description: "Connector MCP: client AI bên ngoài (Claude, ChatGPT, Gemini) đọc task và cuộc họp (UNI-1308)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 1, 31)},
 	{Key: "mcp_connector_write", Description: "Connector MCP: tool ghi (tạo, sửa task, dự án, cuộc họp, tài liệu) cho grant có scope write (UNI-1567, ADR 0033)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 3, 31)},
 	{Key: "ask_uni_agent", Description: "Hỏi UNI chạy như agent tự tra cứu bằng tool chỉ đọc (UNI-1962, P1); tắt thì giữ luồng P0", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 1, 31)},
+	{Key: "ask_uni_stream", Description: "Hỏi UNI dùng dock mới và luồng stream SSE thay cho panel cũ (UNI-2015, P2); tắt thì giữ panel cũ và POST …/ai/ask. Chỉ chuyển giao diện, server không chặn route stream", Default: false, Public: true, Owner: "ai", ReviewAt: day(2027, 2, 28)},
 }
 
 // Catalogue returns a copy of the declared flags.

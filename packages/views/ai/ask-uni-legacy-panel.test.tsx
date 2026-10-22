@@ -8,7 +8,7 @@ import type { User, Workspace } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { AskUniButton } from "./ask-uni-button";
-import { AskUniPanel } from "./ask-uni-panel";
+import { AskUniLegacyPanel } from "./ask-uni-legacy-panel";
 
 const i18n = initI18n();
 configureShortcutPlatform("macos");
@@ -52,7 +52,7 @@ function mount(ws: Workspace = workspace) {
     wrapWithNav(
       <WorkspaceProvider workspace={ws} user={user}>
         <AskUniButton />
-        <AskUniPanel />
+        <AskUniLegacyPanel />
       </WorkspaceProvider>,
     ),
   );
@@ -67,7 +67,7 @@ beforeEach(() => {
   useAiPanelStore.setState({ open: false, conversationId: null, workspaceId: null });
 });
 
-describe("AskUniPanel", () => {
+describe("AskUniLegacyPanel", () => {
   it("stays hidden while the server has no provider", async () => {
     mockApi({ enabled: false });
     mount();
@@ -213,6 +213,18 @@ describe("AskUniPanel", () => {
       await i18n.changeLanguage("en");
       openWith({ content: "", notice: "quota_soon" });
       expect(await screen.findByText("UNI couldn't answer this one.")).toBeInTheDocument();
+    });
+
+    it("renders the stopped and interrupted notices a stream turn leaves behind", async () => {
+      await i18n.changeLanguage("en");
+      openWith({ content: "", notice: "stopped" });
+      expect(await screen.findByText(i18n.t("ai.notice.stopped"))).toBeInTheDocument();
+    });
+
+    it("renders the interrupted notice", async () => {
+      await i18n.changeLanguage("en");
+      openWith({ content: "", notice: "interrupted" });
+      expect(await screen.findByText(i18n.t("ai.notice.interrupted"))).toBeInTheDocument();
     });
 
     it("renders old answers without notice as plain text", async () => {

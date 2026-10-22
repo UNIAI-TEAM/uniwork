@@ -102,7 +102,10 @@ RETURNING *;
 
 -- name: AiListMessages :many
 -- tenant: parent conversation_id
-SELECT * FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at ASC, id ASC LIMIT 200;
+-- The latest 200 messages, oldest first: a long conversation keeps its end.
+SELECT * FROM (
+  SELECT * FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at DESC, id DESC LIMIT 200
+) m ORDER BY created_at ASC, id ASC;
 
 -- name: AiListConversationCitations :many
 -- Every citation set a conversation's answers stored, oldest first and with
@@ -110,3 +113,27 @@ SELECT * FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at ASC, id
 SELECT citations FROM ai_messages
 WHERE organization_id = $1 AND conversation_id = $2 AND role = 'assistant'
 ORDER BY created_at ASC, id ASC;
+
+-- name: AiRenameConversation :one
+-- tenant: by-id
+UPDATE ai_conversations SET title = $2 WHERE id = $1
+RETURNING *;
+
+-- name: AiGetMessageInConversation :one
+-- tenant: parent conversation_id
+SELECT * FROM ai_messages WHERE id = $1 AND conversation_id = $2;
+
+-- name: AiUpsertMessageFeedback :exec
+-- tenant: parent conversation_id
+INSERT INTO ai_message_feedback (id, organization_id, workspace_id, conversation_id, message_id, rating, reason, note, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (message_id, created_by)
+DO UPDATE SET rating = EXCLUDED.rating, reason = EXCLUDED.reason, note = EXCLUDED.note, updated_at = now()
+WHERE ai_message_feedback.organization_id = EXCLUDED.organization_id;
+
+-- name: AiClearMessageFeedback :exec
+DELETE FROM ai_message_feedback WHERE organization_id = $1 AND message_id = $2 AND created_by = $3;
+
+-- name: AiDeleteConversationFeedback :exec
+-- tenant: parent conversation_id
+DELETE FROM ai_message_feedback WHERE conversation_id = $1;

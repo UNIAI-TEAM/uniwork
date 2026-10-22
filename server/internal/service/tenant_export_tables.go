@@ -63,6 +63,7 @@ func tenantExportIncludes(table string) bool {
 var tenantExportIncludedTables = []string{
 	"agents",
 	"ai_conversations",
+	"ai_message_feedback",
 	"ai_messages",
 	"attachments",
 	"calendar_connections",

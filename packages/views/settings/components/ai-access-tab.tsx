@@ -12,6 +12,7 @@ import { Switch } from "@uniwork/ui/components/ui/switch";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { useWorkspace } from "../../layout/workspace-context";
 import { toastApiError } from "../../toast-api-error";
+import { AiAskModelsSection } from "./ai-ask-models-section";
 import { AssistantMark, AssistantMarks } from "./assistant-mark";
 import { CopyAddress } from "./copy-address";
 import {
@@ -159,6 +160,8 @@ export function AiAccessTab() {
           </SettingsCard>
         </SettingsSection>
       ) : null}
+
+      <AiAskModelsSection orgSlug={org} />
 
       <SettingsSection title={t("grantsTitle")}>
         {grants.isPending ? (

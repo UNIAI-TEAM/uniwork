@@ -17,3 +17,4 @@ export {
   preprocessTaskIdentifiers,
   TASK_IDENTIFIER_PATTERN,
 } from './task-identifiers'
+export { SafeMarkdown, type SafeMarkdownProps } from './SafeMarkdown'
