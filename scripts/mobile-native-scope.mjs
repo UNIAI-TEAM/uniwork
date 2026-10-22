@@ -32,7 +32,8 @@ const APP = "apps/chat-mobile/";
 // The cold-start smoke flow is the exception: android-smoke runs it.
 const APP_NOT_NATIVE = [/\.md$/, /^maestro\/(?!flows\/smoke-launch\.yaml$)/, /^store\//, /\.test\.tsx?$/, /^test\//, /^(eslint|jest|vitest)\.config\.[cm]?[jt]s$/, /^coverage-floor\.json$/, /^data\/persisted-schema\.lock\.json$/];
 // scripts/mobile-perf.mjs is what android-smoke times the APK with, scripts/maestro-retry.sh what it runs
-// the flows through: a change to either is proved there.
+// the flows through, scripts/mobile-apk-scan.mjs what android-release scans the APK with: a change to one is
+// proved there.
 const INSTALL_GRAPH = new Set([
   "package.json",
   "pnpm-lock.yaml",
@@ -41,6 +42,7 @@ const INSTALL_GRAPH = new Set([
   "scripts/mobile-native-scope.mjs",
   "scripts/mobile-perf.mjs",
   "scripts/maestro-retry.sh",
+  "scripts/mobile-apk-scan.mjs",
 ]);
 
 // GitHub `paths` globs: mobile-verify.yml's push filter is exactly this list.

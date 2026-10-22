@@ -19,7 +19,12 @@ name: Mobile Verify
 #   android-release `expo prebuild` + `./gradlew :app:assembleRelease` on the
 #                   production config: proves the native project still builds;
 #                   the same Gradle run tests the calls module's Kotlin on
-#                   Robolectric (`:unichat-calls:testReleaseUnitTest`).
+#                   Robolectric (`:unichat-calls:testReleaseUnitTest`), then
+#                   the APK gets a static security scan
+#                   (scripts/mobile-apk-scan.mjs: no credential in any file,
+#                   not debuggable, no backup or cleartext, no component other
+#                   apps reach without a permission beyond
+#                   apps/chat-mobile/apk-scan-baseline.json).
 #                   Only when the change reaches the binary
 #                   (scripts/mobile-native-scope.mjs): the app's code, config
 #                   or assets, the install graph, or a packages/core file the
@@ -226,7 +231,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/ktlint"
           "$RUNNER_TEMP/ktlint" "apps/chat-mobile/modules/**/*.kt"
       - name: Mobile repo contracts
-        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-bundle-composition.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/maestro-retry.test.mjs scripts/mobile-canary.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs scripts/mobile-play-release.test.mjs scripts/mobile-release-notes.test.mjs scripts/mobile-release-health.test.mjs scripts/mobile-docs.test.mjs scripts/mobile-data-layout.test.mjs
+        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-bundle-composition.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/maestro-retry.test.mjs scripts/mobile-canary.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs scripts/mobile-play-release.test.mjs scripts/mobile-release-notes.test.mjs scripts/mobile-release-health.test.mjs scripts/mobile-docs.test.mjs scripts/mobile-data-layout.test.mjs scripts/mobile-apk-scan.test.mjs
 
   doctor-bundle:
     name: expo-doctor and JS bundle budget
@@ -336,6 +341,10 @@ jobs:
         run: |
           set -euo pipefail
           { echo "### UniChat Android release APK (x86_64)"; echo; ls -l *.apk | awk '{printf "- `%s`: %.1f MB\n", $9, $5/1048576}'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Security scan of the release APK
+        # Audit "Security & privacy", no-ci-binary-security-scan: what Gradle merged and the bundler shipped, read from
+        # the APK itself (aapt2 from the runner's Android SDK). Blocks on a finding outside apk-scan-baseline.json.
+        run: node scripts/mobile-apk-scan.mjs apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
       - uses: actions/upload-artifact@v4
         with:
           name: unichat-release-apk

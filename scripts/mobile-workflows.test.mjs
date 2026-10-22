@@ -92,6 +92,9 @@ test("mobile-verify can be called and builds the release only through its jobs",
   assert.match(wf, /scripts\/maestro-retry\.test\.mjs/, "the contract step runs the device-retry test");
   assert.match(wf, /scripts\/branch-protection\.test\.mjs/, "the contract step holds the required checks to the workflows");
   assert.match(wf, /scripts\/mobile-coverage-floor\.test\.mjs/, "the contract step holds the component coverage floor");
+  // Audit "Security & privacy", no-ci-binary-security-scan: the release APK is scanned where it is built.
+  assert.match(jobsOf(wf).jobs.get("android-release") ?? "", /run: node scripts\/mobile-apk-scan\.mjs apps\/chat-mobile\/android\/app\/build\/outputs\/apk\/release\/app-release\.apk$/m, "android-release scans its APK");
+  assert.match(wf, /scripts\/mobile-apk-scan\.test\.mjs/, "the contract step runs the scan's own test");
   assert.doesNotMatch(wf, /secrets\./, "the PR checks read no secret");
 });
 
@@ -226,6 +229,43 @@ test("the production build is verified, built from a main tag once, proved in Se
   assert.match(wf, /if: steps\.crash\.outputs\.verify == 'true'/);
   assert.match(wf, /::error::EXPO_TOKEN is not set[^\n]*\n\s+exit 1/);
   assert.doesNotMatch(wf.split(/^jobs:$/m)[1] ?? "", /run: [^\n]*\$\{\{ inputs\./, "inputs reach the shell through env");
+});
+
+// Audit "Security & privacy", no-ci-binary-security-scan: the AAB that would be submitted is scanned first.
+test("the production AAB is scanned for credentials before it is submitted", () => {
+  const wf = read("chat-mobile-production.yml");
+  const order = ["- id: build", "- name: Security scan of the built bundle", "- name: Submit this binary"].map((step) => wf.indexOf(step));
+  assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), "build, then scan, then submit");
+  const marker = /^ {6}- name: Security scan of the built bundle$/m;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mobile-aab-"));
+  try {
+    const bin = path.join(dir, "bin");
+    fs.mkdirSync(bin);
+    fs.writeFileSync(path.join(bin, "curl"), '#!/bin/sh\nwhile [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2;; *) shift;; esac; done\ncp "$FAKE_AAB" "$out"\n', { mode: 0o755 });
+    const aab = (name, bundle) => {
+      const src = path.join(dir, name);
+      fs.mkdirSync(path.join(src, "base", "assets"), { recursive: true });
+      fs.writeFileSync(path.join(src, "base", "assets", "index.android.bundle"), bundle);
+      execFileSync("zip", ["-qr", "../" + name + ".aab", "base"], { cwd: src });
+      return path.join(dir, `${name}.aab`);
+    };
+    const temp = path.join(dir, "temp");
+    fs.mkdirSync(temp);
+    const run = (build, fake) => {
+      fs.writeFileSync(path.join(temp, "build.json"), JSON.stringify([build]));
+      return runStep("chat-mobile-production.yml", marker, { RUNNER_TEMP: temp, GITHUB_WORKSPACE: root, FAKE_AAB: fake ?? "" }, bin);
+    };
+    const withUrl = { id: "b1", artifacts: { buildUrl: "https://expo.dev/artifacts/eas/b1.aab" } };
+    assert.equal(run(withUrl, aab("clean", "var a = 1;")).status, 0);
+    const leaked = run(withUrl, aab("leaked", `var t = "sntrys_${"x".repeat(40)}";`));
+    assert.notEqual(leaked.status, 0);
+    assert.match(leaked.stdout, /::error::sentry-auth-token in base\/assets\/index\.android\.bundle/);
+    const none = run({ id: "b1", artifacts: {} });
+    assert.notEqual(none.status, 0);
+    assert.match(none.stdout, /::error::eas build reported no artifact to scan/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a production build without crash reporting is refused unless waived, and the waiver skips only the proof", () => {

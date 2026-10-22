@@ -23,6 +23,10 @@ name: UniChat mobile production build
 # to submit it unless allow_missing_crash_reporting is ticked, which the
 # summary records.
 #
+# Before the submit, the built AAB is downloaded and scanned for credentials
+# (scripts/mobile-apk-scan.mjs); a finding outside
+# apps/chat-mobile/apk-scan-baseline.json stops the release.
+#
 # The chat-mobile-production environment (deployment: tags chat-mobile-v*,
 # required reviewers) holds EXPO_TOKEN and the Sentry settings; the Play
 # service account stays in EAS for the submit.
@@ -148,6 +152,22 @@ jobs:
             if (!build?.id || !build?.appBuildVersion) { console.error("::error::eas build reported no build id or version code"); process.exit(1); }
             require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `id=${build.id}\nversion_code=${build.appBuildVersion}\n`);
           ' "$RUNNER_TEMP/build.json"
+      - name: Security scan of the built bundle
+        # Audit "Security & privacy", no-ci-binary-security-scan: the AAB the store would get, built with the production
+        # EAS environment, carries no credential in any file (scripts/mobile-apk-scan.mjs). Its manifest is protobuf, so
+        # the CI release APK (mobile-verify.yml › android-release) is what scans the manifest. Before anything is submitted.
+        run: |
+          set -euo pipefail
+          url="$(node -e '
+            const [build] = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            process.stdout.write(build?.artifacts?.buildUrl ?? build?.artifacts?.applicationArchiveUrl ?? "");
+          ' "$RUNNER_TEMP/build.json")"
+          if [ -z "$url" ]; then
+            echo "::error::eas build reported no artifact to scan, so nothing proves the bundle carries no credential"
+            exit 1
+          fi
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/app.aab" "$url"
+          node "$GITHUB_WORKSPACE/scripts/mobile-apk-scan.mjs" "$RUNNER_TEMP/app.aab"
       - name: The build's source maps and symbols reached Sentry
         if: steps.crash.outputs.verify == 'true'
         env:

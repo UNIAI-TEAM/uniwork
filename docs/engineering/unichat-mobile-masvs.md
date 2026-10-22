@@ -61,6 +61,7 @@ một dòng sai đi thì sửa dòng đó cùng PR; dòng "chưa có" là nợ �
 | Bản cập nhật OTA được ký | Bản production phải nhúng chứng chỉ ký; OTA kênh production không phát khi chưa ký | `app.config.test.ts`, `scripts/mobile-workflows.test.mjs` |
 | Ép cập nhật bản cũ | `min_supported_mobile_version` từ server chặn cả app | `components/app/update-gate.test.tsx` |
 | Phụ thuộc có lỗ hổng | `pnpm audit --audit-level high` ở `ci.yml`; `expo install --check` | `.github/workflows/ci.yml`, `.github/workflows/mobile-verify.yml` |
+| Quét binary đã dựng | APK release của CI: không credential trong mọi file (dex, bundle Hermes, `.so`, asset), không debuggable/testOnly, không backup/cleartext, không component export không permission ngoài baseline; AAB production trên EAS: quét credential trước khi submit | `scripts/mobile-apk-scan.mjs` (+ `.test.mjs`), `apps/chat-mobile/apk-scan-baseline.json`, `mobile-verify.yml › android-release`, `chat-mobile-production.yml` |
 
 ## MASVS-RESILIENCE (L2 — chưa bắt buộc ở L1)
 

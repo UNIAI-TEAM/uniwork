@@ -85,7 +85,10 @@ hai lớp test, `pnpm knip --workspace apps/chat-mobile`, `expo install --check`
 đã cài —, `scripts/mobile-*.test.mjs`, trong đó `mobile-lockfiles.test.mjs` cấm lockfile ngoài `pnpm-lock.yaml`), `doctor-bundle` (`expo-doctor` rồi
 `expo export --platform android --platform ios` giữ trong `bundle-budget.json` bởi
 `scripts/mobile-bundle-budget.mjs`, trần cho từng nền tảng — iOS có ngân sách trước khi có bản build) và `android-release` (`expo prebuild` +
-`./gradlew :app:assembleRelease` x86_64 — Kotlin của `modules/*/android` thì job `mobile` chạy ktlint ở mọi PR mobile
+`./gradlew :app:assembleRelease` x86_64, rồi quét bảo mật tĩnh APK đó bằng `scripts/mobile-apk-scan.mjs`: không
+credential nào trong mọi file, không debuggable/testOnly, không backup hay cleartext, không component nào app khác gọi
+được mà không có permission ngoài `apk-scan-baseline.json` (mỗi ngoại lệ một lý do); `chat-mobile-production.yml` quét
+cả AAB dựng trên EAS trước khi submit — Kotlin của `modules/*/android` thì job `mobile` chạy ktlint ở mọi PR mobile
 (ghim `KTLINT_VERSION` + checksum, kiểu ở `.editorconfig` › `[*.{kt,kts}]`; trong KDoc đừng viết `/*`, Kotlin coi là
 mở comment lồng), chỉ khi `scripts/mobile-native-scope.mjs`
 nói thay đổi chạm binary) rồi `android-smoke` (cài APK đó lên emulator, chạy

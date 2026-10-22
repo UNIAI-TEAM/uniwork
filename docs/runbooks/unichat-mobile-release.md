@@ -281,7 +281,11 @@ theo crash-free sessions của Sentry cho đúng release đó (`<bundle id>@<ver
    buộc**: môi trường EAS `production` có `SENTRY_DSN` và Environment có `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` +
    `SENTRY_PROJECT`, thiếu thì đỏ (bản build vẫn build được khi thiếu Sentry — `SENTRY_ALLOW_FAILURE` trong `eas.json`
    — nhưng không được nộp; tick `allow_missing_crash_reporting` để miễn, summary ghi lại) → `eas build --profile
-   production --wait` → kiểm Sentry đã có release `com.uniworkos.chat@<version>+<version code>` (Gradle tải source map
+   production --wait` → **quét bảo mật AAB** vừa dựng (`scripts/mobile-apk-scan.mjs`: một credential — khoá riêng, token
+   Sentry/GitHub, khoá AWS/Stripe/AI, service account Play, token `uwm_` — trong bất kỳ file nào thì đỏ và không nộp; log
+   chỉ in tên luật, file và vài ký tự đầu. Xử lý: tìm biến môi trường EAS hay file đã lọt vào bundle, gỡ, xoay vòng
+   credential đó vì nó đã nằm trong một artifact trên EAS, build lại; chỉ khi chắc là dương tính giả mới thêm vào
+   `apps/chat-mobile/apk-scan-baseline.json` kèm lý do) → kiểm Sentry đã có release `com.uniworkos.chat@<version>+<version code>` (Gradle tải source map
    và symbol dưới tên đó; không có là tải hỏng, đỏ) → `eas submit --profile production-internal --id <build>`: đúng
    binary đó lên **internal track của app production** `com.uniworkos.chat`. Summary ghi version code.
 2. **Thử** bản đó trên internal track của app production (người thử nội bộ, checklist máy thật bên dưới).
