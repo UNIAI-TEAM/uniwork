@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { MessageSquarePlus, Sparkles, X } from "lucide-react";
+import { MessageSquarePlus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { aiKeys, useAiConversations, useAiPanelStore } from "@uniwork/core/ai";
 import type { AiConversation } from "@uniwork/core/types";
@@ -41,7 +41,6 @@ export function AskUniHeader() {
       .find((c) => c.id === conversationId);
   return (
     <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-3">
-      <Sparkles aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
         <AskUniHistory title={current?.title || t("untitled")} />
       </div>
