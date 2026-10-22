@@ -148,7 +148,9 @@ export function useSendChatDocumentLink(workspaceId: string) {
     },
     onSuccess: (data, variables) => {
       applyChatMessageResponse(qc, workspaceId, variables.roomId, data, true);
-      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
+      void qc.invalidateQueries({
+        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
+      });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
   });
