@@ -26,7 +26,9 @@ import (
 // Archive stamps the whole subtree in one transaction after a manage check
 // on EVERY affected node - a restricted child the caller cannot manage makes
 // the whole command fail rather than leaving a live orphan behind an
-// archived parent. One archive_batch_id groups the operation's rows; restore
+// archived parent. A workspace folder is the exception (ADR 0037 point 5,
+// document_folder_trash.go): what its caller cannot manage moves to the
+// workspace root instead. One archive_batch_id groups the operation's rows; restore
 // brings back exactly that batch and re-roots a node whose own parent stayed
 // in the trash.
 //
@@ -166,6 +168,7 @@ func (s *DocumentService) managedArchivedSubtree(ctx context.Context, q *db.Quer
 			return nil, err
 		}
 	}
+	workspaceRoot := isWorkspaceFolder(rootRow)
 	members := make([]db.Document, 0, len(subtree))
 	for _, m := range subtree {
 		if !m.ArchivedAt.Valid {
@@ -176,6 +179,14 @@ func (s *DocumentService) managedArchivedSubtree(ctx context.Context, q *db.Quer
 			continue
 		}
 		if m.OwnerKind.Valid || isMyFolder(m) {
+			continue
+		}
+		// The trash of a workspace folder took every workspace folder below
+		// it whoever made it (ADR 0037 point 5): the caller who may restore or
+		// purge the root takes them back the same way. A legacy private
+		// folder keeps the manage rule.
+		if workspaceRoot && isWorkspaceFolder(m) {
+			members = append(members, m)
 			continue
 		}
 		if isAdmin || (isMember && m.AclOwnerID.Valid && m.AclOwnerID.String == actor.ID) {
@@ -201,6 +212,11 @@ func (s *DocumentService) requireManageOn(ctx context.Context, q *db.Queries, ac
 	if err != nil {
 		return err
 	}
+	return manageDecision(node, lvl)
+}
+
+// manageDecision is requireManageOn's verdict on an already computed level.
+func manageDecision(node db.Document, lvl DocumentAccess) error {
 	// DOC-05: AdminScope administers a restricted node without reading it.
 	if !node.OwnerKind.Valid && lvl.canAdminister() {
 		return nil
@@ -293,65 +309,7 @@ func (s *DocumentService) archiveDocument(ctx context.Context, actor Actor, docu
 			}
 			return DocumentArchiveResult{View: view, BatchID: doc.ArchiveBatchID.String}, nil
 		}
-		// One bounded read of the live subtree: a huge folder is refused before
-		// any lock-holding work, and the access check below is one query over
-		// the same ids. The walk stops after the bound is passed.
-		live, err := q.ListLiveDocumentSubtreeIDs(ctx, db.ListLiveDocumentSubtreeIDsParams{
-			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
-			MaxRows: int32(s.archiveBound()) + 1, MaxLevel: subtreeMaxLevel(),
-		})
-		if err != nil {
-			return DocumentArchiveResult{}, err
-		}
-		if len(live) > s.archiveBound() {
-			return DocumentArchiveResult{}, errFolderTooLarge()
-		}
-		// The walk cannot sort (that would evaluate the whole CTE), so the
-		// command sorts the ids it did read: the refusal order and the log
-		// stay stable however the planner returns them.
-		sort.Strings(live)
-		// Never archive a restricted child the caller cannot manage: refuse the
-		// whole command, never leave the child orphaned live. A pristine copy
-		// is a file with nothing under it; anything else takes the full check.
-		if !pristine || len(live) != 1 || live[0] != doc.ID {
-			if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
-				return DocumentArchiveResult{}, err
-			}
-		}
-		batch := util.NewID()
-		stamped, err := q.ArchiveDocumentBatch(ctx, db.ArchiveDocumentBatchParams{
-			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-			ArchivedBy: nullText(actor.ID), PurgeAfter: pgtype.Timestamptz{Time: s.now().Add(documentRetentionDays * 24 * time.Hour), Valid: true},
-			ArchiveBatchID: pgtype.Text{String: batch, Valid: true}, Ids: live,
-		})
-		if err != nil {
-			return DocumentArchiveResult{}, err
-		}
-		// One audit row and one outbox row per node, written in one statement
-		// per table: the trail stays per document, the round trips do not.
-		recs := make([]audit.Recorded, 0, len(stamped))
-		for _, id := range stamped {
-			recs = append(recs, audit.Recorded{
-				Entry: audit.Entry{
-					OrganizationID: doc.OrganizationID,
-					WorkspaceID:    doc.WorkspaceID,
-					Actor:          actor,
-					Action:         audit.ActionDocumentArchived,
-					ResourceType:   "document",
-					ResourceID:     id,
-					Metadata:       map[string]any{"archive_batch_id": batch},
-				},
-				Events: []audit.Event{{Topic: "document.archived", Payload: map[string]string{
-					"document_id": id, "workspace_id": doc.WorkspaceID, "archive_batch_id": batch,
-				}}},
-			})
-		}
-		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
-			return DocumentArchiveResult{}, err
-		}
-		// Archive releases the edit lock of every node it stamped, in this
-		// transaction (UNI-1645 §2, edge 4); the counters move after commit.
-		ops, err := s.releaseEditLocksOnArchive(ctx, q, actor, doc, stamped)
+		stamped, batch, ops, err := s.archiveLockedSubtree(ctx, q, actor, doc, pristine)
 		if err != nil {
 			return DocumentArchiveResult{}, err
 		}
@@ -367,6 +325,101 @@ func (s *DocumentService) archiveDocument(ctx context.Context, actor Actor, docu
 	})
 }
 
+// archiveLockedSubtree is the archive command's write half over a live root
+// the caller has locked (tree lock, then row lock) and whose root gate it has
+// passed: the bounded subtree walk, the manage check on every node, one stamp
+// statement, one audit + document.archived row per node and the edit lock
+// releases. rootOnly skips the subtree manage check when the root is the whole
+// live subtree, for a gate that already decided the root alone (a pristine
+// copy, a chat upload deleted by its sender). The lock ops move their
+// counters only after the caller commits. Every refusal it answers (the
+// bound's folder_too_large, the subtree manage check) comes before the stamp;
+// after it only plain failures abort. archiveChatUploadInTx relies on that to
+// read a refusal as "nothing was trashed": keep any new refusal above the
+// stamp.
+func (s *DocumentService) archiveLockedSubtree(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, rootOnly bool) ([]string, string, *editLockOps, error) {
+	// One bounded read of the live subtree: a huge folder is refused before
+	// any lock-holding work, and the access check below is one query over
+	// the same ids. The walk stops after the bound is passed.
+	live, err := q.ListLiveDocumentSubtreeIDs(ctx, db.ListLiveDocumentSubtreeIDsParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
+		MaxRows: int32(s.archiveBound()) + 1, MaxLevel: subtreeMaxLevel(),
+	})
+	if err != nil {
+		return nil, "", nil, err
+	}
+	if len(live) > s.archiveBound() {
+		return nil, "", nil, errFolderTooLarge()
+	}
+	// The walk cannot sort (that would evaluate the whole CTE), so the
+	// command sorts the ids it did read: the refusal order and the log
+	// stay stable however the planner returns them.
+	sort.Strings(live)
+	trash := live
+	var relocate []db.Document
+	if isWorkspaceFolder(doc) {
+		// ADR 0037 point 5: a workspace folder is trashed whatever it holds;
+		// what the caller cannot manage leaves for the workspace root.
+		if trash, relocate, err = s.planFolderTrash(ctx, q, actor, doc, live); err != nil {
+			return nil, "", nil, err
+		}
+	} else if !rootOnly || len(live) != 1 || live[0] != doc.ID {
+		// Never archive a restricted child the caller cannot manage: refuse
+		// the whole command, never leave the child orphaned live. A root-only
+		// gate covers a file with nothing under it; anything else takes the
+		// full check.
+		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
+			return nil, "", nil, err
+		}
+	}
+	batch := util.NewID()
+	if err := s.relocateOutOfTrashedFolder(ctx, q, actor, doc, batch, relocate); err != nil {
+		return nil, "", nil, err
+	}
+	if folderTrashAfterRelocate != nil {
+		if err := folderTrashAfterRelocate(ctx); err != nil {
+			return nil, "", nil, err
+		}
+	}
+	stamped, err := q.ArchiveDocumentBatch(ctx, db.ArchiveDocumentBatchParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		ArchivedBy: nullText(actor.ID), PurgeAfter: pgtype.Timestamptz{Time: s.now().Add(documentRetentionDays * 24 * time.Hour), Valid: true},
+		ArchiveBatchID: pgtype.Text{String: batch, Valid: true}, Ids: trash,
+	})
+	if err != nil {
+		return nil, "", nil, err
+	}
+	// One audit row and one outbox row per node, written in one statement
+	// per table: the trail stays per document, the round trips do not.
+	recs := make([]audit.Recorded, 0, len(stamped))
+	for _, id := range stamped {
+		recs = append(recs, audit.Recorded{
+			Entry: audit.Entry{
+				OrganizationID: doc.OrganizationID,
+				WorkspaceID:    doc.WorkspaceID,
+				Actor:          actor,
+				Action:         audit.ActionDocumentArchived,
+				ResourceType:   "document",
+				ResourceID:     id,
+				Metadata:       map[string]any{"archive_batch_id": batch},
+			},
+			Events: []audit.Event{{Topic: "document.archived", Payload: map[string]string{
+				"document_id": id, "workspace_id": doc.WorkspaceID, "archive_batch_id": batch,
+			}}},
+		})
+	}
+	if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
+		return nil, "", nil, err
+	}
+	// Archive releases the edit lock of every node it stamped, in this
+	// transaction (UNI-1645 §2, edge 4); the counters move after commit.
+	ops, err := s.releaseEditLocksOnArchive(ctx, q, actor, doc, stamped)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	return stamped, batch, ops, nil
+}
+
 // documentArchiveImpactTx is the FD-04 test seam: it runs inside the impact
 // read transaction, after the subtree walk and before the bound check, the
 // manage gate and the count, so a test can read the transaction's own
@@ -374,6 +427,12 @@ func (s *DocumentService) archiveDocument(ctx context.Context, actor Actor, docu
 // or commit a writer in between and pin that the numbers still describe the
 // one snapshot the walk opened. Never set in production.
 var documentArchiveImpactTx func(ctx context.Context, tx pgx.Tx)
+
+// folderTrashAfterRelocate is the UNI-2055 test seam: it runs inside the
+// archive transaction right after a workspace folder's relocations are
+// written, and an error it returns aborts the command. Never set in
+// production.
+var folderTrashAfterRelocate func(ctx context.Context) error
 
 // DocumentArchiveImpact is what one ArchiveDocument of a subtree would move
 // (FD-04, addendum §3.4): the shape the delete dialog warns with.
@@ -389,6 +448,10 @@ type DocumentArchiveImpact struct {
 	// TooLarge replaces the counts when the subtree passes the bound; the
 	// walk stopped after the bound, so no count is known and none is claimed.
 	TooLarge bool
+	// Relocated is how many documents the archive would move to the
+	// workspace root instead of the trash (ADR 0037 point 5): a number only,
+	// never which ones - the caller may not be able to read them.
+	Relocated int
 }
 
 // ArchiveImpact answers what ArchiveDocument would do to a subtree without
@@ -453,17 +516,26 @@ func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, docume
 	sort.Strings(live)
 	// (3) the archive command's own gate on exactly this id set: one node the
 	// caller cannot manage refuses the whole read, and the body never carries
-	// a number.
+	// a number. A workspace folder takes the command's plan instead: what
+	// would relocate is counted, never named.
 	// The pristine-copy root holds nothing under it (the command's own skip).
-	if !pristine || len(live) != 1 || live[0] != doc.ID {
+	trash := live
+	if isWorkspaceFolder(doc) {
+		var relocate []db.Document
+		if trash, relocate, err = s.planFolderTrash(ctx, q, actor, doc, live); err != nil {
+			return DocumentArchiveImpact{}, err
+		}
+		out.Relocated = len(relocate)
+	} else if !pristine || len(live) != 1 || live[0] != doc.ID {
 		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
 			return DocumentArchiveImpact{}, err
 		}
 	}
-	// (4) count on exactly that id set. page and file are both "documents" to
-	// the dialog; the root is counted only in the total.
+	// (4) count on exactly the id set the archive would stamp. page and file
+	// are both "documents" to the dialog; the root is counted only in the
+	// total.
 	rows, err := q.CountLiveDocumentSubtreeByKind(ctx, db.CountLiveDocumentSubtreeByKindParams{
-		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, Ids: live, RootID: doc.ID,
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, Ids: trash, RootID: doc.ID,
 	})
 	if err != nil {
 		return DocumentArchiveImpact{}, err
@@ -494,7 +566,7 @@ func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, docume
 // the trivial manage rules are read off the rows, and only a node whose
 // parent is outside the restored set costs a parent lookup.
 func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
-	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentRestore, decideArchiveRootAccess, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
+	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentRestore, archiveRootDecider(actor), func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
 		if !doc.ArchivedAt.Valid {
 			return DocumentArchiveResult{}, Invalid("tài liệu không nằm trong thùng rác")
 		}
@@ -588,7 +660,7 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 				},
 				Events: []audit.Event{{Topic: "document.restored", Payload: map[string]string{
 					"document_id": id, "workspace_id": doc.WorkspaceID, "archive_batch_id": batch,
-				}}},
+				}}, documentChangeNotice(id, doc.WorkspaceID, docNoticeRestored)},
 			})
 		}
 		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
@@ -732,10 +804,17 @@ func (s *DocumentService) restoreNames(ctx context.Context, q *db.Queries, root 
 //
 // DOC-05: an AdminScope caller (no read level) administers the document, so
 // they pass the same way manage does (decideDocumentAdminister).
-func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
+func decideArchiveRootAccess(actor Actor, doc db.Document, access DocumentAccess) error {
 	if doc.ArchivedAt.Valid && !access.Level.AtLeast(DocumentLevelEdit) && !access.AdminScope {
 		// Below edit a trashed item is hidden, restore/purge included: an
-		// agent or a view holder gets not found, never a confirmation.
+		// agent or a view holder gets not found, never a confirmation. A
+		// workspace folder is the exception (ADR 0037 point 4): its name was
+		// the whole workspace's, so a member who reads it is refused, not
+		// told it does not exist. An agent is no such member: it gets the
+		// same not found as any non-reader.
+		if actor.Kind == audit.KindHuman && isWorkspaceFolder(doc) && access.Level != DocumentLevelNone {
+			return ErrForbidden
+		}
 		return ErrNotFound
 	}
 	if access.Level == DocumentLevelNone && !access.AdminScope {
@@ -753,6 +832,14 @@ func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
 		return ErrForbidden
 	}
 	return nil
+}
+
+// archiveRootDecider binds the actor into decideArchiveRootAccess for the
+// batch envelope's rootGate parameter.
+func archiveRootDecider(actor Actor) func(doc db.Document, access DocumentAccess) error {
+	return func(doc db.Document, access DocumentAccess) error {
+		return decideArchiveRootAccess(actor, doc, access)
+	}
 }
 
 // pristineCopyCleanup is the one archive that does not need manage: the
@@ -783,7 +870,7 @@ func archiveRootGate(actor Actor, doc db.Document, access DocumentAccess) (prist
 	if pristineCopyCleanup(actor, doc, access) {
 		return true, nil
 	}
-	return false, decideArchiveRootAccess(doc, access)
+	return false, decideArchiveRootAccess(actor, doc, access)
 }
 
 // documentBatchLifecycle is the shared envelope of archive and restore: one
@@ -963,7 +1050,7 @@ func (s *DocumentService) RestoreOwnedDocumentsInTx(ctx context.Context, q *db.Q
 			Metadata: map[string]any{"owner_id": ownerID, "archive_batch_id": batch},
 		}, audit.Event{Topic: "document.restored", Payload: map[string]string{
 			"document_id": id, "workspace_id": workspaceID, "archive_batch_id": batch,
-		}}); err != nil {
+		}}, documentChangeNotice(id, workspaceID, docNoticeRestored)); err != nil {
 			return nil, err
 		}
 	}
@@ -1045,7 +1132,7 @@ func (s *DocumentService) RestoreOwnedDocumentInTx(ctx context.Context, q *db.Qu
 		Actor: actor, Action: audit.ActionDocumentRestored,
 		ResourceType: "document", ResourceID: stamped,
 		Metadata: metadata,
-	}, audit.Event{Topic: "document.restored", Payload: payload}); err != nil {
+	}, audit.Event{Topic: "document.restored", Payload: payload}, documentChangeNotice(stamped, workspaceID, docNoticeRestored)); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -1086,7 +1173,7 @@ func (s *DocumentService) PurgeDocument(ctx context.Context, actor Actor, docume
 	if err != nil {
 		return nil, err
 	}
-	if err := decideArchiveRootAccess(doc, access); err != nil {
+	if err := decideArchiveRootAccess(actor, doc, access); err != nil {
 		return nil, err
 	}
 	if !doc.ArchivedAt.Valid {
@@ -1275,6 +1362,17 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 // document.deleted audit and outbox rows inside the caller's transaction
 // (RESTORE-01 §2 P-4/P-6).
 func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Queries, doc db.Document, actor Actor, deleting []string) (bool, int, error) {
+	// The purge removes the shares and stars a document_changed notice
+	// would be addressed from (UNI-2056), so a person's purge records its
+	// readers and title now, before the orbit goes. A sweep notifies nobody.
+	var noticeReaders []string
+	if actor.Kind != audit.KindSystem {
+		readers, err := s.documentChangeReadersQ(ctx, q, doc, actor.ID)
+		if err != nil {
+			return false, 0, err
+		}
+		noticeReaders = readers
+	}
 	fileIDs, err := q.ListDocumentFileIDs(ctx, db.ListDocumentFileIDsParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 	})
@@ -1414,6 +1512,11 @@ func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Querie
 	meta := map[string]any{"archived_by": textOrNil(doc.ArchivedBy), "file_ids": len(released)}
 	if actor.Kind == audit.KindHuman {
 		meta["manual_purge"] = true
+	}
+	// Title and readers only when somebody besides the actor will hear of
+	// it: an owner purging their own private document leaves neither behind.
+	if len(noticeReaders) > 0 {
+		meta["title"], meta["notify_user_ids"] = doc.Title, noticeReaders
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,

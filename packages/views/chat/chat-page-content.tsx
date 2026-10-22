@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatComposerHandle, ComposerAttachAction } from "./chat-composer";
@@ -24,6 +24,7 @@ import { useChatFollowUpUi } from "./use-chat-follow-up-ui";
 import { useChatFollowedThreadsUi } from "./use-chat-followed-threads-ui";
 import { useChatCatchUpUi } from "./use-chat-catch-up-ui";
 import { useChatPagePanels } from "./use-chat-page-panels";
+import { useChatFindShortcut } from "./use-chat-find-shortcut";
 
 export function ChatPageContent(props: ChatPageContentProps) {
   const {
@@ -79,6 +80,7 @@ export function ChatPageContent(props: ChatPageContentProps) {
   const [createReminderOpen, setCreateReminderOpen] = useState(false);
   const [createNoteOpen, setCreateNoteOpen] = useState(false);
   const [createPostOpen, setCreatePostOpen] = useState(false);
+  const [documentPickerOpen, setDocumentPickerOpen] = useState(false);
   const [recordingsOpen, setRecordingsOpen] = useState(false);
   const { startCall } = useChatVoiceCall();
   const { messagePerson, callPerson } = useChatPersonActions({
@@ -160,20 +162,8 @@ export function ChatPageContent(props: ChatPageContentProps) {
   const workspaceMemberIds = useMemo(() => props.workspaceMembers.map((member) => member.user_id), [props.workspaceMembers]);
   const channelMemberIds = useMemo(() => Object.keys(props.groupMemberProfiles), [props.groupMemberProfiles]);
 
-  // ⌘/Ctrl+F searches the room only while focus is inside the conversation;
-  // anywhere else the browser keeps its own find.
-  useEffect(() => {
-    if (!activeRoomId) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "f") return;
-      const root = conversationRef.current;
-      if (!root || !(event.target instanceof Node) || !root.contains(event.target)) return;
-      event.preventDefault();
-      onMessageSearchOpenChange(true);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeRoomId, conversationRef, onMessageSearchOpenChange]);
+  const openMessageSearch = useCallback(() => onMessageSearchOpenChange(true), [onMessageSearchOpenChange]);
+  useChatFindShortcut(conversationRef, Boolean(activeRoomId), openMessageSearch);
 
   const showListToggleInFrame = sidebarCollapsed && (showLoading || !activeRoomId);
   // With a room open the strips sit under its header (canvas); without one, at the top of the pane.
@@ -228,6 +218,11 @@ export function ChatPageContent(props: ChatPageContentProps) {
       setCreatePostOpen(true);
       return;
     }
+    if (action === "attach_document") {
+      if (!activeRoomId) return;
+      setDocumentPickerOpen(true);
+      return;
+    }
     if (action === "mark_important") {
       onComposerPriorityChange(toggleComposerPriority(composerPriority, "important"));
       return;
@@ -256,6 +251,8 @@ export function ChatPageContent(props: ChatPageContentProps) {
         onCreateNoteOpenChange={setCreateNoteOpen}
         createPostOpen={createPostOpen}
         onCreatePostOpenChange={setCreatePostOpen}
+        documentPickerOpen={documentPickerOpen}
+        onDocumentPickerOpenChange={setDocumentPickerOpen}
       />
 
       {/* Chat fills the content inset: the message list is the screen here, so
@@ -329,7 +326,7 @@ export function ChatPageContent(props: ChatPageContentProps) {
               {/* A loading room draws its header first; its strips go under it, as on an open room. */}
               {roomOpen || showLoading ? null : notices}
               {showLoading ? (
-                <ChatConversationSkeleton notices={notices} />
+                <ChatConversationSkeleton notices={notices} roomId={activeRoomId} />
               ) : activeRoomId ? (
                 <ChatPageConversation
                   props={props}

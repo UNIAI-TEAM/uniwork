@@ -93,7 +93,7 @@ describe("sourceOpenAction", () => {
       file({ extension: "pdf", can_open_in_app: true }),
       file({ extension: "md", can_open_in_app: true }),
       file({ extension: "html", can_open_in_app: true }),
-      // UNI-1813: the server marks .txt openable only while office_txt_open is on.
+      // A .txt source opens like a .md one: the server marks it openable.
       file({ extension: "txt", can_open_in_app: true }),
       file({ name: "ghi-chu.txt", extension: "", mime_type: "text/plain", can_open_in_app: true }),
       file({ name: "README.TXT", extension: "", mime_type: "application/octet-stream", can_open_in_app: true }),
@@ -114,7 +114,7 @@ describe("sourceOpenAction", () => {
       file({ extension: "md" }),
       file({ extension: "html" }),
       file({ extension: "zip", can_open_in_app: true }),
-      // A .txt source the server did not mark (flag off) still downloads, and a
+      // A .txt source the server did not mark still downloads, and a
       // bare text/plain file that is not .txt never opens even when marked.
       file({ extension: "txt" }),
       file({ name: "ghi-chu.txt", mime_type: "text/plain" }),

@@ -7,6 +7,12 @@ type NotificationIDsSDI struct {
 	WorkspaceID string   `json:"workspace_id" description:"Với all=true: giới hạn trong một workspace" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 }
 
+// NotificationDocumentsSDI is the query of GET /api/v1/me/notifications/{notificationID}/documents.
+type NotificationDocumentsSDI struct {
+	Cursor *string `query:"cursor" description:"next_cursor của trang trước (chuỗi mờ, gửi lại nguyên vẹn); chỉ dùng được cho đúng thông báo và người gọi đã tạo ra nó" example:"ndc1.opaque-cursor"`
+	Limit  *int32  `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
+}
+
 // NotificationPreferenceSDI is one row of PUT /api/v1/me/notification-preferences.
 type NotificationPreferenceSDI struct {
 	Kind  string `json:"kind" minLength:"1" description:"Loại thông báo" example:"task_assigned"`

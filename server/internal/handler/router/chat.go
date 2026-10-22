@@ -23,8 +23,6 @@ import (
 //	POST   /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members
 //	PATCH  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}
 //	DELETE /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}
-//	GET  /api/v1/workspaces/{workspaceID}/chat/messages
-//	POST /api/v1/workspaces/{workspaceID}/chat/messages
 //	GET  /api/v1/workspaces/{workspaceID}/chat/messages/search
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/around/{messageID}
@@ -243,6 +241,14 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatRoomDTO{},
 		auth:        true,
 	})
+	r.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/wallpaper", h.UploadChatRoomWallpaper, apiOp{
+		summary:     "Upload chat room wallpaper",
+		description: "Ảnh nền chat dùng chung cho mọi thành viên. DM: cả hai bên; nhóm/kênh: admin phòng. JPG/PNG/GIF/WebP, tối đa 900 KB.",
+		tags:        []string{"chat"},
+		sdi:         sdi.UploadChatRoomWallpaperSDI{},
+		sdo:         sdo.ChatRoomDTO{},
+		auth:        true,
+	})
 	r.With(chatRoomLimit).Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}", h.PatchChatRoomMember, apiOp{
 		summary:     "Update chat room member",
 		description: "Thăng/giáng admin phòng hoặc cấm/bỏ cấm gửi tin.",
@@ -256,22 +262,6 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		description: "Kick khỏi nhóm hoặc xóa khỏi workspace (phòng workspace).",
 		tags:        []string{"chat"},
 		sdo:         sdo.StatusSDO{},
-		auth:        true,
-	})
-	r.Get("/workspaces/{workspaceID}/chat/messages", h.ListWorkspaceChatMessages, apiOp{
-		summary:     "List workspace chat messages",
-		description: "Danh sách tin nhắn phòng workspace (phân trang bằng cursor).",
-		tags:        []string{"chat"},
-		sdi:         sdi.ListChatMessagesSDI{},
-		sdo:         sdo.ChatMessageDTO{},
-		auth:        true,
-	})
-	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/messages", h.SendWorkspaceChatMessage, apiOp{
-		summary:     "Send workspace chat message",
-		description: "Gửi tin nhắn vào phòng workspace.",
-		tags:        []string{"chat"},
-		sdi:         sdi.SendChatMessageSDI{},
-		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search", h.SearchChatRoomMessages, apiOp{
@@ -315,15 +305,23 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	})
 	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document", h.SendChatDocumentMessage, apiOp{
 		summary:     "Send chat document message",
-		description: "Gửi tệp dạng tài liệu: tệp thành một tài liệu trong My Folder của người gửi và mọi thành viên trong phòng nhận được quyền chia sẻ (share_level, mặc định comment; tối đa 50 người). Định dạng: PDF, TXT, Markdown, HTML, DOC/DOCX, XLS/XLSX, PPT/PPTX, ODT.",
+		description: "Gửi tệp dạng tài liệu: tệp thành một tài liệu ở gốc workspace của người gửi và mọi thành viên trong phòng nhận được quyền chia sẻ (share_level, mặc định comment), phòng bao nhiêu người cũng được. Định dạng: PDF, TXT, Markdown, HTML, DOC/DOCX, XLS/XLSX, PPT/PPTX, ODT.",
 		tags:        []string{"chat"},
 		sdi:         sdi.SendChatDocumentMessageSDI{},
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
+	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document-link", h.SendChatDocumentLink, apiOp{
+		summary:     "Send existing document to chat",
+		description: "Gửi một tài liệu có sẵn trong Tài liệu vào phòng chat (UNI-2012 D5): người gửi phải chia sẻ được tài liệu (quản lý hoặc quản trị); tài liệu không bị di chuyển hay sao chép; mọi thành viên trong phòng nhận quyền share_level (mặc định comment, manage -> 400), ai đã có quyền cao hơn giữ nguyên. Thư mục -> 422 folder_not_shareable, thùng rác -> 403 document_archived, đã lưu trữ -> 409 document_shelved, thuộc kết quả công việc -> 409 document_owned_by_work_product, không chia sẻ được -> 403, không đọc được hoặc không tồn tại -> 404. Idempotent theo client_msg_id.",
+		tags:        []string{"chat"},
+		sdi:         sdi.SendChatDocumentLinkSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
 	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/share-as-document", h.ShareChatMessageAsDocument, apiOp{
 		summary:     "Share chat attachment as document",
-		description: "Chuyển tệp đính kèm của chính người gửi thành tài liệu chia sẻ trong My Folder và cấp quyền cho các thành viên hiện tại trong phòng; cập nhật tin nhắn tại chỗ sang kind=document (UNI-1966 §2.2).",
+		description: "Chuyển tệp đính kèm của chính người gửi thành tài liệu chia sẻ ở gốc workspace của người gửi và cấp quyền cho các thành viên hiện tại trong phòng; cập nhật tin nhắn tại chỗ sang kind=document (UNI-1966 §2.2, UNI-2012 D1a/D1b).",
 		tags:        []string{"chat"},
 		sdi:         sdi.ShareChatMessageAsDocumentSDI{},
 		sdo:         sdo.ChatMessageDTO{},
@@ -331,7 +329,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}", h.GetChatRoomDetail, apiOp{
 		summary:     "Get chat room",
-		description: "Lấy một phòng chat kèm can_send_document: người gọi được gửi tài liệu và số người nhận được quyền chia sẻ không vượt 50 (L5).",
+		description: "Lấy một phòng chat kèm can_send_document: người gọi có quyền gửi tài liệu vào phòng (L5).",
 		tags:        []string{"chat"},
 		sdo:         sdo.ChatRoomDTO{},
 		auth:        true,

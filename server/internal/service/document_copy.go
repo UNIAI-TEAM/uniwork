@@ -381,6 +381,8 @@ func copyDocumentShares(ctx context.Context, q *db.Queries, src, dst db.Document
 			ID: util.NewID(), OrganizationID: dst.OrganizationID, WorkspaceID: dst.WorkspaceID,
 			DocumentID: dst.ID, PrincipalType: share.PrincipalType, PrincipalID: share.PrincipalID,
 			Level: share.Level, GrantedBy: actor.ID, GrantedByKind: string(actor.Kind),
+			// The copy keeps how each grant came about (UNI-2039 S3).
+			Origin: share.Origin,
 		}); err != nil {
 			return err
 		}

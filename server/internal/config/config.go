@@ -17,6 +17,11 @@ const (
 	// [1 MiB, 2 GiB].
 	MinDocumentMaxBytes int64 = 1 << 20
 	MaxDocumentMaxBytes int64 = 2 << 30
+	// DefaultFolderUploadMaxFiles and DefaultFolderUploadMaxBytes are the
+	// folder upload limits (UNI-2052): files one PLAN may carry, and their
+	// total bytes (2 GiB).
+	DefaultFolderUploadMaxFiles       = 500
+	DefaultFolderUploadMaxBytes int64 = 2 << 30
 )
 
 type Config struct {
@@ -52,7 +57,11 @@ type Config struct {
 	// DocumentMaxBytes (DOCUMENT_MAX_BYTES) is the single byte ceiling for
 	// document file creates, version uploads, Office saves and exports.
 	DocumentMaxBytes int64
-	FrontendOrigin   string
+	// FolderUploadMaxFiles (FOLDER_UPLOAD_MAX_FILES) and FolderUploadMaxBytes
+	// (FOLDER_UPLOAD_MAX_BYTES) cap one folder upload PLAN (UNI-2052).
+	FolderUploadMaxFiles int
+	FolderUploadMaxBytes int64
+	FrontendOrigin       string
 	// PreviewOrigin is the separate, cookie-less origin used by isolated
 	// Markdown/HTML frames. It must never be the frontend origin.
 	PreviewOrigin string
@@ -112,7 +121,7 @@ type Config struct {
 	// AWS_* storage settings supply credentials and endpoint.
 	LiveKitRecordingBucket string
 	// MeetingScribeEnabled lets the server dispatch the scribe agent
-	// (apps/meeting-agent, ADR 0037) into meeting rooms; the meeting_scribe
+	// (apps/meeting-agent, ADR 0038) into meeting rooms; the meeting_scribe
 	// flag and the meeting.transcription entitlement still decide per
 	// organization. MeetingScribeAgentName is the agent_name it registers.
 	MeetingScribeEnabled   bool
@@ -359,6 +368,14 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	folderUploadMaxFiles, err := parsePositiveInt64("FOLDER_UPLOAD_MAX_FILES", os.Getenv("FOLDER_UPLOAD_MAX_FILES"), DefaultFolderUploadMaxFiles)
+	if err != nil {
+		return Config{}, err
+	}
+	folderUploadMaxBytes, err := parsePositiveInt64("FOLDER_UPLOAD_MAX_BYTES", os.Getenv("FOLDER_UPLOAD_MAX_BYTES"), DefaultFolderUploadMaxBytes)
+	if err != nil {
+		return Config{}, err
+	}
 	c := Config{
 		Port:                          getenv("PORT", "8080"),
 		DatabaseURL:                   os.Getenv("DATABASE_URL"),
@@ -377,6 +394,8 @@ func Load() (Config, error) {
 		IdempotencyKeyRetention:       parseDuration(os.Getenv("IDEMPOTENCY_KEY_RETENTION"), 7*24*time.Hour),
 		IdempotencyKeySweepTick:       parseDuration(os.Getenv("IDEMPOTENCY_KEY_SWEEP_TICK"), 10*time.Minute),
 		DocumentMaxBytes:              documentMaxBytes,
+		FolderUploadMaxFiles:          int(folderUploadMaxFiles),
+		FolderUploadMaxBytes:          folderUploadMaxBytes,
 		FrontendOrigin:                getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
 		PreviewOrigin:                 os.Getenv("PREVIEW_ORIGIN"),
 		PreviewCapabilitySecret:       os.Getenv("PREVIEW_CAPABILITY_SECRET"),
@@ -594,6 +613,20 @@ func parseDocumentMaxBytes(raw string) (int64, error) {
 	n, err := strconv.ParseInt(trimmed, 10, 64)
 	if err != nil || n < MinDocumentMaxBytes || n > MaxDocumentMaxBytes {
 		return 0, fmt.Errorf("DOCUMENT_MAX_BYTES must be an integer between %d (1 MiB) and %d (2 GiB), got %q", MinDocumentMaxBytes, MaxDocumentMaxBytes, raw)
+	}
+	return n, nil
+}
+
+// parsePositiveInt64 reads a positive integer, fallback when unset; anything
+// else stops the server at boot instead of running with a limit nobody set.
+func parsePositiveInt64(name, raw string, fallback int64) (int64, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return fallback, nil
+	}
+	n, err := strconv.ParseInt(trimmed, 10, 64)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer, got %q", name, raw)
 	}
 	return n, nil
 }

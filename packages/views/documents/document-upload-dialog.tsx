@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { FilePlus, Paperclip } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChunkedUploadProgress } from "@uniwork/core/documents/chunked-upload";
@@ -31,6 +31,8 @@ export interface DocumentUploadDialogProps {
   pending?: boolean;
   /** A failed attempt, shown in place so the picked file is not lost. */
   error?: string | null;
+  /** A way out shown under the error (a chat card's "open the document page"). */
+  errorAction?: ReactNode;
   /** True when the open folder already shares with the home workspace. */
   parentShared?: boolean;
   /** False when staging a new version of an existing document. */
@@ -43,6 +45,13 @@ export interface DocumentUploadDialogProps {
   onCancelUpload?: (file: File | null) => void;
   hasResumable?: (file: File) => boolean;
   onPickFile?: (file: File | null) => void;
+  /**
+   * Takes two or more picked files as one multi-file upload (ADDENDUM 2); the
+   * input accepts several files only when it is set. One file stays here.
+   */
+  onPickMany?: (files: File[]) => void;
+  /** The host's dressing for the dialog (the chat card's UniChat look); joins the default width. */
+  className?: string;
 }
 
 /**
@@ -59,6 +68,7 @@ export function DocumentUploadDialog({
   hint,
   pending = false,
   error,
+  errorAction,
   parentShared = false,
   showShareToggle = true,
   onSubmit,
@@ -68,6 +78,8 @@ export function DocumentUploadDialog({
   onCancelUpload,
   hasResumable,
   onPickFile,
+  onPickMany,
+  className,
 }: DocumentUploadDialogProps) {
   const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
@@ -137,7 +149,7 @@ export function DocumentUploadDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-md"
+        className={cn("sm:max-w-md", className)}
         showCloseButton={!pending && !isUploading && !isVerifying}
         closeLabel={t("common.close")}
       >
@@ -163,13 +175,21 @@ export function DocumentUploadDialog({
               ref={inputRef}
               type="file"
               accept={accept}
+              multiple={onPickMany !== undefined}
               aria-label={t("documents.upload.pick")}
               className="sr-only"
               aria-hidden="true"
               tabIndex={-1}
               disabled={isBusy}
               onChange={(event) => {
-                const picked = event.target.files?.[0] ?? null;
+                const files = event.target.files;
+                if (onPickMany && files && files.length >= 2) {
+                  onPickMany(Array.from(files));
+                  // Remount so the same files picked again still fire a change.
+                  setInputKey((key) => key + 1);
+                  return;
+                }
+                const picked = files?.[0] ?? null;
                 setFile(picked);
                 onPickFile?.(picked);
               }}
@@ -255,6 +275,7 @@ export function DocumentUploadDialog({
               {error}
             </p>
           ) : null}
+          {error && errorAction ? <div className="flex">{errorAction}</div> : null}
           <DialogFooter className="px-0 pb-0">
             <Button
               type="button"

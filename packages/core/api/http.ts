@@ -191,7 +191,8 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
   }
 
   let body: BodyInit | undefined;
-  if (opts.body instanceof FormData) {
+  if (opts.body instanceof FormData || opts.body instanceof Blob) {
+    // Raw bodies go as they are; a Blob's Content-Type comes from opts.headers.
     body = opts.body;
   } else if (opts.body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -273,6 +274,17 @@ export async function throwFromFailedResponse(res: Response): Promise<never> {
  * job, through a schema, never a cast at the call site.
  */
 export async function request(path: string, opts: RequestOpts = {}): Promise<unknown> {
+  return (await requestWithHeaders(path, opts)).data;
+}
+
+/**
+ * `request` that also hands back the response headers, for an answer that
+ * lives partly in a header (the ETag of an uploaded body).
+ */
+export async function requestWithHeaders(
+  path: string,
+  opts: RequestOpts = {},
+): Promise<{ data: unknown; headers: Headers }> {
   let res = await rawFetch(path, opts);
   if (res.status === 401 && !opts.skipRefresh && !path.startsWith("/api/v1/auth/") && getAccessToken()) {
     const refreshed = await refreshSession();
@@ -281,8 +293,23 @@ export async function request(path: string, opts: RequestOpts = {}): Promise<unk
   if (!res.ok) {
     await throwFromFailedResponse(res);
   }
-  if (res.status === 204) return undefined;
-  return res.json();
+  if (res.status === 204) return { data: undefined, headers: res.headers };
+  return { data: (await res.json()) as unknown, headers: res.headers };
+}
+
+/**
+ * Open a streaming response (SSE). Same bearer and one 401 refresh-and-retry
+ * as `request`; a refusal throws the mapped ApiError before any body is read.
+ * The caller owns the body.
+ */
+export async function requestStream(path: string, opts: RequestOpts): Promise<Response> {
+  let res = await rawFetch(path, opts);
+  if (res.status === 401 && !opts.skipRefresh && !path.startsWith("/api/v1/auth/") && getAccessToken()) {
+    const refreshed = await refreshSession();
+    if (refreshed) res = await rawFetch(path, opts);
+  }
+  if (!res.ok) await throwFromFailedResponse(res);
+  return res;
 }
 
 /**

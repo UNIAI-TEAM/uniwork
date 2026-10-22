@@ -179,6 +179,7 @@ fails on drift. One flat namespace, keys nested by section:
 | private (document share state) | **Riêng tư** | Private | trạng thái hiển thị, **không** phải cấu hình: không có dòng Workspace gốc, không share sống, không link sống (BR-10). Thay chữ "Hạn chế"/"Restricted" ở mọi bề mặt người dùng; giá trị wire `restricted` giữ nguyên |
 | document access level | **Chỉ xem** / **Nhận xét** / **Chỉnh sửa** / **Quản lý** | View / Comment / Edit / Manage | `documents.share.level_*`, `documents.accessReport.level_*`, `documents.home.access.*` |
 | document access source | **Trực tiếp** / **Qua Workspace "X"** / **Qua tổ chức** / **Chủ sở hữu** / **Quản trị viên** / **Truy cập khẩn cấp** / **Theo kết quả công việc** | Direct / Via workspace "X" / Via organization / Owner / Admin / Emergency access / Via work product | `documents.share.via_*`, `documents.share.source_item` |
+| document access report source (grant origin) | **Chia sẻ trực tiếp** / **Gửi trong Chat** / **Link chia sẻ** / **Mặc định của workspace** | Shared directly / Sent in Chat / Share link / Workspace default | `documents.accessReport.source_direct`, `source_chat`, `source_link`, `source_workspace_default`; nguồn của một dòng báo cáo quyền (UNI-2039); hai bề mặt gọi cùng một quyền bằng hai chữ — **Trực tiếp** ở hộp Chia sẻ, **Chia sẻ trực tiếp** ở báo cáo. Không hiện tên kênh Chat |
 | close organization | **đóng tổ chức** | Close organization | `org.close.*`; archives the organization, deletes nothing (ADR 0032) — never "xóa tổ chức", which is the 5-day privacy deletion |
 | switch organization | **chuyển tổ chức** | Switch organization | `invitations.switch.*`; leave, transfer or close the current one and join another in one step — never "đổi tổ chức" |
 | comment | **bình luận** | Comment | |
@@ -214,6 +215,9 @@ fails on drift. One flat namespace, keys nested by section:
 | subfolder | **thư mục con** | Subfolder | luôn đủ cụm, không "mục con" |
 | new folder | **thư mục mới** | New folder | nút và tiêu đề hộp thoại; ở gốc: "Thư mục mới ở Tài liệu (gốc)" (tiêu đề hộp thoại từ (+) sidebar) |
 | rename | **đổi tên** | Rename | |
+| workspace folder (Documents, a folder every member sees) | **thư mục của workspace** | workspace folder | UNI-2055: tên thư mục hiện cho mọi người trong workspace, tài liệu bên trong giữ quyền riêng; không "thư mục chung", không "shared folder" (thư mục không có share, "shared" gợi đến chia sẻ) |
+| My Folder (Documents, `system_kind=my_folder`) | **Thư mục của tôi** | My Folder | thư mục riêng của từng người, viết hoa như tên riêng ở cả hai ngôn ngữ; `documents.home.my_folder.label` |
+| workspace root (Documents, no parent folder) | **gốc workspace** | workspace root | chỗ ngoài mọi thư mục; ở hộp thoại tạo thư mục: "Thư mục mới ở Tài liệu (gốc)" xem dòng new folder |
 | move to | **di chuyển tới** | Move to | mục menu "Di chuyển tới…"; toast "Đã chuyển tới {{folder}}" |
 | trash (Documents, archive restorable 30 days) | **thùng rác** | Trash | hành động ghi "Xóa" / "Chuyển vào thùng rác"; khác "Đã xóa" của email |
 | path (breadcrumb / search result) | **đường dẫn** | Path | đường dẫn từ Documents tới cha trực tiếp |

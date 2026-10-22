@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,7 +20,12 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
+// capturePublisher records every delivery. Services publish from whichever
+// goroutine runs the command, so a test that races two commands shares one
+// publisher: mu guards every field. Tests read the fields directly only once
+// the goroutines that publish have been joined.
 type capturePublisher struct {
+	mu     sync.Mutex
 	events []Event
 	// sent records where each event went, as "<type> -> <scope>:<id>", so a
 	// test can tell a workspace broadcast from a room or user delivery.
@@ -28,25 +34,31 @@ type capturePublisher struct {
 	batches []string
 }
 
-func (c *capturePublisher) Publish(_ context.Context, workspaceID string, ev Event) {
+func (c *capturePublisher) record(ev Event, dest string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.events = append(c.events, ev)
-	c.sent = append(c.sent, ev.Type+" -> workspace:"+workspaceID)
+	c.sent = append(c.sent, ev.Type+" -> "+dest)
+}
+
+func (c *capturePublisher) Publish(_ context.Context, workspaceID string, ev Event) {
+	c.record(ev, "workspace:"+workspaceID)
 }
 
 func (c *capturePublisher) PublishToScope(_ context.Context, scopeType, scopeID string, ev Event) {
-	c.events = append(c.events, ev)
-	c.sent = append(c.sent, ev.Type+" -> "+scopeType+":"+scopeID)
+	c.record(ev, scopeType+":"+scopeID)
 }
 
 func (c *capturePublisher) SendToUser(_ context.Context, userID string, ev Event) {
-	c.events = append(c.events, ev)
-	c.sent = append(c.sent, ev.Type+" -> user:"+userID)
+	c.record(ev, "user:"+userID)
 }
 
 // SendToUsers records one delivery per user, as SendToUser does, and the
 // batch itself in batches.
 func (c *capturePublisher) SendToUsers(ctx context.Context, userIDs []string, ev Event) {
+	c.mu.Lock()
 	c.batches = append(c.batches, ev.Type)
+	c.mu.Unlock()
 	for _, id := range userIDs {
 		c.SendToUser(ctx, id, ev)
 	}
@@ -54,6 +66,8 @@ func (c *capturePublisher) SendToUsers(ctx context.Context, userIDs []string, ev
 
 // sentTo lists where events of type typ went, in order.
 func (c *capturePublisher) sentTo(typ string) []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	var out []string
 	for _, s := range c.sent {
 		if dest, ok := strings.CutPrefix(s, typ+" -> "); ok {

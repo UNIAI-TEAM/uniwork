@@ -183,4 +183,27 @@ describe("ChatConversationHeader", () => {
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Gọi thoại" }));
     expect(onVoiceCall).toHaveBeenCalledTimes(1);
   });
+
+  it("offers Ask UNI beside catch-up, and in the phone menu", () => {
+    const onAskUni = vi.fn();
+    render(
+      wrap(
+        <ChatConversationHeader
+          avatar={<span>A</span>}
+          title="Q4"
+          catchUpAriaLabel="Tóm tắt"
+          onCatchUp={vi.fn()}
+          askUniAriaLabel="Hỏi UNI về cuộc trò chuyện này"
+          onAskUni={onAskUni}
+        />,
+      ),
+    );
+    const names = screen.getAllByRole("button").map((b) => b.getAttribute("aria-label"));
+    expect(names.indexOf("Hỏi UNI về cuộc trò chuyện này")).toBe(names.indexOf("Tóm tắt") + 1);
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi UNI về cuộc trò chuyện này" }));
+    expect(onAskUni).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Thêm thao tác" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Hỏi UNI về cuộc trò chuyện này" }));
+    expect(onAskUni).toHaveBeenCalledTimes(2);
+  });
 });

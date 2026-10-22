@@ -21,12 +21,18 @@ import {
   docxQuoteBlock,
   serverCommentMark,
   decideG8A02,
+  decideLostViewVersion,
   decideWebToDesktop,
   expectedAfterShift,
   framePinBlock,
   pageAction,
   readFramePin,
   runG8A02,
+  viewVersionPinBlock,
+  VIEW_VERSION_BLOCKER,
+  VIEW_VERSION_BLOCKER_OWNER,
+  observeVersionView,
+  documentWriteRequests,
 } from "./anchors.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -88,6 +94,39 @@ function passingRecord(over = {}) {
     afterInvalid: { anchor: B8, anchor_state: "lost", anchor_version_id: "ver-2" },
     webToDesktop: { status: "PASS" },
     closedPanel: closedMoved(),
+    lostView: lostViewRecord(),
+    ...over,
+  };
+}
+
+/** The lost-view record where the server row, the web view and landing and the desktop copy all agree (version 2 = ver-2). */
+function lostViewRecord(over = {}) {
+  return {
+    ran: true,
+    expected: { versionId: "ver-2", versionNo: 2 },
+    server: { ran: true, row: { id: "c1", anchor_state: "lost", anchor_version_id: "ver-2", anchor_version_no: 2 } },
+    web: {
+      ran: true,
+      view: {
+        url: "http://web/x/y/documents/d1?comment=c1&version=2",
+        banner: "You are viewing version 2 (read-only)",
+        unavailable: false,
+        frameState: "ready",
+        contentVersions: ["2"],
+        revealed: true,
+        revealedIn: "the frame's comments panel",
+        writes: [],
+        serverLogWrites: [],
+      },
+      landing: { startUrl: "http://web/x/y/documents/d1?comment=c1", finalUrl: "http://web/x/y/documents/d1?version=2&comment=c1", switches: ["http://web/x/y/documents/d1?version=2&comment=c1"] },
+    },
+    desktop: {
+      ran: true,
+      copyPath: "/wc/doc@v2.xlsx",
+      contextVersionId: "ver-2",
+      status: { readOnly: true },
+      panel: { panels: 1, commentIds: ["c1"] },
+    },
     ...over,
   };
 }
@@ -187,7 +226,9 @@ test("readFramePin reads apps/web/platform/office-frame/<editor>.pin.json at run
   const root = mkdtempSync(join(tmpdir(), "g819-pin-"));
   mkdirSync(join(root, "apps/web/platform/office-frame"), { recursive: true });
   writeFileSync(join(root, "apps/web/platform/office-frame/docs.pin.json"), JSON.stringify({ version: "0.1.0-7d665a5", gitSha: "7d665a5" }));
-  assert.deepEqual(readFramePin(root, "docx"), { file: "apps/web/platform/office-frame/docs.pin.json", gitSha: "7d665a5", version: "0.1.0-7d665a5" });
+  assert.deepEqual(readFramePin(root, "docx"), { file: "apps/web/platform/office-frame/docs.pin.json", gitSha: "7d665a5", version: "0.1.0-7d665a5", protocolSha: "" });
+  writeFileSync(join(root, "apps/web/platform/office-frame/sheets.pin.json"), JSON.stringify({ version: "0.1.0-abc1234", gitSha: "abc1234", protocolSha256: { protocol: "914cc471" } }));
+  assert.equal(readFramePin(root, "xlsx").protocolSha, "914cc471", "the sha of web/docs/protocol/types.ts the frame was built with");
   assert.equal(readFramePin(root, "pptx"), null);
 });
 
@@ -336,16 +377,31 @@ function scriptXlsxServer(fake) {
   const closed = { head: "vc-1", row: null, saves: 0 };
   state.closed = closed;
   const docOf = (call) => call.args.pathParams?.documentID;
-  fake.script.respond("api.mintLaunch", { status: 201, body: { launch_url: "uniwork-office-dev://open?ticket=t1" } });
+  fake.script.respond("api.mintLaunch", (call) => ({ status: 201, body: { launch_url: `uniwork-office-dev://open?ticket=${call.args.body.operation === "view" ? `view-v${call.args.body.version}-${call.args.body.comment_id}` : "t1"}` } }));
   fake.script.respond("app.openByTicket", (call) => {
     const id = call.args[1]?.documentId ?? "doc-1";
+    const view = /ticket=view-v(\d+)-/.exec(call.args[0]);
+    if (view) {
+      state.viewCopy = `/wc/doc@v${view[1]}.xlsx`;
+      return { path: state.viewCopy, documentId: id, kind: "sheets" };
+    }
     // the editor mounts and its controller lists once (use-collab-threads.ts:455-475), unless scripted not to
     if (!state.noMountList) logEditorList(fake, id);
     return { path: id === CLOSED_DOC ? CLOSED_PATH : "/wc/doc.xlsx", documentId: id, kind: "sheets" };
   });
   fake.script.respond("app.comments.context", (call) =>
-    call.args[0].path === CLOSED_PATH ? { ok: true, value: { documentId: CLOSED_DOC, versionId: closed.head } } : { ok: true, value: { documentId: "doc-1", versionId: state.head } },
+    call.args[0].path === CLOSED_PATH
+      ? { ok: true, value: { documentId: CLOSED_DOC, versionId: closed.head } }
+      : call.args[0].path === state.viewCopy
+        ? { ok: true, value: { documentId: "doc-1", versionId: "ver-2" } }
+        : { ok: true, value: { documentId: "doc-1", versionId: state.head } },
   );
+  fake.script.respond("app.aiOffice.uniworkActiveDocStatus", () => (state.viewCopy ? { path: state.viewCopy, documentId: "doc-1", format: "xlsx", readOnly: true } : { path: "/wc/doc.xlsx", documentId: "doc-1", format: "xlsx", readOnly: false }));
+  // the saved versions of doc-1: ordinals 1..3, the shift Save made ver-2 (version 2), the remove Save ver-3
+  fake.script.respond("api.listDocumentVersions", () => ({
+    status: 200,
+    body: { versions: [3, 2, 1].map((n) => ({ id: `ver-${n}`, version: n })), next_cursor: null },
+  }));
   // the closed-panel comment arrives from another host (REST) while the desktop shows the document
   state.createAnswer = (call) => {
     const b = call.args.body;
@@ -383,13 +439,14 @@ function scriptXlsxServer(fake) {
       state.anchorVersion = state.head;
     } else if (state.saves === 2) {
       state.anchorState = "lost";
+      state.anchorVersionNo = 2;
     }
     return { state: "saved" };
   });
   state.docAnswer = (call) =>
     docOf(call) === CLOSED_DOC
       ? { status: 200, body: { document: { id: CLOSED_DOC, file: { version_id: closed.head } } } }
-      : { status: 200, body: { document: { id: "doc-1", file: { version_id: state.head } } } };
+      : { status: 200, body: { document: { id: "doc-1", file: { version_id: state.head, version: state.saves + 1 } } } };
   state.listAnswer = (call) =>
     docOf(call) === CLOSED_DOC
       ? { status: 200, body: { comments: closed.row ? [closed.row] : [], list_token: `c-${closed.saves}` } }
@@ -397,7 +454,7 @@ function scriptXlsxServer(fake) {
           status: 200,
           body: {
             comments: [
-              { id: "c1", body: state.comment?.body, anchor: state.anchor, anchor_state: state.anchorState, anchor_version_id: state.anchorVersion, deleted_at: null, parent_id: null },
+              { id: "c1", body: state.comment?.body, anchor: state.anchor, anchor_state: state.anchorState, anchor_version_id: state.anchorVersion, anchor_version_no: state.anchorVersionNo ?? null, deleted_at: null, parent_id: null },
               { id: "r1", parent_id: "c1", body: "reply", deleted_at: null },
             ],
             list_token: `lt-${state.saves}`,
@@ -444,13 +501,19 @@ function scriptWebDoc(fake, xlsx, { webSave = null } = {}) {
   );
   fake.script.respond("app.openByTicket", (call) => {
     const id = call.args[1]?.documentId ?? "doc-1";
+    const view = /ticket=view-v(\d+)-/.exec(call.args[0]);
+    if (view) {
+      xlsx.viewCopy = `/wc/doc@v${view[1]}.xlsx`;
+      return { path: xlsx.viewCopy, documentId: id, kind: "sheets" };
+    }
     logEditorList(fake, id);
     return { path: id === "doc-1" ? "/wc/doc.xlsx" : `/wc/${id}.xlsx`, documentId: id, kind: "sheets" };
   });
   return web;
 }
 
-const REPINNED = { framePin: { gitSha: "abc1234", file: "sheets.pin.json" }, isAncestor: () => true };
+const WEB_VIEW_OK = lostViewRecord().web;
+const REPINNED = { framePin: { gitSha: "abc1234", file: "sheets.pin.json" }, isAncestor: () => true, observeVersionView: async () => structuredClone(WEB_VIEW_OK) };
 
 test("runG8A02 after a re-pin: the web frame's Save moves A's B7 comment to B8 and the desktop reads it there -> PASS", async () => {
   const fake = createFakeWorld();
@@ -536,8 +599,13 @@ test("runG8A02 (xlsx, fake): upload, desktop comment on B7, insert row + Save ->
   assert.equal(record.status, "BLOCKED", JSON.stringify(record, null, 1));
   assert.equal(record.blocker, WEB_FRAME_PIN_BLOCKER);
   for (const [name, step] of Object.entries(record.steps)) {
-    if (name !== "check:web-to-desktop") assert.equal(step.status, "PASS", `${name}: ${step.reason ?? ""}`);
+    if (name !== "check:web-to-desktop" && name !== "check:lost-view-version") assert.equal(step.status, "PASS", `${name}: ${step.reason ?? ""}`);
   }
+  // the pre-G8 pin blocks the lost view's web half with the same R1 blocker; its server and desktop halves ran and passed
+  assert.equal(record.steps["check:lost-view-version"].status, "BLOCKED");
+  assert.equal(record.steps["check:lost-view-version"].blocker, WEB_FRAME_PIN_BLOCKER);
+  assert.equal(record.details.lostView.server.row.anchor_version_no, 2);
+  assert.equal(record.details.lostView.desktop.copyPath, "/wc/doc@v2.xlsx");
   assert.equal(record.details.shift.row.anchor.range, "B8");
   assert.equal(record.details.remove.row.anchor_state, "lost");
 
@@ -573,7 +641,8 @@ test("runG8A02 opens the editor's comments panel and waits until the editor list
   assert.equal(ctx.steps["editor-lists"]?.status, "PASS", JSON.stringify(ctx.steps));
   assert.equal(record.details.editorLists.listed, true);
   // the panel-open path starts after the closed-panel document's Save
-  const after = fake.calls.app.slice(fake.calls.app.findIndex((c) => c.key === "save" && c.args[0] === CLOSED_PATH) + 1);
+  const viewOpen = fake.calls.app.findIndex((c) => c.key === "openByTicket" && /ticket=view/.test(c.args[0]));
+  const after = fake.calls.app.slice(fake.calls.app.findIndex((c) => c.key === "save" && c.args[0] === CLOSED_PATH) + 1, viewOpen === -1 ? undefined : viewOpen);
   const evals = after.filter((c) => c.key === "evalBounded").map((c) => c.args[2]);
   const opened = evals.indexOf("edit:click:1");
   const listed = evals.lastIndexOf("probe:listed");
@@ -786,6 +855,7 @@ test("runG8A02 asks for the editor page that shows each document by path (two do
   assert.deepEqual(asked, [
     ["sheets", { path: CLOSED_PATH, documentId: CLOSED_DOC }],
     ["sheets", { path: "/wc/doc.xlsx", documentId: "doc-1" }],
+    ["sheets", { path: "/wc/doc@v2.xlsx", documentId: "doc-1" }],
   ]);
 });
 
@@ -1034,4 +1104,343 @@ test("G8-A02 closed panel (pdf): a prepare version that never lands fails scenar
   assert.match(c.reason, /^scenario not established: the prepare Save's version did not land/);
   assert.equal(state.commentsCreated, 0, "no comment before the prepare version is the head");
   assert.equal(state.saves, 1, "no shift Save without the scenario");
+});
+
+// ---- check:lost-view-version (UNI-2033 T7): open the version a lost comment was on ----------------------
+
+const lostStep = (rec) => decideG8A02(rec).steps["check:lost-view-version"];
+
+test("check:lost-view-version: server row lost on the shift head's version, web view read-only with no write, landing once, desktop @vN copy -> PASS", () => {
+  const d = decideG8A02(passingRecord());
+  assert.equal(d.steps["check:lost-view-version"].status, "PASS", JSON.stringify(d.steps["check:lost-view-version"]));
+  assert.equal(d.status, "PASS", JSON.stringify(d));
+  assert.deepEqual(Object.keys(d.steps).slice(Object.keys(d.steps).indexOf("check:remove-lost"), Object.keys(d.steps).indexOf("check:remove-lost") + 2), ["check:remove-lost", "check:lost-view-version"], "judged right after check:remove-lost");
+});
+
+test("check:lost-view-version: the server row names another version id or ordinal, or no ordinal -> FAIL with the values", () => {
+  const wrongId = lostStep(passingRecord({ lostView: lostViewRecord({ server: { ran: true, row: { id: "c1", anchor_state: "lost", anchor_version_id: "ver-1", anchor_version_no: 2 } } }) }));
+  assert.equal(wrongId.status, "FAIL");
+  assert.match(wrongId.reason, /anchor_version_id ver-1, want ver-2/);
+  const wrongNo = lostStep(passingRecord({ lostView: lostViewRecord({ server: { ran: true, row: { id: "c1", anchor_state: "lost", anchor_version_id: "ver-2", anchor_version_no: 1 } } }) }));
+  assert.equal(wrongNo.status, "FAIL");
+  assert.match(wrongNo.reason, /anchor_version_no 1, want 2/);
+  const none = lostStep(passingRecord({ lostView: lostViewRecord({ server: { ran: true, row: { id: "c1", anchor_state: "lost", anchor_version_id: "ver-2", anchor_version_no: null } } }) }));
+  assert.equal(none.status, "FAIL");
+  assert.match(none.reason, /anchor_version_no null, want 2/);
+  const notLost = lostStep(passingRecord({ lostView: lostViewRecord({ server: { ran: true, row: { id: "c1", anchor_state: "exact", anchor_version_id: "ver-2", anchor_version_no: 2 } } }) }));
+  assert.match(notLost.reason, /anchor_state exact, want lost/);
+});
+
+test("check:lost-view-version: an expected version the harness itself cannot agree on is a harness FAIL, not a product one", () => {
+  const d = lostStep(passingRecord({ lostView: lostViewRecord({ expected: { versionId: "ver-2", versionNo: null, conflict: "ver-2 is not in the versions list; getDocument said version 2" } }) }));
+  assert.equal(d.status, "FAIL");
+  assert.match(d.reason, /not in the versions list/);
+});
+
+test("check:lost-view-version: NOT_JUDGED with cascadeFrom check:remove-lost when the remove step failed; the row cascades only that way", () => {
+  const rec = passingRecord();
+  rec.remove.row = { ...rec.remove.row, anchor_state: "exact" };
+  rec.lostView = { ran: false, skipped: "check:remove-lost did not leave the row lost" };
+  const d = decideG8A02(rec);
+  assert.equal(d.steps["check:remove-lost"].status, "FAIL");
+  assert.equal(d.steps["check:lost-view-version"].status, "NOT_JUDGED");
+  assert.equal(d.steps["check:lost-view-version"].cascadeFrom, "check:remove-lost");
+  assert.equal(d.status, "FAIL");
+  assert.doesNotMatch(d.reason, /lost-view-version/, "a cascaded step adds no reason of its own");
+  // the shift's product failure cascades to remove-lost; lost-view hangs on the same source
+  const shiftLost = passingRecord();
+  shiftLost.shift.row = { ...shiftLost.shift.row, anchor_state: "lost" };
+  const e = decideG8A02(shiftLost);
+  assert.equal(e.steps["check:remove-lost"].status, "NOT_JUDGED");
+  assert.equal(e.steps["check:lost-view-version"].status, "NOT_JUDGED");
+  assert.equal(e.steps["check:lost-view-version"].cascadeFrom, "check:shift");
+});
+
+test("check:lost-view-version: a BLOCKED remove step (missing edit driver) leaves this step BLOCKED with the same blocker, never PASS", () => {
+  const rec = passingRecord();
+  rec.remove = { status: "BLOCKED", blocker: "no Delete row button", owner: "lead-f" };
+  rec.lostView = { ran: false, skipped: "check:remove-lost is BLOCKED" };
+  const d = decideG8A02(rec);
+  assert.equal(d.steps["check:lost-view-version"].status, "BLOCKED");
+  assert.equal(d.steps["check:lost-view-version"].blocker, "no Delete row button");
+});
+
+test("check:lost-view-version: the frame pin predating the fork UNI-2033 kit/protocol BLOCKS the web part, the rest is judged", () => {
+  const web = { status: "BLOCKED", blocker: VIEW_VERSION_BLOCKER, owner: VIEW_VERSION_BLOCKER_OWNER, pin: "1abc493" };
+  const d = lostStep(passingRecord({ lostView: lostViewRecord({ web }) }));
+  assert.equal(d.status, "BLOCKED");
+  assert.equal(d.blocker, "frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)");
+  assert.equal(d.owner, "g6-fork_ui T6");
+  // a server FAIL beats the web BLOCKED
+  const failed = lostStep(passingRecord({ lostView: lostViewRecord({ web, server: { ran: true, row: { id: "c1", anchor_state: "lost", anchor_version_id: "ver-1", anchor_version_no: 2 } } }) }));
+  assert.equal(failed.status, "FAIL");
+});
+
+test("G8-A02 row: desktop PASS with the web part BLOCKED by the old pin -> row BLOCKED (77), never PASS", () => {
+  const web = { status: "BLOCKED", blocker: VIEW_VERSION_BLOCKER, owner: VIEW_VERSION_BLOCKER_OWNER };
+  const d = decideG8A02(passingRecord({ lostView: lostViewRecord({ web }) }));
+  assert.equal(d.steps["check:lost-view-version"].status, "BLOCKED");
+  assert.equal(d.status, "BLOCKED");
+  assert.equal(d.blocker, VIEW_VERSION_BLOCKER);
+  assert.equal(exitCodeFor(d.status), 77);
+});
+
+for (const [label, mutate, pattern] of [
+  ["a Save request during the view", (w) => (w.view.writes = ["POST /api/v1/office-frame/documents/d1/versions/commit"]), /POST .*versions\/commit/],
+  ["a comments.anchors request during the view", (w) => (w.view.writes = ["PUT /api/v1/documents/d1/comments/anchors"]), /PUT .*comments\/anchors/],
+  ["a Save the server log saw during the view", (w) => (w.view.serverLogWrites = ["POST /api/v1/documents/d1/versions/commit"]), /server log.*versions\/commit/],
+  ["no read-only banner", (w) => (w.view.banner = null), /banner/],
+  ["a banner for another version", (w) => (w.view.banner = "You are viewing version 3 (read-only)"), /version 2/],
+  ["the version is unavailable", (w) => (w.view.unavailable = true), /unavailable/],
+  ["the frame never fetched version 2's bytes", (w) => (w.view.contentVersions = []), /bytes of version 2/],
+  ["the frame fetched another version", (w) => (w.view.contentVersions = ["1"]), /bytes of version 2/],
+  ["the thread is not revealed", (w) => (w.view.revealed = false), /not revealed/],
+  ["no switch from ?comment= alone", (w) => (w.landing = { startUrl: "u?comment=c1", finalUrl: "u?comment=c1", switches: [] }), /did not switch/],
+  ["a switch to the wrong version", (w) => (w.landing = { startUrl: "u?comment=c1", finalUrl: "u?version=1&comment=c1", switches: ["u?version=1&comment=c1"] }), /want version=2&comment=c1/],
+  ["a switch that happens twice", (w) => (w.landing.switches = [w.landing.finalUrl, "u?version=2&comment=c1&x=1", w.landing.finalUrl]), /more than once/],
+]) {
+  test(`check:lost-view-version web: ${label} -> FAIL`, () => {
+    const lv = lostViewRecord();
+    mutate(lv.web);
+    const d = lostStep(passingRecord({ lostView: lv }));
+    assert.equal(d.status, "FAIL");
+    assert.match(d.reason, pattern);
+  });
+}
+
+test("check:lost-view-version web: a banner in Vietnamese names the version too; the server log may be missing (browser requests alone judge)", () => {
+  const lv = lostViewRecord();
+  lv.web.view.banner = "Bạn đang xem phiên bản 2 (chỉ đọc)";
+  lv.web.view.serverLogWrites = null;
+  assert.equal(lostStep(passingRecord({ lostView: lv })).status, "PASS");
+  lv.web.view.banner = "Bạn đang xem phiên bản 12 (chỉ đọc)";
+  assert.equal(lostStep(passingRecord({ lostView: lv })).status, "FAIL", "12 is not 2");
+});
+
+for (const [label, mutate, pattern] of [
+  ["the copy is not a @vN copy", (lv) => void (lv.desktop.copyPath = "/wc/doc.xlsx"), /@v2/],
+  ["the copy is editable", (lv) => void (lv.desktop.status = { readOnly: false }), /read-only/],
+  ["the copy reports access edit", (lv) => void (lv.desktop.status = { access: "edit" }), /read-only/],
+  ["the copy's open version id is not the viewed version", (lv) => void (lv.desktop.contextVersionId = "ver-3"), /ver-3, want ver-2/],
+  ["the editor's panel lists but never shows the comment", (lv) => void (lv.desktop.panel = { panels: 1, commentIds: [] }), /panels 1/],
+  ["the copy shows no comments panel at all (panels 0)", (lv) => void (lv.desktop.panel = { panels: 0, commentIds: [] }), /view copy shows no comments panel with the comment \(panels 0\)/],
+  ["the open failed", (lv) => void (lv.desktop = { ran: false, status: "FAIL", reason: "the app opened no @v2 copy" }), /opened no @v2 copy/],
+]) {
+  test(`check:lost-view-version desktop: ${label} -> FAIL`, () => {
+    const lv = lostViewRecord();
+    mutate(lv);
+    const d = lostStep(passingRecord({ lostView: lv }));
+    assert.equal(d.status, "FAIL");
+    assert.match(d.reason, pattern);
+  });
+}
+
+test("check:lost-view-version desktop: what the app cannot report (no read-only flag, no version id, probe errored with no panel data) is recorded, not judged", () => {
+  const lv = lostViewRecord();
+  lv.desktop.status = {};
+  lv.desktop.contextVersionId = null;
+  lv.desktop.panel = null;
+  const d = lostStep(passingRecord({ lostView: lv }));
+  assert.equal(d.status, "PASS", JSON.stringify(d));
+  assert.match(d.note ?? "", /not reported/);
+});
+
+test("check:lost-view-version: no record at all -> FAIL (the step did not run)", () => {
+  const d = decideLostViewVersion(undefined);
+  assert.equal(d.status, "FAIL");
+  assert.match(d.reason, /did not run/);
+});
+
+test("viewVersionPinBlock: the pin at fork 1abc493 and the old protocol sha are BLOCKED by a constant, a pin that holds the T4 commit is not, an unknown newer pin runs", () => {
+  const old = { gitSha: "1abc493", protocolSha: "4e8633643d3bf5e6f14ccb679e39704d0935a362a9b8dfc51bb774f06acfa1c1" };
+  assert.deepEqual(viewVersionPinBlock(old), { status: "BLOCKED", blocker: VIEW_VERSION_BLOCKER, owner: VIEW_VERSION_BLOCKER_OWNER, pin: "1abc493" });
+  assert.equal(VIEW_VERSION_BLOCKER, "frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)");
+  assert.equal(VIEW_VERSION_BLOCKER_OWNER, "g6-fork_ui T6");
+  assert.equal(viewVersionPinBlock({ gitSha: "9999999", protocolSha: "4e8633643d3bf5e6f14ccb679e39704d0935a362a9b8dfc51bb774f06acfa1c1" })?.status, "BLOCKED", "the old protocol sha alone blocks");
+  assert.equal(viewVersionPinBlock({ gitSha: "9999999", protocolSha: "914cc47118663fd7e503d90a9fe57671d7364ab6bbd217d9b927f3d192841664" }), null, "the T4 protocol sha lifts it");
+  assert.equal(viewVersionPinBlock({ gitSha: "abcdef1", protocolSha: "" }, { isAncestor: () => true }), null);
+  assert.equal(viewVersionPinBlock({ gitSha: "abcdef1" }, { isAncestor: (commit) => commit !== "e854a49ae" })?.status, "BLOCKED", "a fork clone that says the T4 commit is not in the pin");
+  assert.equal(viewVersionPinBlock({ gitSha: "abcdef1" }, { isAncestor: () => null }), null, "no answer from the clone: run the real check");
+  assert.equal(viewVersionPinBlock(null)?.status, "BLOCKED");
+});
+
+test("documentWriteRequests: only a Save commit or a comments.anchors write of that document counts, GETs and other posts do not", () => {
+  const dir = mkdtempSync(join(tmpdir(), "g819-log-"));
+  const log = join(dir, "server.log");
+  const line = (method, path, status = 200) => `07:50:04.332 INF http request method=${method} path=${path} status=${status} duration=2.1ms request_id=r-1\n`;
+  writeFileSync(log, line("PUT", "/api/v1/documents/d1/comments/anchors")); // before the offset
+  const offset = readFileSync(log).length;
+  appendFileSync(log, line("GET", "/api/v1/documents/d1/comments"));
+  appendFileSync(log, line("POST", "/api/v1/office-frame/documents/d1/token"));
+  appendFileSync(log, line("POST", "/api/v1/office-frame/documents/d1/versions/commit"));
+  appendFileSync(log, line("PUT", "/api/v1/documents/d1/comments/anchors", 400));
+  appendFileSync(log, line("POST", "/api/v1/documents/d2/versions/commit"));
+  appendFileSync(log, `${JSON.stringify({ method: "POST", path: "/api/v1/documents/d1/versions/commit", status: 201 })}\n`);
+  assert.deepEqual(documentWriteRequests(log, offset, "d1"), [
+    "POST /api/v1/office-frame/documents/d1/versions/commit",
+    "PUT /api/v1/documents/d1/comments/anchors",
+    "POST /api/v1/documents/d1/versions/commit",
+  ]);
+  assert.equal(documentWriteRequests(join(dir, "none.log"), 0, "d1"), null, "no log: null, the browser's own requests judge");
+});
+
+/** A Playwright page that answers goto/evaluate from a script, emitting the events the observer subscribes to. */
+function fakePage({ readAfterGoto, onGoto }) {
+  const handlers = {};
+  let current = "about:blank";
+  const frame = { url: () => current };
+  const page = {
+    on(name, fn) {
+      (handlers[name] ??= []).push(fn);
+    },
+    emit(name, arg) {
+      for (const fn of handlers[name] ?? []) fn(arg);
+    },
+    url: () => current,
+    mainFrame: () => frame,
+    async goto(url) {
+      current = url;
+      page.emit("framenavigated", frame);
+      onGoto?.(page, url);
+    },
+    async evaluate(fn) {
+      return readAfterGoto(current, fn);
+    },
+    setUrl(url) {
+      current = url;
+      page.emit("framenavigated", frame);
+    },
+  };
+  return page;
+}
+
+test("observeVersionView: opens ?version=N&comment=<id>, reads the banner, the frame's bytes request and the panel, then ?comment= alone switches once", async () => {
+  const where = { webOrigin: "http://web", org: "o", ws: "w", documentId: "d1" };
+  const reqs = [];
+  const page = fakePage({
+    onGoto(p, url) {
+      const u = new URL(url);
+      if (u.searchParams.get("version")) {
+        p.emit("request", { method: () => "GET", url: () => `http://web/api/v1/office-frame/documents/d1/content?version=${u.searchParams.get("version")}` });
+        p.emit("response", { request: () => ({ method: () => "GET" }), url: () => `http://web/api/v1/office-frame/documents/d1/content?version=${u.searchParams.get("version")}`, status: () => 200 });
+        reqs.push(url);
+      } else {
+        // the Inbox landing: one replace to the version URL
+        p.setUrl(`http://web/o/w/documents/d1?version=2&comment=${u.searchParams.get("comment")}`);
+      }
+    },
+    readAfterGoto: (url) => ({ banner: url.includes("version=2") ? "You are viewing version 2 (read-only)" : null, unavailable: false, frameState: "ready", highlighted: false }),
+  });
+  const web = { webFrameEval: async () => ({ panels: 1, commentIds: ["c1"] }) };
+  const out = await observeVersionView({ web, page, kind: "sheets", where, commentId: "c1", versionNo: 2, documentId: "d1", serverLog: null, sleep: async () => {}, now: (() => { let t = 0; return () => (t += 100); })() });
+  assert.equal(out.ran, true);
+  assert.match(out.view.url, /version=2/);
+  assert.equal(out.view.banner, "You are viewing version 2 (read-only)");
+  assert.deepEqual(out.view.contentVersions, ["2"]);
+  assert.equal(out.view.revealed, true);
+  assert.deepEqual(out.view.writes, []);
+  assert.equal(out.landing.finalUrl, "http://web/o/w/documents/d1?version=2&comment=c1");
+  assert.equal(out.landing.switches.length, 1);
+  assert.equal(new URL(reqs[0]).searchParams.get("comment"), "c1");
+});
+
+test("observeVersionView: a Save request the browser makes during the view is recorded as a write", async () => {
+  const where = { webOrigin: "http://web", org: "o", ws: "w", documentId: "d1" };
+  const page = fakePage({
+    onGoto(p, url) {
+      if (new URL(url).searchParams.get("version")) p.emit("request", { method: () => "POST", url: () => "http://web/api/v1/office-frame/documents/d1/versions/commit" });
+    },
+    readAfterGoto: () => ({ banner: "You are viewing version 2 (read-only)", unavailable: false, frameState: "ready", highlighted: true }),
+  });
+  const out = await observeVersionView({ web: { webFrameEval: async () => ({ panels: 1, commentIds: [] }) }, page, kind: "sheets", where, commentId: "c1", versionNo: 2, documentId: "d1", serverLog: null, sleep: async () => {}, now: (() => { let t = 0; return () => (t += 100); })() });
+  assert.deepEqual(out.view.writes, ["POST /api/v1/office-frame/documents/d1/versions/commit"]);
+  assert.equal(out.view.revealed, true, "the D pane's highlighted thread also counts");
+});
+
+// ---- the flow through the fakes -------------------------------------------------------------------------
+
+test("runG8A02 (xlsx, fake) after a re-pin: check:lost-view-version reads the lost row, drives the web view and a view ticket on the desktop -> PASS", async () => {
+  const fake = createFakeWorld();
+  const xlsx = scriptXlsxServer(fake);
+  scriptWebDoc(fake, xlsx);
+  const seen = [];
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), {
+    connectApp: fake.app.connectApp,
+    sleep: async () => {},
+    web: fake.web,
+    launchBrowser: async () => fake.browser,
+    ...REPINNED,
+    observeVersionView: async (args) => (seen.push(args), structuredClone(WEB_VIEW_OK)),
+  });
+  assert.equal(record.status, "PASS", JSON.stringify(record.steps, null, 1));
+  assert.equal(record.steps["check:lost-view-version"].status, "PASS");
+  const lv = record.details.lostView;
+  assert.deepEqual(lv.expected, { versionId: "ver-2", versionNo: 2 });
+  assert.equal(lv.server.row.anchor_version_no, 2);
+  assert.equal(lv.desktop.copyPath, "/wc/doc@v2.xlsx");
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].versionNo, 2);
+  assert.equal(seen[0].commentId, "c1");
+  assert.equal(seen[0].documentId, "doc-1");
+  assert.equal(seen[0].kind, "sheets");
+  const view = fake.calls.api.find((c) => c.key === "mintLaunch" && c.args.body.operation === "view");
+  assert.deepEqual({ ...view.args.body }, { operation: "view", version: 2, deployment_id: "dep-1", client_id: view.args.body.client_id, return_hint: "office", comment_id: "c1" });
+  assert.ok(fake.calls.web.some((c) => c.key === "webLogin" && c.args[0] === "A"));
+});
+
+test("runG8A02 (xlsx, fake): the old frame pin BLOCKS the web part of the step without observing a page, the server and desktop parts are still judged", async () => {
+  const fake = createFakeWorld();
+  const xlsx = scriptXlsxServer(fake);
+  scriptWebDoc(fake, xlsx);
+  let observed = 0;
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), {
+    connectApp: fake.app.connectApp,
+    sleep: async () => {},
+    web: fake.web,
+    launchBrowser: async () => fake.browser,
+    observeVersionView: async () => (observed += 1, structuredClone(WEB_VIEW_OK)),
+    framePin: { gitSha: "1abc493", file: "sheets.pin.json", protocolSha: "4e8633643d3bf5e6f14ccb679e39704d0935a362a9b8dfc51bb774f06acfa1c1" },
+    isAncestor: () => true,
+  });
+  assert.equal(observed, 0, "no page is opened for the BLOCKED half");
+  assert.equal(record.steps["check:web-to-desktop"].status, "PASS", "the existing web direction is unaffected (its own R1 rule)");
+  assert.equal(record.steps["check:lost-view-version"].status, "BLOCKED", JSON.stringify(record.steps["check:lost-view-version"]));
+  assert.equal(record.steps["check:lost-view-version"].blocker, VIEW_VERSION_BLOCKER);
+  assert.equal(record.steps["check:lost-view-version"].owner, VIEW_VERSION_BLOCKER_OWNER);
+  assert.equal(record.status, "BLOCKED");
+  assert.equal(record.details.lostView.server.row.anchor_version_no, 2, "the server part ran");
+  assert.equal(record.details.lostView.desktop.copyPath, "/wc/doc@v2.xlsx", "the desktop part ran");
+  assert.equal(record.details.lostView.web.pin, "1abc493");
+});
+
+test("runG8A02 (xlsx, fake): a server that answers no ordinal for the lost row is FAIL on the step, whatever the web and desktop say", async () => {
+  const fake = createFakeWorld();
+  const xlsx = scriptXlsxServer(fake);
+  scriptWebDoc(fake, xlsx);
+  const answer = xlsx.listAnswer;
+  xlsx.listAnswer = (call) => {
+    const res = answer(call);
+    for (const row of res.body.comments) if (row.id === "c1") row.anchor_version_no = null;
+    return res;
+  };
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, web: fake.web, launchBrowser: async () => fake.browser, ...REPINNED });
+  assert.equal(record.steps["check:lost-view-version"].status, "FAIL");
+  assert.match(record.steps["check:lost-view-version"].reason, /anchor_version_no null, want 2/);
+});
+
+test("runG8A02 (xlsx, fake): when remove-lost fails the lost-view step is not run (no view ticket is minted) and is NOT_JUDGED", async () => {
+  const fake = createFakeWorld();
+  const xlsx = scriptXlsxServer(fake);
+  scriptWebDoc(fake, xlsx);
+  // the delete Save never loses the row: the row stays exact
+  const answer = xlsx.listAnswer;
+  xlsx.listAnswer = (call) => {
+    const res = answer(call);
+    for (const row of res.body.comments) if (row.id === "c1" && row.anchor_state === "lost") Object.assign(row, { anchor_state: "exact" });
+    return res;
+  };
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, web: fake.web, launchBrowser: async () => fake.browser, ...REPINNED });
+  assert.equal(record.steps["check:remove-lost"].status, "FAIL");
+  assert.equal(record.steps["check:lost-view-version"].status, "NOT_JUDGED");
+  assert.equal(fake.calls.api.filter((c) => c.key === "mintLaunch" && c.args.body.operation === "view").length, 0);
 });

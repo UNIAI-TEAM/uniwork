@@ -1,5 +1,5 @@
 """uniwork-scribe: one LiveKit Agents job per meeting (spec
-docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md §4.1, ADR 0037).
+docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md §4.1, ADR 0038).
 
 Explicit dispatch only (agent_name set), so the worker never joins a room on
 its own; the server dispatches it with a per-meeting uwma_ token. Per microphone

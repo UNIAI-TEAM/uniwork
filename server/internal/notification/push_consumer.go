@@ -148,11 +148,8 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	}
 	var failed error
 	for _, sub := range subs {
-		// A call rings web and desktop in the page (realtime); its push is for
-		// the backgrounded phone only (spec M3 §2), never a browser banner on top.
-		if n.Kind == KindChatCallIncoming && !isExpoPushToken(sub.Endpoint) {
-			continue
-		}
+		// Calls also reach subscribed browsers whose page is closed. Open pages
+		// with a subscription leave the system banner to this lane to avoid duplicates.
 		err := c.sender.Send(ctx, sub, msg)
 		switch {
 		case err == nil:

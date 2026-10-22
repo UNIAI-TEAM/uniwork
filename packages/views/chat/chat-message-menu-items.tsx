@@ -73,8 +73,13 @@ export const CHAT_DROPDOWN_PARTS: ChatMenuParts = {
 /** The menu's rows, the seen-by row among them: 36px, 10px corners, 18px glyphs (canvas). */
 export const CHAT_MESSAGE_MENU_CLASS = cn(
   "min-w-56 rounded-[14px] p-1.5",
+  // The role menu of a document card is tall: never past the viewport less a 0.5rem margin, scrolling inside (UNI-2012 V1-F8).
+  "max-h-[min(var(--available-height),calc(100dvh-1rem))]",
   "[&>[data-slot$=menu-item]]:min-h-9 [&>[data-slot$=menu-item]]:gap-3 [&>[data-slot$=menu-item]]:rounded-control [&>[data-slot$=menu-item]]:px-2.5",
   "[&>[data-slot$=menu-sub-trigger]]:min-h-9 [&>[data-slot$=menu-sub-trigger]]:gap-3 [&>[data-slot$=menu-sub-trigger]]:rounded-control [&>[data-slot$=menu-sub-trigger]]:px-2.5",
+  // A document card's menu (reactions, five document rows, reply group, follow-up group, delete, seen-by) is ~920px:
+  // on a short viewport the rows tighten to 32px so the whole menu fits instead of cutting the last row.
+  "[@media(max-height:960px)]:[&>[data-slot$=menu-item]]:min-h-8 [@media(max-height:960px)]:[&>[data-slot$=menu-sub-trigger]]:min-h-8",
 );
 
 /** The quick reactions, Telegram's strip at the head of the menu. */
@@ -97,10 +102,19 @@ export type ChatMessageActionHandlers = {
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
   onFollowUp?: (message: ChatMessage) => void;
+  /**
+   * What the message's attachment offers (a document card's role menu),
+   * written once against the parts so the right-click menu and the "…"
+   * dropdown both carry it. One keyed node per entry, null for an entry the
+   * reader does not get; with no entry left the group (and its separator)
+   * is left out.
+   */
+  documentItems?: (parts: ChatMenuParts) => ReactNode[];
 };
 
 /**
- * A message's menu, Telegram's order: the reaction strip, then what you do
+ * A message's menu, Telegram's order: the reaction strip, then what the
+ * attachment offers (a document's own actions), then what you do
  * with the message (reply, thread, edit, copy, pin, forward), then what it
  * becomes in UniWork (follow up, a task), then delete apart, and who has seen
  * your own message last.
@@ -121,6 +135,7 @@ export function ChatMessageMenuItems({
   onCreateTask,
   onLinkTask,
   onFollowUp,
+  documentItems,
 }: ChatMessageActionHandlers & {
   parts: ChatMenuParts;
   message: ChatMessage;
@@ -133,6 +148,7 @@ export function ChatMessageMenuItems({
   const onForward = useContext(ChatForwardContext);
   const mine = new Set(message.myReactions ?? []);
   const workHub = Boolean(onCreateTask || onLinkTask || onFollowUp);
+  const attachment = (documentItems?.(P) ?? []).filter((item) => item != null && item !== false);
   return (
     <>
       {onToggleReaction ? (
@@ -156,6 +172,12 @@ export function ChatMessageMenuItems({
               <FaceSlightlySmilingPlus aria-hidden />
             </P.Item>
           </div>
+          <P.Separator />
+        </>
+      ) : null}
+      {attachment.length > 0 ? (
+        <>
+          {attachment}
           <P.Separator />
         </>
       ) : null}

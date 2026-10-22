@@ -367,6 +367,22 @@ const maxFilterReadableDocuments = 100
 // silently half-answered. Callers that never link into the trash treat
 // trashable as gone.
 func (s *DocumentService) FilterReadableDocuments(ctx context.Context, userID string, documentIDs []string) (map[string]DocumentReadState, error) {
+	return s.filterReadableDocuments(ctx, userID, documentIDs, false)
+}
+
+// FilterReadableDocumentsIgnoringTrash is FilterReadableDocuments for a notice
+// about a trash command (UNI-2056, the verb trashed): its readers are the
+// people who could read the document just before the command, so an archived
+// row is judged without the "a trashed row is found by managers only" step.
+// The organization gate, current shares, stars and visibility still apply, so
+// a person who lost access since is access_lost; a person who administers the
+// row is still trashable, and one who only reads it is readable. A missing row
+// is gone, as before.
+func (s *DocumentService) FilterReadableDocumentsIgnoringTrash(ctx context.Context, userID string, documentIDs []string) (map[string]DocumentReadState, error) {
+	return s.filterReadableDocuments(ctx, userID, documentIDs, true)
+}
+
+func (s *DocumentService) filterReadableDocuments(ctx context.Context, userID string, documentIDs []string, ignoreTrash bool) (map[string]DocumentReadState, error) {
 	out := make(map[string]DocumentReadState, len(documentIDs))
 	if userID == "" {
 		return out, nil
@@ -419,6 +435,14 @@ func (s *DocumentService) FilterReadableDocuments(ctx context.Context, userID st
 			// must not learn the row merely changed state.
 			if !member {
 				out[id] = DocumentGone
+				continue
+			}
+			if ignoreTrash {
+				state, err := s.documentTrashedReadState(ctx, userID, id)
+				if err != nil {
+					return nil, err
+				}
+				out[id] = state
 				continue
 			}
 			trashable, err := s.documentTrashLevel(ctx, userID, id)
@@ -551,4 +575,114 @@ func (s *DocumentService) documentTrashLevel(ctx context.Context, userID, docume
 		return false, err
 	}
 	return access.canAdminister(), nil
+}
+
+// documentTrashedReadState is documentTrashLevel for a notice that names the
+// batch to the people who could read it before the command: a person who
+// administers the trashed row is trashable, one who reads it through the
+// shares, stars and visibility it still has is readable, and one with no read
+// level now is access_lost. The caller has run the organization gate.
+func (s *DocumentService) documentTrashedReadState(ctx context.Context, userID, documentID string) (DocumentReadState, error) {
+	doc, err := s.q.GetDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DocumentGone, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	access, err := s.resolveLevelInTenant(ctx, s.q, Human(userID), doc)
+	if err != nil {
+		if isGateRefusal(err) {
+			return DocumentAccessLost, nil
+		}
+		return "", err
+	}
+	switch {
+	case access.Level == DocumentLevelNone:
+		// A workspace admin of a restricted document administers it by role
+		// (AdminScope) but reads it only through a share: with the share gone
+		// the live gate answers access_lost, and so does this one.
+		return DocumentAccessLost, nil
+	case access.canAdminister():
+		return DocumentTrashable, nil
+	default:
+		return DocumentReadable, nil
+	}
+}
+
+// FilterDocumentReadersIgnoringTrash keeps the people who could read the
+// document before it went to the trash (UNI-2056): the same level rule as
+// FilterDocumentReaders without the "a trashed row is found by managers
+// only" step. Archiving moves only archived_at, so the shares, stars and
+// visibility still answer as they did just before the command.
+func (s *DocumentService) FilterDocumentReadersIgnoringTrash(ctx context.Context, documentID string, userIDs []string) ([]string, error) {
+	out := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		_, _, err := s.authorizeDocumentGate(ctx, s.q, Human(id), documentID, func(_ db.Document, access DocumentAccess) error {
+			if access.Level == DocumentLevelNone {
+				return ErrNotFound
+			}
+			return nil
+		})
+		switch {
+		case err == nil:
+			out = append(out, id)
+		case isGateRefusal(err):
+		default:
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// documentChangeNoticeCap bounds the people a purge records for its
+// document_changed notice. A document with more candidates than this sends
+// no deleted notice at all: the list would bloat an append-only audit row and
+// cost one read gate per person inside the purge's tree lock (BE-R1-4).
+const documentChangeNoticeCap = 200
+
+// documentChangeReadersQ is the audience of a document_changed notice
+// (UNI-2056 §2) read through q: the ACL owner, live user shares and stars
+// besides the actor, kept while they read the document now. The purge calls
+// it inside its own transaction, before the shares and stars are deleted, so
+// it stays cheap there: a private document (restricted, no live share, no
+// live link) has nobody to tell and returns before any gate, and more than
+// documentChangeNoticeCap candidates return none.
+func (s *DocumentService) documentChangeReadersQ(ctx context.Context, q *db.Queries, doc db.Document, actorID string) ([]string, error) {
+	if doc.Visibility != "workspace" {
+		facts, err := q.GetDocumentChangeFacts(ctx, doc.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !facts.HasLiveShare && !facts.HasLiveLink {
+			return nil, nil
+		}
+	}
+	audience, err := q.ListDocumentChangeAudience(ctx, db.ListDocumentChangeAudienceParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{actorID: true}
+	candidates := make([]string, 0, len(audience)+1)
+	for _, id := range append([]string{doc.AclOwnerID.String}, audience...) {
+		if id != "" && !seen[id] {
+			seen[id] = true
+			candidates = append(candidates, id)
+		}
+	}
+	if len(candidates) > documentChangeNoticeCap {
+		slog.Debug("document purge: too many people to tell, deleted notice skipped",
+			"document", doc.ID, "organization", doc.OrganizationID, "workspace", doc.WorkspaceID,
+			"candidates", len(candidates), "cap", documentChangeNoticeCap)
+		return nil, nil
+	}
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+	return s.FilterDocumentReadersQ(ctx, q, doc.ID, candidates)
 }

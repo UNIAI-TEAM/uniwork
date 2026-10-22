@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { copyText } from "@uniwork/ui/lib/clipboard";
+import { AskUniFocusButton } from "../../../ai/ask-uni-focus-button";
 import { PinToggleButton } from "../../../common/pin-toggle-button";
 import { useNavigation } from "../../../navigation";
 import { toastApiError } from "../../../toast-api-error";
@@ -101,6 +102,7 @@ export function TaskDetailHeaderActions({
   return (
     <>
       <TaskDetailThreadNav workspaceId={workspaceId} taskId={task.id} />
+      <AskUniFocusButton kind="task" id={task.id} title={task.title} workspaceId={workspaceId} />
       <PinToggleButton
         workspaceId={workspaceId}
         itemType="task"

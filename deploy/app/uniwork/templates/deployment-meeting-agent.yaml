@@ -5,7 +5,7 @@
 {{- if not $ma.egress.livekit.cidrs }}
 {{- fail "meetingAgent.egress.livekit.cidrs is required: every address meetingAgent.livekitUrl resolves to (runbook MeetingScribeCannotJoin)" }}
 {{- end }}
-# The AI scribe (apps/meeting-agent, ADR 0037): LiveKit Agents worker, one job
+# The AI scribe (apps/meeting-agent, ADR 0038): LiveKit Agents worker, one job
 # per meeting, explicit dispatch only. Spec 2026-10-20-meeting-scribe-agent-design §4.6.
 apiVersion: apps/v1
 kind: Deployment

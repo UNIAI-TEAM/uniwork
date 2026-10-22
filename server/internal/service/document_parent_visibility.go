@@ -7,8 +7,9 @@ import (
 )
 
 // A document is shown on its own on a reader's side, never inside someone
-// else's folder (UNI-1974): a folder is a private container, so a row whose
-// parent folder the reader does not list carries no parent_id. The server is
+// else's folder (UNI-1974): a folder in another member's My Folder is private,
+// so a row whose parent folder the reader does not list carries no parent_id,
+// while a workspace folder keeps its documents' parent_id (ADR 0037 §9). The server is
 // the authority; a client that groups rows by folder finds nothing to group
 // by. Only folder parents are masked - a page's children keep their parent.
 

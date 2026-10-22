@@ -26,8 +26,9 @@ import (
 
 // agentItem is one thing a tool found. Key is its identity across a
 // conversation, the Href, so the same task keeps its S# on every turn. An
-// error item has Kind "error", no Key, and Text "error: <code>".
-type agentItem struct{ Kind, Key, Title, Href, Text string }
+// error item has Kind "error", no Key, and Text "error: <code>". Body is the
+// object's own words within Text, without the field lines: what a citation quotes.
+type agentItem struct{ Kind, Key, Title, Href, Text, Body string }
 
 // agentTool is a read tool the agent loop runs itself: Handle stays nil.
 type agentTool struct {
@@ -222,7 +223,7 @@ func sourceItem(src ai.Source) agentItem {
 	if id := sourceObjectID(src.Kind, src.Href); id != "" {
 		text = withText("ID: "+id, src.Excerpt)
 	}
-	return agentItem{Kind: src.Kind, Key: src.Href, Title: src.Title, Href: src.Href, Text: text}
+	return agentItem{Kind: src.Kind, Key: src.Href, Title: src.Title, Href: src.Href, Text: text, Body: src.Excerpt}
 }
 
 // sourceObjectID is the id at the end of a source's href ("…/tasks/<id>",
@@ -291,7 +292,7 @@ func (s *AskUNIService) taskItem(l taskLabels, t McpTask, text string) agentItem
 	fields := fmt.Sprintf("Ref: %s\nStatus: %s\nPriority: %s\nDue: %s\nAssignee: %s\nProject: %s",
 		l.ref(t), t.Status, orNone(t.Priority), orNone(t.DueDate), nameOf(l.names, t.AssigneeID), project)
 	h := s.href(t.URL)
-	return agentItem{Kind: "task", Key: h, Title: t.Title, Href: h, Text: withText(fields, text)}
+	return agentItem{Kind: "task", Key: h, Title: t.Title, Href: h, Text: withText(fields, text), Body: text}
 }
 
 func (s *AskUNIService) agentListTasks(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {
@@ -353,7 +354,7 @@ func (s *AskUNIService) agentGetTask(ctx context.Context, tc ai.ToolContext, raw
 func (s *AskUNIService) meetingItem(names map[string]string, m McpMeeting, extra, text string) agentItem {
 	fields := fmt.Sprintf("ID: %s\nStatus: %s\nStarts: %s\nEnds: %s\nHost: %s%s", m.ID, m.Status, orNone(m.StartsAt), orNone(m.EndsAt), nameOf(names, m.HostUserID), extra)
 	h := s.href(m.URL)
-	return agentItem{Kind: "meeting", Key: h, Title: m.Title, Href: h, Text: withText(fields, text)}
+	return agentItem{Kind: "meeting", Key: h, Title: m.Title, Href: h, Text: withText(fields, text), Body: text}
 }
 
 func (s *AskUNIService) agentListMeetings(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {
@@ -428,7 +429,7 @@ func (s *AskUNIService) projectItem(names map[string]string, p McpProject, text 
 	fields := fmt.Sprintf("ID: %s\nStatus: %s\nPriority: %s\nDue: %s\nLead: %s\nTask count: %d (%d done)",
 		p.ID, p.Status, orNone(p.Priority), orNone(p.DueDate), nameOf(names, p.LeadID), p.TaskCount, p.DoneCount)
 	h := s.href(p.URL)
-	return agentItem{Kind: "project", Key: h, Title: p.Title, Href: h, Text: withText(fields, text)}
+	return agentItem{Kind: "project", Key: h, Title: p.Title, Href: h, Text: withText(fields, text), Body: text}
 }
 
 func (s *AskUNIService) agentListProjects(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {
@@ -503,7 +504,7 @@ func (s *AskUNIService) agentGetDocument(ctx context.Context, tc ai.ToolContext,
 		fields += "\nNote: " + d.Note
 	}
 	h := s.href(d.URL)
-	return []agentItem{{Kind: "document", Key: h, Title: d.Title, Href: h, Text: withText(fields, d.Content)}}, nil
+	return []agentItem{{Kind: "document", Key: h, Title: d.Title, Href: h, Text: withText(fields, d.Content), Body: d.Content}}, nil
 }
 
 // roomTitle is what the sidebar calls a room: its name, else the dm peer's.
@@ -584,7 +585,8 @@ func (s *AskUNIService) agentReadChatRoom(ctx context.Context, tc ai.ToolContext
 		return nil, err
 	}
 	h := base + "/chat?room=" + a.RoomID
-	return []agentItem{{Kind: "chat", Key: h, Title: title, Href: h, Text: strings.TrimSuffix(b.String(), "\n")}}, nil
+	text := strings.TrimSuffix(b.String(), "\n")
+	return []agentItem{{Kind: "chat", Key: h, Title: title, Href: h, Text: text, Body: text}}, nil
 }
 
 func (s *AskUNIService) agentListMembers(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {

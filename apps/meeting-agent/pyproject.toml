@@ -1,7 +1,7 @@
 [project]
 name = "uniwork-meeting-agent"
 version = "0.1.0"
-description = "UniWork AI scribe: one LiveKit agent job per meeting (ADR 0037)"
+description = "UniWork AI scribe: one LiveKit agent job per meeting (ADR 0038)"
 requires-python = ">=3.13"
 
 [tool.ruff]

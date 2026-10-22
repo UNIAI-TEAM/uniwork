@@ -192,6 +192,38 @@ func (q *Queries) FileGCChatRoomAvatarRefTenants(ctx context.Context, fileIds []
 	return items, nil
 }
 
+const fileGCChatRoomWallpaperRefTenants = `-- name: FileGCChatRoomWallpaperRefTenants :many
+SELECT r.wallpaper_file_id AS file_id, r.organization_id
+FROM chat_rooms r
+WHERE r.wallpaper_file_id = ANY($1::text[])
+`
+
+type FileGCChatRoomWallpaperRefTenantsRow struct {
+	FileID         pgtype.Text `json:"file_id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// tenant: system
+func (q *Queries) FileGCChatRoomWallpaperRefTenants(ctx context.Context, fileIds []string) ([]FileGCChatRoomWallpaperRefTenantsRow, error) {
+	rows, err := q.db.Query(ctx, fileGCChatRoomWallpaperRefTenants, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileGCChatRoomWallpaperRefTenantsRow{}
+	for rows.Next() {
+		var i FileGCChatRoomWallpaperRefTenantsRow
+		if err := rows.Scan(&i.FileID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const fileGCChatVoiceRecordingRefTenants = `-- name: FileGCChatVoiceRecordingRefTenants :many
 SELECT r.file_id, r.organization_id
 FROM chat_voice_recordings r
@@ -354,6 +386,39 @@ func (q *Queries) FileGCDocumentAssetRefTenants(ctx context.Context, fileIds []s
 	items := []FileGCDocumentAssetRefTenantsRow{}
 	for rows.Next() {
 		var i FileGCDocumentAssetRefTenantsRow
+		if err := rows.Scan(&i.FileID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const fileGCDocumentDownloadJobRefTenants = `-- name: FileGCDocumentDownloadJobRefTenants :many
+SELECT j.file_id, j.organization_id
+FROM document_download_jobs j
+WHERE j.file_id = ANY($1::text[])
+`
+
+type FileGCDocumentDownloadJobRefTenantsRow struct {
+	FileID         pgtype.Text `json:"file_id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// tenant: system
+// document_download_jobs.file_id: the row carries its tenant.
+func (q *Queries) FileGCDocumentDownloadJobRefTenants(ctx context.Context, fileIds []string) ([]FileGCDocumentDownloadJobRefTenantsRow, error) {
+	rows, err := q.db.Query(ctx, fileGCDocumentDownloadJobRefTenants, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileGCDocumentDownloadJobRefTenantsRow{}
+	for rows.Next() {
+		var i FileGCDocumentDownloadJobRefTenantsRow
 		if err := rows.Scan(&i.FileID, &i.OrganizationID); err != nil {
 			return nil, err
 		}

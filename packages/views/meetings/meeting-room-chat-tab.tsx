@@ -9,7 +9,7 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../toast-api-error";
 import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, chatBubbleShape } from "../chat/chat-message-row";
-import { CHAT_WALL } from "../chat/chat-wall";
+import { useChatWall } from "../chat/use-chat-wall";
 import { formatMessageDay, formatMessageTime, messageDayKey } from "../chat/chat-message-time";
 import { senderNameClass } from "../chat/sender-colors";
 import { groupChatMessages, type MeetingChatGroup, type MeetingChatItem } from "./meeting-chat";
@@ -75,6 +75,7 @@ function MeetingRoomChatView({
   older?: ChatOlderState;
 }) {
   const { t, i18n } = useTranslation();
+  const chatWall = useChatWall();
   const [draft, setDraft] = useState("");
   const avatarOf = useRoomAvatarOf();
   const listRef = useRef<HTMLOListElement>(null);
@@ -136,7 +137,8 @@ function MeetingRoomChatView({
       <ol
         ref={listRef}
         // The chat bubbles are white for others: they need the chat wall behind them.
-        className={cn("min-h-0 w-full flex-1 space-y-4 overflow-y-auto overscroll-contain rounded-xl p-2", CHAT_WALL)}
+        className={cn("min-h-0 w-full flex-1 space-y-4 overflow-y-auto overscroll-contain rounded-xl p-2", chatWall.className)}
+        style={chatWall.style}
         onScroll={(e) => {
           const el = e.currentTarget;
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD;

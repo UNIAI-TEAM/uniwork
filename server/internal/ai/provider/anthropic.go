@@ -23,7 +23,8 @@ func NewAnthropic(apiKey string) *Anthropic {
 
 func (a *Anthropic) Name() string { return "anthropic" }
 
-func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (CompletionResponse, error) {
+// params builds the Messages request shared by Complete and Stream.
+func (a *Anthropic) params(req CompletionRequest) (anthropic.MessageNewParams, error) {
 	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(req.Model),
 		MaxTokens: int64(req.MaxTokens),
@@ -53,7 +54,7 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 		case m.Role == "assistant" && len(m.Raw) > 0:
 			var turn anthropic.MessageParam
 			if err := json.Unmarshal(m.Raw, &turn); err != nil {
-				return CompletionResponse{}, fmt.Errorf("anthropic: replay assistant turn: %w", err)
+				return params, fmt.Errorf("anthropic: replay assistant turn: %w", err)
 			}
 			params.Messages = append(params.Messages, turn)
 		case m.Role == "assistant":
@@ -84,7 +85,7 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 			for _, p := range m.Parts {
 				b, err := anthropicPart(p)
 				if err != nil {
-					return CompletionResponse{}, err
+					return params, err
 				}
 				blocks = append(blocks, b)
 			}
@@ -114,18 +115,37 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 			}
 		}
 	}
-	resp, err := a.client.Messages.New(ctx, params)
+	return params, nil
+}
+
+func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (CompletionResponse, error) {
+	params, err := a.params(req)
 	if err != nil {
-		var apiErr *anthropic.Error
-		if errors.As(err, &apiErr) {
-			se := &StatusError{Status: apiErr.StatusCode, Detail: snippet([]byte(apiErr.RawJSON())), Err: err}
-			if apiErr.Response != nil {
-				se.RetryAfter = retryAfter(apiErr.Response.Header, time.Now())
-			}
-			return CompletionResponse{}, se
-		}
 		return CompletionResponse{}, err
 	}
+	resp, err := a.client.Messages.New(ctx, params)
+	if err != nil {
+		return CompletionResponse{}, anthropicError(err)
+	}
+	return anthropicResponse(req, resp)
+}
+
+// anthropicError wraps an SDK API error as a *StatusError.
+func anthropicError(err error) error {
+	var apiErr *anthropic.Error
+	if errors.As(err, &apiErr) {
+		se := &StatusError{Status: apiErr.StatusCode, Detail: snippet([]byte(apiErr.RawJSON())), Err: err}
+		if apiErr.Response != nil {
+			se.RetryAfter = retryAfter(apiErr.Response.Header, time.Now())
+		}
+		return se
+	}
+	return err
+}
+
+// anthropicResponse turns a finished (or accumulated) message into the
+// provider response, applying the refusal and truncation rules.
+func anthropicResponse(req CompletionRequest, resp *anthropic.Message) (CompletionResponse, error) {
 	out := CompletionResponse{
 		Model:      string(resp.Model),
 		StopReason: string(resp.StopReason),

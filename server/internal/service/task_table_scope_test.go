@@ -136,3 +136,65 @@ func TestTableIsolatesOrganizations(t *testing.T) {
 		t.Fatalf("cross-org rows err = %v, want forbidden", err)
 	}
 }
+
+func TestTableRelationMatchesMyTasks(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	actorA, actorB := Human(ua.ID), Human(ub.ID)
+	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, s.q, w.ID, ub.ID)
+
+	mkTask(t, s, actorA, w.ID, CreateTaskInput{Title: "assigned to A", AssigneeID: &ua.ID, AssigneeKind: "human"})
+	mkTask(t, s, actorA, w.ID, CreateTaskInput{Title: "created by A"})
+	mkTask(t, s, actorB, w.ID, CreateTaskInput{Title: "B assigns A", AssigneeID: &ua.ID, AssigneeKind: "human"})
+	mkTask(t, s, actorB, w.ID, CreateTaskInput{Title: "B's own", AssigneeID: &ub.ID, AssigneeKind: "human"})
+
+	for _, relation := range []string{"all", "assigned", "created", "involved"} {
+		want, err := s.ListMyTasks(ctx, actorA, w.ID, TaskQuery{Relation: relation})
+		if err != nil {
+			t.Fatal(err)
+		}
+		in := TableQueryInput{Filter: tableFilter(func(f *tablequery.Filter) { f.Relation = relation })}
+		rows, err := s.TableRows(ctx, actorA, w.ID, TableRowsInput{TableQueryInput: in, Limit: 50})
+		if err != nil {
+			t.Fatalf("%s rows: %v", relation, err)
+		}
+		if rows.Total != want.Total || len(rows.Rows) != len(want.Tasks) {
+			t.Fatalf("%s: table total=%d rows=%d, my-tasks total=%d tasks=%d", relation, rows.Total, len(rows.Rows), want.Total, len(want.Tasks))
+		}
+		groups, err := s.TableGroups(ctx, actorA, w.ID, in)
+		if err != nil {
+			t.Fatalf("%s groups: %v", relation, err)
+		}
+		if groups.Total != want.Total {
+			t.Fatalf("%s: groups total=%d, my-tasks total=%d", relation, groups.Total, want.Total)
+		}
+	}
+}
+
+func TestTableRelationActorComesFromTheSession(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, s.q, w.ID, ub.ID)
+	mkTask(t, s, Human(ub.ID), w.ID, CreateTaskInput{Title: "B's", AssigneeID: &ub.ID, AssigneeKind: "human"})
+
+	// A client cannot name the viewer: the service overwrites ActorID.
+	in := TableQueryInput{Filter: tableFilter(func(f *tablequery.Filter) { f.Relation = "all"; f.ActorID = ub.ID })}
+	rows, err := s.TableRows(ctx, Human(ua.ID), w.ID, TableRowsInput{TableQueryInput: in, Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows.Total != 0 || len(rows.Rows) != 0 {
+		t.Fatalf("A saw B's tasks through a spoofed ActorID: total=%d", rows.Total)
+	}
+}
+
+func TestTableRelationRejectsUnknownValue(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	in := TableQueryInput{Filter: tableFilter(func(f *tablequery.Filter) { f.Relation = "everyone" })}
+	_, err := s.TableGroups(context.Background(), Human(ua.ID), w.ID, in)
+	if !codedIs(err, "invalid_relation") {
+		t.Fatalf("err = %v, want invalid_relation", err)
+	}
+}

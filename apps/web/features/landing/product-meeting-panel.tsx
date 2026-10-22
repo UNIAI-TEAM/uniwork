@@ -7,7 +7,7 @@ import { Send, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { AskUniMessageTurn } from "@uniwork/views/ai/ask-uni-panel";
+import { AskUniMessageTurn } from "@uniwork/views/ai/ask-uni-legacy-panel";
 import { MeetingPersonAvatar } from "@uniwork/views/meetings/meeting-person";
 import { MeetingUnderlineTabs } from "@uniwork/views/meetings/meeting-underline-tabs";
 import { MeetingCopilotHeader } from "@uniwork/views/meetings/meeting-copilot/meeting-copilot-header";

@@ -6,6 +6,8 @@ import { usePageExportUnavailable } from "@uniwork/core/documents/hooks";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import type { User, Workspace } from "@uniwork/core/types";
+import { useAiPanelStore } from "@uniwork/core/ai";
+import { capabilities } from "../ai/ask-uni-fixtures";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwork/core/feature-flags";
@@ -13,6 +15,7 @@ import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsFill, HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { DocumentActionsMenu } from "./document-actions-menu";
 import { DocumentFileMenuItems, type DocumentFileActions } from "./document-file-actions";
+import { DocumentHeaderActions } from "./document-header-actions";
 import { DocumentCommentsHeaderActions, DocumentCommentsProvider, documentCommentsTitleKey } from "./document-comments-context";
 
 const { t } = initI18n();
@@ -146,6 +149,41 @@ describe("DocumentActionsMenu with an embedded editor", () => {
     expect(comments).toHaveClass("sm:hidden");
     fireEvent.click(comments);
     await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "true"));
+  });
+});
+
+describe("DocumentHeaderActions", () => {
+  function mount(flags: Record<string, { default: boolean }>) {
+    requestMock.mockImplementation((path: unknown) =>
+      Promise.resolve(String(path).endsWith("/ai/capabilities") ? capabilities() : {}),
+    );
+    useAiPanelStore.setState({ open: false, pendingFocus: null });
+    const doc = documentFixture();
+    const service = new FeatureFlagService(new StaticProvider({ ask_uni_stream: { default: true }, ...flags }));
+    render(
+      wrapWithNav(
+        <FeatureFlagsProvider service={service}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <DocumentCommentsProvider wsId={WS} doc={doc}>
+              <DocumentHeaderActions />
+            </DocumentCommentsProvider>
+          </WorkspaceProvider>
+        </FeatureFlagsProvider>,
+      ),
+    );
+    return doc;
+  }
+
+  it("opens Ask UNI focused on this document", async () => {
+    const doc = mount({ documents: { default: true } });
+    fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về tài liệu này" }));
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "document", id: doc.id, label: doc.title });
+  });
+
+  it("still shows Ask UNI when comments are disabled", async () => {
+    const doc = mount({ documents: { default: false } });
+    expect(await screen.findByRole("button", { name: "Hỏi UNI về tài liệu này" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t(documentCommentsTitleKey(doc)) })).toBeNull();
   });
 });
 
@@ -596,5 +634,18 @@ describe("DocumentActionsMenu page export (UNI-2004)", () => {
     renderWithFlags(documentFixture(), { page_export: { default: true } });
     await openMenu();
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeNull();
+  });
+});
+
+describe("DocumentActionsMenu ?panel=versions (UNI-2012)", () => {
+  it("opens the version history for any reader, then drops the parameter", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith("/api/v1/documents/d1/versions")) return Promise.resolve({ versions: [], next_cursor: null });
+      return Promise.resolve({});
+    });
+    const nav = fakeNav("/acme/team/documents/d1?panel=versions");
+    renderMenu(documentFixture({ my_level: "view" }), { nav });
+    expect(await screen.findByText(t("documents.versions.title"))).toBeInTheDocument();
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1"));
   });
 });

@@ -135,9 +135,9 @@ func renderMinutes(f minutesFacts, n minutesNarrative, l minutesLayout) string {
 		when += " (" + f.Zone + ")"
 	}
 	line("- " + l.TimeLabel + ": " + when + ", " + f.Date)
-	line("- " + l.HostLabel + ": " + mdEscape(f.Host))
+	line("- " + l.HostLabel + ": " + minutesEscape(f.Host))
 	if len(f.Secretaries) > 0 {
-		line("- " + l.SecretaryLabel + ": " + mdEscape(strings.Join(f.Secretaries, ", ")))
+		line("- " + l.SecretaryLabel + ": " + minutesEscape(strings.Join(f.Secretaries, ", ")))
 	}
 
 	if a := f.Attendance; a != nil {
@@ -159,13 +159,13 @@ func renderMinutes(f minutesFacts, n minutesNarrative, l minutesLayout) string {
 		line("")
 		for _, status := range attendanceOrder {
 			if names := a.NamesByStatus[status]; len(names) > 0 {
-				line("- " + l.StatusNames[status] + ": " + mdEscape(strings.Join(names, ", ")))
+				line("- " + l.StatusNames[status] + ": " + minutesEscape(strings.Join(names, ", ")))
 			}
 		}
 	} else if len(f.Invited) > 0 {
 		section(l.Invited)
 		for _, name := range f.Invited {
-			line("- " + mdEscape(name))
+			line("- " + minutesEscape(name))
 		}
 	}
 
@@ -216,7 +216,7 @@ func renderMinutes(f minutesFacts, n minutesNarrative, l minutesLayout) string {
 	}
 
 	line("")
-	footer := l.AuthorLabel + ": " + mdEscape(f.Author)
+	footer := l.AuthorLabel + ": " + minutesEscape(f.Author)
 	if f.CreatedOn != f.Date {
 		footer += " · " + l.CreatedLabel + ": " + f.CreatedOn
 	}
@@ -224,9 +224,9 @@ func renderMinutes(f minutesFacts, n minutesNarrative, l minutesLayout) string {
 	return b.String()
 }
 
-// mdEscape keeps a typed name or title literal: Markdown punctuation is
+// minutesEscape keeps a typed name or title literal: Markdown punctuation is
 // escaped and line breaks fold into spaces.
-func mdEscape(s string) string {
+func minutesEscape(s string) string {
 	var b strings.Builder
 	for _, r := range oneLine(s) {
 		if strings.ContainsRune("\\`*_[]()<>#|!~", r) {
@@ -260,5 +260,5 @@ func mdCell(s string) string {
 	if strings.TrimSpace(s) == "" {
 		return "—"
 	}
-	return mdEscape(s)
+	return minutesEscape(s)
 }

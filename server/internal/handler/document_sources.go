@@ -40,6 +40,11 @@ func (h *handlers) listDocumentSources(w http.ResponseWriter, r *http.Request) {
 	in := service.DocumentSourceFilter{
 		Source: q.Get("source"), Type: q.Get("type"), Q: q.Get("q"), Cursor: strings.TrimSpace(q.Get("cursor")),
 	}
+	sort, ok := documentSortInput(w, q, "")
+	if !ok {
+		return
+	}
+	in.Sort = sort
 	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil || n <= 0 {

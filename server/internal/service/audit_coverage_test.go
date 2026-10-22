@@ -1114,6 +1114,32 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if n != 2 {
 				t.Fatalf("document.shared rows after ShareDocument + ShareDocumentBatch = %d, want 2", n)
 			}
+			// SendDocumentLinkMessage (UNI-2012 D5) writes one row for the
+			// grants its message gives, on a restricted page the member
+			// cannot read yet.
+			linkDocID := util.NewID()
+			insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+				"id": linkDocID, "organization_id": f.orgID, "workspace_id": f.workspace.ID, "visibility": "restricted",
+				"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+			}))
+			chat := NewChatService(f.pool, f.q, f.ws, &capturePublisher{})
+			chat.SetDocuments(svc)
+			dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.workspace.ID, f.member.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := chat.SendDocumentLinkMessage(f.ctx, f.owner.ID, f.workspace.ID, dm.ID,
+				SendDocumentLinkInput{DocumentID: linkDocID, ShareLevel: "comment"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, audit.ActionDocumentShared, linkDocID,
+			).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			if n != 1 {
+				t.Fatalf("document.shared rows after SendDocumentLinkMessage = %d, want 1", n)
+			}
 		},
 		audit.ActionDocumentsAccessReportExported: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
@@ -1123,6 +1149,45 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 			if _, err := svc.ExportDocumentAccessReport(f.ctx, Human(f.owner.ID), d.WorkspaceID, DocumentAccessReportQuery{}, AccessReportFormatCSV, io.Discard); err != nil {
 				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentsDownloadJobCreated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			d, err := f.q.GetDocumentByID(f.ctx, docID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CreateDocumentDownloadJob(f.ctx, Human(f.owner.ID), d.WorkspaceID, []string{docID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentsFolderUploadPlanned: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			svc.SetFiles(filesfake.New(filesfake.Options{}))
+			d, err := f.q.GetDocumentByID(f.ctx, docID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CreateFolderUpload(f.ctx, Human(f.owner.ID), d.WorkspaceID, CreateFolderUploadInput{
+				RootName: "Audit folder", Folders: []string{"a"}, IdempotencyKey: "audit-folder-upload",
+				Files: []FolderUploadFileInput{{FileKey: "k1", Path: "a", Filename: "x.md", SizeBytes: 3}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentsFolderUploadCanceled: func(t *testing.T, f *auditFixture) {
+			svc, workspaceID, batchID := f.openFolderUpload(t, "audit-folder-cancel")
+			if _, err := svc.CancelFolderUpload(f.ctx, Human(f.owner.ID), workspaceID, batchID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentsFolderUploadExpired: func(t *testing.T, f *auditFixture) {
+			svc, _, batchID := f.openFolderUpload(t, "audit-folder-expire")
+			if _, err := f.pool.Exec(f.ctx, `UPDATE document_folder_uploads SET expires_at = now() - interval '1 minute' WHERE id = $1`, batchID); err != nil {
+				t.Fatal(err)
+			}
+			if n, err := svc.SweepFolderUploads(f.ctx); err != nil || n == 0 {
+				t.Fatalf("SweepFolderUploads = %d, err = %v", n, err)
 			}
 		},
 		audit.ActionDocumentShareRevoked: func(t *testing.T, f *auditFixture) {
@@ -1207,9 +1272,17 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			// UNI-1974: the folders-unshare clean-up closes a legacy workspace
-			// folder through the same writer, as the system actor.
+			// UNI-1974: the folders-unshare clean-up closes a workspace-visible
+			// folder through the same writer, as the system actor - since ADR
+			// 0037 only one its location says is restricted (in a My Folder).
+			mf, _, err := svc.EnsureMyFolder(f.ctx, Human(f.owner.ID), f.workspace.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
 			folder := f.legacySharedFolder(t)
+			if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET parent_id = $1 WHERE id = $2`, mf.Document.ID, folder); err != nil {
+				t.Fatal(err)
+			}
 			if _, err := svc.UnshareFolders(f.ctx, false, 0); err != nil {
 				t.Fatal(err)
 			}
@@ -1328,6 +1401,38 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			svc, docID := f.document(t)
 			if _, err := svc.MoveDocument(f.ctx, Human(f.owner.ID), docID, MoveDocumentInput{ParentID: "", Revision: 1}); err != nil {
 				t.Fatal(err)
+			}
+			// UNI-2055 S3: the folders-into-my-folder pass moves a private
+			// folder into its owner's My Folder as the system actor.
+			folder := f.privateRootFolder(t)
+			rep, err := svc.MoveFoldersIntoMyFolder(f.ctx, false, 0, f.orgID)
+			if err != nil || rep.MovedFolders != 1 {
+				t.Fatalf("MoveFoldersIntoMyFolder = %+v, err = %v", rep, err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND actor_kind = 'system' AND actor_id = 'folder-ws-public' AND metadata::jsonb->>'reason' = 'folders_into_my_folder'`,
+				audit.ActionDocumentMoved, folder).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("MoveFoldersIntoMyFolder wrote %d document.moved rows (%v), want 1", n, err)
+			}
+			// UNI-2055 S2: trashing a workspace folder moves a document the
+			// actor cannot manage to the workspace root (reason folder_trashed).
+			f.addMember(t)
+			wsFolder, err := svc.CreatePage(f.ctx, Human(f.member.ID), f.workspace.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục chung"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			owners, err := svc.CreatePage(f.ctx, Human(f.owner.ID), f.workspace.ID, CreatePageInput{ParentID: wsFolder.Document.ID, Title: "Trang riêng"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.member.ID), wsFolder.Document.ID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata::jsonb->>'reason' = $3 AND metadata::jsonb->>'from_folder_id' = $4`,
+				audit.ActionDocumentMoved, owners.Document.ID, audit.ReasonFolderTrashed, wsFolder.Document.ID).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("folder trash wrote %d folder_trashed document.moved rows (%v), want 1", n, err)
 			}
 		},
 		audit.ActionDocumentArchived: func(t *testing.T, f *auditFixture) {
@@ -2419,6 +2524,26 @@ func (f *auditFixture) documentEditHold(t *testing.T) (*DocumentService, string,
 	return svc, docID, l.Lock.ID, sid
 }
 
+// openFolderUpload plans a one-file folder upload as the owner and answers the
+// service, the workspace and the open batch (UNI-2052).
+func (f *auditFixture) openFolderUpload(t *testing.T, key string) (*DocumentService, string, string) {
+	t.Helper()
+	svc, docID := f.document(t)
+	svc.SetFiles(filesfake.New(filesfake.Options{}))
+	d, err := f.q.GetDocumentByID(f.ctx, docID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := svc.CreateFolderUpload(f.ctx, Human(f.owner.ID), d.WorkspaceID, CreateFolderUploadInput{
+		RootName: "Audit folder", Folders: []string{"a"}, IdempotencyKey: key,
+		Files: []FolderUploadFileInput{{FileKey: "k1", Path: "a", Filename: "x.md", SizeBytes: 3}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc, d.WorkspaceID, b.ID
+}
+
 // documentAccessRequest is a restricted document the member cannot read and
 // the request they sent its ACL owner (DOC-07). It answers the service, the
 // document id and the pending request id, so a case can decide the request.
@@ -2488,6 +2613,19 @@ func (f *auditFixture) legacySharedFolder(t *testing.T) string {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	return id
+}
+
+// privateRootFolder inserts a private folder at the workspace root, the shape
+// the folders-into-my-folder pass moves.
+func (f *auditFixture) privateRootFolder(t *testing.T) string {
+	t.Helper()
+	id := util.NewID()
+	insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+		"id": id, "organization_id": f.orgID, "workspace_id": f.workspace.ID, "kind": "folder",
+		"visibility": "restricted", "title": "Thư mục riêng",
+		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+	}))
 	return id
 }
 

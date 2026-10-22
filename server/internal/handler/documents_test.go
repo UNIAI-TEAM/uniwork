@@ -34,6 +34,12 @@ type docsWorld struct {
 	orgID    string
 	wsID     string
 	outsider string
+	// pool seeds rows no route can create fast enough (UNI-2012 S1c: a
+	// batch share past the plan's member quota).
+	pool *pgxpool.Pool
+	// files is the in-memory FileService the document service runs on, for
+	// tests that seed an avatar or a file.
+	files *filesfake.Fake
 }
 
 // docsPNG is a valid 1x1 PNG: the document layer decodes the image header,
@@ -57,7 +63,8 @@ func newDocsWorld(t *testing.T) *docsWorld {
 	q := db.New(pool)
 	docs := service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)
 	docs.SetEntitlements(service.NewEntitlementService(pool, q))
-	docs.SetFiles(filesfake.New(filesfake.Options{}))
+	fakeFiles := filesfake.New(filesfake.Options{})
+	docs.SetFiles(fakeFiles)
 	// office_sync_write (G5-07) reads through the same evaluator as the routes.
 	if d.FeatureFlags != nil {
 		docs.SetFlags(d.FeatureFlags)
@@ -81,7 +88,7 @@ func newDocsWorld(t *testing.T) *docsWorld {
 		testFlagOverrides.Invalidate()
 	}
 
-	w := &docsWorld{srv: srv}
+	w := &docsWorld{srv: srv, pool: pool, files: fakeFiles}
 	w.token, w.userID = filesRegister(t, srv, "docs-owner@example.com")
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "Docs Org", "slug": "docs-org"})
 	if res.StatusCode != 201 {

@@ -108,6 +108,11 @@ type Request struct {
 	// caller wrote (not ToolResultTurn), without rendering the prompt: the
 	// agent's reminder turn after a tool round.
 	Continuation bool
+	// OnDelta, when set and the provider can stream, receives the model's
+	// text as it arrives, raw (the caller strips untrusted tags on the text
+	// it accumulates; a tag may span two deltas). A provider that cannot
+	// stream sends the whole text once, after the call.
+	OnDelta func(text string)
 }
 
 type Response struct {
@@ -158,6 +163,9 @@ type Gateway struct {
 func NewGateway(q *db.Queries, p provider.Provider, quota Quota, rec *audit.Recorder, opts Options) *Gateway {
 	if opts.Timeout <= 0 {
 		opts.Timeout = 60 * time.Second
+	}
+	if opts.StreamTimeout <= 0 {
+		opts.StreamTimeout = 120 * time.Second
 	}
 	return &Gateway{q: q, p: p, quota: quota, rec: rec, opts: opts, log: slog.Default(), now: time.Now,
 		byok: provider.NewBYOKClient(provider.BYOKClientOptions{}), cloud: opts.Cloud}
@@ -214,6 +222,15 @@ func (g *Gateway) Provider() string {
 }
 
 func (g *Gateway) SetMetrics(m Metrics) { g.metrics = m }
+
+// CheckQuota refuses with ErrQuotaExceeded before a streamed turn announces
+// itself; Complete checks again, so a turn that races the limit still stops.
+func (g *Gateway) CheckQuota(ctx context.Context, orgID string) error {
+	if g == nil || g.quota == nil {
+		return nil
+	}
+	return g.quota.Check(ctx, orgID)
+}
 
 func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	if !g.Enabled() {
@@ -274,16 +291,17 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 			creq.Tools = append(creq.Tools, provider.ToolSpec{Name: t.Name, Description: t.Description, Schema: t.Schema, Strict: t.Strict})
 		}
 	}
-	cctx, cancel := context.WithTimeout(ctx, g.opts.Timeout)
 	started := g.now()
-	resp, perr := g.p.Complete(cctx, creq)
-	cancel()
+	resp, perr := g.invoke(ctx, req, creq)
 	latency := g.now().Sub(started)
 	// The request may be gone (client hung up) while the vendor answered: the
 	// row still settles and the call is still charged.
 	sctx, cancelSettle := settleContext(ctx)
 	defer cancelSettle()
 	if perr != nil {
+		if cancelled, ok := g.settleCancelled(sctx, ctx, req, creq, row, model, resp, perr, latency); ok {
+			return Response{}, cancelled
+		}
 		// A call that ran out of time is a deadline, not an outage: the
 		// façade's 55 s deadline (A14) or the gateway's own timeout. The row
 		// is still settled, with the code the client will see.

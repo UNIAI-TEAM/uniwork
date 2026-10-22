@@ -148,7 +148,7 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   // rule, it is a trap for the next person who writes a correct message.
   //
   // e88a055 landed on develop via PR #62; c416bc6, e6eaf72d5, d95c9fe14,
-  // 78e441abd and 9c94b49eb were pushed straight to develop without a conventional prefix. Shared history cannot
+  // 78e441abd, 9c94b49eb and 30b6eb6b6 were pushed straight to develop without a conventional prefix. Shared history cannot
   // be rewritten; pin both SHA and subject so a new commit cannot reuse an
   // exempt subject to escape this check.
   const commits = execFileSync("git", ["log", "--format=%H%x00%s"], { cwd: root, encoding: "utf8" })
@@ -439,7 +439,7 @@ describe("ADR 0011 — apps/chat-mobile", () => {
   });
 });
 
-describe("ADR 0037 — apps/meeting-agent", () => {
+describe("ADR 0038 — apps/meeting-agent", () => {
   // The scribe agent is the one place outside server/internal/ai/provider that
   // holds a model vendor's key, and only for STT. Every LLM call is a request
   // to the server, which goes through ai.Gateway; an LLM SDK in the agent's
@@ -450,7 +450,7 @@ describe("ADR 0037 — apps/meeting-agent", () => {
   test("the agent's requirements name no LLM SDK", () => {
     const reqs = read(`${app}/requirements.txt`);
     assert.match(reqs, /^livekit-agents==/m, "livekit-agents must be pinned");
-    assert.doesNotMatch(reqs, LLM_SDKS, `${app}/requirements.txt names an LLM SDK (ADR 0037)`);
+    assert.doesNotMatch(reqs, LLM_SDKS, `${app}/requirements.txt names an LLM SDK (ADR 0038)`);
   });
 
   test("no agent module imports an LLM SDK", () => {
@@ -471,7 +471,7 @@ describe("ADR 0037 — apps/meeting-agent", () => {
     const files = walk(app);
     assert.ok(files.length > 0, `${app} has no Python modules`);
     const offenders = files.filter((f) => IMPORT.test(read(f)));
-    assert.deepEqual(offenders, [], `LLM SDK imported in ${offenders.join(", ")} (ADR 0037)`);
+    assert.deepEqual(offenders, [], `LLM SDK imported in ${offenders.join(", ")} (ADR 0038)`);
   });
 
   test("the agent carries its CLAUDE.md and verifies in its own workflow", () => {

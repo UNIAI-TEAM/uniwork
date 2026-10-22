@@ -11,7 +11,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { AskUniMessageTurn, resolveErrorKey } from "../../ai/ask-uni-panel";
+import { AskUniMessageTurn, resolveErrorKey } from "../../ai/ask-uni-legacy-panel";
 import { toastApiError } from "../../toast-api-error";
 
 /** "[S2]" points at a source only the asker's panel can open; in chat it is noise. */

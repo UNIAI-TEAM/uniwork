@@ -86,7 +86,7 @@ func errShelveFolderTooLarge() error {
 // item is a no-op answer, and Idempotency-Key replays the stored result.
 func (s *DocumentService) ShelveDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
 	var lockOps *editLockOps
-	res, err := s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentShelve, decideArchiveRootAccess, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
+	res, err := s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentShelve, archiveRootDecider(actor), func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
 		if doc.ShelvedAt.Valid {
 			// Already shelved: a no-op the caller can read back, same answer
 			// as a fresh shelve (S-3).
@@ -145,7 +145,7 @@ func (s *DocumentService) ShelveDocument(ctx context.Context, actor Actor, docum
 				},
 				Events: []audit.Event{{Topic: "document.shelved", Payload: map[string]string{
 					"document_id": id, "workspace_id": doc.WorkspaceID, "shelve_batch_id": batch,
-				}}},
+				}}, documentChangeNotice(id, doc.WorkspaceID, docNoticeShelved)},
 			})
 		}
 		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
@@ -181,7 +181,7 @@ func (s *DocumentService) ShelveDocument(ctx context.Context, actor Actor, docum
 // shelving did not move it either. Idempotent like shelve: a call on an
 // unshelved item is a no-op, Idempotency-Key replays the stored result.
 func (s *DocumentService) UnshelveDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
-	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentUnshelve, decideArchiveRootAccess, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
+	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentUnshelve, archiveRootDecider(actor), func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
 		if !doc.ShelvedAt.Valid {
 			// Already at the target state: no-op the caller can read back.
 			view, err := s.documentView(ctx, q, actor, doc)
@@ -234,7 +234,7 @@ func (s *DocumentService) UnshelveDocument(ctx context.Context, actor Actor, doc
 				},
 				Events: []audit.Event{{Topic: "document.unshelved", Payload: map[string]string{
 					"document_id": id, "workspace_id": doc.WorkspaceID, "shelve_batch_id": batch,
-				}}},
+				}}, documentChangeNotice(id, doc.WorkspaceID, docNoticeUnshelved)},
 			})
 		}
 		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {

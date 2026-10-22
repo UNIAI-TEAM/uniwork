@@ -35,10 +35,14 @@ func dmPeerUserID(room db.ChatRoom, userID string) (string, error) {
 }
 
 func (s *ChatService) dmMessagingBlocked(ctx context.Context, orgID, userID, peerID string) (bool, error) {
+	return dmMessagingBlockedQ(ctx, s.q, orgID, userID, peerID)
+}
+
+func dmMessagingBlockedQ(ctx context.Context, q *db.Queries, orgID, userID, peerID string) (bool, error) {
 	if orgID == "" || userID == "" || peerID == "" {
 		return false, nil
 	}
-	return s.q.HasChatBlockBetween(ctx, db.HasChatBlockBetweenParams{
+	return q.HasChatBlockBetween(ctx, db.HasChatBlockBetweenParams{
 		OrganizationID: orgID,
 		BlockerID:      userID,
 		BlockedID:      peerID,

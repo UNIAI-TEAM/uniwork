@@ -49,7 +49,7 @@ func (s *DocumentService) CreateSharedPageInTx(ctx context.Context, q *db.Querie
 	if err := q.LockDocumentTree(ctx, in.WorkspaceID); err != nil {
 		return db.Document{}, err
 	}
-	doc, err := s.insertPage(ctx, q, actor, newPage{
+	doc, err := s.insertPage(ctx, nil, q, actor, newPage{
 		OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, Kind: DocumentKindPage, Title: title,
 		Visibility: documentVisibilityWorkspace, WorkspaceLevel: string(DocumentLevelView), Page: page,
 	})

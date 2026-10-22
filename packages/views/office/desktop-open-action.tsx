@@ -97,8 +97,10 @@ export interface DesktopOpenActionProps {
   /** `header` (default) fills the page header slot and its compact menu;
    * `inline` renders in place, always visible, with no header-slot behaviour;
    * `row` is one compact button for a list row (no installer split menu — the
-   * install prompt still opens when the app does not answer). */
-  placement?: "header" | "inline" | "row";
+   * install prompt still opens when the app does not answer); `menu` renders
+   * no trigger at all: a menu item elsewhere runs the flow through `requestRef`
+   * and a failure goes to a toast, as on a row. */
+  placement?: "header" | "inline" | "row" | "menu";
   /** `view` asks for a read-only session (a viewer, or a file the caller may
    * not change); the server still decides and never upgrades it. */
   operation?: "edit" | "view";
@@ -208,7 +210,7 @@ export function DesktopOpenAction({
     };
   }, [installOpen, installReason]);
   useEffect(() => {
-    if (placement === "row" && failure) toast.error(failure.message);
+    if ((placement === "row" || placement === "menu") && failure) toast.error(failure.message);
   }, [placement, failure]);
   useEffect(() => setResolvedInstallers(installers), [installers]);
   useEffect(() => setResolvedPlatforms(supportedPlatforms), [supportedPlatforms]);
@@ -339,7 +341,7 @@ export function DesktopOpenAction({
   return (
     <>
       {compactMenuItems ? <HeaderActionsFill menuItems={compactMenuItems} /> : null}
-      {placement === "row" ? (
+      {placement === "menu" ? null : placement === "row" ? (
         // Icon-only, per the design: the Name column keeps the width, the text
         // stays in the accessible name and the title is the tooltip. A failure goes to a toast (see the effect above), so
         // nothing wide lands in the row cell.
@@ -380,7 +382,7 @@ export function DesktopOpenAction({
           </DropdownMenu>
         </ButtonGroup>
       )}
-      {error && placement !== "row" ? <p role="alert" className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
+      {error && (placement === "header" || placement === "inline") ? <p role="alert" className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
       <Dialog open={choiceOpen} onOpenChange={(open) => { if (working) return; setChoiceOpen(open); if (!open) settleRequest("unavailable"); }}>
         <DialogContent className="sm:max-w-md" aria-describedby="office-desktop-choice-description">
           <DialogHeader>

@@ -56,6 +56,7 @@ export const WS_EVENT_TYPES = [
   "department.archived",
   "department.created",
   "department.updated",
+  "document.batch_uploaded",
   "document.comment_added",
   "document.comment_anchors_updated",
   "document.comment_deleted",

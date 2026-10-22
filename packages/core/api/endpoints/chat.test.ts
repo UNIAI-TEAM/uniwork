@@ -25,7 +25,6 @@ import {
   listChatRoomMessagesAround,
   listChatRooms,
   getChatUnreadSummary,
-  listWorkspaceChatMessages,
   lookupChatUser,
   lookupChatUserById,
   resolveDMRoom,
@@ -33,9 +32,9 @@ import {
   sendChatVoiceMessage,
   sendChatFileMessage,
   sendChatDocumentMessage,
+  sendChatDocumentLink,
   shareChatMessageAsDocument,
   getChatRoom,
-  sendWorkspaceChatMessage,
   signalChatTyping,
   signalChatVoiceAccept,
   signalChatVoiceHangup,
@@ -97,16 +96,6 @@ describe("chat endpoints", () => {
     );
     const room = await ensureWorkspaceChatRoom("ws1");
     expect(room?.room_id).toBe("01ROOM");
-  });
-
-  it("listWorkspaceChatMessages degrades on malformed response", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
-    expect(await listWorkspaceChatMessages("ws1")).toEqual([]);
-  });
-
-  it("sendWorkspaceChatMessage degrades on malformed response", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
-    expect(await sendWorkspaceChatMessage("ws1", { body: "hi" })).toBeNull();
   });
 
   it("lookupChatUser degrades on malformed response", async () => {
@@ -638,6 +627,98 @@ describe("chat endpoints", () => {
     // A block that fails shape (a non-string document_id) falls away whole;
     // the card renders neutral instead of throwing.
     expect(sent?.document).toBeUndefined();
+  });
+
+  // UNI-2012 D8: the delete confirmation reads origin and other_editors_count.
+  it.each([
+    ["upload and a count", { origin: "upload", other_editors_count: 2 }, { origin: "upload", other_editors_count: 2 }],
+    ["link", { origin: "link" }, { origin: "link", other_editors_count: undefined }],
+    ["both absent (legacy)", {}, { origin: undefined, other_editors_count: undefined }],
+    ["an origin the client does not know", { origin: "mirror" }, { origin: undefined }],
+    ["a non-string origin", { origin: 7 }, { origin: undefined }],
+    ["a non-number count", { origin: "upload", other_editors_count: "2" }, { origin: "upload" }],
+  ])("sendChatDocumentMessage reads %s on the document block without dropping the card", async (_name, extra, expected) => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        message: {
+          id: "d3",
+          room_id: "room1",
+          workspace_id: "ws1",
+          sender_id: "u1",
+          sender_display_name: "An",
+          kind: "document",
+          body: "a.pdf",
+          created_at: "2026-01-01T10:00:00Z",
+          document: { document_id: "01J8X4DOC", title: "a.pdf", ...extra },
+        },
+      }),
+    );
+    const sent = await sendChatDocumentMessage("ws1", "room1", {
+      file: new Blob(["x"], { type: "application/pdf" }),
+      filename: "a.pdf",
+      share_level: "view",
+      client_msg_id: "client-doc-4",
+    });
+    expect(sent?.document?.title).toBe("a.pdf");
+    expect({ origin: sent?.document?.origin, other_editors_count: sent?.document?.other_editors_count }).toEqual(expected);
+  });
+
+  // UNI-2012 S4: the server route is contract-first (slice S2); the transport
+  // is mocked, so these pin the wire shape the FE promises.
+  it("sendChatDocumentLink posts JSON to the document-link route and returns the message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        message: {
+          id: "l1",
+          room_id: "room1",
+          workspace_id: "ws1",
+          sender_id: "u1",
+          sender_display_name: "An",
+          kind: "document",
+          body: "bao-cao.docx",
+          created_at: "2026-01-01T10:00:00Z",
+          document: { document_id: "01J8X4DOC", viewer_level: "manage", viewer_can_manage: true },
+        },
+      }),
+    );
+    const sent = await sendChatDocumentLink("ws1", "room1", {
+      document_id: "01J8X4DOC",
+      share_level: "edit",
+      client_msg_id: "link-msg-1",
+      reply_to_message_id: "reply-1",
+    });
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(String(url)).toContain("/api/v1/workspaces/ws1/chat/rooms/room1/messages/document-link");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      document_id: "01J8X4DOC",
+      share_level: "edit",
+      client_msg_id: "link-msg-1",
+      reply_to_message_id: "reply-1",
+    });
+    expect(sent?.kind).toBe("document");
+    expect(sent?.document?.document_id).toBe("01J8X4DOC");
+  });
+
+  it("sendChatDocumentLink defaults share_level to comment and omits an absent reply", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    await sendChatDocumentLink("ws1", "room1", { document_id: "D1", client_msg_id: "link-msg-2" });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({
+      document_id: "D1",
+      share_level: "comment",
+      client_msg_id: "link-msg-2",
+    });
+  });
+
+  it("sendChatDocumentLink degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(
+      await sendChatDocumentLink("ws1", "room1", { document_id: "D1", share_level: "view", client_msg_id: "l3" }),
+    ).toBeNull();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ message: { id: 7, kind: ["document"] } }));
+    expect(
+      await sendChatDocumentLink("ws1", "room1", { document_id: "D1", share_level: "view", client_msg_id: "l4" }),
+    ).toBeNull();
   });
 
   it("shareChatMessageAsDocument posts the level and returns the converted message", async () => {

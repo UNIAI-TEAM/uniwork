@@ -184,6 +184,7 @@ func (s *ChatService) roomSummaryWithAvatar(ctx context.Context, userID string, 
 	}
 	sum.AvatarURL = s.roomAvatarURL(ctx, room.ID, chatFileScope(room), room.AvatarFileID)
 	sum.Topic = room.Topic
+	s.applyWallpaperToSummary(ctx, &sum, chatFileScope(room), room.WallpaperPreset, room.WallpaperFileID)
 	return sum, nil
 }
 

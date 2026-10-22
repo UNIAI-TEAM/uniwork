@@ -62,6 +62,7 @@ export function normalizeTableQuery(q: TableQuery): TableQuery {
       nextFilter.date_from = dateFrom;
       nextFilter.date_to = dateTo;
     }
+    if (filter.relation) nextFilter.relation = filter.relation;
     if (Object.keys(nextFilter).length > 0) out.filter = nextFilter;
   }
 

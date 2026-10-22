@@ -235,7 +235,7 @@ func TestChatPollVotersHonoursSettings(t *testing.T) {
 	if err != nil || len(voters) != 2 {
 		t.Fatalf("voters: err=%v n=%d", err, len(voters))
 	}
-	plain, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "text"})
+	plain, err := s.SendRoomMessage(ctx, ua.ID, w.ID, roomID, SendChatMessageInput{Body: "text"})
 	if err != nil {
 		t.Fatalf("plain: %v", err)
 	}
@@ -291,7 +291,7 @@ func TestChatPollVoteValidation(t *testing.T) {
 		t.Fatalf("unknown message: want ErrNotFound, got %v", err)
 	}
 
-	sent, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "plain"})
+	sent, err := s.SendRoomMessage(ctx, ua.ID, w.ID, roomID, SendChatMessageInput{Body: "plain"})
 	if err != nil {
 		t.Fatalf("send plain: %v", err)
 	}

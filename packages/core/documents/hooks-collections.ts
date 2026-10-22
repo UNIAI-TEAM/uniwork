@@ -9,11 +9,13 @@ import {
   listSharedByMe,
   listSharedWithMe,
   listShelvedDocuments,
+  listTrashedDocuments,
   moveDocument,
   purgeDocument,
   restoreDocument,
   shelveDocument,
   unshelveDocument,
+  type DocumentRecentActivity,
   type ListDocumentsBaseOpts,
   type ListDocumentsOpts,
   type MoveDocumentBody,
@@ -21,6 +23,7 @@ import {
 import { canManageTrashed, DocumentNotVerifiableError } from "../types/document";
 import { useEnsureMyFolder } from "./hooks";
 import { documentKeys } from "./keys";
+import { keepWhileSorting } from "./keep-while-sorting";
 import { requireVerifiableArchive, requireVerifiableDocument } from "./verify";
 
 export { canManageTrashed, useEnsureMyFolder };
@@ -34,7 +37,7 @@ export { canManageTrashed, useEnsureMyFolder };
 const DOCUMENT_PAGE_SIZE = 50;
 
 /** Stable key fragment of a filter object: sorted entries, undefined dropped. */
-export function documentFilterKey(filter?: ListDocumentsOpts): string {
+export function documentFilterKey(filter?: object): string {
   if (!filter) return "";
   const entries = Object.entries(filter)
     .filter(([, value]) => value !== undefined)
@@ -42,16 +45,40 @@ export function documentFilterKey(filter?: ListDocumentsOpts): string {
   return JSON.stringify(entries);
 }
 
-/** The library's type/access chips (UNI-1868), shared by every collection
- *  list: the format a row's current version carries, and the level the caller
- *  holds on it. */
-export type DocumentListFilters = Pick<ListDocumentsBaseOpts, "format" | "access">;
+/** The library's filters, shared by every collection list: the type/access
+ *  chips (UNI-1868) — the format a row's current version carries, and the
+ *  level the caller holds on it — and the filter bar's Người sửa / Cập nhật
+ *  (UNI-2045 SV-8). */
+export type DocumentListFilters = Pick<ListDocumentsBaseOpts, "format" | "access" | "updatedBy" | "updatedFrom" | "updatedTo">;
 
-/** The key fragment of the chip filters: "" when neither is set, so an
- *  unfiltered list keeps the key it had before the chips became query params. */
-function documentListFilterKey(filters?: DocumentListFilters): string {
-  if (!filters?.format && !filters?.access) return "";
-  return documentFilterKey({ format: filters.format, access: filters.access });
+/** The column sort of the tables (UNI-2038): part of the key, so another order
+ *  starts from page 1. Only the lists that sort on the server take it. */
+export type DocumentListSort = Pick<ListDocumentsBaseOpts, "sort" | "order">;
+
+/** The key fragment of the chip filters and the sort: "" when none is set, so
+ *  an unfiltered, unsorted list keeps the key it had before the chips became
+ *  query params. */
+function documentListFilterKey(
+  filters?: DocumentListFilters & DocumentListSort & { activity?: DocumentRecentActivity; includeOwned?: boolean },
+): string {
+  if (!filters) return "";
+  const { format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity } = filters;
+  const includeOwned = filters.includeOwned || undefined;
+  if (!format && !access && !sort && !order && !updatedBy && !updatedFrom && !updatedTo && !activity && !includeOwned) {
+    return "";
+  }
+  return documentFilterKey({ format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity, includeOwned });
+}
+
+/** The filters every collection request carries, picked off a hook's opts. */
+function listFilterParams(opts?: DocumentListFilters) {
+  return {
+    format: opts?.format,
+    access: opts?.access,
+    updatedBy: opts?.updatedBy,
+    updatedFrom: opts?.updatedFrom,
+    updatedTo: opts?.updatedTo,
+  };
 }
 
 /**
@@ -62,6 +89,7 @@ function documentListFilterKey(filters?: DocumentListFilters): string {
 export function useDocumentList(wsId: string, filter?: ListDocumentsOpts, opts?: { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: documentKeys.list(wsId, documentFilterKey(filter)),
+    placeholderData: keepWhileSorting(documentKeys.list(wsId, documentFilterKey(filter))),
     queryFn: ({ pageParam, signal }) =>
       listDocuments(
         wsId,
@@ -110,18 +138,29 @@ export function useDocumentArchiveImpact(wsId: string, documentId: string, opts?
 }
 
 /** Recently opened/edited documents (humans only; agents get 403). The
- *  format/access chips filter it server-side and key it like the flat list. */
-export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
+ *  filters, the Đã mở / Đã sửa segment (`activity`) and the sort run
+ *  server-side and key it like the flat list. `includeOwned` also lists what
+ *  the caller owns once somebody else edits it (the chat picker); it is part
+ *  of the key. */
+export function useRecentDocuments(
+  wsId: string,
+  opts?: DocumentListFilters &
+    DocumentListSort & { activity?: DocumentRecentActivity; enabled?: boolean; includeOwned?: boolean },
+) {
   return useInfiniteQuery({
     queryKey: documentKeys.recent(wsId, documentListFilterKey(opts)),
+    placeholderData: keepWhileSorting(documentKeys.recent(wsId, documentListFilterKey(opts))),
     queryFn: ({ pageParam, signal }) =>
       listRecentDocuments(
         wsId,
         {
           cursor: pageParam || undefined,
           limit: DOCUMENT_PAGE_SIZE,
-          format: opts?.format,
-          access: opts?.access,
+          ...listFilterParams(opts),
+          activity: opts?.activity,
+          sort: opts?.sort,
+          order: opts?.order,
+          includeOwned: opts?.includeOwned,
         },
         signal,
       ),
@@ -133,17 +172,19 @@ export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & { 
 
 /** Documents the caller received through a share, across the organization.
  *  Paged like the other lists: `next_cursor` drives the next page. */
-export function useSharedWithMe(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
+export function useSharedWithMe(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: documentKeys.sharedWithMe(wsId, documentListFilterKey(opts)),
+    placeholderData: keepWhileSorting(documentKeys.sharedWithMe(wsId, documentListFilterKey(opts))),
     queryFn: ({ pageParam, signal }) =>
       listSharedWithMe(
         wsId,
         {
           cursor: pageParam || undefined,
           limit: DOCUMENT_PAGE_SIZE,
-          format: opts?.format,
-          access: opts?.access,
+          ...listFilterParams(opts),
+          sort: opts?.sort,
+          order: opts?.order,
         },
         signal,
       ),
@@ -157,20 +198,41 @@ export function useSharedWithMe(wsId: string, opts?: DocumentListFilters & { ena
  *  person/group share or workspace visibility; public links and My Folder rows
  *  excluded). Under `documentKeys.workspace(wsId)` so `document.shared`,
  *  `document.share_revoked`, and `document.workspace_access_changed` refresh it. */
-export function useSharedByMe(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
+export function useSharedByMe(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: documentKeys.sharedByMe(wsId, documentListFilterKey(opts)),
+    placeholderData: keepWhileSorting(documentKeys.sharedByMe(wsId, documentListFilterKey(opts))),
     queryFn: ({ pageParam, signal }) =>
       listSharedByMe(
         wsId,
         {
           cursor: pageParam || undefined,
           limit: DOCUMENT_PAGE_SIZE,
-          format: opts?.format,
-          access: opts?.access,
+          ...listFilterParams(opts),
+          sort: opts?.sort,
+          order: opts?.order,
         },
         signal,
       ),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
+/** The Thùng rác list: archived rows in the one order the trash shows,
+ *  `deleted` ascending (UNI-2045 Q2; the endpoint fixes it). Under the list
+ *  root, so every `document.*` frame and a restore/purge refresh reach it;
+ *  the chips key the entry. */
+export function useTrashedDocuments(
+  wsId: string,
+  opts?: DocumentListFilters & Pick<ListDocumentsBaseOpts, "kind"> & { enabled?: boolean },
+) {
+  const filter = { kind: opts?.kind, ...listFilterParams(opts) };
+  return useInfiniteQuery({
+    queryKey: documentKeys.list(wsId, `trash:${documentFilterKey(filter)}`),
+    queryFn: ({ pageParam, signal }) =>
+      listTrashedDocuments(wsId, { ...filter, cursor: pageParam || undefined, limit: DOCUMENT_PAGE_SIZE }, signal),
     initialPageParam: "",
     getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: (opts?.enabled ?? true) && !!wsId,
@@ -179,19 +241,22 @@ export function useSharedByMe(wsId: string, opts?: DocumentListFilters & { enabl
 
 /** The "Lưu trữ" list (ARCHIVE-01 §4): shelved rows the caller may see, flat
  *  and keyset-paged like the other collection lists. The format/access chips
- *  filter server-side and key the cache entry; under the workspace root so
- *  every `document.*` frame and a shelve/unshelve refresh reaches it. */
-export function useShelvedDocuments(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
+ *  and the sort (UNI-2045 W12, SV-0) go to the server and key the cache entry;
+ *  under the workspace root so every `document.*` frame and a
+ *  shelve/unshelve refresh reaches it. */
+export function useShelvedDocuments(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: documentKeys.shelved(wsId, documentListFilterKey(opts)),
+    placeholderData: keepWhileSorting(documentKeys.shelved(wsId, documentListFilterKey(opts))),
     queryFn: ({ pageParam, signal }) =>
       listShelvedDocuments(
         wsId,
         {
           cursor: pageParam || undefined,
           limit: DOCUMENT_PAGE_SIZE,
-          format: opts?.format,
-          access: opts?.access,
+          ...listFilterParams(opts),
+          sort: opts?.sort,
+          order: opts?.order,
         },
         signal,
       ),
@@ -200,7 +265,6 @@ export function useShelvedDocuments(wsId: string, opts?: DocumentListFilters & {
     enabled: (opts?.enabled ?? true) && !!wsId,
   });
 }
-
 
 /**
  * Reparent/reorder one document. The caller sends the revision it last saw;

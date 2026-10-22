@@ -45,7 +45,8 @@ const (
 	// The G8-05 kinds (contract-collab section 8.3): a mention in a
 	// Discussion, a reply in either flow, and resolving a Comment. The
 	// old document_commented stays registered for rows written before the
-	// UNI-1337 recipient table landed - the rules never emit it again.
+	// UNI-1337 recipient table landed; since UNI-2012 D6 the rules emit it
+	// again, only to the ACL owner of a document that has a live chat card.
 	KindDocumentCommentReplied      = "document_comment_replied"
 	KindDocumentDiscussionMentioned = "document_discussion_mentioned"
 	KindDocumentDiscussionReplied   = "document_discussion_replied"
@@ -78,6 +79,11 @@ const (
 	// the trash; the ACL owner hears once per archive batch. In-app only by
 	// default (Q-R2: no email, push off).
 	KindDocumentTrashedByOther = "document_trashed_by_other"
+	// DOC-CHANGE-NOTIFY (UNI-2056): somebody changed a document the person
+	// can read - one notice per recipient per command, folded with the same
+	// actor's next command of the same verb. One kind for every verb
+	// (params.verb), in-app only by default.
+	KindDocumentChanged = "document_changed"
 )
 
 // Kinds is the list in display order.
@@ -94,6 +100,7 @@ var Kinds = []string{
 	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
 	KindDocumentShared,
 	KindDocumentTrashedByOther,
+	KindDocumentChanged,
 }
 
 var kindSet = func() map[string]bool {

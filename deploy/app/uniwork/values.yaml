@@ -143,7 +143,7 @@ officeEngine:
     # Grant signing key; >= 32 chars and DIFFERENT from the service token.
     grantKey: { name: uniwork-office-engine, key: OFFICE_ENGINE_GRANT_KEY }
 
-# AI scribe agent (apps/meeting-agent, ADR 0037; spec 2026-10-20-meeting-scribe-agent-design
+# AI scribe agent (apps/meeting-agent, ADR 0038; spec 2026-10-20-meeting-scribe-agent-design
 # §4.6). Off until the STT vendor's data-processing agreement is signed (parent
 # spec §7.5) and ops confirm the shared LiveKit is >= v1.9.12 (S0 results §1).
 # Turn on together with MEETING_SCRIBE_ENABLED=true in uniwork-be.env.

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { VI_LOCALE_STATE } from "./locale-state";
 import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
+import { setFlag } from "./office-docs-web-fixtures";
 
 // The golden path for F-09 (spec §8): A creates a task, opens Ask UNI with
 // ⌘J and asks about it; the answer cites [S1] as a link to that task. B, in a
@@ -11,7 +12,7 @@ import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
 // provider the topbar has no "Hỏi UNI" button and the spec skips itself.
 const stamp = Date.now();
 
-async function onboard(page: Page, tag: string, orgName: string, wsName: string) {
+async function onboard(page: Page, tag: string, orgName: string, wsName: string): Promise<string> {
   await page.goto("/register");
   await page.getByLabel("Tên hiển thị").fill(tag);
   await page.getByLabel("Email").fill(`${tag.toLowerCase().replace(/\s+/g, "-")}-${stamp}@example.com`);
@@ -21,12 +22,15 @@ async function onboard(page: Page, tag: string, orgName: string, wsName: string)
   await page.getByRole("button", { name: /Bắt đầu/ }).click();
   await page.getByRole("button", { name: "Bỏ qua" }).click();
   await page.getByLabel("Tên tổ chức").fill(orgName);
+  const createdOrg = page.waitForResponse((r) => r.request().method() === "POST" && new URL(r.url()).pathname === "/api/v1/orgs");
   await page.getByRole("button", { name: `Tạo ${orgName}` }).click();
+  const orgId = ((await (await createdOrg).json()) as { organization: { id: string } }).organization.id;
   await page.getByLabel("Tên workspace").fill(wsName);
   await page.getByRole("button", { name: `Tạo ${wsName}` }).click();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
   await expect(page).toHaveURL(/\/tasks$/, { timeout: 15_000 });
   await page.getByRole("button", { name: "Để sau" }).click({ timeout: 15_000 });
+  return orgId;
 }
 
 async function ask(page: Page, question: string) {
@@ -68,4 +72,52 @@ test("⌘J answers from the asker's own workspace only", async ({ browser, page:
     await expect(link).toHaveAttribute("href", new RegExp(`^/beta-${stamp}/`));
   }
   await ctx.close();
+});
+
+// P2: with ask_uni_stream on, ⌘J opens the docked panel and the answer streams
+// in over SSE. The fake provider answers in milliseconds, so the Stop step
+// only asserts the stopped notice when the button was still there to press.
+test("docked Ask UNI streams an answer, stops a run and opens with a focus", async ({ page }) => {
+  const orgId = await onboard(page, "Chủ Dock", `Dock ${stamp}`, "Đội Dock");
+  test.skip(!(await page.getByRole("button", { name: /Hỏi UNI/ }).isVisible().catch(() => false)), "AI provider not configured on this server");
+
+  await setFlag("ask_uni_stream", orgId, true);
+  try {
+    const title = `Việc dock ${stamp}`;
+    await page.reload();
+    await page.getByRole("button", { name: "Tạo việc" }).click();
+    await page.getByLabel("Tiêu đề").fill(title);
+    await page.getByRole("button", { name: "Tạo", exact: true }).click();
+    await expect(page.getByText(title)).toBeVisible();
+
+    await page.keyboard.press("ControlOrMeta+j");
+    const dock = page.getByRole("complementary", { name: "Hỏi UNI" });
+    await expect(dock).toBeVisible();
+    const box = dock.getByRole("textbox", { name: "Câu hỏi cho UNI" });
+
+    await box.fill(`việc dock ${stamp} thế nào?`);
+    await dock.getByRole("button", { name: "Gửi" }).click();
+    await expect(dock.getByRole("list", { name: "Nguồn" }).getByRole("link").first()).toBeVisible({ timeout: 15_000 });
+    await expect(dock.getByText(/\d+ vào · \d+ ra/)).toBeVisible();
+
+    await box.fill(`câu thứ hai ${stamp}`);
+    await dock.getByRole("button", { name: "Gửi" }).click();
+    // The fake provider streams with no delay, so the run usually ends before Stop can be pressed and the
+    // notice is not reached here. It is covered by TestAskAgentStopStoresPartialAndCharges and
+    // TestAskUniStreamClientLeavingStoresAStoppedTurn (Go) and the notices test in
+    // packages/views/ai/ask-uni-answer.test.tsx.
+    const stopped = await dock.getByRole("button", { name: "Dừng" }).click({ timeout: 2_000 }).then(() => true, () => false);
+    if (stopped) {
+      await expect(dock.getByText("Đã dừng trước khi trả lời xong.")).toBeVisible({ timeout: 15_000 });
+    } else {
+      test.info().annotations.push({ type: "note", description: "run finished before Stop could be pressed" });
+    }
+
+    // The first answer cites this task, so the dock holds a link with the same title: match outside the dock only.
+    await page.getByText(title).and(page.locator(":not(aside *)")).click();
+    await page.getByRole("button", { name: "Hỏi UNI về task này" }).click();
+    await expect(dock.getByRole("button", { name: "Bỏ phạm vi Task" })).toBeVisible();
+  } finally {
+    await setFlag("ask_uni_stream", orgId, false);
+  }
 });

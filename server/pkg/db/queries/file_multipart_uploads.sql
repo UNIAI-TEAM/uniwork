@@ -71,9 +71,12 @@ WHERE id = $1;
 
 -- name: CountOpenFileMultipartUploadsByActor :one
 -- tenant: self
+-- A folder batch's sessions (opened_via 'folder', UNI-2052) are capped by the
+-- batch limits, not by the four sessions a person opens one by one.
 SELECT count(*)
 FROM file_multipart_uploads
 WHERE created_by = $1
+  AND opened_via <> 'folder'
   AND status IN ('open', 'validating');
 
 -- name: LeaseFileMultipartUploadForValidation :one

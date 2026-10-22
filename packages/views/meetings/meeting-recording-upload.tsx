@@ -17,7 +17,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog, FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 import { Notice } from "../common/notice";
-import { formatFileSize } from "../documents/document-format";
+import { formatBytes } from "../documents/doclist/format";
 import { useFileDropZone } from "../editor/use-file-drop-zone";
 import { meetingLocale } from "./meeting-datetime";
 import { formatMeetingMoment } from "./meeting-detail-format";
@@ -217,7 +217,7 @@ export function MeetingRecordingUploadDialog({
                     <FileHeadphone aria-hidden className="size-5 text-muted-foreground" />
                     <span className="max-w-full truncate text-body font-medium text-foreground">{file.name}</span>
                     <span className="text-caption text-muted-foreground">
-                      {formatFileSize(file.size, meetingLocale(i18n.language))}
+                      {formatBytes(file.size, meetingLocale(i18n.language))}
                       {"\u00a0· "}
                       {t("meetings.transcription.changeFile")}
                     </span>

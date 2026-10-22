@@ -65,6 +65,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   document_access_declined: CircleX,
   document_shared: Share2,
   document_trashed_by_other: Trash2,
+  document_changed: MODULE_ICONS.documents,
 };
 
 /**

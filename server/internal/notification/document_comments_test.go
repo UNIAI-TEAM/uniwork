@@ -5,8 +5,8 @@ package notification
 // can read the document at delivery time, through the row the service wrote
 // and exactly one claim; a reply reaches the parent's author, a resolve the
 // resolved comment's author; a new comment or thread without a mention
-// notifies nobody (document_commented is no longer emitted, its kind stays
-// registered for rows written before this change).
+// notifies nobody, except that the ACL owner of a document with a live chat
+// card hears document_commented (UNI-2012 D6).
 
 import (
 	"encoding/json"
@@ -277,8 +277,108 @@ func TestDocumentDiscussionMentionNotification(t *testing.T) {
 	}
 }
 
-// A new comment or thread without a mention notifies nobody: the old
-// document_commented row for the ACL owner and earlier commenters is gone.
+// chatCard puts a live document card for docID into a fresh channel of the
+// fixture workspace and returns the message id.
+func (f *documentFixture) chatCard(t *testing.T, docID string) string {
+	t.Helper()
+	roomID := util.NewID()
+	if _, err := f.q.CreateChatRoom(f.ctx, db.CreateChatRoomParams{
+		ID: roomID, Kind: "channel", WorkspaceID: pgtype.Text{String: f.wsID, Valid: true},
+		OrganizationID: f.orgID, Name: "Chung " + roomID, LivekitRoomName: "lk-" + roomID,
+		CreatedBy: f.owner.ID, CreatedByKind: "human", Visibility: "public",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	meta, err := json.Marshal(map[string]string{"document_id": docID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := f.q.CreateChatDocumentMessage(f.ctx, db.CreateChatDocumentMessageParams{
+		ID: util.NewID(), RoomID: roomID, WorkspaceID: f.wsID, SenderID: f.member.ID, SenderKind: "human",
+		Metadata: meta, OrganizationID: f.orgID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return msg.ID
+}
+
+// The owner hears document_commented only when the document has a live chat
+// card and somebody else commented (UNI-2012 D6): no card, no notice; a card,
+// one notice that a redelivery does not repeat; the owner's own comment, none;
+// a deleted card, none.
+func TestDocumentCommentNotifiesOwnerOnlyWithALiveChatCard(t *testing.T) {
+	f := newDocumentFixture(t)
+	docID := f.document(t, "workspace", "Báo cáo tuần")
+
+	// No card yet: the comment stays silent, as UNI-1337 decided.
+	f.commentOf(t, f.member.ID, docID, "chưa có thẻ", "comment")
+	f.handleLast(t, "document.comment_added")
+	if n := f.inbox(t, f.owner.ID); len(n) != 0 {
+		t.Fatalf("owner inbox without a card = %+v, want nothing", n)
+	}
+
+	// A live card: one notice to the owner, and the commenter hears nothing.
+	cardID := f.chatCard(t, docID)
+	created := f.commentOf(t, f.member.ID, docID, "đã xem, cần sửa mục 2", "comment")
+	f.handleLast(t, "document.comment_added")
+	got := f.inbox(t, f.owner.ID)
+	if len(got) != 1 || got[0].Kind != KindDocumentCommented || got[0].TitleKey != "notifications.kind.document_commented" {
+		t.Fatalf("owner inbox with a card = %+v, want one document_commented", got)
+	}
+	if !contains(got[0].Params, "Báo cáo tuần") || !contains(got[0].Params, created.ID) {
+		t.Fatalf("params missing document/comment id: %s", got[0].Params)
+	}
+	if got[0].ResourceType != "document" || got[0].ResourceID != docID {
+		t.Fatalf("resource = %s/%s, want the document", got[0].ResourceType, got[0].ResourceID)
+	}
+	if n := f.inbox(t, f.member.ID); len(n) != 0 {
+		t.Fatalf("commenter inbox = %+v, want nothing", n)
+	}
+	f.handleLast(t, "document.comment_added")
+	if n := f.inbox(t, f.owner.ID); len(n) != 1 {
+		t.Fatalf("redelivery duplicated the notice: %d rows", len(n))
+	}
+
+	// The owner commenting on their own document notifies nobody.
+	f.commentOf(t, f.owner.ID, docID, "tôi trả lời", "comment")
+	f.handleLast(t, "document.comment_added")
+	if n := f.inbox(t, f.owner.ID); len(n) != 1 {
+		t.Fatalf("owner's own comment added a row: %+v", n)
+	}
+	if n := f.inbox(t, f.member.ID); len(n) != 0 {
+		t.Fatalf("member inbox after owner comment = %+v, want nothing", n)
+	}
+
+	// Once the card is deleted the notice stops again.
+	if _, err := f.pool.Exec(f.ctx, `UPDATE chat_messages SET deleted_at = now() WHERE id = $1`, cardID); err != nil {
+		t.Fatal(err)
+	}
+	f.commentOf(t, f.member.ID, docID, "thẻ đã xóa", "comment")
+	f.handleLast(t, "document.comment_added")
+	if n := f.inbox(t, f.owner.ID); len(n) != 1 {
+		t.Fatalf("a deleted card still produced a notice: %+v", n)
+	}
+}
+
+// A mention of the owner already speaks for them: with a live card they still
+// get exactly one row, the mention, never a second document_commented.
+func TestDocumentCommentOwnerMentionedWithCardGetsOneNotice(t *testing.T) {
+	f := newDocumentFixture(t)
+	docID := f.document(t, "workspace", "Nhắc chủ")
+	f.chatCard(t, docID)
+
+	f.commentOf(t, f.member.ID, docID, mentionOf(f.owner)+" xem giúp", "comment")
+	f.handleLast(t, "document.comment_added")
+
+	if kinds := f.inboxKinds(t, f.owner.ID); len(kinds) != 1 || kinds[0] != KindDocumentMentioned {
+		t.Fatalf("owner kinds = %v, want one document_mentioned", kinds)
+	}
+}
+
+// A new comment or thread without a mention and without a live chat card
+// notifies nobody: the blanket document_commented row for the ACL owner and
+// earlier commenters stays gone (UNI-1337).
 func TestDocumentCommentWithoutMentionNotifiesNobody(t *testing.T) {
 	f := newDocumentFixture(t)
 	docID := f.document(t, "workspace", "Không nhắc")

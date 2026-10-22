@@ -1,6 +1,6 @@
 # 0036 — Thư mục không bao giờ được chia sẻ; chỉ tài liệu được chia sẻ
 
-**Trạng thái:** accepted (2026-10-19) — người dùng chốt trong UNI-1974 (FOLDER-SHARE-OFF): "tắt share
+**Trạng thái:** superseded by 0037 (2026-10-21) — thay bởi [0037](0037-thu-muc-ngoai-my-folder-hien-cho-ca-workspace.md) (UNI-2055: thư mục ngoài My Folder hiện cho cả workspace; phần "không share, không link thư mục" giữ nguyên trong 0037). Lịch sử giữ nguyên, không sửa phần còn lại. Trước đó: accepted (2026-10-19) — người dùng chốt trong UNI-1974 (FOLDER-SHARE-OFF): "tắt share
 folder đi, tạm thời chỉ share doc thôi; doc share từ My Folder thì cũng không gắn vào folder nào ở phía
 người được share". Hợp đồng đã duyệt 2026-10-19 16:20 (UTC+7).
 

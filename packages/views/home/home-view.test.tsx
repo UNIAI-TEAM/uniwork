@@ -148,6 +148,36 @@ describe("HomeView", () => {
   });
 
 
+  it("keeps the documents list dialog when opening the only unread row turns Home quiet", async () => {
+    const changed = {
+      id: "n9", kind: "document_changed", workspace_id: "ws1", organization_id: "o1", resource_type: "document",
+      resource_id: "d1", resource_deleted: false, resource_access_lost: false, comment_deleted: false, actor_kind: "human",
+      actor_id: "u2", title_key: "notifications.kind.document_changed", count: 2, created_at: "2026-09-14T01:00:00Z",
+      params: { actor: "Bình", verb: "renamed", document_count: "2", sample_document_ids: "d1,d2" },
+      sample_documents: [{ id: "d1", title: "Kế hoạch Q4" }, { id: "d2", title: "Báo cáo tuần" }],
+    };
+    const only = { ...empty, counts: { ...empty.counts, unread: 1 }, inbox: [changed] };
+    serve({ home: only });
+    const base = requestMock.getMockImplementation()!;
+    let homeReads = 0;
+    requestMock.mockImplementation(async (path: string, opts?: Opts) => {
+      if (path.startsWith("/api/v1/me/notifications/n9/documents")) {
+        return { documents: [{ id: "d1", title: "Kế hoạch Q4" }, { id: "d2", title: "Báo cáo tuần" }], next_cursor: null };
+      }
+      // The first read has the row; the refetch after marking it read finds nothing left.
+      if (path.endsWith("/home")) return ++homeReads === 1 ? only : empty;
+      return base(path, opts);
+    });
+    renderHome();
+    // Opening the row marks it read and takes it off the summary: nothing is left on Home, so it turns quiet.
+    fireEvent.click(await screen.findByRole("button", { name: /Xem 2 tài liệu/ }));
+    // The open dialog hides the page behind it from the accessibility tree.
+    expect(await screen.findByRole("heading", { name: "Hôm nay chưa có gì chờ bạn", hidden: true })).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText("Kế hoạch Q4")).toBeInTheDocument();
+    expect(within(dialog).getByText("Báo cáo tuần")).toBeInTheDocument();
+  });
+
   it("keeps a section's own empty state while the others have something", async () => {
     serve({ home: { ...empty, counts: { ...empty.counts, unread: 1 }, inbox: summary.inbox } });
     renderHome();

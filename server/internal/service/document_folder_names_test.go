@@ -84,14 +84,12 @@ func (e *folderNamesEnv) rename(t *testing.T, doc db.Document, title string) err
 func TestDocumentFolderNameDuplicate(t *testing.T) {
 	env := newFolderNamesEnv(t)
 
-	t.Run("a live sibling refuses the name, case-insensitively", func(t *testing.T) {
+	// ADR 0037 §7: a create never answers folder_name_taken; a live sibling
+	// holding the name (case-insensitively) gives the next free " (n)".
+	t.Run("a live sibling suffixes the name, case-insensitively", func(t *testing.T) {
 		env.folder(t, "", "Hợp đồng")
-		ce := wantCode(t, env.createFolder(t, "", "HỢP ĐỒNG"), "folder_name_taken")
-		if len(ce.Fields) != 0 {
-			t.Fatalf("refusal carries details: %v", ce.Fields)
-		}
-		if strings.Contains(ce.Msg, "Hợp đồng") {
-			t.Fatalf("refusal names the holder: %q", ce.Msg)
+		if got := env.folder(t, "", "HỢP ĐỒNG"); got.Title != "HỢP ĐỒNG (1)" {
+			t.Fatalf("title = %q, want HỢP ĐỒNG (1)", got.Title)
 		}
 	})
 
@@ -114,7 +112,9 @@ func TestDocumentFolderNameDuplicate(t *testing.T) {
 	t.Run("NFD and NFC spellings are one name", func(t *testing.T) {
 		root := env.folder(t, "", "Gốc NFC")
 		env.folder(t, root.ID, "Hợp đồng")
-		wantCode(t, env.createFolder(t, root.ID, norm.NFD.String("Hợp đồng")), "folder_name_taken")
+		if got := env.folder(t, root.ID, norm.NFD.String("Hợp đồng")); got.Title != "Hợp đồng (1)" {
+			t.Fatalf("NFD title = %q, want the NFC name suffixed", got.Title)
+		}
 	})
 
 	t.Run("another parent, an archived folder and another kind keep the name free", func(t *testing.T) {
@@ -149,19 +149,26 @@ func TestDocumentFolderNameDuplicate(t *testing.T) {
 		}
 	})
 
-	t.Run("a folder the caller cannot read still refuses without its id or name", func(t *testing.T) {
-		hidden, err := env.svc.CreatePage(env.ctx, human(env.tn.aclOwner), env.tn.wsA, CreatePageInput{
-			Kind: DocumentKindFolder, Title: "Bí mật", Visibility: documentVisibilityRestricted,
+	// Folder names are the workspace's now (ADR 0037 §1): another member's
+	// folder holds the name for everyone, and the create is suffixed. The
+	// rename refusal still names nobody.
+	t.Run("another member's folder holds the name for everyone", func(t *testing.T) {
+		other, err := env.svc.CreatePage(env.ctx, human(env.tn.aclOwner), env.tn.wsA, CreatePageInput{
+			Kind: DocumentKindFolder, Title: "Bí mật",
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		ce := wantCode(t, env.createFolder(t, "", "Bí mật"), "folder_name_taken")
-		if strings.Contains(ce.Msg, hidden.Document.ID) || strings.Contains(ce.Msg, "Bí mật") {
-			t.Fatalf("refusal leaks the unreadable holder: %q", ce.Msg)
+		if got := env.folder(t, "", "Bí mật"); got.Title != "Bí mật (1)" {
+			t.Fatalf("title = %q, want Bí mật (1)", got.Title)
 		}
-		if details := fmt.Sprint(ce.Fields); strings.Contains(details, hidden.Document.ID) {
-			t.Fatalf("refusal details leak the unreadable holder: %s", details)
+		mine := env.folder(t, "", "Của tôi")
+		ce := wantCode(t, env.rename(t, mine, "Bí mật"), "folder_name_taken")
+		if strings.Contains(ce.Msg, other.Document.ID) || strings.Contains(ce.Msg, "Bí mật") {
+			t.Fatalf("refusal leaks the holder: %q", ce.Msg)
+		}
+		if details := fmt.Sprint(ce.Fields); strings.Contains(details, other.Document.ID) {
+			t.Fatalf("refusal details leak the holder: %s", details)
 		}
 	})
 
@@ -209,19 +216,19 @@ func TestDocumentFolderNameConcurrentCreate(t *testing.T) {
 	}
 	close(start)
 	wg.Wait()
-	var created, refused int
+	// ADR 0037 §7: both land, one of them under the next free " (n)".
 	for _, err := range results {
-		switch {
-		case err == nil:
-			created++
-		case isCode(err, "folder_name_taken"):
-			refused++
-		default:
-			t.Fatalf("unexpected answer: %v", err)
+		if err != nil {
+			t.Fatalf("concurrent create: %v", err)
 		}
 	}
-	if created != 1 || refused != 1 {
-		t.Fatalf("two concurrent creates = %d created, %d refused; want one of each (%v)", created, refused, results)
+	var titles []string
+	if err := env.f.pool.QueryRow(env.ctx, `SELECT array_agg(title ORDER BY title) FROM documents
+		WHERE workspace_id = $1 AND kind = 'folder' AND parent_id IS NULL AND title LIKE 'Đua tên%'`, env.tn.wsA).Scan(&titles); err != nil {
+		t.Fatal(err)
+	}
+	if len(titles) != 2 || titles[0] != "Đua tên" || titles[1] != "Đua tên (1)" {
+		t.Fatalf("titles = %v, want [Đua tên, Đua tên (1)]", titles)
 	}
 }
 
@@ -643,6 +650,14 @@ var titleNamingHelpers = []string{
 	"restoreNames(",
 }
 
+// titleKeepingWriters are the functions allowed to run a title-writing
+// statement without a naming helper, each with the reason. The guard also
+// requires that the statement passes the row's own stored title, so an exempt
+// function cannot start writing a different string unseen.
+var titleKeepingWriters = map[string]string{
+	"relocateOutOfTrashedFolder": "writes the stored title back unchanged; a relocation is not a rename",
+}
+
 // TestDocumentTitleWritePathsUseTheNormalizer is the guard the appendix asks
 // for (§3.3): no non-test file may run one of the title-writing statements from
 // a function that does not go through a naming helper. It is textual on
@@ -657,6 +672,7 @@ func TestDocumentTitleWritePathsUseTheNormalizer(t *testing.T) {
 		t.Fatal("no document*.go files found: the guard would pass on nothing")
 	}
 	seen := map[string]bool{}
+	seenExempt := map[string]bool{}
 	for _, name := range files {
 		if strings.HasSuffix(name, "_test.go") {
 			continue
@@ -667,6 +683,13 @@ func TestDocumentTitleWritePathsUseTheNormalizer(t *testing.T) {
 		}
 		for _, site := range titleWriteSites(string(raw)) {
 			seen[site.call] = true
+			if fn, reason, ok := exemptWriter(site.function); ok {
+				seenExempt[fn] = true
+				if site.call != "q.DetachDocumentToRoot(" || !strings.Contains(site.body, "Title: row.Title,") {
+					t.Errorf("%s: %s is exempt (%s) but does not write the row's own Title:\n%s", name, site.call, reason, site.function)
+				}
+				continue
+			}
 			if !mentionsAny(site.body, titleNamingHelpers) {
 				t.Errorf("%s: %s runs outside a naming helper:\n%s", name, site.call, site.function)
 			}
@@ -677,6 +700,22 @@ func TestDocumentTitleWritePathsUseTheNormalizer(t *testing.T) {
 			t.Errorf("no call site found for %s: the guard needs updating with the statement", call)
 		}
 	}
+	for fn := range titleKeepingWriters {
+		if !seenExempt[fn] {
+			t.Errorf("exempt writer %s has no title-writing call site: drop it from titleKeepingWriters", fn)
+		}
+	}
+}
+
+// exemptWriter reports whether the top-level function declaration line names
+// one of titleKeepingWriters.
+func exemptWriter(declaration string) (fn, reason string, ok bool) {
+	for name, why := range titleKeepingWriters {
+		if strings.Contains(declaration, ") "+name+"(") {
+			return name, why, true
+		}
+	}
+	return "", "", false
 }
 
 type titleWriteSite struct {

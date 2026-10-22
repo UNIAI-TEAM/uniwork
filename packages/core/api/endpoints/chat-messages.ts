@@ -270,6 +270,39 @@ export async function sendChatDocumentMessage(
 }
 
 /**
+ * UNI-2012: send a document that already exists — no bytes move. The server
+ * checks the sender may share it, grants the room's members `share_level` and
+ * writes the same kind "document" card the upload route does.
+ */
+export async function sendChatDocumentLink(
+  workspaceId: string,
+  roomId: string,
+  input: {
+    document_id: string;
+    share_level?: ChatDocumentShareLevel;
+    client_msg_id: string;
+    reply_to_message_id?: string;
+  },
+): Promise<ChatMessageRecord | null> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/document-link`,
+    {
+      method: "POST",
+      body: {
+        document_id: input.document_id,
+        share_level: input.share_level ?? "comment",
+        client_msg_id: input.client_msg_id,
+        ...(input.reply_to_message_id ? { reply_to_message_id: input.reply_to_message_id } : {}),
+      },
+    },
+  );
+  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/document-link",
+  });
+  return parsed.message ?? null;
+}
+
+/**
  * UNI-1966: convert the caller's own file attachment into a shared document
  * in place — the same message id comes back with kind "document".
  */
@@ -401,37 +434,6 @@ export async function toggleChatMessagePin(
   );
   const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
     endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/pin",
-  });
-  return parsed.message ?? null;
-}
-
-export async function listWorkspaceChatMessages(
-  workspaceId: string,
-  options?: { before?: string; limit?: number },
-): Promise<ChatMessageRecord[]> {
-  const params = new URLSearchParams();
-  if (options?.before) params.set("before", options.before);
-  if (options?.limit) params.set("limit", String(options.limit));
-  const qs = params.toString();
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/messages${qs ? `?${qs}` : ""}`,
-  );
-  const parsed = parseWithFallback(raw, ChatMessagesListSchema, { messages: [] }, {
-    endpoint: "GET /api/v1/workspaces/{ws}/chat/messages",
-  });
-  return parsed.messages ?? [];
-}
-
-export async function sendWorkspaceChatMessage(
-  workspaceId: string,
-  input: { body: string; client_msg_id?: string; reply_to_message_id?: string },
-): Promise<ChatMessageRecord | null> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/messages`, {
-    method: "POST",
-    body: input,
-  });
-  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
-    endpoint: "POST /api/v1/workspaces/{ws}/chat/messages",
   });
   return parsed.message ?? null;
 }

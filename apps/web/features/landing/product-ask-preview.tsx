@@ -8,7 +8,7 @@ import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { AskUniMessageTurn } from "@uniwork/views/ai/ask-uni-panel";
+import { AskUniMessageTurn } from "@uniwork/views/ai/ask-uni-legacy-panel";
 import { ProductDemoPlaybackSlot } from "./product-demo-playback-slot";
 import { ProductDemoNavigation } from "./product-demo-navigation";
 import { DEMO_PEOPLE } from "./product-task-data";

@@ -382,7 +382,7 @@ func (s *DocumentOfficeService) loadBase(ctx context.Context, actor Actor, in Of
 		// through here and stay available.
 		return officeInput{}, "", 0, officeErr("engine_incompatible", "version_engine:"+ver.EngineVersion.String)
 	}
-	format, err := s.formatForVersion(ctx, actor.ID, doc, &ver)
+	format, err := s.formatForVersion(ctx, doc, &ver)
 	if err != nil {
 		return officeInput{}, "", 0, err
 	}

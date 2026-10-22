@@ -4,6 +4,8 @@ dist/
 .turbo/
 *.tsbuildinfo
 .env
+scripts/uniai-sync/config.json
+scripts/uniai-sync/.sync.lock
 *.local
 server/bin/
 # Ad-hoc builds land beside the source on Windows; `make` never produces these.

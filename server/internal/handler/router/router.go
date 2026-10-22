@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -107,7 +108,10 @@ func New(d Deps, h Routes) http.Handler {
 		// pod sends every meeting it serves from one address; they have their
 		// own per-token budget (registerMeetingAgent).
 		global = exceptMeetingAgent(global)
-		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/mcp", "/api/v1/auth/desktop/refresh", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
+		// The folder upload content route skips it too: one folder of 500
+		// files sends 500 PUTs; it has its own per-person budget
+		// (folder-upload-content, 600/min).
+		r.Use(exceptFolderUploadContent(mw.ExceptPaths(global, "/healthz", "/readyz", "/mcp", "/api/v1/auth/desktop/refresh", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath)))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
 	// Native refresh: per (address, device) under a ceiling per address; the
@@ -321,7 +325,17 @@ func New(d Deps, h Routes) http.Handler {
 				// person, not per document, so a fresh id mints no fresh
 				// budget). Refused with 429 rate_limited, so the client tells this
 				// 429 from access_request_cooldown by its code.
-				mw.RateLimitByIdentityBucket(d.Redis, "doc-access-request", 20, time.Hour, proxies, bearerUser(d.Minter)))
+				mw.RateLimitByIdentityBucket(d.Redis, "doc-access-request", 20, time.Hour, proxies, bearerUser(d.Minter)),
+				// Folder upload PLAN (UNI-2052 §9): 10 a minute per signed-in
+				// person, beside the two-open-batches cap in the service.
+				mw.RateLimitByIdentityBucket(d.Redis, "folder-upload-plan", 10, time.Minute, proxies, bearerUser(d.Minter)),
+				// COMPLETE, GET and DELETE of a batch share one bucket: 120 a
+				// minute per signed-in person (§9).
+				mw.RateLimitByIdentityBucket(d.Redis, "folder-upload", 120, time.Minute, proxies, bearerUser(d.Minter)),
+				// The server content route takes one request per file of a batch
+				// (up to 500), so it has its own 600 a minute and skips the
+				// global limiter (folderUploadContentRoute).
+				mw.RateLimitByIdentityBucket(d.Redis, "folder-upload-content", 600, time.Minute, proxies, bearerUser(d.Minter)))
 			registerDocumentSources(docs, h, d.FeatureFlags)
 			// Page exports (UNI-2004) hold an engine worker for seconds: 20/min
 			// per signed-in person across every page, like the frame's export.
@@ -421,4 +435,23 @@ func exceptMeetingAgent(m func(http.Handler) http.Handler) func(http.Handler) ht
 // verified) still meets a bound; 6000 a minute is ten agent pods' worth.
 func meetingAgentLimit(ceiling, perToken func(http.Handler) http.Handler) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler { return ceiling(perToken(next)) }
+}
+
+// folderUploadContentRoute matches the folder upload content route (UNI-2052
+// §1 #2), whose path carries three ids, so ExceptPaths cannot name it.
+var folderUploadContentRoute = regexp.MustCompile(`^/api/v1/workspaces/[^/]+/documents/folder-uploads/[^/]+/files/[^/]+/content$`)
+
+// exceptFolderUploadContent runs m on every request but a PUT to the folder
+// upload content route.
+func exceptFolderUploadContent(m func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		wrapped := m(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPut && folderUploadContentRoute.MatchString(r.URL.Path) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			wrapped.ServeHTTP(w, r)
+		})
+	}
 }

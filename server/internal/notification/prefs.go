@@ -23,7 +23,8 @@ type Prefs struct {
 // (TRASH-NOTIFY-01, Q-R2: in-app only).
 // An access request pushes to the manager, who is the one who can answer it,
 // and an approval pushes to the requester, who is waiting to get in; a
-// decline does not (§4.4).
+// decline does not (§4.4). A document change notice (UNI-2056) is in-app
+// only by default: no push, no digest line.
 func DefaultPrefs(kind string) Prefs {
 	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentBodyMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
 		kind == KindDocumentShared ||
@@ -31,7 +32,7 @@ func DefaultPrefs(kind string) Prefs {
 		kind == KindTaskAssigned || kind == KindTasksAssigned || kind == KindMeetingStarting || kind == KindMeetingSummaryReady ||
 		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM || kind == KindChatCallIncoming ||
 		kind == KindDocumentEditRequested || kind == KindDocumentEditTakenOver
-	return Prefs{InApp: true, Push: push, Email: kind != KindDocumentTrashedByOther}
+	return Prefs{InApp: true, Push: push, Email: kind != KindDocumentTrashedByOther && kind != KindDocumentChanged}
 }
 
 // Matrix is one user's full preference set, kind → Prefs, defaults filled in.

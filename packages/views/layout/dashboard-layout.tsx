@@ -16,6 +16,7 @@ import { WorkspaceRealtimeSync } from "./workspace-realtime-sync";
 import { WorkspaceChatPresence } from "./workspace-chat-presence";
 import { WorkspaceChatAttention } from "./workspace-chat-attention";
 import { WorkspaceChatToast } from "./workspace-chat-toast";
+import { BrowserNotificationsPrompt } from "./browser-notifications-prompt";
 import { WorkspaceRail } from "./workspace-rail";
 import { ChatVoiceCallHost } from "../chat/chat-voice-call-host";
 
@@ -79,6 +80,7 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
                       hidden frame still scrolls under scrollIntoView or focus,
                       dragging the top bar off screen (UNI-1995). */}
                   <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="relative overflow-clip outline-hidden">
+                    <BrowserNotificationsPrompt />
                     <NavigationProgress />
                     <WorkspaceChrome bare={chatOnly}>{children}</WorkspaceChrome>
                     <WorkspaceChatToast />

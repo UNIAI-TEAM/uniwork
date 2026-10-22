@@ -20,13 +20,8 @@ import { paths } from "@uniwork/core/paths";
 import { getDesktopBridge } from "@uniwork/core/platform";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { tintSolidClass } from "@uniwork/ui/components/common/icon-tile";
-import {
-  formatShortcut,
-  isPortalLayerShortcutTarget,
-  shortcutMatchesEvent,
-  shouldIgnoreGlobalShortcutEvent,
-  useShortcut,
-} from "@uniwork/core/shortcuts";
+import { useSearchStore } from "@uniwork/core/search";
+import { formatShortcut, useShortcut } from "@uniwork/core/shortcuts";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -272,20 +267,18 @@ export function SidebarSearch({
   const chord = useShortcut("openSearch");
 
   useEffect(() => {
-    if (!desktop || !chord) return;
-    // Capture phase: it runs before the global listener, which then sees the
-    // chord as handled. A popup that owns the keys keeps them.
-    const onKeyDown = (event: KeyboardEvent) => {
+    if (!desktop) return;
+    // The shell's GlobalShortcuts owns the chord (and its rebinding); on
+    // desktop it asks this field first and falls back to the palette when the
+    // field is not on screen.
+    return useSearchStore.getState().registerFocusTarget(() => {
       const input = inputRef.current;
-      if (!input?.offsetParent || shouldIgnoreGlobalShortcutEvent(event)) return;
-      if (isPortalLayerShortcutTarget(event.target) || !shortcutMatchesEvent(chord, event)) return;
-      event.preventDefault();
+      if (!input?.offsetParent) return false;
       input.focus();
       input.select();
-    };
-    document.addEventListener("keydown", onKeyDown, true);
-    return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [desktop, chord]);
+      return true;
+    });
+  }, [desktop]);
 
   return (
     <div className="shrink-0 px-3 pb-1.5 @max-3xs/chatlist:hidden">

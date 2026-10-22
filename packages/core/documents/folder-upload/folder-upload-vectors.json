@@ -1,0 +1,2308 @@
+[
+  {
+    "name": "basic tree keeps every file and every ancestor",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a.docx",
+          "size": 10
+        },
+        {
+          "path": "R/sub/b.pdf",
+          "size": 20
+        },
+        {
+          "path": "R/sub/deep/c.txt",
+          "size": 5
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R",
+        "R/sub",
+        "R/sub/deep"
+      ],
+      "files": [
+        {
+          "path": "R/a.docx",
+          "filename": "a.docx",
+          "folderPath": "R",
+          "size": 10,
+          "index": 0
+        },
+        {
+          "path": "R/sub/b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "R/sub",
+          "size": 20,
+          "index": 1
+        },
+        {
+          "path": "R/sub/deep/c.txt",
+          "filename": "c.txt",
+          "folderPath": "R/sub/deep",
+          "size": 5,
+          "index": 2
+        }
+      ],
+      "skipped": [],
+      "refusal": null,
+      "totals": {
+        "files": 3,
+        "bytes": 35
+      }
+    }
+  },
+  {
+    "name": "hidden and system names are skipped, case-insensitively, at any depth",
+    "input": {
+      "entries": [
+        {
+          "path": "Docs/.DS_Store",
+          "size": 1
+        },
+        {
+          "path": "Docs/.git/config.txt",
+          "size": 1
+        },
+        {
+          "path": "Docs/__MACOSX/x.docx",
+          "size": 1
+        },
+        {
+          "path": "Docs/Thumbs.db",
+          "size": 1
+        },
+        {
+          "path": "Docs/ehthumbs.db",
+          "size": 1
+        },
+        {
+          "path": "Docs/desktop.ini",
+          "size": 1
+        },
+        {
+          "path": "Docs/Icon\r",
+          "size": 1
+        },
+        {
+          "path": "Docs/~$lock.docx",
+          "size": 1
+        },
+        {
+          "path": "Docs/THUMBS.DB",
+          "size": 1
+        },
+        {
+          "path": "Docs/sub/.hidden/y.pdf",
+          "size": 1
+        },
+        {
+          "path": "Docs/ok.docx",
+          "size": 7
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "Docs",
+      "rootTitle": "Docs",
+      "folders": [
+        "Docs"
+      ],
+      "files": [
+        {
+          "path": "Docs/ok.docx",
+          "filename": "ok.docx",
+          "folderPath": "Docs",
+          "size": 7,
+          "index": 10
+        }
+      ],
+      "skipped": [
+        {
+          "path": "Docs/.DS_Store",
+          "reason": "hidden"
+        },
+        {
+          "path": "Docs/.git/config.txt",
+          "reason": "hidden"
+        },
+        {
+          "path": "Docs/__MACOSX/x.docx",
+          "reason": "hidden"
+        },
+        {
+          "path": "Docs/Thumbs.db",
+          "reason": "hidden"
+        },
+        {
+          "path": "Docs/ehthumbs.db",
+          "reason": "hidden"
+        },
+        {
+          "path": "Docs/desktop.ini",
+          "reason": "hidden"
+        },
+        {
+          "path": "Docs/Icon",
+          "reason": "hidden"
+        },
+        {
+          "path": "Docs/~$lock.docx",
+          "reason": "hidden"
+        },
+        {
+          "path": "Docs/THUMBS.DB",
+          "reason": "hidden"
+        },
+        {
+          "path": "Docs/sub/.hidden/y.pdf",
+          "reason": "hidden"
+        }
+      ],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 7
+      }
+    }
+  },
+  {
+    "name": "extensions outside the document list are skipped as unsupported_format",
+    "input": {
+      "entries": [
+        {
+          "path": "Docs/run.exe",
+          "size": 5
+        },
+        {
+          "path": "Docs/noextension",
+          "size": 5
+        },
+        {
+          "path": "Docs/trailingdot.",
+          "size": 5
+        },
+        {
+          "path": "Docs/b.DOCX",
+          "size": 5
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "Docs",
+      "rootTitle": "Docs",
+      "folders": [
+        "Docs"
+      ],
+      "files": [
+        {
+          "path": "Docs/b.DOCX",
+          "filename": "b.DOCX",
+          "folderPath": "Docs",
+          "size": 5,
+          "index": 3
+        }
+      ],
+      "skipped": [
+        {
+          "path": "Docs/run.exe",
+          "reason": "unsupported_format"
+        },
+        {
+          "path": "Docs/noextension",
+          "reason": "unsupported_format"
+        },
+        {
+          "path": "Docs/trailingdot.",
+          "reason": "unsupported_format"
+        }
+      ],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 5
+      }
+    }
+  },
+  {
+    "name": "a file above the per-file cap is skipped; exactly the cap and 0 bytes are kept",
+    "input": {
+      "entries": [
+        {
+          "path": "Docs/big.pdf",
+          "size": 101
+        },
+        {
+          "path": "Docs/exact.pdf",
+          "size": 100
+        },
+        {
+          "path": "Docs/empty.txt",
+          "size": 0
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 100
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "Docs",
+      "rootTitle": "Docs",
+      "folders": [
+        "Docs"
+      ],
+      "files": [
+        {
+          "path": "Docs/exact.pdf",
+          "filename": "exact.pdf",
+          "folderPath": "Docs",
+          "size": 100,
+          "index": 1
+        },
+        {
+          "path": "Docs/empty.txt",
+          "filename": "empty.txt",
+          "folderPath": "Docs",
+          "size": 0,
+          "index": 2
+        }
+      ],
+      "skipped": [
+        {
+          "path": "Docs/big.pdf",
+          "reason": "too_large"
+        }
+      ],
+      "refusal": null,
+      "totals": {
+        "files": 2,
+        "bytes": 100
+      }
+    }
+  },
+  {
+    "name": "a file name over 500 characters is skipped; 500 is kept",
+    "input": {
+      "entries": [
+        {
+          "path": "Docs/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.pdf",
+          "size": 1
+        },
+        {
+          "path": "Docs/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.pdf",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "Docs",
+      "rootTitle": "Docs",
+      "folders": [
+        "Docs"
+      ],
+      "files": [
+        {
+          "path": "Docs/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.pdf",
+          "filename": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.pdf",
+          "folderPath": "Docs",
+          "size": 1,
+          "index": 1
+        }
+      ],
+      "skipped": [
+        {
+          "path": "Docs/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.pdf",
+          "reason": "name_too_long"
+        }
+      ],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 1
+      }
+    }
+  },
+  {
+    "name": "empty, dot, dot-dot, double-slash and root-less paths are invalid_path",
+    "input": {
+      "entries": [
+        {
+          "path": "",
+          "size": 1
+        },
+        {
+          "path": "R/../x.docx",
+          "size": 1
+        },
+        {
+          "path": "R//x.docx",
+          "size": 1
+        },
+        {
+          "path": "R/./x.docx",
+          "size": 1
+        },
+        {
+          "path": "lonely.docx",
+          "size": 1
+        },
+        {
+          "path": "R/ok.docx",
+          "size": 2
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R"
+      ],
+      "files": [
+        {
+          "path": "R/ok.docx",
+          "filename": "ok.docx",
+          "folderPath": "R",
+          "size": 2,
+          "index": 5
+        }
+      ],
+      "skipped": [
+        {
+          "path": "",
+          "reason": "invalid_path"
+        },
+        {
+          "path": "R/../x.docx",
+          "reason": "invalid_path"
+        },
+        {
+          "path": "R//x.docx",
+          "reason": "invalid_path"
+        },
+        {
+          "path": "R/./x.docx",
+          "reason": "invalid_path"
+        },
+        {
+          "path": "lonely.docx",
+          "reason": "invalid_path"
+        }
+      ],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 2
+      }
+    }
+  },
+  {
+    "name": "segments are NFC-normalised and trimmed",
+    "input": {
+      "entries": [
+        {
+          "path": " Báo cáo /  Q1 /a.docx ",
+          "size": 4
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "Báo cáo",
+      "rootTitle": "Báo cáo",
+      "folders": [
+        "Báo cáo",
+        "Báo cáo/Q1"
+      ],
+      "files": [
+        {
+          "path": "Báo cáo/Q1/a.docx",
+          "filename": "a.docx",
+          "folderPath": "Báo cáo/Q1",
+          "size": 4,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 4
+      }
+    }
+  },
+  {
+    "name": "folders holding only skipped files are not created; empty roots stay out",
+    "input": {
+      "entries": [
+        {
+          "path": "R/skipped/a.exe",
+          "size": 1
+        },
+        {
+          "path": "R/hidden/.DS_Store",
+          "size": 1
+        },
+        {
+          "path": "R/keep/sub/b.pdf",
+          "size": 3
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R",
+        "R/keep",
+        "R/keep/sub"
+      ],
+      "files": [
+        {
+          "path": "R/keep/sub/b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "R/keep/sub",
+          "size": 3,
+          "index": 2
+        }
+      ],
+      "skipped": [
+        {
+          "path": "R/skipped/a.exe",
+          "reason": "unsupported_format"
+        },
+        {
+          "path": "R/hidden/.DS_Store",
+          "reason": "hidden"
+        }
+      ],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 3
+      }
+    }
+  },
+  {
+    "name": "folders are ordered top-down by depth, then by Vietnamese collation",
+    "input": {
+      "entries": [
+        {
+          "path": "R/b/x.pdf",
+          "size": 1
+        },
+        {
+          "path": "R/ă/x.pdf",
+          "size": 1
+        },
+        {
+          "path": "R/a/x.pdf",
+          "size": 1
+        },
+        {
+          "path": "R/a/deep/x.pdf",
+          "size": 1
+        },
+        {
+          "path": "R/c/x.pdf",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R",
+        "R/a",
+        "R/ă",
+        "R/b",
+        "R/c",
+        "R/a/deep"
+      ],
+      "files": [
+        {
+          "path": "R/b/x.pdf",
+          "filename": "x.pdf",
+          "folderPath": "R/b",
+          "size": 1,
+          "index": 0
+        },
+        {
+          "path": "R/ă/x.pdf",
+          "filename": "x.pdf",
+          "folderPath": "R/ă",
+          "size": 1,
+          "index": 1
+        },
+        {
+          "path": "R/a/x.pdf",
+          "filename": "x.pdf",
+          "folderPath": "R/a",
+          "size": 1,
+          "index": 2
+        },
+        {
+          "path": "R/a/deep/x.pdf",
+          "filename": "x.pdf",
+          "folderPath": "R/a/deep",
+          "size": 1,
+          "index": 3
+        },
+        {
+          "path": "R/c/x.pdf",
+          "filename": "x.pdf",
+          "folderPath": "R/c",
+          "size": 1,
+          "index": 4
+        }
+      ],
+      "skipped": [],
+      "refusal": null,
+      "totals": {
+        "files": 5,
+        "bytes": 5
+      }
+    }
+  },
+  {
+    "name": "too_many_files reports limit and the count of files that would upload",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a.pdf",
+          "size": 30
+        },
+        {
+          "path": "R/b.pdf",
+          "size": 30
+        },
+        {
+          "path": "R/c.pdf",
+          "size": 30
+        }
+      ],
+      "limits": {
+        "maxFiles": 2,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R"
+      ],
+      "files": [
+        {
+          "path": "R/a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "R",
+          "size": 30,
+          "index": 0
+        },
+        {
+          "path": "R/b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "R",
+          "size": 30,
+          "index": 1
+        },
+        {
+          "path": "R/c.pdf",
+          "filename": "c.pdf",
+          "folderPath": "R",
+          "size": 30,
+          "index": 2
+        }
+      ],
+      "skipped": [],
+      "refusal": {
+        "code": "too_many_files",
+        "limit": 2,
+        "actual": 3
+      },
+      "totals": {
+        "files": 3,
+        "bytes": 90
+      }
+    }
+  },
+  {
+    "name": "files that are skipped do not count toward the file limit",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a.pdf",
+          "size": 1
+        },
+        {
+          "path": "R/b.pdf",
+          "size": 1
+        },
+        {
+          "path": "R/.hidden.pdf",
+          "size": 1
+        },
+        {
+          "path": "R/c.exe",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 2,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R"
+      ],
+      "files": [
+        {
+          "path": "R/a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "R",
+          "size": 1,
+          "index": 0
+        },
+        {
+          "path": "R/b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "R",
+          "size": 1,
+          "index": 1
+        }
+      ],
+      "skipped": [
+        {
+          "path": "R/.hidden.pdf",
+          "reason": "hidden"
+        },
+        {
+          "path": "R/c.exe",
+          "reason": "unsupported_format"
+        }
+      ],
+      "refusal": null,
+      "totals": {
+        "files": 2,
+        "bytes": 2
+      }
+    }
+  },
+  {
+    "name": "too_large_total reports limit and actual bytes",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a.pdf",
+          "size": 30
+        },
+        {
+          "path": "R/b.pdf",
+          "size": 30
+        },
+        {
+          "path": "R/c.pdf",
+          "size": 30
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 89,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R"
+      ],
+      "files": [
+        {
+          "path": "R/a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "R",
+          "size": 30,
+          "index": 0
+        },
+        {
+          "path": "R/b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "R",
+          "size": 30,
+          "index": 1
+        },
+        {
+          "path": "R/c.pdf",
+          "filename": "c.pdf",
+          "folderPath": "R",
+          "size": 30,
+          "index": 2
+        }
+      ],
+      "skipped": [],
+      "refusal": {
+        "code": "too_large_total",
+        "limit": 89,
+        "actual": 90
+      },
+      "totals": {
+        "files": 3,
+        "bytes": 90
+      }
+    }
+  },
+  {
+    "name": "total exactly at the limit is accepted",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a.pdf",
+          "size": 30
+        },
+        {
+          "path": "R/b.pdf",
+          "size": 30
+        },
+        {
+          "path": "R/c.pdf",
+          "size": 30
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 90,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R"
+      ],
+      "files": [
+        {
+          "path": "R/a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "R",
+          "size": 30,
+          "index": 0
+        },
+        {
+          "path": "R/b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "R",
+          "size": 30,
+          "index": 1
+        },
+        {
+          "path": "R/c.pdf",
+          "filename": "c.pdf",
+          "folderPath": "R",
+          "size": 30,
+          "index": 2
+        }
+      ],
+      "skipped": [],
+      "refusal": null,
+      "totals": {
+        "files": 3,
+        "bytes": 90
+      }
+    }
+  },
+  {
+    "name": "too_deep counts parentLevel plus path segments of the deepest file",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a/b.docx",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 18,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R",
+        "R/a"
+      ],
+      "files": [
+        {
+          "path": "R/a/b.docx",
+          "filename": "b.docx",
+          "folderPath": "R/a",
+          "size": 1,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "refusal": {
+        "code": "too_deep",
+        "limit": 20,
+        "actual": 21
+      },
+      "totals": {
+        "files": 1,
+        "bytes": 1
+      }
+    }
+  },
+  {
+    "name": "depth exactly at the limit is accepted",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a/b.docx",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 17,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R",
+        "R/a"
+      ],
+      "files": [
+        {
+          "path": "R/a/b.docx",
+          "filename": "b.docx",
+          "folderPath": "R/a",
+          "size": 1,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 1
+      }
+    }
+  },
+  {
+    "name": "nothing_to_upload when every file is skipped",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a.exe",
+          "size": 1
+        },
+        {
+          "path": "R/.DS_Store",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [],
+      "files": [],
+      "skipped": [
+        {
+          "path": "R/a.exe",
+          "reason": "unsupported_format"
+        },
+        {
+          "path": "R/.DS_Store",
+          "reason": "hidden"
+        }
+      ],
+      "totals": {
+        "files": 0,
+        "bytes": 0
+      },
+      "refusal": {
+        "code": "nothing_to_upload"
+      }
+    }
+  },
+  {
+    "name": "nothing_to_upload for an empty entry list",
+    "input": {
+      "entries": [],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "",
+      "rootTitle": "",
+      "folders": [],
+      "files": [],
+      "skipped": [],
+      "totals": {
+        "files": 0,
+        "bytes": 0
+      },
+      "refusal": {
+        "code": "nothing_to_upload"
+      }
+    }
+  },
+  {
+    "name": "segment_too_long when a folder name passes 255 characters",
+    "input": {
+      "entries": [
+        {
+          "path": "R/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/a.pdf",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R",
+        "R/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      ],
+      "files": [
+        {
+          "path": "R/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "R/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 1,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "refusal": {
+        "code": "segment_too_long",
+        "limit": 255,
+        "actual": 256
+      },
+      "totals": {
+        "files": 1,
+        "bytes": 1
+      }
+    }
+  },
+  {
+    "name": "a folder name of exactly 255 characters is accepted",
+    "input": {
+      "entries": [
+        {
+          "path": "R/ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/a.pdf",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R",
+        "R/ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      ],
+      "files": [
+        {
+          "path": "R/ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "R/ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 1,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 1
+      }
+    }
+  },
+  {
+    "name": "a long folder holding only skipped files does not refuse",
+    "input": {
+      "entries": [
+        {
+          "path": "R/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/a.exe",
+          "size": 1
+        },
+        {
+          "path": "R/ok.pdf",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R"
+      ],
+      "files": [
+        {
+          "path": "R/ok.pdf",
+          "filename": "ok.pdf",
+          "folderPath": "R",
+          "size": 1,
+          "index": 1
+        }
+      ],
+      "skipped": [
+        {
+          "path": "R/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/a.exe",
+          "reason": "unsupported_format"
+        }
+      ],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 1
+      }
+    }
+  },
+  {
+    "name": "multiple_roots when entries start with different folders",
+    "input": {
+      "entries": [
+        {
+          "path": "A/x.docx",
+          "size": 1
+        },
+        {
+          "path": "B/y.docx",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "A",
+      "rootTitle": "A",
+      "folders": [],
+      "files": [],
+      "skipped": [],
+      "totals": {
+        "files": 0,
+        "bytes": 0
+      },
+      "refusal": {
+        "code": "multiple_roots",
+        "limit": 1,
+        "actual": 2
+      }
+    }
+  },
+  {
+    "name": "a hidden second root does not count as another root",
+    "input": {
+      "entries": [
+        {
+          "path": "A/x.docx",
+          "size": 1
+        },
+        {
+          "path": "__MACOSX/A/._x.docx",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "A",
+      "rootTitle": "A",
+      "folders": [
+        "A"
+      ],
+      "files": [
+        {
+          "path": "A/x.docx",
+          "filename": "x.docx",
+          "folderPath": "A",
+          "size": 1,
+          "index": 0
+        }
+      ],
+      "skipped": [
+        {
+          "path": "__MACOSX/A/._x.docx",
+          "reason": "hidden"
+        }
+      ],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 1
+      }
+    }
+  },
+  {
+    "name": "no sibling clash keeps the name",
+    "input": {
+      "entries": [
+        {
+          "path": "Docs/a.pdf",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": [
+        "Other",
+        "Docs 2"
+      ]
+    },
+    "expected": {
+      "rootName": "Docs",
+      "rootTitle": "Docs",
+      "folders": [
+        "Docs"
+      ],
+      "files": [
+        {
+          "path": "Docs/a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "Docs",
+          "size": 1,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 1
+      }
+    }
+  },
+  {
+    "name": "a clash gets (1)",
+    "input": {
+      "entries": [
+        {
+          "path": "Docs/a.pdf",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": [
+        "Docs"
+      ]
+    },
+    "expected": {
+      "rootName": "Docs",
+      "rootTitle": "Docs (1)",
+      "folders": [
+        "Docs"
+      ],
+      "files": [
+        {
+          "path": "Docs/a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "Docs",
+          "size": 1,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 1
+      }
+    }
+  },
+  {
+    "name": "a clash ignores case and takes the smallest free number",
+    "input": {
+      "entries": [
+        {
+          "path": "Docs/a.pdf",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": [
+        "docs",
+        "DOCS (1)",
+        "Docs (3)"
+      ]
+    },
+    "expected": {
+      "rootName": "Docs",
+      "rootTitle": "Docs (2)",
+      "folders": [
+        "Docs"
+      ],
+      "files": [
+        {
+          "path": "Docs/a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "Docs",
+          "size": 1,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 1
+      }
+    }
+  },
+  {
+    "name": "a gap in the numbering is reused",
+    "input": {
+      "entries": [
+        {
+          "path": "Docs/a.pdf",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": [
+        "Docs",
+        "Docs (2)"
+      ]
+    },
+    "expected": {
+      "rootName": "Docs",
+      "rootTitle": "Docs (1)",
+      "folders": [
+        "Docs"
+      ],
+      "files": [
+        {
+          "path": "Docs/a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "Docs",
+          "size": 1,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 1
+      }
+    }
+  },
+  {
+    "name": "sibling names compare after NFC and trim",
+    "input": {
+      "entries": [
+        {
+          "path": "Báo/a.pdf",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 1,
+      "siblingNames": [
+        "  Báo "
+      ]
+    },
+    "expected": {
+      "rootName": "Báo",
+      "rootTitle": "Báo (1)",
+      "folders": [
+        "Báo"
+      ],
+      "files": [
+        {
+          "path": "Báo/a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "Báo",
+          "size": 1,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "refusal": null,
+      "totals": {
+        "files": 1,
+        "bytes": 1
+      }
+    }
+  },
+  {
+    "name": "too_many_folders: folders created, root included, above maxFolders",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a/x.pdf",
+          "size": 1
+        },
+        {
+          "path": "R/b/y.pdf",
+          "size": 2
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200,
+        "maxFolders": 2
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R",
+        "R/a",
+        "R/b"
+      ],
+      "files": [
+        {
+          "path": "R/a/x.pdf",
+          "filename": "x.pdf",
+          "folderPath": "R/a",
+          "size": 1,
+          "index": 0
+        },
+        {
+          "path": "R/b/y.pdf",
+          "filename": "y.pdf",
+          "folderPath": "R/b",
+          "size": 2,
+          "index": 1
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 2,
+        "bytes": 3
+      },
+      "refusal": {
+        "code": "too_many_folders",
+        "limit": 2,
+        "actual": 3
+      }
+    }
+  },
+  {
+    "name": "too_many_folders: exactly maxFolders folders is allowed",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a/x.pdf",
+          "size": 1
+        },
+        {
+          "path": "R/b/y.pdf",
+          "size": 2
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200,
+        "maxFolders": 3
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R",
+        "R/a",
+        "R/b"
+      ],
+      "files": [
+        {
+          "path": "R/a/x.pdf",
+          "filename": "x.pdf",
+          "folderPath": "R/a",
+          "size": 1,
+          "index": 0
+        },
+        {
+          "path": "R/b/y.pdf",
+          "filename": "y.pdf",
+          "folderPath": "R/b",
+          "size": 2,
+          "index": 1
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 2,
+        "bytes": 3
+      },
+      "refusal": null
+    }
+  },
+  {
+    "name": "server extension list (uploadExtensions) replaces the local one, case-insensitive",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a.exe",
+          "size": 1
+        },
+        {
+          "path": "R/b.docx",
+          "size": 2
+        },
+        {
+          "path": "R/c.PDF",
+          "size": 3
+        },
+        {
+          "path": "R/noext",
+          "size": 4
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200,
+        "uploadExtensions": [
+          "pdf",
+          "exe"
+        ]
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R"
+      ],
+      "files": [
+        {
+          "path": "R/a.exe",
+          "filename": "a.exe",
+          "folderPath": "R",
+          "size": 1,
+          "index": 0
+        },
+        {
+          "path": "R/c.PDF",
+          "filename": "c.PDF",
+          "folderPath": "R",
+          "size": 3,
+          "index": 2
+        }
+      ],
+      "skipped": [
+        {
+          "path": "R/b.docx",
+          "reason": "unsupported_format"
+        },
+        {
+          "path": "R/noext",
+          "reason": "unsupported_format"
+        }
+      ],
+      "totals": {
+        "files": 2,
+        "bytes": 4
+      },
+      "refusal": null
+    }
+  },
+  {
+    "name": "server extension list keeps the per-file cap",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a.pdf",
+          "size": 11
+        },
+        {
+          "path": "R/b.pdf",
+          "size": 10
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 10,
+        "uploadExtensions": [
+          "pdf"
+        ]
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R"
+      ],
+      "files": [
+        {
+          "path": "R/b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "R",
+          "size": 10,
+          "index": 1
+        }
+      ],
+      "skipped": [
+        {
+          "path": "R/a.pdf",
+          "reason": "too_large"
+        }
+      ],
+      "totals": {
+        "files": 1,
+        "bytes": 10
+      },
+      "refusal": null
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: every file goes to the destination, no root, no folders",
+    "input": {
+      "entries": [
+        {
+          "path": "a.docx",
+          "size": 10
+        },
+        {
+          "path": "b.pdf",
+          "size": 20
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "a.docx",
+          "filename": "a.docx",
+          "folderPath": "",
+          "size": 10,
+          "index": 0
+        },
+        {
+          "path": "b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "",
+          "size": 20,
+          "index": 1
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 2,
+        "bytes": 30
+      },
+      "refusal": null
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: two files with the same name are both kept, never renamed",
+    "input": {
+      "entries": [
+        {
+          "path": "Báo cáo.pdf",
+          "size": 1
+        },
+        {
+          "path": "báo cáo.pdf",
+          "size": 2
+        },
+        {
+          "path": "Báo cáo.pdf",
+          "size": 3
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "Báo cáo.pdf",
+          "filename": "Báo cáo.pdf",
+          "folderPath": "",
+          "size": 1,
+          "index": 0
+        },
+        {
+          "path": "báo cáo.pdf",
+          "filename": "báo cáo.pdf",
+          "folderPath": "",
+          "size": 2,
+          "index": 1
+        },
+        {
+          "path": "Báo cáo.pdf",
+          "filename": "Báo cáo.pdf",
+          "folderPath": "",
+          "size": 3,
+          "index": 2
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 3,
+        "bytes": 6
+      },
+      "refusal": null
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: hidden, unsupported_format, per-file cap and 500 characters skip like a folder",
+    "input": {
+      "entries": [
+        {
+          "path": ".DS_Store",
+          "size": 1
+        },
+        {
+          "path": "~$draft.docx",
+          "size": 1
+        },
+        {
+          "path": "Thumbs.db",
+          "size": 1
+        },
+        {
+          "path": "tool.exe",
+          "size": 1
+        },
+        {
+          "path": "big.pdf",
+          "size": 101
+        },
+        {
+          "path": "ok.pdf",
+          "size": 100
+        },
+        {
+          "path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+          "size": 1
+        },
+        {
+          "path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 100
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "ok.pdf",
+          "filename": "ok.pdf",
+          "folderPath": "",
+          "size": 100,
+          "index": 5
+        },
+        {
+          "path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+          "filename": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+          "folderPath": "",
+          "size": 1,
+          "index": 7
+        }
+      ],
+      "skipped": [
+        {
+          "path": ".DS_Store",
+          "reason": "hidden"
+        },
+        {
+          "path": "~$draft.docx",
+          "reason": "hidden"
+        },
+        {
+          "path": "Thumbs.db",
+          "reason": "hidden"
+        },
+        {
+          "path": "tool.exe",
+          "reason": "unsupported_format"
+        },
+        {
+          "path": "big.pdf",
+          "reason": "too_large"
+        },
+        {
+          "path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+          "reason": "name_too_long"
+        }
+      ],
+      "totals": {
+        "files": 2,
+        "bytes": 101
+      },
+      "refusal": null
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: names are NFC-normalised and trimmed; an empty or dot name is invalid_path",
+    "input": {
+      "entries": [
+        {
+          "path": "  Kế hoạch.docx ",
+          "size": 4
+        },
+        {
+          "path": "",
+          "size": 1
+        },
+        {
+          "path": " . ",
+          "size": 1
+        },
+        {
+          "path": "..",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "Kế hoạch.docx",
+          "filename": "Kế hoạch.docx",
+          "folderPath": "",
+          "size": 4,
+          "index": 0
+        }
+      ],
+      "skipped": [
+        {
+          "path": "",
+          "reason": "invalid_path"
+        },
+        {
+          "path": " . ",
+          "reason": "invalid_path"
+        },
+        {
+          "path": "..",
+          "reason": "invalid_path"
+        }
+      ],
+      "totals": {
+        "files": 1,
+        "bytes": 4
+      },
+      "refusal": null
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: too_many_files counts the files that would upload",
+    "input": {
+      "entries": [
+        {
+          "path": "a.pdf",
+          "size": 1
+        },
+        {
+          "path": "b.pdf",
+          "size": 1
+        },
+        {
+          "path": "c.pdf",
+          "size": 1
+        },
+        {
+          "path": ".hidden",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 2,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "",
+          "size": 1,
+          "index": 0
+        },
+        {
+          "path": "b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "",
+          "size": 1,
+          "index": 1
+        },
+        {
+          "path": "c.pdf",
+          "filename": "c.pdf",
+          "folderPath": "",
+          "size": 1,
+          "index": 2
+        }
+      ],
+      "skipped": [
+        {
+          "path": ".hidden",
+          "reason": "hidden"
+        }
+      ],
+      "totals": {
+        "files": 3,
+        "bytes": 3
+      },
+      "refusal": {
+        "code": "too_many_files",
+        "limit": 2,
+        "actual": 3
+      }
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: too_large_total reports limit and actual bytes; folders never apply",
+    "input": {
+      "entries": [
+        {
+          "path": "a.pdf",
+          "size": 60
+        },
+        {
+          "path": "b.pdf",
+          "size": 50
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 100,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200,
+        "maxFolders": 0
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "",
+          "size": 60,
+          "index": 0
+        },
+        {
+          "path": "b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "",
+          "size": 50,
+          "index": 1
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 2,
+        "bytes": 110
+      },
+      "refusal": {
+        "code": "too_large_total",
+        "limit": 100,
+        "actual": 110
+      }
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: nothing_to_upload when every file is skipped",
+    "input": {
+      "entries": [
+        {
+          "path": "a.exe",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [],
+      "skipped": [
+        {
+          "path": "a.exe",
+          "reason": "unsupported_format"
+        }
+      ],
+      "totals": {
+        "files": 0,
+        "bytes": 0
+      },
+      "refusal": {
+        "code": "nothing_to_upload"
+      }
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: too_deep when the destination level + 1 is over maxDepth (parentLevel)",
+    "input": {
+      "entries": [
+        {
+          "path": "a.docx",
+          "size": 10
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 20
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "a.docx",
+          "filename": "a.docx",
+          "folderPath": "",
+          "size": 10,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 1,
+        "bytes": 10
+      },
+      "refusal": {
+        "code": "too_deep",
+        "limit": 20,
+        "actual": 21
+      }
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: parentLevel + 1 equal to maxDepth is allowed",
+    "input": {
+      "entries": [
+        {
+          "path": "a.docx",
+          "size": 10
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 19
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "a.docx",
+          "filename": "a.docx",
+          "folderPath": "",
+          "size": 10,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 1,
+        "bytes": 10
+      },
+      "refusal": null
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: nothing_to_upload wins over too_deep",
+    "input": {
+      "entries": [
+        {
+          "path": "x.exe",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 30
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [],
+      "skipped": [
+        {
+          "path": "x.exe",
+          "reason": "unsupported_format"
+        }
+      ],
+      "totals": {
+        "files": 0,
+        "bytes": 0
+      },
+      "refusal": {
+        "code": "nothing_to_upload"
+      }
+    }
+  }
+]

@@ -91,7 +91,7 @@ sản phẩm đã chốt ngày 2026-10-20 (§13).
 | D2 | AI chỉ đề xuất, người chốt (ADR 0010). Agent không ghi bảng nghiệp vụ; nó gửi lời và yêu cầu qua API, server quyết định. |
 | D3 | **Một agent tên `uniwork-scribe`, một job mỗi cuộc họp**, viết bằng **Python** (plugin đủ nhất: hàm theo từng người, tách người nói, MCP). Không bao giờ chạy chế độ tự vào mọi phòng: LiveKit dùng chung với lms-core. |
 | D4 | **Mỗi người một luồng STT**, có VAD; người nói là identity của track, không đoán. Chỉ luồng "micro hội trường" (A3) bật tách người nói. |
-| D5 | **Agent gọi STT trực tiếp; mọi lời gọi LLM đi qua server** (`ai.Gateway`). Agent không giữ key LLM. Đây là ngoại lệ của luật "chỉ `internal/ai/provider` nói chuyện với nhà cung cấp model", nên đợt S1 viết **ADR 0037**. |
+| D5 | **Agent gọi STT trực tiếp; mọi lời gọi LLM đi qua server** (`ai.Gateway`). Agent không giữ key LLM. Đây là ngoại lệ của luật "chỉ `internal/ai/provider` nói chuyện với nhà cung cấp model", nên đợt S1 viết **ADR 0038**. |
 | D6 | **Token theo cuộc họp** thay secret chung: server ký khi gọi agent vào phòng, gắn `meeting_id`, hết hạn sau giờ kết thúc dự kiến 4 giờ, đặt trong job metadata. Route agent chỉ nhận token này và chỉ cho đúng cuộc họp đó. |
 | D7 | **Phụ đề do agent phát** lên text stream topic riêng `uw.caption` ngay trong phòng (primitive có tài liệu); client UniWork tự đọc. Không dùng `lk.transcription` (không có tài liệu cho luồng STT tự viết). Chỉ đoạn **final** được lưu vào DB. |
 | D8 | **Agent không tính là người tham gia.** Server đã bỏ qua identity không phải `uw_participant_` khi ghi lượt vào/ra; client lọc theo **kind participant `AGENT`** của LiveKit (không theo tiền tố identity) ra khỏi lưới hình, danh sách người, điều hành, đếm người; hiện riêng thành chip "AI ghi lời". |
@@ -522,7 +522,7 @@ Các sửa trên đã được áp vào spec cha cùng ngày, duyệt cùng spec
 | Đợt | Nội dung | Phụ thuộc | Cờ |
 |---|---|---|---|
 | S0 | **Spike 2–3 ngày, từng mục đạt/không đạt:** (1) LiveKit server production đủ mới cho agent dispatch (local đang v1.9.12); (2) agent vào phòng bằng `CreateDispatch`, không vào phòng khác; (3) luồng STT theo người với AssemblyAI Universal-3.5/3.6 Pro tiếng Việt, độ trễ phụ đề; (4) phát `uw.caption` và client đọc đúng người; (5) AssemblyAI tính tiền theo thời gian mở phiên hay theo âm thanh, và đóng/mở phiên khi im lặng có làm mất chữ không; (6) cảm nhận chất lượng trên 2 cuộc họp thật. Kết quả ghi vào spec; S1 chỉ bắt đầu khi S0 qua. | — | — |
-| S1 | **Thư ký AI nền:** A1, A2, A6, ADR 0037, token cuộc họp, `ensureScribe` + vòng quét, `meeting_scribe_runs`, quyền gói `meeting.transcription` theo phút (D9), ngân sách họp dài (spec cha §7.8), lọc agent ở client theo kind `AGENT`, xoá route cũ | S0; spec cha đợt 1 nên xong trước | `meeting_scribe` |
+| S1 | **Thư ký AI nền:** A1, A2, A6, ADR 0038, token cuộc họp, `ensureScribe` + vòng quét, `meeting_scribe_runs`, quyền gói `meeting.transcription` theo phút (D9), ngân sách họp dài (spec cha §7.8), lọc agent ở client theo kind `AGENT`, xoá route cũ | S0; spec cha đợt 1 nên xong trước | `meeting_scribe` |
 | S2 | **Micro hội trường + gán người nói:** A3, `meeting_speaker_labels` | S1 | `meeting_scribe` |
 | S3 | **Việc trong lúc họp:** A4 | S1; spec cha đợt 3 | `meeting_scribe` |
 | S4 | **Tóm tắt tự tạo:** A5, kind `meeting_summary_ready`, cài đặt tổ chức | spec cha đợt 3 | — |

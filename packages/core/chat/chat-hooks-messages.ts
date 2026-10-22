@@ -8,6 +8,7 @@ import { runWithChatSendRetry } from "./send-retry";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
 import { lookupChatUserCached } from "./user-lookup";
 import { useAuthStore } from "../auth/store";
+import { documentKeys } from "../documents/keys";
 import { chatKeys } from "./chat-keys";
 import {
   applyChatMessageResponse,
@@ -67,7 +68,6 @@ export function useSendChatRoomMessage(workspaceId: string) {
         });
         void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
       }
-      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
     },
   });
 }
@@ -84,7 +84,6 @@ export function useSendChatVoiceMessage(workspaceId: string) {
     }) => chat.sendChatVoiceMessage(workspaceId, input.roomId, input),
     onSuccess: (data, variables) => {
       applyChatMessageResponse(qc, workspaceId, variables.roomId, data, true);
-      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
   });
@@ -102,7 +101,6 @@ export function useSendChatFileMessage(workspaceId: string) {
     }) => chat.sendChatFileMessage(workspaceId, input.roomId, input),
     onSuccess: (data, variables) => {
       applyChatMessageResponse(qc, workspaceId, variables.roomId, data, true);
-      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
   });
@@ -126,7 +124,30 @@ export function useSendChatDocumentMessage(workspaceId: string) {
     }) => chat.sendChatDocumentMessage(workspaceId, input.roomId, input),
     onSuccess: (data, variables) => {
       applyChatMessageResponse(qc, workspaceId, variables.roomId, data, true);
-      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+    },
+  });
+}
+
+/**
+ * UNI-2012: send an existing document into the room by id. Same landing as
+ * the document upload: the returned card is inserted under its client_msg_id.
+ */
+export function useSendChatDocumentLink(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      roomId: string;
+      document_id: string;
+      share_level: ChatDocumentShareLevel;
+      client_msg_id: string;
+      reply_to_message_id?: string;
+    }) => {
+      const { roomId, ...body } = input;
+      return chat.sendChatDocumentLink(workspaceId, roomId, body);
+    },
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, true);
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
   });
@@ -147,7 +168,6 @@ export function useShareChatMessageAsDocument(workspaceId: string, roomId: strin
       }),
     onSuccess: (data) => {
       applyChatMessageResponse(qc, workspaceId, roomId, data, false);
-      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
   });
@@ -208,7 +228,6 @@ export function useEditChatMessage(workspaceId: string) {
       chat.editChatRoomMessage(workspaceId, input.roomId, input.messageId, input.body),
     onSuccess: (data, variables) => {
       applyChatMessageResponse(qc, workspaceId, variables.roomId, data, false);
-      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
     },
   });
 }
@@ -220,8 +239,10 @@ export function useDeleteChatMessage(workspaceId: string) {
       chat.deleteChatRoomMessage(workspaceId, input.roomId, input.messageId),
     onSuccess: (_data, variables) => {
       patchChatMessageDeleted(qc, workspaceId, variables.roomId, variables.messageId);
-      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      // Deleting a document message may trash its document or revoke its
+      // grants (UNI-2012 D8), so the workspace's document reads are stale too.
+      void qc.invalidateQueries({ queryKey: documentKeys.workspace(workspaceId) });
     },
   });
 }
@@ -358,16 +379,6 @@ export function useChatStickers(workspaceId: string, query: string, enabled = tr
         : chat.listTrendingChatStickers(workspaceId),
     enabled: !!workspaceId && authReady && enabled,
     staleTime: 60_000,
-  });
-}
-
-export function useChatMediaStatus(workspaceId: string, enabled = true) {
-  const authReady = useAuthStore((s) => s.status === "authed");
-  return useQuery({
-    queryKey: chatKeys.mediaStatus(workspaceId),
-    queryFn: () => chat.getChatMediaStatus(workspaceId),
-    enabled: !!workspaceId && authReady && enabled,
-    staleTime: 300_000,
   });
 }
 

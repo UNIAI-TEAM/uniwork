@@ -1,6 +1,15 @@
 import { z } from "zod";
 
 /** Mirrors server/internal/handler/dto/sdo/ai.go. Lenient on the wire. */
+export const AiModelOptionSchema = z.object({
+  key: z.string(),
+  speed: z.number().catch(0),
+  intelligence: z.number().catch(0),
+  cost: z.number().catch(0),
+  enabled: z.boolean().catch(false),
+});
+export type AiModelOption = z.infer<typeof AiModelOptionSchema>;
+
 export const AiCapabilitiesSchema = z.object({
   enabled: z.boolean(),
   ask_uni: z.boolean().optional().default(false),
@@ -12,6 +21,9 @@ export const AiCapabilitiesSchema = z.object({
     })
     .optional()
     .default({ used_tokens: 0, limit_tokens: null }),
+  // A malformed list hides the picker; it never turns AI off.
+  models: z.array(AiModelOptionSchema).optional().default([]).catch([]),
+  auto_model: z.string().catch(""),
 });
 export type AiCapabilities = z.infer<typeof AiCapabilitiesSchema>;
 
@@ -72,12 +84,36 @@ export const AiUsageSummarySchema = z.object({
 });
 export type AiUsageSummary = z.infer<typeof AiUsageSummarySchema>;
 
+interface AskUniContextRef {
+  kind: "task" | "meeting" | "document" | "project" | "member";
+  id: string;
+}
+
 export interface AskUniInput {
   conversation_id?: string;
   question: string;
-  focus?: { kind: "task" | "meeting" | "email_thread" | "room" | "thread" | "message"; id: string };
+  focus?: {
+    kind: "task" | "meeting" | "email_thread" | "document" | "project" | "room" | "thread" | "message";
+    id: string;
+  };
+  /** Up to 5 objects the asker names; each must be readable by them. */
+  mentions?: AskUniContextRef[];
   locale?: string;
+  /** "" or absent = Auto. */
+  model?: string;
+  /** "" or absent = medium. */
+  effort?: string;
 }
+
+export const AskModelsSchema = z.object({ models: z.array(z.string()) });
+
+export const AskUniStreamUsageSchema = z.object({
+  input_tokens: z.number().catch(0),
+  output_tokens: z.number().catch(0),
+  cache_read_tokens: z.number().catch(0),
+  cache_write_tokens: z.number().catch(0),
+});
+export type AiStreamUsage = z.infer<typeof AskUniStreamUsageSchema>;
 
 export const ChatCatchUpActionItemSchema = z.object({
   title: z.string(),

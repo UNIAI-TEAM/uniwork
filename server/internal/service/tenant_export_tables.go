@@ -45,6 +45,9 @@ var tenantExportExcluded = map[string]string{
 	"meeting_summary_runs":           "Khóa tạm của lượt tạo tóm tắt AI (hết hạn sau vài phút), sổ kỹ thuật.",
 	"meeting_scribe_runs":            "Sổ kỹ thuật các lượt chạy thư ký AI và số phút đã đo; lời đã ghi nằm trong meeting_transcript_segments.",
 	"meeting_auto_summaries":         "Hàng đợi kỹ thuật của tóm tắt tự tạo (xoá khi xong); tóm tắt nằm trong meeting_summaries.",
+	"document_download_jobs":         "Job tải zip nhiều tài liệu (UNI-2045), trạng thái tạm sống một giờ; bản zip nằm trong kho tệp, không phải nội dung.",
+	"document_folder_uploads":        "Lô tải thư mục (UNI-2052), trạng thái tạm sống 24 giờ, xóa sau 7 ngày; thư mục và tài liệu nó tạo nằm trong documents.",
+	"document_folder_upload_files":   "Từng tệp của lô tải thư mục (UNI-2052), trạng thái tạm; tài liệu tạo ra nằm trong documents.",
 	"mcp_tokens":                     "Token của ứng dụng AI đã kết nối, chỉ lưu digest; là bí mật phiên.",
 }
 
@@ -62,6 +65,7 @@ func tenantExportIncludes(table string) bool {
 var tenantExportIncludedTables = []string{
 	"agents",
 	"ai_conversations",
+	"ai_message_feedback",
 	"ai_messages",
 	"attachments",
 	"calendar_connections",
@@ -126,6 +130,7 @@ var tenantExportIncludedTables = []string{
 	"meeting_transcript_segments",
 	"meeting_transcriptions",
 	"meetings",
+	"notification_documents",
 	"notifications",
 	"organization_member_profiles",
 	"organization_members",

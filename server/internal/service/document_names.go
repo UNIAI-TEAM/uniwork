@@ -191,9 +191,10 @@ func (s *DocumentService) nameKeys(ctx context.Context, q *db.Queries, scope doc
 	})
 }
 
-// requireFreeFolderName refuses a folder create or rename whose name a live
-// sibling already holds: 409 folder_name_taken, with nothing about the holder
-// in the answer - it may be a folder the caller cannot read (FD-D5).
+// requireFreeFolderName refuses a folder rename whose name a live sibling
+// already holds (a create takes " (n)" instead, ADR 0037 §7): 409
+// folder_name_taken, with nothing about the holder in the answer - it may be
+// a folder the caller cannot read (FD-D5).
 func (s *DocumentService) requireFreeFolderName(ctx context.Context, q *db.Queries, scope documentNameScope, title string) error {
 	rows, err := s.nameKeys(ctx, q, scope, []string{title})
 	if err != nil {
@@ -246,6 +247,36 @@ func (s *DocumentService) availableMoveTitle(ctx context.Context, q *db.Queries,
 		return titleDecision{Title: title, Key: rows[0].Key}, nil
 	}
 	return s.allocateDocumentTitle(ctx, q, scope, title, nil)
+}
+
+// availableFolderCreateTitle is a new folder's name - a folder upload's root
+// (UNI-2052 §4) and every folder create (ADR 0037 §7): the chosen name when
+// no live sibling folder holds it, else the smallest free "<name> (n)" from
+// 1. The tree lock the caller holds serializes two creates of one name.
+func (s *DocumentService) availableFolderCreateTitle(ctx context.Context, q *db.Queries, scope documentNameScope, title string) (string, error) {
+	rows, err := s.nameKeys(ctx, q, scope, []string{title})
+	if err != nil {
+		return "", err
+	}
+	if len(rows) == 1 && !rows[0].Taken {
+		return title, nil
+	}
+	for start := 1; start <= maxTitleSuffix; start += titleSuffixWindow {
+		titles := make([]string, 0, titleSuffixWindow)
+		for n := start; n < start+titleSuffixWindow && n <= maxTitleSuffix; n++ {
+			titles = append(titles, suffixedTitle(DocumentKindFolder, title, n))
+		}
+		rows, err := s.nameKeys(ctx, q, scope, titles)
+		if err != nil {
+			return "", err
+		}
+		for i, row := range rows {
+			if !row.Taken {
+				return titles[i], nil
+			}
+		}
+	}
+	return "", errDocumentNameExhausted(DocumentKindFolder)
 }
 
 // withTitleSavepoint runs write inside a SAVEPOINT (a nested pgx

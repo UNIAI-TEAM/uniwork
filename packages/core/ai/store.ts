@@ -3,8 +3,10 @@
 import { create } from "zustand";
 
 type AskUniPanelFocus = {
-  kind: "task" | "meeting" | "email_thread" | "room" | "thread" | "message";
+  kind: "task" | "meeting" | "email_thread" | "document" | "project" | "room" | "thread" | "message";
   id: string;
+  /** The object's name for the composer's chip; never sent. */
+  label?: string;
 };
 
 /** Client state of the Ask UNI panel (⌘J): open/closed and which conversation is showing. */
@@ -12,6 +14,8 @@ interface AiPanelStore {
   open: boolean;
   conversationId: string | null;
   pendingFocus: AskUniPanelFocus | null;
+  /** Full-page mode takes the whole main area; never persisted. */
+  fullPage: boolean;
   workspaceId: string | null;
   /** The focus each conversation was started with: the server does not return it, so it holds for this session. */
   focusByConversation: Record<string, AskUniPanelFocus>;
@@ -20,6 +24,7 @@ interface AiPanelStore {
   /** A conversation belongs to one workspace: switching workspace forgets the open one. */
   bindWorkspace: (wsId: string) => void;
   setOpen: (open: boolean) => void;
+  setFullPage: (fullPage: boolean) => void;
   toggle: () => void;
   /** Opening another conversation (or a new one) drops a focus that was meant for a fresh question. */
   select: (conversationId: string | null) => void;
@@ -44,11 +49,12 @@ function remembered(s: AiPanelStore, conversationId: string, focus: AskUniPanelF
 
 const EMPTY: Pick<
   AiPanelStore,
-  "open" | "conversationId" | "pendingFocus" | "workspaceId" | "focusByConversation" | "conversationByMeeting"
+  "open" | "conversationId" | "pendingFocus" | "fullPage" | "workspaceId" | "focusByConversation" | "conversationByMeeting"
 > = {
   open: false,
   conversationId: null,
   pendingFocus: null,
+  fullPage: false,
   workspaceId: null,
   focusByConversation: {},
   conversationByMeeting: {},
@@ -63,8 +69,10 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
         ? s
         : { workspaceId: wsId, ...(s.workspaceId === null ? {} : { conversationId: null, pendingFocus: null }) },
     ),
-  setOpen: (open) => set({ open, ...(open ? {} : { pendingFocus: null }) }),
-  toggle: () => set((s) => ({ open: !s.open, pendingFocus: s.open ? null : s.pendingFocus })),
+  setOpen: (open) => set({ open, ...(open ? {} : { pendingFocus: null, fullPage: false }) }),
+  setFullPage: (fullPage) => set({ fullPage }),
+  toggle: () =>
+    set((s) => ({ open: !s.open, pendingFocus: s.open ? null : s.pendingFocus, fullPage: s.open ? false : s.fullPage })),
   select: (conversationId) => set({ conversationId, pendingFocus: null }),
   openWithFocus: (focus) => set({ open: true, conversationId: null, pendingFocus: focus }),
   openConversation: (conversationId, focus) =>

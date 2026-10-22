@@ -39,6 +39,7 @@ import { useShelvedActions } from "./use-shelved-actions";
 import { DocumentCopyDialog } from "./document-copy-dialog";
 import { ShareDialog } from "./share-dialog";
 import { useAccessRequestsDeepLink } from "./use-access-requests-deeplink";
+import { useVersionsDeepLink } from "./use-versions-deeplink";
 import { VersionHistorySheet } from "./version-history-sheet";
 
 export interface DocumentActionsMenuProps {
@@ -106,6 +107,8 @@ export function DocumentActionsMenu({
       setPanel("share");
     },
   });
+  // A chat card's "Lịch sử phiên bản" (`?panel=versions`): every reader opens the history.
+  useVersionsDeepLink(() => setPanel("versions"));
   const folded = useHeaderActionsSlotFilled();
   const comments = useDocumentCommentsChrome();
   const commentsEnabled = useFlag("documents", false);

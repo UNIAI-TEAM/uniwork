@@ -417,7 +417,7 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 }
 
 // registerMeetingAgent mounts the scribe agent's routes (spec
-// 2026-10-20-meeting-scribe-agent-design §7.1, ADR 0037). agentAuth is
+// 2026-10-20-meeting-scribe-agent-design §7.1, ADR 0038). agentAuth is
 // RequireMeetingAgentToken: only a uwma_ token for this meeting passes, never
 // a session JWT. agentLimit is the meeting-agent budget (600/min per token
 // under a per-address ceiling); the global limiter skips these paths

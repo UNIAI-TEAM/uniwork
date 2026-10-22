@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_document_download_jobs_file_id;

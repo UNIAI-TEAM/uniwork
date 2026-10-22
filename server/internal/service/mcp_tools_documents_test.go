@@ -318,9 +318,10 @@ func TestMcpDocumentLookupStaysInTheGrantAndTheWorkspace(t *testing.T) {
 	}
 }
 
-// Documents keep their own permission ladder: a restricted page or folder is
-// the person's to read only when it was shared with them, and then in get,
-// list and search alike.
+// Documents keep their own permission ladder: a restricted page, or a folder
+// inside someone's My Folder, is the person's to read only when it was shared
+// with them (a folder never is), and then in get, list and search alike. A
+// folder outside My Folder is read by the whole workspace (ADR 0037).
 func TestMcpDocumentsKeepTheirOwnPermissions(t *testing.T) {
 	x := newMcpToolWorld(t)
 	ctx := context.Background()
@@ -329,12 +330,20 @@ func TestMcpDocumentsKeepTheirOwnPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	folder, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Kế hoạch nội bộ", Visibility: documentVisibilityRestricted})
+	myFolder, _, err := docs.EnsureMyFolder(ctx, Human(x.ua.ID), x.w.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The control: the creator reads all three.
-	for _, id := range []string{open.Document.ID, secret.Document.ID, folder.Document.ID} {
+	folder, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Kế hoạch nội bộ", ParentID: myFolder.Document.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	shared, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Kế hoạch chung"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The control: the creator reads all four.
+	for _, id := range []string{open.Document.ID, secret.Document.ID, folder.Document.ID, shared.Document.ID} {
 		if d := x.getDoc(t, id); d.ID != id {
 			t.Fatalf("creator reads %+v", d)
 		}
@@ -350,7 +359,7 @@ func TestMcpDocumentsKeepTheirOwnPermissions(t *testing.T) {
 			t.Errorf("%s: member's search = %v; want %v", label, found, want)
 		}
 	}
-	only("before the share", open.Document.ID)
+	only("before the share", open.Document.ID, shared.Document.ID)
 	_, unknown := x.tools.document(ctx, member, x.w.ID, util.NewID())
 	for _, id := range []string{secret.Document.ID, folder.Document.ID} {
 		if _, err := x.tools.document(ctx, member, x.w.ID, id); !errors.Is(err, ErrNotFound) || err.Error() != unknown.Error() {
@@ -359,14 +368,15 @@ func TestMcpDocumentsKeepTheirOwnPermissions(t *testing.T) {
 	}
 
 	// Shared with the member, the page comes in: get, list and search. A folder
-	// cannot be shared (UNI-1974), so it stays closed to the member.
+	// cannot be shared (UNI-1974, ADR 0037), so the one in My Folder stays
+	// closed to the member.
 	if _, err := docs.ShareDocument(ctx, Human(x.ua.ID), secret.Document.ID, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: member.UserID, Level: DocumentLevelView}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := docs.ShareDocument(ctx, Human(x.ua.ID), folder.Document.ID, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: member.UserID, Level: DocumentLevelView}); err == nil {
 		t.Fatal("a folder was shared")
 	}
-	only("after the share", open.Document.ID, secret.Document.ID)
+	only("after the share", open.Document.ID, secret.Document.ID, shared.Document.ID)
 	raw, err := callMcpTool(t, x.tools, member, "get_document", `{"workspace_id":"`+x.w.ID+`","document_id":"`+secret.Document.ID+`"}`)
 	if err != nil || !strings.Contains(string(raw), secret.Document.ID) {
 		t.Errorf("member reads the shared document: %s (%v)", raw, err)
@@ -875,9 +885,10 @@ func TestMcpCreateDocumentRefusals(t *testing.T) {
 }
 
 // A page goes in the workspace root, a folder or a page. Under a page it takes
-// that page's visibility; a folder is never shared, so a page under one is
-// private (CreatePage); a parent that is not the
-// person's to edit, or is not there, reads as the one not-found answer.
+// that page's visibility; a folder passes no access on, so a page under one is
+// private (CreatePage); a page parent that is not the person's to edit, a
+// folder inside another My Folder, or a parent that is not there, reads as the
+// one not-found answer.
 func TestMcpCreateDocumentUnderAParent(t *testing.T) {
 	x := newMcpToolWorld(t)
 	ctx := context.Background()
@@ -910,9 +921,10 @@ func TestMcpCreateDocumentUnderAParent(t *testing.T) {
 		}
 	}
 
-	// Under a restricted folder the page is restricted too: its creator reads
-	// it, another member of the workspace does not.
-	secret, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục riêng", Visibility: documentVisibilityRestricted})
+	// Under a workspace folder the page is restricted: its creator reads it,
+	// another member of the workspace does not (a folder passes nothing on,
+	// ADR 0037 rule 3).
+	secret, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục chung"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -923,13 +935,22 @@ func TestMcpCreateDocumentUnderAParent(t *testing.T) {
 	child := item["id"].(string)
 	member := x.member(t)
 	if row := x.docRow(t, child); row.Visibility != documentVisibilityRestricted {
-		t.Errorf("a page under a restricted folder is %s", row.Visibility)
+		t.Errorf("a page under a workspace folder is %s", row.Visibility)
 	}
 	if d := x.getDoc(t, child); d.ID != child {
 		t.Errorf("the creator cannot read the page: %+v", d)
 	}
 	if _, err := x.tools.document(ctx, member, x.w.ID, child); !errors.Is(err, ErrNotFound) {
-		t.Errorf("another member reads a page under a restricted folder: %v", err)
+		t.Errorf("another member reads a page under a workspace folder: %v", err)
+	}
+	// Any human member may put a page into a workspace folder they cannot edit
+	// (ADR 0037 rule 4); it stays restricted to its creator.
+	byMember, err := create(member, secret.Document.ID)
+	if err != nil {
+		t.Fatalf("a member creates under a workspace folder: %v", err)
+	}
+	if row := x.docRow(t, byMember["id"].(string)); row.ParentID.String != secret.Document.ID || row.Visibility != documentVisibilityRestricted {
+		t.Errorf("a member's page under a workspace folder: parent %q visibility %s", row.ParentID.String, row.Visibility)
 	}
 	// The shares of a restricted page are not copied to a page created in it.
 	shared, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Title: "Trang chia sẻ", Visibility: documentVisibilityRestricted, Content: json.RawMessage(mcpTestPage)})
@@ -982,6 +1003,14 @@ func TestMcpCreateDocumentUnderAParent(t *testing.T) {
 	if _, err := docs.ShareDocument(ctx, Human(x.ua.ID), viewOnly.Document.ID, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: member.UserID, Level: DocumentLevelView}); err != nil {
 		t.Fatal(err)
 	}
+	myFolder, _, err := docs.EnsureMyFolder(ctx, Human(x.ua.ID), x.w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inMyFolder, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Trong My Folder", ParentID: myFolder.Document.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
 	rows := x.docRows(t)
 	for name, c := range map[string]struct {
 		p      McpPrincipal
@@ -990,7 +1019,7 @@ func TestMcpCreateDocumentUnderAParent(t *testing.T) {
 		"a folder of a sibling workspace":            {x.p, inSibling.Document.ID},
 		"a folder of another organization":           {x.p, inOther.Document.ID},
 		"a folder in the trash":                      {x.p, trashed.Document.ID},
-		"a restricted folder the person cannot read": {member, secret.Document.ID},
+		"a folder inside another My Folder":          {member, inMyFolder.Document.ID},
 		"a restricted page the person can only read": {member, viewOnly.Document.ID},
 	} {
 		_, err := create(c.p, c.parent)

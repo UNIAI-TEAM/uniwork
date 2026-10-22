@@ -5,7 +5,7 @@ import { Download, FileText, RotateCcwClock, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocumentVersions } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
-import { useOfficeEnabled, useOfficeTxtOpenEnabled, type OfficeEnabledState } from "@uniwork/core/documents/office-enabled";
+import { useOfficeEnabled, type OfficeEnabledState } from "@uniwork/core/documents/office-enabled";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Notice } from "../common/notice";
@@ -84,7 +84,7 @@ function Fact({ label, value, mono }: { label: string; value: string; mono?: boo
  * cannot open anything is worse than saying the format is not editable here
  * yet.
  */
-function officeFormat(doc: Document, txtOpen = false): string | null {
+function officeFormat(doc: Document): string | null {
   const filename = doc.file?.filename.toLowerCase() ?? "";
   const mime = doc.file?.mime_type.toLowerCase() ?? "";
   if (mime.includes("wordprocessingml.document") || filename.endsWith(".docx")) return "docx";
@@ -92,12 +92,9 @@ function officeFormat(doc: Document, txtOpen = false): string | null {
   if (mime.includes("presentationml.presentation") || filename.endsWith(".pptx")) return "pptx";
   if (mime === "application/pdf" || filename.endsWith(".pdf")) return "pdf";
   if (mime === "text/markdown" || filename.endsWith(".md") || filename.endsWith(".markdown")) return "md";
-  // UNI-1813: .txt opens as Markdown (plain mode in the frame) only while
-  // office_txt_open is on for the document's organization (the gate reads the
-  // organization-scoped answer, never the host default). By extension only:
-  // a bare text/plain file (notes.csv, app.log, no extension) never maps,
-  // flag on or off.
-  if (txtOpen && filename.endsWith(".txt")) return "md";
+  // A .txt opens as Markdown (plain mode in the frame) like a .md. By extension
+  // only: a bare text/plain file (notes.csv, app.log, no extension) never maps.
+  if (filename.endsWith(".txt")) return "md";
   if (mime === "text/html" || filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
   return null;
 }
@@ -129,13 +126,8 @@ export function usesOfficeEditor(editorOpen: boolean, hasHost: boolean, format: 
 export type DocumentOfficeGate = {
   office: ReturnType<typeof useOfficeEnabled>;
   editorOpen: boolean;
-  /** The format the editor mounts for, kept while the editor is open so a
-   * settled `office_txt_open` off does not unmount it past the leave guards
-   * (F7). Null for a non-Office file and for a .txt whose answer has not
-   * settled on. */
+  /** The format the editor mounts for; null for a file no Office module opens. */
   format: string | null;
-  /** Where the organization's `office_txt_open` answer stands. */
-  txtState: OfficeEnabledState;
 };
 
 /**
@@ -145,22 +137,10 @@ export type DocumentOfficeGate = {
  * The page and the file view must read the same instance (review-fe-r1 R3).
  */
 export function useDocumentOfficeGate(doc: Document): DocumentOfficeGate {
-  const txtState = useOfficeTxtOpenEnabled(doc.organization_id);
-  const office = useOfficeEnabled(doc.organization_id, officeFormat(doc, txtState === "on"));
-  // A .txt opened only because office_txt_open was on: while the editor is
-  // open the format stays "md", and a settled "off" reaches the live gate as
-  // "off" so the leave guards decide when the editor goes — the same close
-  // path every other format takes (UNI-1813). For a .txt that never opened
-  // the format is already null, which hands the gate "off" and keeps the card.
-  const txtOnly = Boolean(doc.file) && officeFormat(doc, false) === null && officeFormat(doc, true) === "md";
-  const editorOpen = useLiveEditorGate(
-    !doc.file || (txtOnly ? txtState !== "on" : officeFormat(doc, txtState === "on") === null)
-      ? "off"
-      : office.state,
-    office.answeredAt,
-  );
-  const format = txtOnly && editorOpen ? "md" : officeFormat(doc, txtState === "on");
-  return { office, editorOpen, format, txtState };
+  const format = officeFormat(doc);
+  const office = useOfficeEnabled(doc.organization_id, format);
+  const editorOpen = useLiveEditorGate(!doc.file || format === null ? "off" : office.state, office.answeredAt);
+  return { office, editorOpen, format };
 }
 
 export function DocumentFileView(props: DocumentFileViewProps) {
@@ -180,8 +160,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
   const versions = useDocumentVersions(wsId, doc.id);
   const actions = useDocumentFileActions(wsId, doc);
   const { download, downloading } = actions;
-  // The gate's one resolved format: while a .txt editor is open it keeps "md"
-  // so the body, the layout and the host all agree (UNI-1813).
+  // The gate's one resolved format, so the body, the layout and the host agree.
   const officeFormatId = gate.format;
   const { office, editorOpen } = gate;
   const formatName = useOfficeFormatName();
@@ -197,8 +176,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
   if (usesOfficeEditor(editorOpen, Boolean(OfficeEditorHost), officeFormatId) && OfficeEditorHost) {
     // The editor replaces this view, so its file commands move to the page
     // overflow menu (version history is already one of its entries). The host
-    // gets the gate's format: it must not re-read office_txt_open and swap the
-    // frame for the unsupported state while the leave guards hold it open.
+    // gets the gate's format so it never detects a different one.
     return (
       <>
         <HeaderActionsFill menuItems={<DocumentFileMenuItems actions={actions} readonly={readonly} />} />
@@ -210,13 +188,9 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
 
   const rows = versions.data?.pages.flatMap((page) => page.versions) ?? [];
   // A host is mounted and the format is an Office one, so the card stands in for
-  // the editor and says why: checking, could not check, or turned off. A .txt
-  // whose office_txt_open answer is still loading is treated as a "md" that is
-  // checking, so it shows the same copy other formats show in that window and
-  // claims "no web editor" only once the answer settled off (UNI-1813).
-  const txtPending = officeFormatId === null && gate.txtState === "loading" && officeFormat(doc, true) === "md";
-  const officeCardState = Boolean(OfficeEditorHost) && (officeFormatId !== null || txtPending) ? office.state : null;
-  const format = formatName(officeFormatId ?? (txtPending ? "md" : ""));
+  // the editor and says why: checking, could not check, or turned off.
+  const officeCardState = Boolean(OfficeEditorHost) && officeFormatId !== null ? office.state : null;
+  const format = formatName(officeFormatId ?? "");
 
   return (
     <div className="flex flex-col gap-4">
