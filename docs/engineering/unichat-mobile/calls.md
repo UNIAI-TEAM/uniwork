@@ -107,7 +107,11 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   (`components/settings/background-calls-rows.tsx`, logic ở `lib/background-delivery.ts`) hiện dòng mở trang pin của
   hệ thống (trang của app từ Android 12, danh sách tối ưu pin trước đó) và trang tự khởi động của hãng (không có thì
   trang của app), với các bước theo từng hãng; đọc lại khi quay về app. Không xin `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`.
-  `data/calls/call-actions.ts` (Từ chối khi app đã kill chỉ báo server cho cuộc gọi 1-1, bằng phiên đã lưu);
+  `data/calls/call-actions.ts` (Từ chối khi app đã kill báo server bằng phiên đã lưu qua `POST …/voice/decline`: cuộc
+  gọi 1-1 kết thúc như hangup, cuộc gọi nhóm/kênh tiếp tục mà không có người đó, ngừng đổ chuông ở mọi thiết bị của họ —
+  server ghi người từ chối trong phiên, danh sách chờ và push đổ chuông bỏ qua họ, `ring_closed` dừng máy Android khác;
+  Từ chối cuộc gọi nhóm trên màn cuộc gọi cũng báo như vậy, `data/calls/group-decline.ts`, vì engine là bản copy của
+  web chỉ đóng cuộc gọi tại chỗ);
   `data/calls/call-native-sync.ts` theo engine (service từ connecting tới hết, thử lại mỗi lần app về foreground —
   `onAppStateChange`, hỏi `BLUETOOTH_CONNECT` lúc bắt đầu
   trên API 31+, gỡ thông báo đổ chuông khi màn trong app reo, nhả màn khoá). `data/calls/call-wiring.ts` nối tất cả:

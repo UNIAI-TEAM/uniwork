@@ -1,17 +1,18 @@
 // Decline and Hang up tapped on the phone's own call notifications
 // (modules/unichat-calls › CallActionReceiver). The ringing has already
 // stopped natively; this tells the call engine, or — when the app was not
-// running the call — the server. Only a 1-1 call is declined on the server:
-// a group or channel call goes on without the person, as the call screen's
-// own Decline does (call-engine.ts › leavingSignalsHangup). A tap older than
-// a ring window is dropped: the call ended on its own by then.
+// running the call — the server, which ends a 1-1 call and, for a group or
+// channel call, goes on without the person and stops it ringing on their other
+// devices (POST …/voice/decline). Hang up from the notification of a call the
+// app no longer runs has nothing to tell. A tap older than a ring window is
+// dropped: the call ended on its own by then.
 import { CALL_RING_WINDOW_MS } from "@/lib/call-push";
 import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import type { NativeCallAction } from "./native-calls";
 
 export interface CallActionEnv {
   engine: { current(): VoiceCallOverlayState; hangUp(): Promise<void> };
-  /** Signs the stored session in if needed and declines the call on the server. */
+  /** Signs the stored session in if needed and declines the call on the server (any kind of call). */
   declineOnServer(workspaceId: string, roomId: string, callId: string): Promise<void>;
   now: () => number;
 }
@@ -45,7 +46,7 @@ export async function handleCallAction(action: NativeCallAction, env: CallAction
     await env.engine.hangUp();
     return "engine";
   }
-  if (action.action !== "decline" || action.callKind !== "dm" || !action.workspaceId || !action.roomId) return "ignored";
+  if (action.action !== "decline" || !action.workspaceId || !action.roomId) return "ignored";
   if (env.now() - action.at > CALL_RING_WINDOW_MS) return "ignored";
   await env.declineOnServer(action.workspaceId, action.roomId, action.callId);
   return "server";

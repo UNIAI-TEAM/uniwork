@@ -46,7 +46,7 @@ const deps = vi.hoisted(() => ({
   offCache: vi.fn(),
   restoreRemoteConfig: vi.fn(async () => true),
   openDeviceStore: vi.fn(),
-  signalVoiceHangup: vi.fn(async () => true),
+  signalVoiceDecline: vi.fn(async () => true),
   callsOn: true,
   workspace: { orgSlug: "acme", wsSlug: "hq", wsId: "w-1" } as { orgSlug: string; wsSlug: string; wsId: string } | null,
   pending: [] as Record<string, unknown>[],
@@ -54,7 +54,7 @@ const deps = vi.hoisted(() => ({
 vi.mock("../app-locale", () => ({ applyStoredLocale: deps.applyStoredLocale }));
 vi.mock("../boot", () => ({ bootRuntime: deps.bootRuntime }));
 vi.mock("../auth/flow", () => ({ authConfig: { scheme: "uniworkchat" }, session: deps.session }));
-vi.mock("../chat-api", () => ({ chatApi: { signalVoiceHangup: deps.signalVoiceHangup } }));
+vi.mock("../chat-api", () => ({ chatApi: { signalVoiceDecline: deps.signalVoiceDecline } }));
 const queryClient = vi.hoisted(() => ({
   getQueryCache: () => ({
     subscribe: (listener: (event: { query: { queryKey: readonly unknown[] } }) => void) => {
@@ -311,18 +311,18 @@ describe("runCallActionTask", () => {
     await wiring.runCallActionTask(DECLINE);
     expect(deps.bootRuntime).toHaveBeenCalled();
     expect(deps.session.restore).toHaveBeenCalledTimes(1);
-    expect(deps.signalVoiceHangup).toHaveBeenCalledWith("w-1", "r-1", "c-1");
+    expect(deps.signalVoiceDecline).toHaveBeenCalledWith("w-1", "r-1", "c-1");
   });
 
   it("uses the session already in, and gives up without one", async () => {
     deps.session.status.mockReturnValue("signed-in");
     await wiring.runCallActionTask(DECLINE);
     expect(deps.session.restore).not.toHaveBeenCalled();
-    expect(deps.signalVoiceHangup).toHaveBeenCalledTimes(1);
+    expect(deps.signalVoiceDecline).toHaveBeenCalledTimes(1);
     deps.session.status.mockReturnValue("signed-out");
     deps.session.restore.mockResolvedValueOnce(false);
     await wiring.runCallActionTask(DECLINE);
-    expect(deps.signalVoiceHangup).toHaveBeenCalledTimes(1);
+    expect(deps.signalVoiceDecline).toHaveBeenCalledTimes(1);
   });
 
   it("hands a call the app is in to the engine; ignores what is not an action; logs a failure", async () => {
@@ -332,9 +332,9 @@ describe("runCallActionTask", () => {
     await wiring.runCallActionTask({ action: "answer" });
     expect(engine.hangUp).toHaveBeenCalledTimes(1);
     engine.store.setState({ call: { status: "idle" } });
-    deps.signalVoiceHangup.mockRejectedValueOnce(new Error("offline"));
+    deps.signalVoiceDecline.mockRejectedValueOnce(new Error("offline"));
     await expect(wiring.runCallActionTask(DECLINE)).resolves.toBeUndefined();
-    deps.signalVoiceHangup.mockRejectedValueOnce("offline");
+    deps.signalVoiceDecline.mockRejectedValueOnce("offline");
     await expect(wiring.runCallActionTask(DECLINE)).resolves.toBeUndefined();
   });
 });
@@ -439,6 +439,10 @@ describe("the native ring path", () => {
     expect(native.configureRing).toHaveBeenCalledTimes(2);
     deps.cacheListener({ query: { queryKey: ["remote-config"] } });
     expect(native.configureRing).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
+    // A group call declined on screen is declined on the server too.
+    engine.store.setState({ call: { status: "incoming", callId: "g-1", roomId: "r-9", peerName: "Đội", callKind: "group" } });
+    engine.store.setState({ call: { status: "idle" } });
+    expect(deps.signalVoiceDecline).toHaveBeenCalledWith("w-1", "r-9", "g-1");
     stop();
     expect(deps.offCache).toHaveBeenCalledTimes(1);
     expect(deps.offSession).toHaveBeenCalledTimes(1);
@@ -467,7 +471,7 @@ describe("startNativeCalls", () => {
   it("follows the engine with the service, runs the taps that waited and handles pushes while open", async () => {
     deps.pending = [DECLINE, { nope: true }];
     const stop = wiring.startNativeCalls();
-    await vi.waitFor(() => expect(deps.signalVoiceHangup).toHaveBeenCalledWith("w-1", "r-1", "c-1"));
+    await vi.waitFor(() => expect(deps.signalVoiceDecline).toHaveBeenCalledWith("w-1", "r-1", "c-1"));
     engine.store.setState({ call: { status: "connecting", callId: "c-9", roomId: "r-1", peerName: "Minh", outgoing: true, callKind: "dm" } });
     expect(native.startOngoingCall).toHaveBeenCalledWith(expect.objectContaining({ callId: "c-9", workspaceId: "w-1" }));
     expect(rn.PermissionsAndroid.check).toHaveBeenCalled();

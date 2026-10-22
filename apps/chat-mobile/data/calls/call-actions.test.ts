@@ -39,9 +39,16 @@ describe("handleCallAction", () => {
     expect(closed.declineOnServer).toHaveBeenCalledWith("w-1", "r-1", "c-1");
   });
 
-  it("leaves a group call, a stale tap, a hang-up of a gone call and an incomplete one alone", async () => {
+  it("declines a group or channel call on the server too: it goes on without the person and stops ringing elsewhere", async () => {
+    for (const callKind of ["group", "channel"]) {
+      const e = env();
+      expect(await handleCallAction({ ...decline, callKind }, e)).toBe("server");
+      expect(e.declineOnServer).toHaveBeenCalledWith("w-1", "r-1", "c-1");
+    }
+  });
+
+  it("leaves a stale tap, a hang-up of a gone call and an incomplete one alone", async () => {
     for (const action of [
-      { ...decline, callKind: "group" },
       { ...decline, at: NOW - 61_000 },
       { ...decline, action: "hangup" },
       { ...decline, workspaceId: "" },

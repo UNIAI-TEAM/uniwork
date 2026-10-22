@@ -47,6 +47,7 @@ import { openDeviceStore } from "../storage/device-store";
 import { getCurrentWorkspace } from "../stores/workspace-store";
 import { callActionFrom, handleCallAction, type CallActionEnv } from "./call-actions";
 import { createNativeCallSync, installNativeCallSync } from "./call-native-sync";
+import { installGroupDecline } from "./group-decline";
 import { handleCallPush, incomingSpecFromState, type CallPushEnv } from "./call-push";
 import { callEngine } from "./call-store";
 import { nativeCalls } from "./native-calls";
@@ -106,7 +107,7 @@ const actionEnv: CallActionEnv = {
     // A headless runtime: no screen restored the session or set the server URLs.
     bootRuntime();
     if (session.status() === "signed-out" && !(await session.restore())) return;
-    await chatApi.signalVoiceHangup(workspaceId, roomId, callId);
+    await chatApi.signalVoiceDecline(workspaceId, roomId, callId);
   },
   now: () => Date.now(),
 };
@@ -264,6 +265,11 @@ export const ringSyncEnv: NativeRingSyncEnv = {
 export function startNativeCalls(): () => void {
   const stopSync = installNativeCallSync(callEngine.store, nativeCallSync);
   const stopRingSync = installNativeRingSync(ringSyncEnv);
+  // A group call declined on screen stops ringing on the person's other devices too.
+  const stopGroupDecline = installGroupDecline(callEngine.store, {
+    decline: (wsId, roomId, callId) => chatApi.signalVoiceDecline(wsId, roomId, callId),
+    workspaceId: () => callEngine.contextWorkspaceId(),
+  });
   for (const pending of nativeCalls.takePendingActions()) void runCallActionTask(pending);
   // Rings the FCM service handled while JavaScript was not running, counted now.
   reportNativeRings(nativeCalls, track);
@@ -272,6 +278,7 @@ export function startNativeCalls(): () => void {
   return () => {
     stopSync();
     stopRingSync();
+    stopGroupDecline();
     appState.remove();
     Notifications.setNotificationHandler(null);
   };
