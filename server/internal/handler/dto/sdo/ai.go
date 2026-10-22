@@ -36,7 +36,7 @@ type AskModelsSDO struct {
 type AiCitationDTO struct {
 	SourceID string `json:"source_id" example:"S1"`
 	Quote    string `json:"quote" example:"Hạn: 2026-09-05"`
-	Kind     string `json:"kind" description:"task, meeting, chat, members" example:"task"`
+	Kind     string `json:"kind" description:"task, meeting, document, project, chat, member (một người), members (danh sách thành viên), email_thread" example:"task"`
 	Title    string `json:"title" example:"Viết spec F-09"`
 	Href     string `json:"href" description:"Đường dẫn nội bộ" example:"/acme/team/tasks/01J8X4K2M0N1P2Q3R4S5T6U7VA"`
 	ObjectID string `json:"object_id,omitempty" description:"Mã của đối tượng nguồn trỏ tới; vắng khi nguồn không là một đối tượng" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
@@ -95,7 +95,7 @@ type AskStreamRunDTO struct {
 type AskStreamStepDTO struct {
 	Round  int            `json:"round" description:"Số thứ tự vòng gọi tool, từ 1" example:"1"`
 	Phase  string         `json:"phase" description:"tool hoặc retry" example:"tool"`
-	Tool   string         `json:"tool" description:"Tên tool vừa chạy; rỗng ở bước retry" example:"search_tasks"`
+	Tool   string         `json:"tool" description:"Tên tool vừa chạy; rỗng ở bước retry" example:"search"`
 	Label  string         `json:"label" description:"Từ khóa tìm hoặc tên đối tượng tool mở; rỗng nếu không có" example:"quá hạn"`
 	Counts map[string]int `json:"counts" description:"Số kết quả theo loại" example:"{\"task\":3}"`
 }
