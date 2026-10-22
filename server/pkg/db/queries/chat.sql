@@ -494,13 +494,11 @@ SELECT avatar_file_id FROM chat_rooms
 WHERE avatar_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
 -- name: SetChatRoomWallpaper :exec
--- tenant: by-id
 UPDATE chat_rooms
 SET wallpaper_preset = sqlc.arg(wallpaper_preset), wallpaper_file_id = sqlc.narg(wallpaper_file_id), updated_at = now()
 WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id);
 
 -- name: GetChatRoomWallpaperForUpdate :one
--- tenant: by-id
 SELECT wallpaper_preset, wallpaper_file_id FROM chat_rooms
 WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
 FOR UPDATE;

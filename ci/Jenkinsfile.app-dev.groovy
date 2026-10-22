@@ -20,6 +20,7 @@ pipeline {
   parameters {
     string(name: 'BRANCH', defaultValue: 'develop', description: 'Any branch is allowed. Default is develop.')
     string(name: 'DEPLOY_HOST', defaultValue: '113.20.107.188', description: 'SSH host that runs the containers')
+    string(name: 'DEPLOY_SSH_PORT', defaultValue: '2232', description: 'SSH port on the deploy host')
     string(name: 'DEPLOY_USER', defaultValue: 'root', description: 'SSH user')
     string(name: 'DEPLOY_DIR', defaultValue: '/home/devops/uniwork', description: 'Directory that already contains .env')
     string(name: 'SSH_CREDENTIALS_ID', defaultValue: 'ssh-107.188', description: 'Jenkins SSH private key credential')
@@ -139,15 +140,16 @@ pipeline {
         withEnv([
           "DEPLOY_USER=${params.DEPLOY_USER}",
           "DEPLOY_HOST=${params.DEPLOY_HOST}",
+          "DEPLOY_SSH_PORT=${params.DEPLOY_SSH_PORT}",
           "DEPLOY_DIR=${params.DEPLOY_DIR}",
         ]) {
           sshagent(credentials: ["${params.SSH_CREDENTIALS_ID}"]) {
             sh '''
               set -euo pipefail
               dest="${DEPLOY_USER}@${DEPLOY_HOST}"
-              ssh -o BatchMode=yes "$dest" "mkdir -p ${DEPLOY_DIR}/env"
-              scp -o BatchMode=yes deploy/app-dev/docker-compose.yml deploy/app-dev/docker-compose.secrets.yml "$dest:${DEPLOY_DIR}/"
-              scp -o BatchMode=yes \
+              ssh -p "$DEPLOY_SSH_PORT" -o BatchMode=yes "$dest" "mkdir -p ${DEPLOY_DIR}/env"
+              scp -P "$DEPLOY_SSH_PORT" -o BatchMode=yes deploy/app-dev/docker-compose.yml deploy/app-dev/docker-compose.secrets.yml "$dest:${DEPLOY_DIR}/"
+              scp -P "$DEPLOY_SSH_PORT" -o BatchMode=yes \
                 deploy/app-dev/env/uniwork-be.env \
                 deploy/app-dev/env/uniwork-fe.env \
                 deploy/app-dev/env/uniwork-office-engine.env \
@@ -164,7 +166,7 @@ pipeline {
                 dest="${DEPLOY_USER}@${DEPLOY_HOST}"
                 # Unquoted EOF expands REGISTRY_* and DEPLOY_DIR locally.
                 # Groovy consumes one backslash; the remaining backslash keeps $(mktemp) and $cfg for the remote shell.
-                ssh -o BatchMode=yes "$dest" "bash -s" <<EOF
+                ssh -p "$DEPLOY_SSH_PORT" -o BatchMode=yes "$dest" "bash -s" <<EOF
 set -euo pipefail
 cfg=\\$(mktemp -d)
 trap 'rm -rf "\\$cfg"' EXIT

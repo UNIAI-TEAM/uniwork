@@ -139,7 +139,7 @@ Only perform step 2–3 after Task 1 LMS patch is live in production.
 
 ## 7. App
 
-**Preferred:** Jenkins job `ci/Jenkinsfile.production-app.groovy` on branch `develop`, with deploy enabled and:
+**Preferred:** Jenkins job `ci/Jenkinsfile.production-app.groovy` on branch `main`, with deploy enabled and:
 
 `CLUSTER_APPLY_CONFIRM=reap-eng-prod-k8s`
 
