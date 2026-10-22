@@ -32,19 +32,23 @@ describe("AskUniMessageTurn", () => {
     expect(container.querySelector(".border-border.bg-surface")).toBeNull();
   });
 
-  it("citation marker shows title and quote on click and links to the source", async () => {
-    mount(msg({ content: "Việc này quá hạn [S1].", citations: [cite] }));
-    const marker = screen.getByRole("button", { name: "Nguồn 1" });
-    fireEvent.click(marker);
-    expect(await screen.findByText("Hạn thứ sáu, chưa có người nhận")).toBeInTheDocument();
-    const open = screen.getByRole("link", { name: "Mở" });
-    expect(open).toHaveAttribute("href", cite.href);
+  it("renders a known source marker as an entity chip linking to the object", () => {
+    const { container } = mount(msg({ content: "Việc này quá hạn [S1].", citations: [cite] }));
+    expect(screen.getByRole("link", { name: "Task: Thiết kế trang chủ" })).toHaveAttribute("href", cite.href);
+    expect(container.querySelector("sup")).toBeNull();
   });
 
-  it("renders unknown source markers as text", () => {
+  it("drops an unknown source marker", () => {
     mount(msg({ content: "Không rõ [S9].", citations: [cite] }));
-    expect(screen.queryByRole("button", { name: "Nguồn 9" })).toBeNull();
-    expect(screen.getByText(/Không rõ \[S9\]\./)).toBeInTheDocument();
+    expect(screen.queryByText(/S9/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /Task:/ })).toBeNull();
+    expect(screen.getByText(/Không rõ/)).toBeInTheDocument();
+  });
+
+  it("resolves a marker through the conversation's source map, not only this message", () => {
+    const earlier = { ...cite, source_id: "S2", title: "Ra mắt Q4", kind: "project", href: "/acme/team/projects/P1" };
+    mount(msg({ content: "4 bước [S2]:" }), { sources: new Map([["S2", earlier]]) });
+    expect(screen.getByRole("link", { name: "Dự án: Ra mắt Q4" })).toBeInTheDocument();
   });
 
   it("blocks external links and images", () => {
@@ -78,14 +82,12 @@ describe("AskUniMessageTurn", () => {
   );
   it("isInAppHref accepts an in-app path", () => expect(isInAppHref("/o/w/tasks/1?x=1#y")).toBe(true));
 
-  it("does not link a cited href that leaves the app", () => {
+  it("shows a cited name as plain text when its href leaves the app", () => {
     const bad = { ...cite, href: "//evil.com" };
     mount(msg({ content: "Xem [x](//evil.com) [S1]", citations: [bad] }));
     expect(screen.queryByRole("link", { name: "x" })).toBeNull();
     expect(screen.queryByRole("link", { name: /Thiết kế trang chủ/ })).toBeNull();
     expect(screen.getByText("Thiết kế trang chủ")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Nguồn 1" }));
-    expect(screen.queryByRole("link", { name: "Mở" })).toBeNull();
   });
 
   it("links an in-app path", () => {
@@ -93,15 +95,12 @@ describe("AskUniMessageTurn", () => {
     expect(screen.getByRole("link", { name: "x" })).toHaveAttribute("href", "/o/w/tasks/1");
   });
 
-  it("a marker inside a link opens its card without following the link", () => {
-    mount(msg({ content: "[xem [S1]](/o/w/tasks/1)", citations: [cite] }));
-    const marker = screen.getByRole("button", { name: "Nguồn 1" });
-    expect(fireEvent.click(marker)).toBe(false);
-  });
-
-  it("keeps the row of source chips", () => {
-    mount(msg({ content: "ok", citations: [cite] }));
-    expect(within(screen.getByRole("list", { name: "Nguồn" })).getByRole("link", { name: /Thiết kế trang chủ/ })).toBeInTheDocument();
+  it("collapses the sources into a count that expands to one row each", () => {
+    const second = { ...cite, source_id: "S2", title: "Họp tuần", kind: "meeting", href: "/acme/team/meetings/M1" };
+    mount(msg({ content: "ok", citations: [cite, second] }));
+    expect(screen.queryByRole("list", { name: "Nguồn" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Nguồn (2)" }));
+    expect(within(screen.getByRole("list", { name: "Nguồn" })).getAllByRole("listitem")).toHaveLength(2);
   });
 
   it("steps line sums counts and collapses", () => {
@@ -141,12 +140,12 @@ describe("AskUniMessageTurn", () => {
     expect(await screen.findByRole("button", { name: "Đã sao chép" })).toBeInTheDocument();
   });
 
-  it("copy leaves out the source markers", () => {
+  it("copy puts the object's name where a marker was and drops unknown ones", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-    mount(msg({ content: "Đóng băng 5 ngày [S1]. QA kiểm thử [S2][S3]." }));
+    mount(msg({ content: "Đóng băng 5 ngày [S1]. QA kiểm thử [S2][S3].", citations: [cite] }));
     fireEvent.click(screen.getByRole("button", { name: "Sao chép" }));
-    expect(writeText).toHaveBeenCalledWith("Đóng băng 5 ngày. QA kiểm thử.");
+    expect(writeText).toHaveBeenCalledWith("Đóng băng 5 ngày Thiết kế trang chủ. QA kiểm thử.");
   });
 
   it("copy without a clipboard does not throw", async () => {

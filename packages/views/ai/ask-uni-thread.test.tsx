@@ -139,3 +139,25 @@ describe("AskUniThread", () => {
     expect(screen.getByRole("list")).toHaveAttribute("aria-busy", "true");
   });
 });
+
+describe("AskUniThread sources", () => {
+  it("resolves a marker through an earlier answer's citations", async () => {
+    const earlier = { source_id: "S2", kind: "project", title: "Ra mắt Q4", quote: "", href: "/acme/team/projects/P1" };
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/api/v1/ai/conversations/c1/messages"
+          ? {
+              messages: [
+                { ...history[0], id: "u0" },
+                { ...history[1], id: "a0", content: "Có dự án [S2].", citations: [earlier] },
+                { ...history[0], id: "u2" },
+                { ...history[1], id: "a2", content: "Nhắc lại 4 bước [S2]:", citations: [] },
+              ],
+            }
+          : {},
+      ),
+    );
+    mount(stream());
+    expect(await screen.findAllByRole("link", { name: "Dự án: Ra mắt Q4" })).toHaveLength(2);
+  });
+});

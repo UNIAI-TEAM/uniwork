@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { AiCitation } from "@uniwork/core/types";
 import { useClearAiFeedback, useSetAiFeedback } from "@uniwork/core/ai";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
+import { answerPlainText } from "./ask-uni-text";
 
 const REASONS = ["wrong_facts", "missing_sources", "not_helpful", "other"] as const;
 const NOTE_MAX = 500;
@@ -93,10 +95,11 @@ function DownFeedback({ active, onSend }: { active: boolean; onSend: (reason: st
 }
 
 /** Copy, regenerate (last answer only) and feedback under one finished answer. */
-export function AskUniActions({ conversationId, messageId, content, onRegenerate, regenerateDisabled }: {
+export function AskUniActions({ conversationId, messageId, content, sources, onRegenerate, regenerateDisabled }: {
   conversationId: string;
   messageId: string;
   content: string;
+  sources: Map<string, AiCitation>;
   onRegenerate?: () => void;
   regenerateDisabled?: boolean;
 }) {
@@ -111,8 +114,8 @@ export function AskUniActions({ conversationId, messageId, content, onRegenerate
   const copy = async () => {
     try {
       // No clipboard (insecure context) throws here, a denied one rejects; either leaves the button unchanged.
-      // [S#] markers mean nothing outside the panel.
-      await navigator.clipboard.writeText(content.replace(/ ?\[S\d+\]/g, ""));
+      // [S#] markers mean nothing outside the panel: names stand in for them.
+      await navigator.clipboard.writeText(answerPlainText(content, sources));
     } catch {
       return;
     }

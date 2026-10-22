@@ -8,7 +8,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
 import { AskUniActions } from "./ask-uni-actions";
 import { isInAppHref } from "./ask-uni-links";
-import { CitationMarker, SourceChips } from "./ask-uni-citation";
+import { AskUniEntityChip, AskUniSources } from "./ask-uni-entity";
 import { AskUniSteps } from "./ask-uni-steps";
 
 const NOTICES = new Set(["no_sources", "empty_answer", "agent_failed", "refused", "stopped", "interrupted"]);
@@ -18,9 +18,8 @@ const CITE_TOKEN = /\[S(\d+)\]/g;
 
 export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice">>;
 
-/** The model-written answer as markdown: raw html inert, no images, links only in-app or to a cited source, `[S#]` as hoverable sources. */
-function AnswerBody({ content, citations }: { content: string; citations: AiCitation[] }) {
-  const byId = useMemo(() => new Map(citations.map((c) => [c.source_id, c])), [citations]);
+/** The model-written answer as markdown: raw html inert, no images, links only in-app or to a cited source, `[S#]` as entity chips. */
+function AnswerBody({ content, byId, wsId }: { content: string; byId: Map<string, AiCitation>; wsId: string }) {
   // A cited href is held to the same rule as any other: only in-app paths become links.
   const isLinkAllowed = isInAppHref;
   return (
@@ -35,7 +34,8 @@ function AnswerBody({ content, citations }: { content: string; citations: AiCita
         pattern: CITE_TOKEN,
         render: (m, key) => {
           const c = byId.get(`S${m[1]}`);
-          return c ? <CitationMarker key={key} citation={c} /> : m[0];
+          // A marker the source book does not know renders nothing.
+          return c ? <AskUniEntityChip key={key} source={c} wsId={wsId} /> : null;
         },
       }}
     >
@@ -54,6 +54,8 @@ export function AskUniMessageTurn({
   streaming = false,
   conversationId,
   counts,
+  sources,
+  wsId = "",
   onRegenerate,
   regenerateDisabled,
 }: {
@@ -62,10 +64,14 @@ export function AskUniMessageTurn({
   conversationId?: string | null;
   /** Summed step counts, for the live turn and the one just finished. */
   counts?: Record<string, number>;
+  /** The conversation's source book by `S#`: markers are numbered across every answer in it. Defaults to this message's own citations. */
+  sources?: Map<string, AiCitation>;
+  wsId?: string;
   onRegenerate?: () => void;
   regenerateDisabled?: boolean;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
+  const byId = useMemo(() => sources ?? new Map(message.citations.map((c) => [c.source_id, c])), [sources, message.citations]);
   if (message.role === "user") {
     return (
       <li className="flex justify-end">
@@ -83,16 +89,17 @@ export function AskUniMessageTurn({
     <li className="flex flex-col items-start">
       <div className="w-full min-w-0">
         {counts ? <AskUniSteps counts={counts} /> : null}
-        {message.content ? <AnswerBody content={message.content} citations={message.citations} /> : null}
+        {message.content ? <AnswerBody content={message.content} byId={byId} wsId={wsId} /> : null}
         {showNotice ? (
           <p className={cn("text-caption text-muted-foreground", message.content ? "mt-2" : "")}>{t(`notice.${noticeKey}`)}</p>
         ) : null}
-        <SourceChips citations={message.citations} />
+        <AskUniSources citations={message.citations} />
         {stored && conversationId ? (
           <AskUniActions
             conversationId={conversationId}
             messageId={message.id}
             content={message.content}
+            sources={byId}
             onRegenerate={onRegenerate}
             regenerateDisabled={regenerateDisabled}
           />

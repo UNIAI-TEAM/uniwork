@@ -5831,6 +5831,27 @@
       "label": "Source {{n}}",
       "open": "Open"
     },
+    "sources_count_one": "Sources ({{count}})",
+    "sources_count_other": "Sources ({{count}})",
+    "entity": {
+      "kind": {
+        "task": "Task",
+        "document": "Document",
+        "meeting": "Meeting",
+        "project": "Project",
+        "member": "Person",
+        "members": "Person",
+        "chat": "Chat",
+        "other": "Item"
+      },
+      "unavailable": "This item is no longer available to you.",
+      "assignee": "Assignee",
+      "unassigned": "Unassigned",
+      "due": "Due",
+      "priority": "Priority",
+      "project": "Project",
+      "status": "Status"
+    },
     "actions": {
       "copy": "Copy",
       "copied": "Copied",

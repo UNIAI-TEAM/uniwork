@@ -5822,6 +5822,26 @@
       "label": "Nguồn {{n}}",
       "open": "Mở"
     },
+    "sources_count_other": "Nguồn ({{count}})",
+    "entity": {
+      "kind": {
+        "task": "Task",
+        "document": "Tài liệu",
+        "meeting": "Cuộc họp",
+        "project": "Dự án",
+        "member": "Người",
+        "members": "Người",
+        "chat": "Đoạn chat",
+        "other": "Đối tượng"
+      },
+      "unavailable": "Không còn xem được đối tượng này.",
+      "assignee": "Người phụ trách",
+      "unassigned": "Chưa giao",
+      "due": "Hạn",
+      "priority": "Ưu tiên",
+      "project": "Dự án",
+      "status": "Trạng thái"
+    },
     "actions": {
       "copy": "Sao chép",
       "copied": "Đã sao chép",

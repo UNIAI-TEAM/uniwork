@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiMessages } from "@uniwork/core/ai";
 import type { useAskUniStream } from "@uniwork/core/ai/stream";
-import type { AiMessage, AskUniInput } from "@uniwork/core/types";
+import type { AiCitation, AiMessage, AskUniInput } from "@uniwork/core/types";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { AskUniMessageTurn, type AskUniTurnMessage } from "./ask-uni-answer";
 
@@ -43,9 +43,11 @@ export function AskUniThread({
   conversationId,
   stream,
   askDefaults,
+  wsId,
 }: {
   conversationId: string | null;
   stream: AskUniStream;
+  wsId?: string;
   /** The composer's model, effort and language, so a regenerated turn runs the way a typed one would. */
   askDefaults?: Pick<AskUniInput, "model" | "effort" | "locale">;
 }) {
@@ -91,6 +93,16 @@ export function AskUniThread({
     notice: state.message?.notice ?? (state.status === "stopped" ? "stopped" : ""),
   };
   const counts = sumCounts(state.steps);
+  // `[S#]` numbers are conversation-wide (the server seeds the book from earlier answers), so one map serves every answer.
+  const sources = useMemo(() => {
+    const out = new Map<string, AiCitation>();
+    const add = (c: AiCitation) => out.set(c.source_id, c);
+    for (const m of cached ?? []) m.citations.forEach(add);
+    Object.values(state.sources).forEach(add);
+    state.citations.forEach(add);
+    state.message?.citations.forEach(add);
+    return out;
+  }, [cached, state.sources, state.citations, state.message]);
   const waiting = streaming && state.draft === "" && Object.keys(counts).length === 0;
 
   // Follow the answer as it grows, but only while the reader is at the bottom.
@@ -112,6 +124,8 @@ export function AskUniThread({
             message={m}
             conversationId={conversationId}
             counts={state.message?.id === m.id ? counts : undefined}
+            sources={sources}
+            wsId={wsId}
             onRegenerate={m.id === lastAssistant?.id ? regenerate : undefined}
             regenerateDisabled={streaming}
           />
@@ -127,7 +141,7 @@ export function AskUniThread({
                 {t("asking")}
               </li>
             ) : (
-              <AskUniMessageTurn message={liveAnswer} streaming={streaming} counts={counts} />
+              <AskUniMessageTurn message={liveAnswer} streaming={streaming} counts={counts} sources={sources} wsId={wsId} />
             )}
           </>
         ) : null}

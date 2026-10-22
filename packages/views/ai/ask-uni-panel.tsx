@@ -24,6 +24,7 @@ export function AskUniPanel() {
         <AskUniThread
           conversationId={conversationId}
           stream={stream}
+          wsId={workspace.id}
           askDefaults={{ model, effort, locale: i18n.language }}
         />
         <AskUniComposer onSend={stream.ask} onStop={stream.stop} streaming={stream.state.status === "streaming"} />
