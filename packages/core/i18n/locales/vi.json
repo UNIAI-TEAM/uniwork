@@ -9450,7 +9450,7 @@
       "apt": {
         "title": "Cài qua apt",
         "intro": "Trên Ubuntu và Debian (amd64), cài bằng một lệnh; các phiên bản sau đó đến qua sudo apt update && sudo apt upgrade.",
-        "quick": "Cài đặt",
+        "quick": "Cài bằng một lệnh",
         "manual": "Cài thủ công",
         "setup": "1. Thêm kho",
         "install": "2. Cài đặt",

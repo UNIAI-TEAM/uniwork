@@ -224,7 +224,8 @@ describe("the Office page", () => {
     it("is always shown, with the suite of the channel the page selects and dev when none is published", async () => {
       await render({ flags: {}, office_installers: installers });
       expect(container.querySelector("#office-download .apt-install")).not.toBeNull();
-      expect(commands()[0]).toContain("/apt/latest/stable/uniwork-office_amd64.deb");
+      expect(commands()[0]).toContain("/apt/latest/uniwork-office_amd64.deb");
+      expect(commands()[0]).not.toContain("/apt/latest/stable/");
       expect(commands()[1]).toContain("Suites: stable\n");
       act(() => root.unmount());
       root = createRoot(container);
@@ -248,7 +249,7 @@ describe("the Office page", () => {
       const apt = (language === "vi" ? viMessages : enMessages).landing.office.apt;
       expect(container.querySelector(".apt-install h3")?.textContent).toBe(apt.title);
       const [quick, setup, install] = commands();
-      expect(quick).toBe("wget -qO /tmp/uniwork-office.deb https://uniworkos.com/downloads/office/apt/latest/dev/uniwork-office_amd64.deb && sudo apt install /tmp/uniwork-office.deb");
+      expect(quick).toBe("wget -nv -O /tmp/uniwork-office.deb https://uniworkos.com/downloads/office/apt/latest/dev/uniwork-office_amd64.deb && sudo apt install /tmp/uniwork-office.deb");
       expect(setup).toContain("sudo curl -fsSL -o /usr/share/keyrings/uniwork-office-archive-keyring.gpg https://uniworkos.com/downloads/office/apt/key.gpg &&\nsudo tee /etc/apt/sources.list.d/uniwork-office.sources > /dev/null <<'EOF'");
       expect(setup).toContain("sudo tee /etc/apt/sources.list.d/uniwork-office.sources");
       expect(setup).toContain("<<'EOF'\n# managed by uniwork-office\nTypes: deb\nURIs: https://uniworkos.com/downloads/office/apt\nSuites: dev\nComponents: main");
@@ -272,12 +273,23 @@ describe("the Office page", () => {
       expect(details).not.toBeNull();
       expect(details?.open).toBe(false);
       expect(details?.querySelector("summary")?.textContent).toBe(viMessages.landing.office.apt.manual);
+      // A visible open/closed cue that assistive tech skips; CSS rotates it under details[open].
+      expect(details?.querySelector("summary > svg.apt-chevron")?.getAttribute("aria-hidden")).toBe("true");
       const inside = [...(details?.querySelectorAll(".apt-code") ?? [])].map((pre) => pre.textContent);
       expect(inside).toEqual([commands()[1], commands()[2]]);
       expect(details?.textContent).toContain("58A9 0232 2C8D 45C4 33B5 25F5 1198 D109 26F3 4831");
       expect(details?.textContent).toContain(viMessages.landing.office.apt.deb);
       // The one command stays outside the fold.
       expect(details?.contains(container.querySelectorAll(".apt-code")[0] ?? null)).toBe(false);
+    });
+
+    it.each(["vi", "en"] as const)("gives every copy button its own name in %s", async (language) => {
+      await setLocale(language);
+      await render({ flags: {}, office_installers: onDownloads });
+      const names = [...container.querySelectorAll(".apt-install button")].map((button) => button.getAttribute("aria-label"));
+      expect(names).toHaveLength(3);
+      expect(new Set(names).size).toBe(3);
+      expect(names[0]).toContain((language === "vi" ? viMessages : enMessages).landing.office.apt.quick);
     });
 
     it("copies a block and says so, or says it could not", async () => {

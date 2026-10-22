@@ -1,5 +1,5 @@
 "use client";
-import { Check, Copy } from "lucide-react";
+import { Check, ChevronRight, Copy } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { APT_KEY_FINGERPRINT, aptInstallCommands, aptQuickInstallCommand, selectOfficeInstallerChannel, type AptSuite } from "@uniwork/core/office";
@@ -50,7 +50,7 @@ export function AptInstall({ suite }: { suite?: AptSuite }) {
     <p className="apt-intro">{t("landing.office.apt.intro")}</p>
     <CommandBlock label={t("landing.office.apt.quick")} command={aptQuickInstallCommand(aptSuite)} />
     <details className="apt-manual">
-      <summary>{t("landing.office.apt.manual")}</summary>
+      <summary><ChevronRight aria-hidden className="apt-chevron" />{t("landing.office.apt.manual")}</summary>
       <div className="apt-manual-body">
         <CommandBlock label={t("landing.office.apt.setup")} command={lines.slice(0, -1).join("\n")} />
         <p className="apt-note">{t("landing.office.apt.deb")}</p>
