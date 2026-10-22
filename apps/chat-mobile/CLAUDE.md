@@ -81,6 +81,9 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
 
 ## Đặt code mới ở đâu
 
+- Module mới của `data/` vào thư mục theo tính năng (`data/<feature>/`: api, cache, store, hook của tính năng đó), không ở
+  gốc `data/`: gốc là một ratchet chỉ co lại (`scripts/mobile-data-layout.test.mjs`); chuyển một module gốc vào thư mục
+  thì hạ trần cùng PR.
 - Query mới: `*Options` ở `data/queries/`, key từ factory của `data/queries/chat-keys.ts` (dưới `["chat", wsId]`).
 - Lệnh mới: hàm ở `data/chat-actions.ts` (hay `pending-ops.ts` nếu chạy offline) và hook `useCommand` ở
   `data/mutations/*`; màn hình gọi hook, báo lỗi từ `mutateAsync`.
