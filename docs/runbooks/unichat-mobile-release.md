@@ -91,6 +91,27 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   chạy lại không nhân đôi). Đỏ ở đây:
   xem bảng trong step summary — số nào vượt, so với run xanh trước để tìm commit; trên máy dev, render của hàng xem bằng
   các test đếm render (mục Kiểm tra 8), chi phí dựng timeline bằng `lib/timeline-perf.test.ts`.
+- **Canary: chứng minh mỗi cổng đỏ được (owner, một lần sau khi nhánh UNI-2053 lên remote — audit "gates-never-ran").**
+  Một cổng chỉ tính khi đã thấy nó đỏ trên một commit cố ý hỏng. `node scripts/mobile-canary.mjs --list` liệt kê các
+  canary (thiếu peer, thiếu babel plugin, chuỗi locale chỉ iOS lọt sang Android, crash lúc boot, KDoc có `/*`, token
+  cuộc gọi giả qua được, job `scope` crash, lockfile npm, `.gitignore` lệch `.easignore`) cùng job phải đỏ. Mỗi canary:
+  `git switch -c canary/<tên> origin/<nhánh>` → `node scripts/mobile-canary.mjs <tên>` (canary đổi `package.json` in
+  thêm `pnpm install --lockfile-only`) → commit, push, mở PR nháp vào `develop` → xác nhận đúng job đó đỏ **và**
+  `UniChat mobile gate` đỏ → đóng PR, xoá nhánh. Ghi link run vào bảng dưới; không merge nhánh canary nào.
+  `scripts/mobile-canary.test.mjs` đỏ khi code đổi làm một canary không còn áp được.
+
+  | Canary | Job phải đỏ | Run đỏ (link) | Ngày |
+  | --- | --- | --- | --- |
+  | missing-peer | mobile, expo-doctor and JS bundle budget | | |
+  | babel-plugin | expo-doctor and JS bundle budget, Android release build | | |
+  | ios-only-locale | mobile, Android release build | | |
+  | boot-crash | Android cold-start smoke, iOS simulator release build | | |
+  | kotlin-parse | mobile, Android release build | | |
+  | launch-token | Android release build | | |
+  | scope-crash | UniChat mobile gate | | |
+  | foreign-lockfile | mobile | | |
+  | easignore-drift | mobile | | |
+
 - **Lượt chạy thiết bị chập chờn.** Mọi lần chạy Maestro trong `mobile-verify.yml` và nightly đi qua
   `scripts/maestro-retry.sh`: hỏng thì chạy lại một lần; lần hai qua thì xanh nhưng để lại cảnh báo "Flaky device run"
   và một dòng `flaky:` trong step summary, hai lần hỏng thì đỏ. Một luồng cứ phải nhờ lần chạy lại (thấy trong các
