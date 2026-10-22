@@ -35,17 +35,20 @@ export function entityKindIcon(kind: string): LucideIcon {
   return isKind(kind) ? MODULE_ICONS[KIND_MODULE[kind]] : Box;
 }
 
-const CHIP = "mx-0.5 inline-flex max-w-64 items-center gap-1 rounded-md bg-muted px-1.5 align-baseline text-body text-foreground";
+/** An object's chip inside a sentence: shared by the answer's entity chips and the composer's cards. */
+export const CHIP = "mx-0.5 inline-flex max-w-64 items-center gap-1 rounded-md bg-muted px-1.5 align-baseline text-body text-foreground";
 
 /** True under a markdown link: a chip there is text, so the outer link owns the click and no anchor nests. */
 export const InLinkContext = createContext(false);
 
-function useKindLabel(kind: string) {
+/** The singular word for a kind ("Task", "Người"); an unknown kind reads as "other". */
+export function useKindLabel(kind: string) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.entity.kind" });
   return t(isKind(kind) ? kind : "other");
 }
 
-function TaskStatusLabel({ taskId }: { taskId: string }) {
+/** A task's live status icon and label; nothing until the task is read. */
+export function TaskStatusLabel({ taskId }: { taskId: string }) {
   const { t } = useTranslation();
   const status = useTask(taskId).data?.status;
   if (!status) return null;

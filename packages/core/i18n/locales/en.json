@@ -5961,7 +5961,9 @@
         "room": "Chat rooms"
       },
       "empty": "No results",
-      "enter_hint": "Select"
+      "enter_hint": "Select",
+      "count_one": "{{count}} result",
+      "count_other": "{{count}} results"
     },
     "scope": {
       "add": "Add scope",

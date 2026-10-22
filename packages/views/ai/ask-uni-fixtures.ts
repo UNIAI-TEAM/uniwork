@@ -56,6 +56,8 @@ export function composerRoutes(path: string, init?: { body?: { query?: { search?
           : [];
     return Promise.resolve({ query_fingerprint: "f", group_key: null, parent_id: null, total: rows.length, rows, next_cursor: null });
   }
+  const one = /^\/api\/v1\/tasks\/([^/]+)$/.exec(path);
+  if (one) return Promise.resolve({ task: task(one[1]!, "Task") });
   // A query nothing matches ("zz") finds nothing anywhere.
   const none = /[?&]q=zz/.test(path);
   if (path.includes("/projects")) return none ? Promise.resolve({ projects: [], total: 0 }) : Promise.resolve({ projects: [project], total: 1 });

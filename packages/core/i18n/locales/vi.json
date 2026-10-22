@@ -5955,7 +5955,8 @@
         "room": "Phòng chat"
       },
       "empty": "Không có kết quả",
-      "enter_hint": "Chọn"
+      "enter_hint": "Chọn",
+      "count_other": "{{count}} kết quả"
     },
     "scope": {
       "add": "Thêm phạm vi",

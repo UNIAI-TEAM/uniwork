@@ -98,7 +98,7 @@ export function AskUniComposer({
     <div ref={root} className="bg-background p-3" data-slot="ask-uni-composer">
       <div
         data-slot="ask-uni-composer-frame"
-        className="relative flex flex-col gap-2 rounded-2xl border border-border p-2 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30"
+        className="relative flex flex-col gap-2 rounded-2xl border border-border p-2 transition-colors has-[.ProseMirror-focused]:border-ring has-[.ProseMirror-focused]:ring-2 has-[.ProseMirror-focused]:ring-ring/30"
       >
         {focus ? (
           <div className="flex flex-wrap gap-1.5">

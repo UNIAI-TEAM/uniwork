@@ -6,11 +6,11 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { Plugin } from "@tiptap/pm/state";
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor, type NodeViewProps } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
-import { Suggestion, type SuggestionProps } from "@tiptap/suggestion";
+import { exitSuggestion, Suggestion, SuggestionPluginKey, type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
 import { useTranslation } from "react-i18next";
 import { isImeComposing } from "@uniwork/core/utils";
 import { cn } from "@uniwork/ui/lib/utils";
-import { entityKindIcon } from "./ask-uni-entity";
+import { CHIP, entityKindIcon, TaskStatusLabel, useKindLabel } from "./ask-uni-entity";
 import { AskUniObjectPicker, type AskUniObjectKind, type AskUniObjectPickerHandle } from "./ask-uni-object-picker";
 import { serializeQuestion, type AskUniMentionCard } from "./ask-uni-question";
 
@@ -49,7 +49,7 @@ type Open = SuggestionProps<unknown, AskUniMentionCard>;
 /** What the mention node needs from the component, read through a getter so the node (built once) sees the latest. */
 interface Hooks {
   open(props: Open | null): void;
-  key(event: KeyboardEvent): boolean;
+  key(props: SuggestionKeyDownProps): boolean;
   allow(doc: JSONContent): boolean;
   submit(doc: JSONContent): void;
 }
@@ -61,21 +61,16 @@ function toQuestion(doc: JSONContent): AskUniQuestion {
 
 /** A card in the sentence: the kind's icon and the object's name, as plain text. */
 function AskUniToken({ node, selected }: NodeViewProps) {
-  const { t } = useTranslation(undefined, { keyPrefix: "ai.picker.tabs" });
-  const { kind, label } = node.attrs as AskUniMentionCard;
-  const Icon = entityKindIcon(kind === "room" ? "chat" : kind);
+  const { kind, id, label } = node.attrs as AskUniMentionCard;
+  // A chat room is drawn and named as the answer's chips do it.
+  const entityKind = kind === "room" ? "chat" : kind;
+  const kindLabel = useKindLabel(entityKind);
+  const Icon = entityKindIcon(entityKind);
   return (
-    <NodeViewWrapper
-      as="span"
-      role="img"
-      aria-label={`${t(kind)}: ${label}`}
-      className={cn(
-        "mx-0.5 inline-flex max-w-64 cursor-default items-center gap-1 rounded-md bg-muted px-1.5 align-baseline text-foreground",
-        selected && "ring-2 ring-ring",
-      )}
-    >
+    <NodeViewWrapper as="span" role="img" aria-label={`${kindLabel}: ${label}`} className={cn(CHIP, "cursor-default", selected && "ring-2 ring-ring")}>
       <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
       <span className="truncate">{label}</span>
+      {kind === "task" ? <TaskStatusLabel taskId={id} /> : null}
     </NodeViewWrapper>
   );
 }
@@ -102,20 +97,23 @@ function askUniMention(hooks: () => Hooks) {
           char: "@",
           allow: ({ state }) => hooks().allow(state.doc.toJSON()),
           command: ({ editor, range, props }) => {
-            editor.commands.insertContentAt(range, [{ type: "askUniMention", attrs: props }, { type: "text", text: " " }]);
+            const next = editor.state.doc.resolve(range.to).nodeAfter;
+            const spaced = next?.isText && /^\s/.test(next.text ?? "");
+            editor.commands.insertContentAt(range, [{ type: "askUniMention", attrs: props }, ...(spaced ? [] : [{ type: "text", text: " " }])]);
           },
           render: () => ({
             onStart: (props) => hooks().open(props),
             onUpdate: (props) => hooks().open(props),
             onExit: () => hooks().open(null),
-            onKeyDown: ({ event }) => hooks().key(event),
+            onKeyDown: (props) => hooks().key(props),
           }),
         }),
         new Plugin({
           props: {
             handleKeyDown(view, event) {
-              // ProseMirror skips keys during a composition; the event flags cover what it misses. Telex/VNI confirm with Enter.
-              if (event.key !== "Enter" || event.shiftKey || view.composing || isImeComposing(event)) return false;
+              if (event.key !== "Enter" || event.shiftKey) return false;
+              // An IME confirming a Telex/VNI syllable: never a send, and the document stays as it is.
+              if (view.composing || isImeComposing(event)) return true;
               hooks().submit(view.state.doc.toJSON());
               return true;
             },
@@ -153,11 +151,24 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
       setQuery(props ? props.query : null);
       if (props) setNotice("");
     },
-    key(event) {
+    key({ view, event, range }) {
       // Escape closes the picker only, not a sheet around the panel.
       if (event.key === "Escape") event.stopPropagation();
-      // While the picker is open Enter picks or does nothing; it never sends.
-      return picker.current?.onKeyDown(event) || (event.key === "Enter" && !event.shiftKey && !isImeComposing(event));
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        // As in a text field, the tabs take an arrow only at that edge of the @word; elsewhere it moves the caret.
+        const { empty, from, $from } = view.state.selection;
+        const next = $from.nodeAfter;
+        const edge = event.key === "ArrowLeft" ? from === range.from + 1 : !next?.isText || /^\s/.test(next.text ?? "");
+        if (!empty || !edge) return false;
+      }
+      if (picker.current?.onKeyDown(event)) return true;
+      if (event.key !== "Enter" || event.shiftKey || isImeComposing(event)) return false;
+      // A settled empty list gives Enter back: the picker closes and the text goes as typed. While loading Enter waits.
+      if (picker.current?.isEmpty() && !picker.current.isLoading()) {
+        exitSuggestion(view);
+        hooks.current!.submit(view.state.doc.toJSON());
+      }
+      return true;
     },
     allow(doc) {
       const max = latest.current.maxMentions;
@@ -216,7 +227,15 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
         return true;
       },
     },
-    onUpdate: ({ editor: e }) => onChange?.(toQuestion(e.getJSON())),
+    onUpdate: ({ editor: e }) => {
+      const q = toQuestion(e.getJSON());
+      if (q.mentions.length < maxMentions) setNotice("");
+      onChange?.(q);
+    },
+    // The custom render has no outside-click dismiss of its own: leaving the box closes the picker.
+    onBlur: ({ editor: e }) => {
+      if (SuggestionPluginKey.getState(e.state)?.active) exitSuggestion(e.view);
+    },
   });
 
   useEffect(() => {
@@ -263,12 +282,13 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
           />
         </div>
       ) : null}
-      <EditorContent editor={editor} />
-      {notice ? (
+      {/* One flex item, so the always-mounted notice adds no gap while it is empty. */}
+      <div>
+        <EditorContent editor={editor} />
         <p role="status" className="px-1 text-caption text-destructive">
           {notice}
         </p>
-      ) : null}
+      </div>
     </>
   );
 });

@@ -34,6 +34,10 @@ export interface AskUniObjectItem {
 export interface AskUniObjectPickerHandle {
   /** True when the key was the picker's; the host then prevents the default. */
   onKeyDown(e: KeyboardEvent): boolean;
+  /** No row is shown (in the current tab). */
+  isEmpty(): boolean;
+  /** A search is still on its way, so an empty list may yet fill. */
+  isLoading(): boolean;
 }
 
 interface Props {
@@ -160,8 +164,13 @@ export const AskUniObjectPicker = forwardRef<AskUniObjectPickerHandle, Props>(fu
   }, [activeId]);
   // A new query or tab is a new list; the highlight returns to the top.
   useEffect(() => setActive(0), [query, tab]);
+  // The live region mounts empty and only then gets its text, so the first count is announced too.
+  const [announced, setAnnounced] = useState("");
+  useEffect(() => setAnnounced(loading ? "" : t("count", { count: shown.length })), [loading, shown.length, t]);
 
   useImperativeHandle(ref, () => ({
+    isEmpty: () => shown.length === 0,
+    isLoading: () => loading,
     onKeyDown(e) {
       if (e.isComposing || e.keyCode === 229) return false;
       const step = (i: number, by: number, n: number) => (i + by + n) % n;
@@ -249,6 +258,9 @@ export const AskUniObjectPicker = forwardRef<AskUniObjectPickerHandle, Props>(fu
           <p className="px-2 py-1.5 text-caption text-muted-foreground">{t("empty")}</p>
         )
       ) : null}
+      <p role="status" className="sr-only">
+        {announced}
+      </p>
     </div>
   );
 });

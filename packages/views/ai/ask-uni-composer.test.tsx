@@ -81,7 +81,9 @@ describe("AskUniComposer", () => {
     const chip = await screen.findByRole("button", { name: "Bỏ phạm vi Cuộc họp" });
     const frame = box().closest('[data-slot="ask-uni-composer-frame"]')!;
     expect(frame.className).toContain("rounded-2xl");
-    expect(frame.className).toContain("focus-within:border-ring");
+    // The frame lights up for the editor's focus, not for any button inside it.
+    expect(frame.className).toContain("has-[.ProseMirror-focused]:border-ring");
+    expect(frame.className).not.toContain("focus-within:");
     for (const el of [chip, screen.getByRole("button", { name: "Thêm phạm vi" }), screen.getByRole("button", { name: "Gửi" })]) {
       expect(frame).toContainElement(el);
     }
@@ -100,6 +102,10 @@ describe("AskUniComposer", () => {
     key("Enter", { isComposing: true });
     key("Enter", { keyCode: 229 });
     expect(onSend).not.toHaveBeenCalled();
+    // An IME Enter changes nothing: still one paragraph, the same text and break.
+    expect(box().editor.getJSON().content).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "Task nào quá hạn?" }, { type: "hardBreak" }] },
+    ]);
     key("Enter");
     expect(onSend).toHaveBeenCalledTimes(1);
     expect(onSend.mock.calls[0]![0]).toMatchObject({ question: "Task nào quá hạn?", mentions: [], conversation_id: "c1", model: "", effort: "" });
@@ -140,6 +146,8 @@ describe("AskUniComposer", () => {
     // The card lives in the text: there is no chip above the box for it.
     expect(screen.queryByRole("button", { name: /Hoàn thiện/ })).toBeNull();
     expect(await within(box()).findByLabelText("Task: Hoàn thiện báo cáo")).toBeInTheDocument();
+    // A task card carries its live status label.
+    expect(await within(box()).findByText("Cần làm")).toBeInTheDocument();
     type("giúp");
     key("Enter");
     expect(onSend.mock.calls[0]![0]).toMatchObject({ question: "Tóm tắt Hoàn thiện báo cáo giúp", mentions: [{ kind: "task", id: "t3" }] });
@@ -172,18 +180,39 @@ describe("AskUniComposer", () => {
     expect(onSend.mock.calls[0]![0].mentions).toEqual([{ kind: "meeting", id: "m1" }]);
   });
 
-  it("left and right switch the picker's tabs and leave the caret where it is", async () => {
+  it("left switches the picker's tab only with the caret right after the @, and otherwise moves the caret", async () => {
     mount();
     type("@La");
     await option("Lập kế hoạch");
-    const caret = box().editor.state.selection.from;
-    key("ArrowRight");
-    expect(screen.getByRole("tab", { name: "Task" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.queryAllByRole("option").map((o) => o.textContent)).toEqual([expect.stringContaining("Lập kế hoạch")]);
-    expect(box().editor.state.selection.from).toBe(caret);
-    key("ArrowLeft");
+    // The caret ends the query: Left belongs to the caret.
+    expect(key("ArrowLeft")).toBe(true);
     expect(screen.getByRole("tab", { name: "Tất cả" })).toHaveAttribute("aria-selected", "true");
-    expect(box().editor.getText()).toBe("@La");
+    const { editor } = box();
+    act(() => {
+      editor.commands.setTextSelection(2);
+    });
+    expect(key("ArrowLeft")).toBe(false);
+    expect(screen.getByRole("tab", { name: "Phòng chat" })).toHaveAttribute("aria-selected", "true");
+    expect(editor.state.selection.from).toBe(2);
+  });
+
+  it("right switches the picker's tab only with the caret at the end of the @word, and otherwise moves the caret", async () => {
+    mount();
+    type("@Lan");
+    const { editor } = box();
+    // Between "La" and "n": Right belongs to the caret.
+    act(() => {
+      editor.commands.setTextSelection(editor.state.selection.from - 1);
+    });
+    await option("Lập kế hoạch");
+    expect(key("ArrowRight")).toBe(true);
+    expect(screen.getByRole("tab", { name: "Tất cả" })).toHaveAttribute("aria-selected", "true");
+    act(() => {
+      editor.commands.setTextSelection(editor.state.selection.from + 1);
+    });
+    expect(key("ArrowRight")).toBe(false);
+    expect(screen.getByRole("tab", { name: "Task" })).toHaveAttribute("aria-selected", "true");
+    expect(box().editor.getText()).toBe("@Lan");
   });
 
   it("a chat room pick is sent with kind room", async () => {
@@ -192,6 +221,7 @@ describe("AskUniComposer", () => {
     const { onSend } = mount();
     type("@gen");
     fireEvent.click(await option("general"));
+    expect(await within(box()).findByLabelText("Đoạn chat: general")).toBeInTheDocument();
     key("Enter");
     expect(onSend.mock.calls[0]![0].mentions).toEqual([{ kind: "room", id: "r1" }]);
   });
@@ -224,6 +254,38 @@ describe("AskUniComposer", () => {
     expect(inline()).toEqual([{ type: "text", text: "Hỏi @Lan Anh" }, { type: "hardBreak" }, { type: "text", text: "ngay" }]);
   });
 
+  it("never parses HTML into a card, whatever path it comes in by", () => {
+    mount();
+    act(() => {
+      box().editor.commands.setContent('<p><span data-type="askUniMention" data-ask-uni-mention="task" kind="task" id="t1" label="X">X</span> sau</p>');
+    });
+    expect(cards()).toEqual([]);
+    expect(box().editor.getText()).toBe("X sau");
+  });
+
+  it("an @ inside a word does not open the picker", () => {
+    mount();
+    type("a@b");
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(box()).toHaveAttribute("role", "textbox");
+  });
+
+  it("a pick adds a space after the card only when none follows", async () => {
+    mount();
+    type("Hỏi  ngay");
+    const { editor } = box();
+    act(() => {
+      editor.commands.setTextSelection(5);
+    });
+    type("@La");
+    fireEvent.click(await option("Lan Anh"));
+    expect(inline()).toEqual([
+      { type: "text", text: "Hỏi " },
+      { type: "askUniMention", attrs: { kind: "member", id: "u2", label: "Lan Anh" } },
+      { type: "text", text: " ngay" },
+    ]);
+  });
+
   it("at five cards an @ shows the limit instead of the picker", () => {
     mount();
     const card = (i: number) => ({ type: "askUniMention", attrs: { kind: "member", id: `u${i}`, label: `Nam${i}` } });
@@ -231,16 +293,29 @@ describe("AskUniComposer", () => {
       box().editor.commands.insertContent([0, 1, 2, 3, 4].flatMap((i) => [card(i), { type: "text", text: " " }]));
     });
     type("@Na");
-    expect(screen.getByText("Chỉ nhắc được tối đa 5 đối tượng trong một câu hỏi.")).toBeInTheDocument();
+    const notice = screen.getByText("Chỉ nhắc được tối đa 5 đối tượng trong một câu hỏi.");
+    expect(notice).toHaveAttribute("role", "status");
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(box()).not.toHaveAttribute("aria-expanded");
+    // Below the limit again, the same live region empties.
+    type(" ");
+    act(() => {
+      box().editor.commands.deleteRange({ from: 1, to: 2 });
+    });
+    expect(cards()).toHaveLength(4);
+    expect(notice).toBeInTheDocument();
+    expect(notice).toHaveTextContent("");
   });
 
   it("makes the box a combobox while the @ picker is open", async () => {
     mount();
     type("@La");
+    // The count's live region is there before its first text.
+    const count = within(screen.getByRole("tablist").parentElement!).getByRole("status");
+    expect(count).toHaveTextContent("");
     const list = await screen.findByRole("listbox", { name: "Chọn đối tượng" });
     await option("Lập kế hoạch");
+    await waitFor(() => expect(count).toHaveTextContent("4 kết quả"));
     expect(box()).toHaveAttribute("role", "combobox");
     expect(box()).toHaveAttribute("aria-expanded", "true");
     expect(box()).toHaveAttribute("aria-autocomplete", "list");
@@ -259,18 +334,39 @@ describe("AskUniComposer", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
-  it("Enter never sends while the @ picker is open; after Escape it does, and the next @ opens it again", async () => {
+  it("Enter on a settled empty list closes the picker and sends the text as it is", async () => {
     const { onSend } = mount();
-    type("@zz");
+    type("Hỏi @zz");
     await screen.findByText("Không có kết quả");
     key("Enter");
-    expect(onSend).not.toHaveBeenCalled();
-    key("Escape");
     expect(screen.queryByText("Không có kết quả")).toBeNull();
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend.mock.calls[0]![0]).toMatchObject({ question: "Hỏi @zz", mentions: [] });
+  });
+
+  it("after Escape Enter sends, and the next question's @ opens the picker again", async () => {
+    const { onSend } = mount();
+    type("@La");
+    await option("Lan Anh");
+    key("Escape");
+    expect(screen.queryByRole("listbox")).toBeNull();
     key("Enter");
     expect(onSend).toHaveBeenCalledTimes(1);
     type("@La");
     expect(await screen.findByRole("listbox", { name: "Chọn đối tượng" })).toBeInTheDocument();
+  });
+
+  it("the picker closes when the box loses focus", async () => {
+    mount();
+    type("@La");
+    await option("Lan Anh");
+    expect(box()).toHaveAttribute("aria-expanded", "true");
+    act(() => {
+      box().blur();
+    });
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(box()).not.toHaveAttribute("aria-expanded");
+    expect(box()).toHaveAttribute("role", "textbox");
   });
 
   it("Enter picks a visible option while another group still loads", async () => {
@@ -293,8 +389,8 @@ describe("AskUniComposer", () => {
     );
     const { onSend } = mount();
     type("@zz");
-    await waitFor(() => expect(requestMock).toHaveBeenCalled());
-    await new Promise((r) => setTimeout(r, 300));
+    // The task search has gone out after the typing settled, and never answers.
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/tasks/table/rows"))).toBe(true));
     expect(screen.queryByRole("option")).toBeNull();
     key("Enter");
     expect(onSend).not.toHaveBeenCalled();
