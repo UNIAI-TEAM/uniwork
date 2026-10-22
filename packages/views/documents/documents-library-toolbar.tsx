@@ -197,7 +197,7 @@ export function FilterSelect({ label, value, items, onPick }: FilterSelectProps)
 
 const TYPE_ALL = "all";
 const CHIP =
-  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted pl-2.5 pr-1 text-caption text-foreground pointer-coarse:h-11";
+  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted pl-2.5 pr-1.5 text-caption text-foreground pointer-coarse:h-11";
 
 function useTypeLabel() {
   const { t } = useTranslation();
