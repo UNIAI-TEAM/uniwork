@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 )
 
 func dockAsk(c *ctxWorld, in AskInput) (AskResult, error) {
@@ -157,5 +159,41 @@ func TestRegenerateKeepsEarlierTurnsInHistory(t *testing.T) {
 	}
 	if last := msgs[len(msgs)-1].Content; !strings.Contains(last, "Hỏi hai") {
 		t.Fatalf("question missing:\n%s", last)
+	}
+}
+
+// A regenerate that loses to a newer answer while its model call runs ends
+// with an error and no done frame, is reported rejected, and leaves one answer.
+func TestRegenerateLostRaceEndsWithoutDone(t *testing.T) {
+	c := newCtxWorld(t)
+	m := &agentMetricsFake{}
+	c.s.SetAgentMetrics(m)
+	scriptAgent(c.fake, "x", "một")
+	first, err := dockAsk(c, AskInput{Question: "hỏi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner := scriptAgent(c.fake, "x", "thua")
+	reply := c.fake.Reply
+	c.fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		if len(*inner) == 0 { // the rival regenerate stores first
+			if _, err := c.s.store(context.Background(), c.x.w.OrganizationID, first.ConversationID, askTurn{Answer: "thắng", Regenerates: first.Message.ID}); err != nil {
+				t.Error(err)
+			}
+		}
+		return reply(req)
+	}
+	var events []AskEvent
+	in := AskInput{ConversationID: first.ConversationID, Regenerate: first.Message.ID, Dock: true, Locale: "vi"}
+	_, err = c.s.AskStream(context.Background(), c.x.ua.ID, c.x.w.ID, in, collectEvents(&events))
+	if !isInvalid(err) || slices.Contains(eventNames(events), "done") {
+		t.Fatalf("err %v events %v", err, eventNames(events))
+	}
+	if len(m.runs) == 0 || !strings.HasPrefix(m.runs[len(m.runs)-1], "rejected/") {
+		t.Fatalf("runs %v", m.runs)
+	}
+	rows, _ := c.s.q.AiListMessages(context.Background(), first.ConversationID)
+	if len(rows) != 2 || rows[1].Content != "thắng" {
+		t.Fatalf("rows %+v", rows)
 	}
 }

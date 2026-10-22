@@ -307,6 +307,8 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			outcome = out.Message.Notice.String
 		case err == nil:
 			outcome = "answered"
+		case errors.As(err, new(ValidationError)): // a regenerate that lost the race at the store
+			outcome = "rejected"
 		case errors.Is(err, ai.ErrProviderTimeout) || errors.Is(err, context.DeadlineExceeded):
 			outcome = "timeout"
 		case errors.Is(err, ai.ErrRateLimited) || errors.Is(err, ai.ErrQuotaExceeded): // ruling P20
