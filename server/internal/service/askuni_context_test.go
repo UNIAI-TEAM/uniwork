@@ -120,8 +120,8 @@ func TestAskContextRefusesAnUnreadableMention(t *testing.T) {
 				"mention": {ConversationID: first.ConversationID, Question: "?", Locale: "vi", Mentions: []ai.Focus{m}},
 				"focus":   {ConversationID: first.ConversationID, Question: "?", Locale: "vi", Focus: &m},
 			} {
-				if as == "focus" && m.Kind == "member" || as == "mention" && m.Kind == "room" {
-					continue // a member is only a mention, a room only a focus
+				if as == "focus" && m.Kind == "member" {
+					continue // a member is only a mention
 				}
 				before, calls := messageCount(t, c.s, first.ConversationID), c.fake.Calls
 				var events []AskEvent
@@ -160,7 +160,6 @@ func TestAskContextRejectsBadMentions(t *testing.T) {
 	for name, ms := range map[string][]ai.Focus{
 		"six":          six,
 		"email thread": {{Kind: "email_thread", ID: "t1"}},
-		"room":         {{Kind: "room", ID: c.room}},
 		"empty id":     {{Kind: "task", ID: ""}},
 	} {
 		var ve ValidationError
@@ -189,5 +188,27 @@ func TestMentionedMemberLinksThePersonPage(t *testing.T) {
 	}
 	if it := items[0]; !strings.HasSuffix(it.Href, "/people/"+c.x.ub.ID) || strings.Contains(it.Href, "/members") || it.ID != c.x.ub.ID || it.Text != "ID: "+c.x.ub.ID+"\nRole: member" {
 		t.Errorf("item = %+v", it)
+	}
+}
+
+func TestMentionARoomTheAskerIsIn(t *testing.T) {
+	c := newCtxWorld(t)
+	ctx := context.Background()
+	reqs := scriptAgent(c.fake, "x", "Xong [S1]")
+	if _, err := c.s.Ask(ctx, c.x.ua.ID, c.x.w.ID, AskInput{Question: "Chốt gì?", Locale: "vi", Mentions: []ai.Focus{{Kind: "room", ID: c.room}}}); err != nil {
+		t.Fatal(err)
+	}
+	if b := block(focusPrompt(*reqs), "S1"); !strings.Contains(b, "Chốt báo giá hôm nay") {
+		t.Fatalf("room mention block %q lacks the room's message", b)
+	}
+	// A room the asker is not in is refused as a mention exactly as a focus.
+	private, err := c.s.chat.CreateChannel(ctx, c.x.ua.ID, c.x.w.ID, CreateChannelInput{Name: "kin", Visibility: "private"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := c.fake.Calls
+	_, err = c.s.Ask(ctx, c.x.ub.ID, c.x.w.ID, AskInput{Question: "?", Locale: "vi", Mentions: []ai.Focus{{Kind: "room", ID: private.ID}}})
+	if !errors.Is(err, ai.ErrContextForbidden) || c.fake.Calls != calls {
+		t.Fatalf("err %v, calls %d; want ai_context_forbidden before any call", err, c.fake.Calls-calls)
 	}
 }

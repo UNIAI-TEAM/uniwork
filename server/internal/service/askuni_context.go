@@ -18,9 +18,9 @@ import (
 
 const askMentionsMax = 5
 
-// askMentionKinds are the kinds a mention may name; a focus may also be a
-// room or an email thread.
-var askMentionKinds = []string{"task", "meeting", "document", "project", "member"}
+// askMentionKinds are the kinds a mention may name; a focus may also be an
+// email thread.
+var askMentionKinds = []string{"task", "meeting", "document", "project", "room", "member"}
 
 // askMentions checks the mentions of a request and returns the ones to read:
 // a repeated object is read once, and the focus is not read again as a mention.

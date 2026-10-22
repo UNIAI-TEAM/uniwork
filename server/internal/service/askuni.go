@@ -793,9 +793,18 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTu
 	return msg, tx.Commit(ctx)
 }
 
-func (s *AskUNIService) ListConversations(ctx context.Context, userID, workspaceID string) ([]db.AiConversation, error) {
+// ListConversations is the asker's recent conversations, or, for a non-blank
+// q, the ones whose title matches it, accents folded.
+func (s *AskUNIService) ListConversations(ctx context.Context, userID, workspaceID, q string) ([]db.AiConversation, error) {
 	if _, err := s.requireMember(ctx, userID, workspaceID); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(q) != "" {
+		pattern, err := foldSearchPattern(q)
+		if err != nil {
+			return nil, err
+		}
+		return s.q.AiSearchConversations(ctx, db.AiSearchConversationsParams{WorkspaceID: workspaceID, UserID: userID, SearchPattern: pattern})
 	}
 	return s.q.AiListConversations(ctx, db.AiListConversationsParams{WorkspaceID: workspaceID, UserID: userID})
 }

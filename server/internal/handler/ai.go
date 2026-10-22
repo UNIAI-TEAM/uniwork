@@ -190,7 +190,7 @@ func (h *handlers) chatCatchUp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) listAiConversations(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.AskUNI.ListConversations(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"))
+	rows, err := h.AskUNI.ListConversations(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), r.URL.Query().Get("q"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

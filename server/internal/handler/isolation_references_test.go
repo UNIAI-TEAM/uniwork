@@ -214,10 +214,14 @@ var isoReferences = []isoReference{
 		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "mention", body: map[string]any{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "room mention", body: map[string]any{
+		"question": "ref", "mentions": []any{map[string]any{"kind": "room", "id": isoRef("room")}}}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "conversation", body: map[string]any{
 		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "mention", body: map[string]any{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "room mention", body: map[string]any{
+		"question": "ref", "mentions": []any{map[string]any{"kind": "room", "id": isoRef("room")}}}},
 	// B's conversation, A's answer id: the id names no row there, so the stream
 	// refuses before any model call and supersedes nothing of A's or B's. The
 	// own-rows control would supersede B's seeded answer, so it is not sent.
