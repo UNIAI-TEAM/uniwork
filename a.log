@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+ac41396fea2424f42c887af626d7f4edf7b0c5c2
+ac41396fe chore: merge UNI-2084 w2 client mirror into the lane
+c4b38308a feat(notifications): document_owner_transferred to the new owner
+2d5c52294 feat(documents): PUT /documents/{documentID}/owner and admin-summary fields

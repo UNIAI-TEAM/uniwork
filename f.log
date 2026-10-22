@@ -1,0 +1,3 @@
+$ (cd server && test -z "$(gofmt -l ./internal ./pkg ./cmd)" && go vet ./internal/service ./internal/handler/... ./internal/notification ./internal/outbox ./internal/audit && go tool staticcheck ./internal/service ./internal/handler/... ./internal/notification); rc=$?; echo; echo "GO_STATIC_EXIT=$rc"
+
+GO_STATIC_EXIT=0
