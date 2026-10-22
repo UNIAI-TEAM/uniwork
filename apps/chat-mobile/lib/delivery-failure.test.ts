@@ -9,8 +9,19 @@ describe("failureScope", () => {
     for (const status of [0, 401, 429]) expect(failureScope(answered(status))).toBe("line");
   });
 
+  // A server-wide outage is no fault of the item: LoadShed answers 503 to every request, a gateway 502/504 while a
+  // pod restarts. Counted against each queued message, every message written during an outage longer than about
+  // two minutes ended up failed and needing a manual retry.
+  it("blames the line for a gateway or overload answer, and for any answer that says when to come back", () => {
+    for (const status of [502, 503, 504]) expect(failureScope(answered(status))).toBe("line");
+    expect(failureScope(Object.assign(answered(500), { retryAfterSeconds: 2 }))).toBe("line");
+    expect(failureScope(Object.assign(answered(409), { retryAfterSeconds: 30 }))).toBe("line");
+  });
+
   it("blames the item for what the server answered about it, and for a throw that is no answer", () => {
-    for (const status of [408, 500, 502, 503]) expect(failureScope(answered(status))).toBe("item");
+    for (const status of [400, 408, 500, 501]) expect(failureScope(answered(status))).toBe("item");
+    expect(failureScope(Object.assign(answered(500), { retryAfterSeconds: 0 }))).toBe("item");
+    expect(failureScope(Object.assign(answered(500), { retryAfterSeconds: "2" }))).toBe("item");
     expect(failureScope(new Error("bug"))).toBe("item");
     expect(failureScope({ status: "500" })).toBe("item");
     expect(failureScope(null)).toBe("item");

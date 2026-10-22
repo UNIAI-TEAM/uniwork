@@ -1,10 +1,11 @@
 // Whose fault a failed delivery is, for the two queues that replay what the
 // person did offline (data/chat-send.ts, data/pending-ops.ts). A failure the
-// network or the session explains (fetch's TypeError, the phone's own timeout
-// as status 0, an expired session, a rate limit) would fail every item of the
-// line the same way: the line waits and nothing is counted against the item.
-// Anything else the server answered about this one item (a 5xx it gives every
-// time, a 408), or a throw that is no HTTP answer at all (a bug, a file that
+// network, the session or the server as a whole explains (fetch's TypeError,
+// the phone's own timeout as status 0, an expired session, a rate limit, a
+// gateway or overload answer — 502/503/504, LoadShed's 503 — or any answer
+// carrying Retry-After) would fail every item of the line the same way: the
+// line waits and nothing is counted against the item. Anything else the server
+// answered about this one item (a 500 it gives every time, a 408), or a throw that is no HTTP answer at all (a bug, a file that
 // will not read), is counted against it: past a cap the item stops being
 // retried, so one poison message or op can never hold the rest behind it for
 // ever, as WhatsApp and Telegram cap a stuck message and offer "tap to retry".
@@ -12,16 +13,21 @@ import { isRecord } from "./unknown-shape";
 
 export type FailureScope = "line" | "item";
 
-function statusOf(error: unknown): number | undefined {
-  const status = isRecord(error) ? error.status : undefined;
-  return typeof status === "number" ? status : undefined;
+/** Answers that say nothing about the item: no answer in time, no session, a rate limit, a gateway or an overload. */
+const LINE_STATUSES: ReadonlySet<number> = new Set([0, 401, 429, 502, 503, 504]);
+
+function numberField(error: unknown, field: "status" | "retryAfterSeconds"): number | undefined {
+  const value = isRecord(error) ? error[field] : undefined;
+  return typeof value === "number" ? value : undefined;
 }
 
-/** "line" when the network or the session explains the failure; "item" when it is this item's own. */
+/** "line" when the network, the session or the server as a whole explains the failure; "item" when it is this item's own. */
 export function failureScope(error: unknown): FailureScope {
   if (error instanceof TypeError) return "line";
-  const status = statusOf(error);
-  return status === 0 || status === 401 || status === 429 ? "line" : "item";
+  const status = numberField(error, "status");
+  if (status !== undefined && LINE_STATUSES.has(status)) return "line";
+  // The server said when to come back (data/api.ts › ApiError.retryAfterSeconds): it is busy, not refusing this item.
+  return (numberField(error, "retryAfterSeconds") ?? 0) > 0 ? "line" : "item";
 }
 
 /**

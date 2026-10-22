@@ -38,10 +38,11 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   sau một media chờ nó (phòng đọc đúng thứ tự viết), trừ khi lần tải lên đó đã ở trên dây `MEDIA_OVERTAKE_MS` (4 s)
   hay đang chờ backoff: khi đó chữ đi trước, ảnh tới khi tới (như Telegram/WhatsApp) — tải lên chậm không giữ chữ của
   cả phòng. Guard flush theo workspace + người gửi; lỗi tạm thời giữ hàng đó và thử lại theo backoff của riêng hàng đó (chữ gửi được không huỷ lượt thử lại của ảnh, phòng lỗi không kéo dài lượt chờ của phòng khác); lỗi của riêng
-  tin (server trả 5xx/408 cho đúng tin đó mỗi lần, hay một lỗi không phải câu trả lời HTTP) được đếm
+  tin (server trả 500/408 cho đúng tin đó mỗi lần, hay một lỗi không phải câu trả lời HTTP) được đếm
   (`failures`, sống qua kill app) và sau `MAX_SEND_ITEM_FAILURES` (5 vòng, khoảng 2 phút) tin thành `failed` kèm
-  "Thử lại" để hàng của phòng đi tiếp; lỗi của mạng hay phiên (TypeError, status 0, 401, 429) không bao giờ tính cho
-  tin (`lib/delivery-failure.ts`). Tin bị từ chối
+  "Thử lại" để hàng của phòng đi tiếp; lỗi của mạng, phiên hay cả server (TypeError, status 0, 401, 429, 502, 503 —
+  kể cả 503 của LoadShed —, 504, và mọi câu trả lời có `Retry-After`) không bao giờ tính cho tin
+  (`lib/delivery-failure.ts`): server sập lâu bao nhiêu thì tin vẫn chờ, không thành `failed`. Tin bị từ chối
   hẳn mà không ai thử lại sau `FAILED_SEND_TTL_MS` (14 ngày — workspace đã rời) bị bỏ cùng tệp. Outbox là của tài
   khoản, không của màn đang mở: `data/owed.ts › flushOwed` đẩy tin chờ và lượt chờ của **mọi** workspace của người
   đó, khi phiên sẵn sàng, NetInfo online, mỗi lần về foreground và lúc rời foreground (tin viết ngay trước khi chuyển

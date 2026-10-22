@@ -346,6 +346,25 @@ describe("refusals and retries", () => {
     expect(statuses()).toEqual([]);
   });
 
+  // Review P2: LoadShed's 503 (or a gateway 502/504 while pods restart) counted against each queued message, so every
+  // message written during an outage longer than about two minutes ended up failed and needing "Thử lại".
+  it("a server-wide outage is the line's: past the item cap the message is still queued, and goes when the server is back", async () => {
+    const qc = new QueryClient();
+    sendMessage.mockRejectedValue(apiError(503));
+    await sendChatMessage(qc, { ...input, body: "during" }, deps);
+    for (let round = 0; round < 7; round += 1) {
+      sendMessage.mockRejectedValueOnce(apiError(round % 2 === 0 ? 502 : 504));
+      fire();
+      await settle();
+    }
+    expect(useChatSendStore.getState().entries.map((entry) => [entry.status, entry.failures ?? 0])).toEqual([["queued", 0]]);
+    sendMessage.mockReset().mockImplementation(idempotentServer());
+    fire();
+    await settle();
+    expect(statuses()).toEqual([]);
+    expect(bodies()).toEqual(["during"]);
+  });
+
   it("a queued file that is gone fails for good, without an upload, and the room's next message goes", async () => {
     const qc = new QueryClient();
     online = false;
