@@ -54,6 +54,9 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   (`useLargeText`), menu/sheet dài thì cuộn trong chiều cao còn lại (`lib/action-menu-layout.ts`, `ActionSheet`).
 - Quyền native, dịch vụ nền và loại dữ liệu khớp `store/listing.md` (`android-manifest.test.ts`,
   `store-listing.test.ts`); thêm quyền thì sửa bảng ở đó, checklist ở `docs/runbooks/unichat-mobile-release.md`.
+- Mọi tin FCM vào `UniChatMessagingService` trước (`modules/unichat-calls`, ưu tiên trên dịch vụ của expo-notifications,
+  `android-manifest.test.ts › messagingServices`): push đổ chuông reo không cần JavaScript, phần còn lại đi tiếp như cũ;
+  chữ và công tắc của chuông native ghi qua `data/calls/native-ring.ts` (chi tiết: `calls.md`).
 - Công tắc mobile mới: `MOBILE_FLAG_DEFAULTS` (`data/remote-config.ts`) và `server/internal/featureflags/keys.go` cùng
   PR, có `ReviewAt`.
 - Coverage: vitest (`lib/`, `data/` trừ hook React) 100/100/100/100; jest (`components/`, hook của `data/`, route theo
