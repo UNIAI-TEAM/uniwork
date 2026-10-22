@@ -30,6 +30,10 @@ const (
 	docVerbVersionCreated = "version_created"
 )
 
+// docVerbRelocatedFromPage is the rule-7 relocation out of a trashed page or
+// file (UNI-2074): the sentence names a page where relocated names a folder.
+const docVerbRelocatedFromPage = "relocated_from_page"
+
 // docChangeSamples bounds sample_document_ids: the inbox names a few titles
 // and counts the rest.
 const docChangeSamples = 3
@@ -108,7 +112,10 @@ func ruleDocumentChangeNoticed(ctx context.Context, e env, ev outbox.Row, p map[
 }
 
 // ruleDocumentMovedChange tells a move from a rule-7 relocation by the
-// command's audit row (hook proposal v2): the payload stays ids-only.
+// command's audit row (hook proposal v2): the payload stays ids-only. The
+// row's from_kind picks the wording: a page or file root reads
+// relocated_from_page; a folder root, and a row written before from_kind
+// existed, keep relocated.
 func ruleDocumentMovedChange(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
 	if !docChangeActor(ev) {
 		return nil, nil
@@ -118,7 +125,11 @@ func ruleDocumentMovedChange(ctx context.Context, e env, ev outbox.Row, p map[st
 		return nil, err
 	}
 	if reason, _ := meta["reason"].(string); reason == audit.ReasonFolderTrashed {
-		return documentChangeDrafts(ctx, e, ev, p, docVerbRelocated, docChangeOpts{ownerAlways: true})
+		verb := docVerbRelocated
+		if kind, _ := meta["from_kind"].(string); kind != "" && kind != "folder" {
+			verb = docVerbRelocatedFromPage
+		}
+		return documentChangeDrafts(ctx, e, ev, p, verb, docChangeOpts{ownerAlways: true})
 	}
 	return documentChangeDrafts(ctx, e, ev, p, docVerbMoved, docChangeOpts{})
 }

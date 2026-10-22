@@ -5750,6 +5750,9 @@
       "document_changed_relocated_many": "{{actor}} moved the folder holding {{document_count}} of your documents to trash; the documents are now at the workspace root",
       "document_changed_relocated_one": "{{actor}} moved the folder holding “{{document}}” to trash; the document is now at the workspace root",
       "document_changed_relocated_untitled": "{{actor}} moved the folder holding one of your documents to trash; the document is now at the workspace root",
+      "document_changed_relocated_from_page_many": "{{actor}} moved the page holding {{document_count}} of your documents to trash; the documents are now at the workspace root",
+      "document_changed_relocated_from_page_one": "{{actor}} moved the page holding “{{document}}” to trash; the document is now at the workspace root",
+      "document_changed_relocated_from_page_untitled": "{{actor}} moved the page holding one of your documents to trash; the document is now at the workspace root",
       "document_changed_generic_one": "{{actor}} changed “{{document}}”",
       "document_changed_generic_untitled": "{{actor}} changed a document"
     },

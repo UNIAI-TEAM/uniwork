@@ -5746,6 +5746,9 @@
       "document_changed_relocated_many": "{{actor}} đã chuyển thư mục chứa {{document_count}} tài liệu của bạn vào thùng rác; các tài liệu được đưa về gốc workspace",
       "document_changed_relocated_one": "{{actor}} đã chuyển thư mục chứa tài liệu “{{document}}” của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
       "document_changed_relocated_untitled": "{{actor}} đã chuyển thư mục chứa một tài liệu của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
+      "document_changed_relocated_from_page_many": "{{actor}} đã chuyển trang chứa {{document_count}} tài liệu của bạn vào thùng rác; các tài liệu được đưa về gốc workspace",
+      "document_changed_relocated_from_page_one": "{{actor}} đã chuyển trang chứa tài liệu “{{document}}” của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
+      "document_changed_relocated_from_page_untitled": "{{actor}} đã chuyển trang chứa một tài liệu của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
       "document_changed_generic_one": "{{actor}} đã thay đổi tài liệu “{{document}}”",
       "document_changed_generic_untitled": "{{actor}} đã thay đổi một tài liệu"
     },

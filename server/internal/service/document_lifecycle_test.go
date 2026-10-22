@@ -95,7 +95,10 @@ func TestDocumentArchive(t *testing.T) {
 	t.Run("a subtree archives in one batch and restores together", func(t *testing.T) {
 		root := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 		child := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: root.ID})
-		grand := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: child.ID})
+		// The restricted grandchild is the owner's own: a restricted node the
+		// owner administers without reading would leave for the workspace
+		// root instead (UNI-2074, TestPageRootTrashRelocatesWhatAnAdminCannotRead).
+		grand := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.owner.ID, createdBy: tn.owner.ID, parent: child.ID})
 
 		res, err := f.svc.ArchiveDocument(f.ctx, owner, root.ID, ArchiveDocumentInput{})
 		if err != nil {
@@ -281,6 +284,11 @@ func TestDocumentRestorePerItem(t *testing.T) {
 			kind: DocumentKindPage, title: "Tài liệu B", parent: folderF.ID,
 		})
 		f.share(t, docA, DocumentPrincipalUser, tn.member.ID, DocumentLevelManage, tn.aclOwner.ID)
+		// The admin reads A and B, so they go to the trash with F: a page the
+		// admin administers without reading would leave for the workspace root
+		// instead (UNI-2074, ADR 0037 point 5 for every root).
+		f.share(t, docA, DocumentPrincipalUser, tn.wsAdmin.ID, DocumentLevelView, tn.aclOwner.ID)
+		f.share(t, docB, DocumentPrincipalUser, tn.wsAdmin.ID, DocumentLevelView, tn.aclOwner.ID)
 
 		arch, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{})
 		if err != nil {
