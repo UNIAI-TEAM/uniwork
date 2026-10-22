@@ -171,7 +171,11 @@ WHERE id = sqlc.arg(id)
 -- Work Product documents (owner_kind) and the member's My Folder roots are
 -- never listed; the documents inside a My Folder are. Archived documents
 -- not yet purged are, so a successor can restore them.
-SELECT *
+-- Only the columns the loop and the level resolver read: never content,
+-- content_text or search_text, so a 500-row batch stays metadata (BE-R1-1).
+-- FOR UPDATE locks the whole row whatever the column list.
+SELECT id, organization_id, workspace_id, visibility, workspace_level,
+       acl_owner_id, owner_kind, owner_id
 FROM documents
 WHERE organization_id = sqlc.arg(organization_id)
   AND acl_owner_id = sqlc.arg(owner)

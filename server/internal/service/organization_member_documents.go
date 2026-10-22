@@ -116,6 +116,17 @@ func (s *OrganizationMemberDocumentService) MemberDocumentOwnership(ctx context.
 	return out, nil
 }
 
+// transferListedDocument is the document the level resolver takes, built from
+// the metadata columns the batch query selects. Every other field stays zero:
+// the resolver reads only these.
+func transferListedDocument(r db.ListMemberOwnedDocumentsForTransferRow) db.Document {
+	return db.Document{
+		ID: r.ID, OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID,
+		Visibility: r.Visibility, WorkspaceLevel: r.WorkspaceLevel,
+		AclOwnerID: r.AclOwnerID, OwnerKind: r.OwnerKind, OwnerID: r.OwnerID,
+	}
+}
+
 // validOptionalULID accepts "" or a ULID.
 func validOptionalULID(v string) bool {
 	if v == "" {
@@ -188,7 +199,8 @@ func (s *OrganizationMemberDocumentService) TransferMemberDocuments(ctx context.
 	// The recipient's workspace membership, decided once per workspace on
 	// this transaction.
 	member := map[string]bool{}
-	for _, doc := range batch {
+	for _, row := range batch {
+		doc := transferListedDocument(row)
 		ok, seen := member[doc.WorkspaceID]
 		if !seen {
 			if _, err := s.docs.ws.RequireMemberQ(ctx, q, doc.WorkspaceID, in.ToUserID); err != nil {

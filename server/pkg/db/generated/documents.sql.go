@@ -577,7 +577,8 @@ func (q *Queries) ListDocumentsByParent(ctx context.Context, arg ListDocumentsBy
 }
 
 const listMemberOwnedDocumentsForTransfer = `-- name: ListMemberOwnedDocumentsForTransfer :many
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+SELECT id, organization_id, workspace_id, visibility, workspace_level,
+       acl_owner_id, owner_kind, owner_id
 FROM documents
 WHERE organization_id = $1
   AND acl_owner_id = $2
@@ -596,6 +597,17 @@ type ListMemberOwnedDocumentsForTransferParams struct {
 	Page           int32       `json:"page"`
 }
 
+type ListMemberOwnedDocumentsForTransferRow struct {
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	Visibility     string      `json:"visibility"`
+	WorkspaceLevel string      `json:"workspace_level"`
+	AclOwnerID     pgtype.Text `json:"acl_owner_id"`
+	OwnerKind      pgtype.Text `json:"owner_kind"`
+	OwnerID        pgtype.Text `json:"owner_id"`
+}
+
 // One batch of the bulk transfer (§2.2, R1-10): the member's documents in
 // the organization after the cursor, in id order, locked. Plain FOR UPDATE,
 // no SKIP LOCKED: a concurrent transfer makes the batch wait instead of
@@ -603,7 +615,10 @@ type ListMemberOwnedDocumentsForTransferParams struct {
 // Work Product documents (owner_kind) and the member's My Folder roots are
 // never listed; the documents inside a My Folder are. Archived documents
 // not yet purged are, so a successor can restore them.
-func (q *Queries) ListMemberOwnedDocumentsForTransfer(ctx context.Context, arg ListMemberOwnedDocumentsForTransferParams) ([]Document, error) {
+// Only the columns the loop and the level resolver read: never content,
+// content_text or search_text, so a 500-row batch stays metadata (BE-R1-1).
+// FOR UPDATE locks the whole row whatever the column list.
+func (q *Queries) ListMemberOwnedDocumentsForTransfer(ctx context.Context, arg ListMemberOwnedDocumentsForTransferParams) ([]ListMemberOwnedDocumentsForTransferRow, error) {
 	rows, err := q.db.Query(ctx, listMemberOwnedDocumentsForTransfer,
 		arg.OrganizationID,
 		arg.Owner,
@@ -614,56 +629,18 @@ func (q *Queries) ListMemberOwnedDocumentsForTransfer(ctx context.Context, arg L
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Document{}
+	items := []ListMemberOwnedDocumentsForTransferRow{}
 	for rows.Next() {
-		var i Document
+		var i ListMemberOwnedDocumentsForTransferRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
 			&i.WorkspaceID,
-			&i.ParentID,
-			&i.Kind,
-			&i.Title,
-			&i.Icon,
 			&i.Visibility,
-			&i.Content,
-			&i.ContentText,
-			&i.SearchText,
-			&i.ContentBytes,
-			&i.CurrentVersion,
-			&i.FileVersionID,
-			&i.Revision,
-			&i.Position,
+			&i.WorkspaceLevel,
+			&i.AclOwnerID,
 			&i.OwnerKind,
 			&i.OwnerID,
-			&i.AclOwnerID,
-			&i.SourceDocumentID,
-			&i.SourceVersionID,
-			&i.SourceRevision,
-			&i.SourceFormat,
-			&i.SourceEngine,
-			&i.TargetFormat,
-			&i.SourceChecksumSha256,
-			&i.ConversionReason,
-			&i.CreatedBy,
-			&i.CreatedByKind,
-			&i.UpdatedBy,
-			&i.UpdatedByKind,
-			&i.ContentSavedAt,
-			&i.LastVersionAt,
-			&i.ArchivedAt,
-			&i.ArchivedBy,
-			&i.PurgeAfter,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ArchiveBatchID,
-			&i.ContentRevision,
-			&i.WorkspaceLevel,
-			&i.SystemKind,
-			&i.ShelvedAt,
-			&i.ShelvedBy,
-			&i.ShelvedByKind,
-			&i.ShelveBatchID,
 		); err != nil {
 			return nil, err
 		}
