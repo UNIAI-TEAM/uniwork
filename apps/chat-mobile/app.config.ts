@@ -351,6 +351,10 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
         {
           ios: { enableSceneSupport: true },
           android: {
+            // Pinned, not inherited from React Native's defaults (audit "target-sdk-implicit-untested"): Play's
+            // target-API deadline is checked against this, and android-matrix runs API 36 (phone and tablet).
+            compileSdkVersion: 36,
+            targetSdkVersion: 36,
             enableMinifyInReleaseBuilds: true,
             enableShrinkResourcesInReleaseBuilds: true,
             extraProguardRules: ANDROID_KEEP_RULES,

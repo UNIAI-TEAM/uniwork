@@ -21,8 +21,9 @@ name: UniChat mobile verify
 # production profile each night, and `ios` builds its Release binary even when
 # the Maestro settings are missing: no account or secret needed for either.
 # `android-matrix` runs the cold-start smoke on the oldest Android the app
-# supports, two middle releases and a 2 GB device, and keeps a screenshot of
-# each for review. `eas-local` builds with `eas build --local`, twice: the
+# supports, two middle releases, a 2 GB device and the API it targets (36, a
+# phone and a tablet turned to landscape), and keeps a screenshot of each for
+# review. `eas-local` builds with `eas build --local`, twice: the
 # preview APK, and the store AAB from `production-check` (the production
 # profile, its EAS environment and its config checks — the OTA certificate a
 # production EAS build refuses to go without — with autoIncrement off, so the
@@ -643,6 +644,11 @@ jobs:
           - { api: 29, target: default, ram: 3072, label: api29 }
           - { api: 33, target: google_apis, ram: 3072, label: api33 }
           - { api: 35, target: google_apis, ram: 2048, label: api35-2gb, perf: android-2gb }
+          # The API the app targets (app.config.ts pins targetSdkVersion 36): Android 16 enforces edge-to-edge and
+          # predictive back, and on a screen 600 dp wide ignores the portrait lock, so a tablet leg also turns to
+          # landscape (audit "target-sdk-implicit-untested").
+          - { api: 36, target: google_apis, ram: 3072, label: api36 }
+          - { api: 36, target: google_apis, ram: 4096, label: api36-tablet, profile: pixel_tablet, landscape: true }
     name: android-matrix (${{ matrix.label }})
     steps:
       - uses: actions/checkout@v4
@@ -676,6 +682,7 @@ jobs:
         with:
           api-level: ${{ matrix.api }}
           target: ${{ matrix.target }}
+          profile: ${{ matrix.profile || '' }}
           arch: x86_64
           ram-size: ${{ matrix.ram }}M
           disable-animations: true
@@ -688,6 +695,9 @@ jobs:
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
             adb exec-out screencap -p > "${{ runner.temp }}/screens/${{ matrix.label }}-dark.png"
             adb shell cmd uimode night no
+            if [ -n "${{ matrix.landscape }}" ]; then adb shell settings put system accelerometer_rotation 0 && adb shell settings put system user_rotation 1; fi
+            if [ -n "${{ matrix.landscape }}" ]; then cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml; fi
+            if [ -n "${{ matrix.landscape }}" ]; then adb exec-out screencap -p > "${{ runner.temp }}/screens/${{ matrix.label }}-landscape.png"; fi
             if [ -n "${{ matrix.perf }}" ]; then mkdir -p "${{ runner.temp }}/perf" && node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 5 --out "${{ runner.temp }}/perf/startup.json"; fi
             if [ -n "${{ matrix.perf }}" ]; then node scripts/mobile-perf.mjs check --profile "${{ matrix.perf }}" "${{ runner.temp }}/perf/startup.json"; fi
       - uses: actions/upload-artifact@v4

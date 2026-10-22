@@ -90,6 +90,9 @@ describe("app.config per UNICHAT_ENV", () => {
           {
             ios: { enableSceneSupport: true },
             android: {
+              // Pinned: Play's target-API requirement reads it; the CI matrix runs this API (chat-mobile-verify.yml).
+              compileSdkVersion: 36,
+              targetSdkVersion: 36,
               enableMinifyInReleaseBuilds: true,
               enableShrinkResourcesInReleaseBuilds: true,
               extraProguardRules: ANDROID_KEEP_RULES,
@@ -574,5 +577,17 @@ describe("calls on iPhone are a build capability", () => {
     });
     const plist = (JSON.parse(out) as { ios: { infoPlist: Record<string, unknown> } }).ios.infoPlist;
     expect(plist.UIBackgroundModes).toBeUndefined();
+  });
+});
+
+// Audit "target-sdk-implicit-untested": the target API was React Native's default, and no emulator ran it.
+describe("the Android API the app targets", () => {
+  it("is pinned, and the CI matrix runs it on a phone and on a tablet in landscape", () => {
+    const plugin = build().plugins?.find((p) => Array.isArray(p) && p[0] === "expo-build-properties") as [string, { android: Record<string, unknown> }];
+    const target = plugin[1].android.targetSdkVersion;
+    expect(plugin[1].android.compileSdkVersion).toBe(target);
+    const workflow = fs.readFileSync(path.join(__dirname, "../../.github/workflows/chat-mobile-verify.yml"), "utf8");
+    expect(workflow).toContain(`{ api: ${String(target)}, target: google_apis, ram: 3072, label: api${String(target)} }`);
+    expect(workflow).toMatch(new RegExp(`\\{ api: ${String(target)}, [^}]*profile: pixel_tablet, landscape: true \\}`));
   });
 });
