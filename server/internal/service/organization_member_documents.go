@@ -234,6 +234,9 @@ func (s *OrganizationMemberDocumentService) TransferMemberDocuments(ctx context.
 	// under; a row that changed hands under its lock is not returned and not
 	// counted. The audit and outbox rows are written a chunk at a time, one of
 	// each per moved document (R2-3), in the listed order.
+	// The workspace of the first moved document in listed (id) order, named in
+	// the bulk event so the grouped notice can be stored under a workspace.
+	var firstMovedWorkspace string
 	if len(movable) > 0 {
 		ids := make([]string, len(movable))
 		for i, doc := range movable {
@@ -254,6 +257,9 @@ func (s *OrganizationMemberDocumentService) TransferMemberDocuments(ctx context.
 		for _, doc := range movable {
 			if _, ok := movedIDs[doc.ID]; !ok {
 				continue
+			}
+			if firstMovedWorkspace == "" {
+				firstMovedWorkspace = doc.WorkspaceID
 			}
 			recs = append(recs, audit.Recorded{
 				Entry: audit.Entry{
@@ -304,6 +310,7 @@ func (s *OrganizationMemberDocumentService) TransferMemberDocuments(ctx context.
 			},
 		}, audit.Event{Topic: topicDocumentOwnersBulkTransferred, Payload: map[string]string{
 			"organization_id": orgID, "user_id": in.ToUserID, "bulk_id": out.BulkID, "from_user_id": userID,
+			"workspace_id": firstMovedWorkspace,
 		}}); err != nil {
 			return MemberDocumentsTransfer{}, err
 		}

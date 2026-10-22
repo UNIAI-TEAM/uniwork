@@ -51,6 +51,7 @@ var titles = map[string]map[string]string{
 		KindDocumentChanged:               "{{actor}} đã thay đổi {{document_count}} tài liệu",
 		KindDocumentOwnerTransferred:      "{{actor}} đã chuyển cho bạn quyền sở hữu tài liệu “{{document}}”.",
 		KindDocumentOwnersBulkTransferred: "{{actor}} đã chuyển cho bạn quyền sở hữu các tài liệu của {{name}}.",
+		bulkTransferUntitledTitleKey:      "{{actor}} đã chuyển cho bạn quyền sở hữu các tài liệu của một thành viên.",
 	},
 	"en": {
 		KindTaskAssigned:                  "{{actor}} assigned you “{{task}}”",
@@ -90,6 +91,7 @@ var titles = map[string]map[string]string{
 		KindDocumentChanged:               "{{actor}} changed {{document_count}} documents",
 		KindDocumentOwnerTransferred:      "{{actor}} transferred ownership of “{{document}}” to you.",
 		KindDocumentOwnersBulkTransferred: "{{actor}} transferred {{name}}'s documents to you.",
+		bulkTransferUntitledTitleKey:      "{{actor}} transferred a member's documents to you.",
 	},
 }
 
@@ -159,6 +161,11 @@ var kindTitles = map[string]map[string]string{
 // client locales; it is not a kind.
 const editRequestDeclinedTitleKey = KindDocumentEditRequestAnswered + "_declined"
 
+// bulkTransferUntitledTitleKey is the sentence of a bulk transfer whose source
+// member no longer resolves (name empty): same wording as the client's
+// document_owners_bulk_transferred_untitled key (FE-R1-6).
+const bulkTransferUntitledTitleKey = KindDocumentOwnersBulkTransferred + "_untitled"
+
 // Title renders the kind's title in locale with params, i18next-style
 // {{name}} substitution. Unknown locale falls back to en.
 func Title(locale, kind string, params map[string]string) string {
@@ -169,6 +176,9 @@ func Title(locale, kind string, params map[string]string) string {
 	}
 	if kind == KindDocumentEditRequestAnswered && params["decision"] == editDecisionDecline {
 		kind = editRequestDeclinedTitleKey
+	}
+	if kind == KindDocumentOwnersBulkTransferred && strings.TrimSpace(params["name"]) == "" {
+		kind = bulkTransferUntitledTitleKey
 	}
 	s := loc[kind]
 	if s == "" {

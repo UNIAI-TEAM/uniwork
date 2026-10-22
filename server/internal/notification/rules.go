@@ -1196,7 +1196,11 @@ func ruleDocumentOwnerTransferred(ctx context.Context, e env, ev outbox.Row, p m
 // time (R1-6): an organization member who was deactivated or left since hears
 // nothing. The group key carries the run, and OncePerGroup makes the later
 // batches of one run add no row and bump nothing. The caller never hears
-// their own transfer.
+// their own transfer. The frame names the workspace of the first moved
+// document: the Inbox and the bell list by workspace, so the row is stored
+// under it while the recipient is still a member there (the workspace gate,
+// e.members), and stays organization-level when the frame has none or the
+// recipient lost it (FE-R1-3).
 func ruleDocumentOwnersBulkTransferred(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
 	uid, bulkID, fromID, orgID := p["user_id"], p["bulk_id"], p["from_user_id"], p["organization_id"]
 	if e.orgs == nil || uid == "" || bulkID == "" || fromID == "" || orgID == "" {
@@ -1217,8 +1221,16 @@ func ruleDocumentOwnersBulkTransferred(ctx context.Context, e env, ev outbox.Row
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
+	wsID := ""
+	if w := p["workspace_id"]; w != "" && e.members != nil {
+		if m, err := e.members.RequireMember(ctx, w, uid); err == nil && m.OrganizationID == orgID {
+			wsID = w
+		} else if err != nil && !refused(err) {
+			return nil, err
+		}
+	}
 	return []Draft{{
-		UserID: uid, OrganizationID: orgID,
+		UserID: uid, OrganizationID: orgID, WorkspaceID: wsID,
 		Kind: KindDocumentOwnersBulkTransferred, GroupKey: "document_owner_bulk:" + bulkID,
 		ResourceType: "organization_member", ResourceID: fromID,
 		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String,
