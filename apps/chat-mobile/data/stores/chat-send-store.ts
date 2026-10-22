@@ -17,7 +17,8 @@ import { deviceStateStorage } from "../storage/device-store";
 interface ChatSendState {
   entries: PendingSend[];
   upsert: (entry: PendingSend) => void;
-  setStatus: (clientMsgId: string, status: SendStatus) => void;
+  /** `failures` (lib/delivery-failure.ts) is left as it is when not given. */
+  setStatus: (clientMsgId: string, status: SendStatus, failures?: number) => void;
   /** Points a queued entry at its outbox copy (data/outbox-files.ts); a removed entry stays removed. */
   setFile: (clientMsgId: string, file: NonNullable<PendingSend["file"]>) => void;
   remove: (clientMsgId: string) => void;
@@ -40,9 +41,11 @@ export const useChatSendStore = create<ChatSendState>()(
     (set) => ({
       entries: [],
       upsert: (entry) => set((state) => ({ entries: [...state.entries.filter((item) => item.clientMsgId !== entry.clientMsgId), entry] })),
-      setStatus: (clientMsgId, status) =>
+      setStatus: (clientMsgId, status, failures) =>
         set((state) => ({
-          entries: state.entries.map((entry) => (entry.clientMsgId === clientMsgId ? { ...entry, status } : entry)),
+          entries: state.entries.map((entry) =>
+            entry.clientMsgId === clientMsgId ? { ...entry, status, ...(failures === undefined ? {} : { failures }) } : entry,
+          ),
         })),
       setFile: (clientMsgId, file) =>
         set((state) => ({

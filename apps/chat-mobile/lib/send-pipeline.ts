@@ -36,6 +36,8 @@ export interface PendingSend {
   reminder?: { body: string; remindAt: string; repeat: ReminderRepeat };
   createdAt: number;
   status: SendStatus;
+  /** Rounds that failed for this message's own reason (lib/delivery-failure.ts); past the cap it fails. */
+  failures?: number;
 }
 
 /** What the merge needs from a server message (lib/timeline-display.ts › TimelineMessage). */

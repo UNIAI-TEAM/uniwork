@@ -37,7 +37,11 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   FIFO nghiêm ngặt, một lần gửi một tin: chữ (chữ, trả lời chủ đề, nhắc hẹn) và media (ảnh, tệp, tin thoại). Chữ viết
   sau một media chờ nó (phòng đọc đúng thứ tự viết), trừ khi lần tải lên đó đã ở trên dây `MEDIA_OVERTAKE_MS` (4 s)
   hay đang chờ backoff: khi đó chữ đi trước, ảnh tới khi tới (như Telegram/WhatsApp) — tải lên chậm không giữ chữ của
-  cả phòng. Guard flush theo workspace + người gửi; lỗi tạm thời giữ hàng đó và thử lại theo backoff của riêng hàng đó (chữ gửi được không huỷ lượt thử lại của ảnh, phòng lỗi không kéo dài lượt chờ của phòng khác); tin bị từ chối
+  cả phòng. Guard flush theo workspace + người gửi; lỗi tạm thời giữ hàng đó và thử lại theo backoff của riêng hàng đó (chữ gửi được không huỷ lượt thử lại của ảnh, phòng lỗi không kéo dài lượt chờ của phòng khác); lỗi của riêng
+  tin (server trả 5xx/408 cho đúng tin đó mỗi lần, hay một lỗi không phải câu trả lời HTTP) được đếm
+  (`failures`, sống qua kill app) và sau `MAX_SEND_ITEM_FAILURES` (5 vòng, khoảng 2 phút) tin thành `failed` kèm
+  "Thử lại" để hàng của phòng đi tiếp; lỗi của mạng hay phiên (TypeError, status 0, 401, 429) không bao giờ tính cho
+  tin (`lib/delivery-failure.ts`). Tin bị từ chối
   hẳn mà không ai thử lại sau `FAILED_SEND_TTL_MS` (14 ngày — workspace đã rời) bị bỏ cùng tệp. Outbox là của tài
   khoản, không của màn đang mở: `data/owed.ts › flushOwed` đẩy tin chờ và lượt chờ của **mọi** workspace của người
   đó, khi phiên sẵn sàng, NetInfo online, mỗi lần về foreground và lúc rời foreground (tin viết ngay trước khi chuyển
@@ -57,7 +61,10 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   cảm, bình chọn offline**: `data/pending-ops.ts` + `stores/pending-ops-store.ts` — cache hiện lựa chọn ngay (`lib/optimistic-message.ts`, luật toggle của server),
   mỗi thứ một mục giữ mong muốn cuối; endpoint của server là toggle nên lần giao có thể đã tới (mất câu trả lời,
   khởi động lại) và mọi phiếu bầu đều GET tin trước rồi chỉ chạm phần còn khác; từ chối hẳn thì bỏ, refetch phòng
-  và reject cho màn hình báo (lượt đọc thì báo Sentry, không toast). **Nháp** (`lib/drafts.ts`, `stores/draft-store.ts`, `components/chat/use-drafts.ts`): chữ đang viết và tin đang trích
+  và reject cho màn hình báo (lượt đọc thì báo Sentry, không toast). Một mục lỗi vì lý do của riêng nó (5xx/408) bị
+  để sang bên (`retryAt`) theo backoff riêng 5 s → 1 giờ (`OP_ITEM_RETRY_MS`) trong khi hàng giao các mục khác, rồi
+  bị bỏ như một lần từ chối sau `MAX_OP_ITEM_FAILURES` (8, khoảng 2,5 giờ; tag `gave_up`): một mục "độc" không chặn
+  lượt đọc và biểu cảm của cả workspace. Lỗi mạng hay phiên vẫn dừng cả hàng. **Nháp** (`lib/drafts.ts`, `stores/draft-store.ts`, `components/chat/use-drafts.ts`): chữ đang viết và tin đang trích
   của từng (người, workspace, phòng, chủ đề) sống qua rời phòng và kill app — composer ghi sau 400 ms ngừng gõ, ngay khi
   composer đóng hay app rời foreground, gửi thì xoá; sửa tin mượn ô nhập rồi trả lại nháp; danh sách phòng hiện
   "Nháp: …" (trừ khi có người đang gõ). Persist như outbox (đọc qua `DraftSchema`, quá 30 ngày thì bỏ, có trong

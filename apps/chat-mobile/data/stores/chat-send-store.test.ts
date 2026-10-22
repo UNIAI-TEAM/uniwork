@@ -91,6 +91,10 @@ describe("chat send store", () => {
       ["voice", "queued"],
       ["reminder", "queued"],
     ]);
+    // A message failing for its own reason keeps its count across a restart (lib/delivery-failure.ts).
+    expect(rehydratedEntries([entry("poison", { failures: 3 }), { ...entry("odd-count"), failures: 1.5 }]).map((e) => [e.clientMsgId, e.failures])).toEqual([
+      ["poison", 3],
+    ]);
   });
 
   // Android's document picker hands JS `null` for a type or size the provider does not know, and an

@@ -67,6 +67,7 @@ const timers = {
   schedule: vi.fn<RetryTimers["schedule"]>((_key, run) => {
     waiting ??= run;
   }),
+  after: vi.fn<RetryTimers["after"]>(),
   reset: vi.fn<RetryTimers["reset"]>(),
   cancelAll: vi.fn<RetryTimers["cancelAll"]>(),
 };
@@ -297,6 +298,54 @@ describe("refusals and retries", () => {
 
   // Review P2: the upload of a purged file rejected as a TypeError, read as "no network", and the
   // room's later messages stayed queued behind it for ever.
+  it("a message that keeps failing for its own reason fails after five rounds and lets the room go on; the network never counts", async () => {
+    const qc = new QueryClient();
+    const ended = vi.fn();
+    const stop = observeChatSends(ended);
+    sendMessage.mockImplementation(async (ws, room, body) => {
+      if (body.body === "poison") throw apiError(500);
+      return idempotentServer()(ws, room, body);
+    });
+    await sendChatMessage(qc, { ...input, body: "poison" }, deps);
+    await sendChatMessage(qc, { ...input, body: "next" }, deps);
+    const failures = () => useChatSendStore.getState().entries.map((entry) => [entry.status, entry.failures]);
+    // The second message nudged the line: the first was tried again first.
+    expect(failures()).toEqual([
+      ["queued", 2],
+      ["queued", undefined],
+    ]);
+    // A dead spot in between is the network's, not the message's.
+    online = false;
+    fire();
+    await settle();
+    online = true;
+    sendMessage.mockRejectedValueOnce(new TypeError("Network request failed"));
+    await flushQueuedSends(qc, "w1", "u1", deps);
+    expect(failures()[0]).toEqual(["queued", 2]);
+    for (let round = 3; round <= 4; round += 1) {
+      fire();
+      await settle();
+    }
+    expect(failures()[0]).toEqual(["queued", 4]);
+    expect(bodies()).not.toContain("next");
+    fire();
+    await settle();
+    // The fifth round: failed, with "Thử lại", and the message behind it went.
+    expect(statuses()).toEqual(["failed"]);
+    expect(bodies().filter((body) => body === "poison")).toHaveLength(6);
+    expect(bodies().at(-1)).toBe("next");
+    expect(ended).toHaveBeenCalledWith("failed", expect.any(Number));
+    stop();
+
+    // The person's retry starts the count again; a throw that is no HTTP answer counts too.
+    sendMessage.mockReset().mockRejectedValueOnce(new Error("bug")).mockImplementation(idempotentServer());
+    await retryPendingSend(qc, useChatSendStore.getState().entries[0]!, deps);
+    expect(failures()).toEqual([["queued", 1]]);
+    fire();
+    await settle();
+    expect(statuses()).toEqual([]);
+  });
+
   it("a queued file that is gone fails for good, without an upload, and the room's next message goes", async () => {
     const qc = new QueryClient();
     online = false;

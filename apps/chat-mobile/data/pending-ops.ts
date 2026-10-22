@@ -13,10 +13,16 @@
 // A refusal for good drops the wish and refetches the room, so the cache goes
 // back to the server's truth; the reaction and vote callers reject then, for
 // the screen to say so. Never a toast for a read: it is reported, not shown.
+// A failure of the wish's own (the server 500s on that one message) sets it
+// aside on its own longer backoff while the line delivers the rest, and gives
+// it up after MAX_OP_ITEM_FAILURES as a refusal: one poison wish never holds a
+// workspace's reads and reactions behind it (lib/delivery-failure.ts). A
+// failure of the network or the session still stops the whole line.
 import { onlineManager, type QueryClient } from "@tanstack/react-query";
 import type { ChatMessageRecord, ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { hasReaction, pollTapsToReach, toggledPollChoice, withEdit, withPollChoice, withReaction } from "@/lib/optimistic-message";
 import { isRetriableChatSendError } from "@uniwork/core/chat/send-retry";
+import { MAX_OP_ITEM_FAILURES, failureScope, opItemRetryDelay } from "@/lib/delivery-failure";
 import { applyChatMessageResponse, patchChatMessageDeleted } from "./chat-cache";
 import { chatApi, type ChatApi } from "./chat-api";
 import type { RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
@@ -30,9 +36,18 @@ export interface PendingOpsDeps {
   api: Pick<ChatApi, "markRoomRead" | "toggleReaction" | "votePoll" | "getMessage" | "editMessage" | "deleteMessage">;
   isOnline: () => boolean;
   timers: RetryTimers;
+  /** The clock and the spread of a set-aside wish's wait. */
+  now: () => number;
+  random: () => number;
 }
 
-export const pendingOpsDeps: PendingOpsDeps = { api: chatApi, isOnline: () => onlineManager.isOnline(), timers: createRetryTimers() };
+export const pendingOpsDeps: PendingOpsDeps = {
+  api: chatApi,
+  isOnline: () => onlineManager.isOnline(),
+  timers: createRetryTimers(),
+  now: Date.now,
+  random: Math.random,
+};
 
 /** The message as this phone has it: in the room's timeline or one of its loaded threads. */
 function cachedMessage(qc: QueryClient, wsId: string, roomId: string, messageId: string): ChatMessageRecord | undefined {
@@ -64,7 +79,7 @@ function isTransient(error: unknown): boolean {
   return isRetriableChatSendError(error) || status === 401;
 }
 
-type Outcome = "done" | "transient" | "refused";
+type Outcome = "done" | "transient" | "set-aside" | "refused";
 
 /** Delivered ops whose caller waits for a refusal to show: `<key>#<rev>`. */
 const refused = new Set<string>();
@@ -127,13 +142,20 @@ async function attempt(qc: QueryClient, op: PendingOp, deps: PendingOpsDeps): Pr
     else usePendingOpsStore.getState().remove(op.key);
     return "done";
   } catch (error) {
-    if (isTransient(error)) {
+    const transient = isTransient(error);
+    if (transient && failureScope(error) === "line") {
       usePendingOpsStore.getState().update(op.key, { verify: true });
       return "transient";
     }
+    const failures = (find(op.key)?.failures ?? 0) + 1;
+    if (transient && failures < MAX_OP_ITEM_FAILURES) {
+      const retryAt = deps.now() + opItemRetryDelay(failures, deps.random);
+      usePendingOpsStore.getState().update(op.key, { verify: true, failures, retryAt });
+      return "set-aside";
+    }
     usePendingOpsStore.getState().remove(op.key);
     refused.add(`${op.key}#${op.rev}`);
-    reportError(error, { source: "pending-op", tags: { kind: op.kind } });
+    reportError(error, { source: "pending-op", tags: { kind: op.kind, ...(transient ? { gave_up: "true" } : {}) } });
     void qc.invalidateQueries({ queryKey: chatKeys.roomMessages(op.workspaceId, op.roomId) });
     void qc.invalidateQueries({ queryKey: chatKeys.roomThreads(op.workspaceId, op.roomId) });
     return "refused";
@@ -141,10 +163,12 @@ async function attempt(qc: QueryClient, op: PendingOp, deps: PendingOpsDeps): Pr
 }
 
 const lineKey = (wsId: string, userId: string) => `ops\n${wsId}\n${userId}`;
-const oldest = (wsId: string, userId: string) =>
-  usePendingOpsStore
-    .getState()
-    .ops.filter((op) => op.workspaceId === wsId && op.userId === userId)
+const lineOps = (wsId: string, userId: string) =>
+  usePendingOpsStore.getState().ops.filter((op) => op.workspaceId === wsId && op.userId === userId);
+/** The oldest wish of the line not set aside after a failure of its own. */
+const nextDue = (wsId: string, userId: string, now: number) =>
+  lineOps(wsId, userId)
+    .filter((op) => op.retryAt === undefined || op.retryAt <= now)
     .sort((a, b) => a.createdAt - b.createdAt)[0];
 
 const lines = new Map<string, Promise<void>>();
@@ -158,15 +182,19 @@ export function flushPendingOps(qc: QueryClient, wsId: string, userId: string, d
     // Registered below before the line reads anything (data/chat-send.ts › pumpRoom).
     await Promise.resolve();
     try {
-      for (let op = oldest(wsId, userId); op; op = oldest(wsId, userId)) {
+      for (let op = nextDue(wsId, userId, deps.now()); op; op = nextDue(wsId, userId, deps.now())) {
         if (!deps.isOnline()) return;
         const outcome = await attempt(qc, op, deps);
         if (outcome === "transient") {
           deps.timers.schedule(key, () => void flushPendingOps(qc, wsId, userId, deps));
           return;
         }
-        deps.timers.reset(key);
+        // A wish set aside says nothing about the network: the line's own backoff stands.
+        if (outcome !== "set-aside") deps.timers.reset(key);
       }
+      // The line comes back for the wishes set aside at the first of their times (every wish left is one: none is due).
+      const wake = Math.min(...lineOps(wsId, userId).map((op) => op.retryAt!));
+      if (Number.isFinite(wake)) deps.timers.after(`${key}\nset-aside`, wake - deps.now(), () => void flushPendingOps(qc, wsId, userId, deps));
     } finally {
       lines.delete(key);
     }

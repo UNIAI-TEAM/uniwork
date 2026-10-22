@@ -20,6 +20,8 @@ export interface RetryTimers {
    * that already waits keeps its timer: a burst of failures is one retry.
    */
   schedule(key: string, run: () => void): void;
+  /** Runs `run` once after `ms`, replacing whatever waits under this key: a wake-up at a time already known. */
+  after(key: string, ms: number, run: () => void): void;
   /** It worked: the next failure waits the shortest delay again. */
   reset(key: string): void;
   /** Sign-out: nothing of the last account fires. */
@@ -40,6 +42,16 @@ export function createRetryTimers(random: () => number = Math.random): RetryTime
           waiting.delete(key);
           run();
         }, retryDelay(attempt, random)),
+      );
+    },
+    after(key, ms, run) {
+      clearTimeout(waiting.get(key));
+      waiting.set(
+        key,
+        setTimeout(() => {
+          waiting.delete(key);
+          run();
+        }, Math.max(0, ms)),
       );
     },
     reset(key) {

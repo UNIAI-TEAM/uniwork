@@ -68,6 +68,10 @@ describe("pending ops store", () => {
       ["v", true, true],
       ["e", false, false],
     ]);
+    // A poison wish stays capped across a restart; the time it was set aside until does not.
+    expect(rehydratedOps([read("p", { failures: 3, retryAt: 99 }), read("q", { failures: -1 })]).map((op) => [op.key, op.failures, op.retryAt])).toEqual([
+      ["p", 3, undefined],
+    ]);
   });
 
   it("a queue written by an older or a newer build (an OTA rolled back) still loads", async () => {

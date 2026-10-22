@@ -48,11 +48,17 @@ const timers = {
   schedule: vi.fn<RetryTimers["schedule"]>((_key, run) => {
     waiting ??= run;
   }),
+  // A wish set aside wakes the line at its time: fired by hand too, with the clock moved past it.
+  after: vi.fn<RetryTimers["after"]>((_key, _ms, run) => {
+    waiting = run;
+  }),
   reset: vi.fn<RetryTimers["reset"]>(),
   cancelAll: vi.fn<RetryTimers["cancelAll"]>(),
 };
-const deps: PendingOpsDeps = { api, isOnline: () => online, timers };
+let clock = 1_000;
+const deps: PendingOpsDeps = { api, isOnline: () => online, timers, now: () => clock, random: () => 0.5 };
 const fire = async () => {
+  clock += 2 * 60 * 60_000;
   const run = waiting;
   waiting = null;
   run?.();
@@ -79,6 +85,8 @@ beforeEach(() => {
   for (const fn of Object.values(api)) fn.mockReset();
   api.markRoomRead.mockResolvedValue(true);
   timers.schedule.mockClear();
+  timers.after.mockClear();
+  clock = 1_000;
   timers.reset.mockClear();
   timers.cancelAll.mockClear();
 });
@@ -417,13 +425,51 @@ describe("the line", () => {
     await markRoomRead(qc, "w1", "r1", "u1", deps);
     await toggleReaction(qc, "w1", "r1", "m1", "👍", "u1", deps);
     online = true;
-    api.markRoomRead.mockRejectedValueOnce(apiError(502));
+    api.markRoomRead.mockRejectedValueOnce(new TypeError("Network request failed"));
     await flushPendingOps(qc, "w1", "u1", deps);
     expect(api.toggleReaction).not.toHaveBeenCalled();
     api.toggleReaction.mockResolvedValueOnce(msg("m1", { my_reactions: ["👍"] }));
     await fire();
     expect(api.toggleReaction).toHaveBeenCalledTimes(1);
     expect(ops()).toEqual([]);
+  });
+
+  it("a wish the server fails on its own is set aside: the others go, it comes back on its own backoff, then it is given up", async () => {
+    const qc = seeded([msg("m1"), msg("m2")]);
+    online = false;
+    await editMessage(qc, "w1", "r1", "m1", "poison", "u1", deps);
+    await toggleReaction(qc, "w1", "r1", "m2", "👍", "u1", deps);
+    await markRoomRead(qc, "w1", "r1", "u1", deps);
+    online = true;
+    api.editMessage.mockRejectedValue(apiError(500));
+    api.toggleReaction.mockResolvedValueOnce(msg("m2", { my_reactions: ["👍"], reactions: { "👍": 1 } }));
+    await flushPendingOps(qc, "w1", "u1", deps);
+    // The edit failed on its own: the reaction and the read behind it went anyway.
+    expect(api.toggleReaction).toHaveBeenCalledTimes(1);
+    expect(api.markRoomRead).toHaveBeenCalledTimes(1);
+    expect(ops().map((op) => [op.key, op.failures, op.retryAt])).toEqual([["edit/w1/m1", 1, 6_000]]);
+    expect(timers.after).toHaveBeenLastCalledWith("ops\nw1\nu1\nset-aside", 5_000, expect.any(Function));
+    // The line's own backoff is untouched by it; the edit still shows meanwhile.
+    expect(timers.schedule).not.toHaveBeenCalled();
+    expect(shown(qc).body).toBe("poison");
+
+    // Not due yet: a flush (a network edge, the app back in front) passes it by.
+    await flushPendingOps(qc, "w1", "u1", deps);
+    expect(api.editMessage).toHaveBeenCalledTimes(1);
+    const captured = vi.fn();
+    installReportSink({ captureException: captured, addBreadcrumb: vi.fn(), setUser: vi.fn(), setTag: vi.fn() });
+    try {
+      for (let failure = 2; failure <= 8; failure += 1) {
+        await fire();
+        expect(api.editMessage).toHaveBeenCalledTimes(failure);
+      }
+      // Given up after its eighth failure: dropped, reported, and the room goes back to the server's state.
+      expect(ops()).toEqual([]);
+      expect(captured).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ tags: expect.objectContaining({ kind: "edit", gave_up: "true" }) }));
+      expect(qc.getQueryState(timelineKey)?.isInvalidated).toBe(true);
+    } finally {
+      installReportSink(null);
+    }
   });
 
   it("shares one run per workspace and person, and offline it waits", async () => {

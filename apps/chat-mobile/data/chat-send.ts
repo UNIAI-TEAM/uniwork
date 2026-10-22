@@ -18,9 +18,15 @@
 // reconnect or a return to the app, for every workspace this person has
 // messages waiting in (owed.ts). A refusal for good stays "failed" until the
 // person retries or discards it; the room's next messages go on without it.
+// So does a message that keeps failing for a reason of its own (the server
+// 500s on it every time, a throw that is no HTTP answer): after
+// MAX_SEND_ITEM_FAILURES rounds it is failed, with "Thử lại", instead of
+// spinning at the head of its line for ever (lib/delivery-failure.ts). A
+// failure of the network or the session never counts against a message.
 import { onlineManager, type QueryClient } from "@tanstack/react-query";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import { isPermanentChatSendRefusal, runWithChatSendRetry } from "@uniwork/core/chat/send-retry";
+import { MAX_SEND_ITEM_FAILURES, failureScope } from "@/lib/delivery-failure";
 import type { PendingFile, PendingSend } from "@/lib/send-pipeline";
 import { applyChatMessageResponse } from "./chat-cache";
 import { chatApi, type ChatApi } from "./chat-api";
@@ -157,9 +163,12 @@ async function deliverOnce(qc: QueryClient, entry: PendingSend, deps: ChatSendDe
     return "sent";
   } catch (err: unknown) {
     const permanent = isPermanentChatSendRefusal(err);
-    useChatSendStore.getState().setStatus(entry.clientMsgId, permanent ? "failed" : "queued");
-    if (permanent) ended(entry, "failed");
-    return permanent ? "failed" : "transient";
+    const own = !permanent && failureScope(err) === "item";
+    const failures = (entry.failures ?? 0) + (own ? 1 : 0);
+    const failed = permanent || (own && failures >= MAX_SEND_ITEM_FAILURES);
+    useChatSendStore.getState().setStatus(entry.clientMsgId, failed ? "failed" : "queued", failures);
+    if (failed) ended(entry, "failed");
+    return failed ? "failed" : "transient";
   } finally {
     onWireSince.delete(entry.clientMsgId);
   }
@@ -267,7 +276,8 @@ export async function sendChatMessage(qc: QueryClient, input: ChatSendInput, dep
 
 /** The person taps "retry" on a message that did not go: back in its room's line. */
 export function retryPendingSend(qc: QueryClient, entry: PendingSend, deps: ChatSendDeps): Promise<void> {
-  if (entry.status === "failed") useChatSendStore.getState().setStatus(entry.clientMsgId, "queued");
+  // A fresh start: the rounds it failed before do not count against the person's retry.
+  if (entry.status === "failed") useChatSendStore.getState().setStatus(entry.clientMsgId, "queued", 0);
   return pumpLine(qc, entry.workspaceId, entry.roomId, entry.senderId, laneOf(entry), deps);
 }
 

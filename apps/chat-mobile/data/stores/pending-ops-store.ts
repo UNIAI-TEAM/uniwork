@@ -32,6 +32,10 @@ interface OpBase {
    * what differs). Set before every attempt and on every entry read back.
    */
   attempted?: boolean;
+  /** Failures of this wish's own (lib/delivery-failure.ts); past the cap it is given up. Survives a restart. */
+  failures?: number;
+  /** Set aside after its own failure until this time (ms): the line delivers the others meanwhile. A restart clears it. */
+  retryAt?: number;
 }
 
 export type PendingOp = OpBase &
@@ -46,7 +50,7 @@ export type PendingOp = OpBase &
 interface PendingOpsState {
   ops: PendingOp[];
   put: (op: PendingOp) => void;
-  update: (key: string, patch: Partial<Pick<OpBase, "verify" | "attempted">>) => void;
+  update: (key: string, patch: Partial<Pick<OpBase, "verify" | "attempted" | "failures" | "retryAt">>) => void;
   remove: (key: string) => void;
   clear: () => void;
 }

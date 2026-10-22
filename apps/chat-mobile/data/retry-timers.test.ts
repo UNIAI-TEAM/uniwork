@@ -44,4 +44,25 @@ describe("retry timers", () => {
     vi.advanceTimersByTime(60_000);
     expect(run).toHaveBeenCalledTimes(3);
   });
+
+  it("a wake-up at a known time replaces the one waiting under its key; reset and sign-out cancel it", () => {
+    const timers = createRetryTimers(() => 0.5);
+    const first = vi.fn();
+    const second = vi.fn();
+    timers.after("parked", 10_000, first);
+    timers.after("parked", 3_000, second);
+    vi.advanceTimersByTime(3_000);
+    expect(second).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(10_000);
+    expect(first).not.toHaveBeenCalled();
+    timers.after("parked", -5, first);
+    vi.advanceTimersByTime(0);
+    expect(first).toHaveBeenCalledTimes(1);
+    timers.after("parked", 1_000, first);
+    timers.reset("parked");
+    timers.after("other", 1_000, first);
+    timers.cancelAll();
+    vi.advanceTimersByTime(5_000);
+    expect(first).toHaveBeenCalledTimes(1);
+  });
 });

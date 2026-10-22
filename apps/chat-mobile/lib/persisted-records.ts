@@ -47,6 +47,7 @@ export const PendingSendSchema = z
     reminder: ReminderSchema.optional(),
     createdAt: finite,
     status: z.enum(["queued", "sending", "failed"]),
+    failures: z.number().int().nonnegative().optional(),
   })
   // A voice message is its clip: without the file there is nothing to send.
   .refine((entry) => entry.voiceDurationMs === undefined || entry.file !== undefined, { message: "voice without its clip" });
@@ -57,6 +58,8 @@ const OpBaseSchema = z.object({
   roomId: id,
   userId: id,
   createdAt: finite,
+  // A poison wish stays capped across restarts (lib/delivery-failure.ts).
+  failures: z.number().int().nonnegative().optional(),
 });
 
 /** data/stores/pending-ops-store.ts › PendingOp, without the delivery bookkeeping a restart resets. */

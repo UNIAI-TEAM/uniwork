@@ -7,12 +7,12 @@
   "chat-send-outbox": {
     "version": 1,
     "file": "lib/persisted-records.ts",
-    "sha256": "f1922e64306e0691325931093e4cc22239474ac470d52b4d350bf7d78b15a9db"
+    "sha256": "49ca8668ab8e81e3b1e2dbf7e450d112988a418746268cfaf38a83c6be0a8c70"
   },
   "chat-pending-ops": {
     "version": 1,
     "file": "lib/persisted-records.ts",
-    "sha256": "f1922e64306e0691325931093e4cc22239474ac470d52b4d350bf7d78b15a9db"
+    "sha256": "49ca8668ab8e81e3b1e2dbf7e450d112988a418746268cfaf38a83c6be0a8c70"
   },
   "chat-drafts": {
     "version": 1,
