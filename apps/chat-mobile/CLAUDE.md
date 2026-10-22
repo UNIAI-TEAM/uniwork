@@ -874,4 +874,10 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
 - `store/listing.md`: mô tả vi/en, độ tuổi 18+ (khớp chính sách), privacy labels (có dòng xử lý AI và báo cáo),
   xoá tài khoản, nội dung do người dùng tạo, lý do từng quyền và dịch vụ nền, tài khoản
   demo cho review. Thêm quyền native thì cập nhật bảng quyền ở đó; thêm dịch vụ
-  nhận dữ liệu (như Sentry) thì cập nhật bảng Quyền riêng tư.
+  nhận dữ liệu (như Sentry) thì cập nhật bảng Quyền riêng tư. Hồ sơ phải khớp binary, test giữ:
+  `store-listing.test.ts` (chuỗi xin quyền trong bảng = `USAGE_VI`/`USAGE_EN` của `app.config.ts`; iOS privacy manifest
+  `IOS_PRIVACY_MANIFEST` — `ios.privacyManifests` — khai đúng các loại dữ liệu và mức linked/purpose của cột Apple App
+  Privacy, không tracking, lý do API cần khai báo), `android-manifest.test.ts` (mọi quyền của manifest bản release có
+  tên trong mục Quyền của listing và ngược lại; `maxSdkVersion` của từng quyền), `privacy-content.test.ts` của web
+  (chính sách nói từng dòng của bảng Quyền riêng tư). Apple 4.8 (Sign in with Apple) chờ tài khoản Apple:
+  `docs/adr/drafts/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md`.

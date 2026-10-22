@@ -425,6 +425,13 @@ từng mục khi đã nộp:
   Chưa có màn hình xử lý báo cáo, nên kênh tới nhà vận hành là `contact@unicomhub.com`: hộp thư đó phải có người trực
   **và trả lời báo cáo nội dung trong 24 giờ** — điều khoản sử dụng hứa vậy (Apple 1.2: gỡ nội dung và loại người đăng
   trong 24 giờ) — trước khi nộp.
+- [ ] **Sign in with Apple (Apple 4.8, chỉ iOS)**: trang đăng nhập mà app mở có "Tiếp tục với Google" và cho tự đăng ký,
+  nên bản iOS đầu tiên gửi review (cả TestFlight external) phải có Sign in with Apple —
+  `docs/adr/drafts/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md`. Chưa land thì không nộp bản iOS để review.
+- [ ] **iOS privacy manifest**: bản iOS archive đầu tiên trên EAS — mở `.xcarchive` trong Xcode › Organizer › Generate
+  Privacy Report, đối chiếu với `store/listing.md` › "iOS privacy manifest" (dữ liệu thu thập, không tracking, lý do API).
+  Email ITMS-91053/91061 sau khi upload nghĩa là một lý do hay một SDK thiếu manifest: thêm vào
+  `app.config.ts › IOS_PRIVACY_MANIFEST` (và bảng của listing, `store-listing.test.ts` giữ hai bên khớp).
 - [ ] **App access**: tài khoản demo (mục "Tài khoản demo cho review" của `store/listing.md`).
 - [ ] **Government apps / Financial features / Health**: không.
 

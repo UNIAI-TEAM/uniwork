@@ -78,5 +78,9 @@ Xem lại quyết định "không CallKit" của spec M3.
 `scripts/branch-protection.mjs --apply`), và PR đổi `docs/events/CATALOGUE.md` hay `dto/sdo/**` chạy test mobile — thu
 hẹp §6 của 0011.
 
+`drafts/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md` (UNI-2053, 2026-10-22, `proposed`): Apple 4.8 — Sign in
+with Apple trên trang đăng nhập web qua server trước lần nộp App Store đầu tiên; ẩn Google trên iPhone chỉ là phương án
+dự phòng. Chờ tài khoản Apple Developer.
+
 [0025](0025-mot-process-cho-api-va-worker.md) chưa có guard test (test chạy hai bản của mỗi
 job, land cùng việc làm worker an toàn đa replica); đến lúc đó 0025 không thêm luật vào `CLAUDE.md`.

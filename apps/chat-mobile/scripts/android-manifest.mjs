@@ -9,6 +9,10 @@
 // dependencies that ship an android/ folder. expo-dev-* is left out: the dev
 // client is linked into debug builds only. A `tools:node="remove"` entry in
 // the app manifest drops the library's (plugins/with-removed-android-services.js).
+// A permission every declaration caps with android:maxSdkVersion is listed in
+// `maxSdkVersion` with the highest cap (Play reviews it only on devices up to
+// that level); one declaration without a cap makes it uncapped, as Gradle's
+// merger keeps the uncapped element.
 // android-manifest.test.ts holds the result; the CI release build
 // (mobile-verify.yml › android-release) is what proves it on a device build.
 //   node apps/chat-mobile/scripts/android-manifest.mjs   # prints the JSON
@@ -77,7 +81,7 @@ function readLibrary(dir) {
   const permissions = [...xml.matchAll(/<uses-permission(?:-sdk-23)?\b[^>]*>/g)].map((m) => attrs(m[0]));
   const services = [...xml.matchAll(/<service\b[^>]*>/g)].map((m) => attrs(m[0]));
   return {
-    permissions: permissions.filter((p) => p["tools:node"] !== "remove").map((p) => p["android:name"]),
+    permissions: permissions.filter((p) => p["tools:node"] !== "remove").map((p) => ({ name: p["android:name"], maxSdkVersion: p["android:maxSdkVersion"] ?? "" })),
     services: services.filter((s) => s["tools:node"] !== "remove").map((s) => ({ name: qualify(s["android:name"], pkg), type: s["android:foregroundServiceType"] ?? "" })),
   };
 }
@@ -89,10 +93,16 @@ export function androidManifestReport() {
   const appPkg = config.android?.package ?? "";
   const removed = { permissions: new Set(), services: new Set() };
   const permissions = new Set();
+  // name → the caps of its declarations ("" for an uncapped one)
+  const caps = new Map();
+  const declare = (name, maxSdkVersion) => {
+    permissions.add(name);
+    caps.set(name, [...(caps.get(name) ?? []), maxSdkVersion]);
+  };
   const services = new Map();
   for (const p of manifest["uses-permission"] ?? []) {
     if (p.$["tools:node"] === "remove") removed.permissions.add(p.$["android:name"]);
-    else permissions.add(p.$["android:name"]);
+    else declare(p.$["android:name"], p.$["android:maxSdkVersion"] ?? "");
   }
   for (const s of application.service ?? []) {
     const name = qualify(s.$["android:name"], appPkg);
@@ -107,7 +117,7 @@ export function androidManifestReport() {
     const dir = locate(name, [appRoot, expoDir].filter(Boolean));
     const library = dir && readLibrary(dir);
     if (!library) continue;
-    for (const permission of library.permissions) permissions.add(permission);
+    for (const permission of library.permissions) declare(permission.name, permission.maxSdkVersion);
     for (const service of library.services) if (!services.has(service.name)) services.set(service.name, service.type);
   }
   for (const name of removed.permissions) permissions.delete(name);
@@ -122,6 +132,12 @@ export function androidManifestReport() {
       networkSecurityConfig: appAttrs["android:networkSecurityConfig"] ?? "",
     },
     permissions: [...permissions].sort(),
+    maxSdkVersion: Object.fromEntries(
+      [...permissions]
+        .sort()
+        .filter((name) => (caps.get(name) ?? [""]).every(Boolean))
+        .map((name) => [name, String(Math.max(...caps.get(name).map(Number)))]),
+    ),
     removedPermissions: [...removed.permissions].sort(),
     services: [...services].map(([name, foregroundServiceType]) => ({ name, foregroundServiceType })).sort((a, b) => a.name.localeCompare(b.name)),
     removedServices: [...removed.services].sort(),

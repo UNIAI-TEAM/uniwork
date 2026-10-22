@@ -48,17 +48,59 @@ function codeSigning(projectRoot: string, env: AppEnv): Pick<NonNullable<ExpoCon
 }
 
 // What iOS shows when UniChat first asks for the photos, the camera and the microphone.
-const USAGE_VI = {
+// store/listing.md › Quyền quotes them for review (store-listing.test.ts holds the two equal).
+export const USAGE_VI = {
   NSPhotoLibraryUsageDescription: "UniChat mở thư viện ảnh để bạn gửi ảnh vào cuộc trò chuyện.",
   NSCameraUsageDescription: "UniChat dùng camera khi bạn gọi video.",
   NSMicrophoneUsageDescription: "UniChat dùng micro khi bạn gọi điện và ghi tin thoại.",
   NSFaceIDUsageDescription: "UniChat dùng Face ID để mở khoá ứng dụng khi bạn bật Khoá UniChat.",
 };
-const USAGE_EN: typeof USAGE_VI = {
+export const USAGE_EN: typeof USAGE_VI = {
   NSPhotoLibraryUsageDescription: "UniChat opens your photo library so you can send photos to a conversation.",
   NSCameraUsageDescription: "UniChat uses the camera for video calls.",
   NSMicrophoneUsageDescription: "UniChat uses the microphone for calls and voice messages.",
   NSFaceIDUsageDescription: "UniChat uses Face ID to unlock the app when you turn on Lock UniChat.",
+};
+
+const collected = (type: string, linked: boolean, purpose: "AppFunctionality" | "Analytics") => ({
+  NSPrivacyCollectedDataType: `NSPrivacyCollectedDataType${type}`,
+  NSPrivacyCollectedDataTypeLinked: linked,
+  NSPrivacyCollectedDataTypeTracking: false,
+  NSPrivacyCollectedDataTypePurposes: [`NSPrivacyCollectedDataTypePurpose${purpose}`],
+});
+
+/**
+ * The app's own privacy manifest (PrivacyInfo.xcprivacy, App Store Connect refuses an upload without the reasons:
+ * ITMS-91053). Collected data mirrors App Privacy in store/listing.md › Quyền riêng tư row for row
+ * (store-listing.test.ts fails when they differ); no tracking, no tracking domain. Required-reason APIs: what the
+ * app and the libraries that ship no manifest of their own (React Native's core, MMKV, LiveKit) touch —
+ * UserDefaults for the app's own settings (CA92.1), file timestamps of the app's container (C617.1) and of the
+ * files the person picks to send (3B52.1), elapsed time since boot for timers and performance marks (35F9.1),
+ * free space before an attachment is copied into the outbox (E174.1). Expo modules and Sentry ship theirs; Xcode
+ * aggregates all of them into the archive's report (runbook › iOS privacy manifest).
+ */
+export const IOS_PRIVACY_MANIFEST = {
+  NSPrivacyTracking: false,
+  NSPrivacyTrackingDomains: [] as string[],
+  NSPrivacyAccessedAPITypes: [
+    { NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryUserDefaults", NSPrivacyAccessedAPITypeReasons: ["CA92.1"] },
+    { NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryFileTimestamp", NSPrivacyAccessedAPITypeReasons: ["C617.1", "3B52.1"] },
+    { NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategorySystemBootTime", NSPrivacyAccessedAPITypeReasons: ["35F9.1"] },
+    { NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryDiskSpace", NSPrivacyAccessedAPITypeReasons: ["E174.1"] },
+  ],
+  NSPrivacyCollectedDataTypes: [
+    collected("Name", true, "AppFunctionality"),
+    collected("EmailAddress", true, "AppFunctionality"),
+    collected("EmailsOrTextMessages", true, "AppFunctionality"),
+    collected("PhotosorVideos", true, "AppFunctionality"),
+    collected("AudioData", true, "AppFunctionality"),
+    collected("OtherUserContent", true, "AppFunctionality"),
+    collected("DeviceID", true, "AppFunctionality"),
+    collected("CrashData", true, "AppFunctionality"),
+    collected("PerformanceData", true, "AppFunctionality"),
+    collected("UserID", true, "AppFunctionality"),
+    collected("ProductInteraction", false, "Analytics"),
+  ],
 };
 
 function appEnv(): AppEnv {
@@ -200,6 +242,7 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // A call keeps its audio when the person switches app or locks the phone. Vietnamese is the
       // base language (the usage strings below are written in it; `locales.en` translates them).
       infoPlist: { UIBackgroundModes: ["audio"], CFBundleDevelopmentRegion: "vi" },
+      privacyManifests: IOS_PRIVACY_MANIFEST,
     },
     android: {
       package: appId,

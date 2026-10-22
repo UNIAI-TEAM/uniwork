@@ -6,6 +6,7 @@
 // the same commit as the native change, together with store/listing.md and
 // the runbook's declaration table.
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -16,14 +17,19 @@ const report = (env: Record<string, string> = {}) =>
   ) as {
     application: Record<string, string>;
     permissions: string[];
+    maxSdkVersion: Record<string, string>;
     removedPermissions: string[];
     services: { name: string; foregroundServiceType: string }[];
     removedServices: string[];
   };
 
+// One introspection for every case below: `expo config` is the slow part.
+let release: ReturnType<typeof report> | undefined;
+const releaseReport = () => (release ??= report());
+
 describe("the release build's Android manifest", () => {
   it("asks for these permissions and no others", { timeout: 120_000 }, () => {
-    const manifest = report();
+    const manifest = releaseReport();
     expect(manifest.permissions).toEqual([
       "android.permission.ACCESS_NETWORK_STATE",
       "android.permission.ACCESS_WIFI_STATE",
@@ -51,6 +57,10 @@ describe("the release build's Android manifest", () => {
       "android.permission.VIBRATE",
       "android.permission.WAKE_LOCK",
     ]);
+    // No permission is capped: BLUETOOTH and BLUETOOTH_ADMIN come uncapped from LiveKit (inert from Android 12, where
+    // BLUETOOTH_CONNECT takes over), and the storage ones that expo-file-system and expo-image-picker cap at 32 are
+    // removed outright below. A cap that appears or goes changes what Play reviews: it fails here.
+    expect(manifest.maxSdkVersion).toEqual({});
     // A call never draws over other apps, and UniChat reads no shared storage (app.config.ts › blockedPermissions).
     expect(manifest.removedPermissions).toEqual([
       "android.permission.DETECT_SCREEN_CAPTURE",
@@ -87,6 +97,27 @@ describe("the release build's Android manifest", () => {
       "android.permission.FOREGROUND_SERVICE_MICROPHONE",
       "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
     ]);
+  });
+});
+
+// store/listing.md › "Quyền và chuỗi xin quyền" answers review for every permission the release build carries: a
+// row of its table, or the paragraph of normal permissions under it. A permission the manifest gains without a word
+// there, or a name the listing keeps after the manifest dropped it (a removed one may stay, struck through), fails.
+describe("the store listing's permission section", () => {
+  const listing = fs.readFileSync(path.join(__dirname, "store/listing.md"), "utf8");
+  const section = listing.slice(listing.indexOf("## Quyền và chuỗi xin quyền"), listing.indexOf("## Tài khoản demo"));
+  const named = new Set([...section.matchAll(/`([A-Z][A-Z0-9_]+)`/g)].map((m) => m[1]!));
+  const short = (name: string) => name.replace(/^android\.permission\./, "");
+
+  it("names every permission of the release manifest", { timeout: 120_000 }, () => {
+    const missing = releaseReport().permissions.map(short).filter((name) => !named.has(name));
+    expect(missing, "add a row or a word in store/listing.md › Quyền").toEqual([]);
+  });
+
+  it("names no permission the release manifest neither asks for nor removes", { timeout: 120_000 }, () => {
+    const manifest = releaseReport();
+    const known = new Set([...manifest.permissions, ...manifest.removedPermissions].map(short));
+    expect([...named].filter((name) => !known.has(name))).toEqual([]);
   });
 });
 

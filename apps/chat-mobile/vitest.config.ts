@@ -9,7 +9,7 @@ export default defineConfig({
   resolve: { alias: { "@": path.resolve(__dirname, ".") } },
   test: {
     environment: "node",
-    include: ["app.config.test.ts", "android-manifest.test.ts", "native-modules.test.ts", "lib/**/*.test.ts", "data/**/*.test.ts"],
+    include: ["app.config.test.ts", "android-manifest.test.ts", "store-listing.test.ts", "native-modules.test.ts", "lib/**/*.test.ts", "data/**/*.test.ts"],
     ...vitestPoolOptions(),
     coverage: {
       provider: "v8",

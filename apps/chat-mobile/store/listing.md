@@ -124,7 +124,9 @@ chuyện hiện người nào đã chặn. Ghi chú cho reviewer (en):
 ## Quyền và chuỗi xin quyền
 
 Lát thêm module native là lát đặt chuỗi trong `app.config.ts` (qua tuỳ chọn plugin); bảng này là lý do để trả lời
-review. Chuỗi iOS có tiếng Việt (ngôn ngữ gốc, `CFBundleDevelopmentRegion: vi`) và tiếng Anh (`locales.en`); app khai
+review. Cột chuỗi là đúng chuỗi app gửi (`app.config.ts › USAGE_VI` / USAGE_EN; `store-listing.test.ts` đỏ khi lệch),
+và mọi quyền Android của bản release đều có tên ở mục này — trong bảng, hay trong đoạn quyền thường dưới bảng
+(`android-manifest.test.ts` đỏ khi manifest có quyền mà mục này không nhắc, hay mục này nhắc quyền manifest không có). Chuỗi iOS có tiếng Việt (ngôn ngữ gốc, `CFBundleDevelopmentRegion: vi`) và tiếng Anh (`locales.en`); app khai
 hai ngôn ngữ với hệ điều hành (`expo-localization` `supportedLocales`), nên trang ngôn ngữ theo app của iOS và
 Android 13+ chỉ có hai lựa chọn đó.
 
@@ -139,14 +141,27 @@ và nghe/gác máy dùng phản hồi chạm của hệ thống (Android `perfor
 | Quyền | Nền tảng | Lát | Lý do (dùng cho review) | Chuỗi đề xuất (vi / en) |
 | --- | --- | --- | --- | --- |
 | Thông báo | iOS (hộp thoại hệ thống), Android 13+ `POST_NOTIFICATIONS` | M1 | Báo tin nhắn mới, nhắc tên, cuộc gọi đến khi app ở nền | — (iOS không dùng chuỗi riêng) |
-| Thư viện ảnh | iOS `NSPhotoLibraryUsageDescription`; Android dùng photo picker, không xin quyền | M2a | Chọn ảnh để gửi vào cuộc trò chuyện | UniChat mở thư viện ảnh để bạn gửi ảnh vào cuộc trò chuyện. / UniChat opens your photo library so you can send photos in a conversation. |
-| Micro | iOS `NSMicrophoneUsageDescription`, Android `RECORD_AUDIO` | M3 | Gọi thoại/video và ghi tin thoại; chỉ bật khi người dùng vào cuộc gọi hay bấm ghi | UniChat dùng micro cho cuộc gọi và tin nhắn thoại. / UniChat uses the microphone for calls and voice messages. |
-| Camera | iOS `NSCameraUsageDescription`, Android `CAMERA` | M3 | Gọi video; chỉ bật khi người dùng bật camera trong cuộc gọi | UniChat dùng camera khi bạn bật video trong cuộc gọi. / UniChat uses the camera when you turn on video in a call. |
+| Thư viện ảnh | iOS `NSPhotoLibraryUsageDescription`; Android dùng photo picker, không xin quyền | M2a | Chọn ảnh để gửi vào cuộc trò chuyện | UniChat mở thư viện ảnh để bạn gửi ảnh vào cuộc trò chuyện. / UniChat opens your photo library so you can send photos to a conversation. |
+| Micro | iOS `NSMicrophoneUsageDescription`, Android `RECORD_AUDIO` | M3 | Gọi thoại/video và ghi tin thoại; chỉ bật khi người dùng vào cuộc gọi hay bấm ghi | UniChat dùng micro khi bạn gọi điện và ghi tin thoại. / UniChat uses the microphone for calls and voice messages. |
+| Camera | iOS `NSCameraUsageDescription`, Android `CAMERA` | M3 | Gọi video; chỉ bật khi người dùng bật camera trong cuộc gọi | UniChat dùng camera khi bạn gọi video. / UniChat uses the camera for video calls. |
 | Màn cuộc gọi đến toàn màn hình | Android `USE_FULL_SCREEN_INTENT` (Android 14+: Play chỉ cấp sẵn cho app gọi điện, người dùng thu hồi được) | S4 | Hiện màn đổ chuông (Nghe / Từ chối) trên máy đang khoá khi có người gọi; không dùng cho gì khác. Bị thu hồi thì cuộc gọi chỉ là thông báo heads-up, Cài đặt › Thông báo có dòng mở lại | — (không có hộp thoại; trang cài đặt hệ thống) |
 | Quản lý cuộc gọi của app | Android `MANAGE_OWN_CALLS` | S4 | Android 14 chỉ cho chạy dịch vụ nền kiểu `phoneCall` với app tự quản lý cuộc gọi; UniChat không đọc hay đặt cuộc gọi điện thoại | — (quyền thường, cấp lúc cài) |
 | Thiết bị ở gần (Bluetooth) | Android 12+ `BLUETOOTH_CONNECT` | S4 | Đưa âm thanh cuộc gọi qua tai nghe Bluetooth; chỉ hỏi khi bắt đầu cuộc gọi, từ chối thì cuộc gọi vẫn dùng loa máy | — (hộp thoại hệ thống "thiết bị ở gần") |
 | Face ID | iOS `NSFaceIDUsageDescription`; Android `USE_BIOMETRIC`/`USE_FINGERPRINT` (quyền thường) | bảo mật | Chỉ khi người dùng bật Cài đặt › Khoá UniChat: mở app bằng Face ID, vân tay hay mã khoá của máy. App không đọc hay lưu dữ liệu sinh trắc; hệ điều hành chỉ trả lời có/không | UniChat dùng Face ID để mở khoá ứng dụng khi bạn bật Khoá UniChat. / UniChat uses Face ID to unlock the app when you turn on Lock UniChat. |
-| ~~Bộ nhớ dùng chung, ảnh~~ | Android `READ_/WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_IMAGES`, `DETECT_SCREEN_CAPTURE` **bị gỡ** (`blockedPermissions`) | bảo mật | `expo-file-system`, `expo-image`, `expo-image-picker` khai hai quyền đầu tới API 32, `expo-screen-capture` khai hai quyền sau cho listener chụp màn hình mà app không dùng; UniChat chỉ đọc tệp của chính nó và tệp trình chọn hệ thống trao, nên không xin | — |
+| ~~Bộ nhớ dùng chung, ảnh~~ | Android `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_IMAGES`, `DETECT_SCREEN_CAPTURE` **bị gỡ** (`blockedPermissions`) | bảo mật | `expo-file-system`, `expo-image`, `expo-image-picker` khai hai quyền đầu tới API 32, `expo-screen-capture` khai hai quyền sau cho listener chụp màn hình mà app không dùng; UniChat chỉ đọc tệp của chính nó và tệp trình chọn hệ thống trao, nên không xin | — |
+
+Quyền thường của Android (cấp lúc cài, không hộp thoại, không khai báo riêng trên Play): `INTERNET`,
+`ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` (biết có mạng để gửi lại tin chờ), `MODIFY_AUDIO_SETTINGS` (loa ngoài, tai nghe
+trong cuộc gọi), `VIBRATE`, `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED` (thông báo hẹn giờ của `expo-notifications` sống qua
+lần khởi động lại), `FOREGROUND_SERVICE` cùng `FOREGROUND_SERVICE_PHONE_CALL`, `FOREGROUND_SERVICE_MICROPHONE`,
+`FOREGROUND_SERVICE_CAMERA` (dịch vụ cuộc gọi, mục dưới), `BLUETOOTH` và `BLUETOOTH_ADMIN` (LiveKit khai, không có
+`maxSdkVersion`; chỉ có nghĩa tới Android 11 — từ Android 12 tai nghe Bluetooth đi qua `BLUETOOTH_CONNECT` ở bảng trên).
+`android-manifest.test.ts` giữ cả `maxSdkVersion` của từng quyền: hiện không quyền nào có.
+
+**iOS privacy manifest** (`app.config.ts › IOS_PRIVACY_MANIFEST`, đặt vào `ios.privacyManifests`): không tracking; dữ liệu
+thu thập đúng từng dòng Apple App Privacy của bảng "Quyền riêng tư" ở trên (`store-listing.test.ts` so hai bên); lý do
+dùng API cần khai báo: UserDefaults `CA92.1`, file timestamp `C617.1` và `3B52.1`, system boot time `35F9.1`, disk space
+`E174.1`. Module Expo và Sentry mang manifest riêng; Xcode gộp lại khi archive (runbook › iOS privacy manifest).
 
 Không CallKit/VoIP push trên iOS (chưa có tài khoản Apple; kế hoạch PushKit + CallKit ở
 `docs/adr/drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md`), nên không có background mode `voip`, và
