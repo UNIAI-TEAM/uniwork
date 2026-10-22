@@ -108,5 +108,8 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   và test. **Realtime**: `chat-realtime.ts` không bỏ frame khi GET lỗi (tin mới →
   catch-up phòng, sửa/nhắc → refetch phòng, trả lời chủ đề → refetch chủ đề, danh sách theo sau); mỗi phòng một GET
   một lúc, frame đến trong lúc đó gộp theo tin và từ 2 tin mới trên timeline đang hiện thì đọc bằng một catch-up.
+  Frame `chat.message.created` của chính tin máy này vừa gửi (cùng người gửi, câu trả lời POST đã đặt tin vào
+  timeline hay chủ đề) không GET lại. Tin chưa gửi luôn nằm sau tin mới nhất của server, theo thứ tự viết
+  (`lib/send-pipeline.ts`): đồng hồ máy lệch không đặt chúng lẫn vào tin cũ của người khác.
   Reconnect (về foreground sau cửa sổ ân hạn, mạng quay lại) giữ mọi trang đã cuộn của phòng đang hiện và refetch từng trang (nối lại từ trang
   mới nhất) để thấy sửa/xoá/biểu cảm lúc offline; chỉ mở lại phòng mới cắt về trang mới nhất.

@@ -25,6 +25,28 @@ describe("mergeOptimisticChatMessages", () => {
     expect(merged[1]).toMatchObject({ id: "pending:cmid-1", body: "pending hello", pending: { status: "sending" } });
   });
 
+  // Audit P3 "pending-order-device-clock": a phone whose clock runs slow, or a message written offline long ago.
+  it("places unsent messages after the newest server message, in the order they were written, whatever the phone's clock", () => {
+    const server = [
+      { id: "m1", sender: "u2", body: "older", ts: 10_000 },
+      { id: "m2", sender: "u2", body: "newest", ts: 50_000 },
+    ];
+    const merged = mergeOptimisticChatMessages(
+      server,
+      [entry("b", { createdAt: 3_000 }), entry("a", { createdAt: 2_000 }), entry("later", { createdAt: 90_000 })],
+      "u1",
+    );
+    expect(merged.map((m) => [m.id, m.ts])).toEqual([
+      ["m1", 10_000],
+      ["m2", 50_000],
+      ["pending:a", 50_001],
+      ["pending:b", 50_002],
+      ["pending:later", 90_000],
+    ]);
+    // No server message yet: the phone's own times.
+    expect(mergeOptimisticChatMessages([], [entry("a", { createdAt: 2_000 })], "u1").map((m) => m.ts)).toEqual([2_000]);
+  });
+
   it("hides optimistic rows once the server echoes their client_msg_id", () => {
     const optimistic = pendingToOptimisticChatMessage(entry("cmid-echo"));
     const server = [{ id: "m2", sender: "u1", body: "same text", ts: optimistic.ts + 500, clientMsgId: "cmid-echo" }];

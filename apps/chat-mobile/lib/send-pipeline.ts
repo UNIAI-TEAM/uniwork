@@ -65,11 +65,29 @@ export function pendingToOptimisticChatMessage(entry: PendingSend): OptimisticCh
   };
 }
 
-/** The server's messages and this device's sends it has not echoed yet, oldest first. */
+/**
+ * Where this device's unsent messages sit: after the newest message the server
+ * has, in the order they were written. Their time is the phone's clock and the
+ * server's are the server's; a phone minutes slow (or a message written
+ * offline an hour ago) used to land among other people's older messages until
+ * its echo replaced it. Unsent is newest, as WhatsApp and Telegram show it.
+ */
+function placedAfterServer(serverMessages: readonly ServerLikeMessage[], pending: readonly PendingSend[]): OptimisticChatMessage[] {
+  let floor = serverMessages.reduce((newest, message) => Math.max(newest, message.ts), Number.NEGATIVE_INFINITY);
+  return [...pending]
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((entry) => {
+      const row = pendingToOptimisticChatMessage(entry);
+      floor = Math.max(row.ts, floor + 1);
+      return { ...row, ts: floor };
+    });
+}
+
+/** The server's messages and this device's sends it has not echoed yet, oldest first; the sends after the server's. */
 export function mergeOptimisticChatMessages<T extends ServerLikeMessage>(
   serverMessages: T[],
   pending: readonly PendingSend[],
   currentUserId: string,
 ): Array<T | OptimisticChatMessage> {
-  return mergeOptimisticMessages(serverMessages, pending.map(pendingToOptimisticChatMessage), currentUserId);
+  return mergeOptimisticMessages(serverMessages, placedAfterServer(serverMessages, pending), currentUserId);
 }

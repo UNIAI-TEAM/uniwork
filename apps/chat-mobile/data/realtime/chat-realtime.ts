@@ -15,6 +15,8 @@ import {
 import { catchUpOnChatSubscribeAck, catchUpRoomTimeline, refreshLoadedRoomTimelines } from "../chat-timeline";
 import { chatKeys } from "../queries/chat-keys";
 import { roomWasRead } from "../room-read-signal";
+import { roomTimelineHas, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
+import { sameUser } from "@/lib/user-id";
 import { isKnownFrame, type RealtimeFrame } from "./frames";
 
 export interface ChatRealtimeDeps {
@@ -61,6 +63,19 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
       scheduled.clear();
       for (const queryKey of keys) void qc.invalidateQueries({ queryKey });
     }, ROOM_ACTIVITY_DEBOUNCE_MS);
+  }
+
+  /**
+   * The echo of a message this phone sent: the POST's answer already put the
+   * server's copy in the timeline (chat-send.ts › applyChatMessageResponse) and
+   * moved the room's preview, so its frame needs no GET. Another device's send
+   * is not in the cache and is read as any other.
+   */
+  function isOwnEcho(roomId: string, messageId: string, senderId: string | undefined, threadRootId: string | undefined): boolean {
+    const { userId } = deps.viewer();
+    if (!userId || !senderId || !sameUser(senderId, userId)) return false;
+    const key = threadRootId ? chatKeys.threadMessages(wsId, roomId, threadRootId) : chatKeys.roomMessages(wsId, roomId);
+    return roomTimelineHas(qc.getQueryData<RoomTimeline>(key), messageId);
   }
 
   const isShown = (roomId: string) =>
@@ -130,6 +145,7 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
         const { room_id: roomId, message_id: messageId } = msg.payload;
         const senderId = msg.type === "chat.message.created" ? msg.payload.sender_id : undefined;
         const threadRootId = msg.type === "chat.message.updated" ? undefined : msg.payload.thread_root_id;
+        if (msg.type === "chat.message.created" && isOwnEcho(roomId, messageId, senderId, threadRootId)) return;
         // A thread reply is not unread on the main timeline.
         enqueueFrame({ roomId, messageId, created: msg.type === "chat.message.created" && !threadRootId, senderId, threadRootId });
         if (msg.type === "chat.message.created") schedule(chatKeys.unreadSummary());

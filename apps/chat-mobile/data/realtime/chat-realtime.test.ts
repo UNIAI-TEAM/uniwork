@@ -77,6 +77,28 @@ describe("message frames on an open room", () => {
     expect(get).toHaveBeenCalledWith("w1", "r1", "m2");
   });
 
+  // Audit P3 "ids-only-frame-fanout": the echo of one's own send costs no GET when the POST's answer is already shown.
+  it("skips the GET for the echo of a message this phone sent; another device's send, or one not yet shown, is read", async () => {
+    const get = vi.spyOn(chatApi, "getMessage").mockResolvedValue(msg("m3", 3, { sender_id: "U1" }));
+    const threadKey = chatKeys.threadMessages("w1", "r1", "m1");
+    show(qc, timelineKey, { pages: [[msg("m1", 1), msg("m2", 2, { sender_id: "U1" })]], pageParams: [null] });
+    show(qc, threadKey, { pages: [[msg("m1", 1), msg("t1", 3, { thread_root_id: "m1", sender_id: "u1" })]], pageParams: [null] });
+    const realtime = createChatRealtime(qc, deps);
+    // Ids compare without case (lib/user-id.ts).
+    realtime.handle(frame("chat.message.created", { room_id: "r1", message_id: "m2", sender_id: "u1" }));
+    realtime.handle(frame("chat.message.created", { room_id: "r1", message_id: "t1", sender_id: "u1", thread_root_id: "m1" }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(get).not.toHaveBeenCalled();
+
+    // Sent from another device (not in this cache yet), or someone else's.
+    realtime.handle(frame("chat.message.created", { room_id: "r1", message_id: "m3", sender_id: "u1" }));
+    await vi.waitFor(() => expect(ids(qc)).toEqual(["m1", "m2", "m3"]));
+    expect(get).toHaveBeenCalledTimes(1);
+    deps.viewer = () => ({ userId: null, activeRoomId: null });
+    realtime.handle(frame("chat.message.created", { room_id: "r1", message_id: "m2", sender_id: "u1" }));
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+  });
+
   it("patches an edit and a thread reply's root, and drops a deleted message", async () => {
     show(qc, timelineKey, { pages: [[msg("m1", 1), msg("m2", 2)]], pageParams: [null] });
     const realtime = createChatRealtime(qc, deps);
