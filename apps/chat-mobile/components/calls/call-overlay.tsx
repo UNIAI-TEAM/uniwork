@@ -62,7 +62,7 @@ const CALL_BACK_REASONS = new Set(["no_answer", "missed", "declined"]);
 /** How often a live call asks whether it is being recorded ("Đang ghi"). */
 const RECORDING_POLL_MS = 15_000;
 
-function CallBody({ call, recording, onMinimize, seed }: { call: Exclude<VoiceCallOverlayState, { status: "idle" }>; recording: boolean; onMinimize?: () => void; seed?: string }) {
+function CallBody({ call, recording, onMinimize, minimized, seed }: { call: Exclude<VoiceCallOverlayState, { status: "idle" }>; recording: boolean; onMinimize?: () => void; minimized: boolean; seed?: string }) {
   const { t } = useTranslation();
   switch (call.status) {
     case "incoming":
@@ -110,7 +110,7 @@ function CallBody({ call, recording, onMinimize, seed }: { call: Exclude<VoiceCa
         </View>
       );
     case "active":
-      return <CallRoom url={call.url} token={call.token} peerName={call.peerName} withCamera={call.withCamera ?? false} recording={recording} onMinimize={onMinimize} seed={seed} roomFace={isMultiPartyVoiceCall(call.callKind)} />;
+      return <CallRoom url={call.url} token={call.token} peerName={call.peerName} withCamera={call.withCamera ?? false} recording={recording} onMinimize={onMinimize} minimized={minimized} seed={seed} roomFace={isMultiPartyVoiceCall(call.callKind)} />;
     case "ended": {
       const again = RETRY_REASONS.has(call.reason) ? t("common.retry") : CALL_BACK_REASONS.has(call.reason) ? t("chat.voice_call_call_back") : null;
       return (
@@ -190,7 +190,7 @@ export function CallOverlay() {
       >
         {/* Light status-bar glyphs over the dark call, whatever the app theme; unmounting hands back the root's. */}
         {small ? null : <StatusBar style="light" />}
-        <CallBody call={call} recording={recording} onMinimize={lockEngaged ? undefined : () => setMinimized(true)} seed={faceSeed} />
+        <CallBody call={call} recording={recording} onMinimize={lockEngaged ? undefined : () => setMinimized(true)} minimized={small} seed={faceSeed} />
       </SafeAreaView>
       {small ? (
         // Just under a screen's 48 pt header, so its back button and title stay reachable; the status bar takes no touches.

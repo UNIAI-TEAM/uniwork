@@ -4,11 +4,12 @@
 // iOS: the system's own route picker (speaker, receiver, AirPods, CarPlay).
 // A connected voice call on the earpiece turns the screen off at the ear
 // (Android; lib/audio-outputs.ts › proximityScreenOff), released when it moves
-// off the earpiece or the call screen goes.
+// off the earpiece, the call shrinks to a pill (`onScreen`), the app goes to
+// the background, or the call screen goes.
 import { AudioSession } from "@livekit/react-native";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { ActionSheet } from "@/components/ui/action-sheet";
 import { nativeCalls } from "@/data/calls/native-calls";
 import { bestEffort } from "@/data/report";
@@ -21,7 +22,18 @@ async function reportedOutputs(): Promise<string[]> {
   return (await AudioSession.getAudioOutputs().catch(bestEffort("calls", "audio outputs not listed", "breadcrumb"))) ?? [];
 }
 
-export function AudioOutputButton({ video, connected }: { video: boolean; connected: boolean }) {
+/** Whether the app is in front: the proximity wake lock acts on the whole system, not on this app alone. */
+function useAppActive(): boolean {
+  const [active, setActive] = useState(AppState.currentState === "active");
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => setActive(state === "active"));
+    return () => sub.remove();
+  }, []);
+  return active;
+}
+
+/** `onScreen`: the call's full screen is shown (not shrunk to a pill). */
+export function AudioOutputButton({ video, connected, onScreen }: { video: boolean; connected: boolean; onScreen: boolean }) {
   const { t } = useTranslation();
   const ios = Platform.OS === "ios";
   const [current, setCurrent] = useState<AudioOutput>(video ? "speaker" : "earpiece");
@@ -40,7 +52,8 @@ export function AudioOutputButton({ video, connected }: { video: boolean; connec
   }, [connected, ios, video]);
 
   // The no-op module stands in on iOS, so no platform branch here.
-  const atTheEar = proximityScreenOff({ connected, video, output: current });
+  const appActive = useAppActive();
+  const atTheEar = proximityScreenOff({ connected, video, output: current, onScreen: onScreen && appActive });
   useEffect(() => {
     if (!atTheEar) return;
     nativeCalls.setProximityScreenOff(true);

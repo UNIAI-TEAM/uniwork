@@ -26,11 +26,14 @@ describe("audio outputs", () => {
     expect(isSpeakerToggle(["bluetooth", "earpiece", "speaker"])).toBe(false);
   });
 
-  it("turns the screen off at the ear only for a connected voice call on the earpiece", () => {
-    expect(proximityScreenOff({ connected: true, video: false, output: "earpiece" })).toBe(true);
-    expect(proximityScreenOff({ connected: false, video: false, output: "earpiece" })).toBe(false);
-    expect(proximityScreenOff({ connected: true, video: true, output: "earpiece" })).toBe(false);
-    for (const output of ["speaker", "bluetooth", "headset"] as const) expect(proximityScreenOff({ connected: true, video: false, output })).toBe(false);
+  it("turns the screen off at the ear only for a connected voice call on the earpiece, its screen in front", () => {
+    const atTheEar = { connected: true, video: false, output: "earpiece", onScreen: true } as const;
+    expect(proximityScreenOff(atTheEar)).toBe(true);
+    expect(proximityScreenOff({ ...atTheEar, connected: false })).toBe(false);
+    expect(proximityScreenOff({ ...atTheEar, video: true })).toBe(false);
+    for (const output of ["speaker", "bluetooth", "headset"] as const) expect(proximityScreenOff({ ...atTheEar, output })).toBe(false);
+    // Shrunk to a pill or the app in the background: the person reads a chat or another app, a hand must not blank it.
+    expect(proximityScreenOff({ ...atTheEar, onScreen: false })).toBe(false);
   });
 
   it("names and draws every output", () => {

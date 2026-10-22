@@ -20,9 +20,9 @@ jest.mock("@/components/ui/permission-gate", () => ({
 
 // The LiveKit room needs WebRTC; a stand-in exposes what the overlay hands it.
 jest.mock("./call-room", () => ({
-  CallRoom: (props: { peerName: string; recording: boolean; onMinimize?: () => void }): ReactNode => {
+  CallRoom: (props: { peerName: string; recording: boolean; onMinimize?: () => void; minimized?: boolean }): ReactNode => {
     const { Pressable: P, Text: T } = jest.requireActual<typeof import("react-native")>("react-native");
-    const label = <T>{`room:${props.peerName}:${props.recording ? "recording" : "quiet"}`}</T>;
+    const label = <T>{`room:${props.peerName}:${props.recording ? "recording" : "quiet"}${props.minimized ? ":shrunk" : ""}`}</T>;
     return props.onMinimize ? (
       <P accessibilityRole="button" accessibilityLabel="minimize" onPress={props.onMinimize}>
         {label}
@@ -108,8 +108,11 @@ describe("CallOverlay", () => {
     expect(chatApi.callRecordingActive).toHaveBeenCalledWith("w1", "dm1", "call-1");
     await fireEvent.press(screen.getByRole("button", { name: "minimize" }));
     const pill = screen.getByRole("button", { name: `${viText("chat.mobile.call_back_to")}, Bình` });
+    // The room stays mounted and knows it is shrunk (its proximity wake lock lets go).
+    expect(screen.getByText("room:Bình:recording:shrunk", { includeHiddenElements: true })).toBeTruthy();
     await fireEvent.press(pill);
     expect(screen.queryByRole("button", { name: `${viText("chat.mobile.call_back_to")}, Bình` })).toBeNull();
+    expect(screen.getByText("room:Bình:recording")).toBeOnTheScreen();
   });
 
   it("cannot shrink while the app lock is engaged, and a shrunk call takes the screen again when it engages", async () => {

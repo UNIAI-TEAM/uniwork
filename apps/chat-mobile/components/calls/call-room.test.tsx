@@ -70,8 +70,14 @@ jest.mock("livekit-client", () => ({
   },
 }));
 jest.mock("@/data/calls/call-wiring", () => ({ nativeCallSync: { refresh: jest.fn() } }));
-// The output picker reads the phone's routes; its own test is audio-output-button.test.tsx.
-jest.mock("./audio-output-button", () => ({ AudioOutputButton: () => null }));
+// The output picker reads the phone's routes; its own test is audio-output-button.test.tsx. The stand-in says
+// whether the room told it its screen is in front (the proximity wake lock hangs on that).
+jest.mock("./audio-output-button", () => ({
+  AudioOutputButton: ({ onScreen }: { onScreen: boolean }) => {
+    const { Text: T } = jest.requireActual<typeof import("react-native")>("react-native");
+    return <T testID="audio-output">{onScreen ? "on-screen" : "shrunk"}</T>;
+  },
+}));
 
 const session = jest.mocked(AudioSession);
 const remoteVideo: MockTrackRef = { participant: { isLocal: false }, publication: {} };
@@ -181,6 +187,13 @@ describe("CallRoom", () => {
     await view.rerender(<CallRoom url="wss://lk" token="t" peerName="Nhóm" withCamera={false} recording={false} />);
     expect(screen.queryByTestId("call-minimize")).toBeNull();
     expect(screen.queryByText(viText("chat.mobile.call_recording"))).toBeNull();
+  });
+
+  it("tells the audio button its screen is no longer in front while the call is shrunk to a pill", async () => {
+    const view = await render(<CallRoom url="wss://lk" token="t" peerName="Bình" withCamera={false} recording={false} />);
+    expect(screen.getByTestId("audio-output")).toHaveTextContent("on-screen");
+    await view.rerender(<CallRoom url="wss://lk" token="t" peerName="Bình" withCamera={false} recording={false} minimized />);
+    expect(screen.getByTestId("audio-output")).toHaveTextContent("shrunk");
   });
 
   it("leaves a call moved to another of our devices there, and ends it here otherwise", async () => {

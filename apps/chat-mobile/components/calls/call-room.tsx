@@ -48,7 +48,7 @@ function useElapsed(running: boolean) {
   return seconds;
 }
 
-function RoomStage({ peerName, connected, recording, onMinimize, seed, room, video }: { peerName: string; connected: boolean; recording: boolean; onMinimize?: () => void; seed?: string; room?: boolean; video: boolean }) {
+function RoomStage({ peerName, connected, recording, onMinimize, minimized, seed, room, video }: { peerName: string; connected: boolean; recording: boolean; onMinimize?: () => void; minimized: boolean; seed?: string; room?: boolean; video: boolean }) {
   const { t } = useTranslation();
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
   const tracks = useTracks([Track.Source.Camera]);
@@ -135,7 +135,7 @@ function RoomStage({ peerName, connected, recording, onMinimize, seed, room, vid
       ) : null}
       {/* Loa · Camera · Micro · Kết thúc, as the MobileCall board orders them. */}
       <View className="flex-row items-start justify-evenly px-5 pb-[52px] pt-6">
-        <AudioOutputButton video={video} connected={connected} />
+        <AudioOutputButton video={video} connected={connected} onScreen={!minimized} />
         <CallButton
           icon={isCameraEnabled ? "videocam" : "videocam-off"}
           label={t("chat.voice_call_camera")}
@@ -168,6 +168,7 @@ export function CallRoom({
   withCamera,
   recording,
   onMinimize,
+  minimized = false,
   seed,
   roomFace,
 }: {
@@ -178,6 +179,8 @@ export function CallRoom({
   recording: boolean;
   /** Shrinks the call to a pill; absent while the app lock is engaged (only the call may show past the lock). */
   onMinimize?: () => void;
+  /** Shrunk to a pill: the room stays mounted (unmounting would hang up) but its screen is not in front. */
+  minimized?: boolean;
   seed?: string;
   /** A group or channel call: the face shows the room's letters. */
   roomFace?: boolean;
@@ -219,7 +222,7 @@ export function CallRoom({
         nativeCallSync.refresh(callEngine.store.getState().call);
       }}
     >
-      <RoomStage peerName={peerName} connected={connected} recording={recording} onMinimize={onMinimize} seed={seed} room={roomFace} video={withCamera} />
+      <RoomStage peerName={peerName} connected={connected} recording={recording} onMinimize={onMinimize} minimized={minimized} seed={seed} room={roomFace} video={withCamera} />
     </LiveKitRoom>
   );
 }

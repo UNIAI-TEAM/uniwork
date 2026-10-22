@@ -455,7 +455,8 @@ một dòng thì ghi lý do ở dòng trên.
   thì giữ loại đã có và chỉ đổi thông báo (không bao giờ tự dừng service của cuộc gọi đang chạy),
   `CallRinger`, `CallProximity` (wake lock `PROXIMITY_SCREEN_OFF` — màn tắt khi áp tai — chỉ khi cuộc gọi thoại đã nối
   và âm thanh ở loa trong: `lib/audio-outputs.ts › proximityScreenOff`, gắn ở `audio-output-button.tsx`; nhả khi ra loa
-  ngoài/tai nghe, khi màn cuộc gọi đóng và trong `CallService.stop`; nhả bằng `RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY`; iOS
+  ngoài/tai nghe, khi cuộc gọi đang thu nhỏ (`minimized` từ `call-overlay.tsx`), khi app xuống nền (wake lock
+  này tác động cả máy), khi màn cuộc gọi đóng và trong `CallService.stop`; nhả bằng `RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY`; iOS
   chưa có — gọi trên iPhone còn tắt), Từ chối/Gác máy → `CallActionReceiver` → headless task `UniChatCallAction` (không khởi động được thì
   `PendingActions` giữ tới lần mở sau), activity hiện trên màn khoá chỉ khi được mở bởi cuộc gọi
   (`CallLockScreen`, nhả khi cuộc gọi xong, và khi lần đổ chuông mở app không thành màn cuộc gọi — cuộc gọi đã kết thúc
