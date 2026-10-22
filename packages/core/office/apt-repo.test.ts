@@ -9,8 +9,9 @@ describe("apt repository commands", () => {
     expect(APT_KEY_FINGERPRINT).toMatch(/^([0-9A-F]{4} ){9}[0-9A-F]{4}$/);
   });
 
-  it.each(["dev", "beta", "stable"] as const)("writes a deb822 source for the %s suite", (suite) => {
+  it.each(["dev", "beta", "stable"] as const)("writes a deb822 source, marked as package-managed, for the %s suite", (suite) => {
     expect(aptSourcesText(suite)).toBe([
+      "# managed by uniwork-office",
       "Types: deb",
       "URIs: https://uniworkos.com/downloads/office/apt",
       `Suites: ${suite}`,

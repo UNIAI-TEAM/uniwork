@@ -11,9 +11,15 @@ export const APT_INSTALL_COMMAND = "sudo apt update && sudo apt install uniwork-
 /** The apt suite of a channel carries the channel's name. */
 export type AptSuite = OfficeChannel;
 
-/** The deb822 source file for one suite, one field per line. */
+/**
+ * The deb822 source file for one suite, one field per line, without the final
+ * newline (the heredoc adds it). The first line is the marker the Office deb's
+ * postinst / postrm look for: with it the package updates the file on a suite
+ * change and removes it on purge; without it they leave the file alone.
+ */
 export function aptSourcesText(suite: AptSuite): string {
   return [
+    "# managed by uniwork-office",
     "Types: deb",
     `URIs: ${APT_REPO_URL}`,
     `Suites: ${suite}`,

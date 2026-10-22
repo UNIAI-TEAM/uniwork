@@ -246,7 +246,7 @@ describe("the Office page", () => {
       const [setup, install] = commands();
       expect(setup).toContain("curl -fsSL https://uniworkos.com/downloads/office/apt/key.gpg | sudo tee /usr/share/keyrings/uniwork-office-archive-keyring.gpg > /dev/null");
       expect(setup).toContain("sudo tee /etc/apt/sources.list.d/uniwork-office.sources");
-      expect(setup).toContain("URIs: https://uniworkos.com/downloads/office/apt\nSuites: dev\nComponents: main");
+      expect(setup).toContain("<<'EOF'\n# managed by uniwork-office\nTypes: deb\nURIs: https://uniworkos.com/downloads/office/apt\nSuites: dev\nComponents: main");
       expect(setup).toContain("Signed-By: /usr/share/keyrings/uniwork-office-archive-keyring.gpg");
       expect(install).toBe("sudo apt update && sudo apt install uniwork-office");
       const text = container.querySelector(".apt-install")?.textContent ?? "";
