@@ -2,22 +2,28 @@
   {
     "id": "release-1-8-0",
     "version": "1.8.0",
-    "date": "2026-10-21",
-    "sourceRef": "6cfe5512870a7308780acf8c2b5bcc29f6ef87cf",
+    "date": "2026-10-22",
+    "sourceRef": "4892d5b67cc9442004c304b002790e52ab95603f",
     "contentKey": "v1_8_0",
     "sections": [
       {
         "kind": "features",
         "items": [
           "c65f3f63676c33fb8ffa3973af36f699c95167a06",
-          "c12721dfeb1a1ec3d59d6255b2ae6bb92fdb15fa6"
+          "c12721dfeb1a1ec3d59d6255b2ae6bb92fdb15fa6",
+          "ce13f89971f752f4cd450ac462dc44dfdeddfde3b",
+          "c866159078a243ad74975a6cc520072a720e73321",
+          "c746cbd4249c4eb107c7fbf9afc44a378382b04d8"
         ]
       },
       {
         "kind": "improvements",
         "items": [
           "c831c0910ee27de6a508932005979a31836ebc7b0",
-          "c70c6965823b95e78087da436b7f1f37d2d6220a1"
+          "c70c6965823b95e78087da436b7f1f37d2d6220a1",
+          "c0f496005d5c93547c653dd036fbe607549ea163f",
+          "cd27f9296f7bf1434f4e6d55e221088886f3e8eec",
+          "c4892d5b67cc9442004c304b002790e52ab95603f"
         ]
       },
       {
@@ -25,7 +31,11 @@
         "items": [
           "c00442921bb805d62e2acd4ca821b9961afa5d2b8",
           "c012ad1c97b8e1fe0bdb6476e3db9fda8e288eb7c",
-          "c95903b75040d1eeb842587f70e0f88954ca44f9f"
+          "c95903b75040d1eeb842587f70e0f88954ca44f9f",
+          "cd4ace5438fda5aaa1dd4d0a9e2b1f3cf05d4f23c",
+          "c97190ef880cb0becddefbac601fc868bfd3fe383",
+          "cf26deea1665f84bf6164e04ca55f138363170372",
+          "cbd62328c1ab8482fcaec239e846678bdd723c6db"
         ]
       }
     ]
