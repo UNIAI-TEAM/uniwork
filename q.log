@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 19180 14100; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 19180/tcp 14100/tcp 2>/dev/null; sleep 1; for p in 19180 14100; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+b3f2cc008aa850acbdb6bb059f028b40c62245ea
+b3f2cc008 docs(office): name the web-0.1.0-59defc1 pin as the REPIN-8 pin
+924e7e584 chore(office): re-pin the six office frames to web-0.1.0-59defc1
+84a1e3da1 fix(chat-mobile): regenerate the mobile locales from packages/core
+150714c67 chore: merge UNI-2055 e2e ADR 0037 (92363e2b2) into the G5-G7 root

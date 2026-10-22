@@ -1,0 +1,601 @@
+$ node --test scripts/office-frame-build-wiring.test.mjs scripts/office/frame-protocol-vendor.test.mjs scripts/office/g5g6g7/g8-19/anchors.test.mjs; rc=$?; echo; echo "FRAME_PIN_TESTS_EXIT=$rc"
+TAP version 13
+# Subtest: the web Dockerfile builds with NODE_ENV=production and takes OFFICE_FRAME_SOURCE only as an optional build arg
+ok 1 - the web Dockerfile builds with NODE_ENV=production and takes OFFICE_FRAME_SOURCE only as an optional build arg
+  ---
+  duration_ms: 0.715534
+  type: 'test'
+  ...
+# Subtest: the web Dockerfile installs git before pnpm install
+ok 2 - the web Dockerfile installs git before pnpm install
+  ---
+  duration_ms: 0.187804
+  type: 'test'
+  ...
+# Subtest: the production Jenkinsfile builds the web image without a frame credential
+ok 3 - the production Jenkinsfile builds the web image without a frame credential
+  ---
+  duration_ms: 0.950355
+  type: 'test'
+  ...
+# Subtest: docker-compose.prod.yml may forward an OFFICE_FRAME_SOURCE override that defaults to empty
+ok 4 - docker-compose.prod.yml may forward an OFFICE_FRAME_SOURCE override that defaults to empty
+  ---
+  duration_ms: 0.206425
+  type: 'test'
+  ...
+# Subtest: the CI e2e job installs the frame from the committed source, not from a secret
+ok 5 - the CI e2e job installs the frame from the committed source, not from a secret
+  ---
+  duration_ms: 0.268143
+  type: 'test'
+  ...
+# Subtest: the committed frame source is a sha256-pinned https tarball of the same fork build as the pins
+ok 6 - the committed frame source is a sha256-pinned https tarball of the same fork build as the pins
+  ---
+  duration_ms: 0.42246
+  type: 'test'
+  ...
+# Subtest: normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+ok 7 - normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+  ---
+  duration_ms: 0.732867
+  type: 'test'
+  ...
+# Subtest: a CRLF copy of each vendored file normalises to the same hash as the LF file
+ok 8 - a CRLF copy of each vendored file normalises to the same hash as the LF file
+  ---
+  duration_ms: 2.825642
+  type: 'test'
+  ...
+# Subtest: every frame pin records the same protocolSha256, equal to the vendored protocol
+ok 9 - every frame pin records the same protocolSha256, equal to the vendored protocol
+  ---
+  duration_ms: 2.183169
+  type: 'test'
+  ...
+# Subtest: the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+ok 10 - the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+  ---
+  duration_ms: 0.848732
+  type: 'test'
+  ...
+# Subtest: the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+ok 11 - the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+  ---
+  duration_ms: 0.755779
+  type: 'test'
+  ...
+# Subtest: the three vendored files name one fork commit in their header
+ok 12 - the three vendored files name one fork commit in their header
+  ---
+  duration_ms: 0.808573
+  type: 'test'
+  ...
+# Subtest: the vendored protocol carries the OQ-C2 comments.create anchor rule
+ok 13 - the vendored protocol carries the OQ-C2 comments.create anchor rule
+  ---
+  duration_ms: 0.724406
+  type: 'test'
+  ...
+# Subtest: decideG8A02: insert row above B7 -> B8, exact, on the new version; delete -> lost; three equal 400s -> PASS
+ok 14 - decideG8A02: insert row above B7 -> B8, exact, on the new version; delete -> lost; three equal 400s -> PASS
+  ---
+  duration_ms: 1.826111
+  type: 'test'
+  ...
+# Subtest: decideG8A02: the web -> desktop direction is BLOCKED(R1) while the web frame pin is old, never PASS
+ok 15 - decideG8A02: the web -> desktop direction is BLOCKED(R1) while the web frame pin is old, never PASS
+  ---
+  duration_ms: 0.350347
+  type: 'test'
+  ...
+# Subtest: decideG8A02: a desktop failure wins over the R1 block (FAIL, not BLOCKED)
+ok 16 - decideG8A02: a desktop failure wins over the R1 block (FAIL, not BLOCKED)
+  ---
+  duration_ms: 0.211784
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: the anchor did not move (still B7) -> FAIL
+ok 17 - decideG8A02 shift: the anchor did not move (still B7) -> FAIL
+  ---
+  duration_ms: 0.264012
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: the anchor stayed on the old version -> FAIL
+ok 18 - decideG8A02 shift: the anchor stayed on the old version -> FAIL
+  ---
+  duration_ms: 0.185047
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: the head did not move (Save made no version) -> FAIL
+ok 19 - decideG8A02 shift: the head did not move (Save made no version) -> FAIL
+  ---
+  duration_ms: 0.243184
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: the state is stale, not exact -> FAIL
+ok 20 - decideG8A02 shift: the state is stale, not exact -> FAIL
+  ---
+  duration_ms: 0.202118
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: the edit driver failed -> FAIL
+ok 21 - decideG8A02 shift: the edit driver failed -> FAIL
+  ---
+  duration_ms: 0.134134
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: the Save failed -> FAIL
+ok 22 - decideG8A02 shift: the Save failed -> FAIL
+  ---
+  duration_ms: 0.38916
+  type: 'test'
+  ...
+# Subtest: decideG8A02 remove: exact instead of lost, a deleted thread, lost replies, or a moved stored anchor -> FAIL
+ok 23 - decideG8A02 remove: exact instead of lost, a deleted thread, lost replies, or a moved stored anchor -> FAIL
+  ---
+  duration_ms: 0.452133
+  type: 'test'
+  ...
+# Subtest: decideG8A02 invalid versions: the three 400 bodies must be byte-equal anchor_version_invalid and write nothing
+ok 24 - decideG8A02 invalid versions: the three 400 bodies must be byte-equal anchor_version_invalid and write nothing
+  ---
+  duration_ms: 0.408185
+  type: 'test'
+  ...
+# Subtest: decideG8A02: a structural edit the product does not offer is BLOCKED with its named blocker (MISSING), never PASS
+ok 25 - decideG8A02: a structural edit the product does not offer is BLOCKED with its named blocker (MISSING), never PASS
+  ---
+  duration_ms: 0.125154
+  type: 'test'
+  ...
+# Subtest: framePinBlock: 05fd209 is BLOCKED(R1); a pin that contains G8-12..15 or an unknown newer one is not
+ok 26 - framePinBlock: 05fd209 is BLOCKED(R1); a pin that contains G8-12..15 or an unknown newer one is not
+  ---
+  duration_ms: 0.667471
+  type: 'test'
+  ...
+# Subtest: readFramePin reads apps/web/platform/office-frame/<editor>.pin.json at run time, so a re-pin flips R1
+ok 27 - readFramePin reads apps/web/platform/office-frame/<editor>.pin.json at run time, so a re-pin flips R1
+  ---
+  duration_ms: 0.576435
+  type: 'test'
+  ...
+# Subtest: anchors per fixture follow the fork codecs; expectedAfterShift and anchorMatches
+ok 28 - anchors per fixture follow the fork codecs; expectedAfterShift and anchorMatches
+  ---
+  duration_ms: 1.493876
+  type: 'test'
+  ...
+# Subtest: EDIT_DRIVERS: every format has a shift and a remove plan driven through product commands, each citing the fork
+ok 29 - EDIT_DRIVERS: every format has a shift and a remove plan driven through product commands, each citing the fork
+  ---
+  duration_ms: 0.317793
+  type: 'test'
+  ...
+# Subtest: PANEL_OPENERS: per editor the ribbon tab + the control that opens the server comments panel, en and vi labels, citing the fork
+ok 30 - PANEL_OPENERS: per editor the ribbon tab + the control that opens the server comments panel, en and vi labels, citing the fork
+  ---
+  duration_ms: 0.330986
+  type: 'test'
+  ...
+# Subtest: pageAction click unlessActive: an active ribbon tab is not pressed again (that collapses the ribbon)
+ok 31 - pageAction click unlessActive: an active ribbon tab is not pressed again (that collapses the ribbon)
+  ---
+  duration_ms: 7.902264
+  type: 'test'
+  ...
+# Subtest: runG8A02 after a re-pin: the web frame's Save moves A's B7 comment to B8 and the desktop reads it there -> PASS
+ok 32 - runG8A02 after a re-pin: the web frame's Save moves A's B7 comment to B8 and the desktop reads it there -> PASS
+  ---
+  duration_ms: 7.662419
+  type: 'test'
+  ...
+# Subtest: runG8A02 after a re-pin: a web Save that makes no version is FAIL on check:web-to-desktop
+ok 33 - runG8A02 after a re-pin: a web Save that makes no version is FAIL on check:web-to-desktop
+  ---
+  duration_ms: 1.819562
+  type: 'test'
+  ...
+# Subtest: runG8A02 on the old pin: the web direction is BLOCKED(R1) without opening a browser
+ok 34 - runG8A02 on the old pin: the web direction is BLOCKED(R1) without opening a browser
+  ---
+  duration_ms: 1.414515
+  type: 'test'
+  ...
+# Subtest: runG8A02 artifact says why the purged-version case is the empty id
+ok 35 - runG8A02 artifact says why the purged-version case is the empty id
+  ---
+  duration_ms: 1.076593
+  type: 'test'
+  ...
+# Subtest: decideWebToDesktop: saved version, exact moved row on it, desktop reads the same; a preset BLOCKED/FAIL passes through
+ok 36 - decideWebToDesktop: saved version, exact moved row on it, desktop reads the same; a preset BLOCKED/FAIL passes through
+  ---
+  duration_ms: 0.296429
+  type: 'test'
+  ...
+# Subtest: runG8A02 (xlsx, fake): upload, desktop comment on B7, insert row + Save -> B8, delete + Save -> lost, three 400s, R1 BLOCKED
+ok 37 - runG8A02 (xlsx, fake): upload, desktop comment on B7, insert row + Save -> B8, delete + Save -> lost, three 400s, R1 BLOCKED
+  ---
+  duration_ms: 1.513148
+  type: 'test'
+  ...
+# Subtest: runG8A02: an app that cannot be driven is FAIL (never BLOCKED)
+ok 38 - runG8A02: an app that cannot be driven is FAIL (never BLOCKED)
+  ---
+  duration_ms: 0.426665
+  type: 'test'
+  ...
+# Subtest: runG8A02 opens the editor's comments panel and waits until the editor lists the comment before the shift edit
+ok 39 - runG8A02 opens the editor's comments panel and waits until the editor lists the comment before the shift edit
+  ---
+  duration_ms: 1.068375
+  type: 'test'
+  ...
+# Subtest: runG8A02: an editor that never lists the comment is FAIL at editor-lists and drives no edit
+ok 40 - runG8A02: an editor that never lists the comment is FAIL at editor-lists and drives no edit
+  ---
+  duration_ms: 1.445399
+  type: 'test'
+  ...
+# Subtest: decideG8A02 remove: the kept-version rule speaks only about a lost row (an exact row already fails on its state)
+ok 41 - decideG8A02 remove: the kept-version rule speaks only about a lost row (an exact row already fails on its state)
+  ---
+  duration_ms: 0.145665
+  type: 'test'
+  ...
+# Subtest: decideG8A02 closed-panel Save: an anchor that moved to the new head with the panel closed -> that check PASS
+ok 42 - decideG8A02 closed-panel Save: an anchor that moved to the new head with the panel closed -> that check PASS
+  ---
+  duration_ms: 0.106434
+  type: 'test'
+  ...
+# Subtest: decideG8A02 closed-panel Save: an anchor the round never covered (exact on the old version) is FAIL naming the one-list-at-mount controller and the format's round
+ok 43 - decideG8A02 closed-panel Save: an anchor the round never covered (exact on the old version) is FAIL naming the one-list-at-mount controller and the format's round
+  ---
+  duration_ms: 0.577518
+  type: 'test'
+  ...
+# Subtest: decideG8A02 closed-panel Save: a comment that does not postdate the editor's first list proves nothing -> FAIL scenario not established (harness, no owner)
+ok 44 - decideG8A02 closed-panel Save: a comment that does not postdate the editor's first list proves nothing -> FAIL scenario not established (harness, no owner)
+  ---
+  duration_ms: 0.477257
+  type: 'test'
+  ...
+# Subtest: decideG8A02 closed-panel Save PASS says why the round covered a comment made after the first list
+ok 45 - decideG8A02 closed-panel Save PASS says why the round covered a comment made after the first list
+  ---
+  duration_ms: 0.156202
+  type: 'test'
+  ...
+# Subtest: decideG8A02 closed-panel Save: a row the desktop reported lost is the round's own answer, never the panel gate; docx names the post-Save reload
+ok 46 - decideG8A02 closed-panel Save: a row the desktop reported lost is the round's own answer, never the panel gate; docx names the post-Save reload
+  ---
+  duration_ms: 0.391515
+  type: 'test'
+  ...
+# Subtest: decideG8A02 docx: a saved head whose quote is not at the expected block is the edit driver's fault (harness), not a product FAIL
+ok 47 - decideG8A02 docx: a saved head whose quote is not at the expected block is the edit driver's fault (harness), not a product FAIL
+  ---
+  duration_ms: 0.248316
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: a lost row says the desktop reported lost (the server keeps the version), with the docx reason; remove after an already-lost row is not observed
+ok 48 - decideG8A02 shift: a lost row says the desktop reported lost (the server keeps the version), with the docx reason; remove after an already-lost row is not observed
+  ---
+  duration_ms: 0.291765
+  type: 'test'
+  ...
+# Subtest: docxQuoteBlock: the top-level block that holds the quote, empty <w:p/> paragraphs counted
+ok 49 - docxQuoteBlock: the top-level block that holds the quote, empty <w:p/> paragraphs counted
+  ---
+  duration_ms: 0.483485
+  type: 'test'
+  ...
+# Subtest: serverCommentMark counts the docx highlights of one comment (fork anchor-tracker.ts:49,58-61)
+ok 50 - serverCommentMark counts the docx highlights of one comment (fork anchor-tracker.ts:49,58-61)
+  ---
+  duration_ms: 0.156264
+  type: 'test'
+  ...
+# Subtest: decideG8A02 closed-panel Save: moved but wrong place, a failed edit or Save, or a part that did not run -> FAIL with that reason
+ok 51 - decideG8A02 closed-panel Save: moved but wrong place, a failed edit or Save, or a part that did not run -> FAIL with that reason
+  ---
+  duration_ms: 0.24065
+  type: 'test'
+  ...
+# Subtest: runG8A02 runs the closed-panel Save first on its own document: no opener before its edit, row FAIL with the product reason when the anchor stays
+ok 52 - runG8A02 runs the closed-panel Save first on its own document: no opener before its edit, row FAIL with the product reason when the anchor stays
+  ---
+  duration_ms: 1.747677
+  type: 'test'
+  ...
+# Subtest: runG8A02 closed-panel Save that moves the anchor: that check PASS, the rest unchanged
+ok 53 - runG8A02 closed-panel Save that moves the anchor: that check PASS, the rest unchanged
+  ---
+  duration_ms: 0.991254
+  type: 'test'
+  ...
+# Subtest: runG8A02 asks for the editor page that shows each document by path (two documents of one kind are open)
+ok 54 - runG8A02 asks for the editor page that shows each document by path (two documents of one kind are open)
+  ---
+  duration_ms: 1.026646
+  type: 'test'
+  ...
+# Subtest: runG8A02 (docx, fake): records the highlight around each Save and the saved head's quote block, and a lost row ends the wait at once
+ok 55 - runG8A02 (docx, fake): records the highlight around each Save and the saved head's quote block, and a lost row ends the wait at once
+  ---
+  duration_ms: 3.14269
+  type: 'test'
+  ...
+# Subtest: runG8A02 closed panel: the comment is made over REST only after the server log shows the editor's first list, and the order is recorded
+ok 56 - runG8A02 closed panel: the comment is made over REST only after the server log shows the editor's first list, and the order is recorded
+  ---
+  duration_ms: 1.389048
+  type: 'test'
+  ...
+# Subtest: runG8A02 closed panel: no editor list in the server log -> the comment is not made and the check FAILs scenario not established
+ok 57 - runG8A02 closed panel: no editor list in the server log -> the comment is not made and the check FAILs scenario not established
+  ---
+  duration_ms: 1.177304
+  type: 'test'
+  ...
+# Subtest: G819-BE-8b: the first-list signal is recorded as path-only (the server log carries no query), with the reason the flow cannot hit a Discussion list
+ok 58 - G819-BE-8b: the first-list signal is recorded as path-only (the server log carries no query), with the reason the flow cannot hit a Discussion list
+  ---
+  duration_ms: 2.289166
+  type: 'test'
+  ...
+# Subtest: G819-BE-8c: the ordering wait has its own bound - a clock that never advances fails the check instead of spinning
+ok 59 - G819-BE-8c: the ordering wait has its own bound - a clock that never advances fails the check instead of spinning
+  ---
+  duration_ms: 1.400375
+  type: 'test'
+  ...
+# Subtest: G8-A02 closed panel (pdf): waits for the prepare Save's version, then judges the shift Save (not the prepare version)
+ok 60 - G8-A02 closed panel (pdf): waits for the prepare Save's version, then judges the shift Save (not the prepare version)
+  ---
+  duration_ms: 0.864989
+  type: 'test'
+  ...
+# Subtest: G8-A02 closed panel (pdf): a prepare version that never lands fails scenario not established, no comment is made
+ok 61 - G8-A02 closed panel (pdf): a prepare version that never lands fails scenario not established, no comment is made
+  ---
+  duration_ms: 0.669402
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: server row lost on the shift head's version, web view read-only with no write, landing once, desktop @vN copy -> PASS
+ok 62 - check:lost-view-version: server row lost on the shift head's version, web view read-only with no write, landing once, desktop @vN copy -> PASS
+  ---
+  duration_ms: 0.137287
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: the server row names another version id or ordinal, or no ordinal -> FAIL with the values
+ok 63 - check:lost-view-version: the server row names another version id or ordinal, or no ordinal -> FAIL with the values
+  ---
+  duration_ms: 0.212112
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: an expected version the harness itself cannot agree on is a harness FAIL, not a product one
+ok 64 - check:lost-view-version: an expected version the harness itself cannot agree on is a harness FAIL, not a product one
+  ---
+  duration_ms: 0.073287
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: NOT_JUDGED with cascadeFrom check:remove-lost when the remove step failed; the row cascades only that way
+ok 65 - check:lost-view-version: NOT_JUDGED with cascadeFrom check:remove-lost when the remove step failed; the row cascades only that way
+  ---
+  duration_ms: 0.094566
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: a BLOCKED remove step (missing edit driver) leaves this step BLOCKED with the same blocker, never PASS
+ok 66 - check:lost-view-version: a BLOCKED remove step (missing edit driver) leaves this step BLOCKED with the same blocker, never PASS
+  ---
+  duration_ms: 0.069279
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: the frame pin predating the fork UNI-2033 kit/protocol BLOCKS the web part, the rest is judged
+ok 67 - check:lost-view-version: the frame pin predating the fork UNI-2033 kit/protocol BLOCKS the web part, the rest is judged
+  ---
+  duration_ms: 0.107422
+  type: 'test'
+  ...
+# Subtest: G8-A02 row: desktop PASS with the web part BLOCKED by the old pin -> row BLOCKED (77), never PASS
+ok 68 - G8-A02 row: desktop PASS with the web part BLOCKED by the old pin -> row BLOCKED (77), never PASS
+  ---
+  duration_ms: 0.069296
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a Save request during the view -> FAIL
+ok 69 - check:lost-view-version web: a Save request during the view -> FAIL
+  ---
+  duration_ms: 0.122815
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a comments.anchors request during the view -> FAIL
+ok 70 - check:lost-view-version web: a comments.anchors request during the view -> FAIL
+  ---
+  duration_ms: 0.093812
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a Save the server log saw during the view -> FAIL
+ok 71 - check:lost-view-version web: a Save the server log saw during the view -> FAIL
+  ---
+  duration_ms: 0.083931
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: no read-only banner -> FAIL
+ok 72 - check:lost-view-version web: no read-only banner -> FAIL
+  ---
+  duration_ms: 0.061092
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a banner for another version -> FAIL
+ok 73 - check:lost-view-version web: a banner for another version -> FAIL
+  ---
+  duration_ms: 0.052951
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: the version is unavailable -> FAIL
+ok 74 - check:lost-view-version web: the version is unavailable -> FAIL
+  ---
+  duration_ms: 0.049805
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: the frame never fetched version 2's bytes -> FAIL
+ok 75 - check:lost-view-version web: the frame never fetched version 2's bytes -> FAIL
+  ---
+  duration_ms: 0.054021
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: the frame fetched another version -> FAIL
+ok 76 - check:lost-view-version web: the frame fetched another version -> FAIL
+  ---
+  duration_ms: 0.06321
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: the thread is not revealed -> FAIL
+ok 77 - check:lost-view-version web: the thread is not revealed -> FAIL
+  ---
+  duration_ms: 0.122653
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: no switch from ?comment= alone -> FAIL
+ok 78 - check:lost-view-version web: no switch from ?comment= alone -> FAIL
+  ---
+  duration_ms: 0.069158
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a switch to the wrong version -> FAIL
+ok 79 - check:lost-view-version web: a switch to the wrong version -> FAIL
+  ---
+  duration_ms: 0.065934
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a switch that happens twice -> FAIL
+ok 80 - check:lost-view-version web: a switch that happens twice -> FAIL
+  ---
+  duration_ms: 0.062384
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a banner in Vietnamese names the version too; the server log may be missing (browser requests alone judge)
+ok 81 - check:lost-view-version web: a banner in Vietnamese names the version too; the server log may be missing (browser requests alone judge)
+  ---
+  duration_ms: 0.151352
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the copy is not a @vN copy -> FAIL
+ok 82 - check:lost-view-version desktop: the copy is not a @vN copy -> FAIL
+  ---
+  duration_ms: 0.086534
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the copy is editable -> FAIL
+ok 83 - check:lost-view-version desktop: the copy is editable -> FAIL
+  ---
+  duration_ms: 0.060285
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the copy reports access edit -> FAIL
+ok 84 - check:lost-view-version desktop: the copy reports access edit -> FAIL
+  ---
+  duration_ms: 0.057252
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the copy's open version id is not the viewed version -> FAIL
+ok 85 - check:lost-view-version desktop: the copy's open version id is not the viewed version -> FAIL
+  ---
+  duration_ms: 0.048642
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the editor's panel lists but never shows the comment -> FAIL
+ok 86 - check:lost-view-version desktop: the editor's panel lists but never shows the comment -> FAIL
+  ---
+  duration_ms: 0.055967
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the copy shows no comments panel at all (panels 0) -> FAIL
+ok 87 - check:lost-view-version desktop: the copy shows no comments panel at all (panels 0) -> FAIL
+  ---
+  duration_ms: 0.049215
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the open failed -> FAIL
+ok 88 - check:lost-view-version desktop: the open failed -> FAIL
+  ---
+  duration_ms: 0.057952
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: what the app cannot report (no read-only flag, no version id, probe errored with no panel data) is recorded, not judged
+ok 89 - check:lost-view-version desktop: what the app cannot report (no read-only flag, no version id, probe errored with no panel data) is recorded, not judged
+  ---
+  duration_ms: 0.091573
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: no record at all -> FAIL (the step did not run)
+ok 90 - check:lost-view-version: no record at all -> FAIL (the step did not run)
+  ---
+  duration_ms: 0.034129
+  type: 'test'
+  ...
+# Subtest: viewVersionPinBlock: the pin at fork 1abc493 and the old protocol sha are BLOCKED by a constant, a pin that holds the T4 commit is not, an unknown newer pin runs
+ok 91 - viewVersionPinBlock: the pin at fork 1abc493 and the old protocol sha are BLOCKED by a constant, a pin that holds the T4 commit is not, an unknown newer pin runs
+  ---
+  duration_ms: 0.108194
+  type: 'test'
+  ...
+# Subtest: documentWriteRequests: only a Save commit or a comments.anchors write of that document counts, GETs and other posts do not
+ok 92 - documentWriteRequests: only a Save commit or a comments.anchors write of that document counts, GETs and other posts do not
+  ---
+  duration_ms: 0.475573
+  type: 'test'
+  ...
+# Subtest: observeVersionView: opens ?version=N&comment=<id>, reads the banner, the frame's bytes request and the panel, then ?comment= alone switches once
+ok 93 - observeVersionView: opens ?version=N&comment=<id>, reads the banner, the frame's bytes request and the panel, then ?comment= alone switches once
+  ---
+  duration_ms: 2.391448
+  type: 'test'
+  ...
+# Subtest: observeVersionView: a Save request the browser makes during the view is recorded as a write
+ok 94 - observeVersionView: a Save request the browser makes during the view is recorded as a write
+  ---
+  duration_ms: 0.737403
+  type: 'test'
+  ...
+# Subtest: runG8A02 (xlsx, fake) after a re-pin: check:lost-view-version reads the lost row, drives the web view and a view ticket on the desktop -> PASS
+ok 95 - runG8A02 (xlsx, fake) after a re-pin: check:lost-view-version reads the lost row, drives the web view and a view ticket on the desktop -> PASS
+  ---
+  duration_ms: 1.338463
+  type: 'test'
+  ...
+# Subtest: runG8A02 (xlsx, fake): the old frame pin BLOCKS the web part of the step without observing a page, the server and desktop parts are still judged
+ok 96 - runG8A02 (xlsx, fake): the old frame pin BLOCKS the web part of the step without observing a page, the server and desktop parts are still judged
+  ---
+  duration_ms: 1.063687
+  type: 'test'
+  ...
+# Subtest: runG8A02 (xlsx, fake): a server that answers no ordinal for the lost row is FAIL on the step, whatever the web and desktop say
+ok 97 - runG8A02 (xlsx, fake): a server that answers no ordinal for the lost row is FAIL on the step, whatever the web and desktop say
+  ---
+  duration_ms: 2.391943
+  type: 'test'
+  ...
+# Subtest: runG8A02 (xlsx, fake): when remove-lost fails the lost-view step is not run (no view ticket is minted) and is NOT_JUDGED
+ok 98 - runG8A02 (xlsx, fake): when remove-lost fails the lost-view step is not run (no view ticket is minted) and is NOT_JUDGED
+  ---
+  duration_ms: 1.354572
+  type: 'test'
+  ...
+1..98
+# tests 98
+# suites 0
+# pass 98
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2124.277319
+
+FRAME_PIN_TESTS_EXIT=0
