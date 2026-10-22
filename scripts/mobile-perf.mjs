@@ -301,6 +301,10 @@ function simctl(...args) {
   return execFileSync("xcrun", ["simctl", ...args], { encoding: "utf8" });
 }
 
+// A Release launch logs a lot at info level, and `log show` can stall in a fresh simulator: a cap well above one
+// launch and a time limit, so the capture (attribution only) fails instead of failing or hanging the step.
+const LOG_SHOW_LIMITS = { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, timeout: 60_000 };
+
 /** The app's data container, where its documents (and the marks file) live; null when simctl cannot name it yet. */
 function dataContainer(udid, bundle) {
   try {
@@ -343,7 +347,8 @@ function processStartMs(pid) {
 /** The app's unified log since the launch, for one pid; the error in its place when `log show` fails (it only attributes). */
 function unifiedLog(udid, pid, launchedAt) {
   try {
-    return simctl("spawn", udid, "log", "show", "--style", "compact", "--info", "--start", logStartArg(launchedAt), "--predicate", `processIdentifier == ${pid}`);
+    const args = ["simctl", "spawn", udid, "log", "show", "--style", "compact", "--info", "--start", logStartArg(launchedAt), "--predicate", `processIdentifier == ${pid}`];
+    return execFileSync("xcrun", args, LOG_SHOW_LIMITS);
   } catch (error) {
     const detail = error?.stderr ? String(error.stderr).trim() : error instanceof Error ? error.message : String(error);
     console.warn(`mobile-perf: no unified log for process ${pid}: ${detail}`);
