@@ -128,8 +128,9 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   gọi có Nghe/Từ chối và biến mất khi huỷ; `android-release` build APK test (`:unichat-calls:assembleDebugAndroidTest`),
   `android-smoke` cài và chạy nó trên emulator (`am instrument`, đỏ nếu không `OK (`). Hai thư mục test nằm ngoài
   fingerprint (`fingerprint.config.js › ignorePaths`): thêm test không tách runtime.
-  **Chỉ máy thật kiểm được** (checklist ở runbook › Cuộc gọi native trên Android; luồng tay
-  `maestro/flows/call-answer-incoming.yaml`): push data-only tới khi app bị kill (cần FCM thật), màn toàn màn hình trên máy khoá, nhạc
+  Hằng đêm `chat-mobile-verify.yml › android-two-party` chạy `maestro/flows/call-answer-incoming.yaml` với FCM thật trên
+  emulator Google APIs, khi app ở nền và khi tiến trình bị kill: thông báo CallStyle, Nghe, nối, gác máy.
+  **Chỉ máy thật kiểm được** (checklist ở runbook › Cuộc gọi native trên Android): màn toàn màn hình trên máy khoá, nhạc
   chuông theo công tắc chuông/DND, Nghe từ màn khoá (listener của `UniChatCallsPackage` đặt
   `showWhenLocked` khi activity được mở bởi cuộc gọi), micro còn sau khi khoá máy giữa cuộc gọi và khi người kia nối lúc
   app đã ở nền, Từ chối khi app đã kill (headless task, giới hạn

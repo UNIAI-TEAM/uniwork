@@ -74,10 +74,14 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   trên runner tắt upload Sentry); sửa workflow nào trong bốn cũng kích `mobile-verify.yml` nên
   test đó luôn chạy.
 - `maestro/`: `subflows/sign-in.yaml` đăng nhập qua sheet trình duyệt thật (không
-  có lối tắt phiên thử nghiệm trong bản nào); `flows/call-answer-incoming.yaml` (khung, chạy tay: cần tài khoản thứ
-  hai gọi qua `scripts/ring-from-caller.js` và máy có FCM thật; chưa nằm trong workflow nào), cũng chạy tay
-  `flows/background-resume.yaml` (người kia viết qua `scripts/post-as-peer.js` khi app ở nền, trong và quá cửa sổ ân
-  hạn của socket); ba luồng vàng `flows/{chat-read-send,push-open-room,call-join}.yaml` và, chỉ Android (Maestro bật
+  có lối tắt phiên thử nghiệm trong bản nào); tài khoản thứ hai đăng nhập ngay trong flow (`scripts/peer-session.js`)
+  rồi gọi (`scripts/ring-from-caller.js`) hay viết (`scripts/post-as-peer.js`); `openLink` lấy scheme của bản build
+  (`scripts/app-scheme.js`, `MAESTRO_APP_SCHEME`). Mỗi PR chạm binary chạy `chat-read-send`, `offline-send-relaunch` và
+  `flows/background-resume.yaml` (người kia viết khi app ở nền, trong và quá cửa sổ ân hạn của socket) trên server dựng
+  trong `mobile-verify.yml › android-e2e`. Hằng đêm, `android-two-party` chạy push FCM thật
+  (`push-open-room.yaml` với `PUSH_FROM_PEER=true`), `flows/call-answer-incoming.yaml` khi app ở nền và khi tiến trình
+  bị kill (`APP_STATE`), và `background-resume.yaml` trên staging; `android-upgrade` cài bản đêm trước, để một tin chờ
+  offline, cài đè bản đêm nay (`flows/upgrade-{before,after}.yaml`). Ba luồng vàng `flows/{chat-read-send,push-open-room,call-join}.yaml` và, chỉ Android (Maestro bật
   chế độ máy bay ở đó), `flows/offline-send-relaunch.yaml` (tin viết offline sống qua kill, mở lạnh offline từ cache,
   tới đúng thứ tự mỗi tin một lần), cùng ba bước đo `flows/perf-{open-room,scroll-room,jump-quote}.yaml` (cú nhảy
   tới trích dẫn xa phải tới đúng tin) chạy hằng đêm bởi

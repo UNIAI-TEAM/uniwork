@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { parseAllDocuments } from "yaml";
 import { MOBILE_PATHS } from "./mobile-native-scope.mjs";
 import { JOBS as GATE_JOBS } from "./mobile-verify-gate.mjs";
 
@@ -700,6 +701,32 @@ test("the nightly builds with eas build --local, fails a scheduled run without i
 });
 
 // Audit "no-visual-or-matrix": the oldest supported Android, middle releases and a low-RAM device.
+// Audit "native-call-push-untested" and the missed upgrade path: the nightly proves, on a device, the real FCM push, an
+// incoming call answered from the background and from a killed process, background resume, and an in-place upgrade.
+test("the nightly rings, pushes and resumes with a second account, and upgrades over last night's build", () => {
+  const { jobs } = jobsOf(read("chat-mobile-verify.yml"));
+  const android = jobs.get("android") ?? "";
+  assert.match(android, /GOOGLE_SERVICES_TEXT: \$\{\{ secrets\.UNICHAT_GOOGLE_SERVICES_JSON \}\}/, "the APK carries the staging Firebase file");
+  assert.match(android, /name: unichat-staging-apk\n/, "and is kept for the two jobs below and for tomorrow's upgrade");
+  assert.ok(android.indexOf("name: unichat-staging-apk") < android.indexOf("Run the flows on an emulator"), "kept before the flows can fail");
+
+  const twoParty = jobs.get("android-two-party") ?? "";
+  assert.match(twoParty, /^ {4}needs: \[gate, android\]$/m);
+  assert.match(twoParty, /::error::The calls and real-push flows cannot run, not set:/, "a night without the second account is red");
+  for (const flow of ["-e PUSH_FROM_PEER=true flows/push-open-room", "-e APP_STATE=background flows/call-answer-incoming", "-e APP_STATE=killed flows/call-answer-incoming", "flows/background-resume"]) {
+    assert.match(twoParty, new RegExp(`maestro-retry\\.sh test ${flow.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.yaml`), flow);
+  }
+  assert.match(twoParty, /target: google_apis/, "Play services, so FCM delivers");
+
+  const upgrade = jobs.get("android-upgrade") ?? "";
+  assert.match(upgrade, /^ {6}actions: read$/m, "reads last night's artifact");
+  assert.match(upgrade, /gh run download "\$previous"[^\n]*-n unichat-staging-apk/);
+  assert.match(upgrade, /upgrade-before\.yaml\n\s+adb install -r "[^"]*\/after\/app-release\.apk"\n[^\n]*upgrade-after\.yaml/, "installed over, not after an uninstall");
+  for (const flow of ["upgrade-before", "upgrade-after"]) {
+    assert.ok(fs.existsSync(path.join(root, `apps/chat-mobile/maestro/flows/${flow}.yaml`)), flow);
+  }
+});
+
 test("the nightly runs the cold-start smoke on an Android matrix and keeps screenshots of each leg", () => {
   const { jobs } = jobsOf(read("chat-mobile-verify.yml"));
   const matrix = jobs.get("android-matrix") ?? "";
@@ -748,5 +775,20 @@ test("select-xcode picks the pinned Xcode release and nothing else", () => {
     assert.match(select(["27.0"], "latest"), /^exit 2: /, "a version, not a word");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// Nothing local runs a workflow or a flow: a YAML slip (an unquoted `a ? b : c` reads as a nested mapping) would show
+// only on a runner, after the build. Every mobile workflow and every Maestro file parses here.
+test("every mobile workflow and every Maestro flow is valid YAML", () => {
+  const maestro = path.join(root, "apps/chat-mobile/maestro");
+  const files = [
+    ...fs.readdirSync(path.join(root, ".github/workflows")).filter((f) => /^(mobile-|chat-mobile-)/.test(f)).map((f) => path.join(root, ".github/workflows", f)),
+    ...["flows", "subflows"].flatMap((dir) => fs.readdirSync(path.join(maestro, dir)).map((f) => path.join(maestro, dir, f))),
+  ];
+  assert.ok(files.length > 15);
+  for (const file of files) {
+    const errors = parseAllDocuments(fs.readFileSync(file, "utf8")).flatMap((doc) => doc.errors.map(String));
+    assert.deepEqual(errors, [], path.relative(root, file));
   }
 });

@@ -261,6 +261,18 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    `MAESTRO_ORG_SLUG`, `MAESTRO_WS_SLUG`, `MAESTRO_ROOM_ID`; secrets `MAESTRO_TEST_EMAIL`, `MAESTRO_TEST_PASSWORD`.
    Lịch chạy chỉ có hiệu lực khi workflow nằm trên `main`; trước đó chạy tay bằng "Run workflow" (bỏ chọn
    `maestro` để chỉ build). Thiếu một biến thì run theo lịch đỏ với tên biến thiếu.
+   Job `android-two-party` (push FCM thật, cuộc gọi đến khi app ở nền và khi tiến trình bị kill, background resume)
+   cần thêm một **tài khoản thứ hai** trong cùng workspace, đã có DM với tài khoản thử: variables
+   `MAESTRO_CALLER_EMAIL`, `MAESTRO_CALLER_WS_ID` (id workspace), `MAESTRO_DM_ROOM_ID` (DM của hai tài khoản); secrets
+   `MAESTRO_CALLER_PASSWORD` và `UNICHAT_GOOGLE_SERVICES_JSON` (nội dung `google-services.json` của app staging, cùng
+   file với biến file EAS; thiếu thì APK nightly không đăng ký push token). Máy chủ staging phải gửi push qua Expo tới
+   dự án EAS có khoá FCM V1. Job `android-upgrade` không cần gì thêm: nó cài APK đêm trước (artifact
+   `unichat-staging-apk`, giữ 14 ngày), đêm đầu tiên ghi notice và bỏ qua.
+11. Kiểm cài đặt trước lần chạy theo lịch đầu tiên và trước tag đầu tiên: `gh auth login` bằng tài khoản admin rồi
+   `node scripts/mobile-ci-provisioning.mjs --check`. Script đọc mọi `vars.X`, `secrets.X` và `environment:` mà các
+   workflow mobile dùng (đọc từ chính file workflow, không có danh sách thứ hai), đối chiếu với repository và đúng
+   environment của job, in từng tên `ok`/`MISSING` và thoát 1 khi thiếu tên bắt buộc (`OPTIONAL` trong script, mỗi tên
+   một lý do). Chỉ đọc tên, GitHub không trả giá trị.
 
 **Cắt một bản store**
 
@@ -634,8 +646,9 @@ Nghe/Từ chối). Đỏ ở bước `am instrument`: tải artifact `maestro-sm
 Chỉ máy Android thật (bản `preview`/`internal` có `GOOGLE_SERVICES_JSON` và FCM) xác nhận phần còn
 lại — nhạc chuông, màn toàn màn hình, push khi app bị kill, OEM. Chạy test đó trên máy dev cần Android SDK:
 `cd apps/chat-mobile && pnpm exec expo prebuild -p android --no-install && (cd android && ./gradlew
-:unichat-calls:testReleaseUnitTest)`. Hai tài khoản, A gọi B (luồng có sẵn:
-`maestro/flows/call-answer-incoming.yaml`, chạy tay):
+:unichat-calls:testReleaseUnitTest)`. Hằng đêm `chat-mobile-verify.yml › android-two-party` chạy
+`maestro/flows/call-answer-incoming.yaml` trên emulator Google APIs với FCM thật, khi app ở nền và khi tiến trình bị
+kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ máy thật kiểm được. Hai tài khoản, A gọi B:
 
 - [ ] B kill app, khoá máy; A gọi 1-1: màn B sáng, màn đổ chuông toàn màn hình hiện trên màn khoá (tên A, "Cuộc gọi
   thoại đến", Nghe / Từ chối), nhạc chuông là nhạc chuông của máy; chế độ rung chỉ rung, im lặng không kêu.
@@ -802,7 +815,12 @@ lại — nhạc chuông, màn toàn màn hình, push khi app bị kill, OEM. Ch
     dựng trong render, hoặc màn hình đăng ký cả store (gõ, hiện diện) thay vì một selector theo phòng/người. Đọc mục
     Hiệu năng của `apps/chat-mobile/CLAUDE.md`; đừng nới số trong test nếu không có lý do ghi trong body commit.
 11. Nightly đỏ ở `gate`: đặt các biến/secrets `MAESTRO_*` (Thiết lập lần đầu, bước 10); chưa có server staging thì
-   chạy tay với `maestro` bỏ chọn — run theo lịch sẽ đỏ mỗi đêm cho tới khi có, có chủ đích.
+   chạy tay với `maestro` bỏ chọn — run theo lịch sẽ đỏ mỗi đêm cho tới khi có, có chủ đích. Đỏ ở bước đầu của
+   `android-two-party`: thiếu tài khoản thứ hai hay `UNICHAT_GOOGLE_SERVICES_JSON` (bước 10; `node
+   scripts/mobile-ci-provisioning.mjs --check` liệt kê tên thiếu). Đỏ ở luồng push thật mà luồng deep link xanh: push
+   không tới emulator (token chưa đăng ký vì APK thiếu file Firebase, hay khoá FCM V1 của dự án EAS sai) — ảnh chụp
+   trong artifact `maestro-android-two-party` cho thấy khay thông báo. Đỏ ở `android-upgrade`: phiên, outbox hay cache
+   không qua được bản cài đè — đối chiếu `data/persisted-schema.lock.json` và `CACHE_SCHEMA_VERSION` giữa hai SHA.
 12. Lỗi chỉ ở một tính năng (gọi) mà OTA chưa sửa kịp: tắt bằng `FF_UNICHAT_MOBILE_CALLS=false` (mục "Chặn bản cũ
    và tắt tính năng từ server"). Bản cũ có lỗi mà bản mới đã lên store: đặt `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION`.
 13. OTA không tới máy: runtime (fingerprint) của bản OTA khác bản cài (thay đổi chạm native → cần bản store); hoặc app

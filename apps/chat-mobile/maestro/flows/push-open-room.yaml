@@ -22,7 +22,7 @@ env:
   PUSH_FROM_PEER: "false"
 ---
 # The room the notification names: the DM the peer wrote in, or the seeded group.
-- evalScript: ${output.room = PUSH_FROM_PEER == 'true' ? MAESTRO_DM_ROOM_ID : MAESTRO_ROOM_ID}
+- evalScript: "${output.room = PUSH_FROM_PEER == 'true' ? MAESTRO_DM_ROOM_ID : MAESTRO_ROOM_ID}"
 - runFlow:
     when:
       true: ${PUSH_DELIVERED == 'true'}
