@@ -28,6 +28,7 @@ export const WORKFLOWS = [
   "chat-mobile-promote.yml",
   "chat-mobile-update.yml",
   "chat-mobile-release-health.yml",
+  "chat-mobile-rollback.yml",
   "chat-mobile-device-farm.yml",
 ];
 
@@ -35,6 +36,16 @@ export const WORKFLOWS = [
 export const OPTIONAL = {
   SENTRY_URL: "a self-hosted Sentry only; the default is https://sentry.io/",
   UNICHAT_RELEASE_HEALTH: "the switch that turns the hourly release-health run on; off until Sentry has data",
+  ASC_KEY_ID: "iOS only: the App Store Connect API key, once the Apple Developer account exists (UNI-1838)",
+  ASC_ISSUER_ID: "iOS only: the issuer of that key (UNI-1838)",
+  ASC_PRIVATE_KEY: "iOS only: that key's .p8 (UNI-1838)",
+  ASC_APP_ID: "iOS only: the app's Apple ID in App Store Connect (UNI-1838)",
+  UNICHAT_HEALTH_MIN_SESSIONS: "a pilot's lower count for the release-health rules; the script's default without it",
+  UNICHAT_HEALTH_SEVERE_MIN_SESSIONS: "as UNICHAT_HEALTH_MIN_SESSIONS",
+  UNICHAT_HEALTH_MIN_CRASHED_USERS: "as UNICHAT_HEALTH_MIN_SESSIONS",
+  UNICHAT_HEALTH_NEW_CRASH_MIN_USERS: "as UNICHAT_HEALTH_MIN_SESSIONS",
+  UNICHAT_HEALTH_LAUNCH_FAILURE_MIN_USERS: "as UNICHAT_HEALTH_MIN_SESSIONS",
+  UNICHAT_HEALTH_VITALS_MIN_USERS: "as UNICHAT_HEALTH_MIN_SESSIONS",
 };
 
 /** Names GitHub provides itself. */

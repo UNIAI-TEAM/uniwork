@@ -1,21 +1,31 @@
 name: UniChat mobile release health
 
-# Every hour, reads the crash-free sessions of every production release of
-# UniChat mobile in Sentry and stops the ones under the runbook's floor
-# (scripts/mobile-release-health.mjs; audit "rollout-gating-manual"): an OTA
-# still rolling out is reverted by its group, a store build's staged rollout
-# is halted on Play. What a machine should not undo (an OTA already at 100 %)
-# is left to a person. A run is red whenever a release is unhealthy, so the
-# repository's watchers are told even when the stop worked. Runbook:
-# docs/runbooks/unichat-mobile-release.md › Sức khoẻ bản phát hành.
+# Every hour, reads the health of every release of UniChat mobile in Sentry
+# (crash-free sessions and people, new crashes, OTAs phones could not launch)
+# and Play's Android vitals, and stops the ones that must stop
+# (scripts/mobile-release-health.mjs; audit "rollout-gating-manual",
+# "thresholds-unreachable-at-pilot-scale", "health-gate-platform-blind"): an
+# OTA still rolling out is reverted by its group, an Android store build is
+# halted on the Play track that rolls it out, an iOS one has its App Store
+# phased release paused. Both variants are read: production, and staging (the
+# tester builds: their OTAs are reverted, their store builds listed). What a
+# machine should not undo (an OTA already at 100 %) is left to a person, who
+# runs chat-mobile-rollback.yml. A run is red when it stopped something this
+# hour or a person must act; a release stopped earlier is listed, not red, so
+# a red run keeps its meaning. Runbook: docs/runbooks/unichat-mobile-release.md
+# › Sức khoẻ bản phát hành.
 #
 # Off until production has users: the repository variable
 # UNICHAT_RELEASE_HEALTH=on turns the schedule on. From then on a missing
 # setting is red, not a silent skip. The chat-mobile-release-health
 # environment (deployment branch main, no reviewers: a schedule cannot wait for
-# one) holds SENTRY_AUTH_TOKEN (org:read), EXPO_TOKEN, EAS_UPDATE_PRIVATE_KEY
-# (a revert publishes, signed) and PLAY_SERVICE_ACCOUNT_JSON, and the variable
-# SENTRY_ORG (SENTRY_URL for a self-hosted Sentry).
+# one) holds SENTRY_AUTH_TOKEN (org:read, event:read), EXPO_TOKEN,
+# EAS_UPDATE_PRIVATE_KEY (a revert publishes, signed),
+# PLAY_SERVICE_ACCOUNT_JSON (halt, and vitals with "View app quality
+# information") and, once the Apple account exists, ASC_KEY_ID, ASC_ISSUER_ID,
+# ASC_PRIVATE_KEY with the variable ASC_APP_ID; the variable SENTRY_ORG
+# (SENTRY_URL for a self-hosted Sentry). The UNICHAT_HEALTH_* variables lower
+# the counts for a pilot (runbook).
 
 on:
   schedule:
@@ -77,24 +87,39 @@ jobs:
         with:
           eas-version: ${{ env.EAS_CLI_VERSION }}
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Read release health and stop what is under the floor
+      - name: Read release health and stop what must stop
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_URL: ${{ vars.SENTRY_URL }}
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
           EAS_UPDATE_PRIVATE_KEY: ${{ secrets.EAS_UPDATE_PRIVATE_KEY }}
-          UNICHAT_ENV: production
+          UNICHAT_HEALTH_MIN_SESSIONS: ${{ vars.UNICHAT_HEALTH_MIN_SESSIONS }}
+          UNICHAT_HEALTH_SEVERE_MIN_SESSIONS: ${{ vars.UNICHAT_HEALTH_SEVERE_MIN_SESSIONS }}
+          UNICHAT_HEALTH_MIN_CRASHED_USERS: ${{ vars.UNICHAT_HEALTH_MIN_CRASHED_USERS }}
+          UNICHAT_HEALTH_NEW_CRASH_MIN_USERS: ${{ vars.UNICHAT_HEALTH_NEW_CRASH_MIN_USERS }}
+          UNICHAT_HEALTH_LAUNCH_FAILURE_MIN_USERS: ${{ vars.UNICHAT_HEALTH_LAUNCH_FAILURE_MIN_USERS }}
+          UNICHAT_HEALTH_VITALS_MIN_USERS: ${{ vars.UNICHAT_HEALTH_VITALS_MIN_USERS }}
+        # Both variants run even when the first is red; the step is red when either is. UNICHAT_ENV is the variant
+        # eas-cli reads the app's config as (the project, the update branches).
         run: |
-          set -euo pipefail
+          set -uo pipefail
           if [ -n "$EAS_UPDATE_PRIVATE_KEY" ]; then
             umask 077
             printf '%s\n' "$EAS_UPDATE_PRIVATE_KEY" > "$RUNNER_TEMP/eas-update-private-key.pem"
             export EAS_UPDATE_PRIVATE_KEY_PATH="$RUNNER_TEMP/eas-update-private-key.pem"
           fi
-          args=(--channel production)
-          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
-          node scripts/mobile-release-health.mjs "${args[@]}"
+          status=0
+          for app in production staging; do
+            args=(--app "$app")
+            if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+            UNICHAT_ENV="$app" node scripts/mobile-release-health.mjs "${args[@]}" || status=1
+          done
+          exit "$status"
       - name: Remove the signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/eas-update-private-key.pem"

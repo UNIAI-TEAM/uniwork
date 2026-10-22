@@ -228,7 +228,7 @@ jobs:
           SIGNING_ARGS: ${{ steps.signing.outputs.args }}
         # Android only until the Apple account exists (UNI-1838), as the store release.
         # The JSON names the group (what update:edit and a revert take) and the Android update's id (what the
-        # phones report: Sentry's release `<appId>@<version>+<build>.ota.<id>`, lib/build-info.ts).
+        # phones report: Sentry's release `<appId>@<version>+<build>.android.ota.<id>`, lib/build-info.ts).
         run: |
           set -euo pipefail
           # shellcheck disable=SC2086 # SIGNING_ARGS is one flag and its path: split on purpose.
@@ -266,7 +266,7 @@ jobs:
             echo "### UniChat OTA update"
             echo
             echo "- channel: \`$CHANNEL\`, rollout: $ROLLOUT %, critical: ${UNICHAT_CRITICAL_UPDATE:-no}"
-            echo "- group: \`${GROUP:-not published}\`, Android update: \`${UPDATE_ID:-none}\` (Sentry releases ending in \`.ota.${UPDATE_ID:-…}\`)"
+            echo "- group: \`${GROUP:-not published}\`, Android update: \`${UPDATE_ID:-none}\` (Sentry releases ending in \`.android.ota.${UPDATE_ID:-…}\`)"
             if [ "$ALLOW_NO_CRASH_REPORTING" = "true" ]; then echo "- **crash reporting waived** for this run (allow_missing_crash_reporting)"; fi
             echo "- runtime (fingerprint): \`${RUNTIME:-unknown}\`"
             echo "- commit: \`$GITHUB_SHA\`"

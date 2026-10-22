@@ -1,0 +1,141 @@
+name: UniChat mobile rollback
+
+# Rolls a UniChat OTA update back from CI, signed with the key the
+# chat-mobile-update environment holds (audit "no-ci-rollback"): on-call never
+# needs a laptop with the private key, which the runbook has deleted from every
+# machine after setup. scripts/mobile-ota-rollback.mjs works the move out from
+# `eas update:list` first and refuses one that would not do what was asked.
+# Runbook: docs/runbooks/unichat-mobile-release.md › Khắc phục.
+#
+#   action           revert-rollout (an update still rolling out: what the
+#                    hourly release-health job does itself), republish-previous
+#                    (an update out to every phone: the one before it on the
+#                    same runtime becomes the newest again) or
+#                    roll-back-to-embedded (phones go back to the bundle in
+#                    their binary; apply as a critical update would:
+#                    data/updates-controller.ts)
+#   channel/platform where the bad update is
+#   group            optional: the bad update group (default: the newest, or
+#                    the rolling one for revert-rollout)
+#   runtime_version  optional: the runtime to roll back to embedded (default:
+#                    the group's or the newest one's)
+#   reason           why, at least 10 characters: the update's message and the
+#                    run summary keep it
+#   dry_run          plan only
+#
+# Same environment and same concurrency group as chat-mobile-update.yml, so a
+# rollback and a publish never race on one channel; that environment's
+# deployment branches (main, develop) and reviewers apply.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do with the bad update
+        type: choice
+        options: [revert-rollout, republish-previous, roll-back-to-embedded]
+        required: true
+      channel:
+        description: EAS Update channel
+        type: choice
+        options: [internal, preview, production]
+        required: true
+      platform:
+        description: Platform of the bad update
+        type: choice
+        options: [android, ios]
+        default: android
+      group:
+        description: The bad update group (optional)
+        type: string
+        required: false
+      runtime_version:
+        description: Runtime (fingerprint) to roll back to embedded (optional)
+        type: string
+        required: false
+      reason:
+        description: Why (UNI-nnn and what broke), at least 10 characters
+        type: string
+        required: true
+      dry_run:
+        description: Plan only; publish nothing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-mobile-update-${{ inputs.channel }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  # The same pinned eas-cli as the store release and the OTA.
+  EAS_CLI_VERSION: "24.12.0"
+  EXPO_NO_TELEMETRY: "1"
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: chat-mobile-update
+    env:
+      ACTION: ${{ inputs.action }}
+      CHANNEL: ${{ inputs.channel }}
+      PLATFORM: ${{ inputs.platform }}
+      GROUP: ${{ inputs.group }}
+      RUNTIME_VERSION: ${{ inputs.runtime_version }}
+      REASON: ${{ inputs.reason }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - name: Settings
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EAS_UPDATE_PRIVATE_KEY: ${{ secrets.EAS_UPDATE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          missing=""
+          for name in EXPO_TOKEN EAS_UPDATE_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::the chat-mobile-update environment lacks:$missing — a rollback is a signed update (runbook › Thiết lập lần đầu)"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      # eas-cli reads the app's config to find the project: the app and what it imports only.
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: ${{ env.EAS_CLI_VERSION }}
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Roll back
+        working-directory: apps/chat-mobile
+        env:
+          EAS_UPDATE_PRIVATE_KEY: ${{ secrets.EAS_UPDATE_PRIVATE_KEY }}
+        # The variant of the channel's store builds, as chat-mobile-update.yml sets it: eas-cli reads the config as it.
+        run: |
+          set -euo pipefail
+          case "$CHANNEL" in
+            internal|preview) export UNICHAT_ENV=staging ;;
+            production) export UNICHAT_ENV=production ;;
+          esac
+          umask 077
+          printf '%s\n' "$EAS_UPDATE_PRIVATE_KEY" > "$RUNNER_TEMP/eas-update-private-key.pem"
+          export EAS_UPDATE_PRIVATE_KEY_PATH="$RUNNER_TEMP/eas-update-private-key.pem"
+          args=(--action "$ACTION" --channel "$CHANNEL" --platform "$PLATFORM" --reason "$REASON")
+          if [ -n "$GROUP" ]; then args+=(--group "$GROUP"); fi
+          if [ -n "$RUNTIME_VERSION" ]; then args+=(--runtime-version "$RUNTIME_VERSION"); fi
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          node ../../scripts/mobile-ota-rollback.mjs "${args[@]}"
+      - name: Remove the signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/eas-update-private-key.pem"

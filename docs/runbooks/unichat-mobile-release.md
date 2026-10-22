@@ -1,6 +1,6 @@
 # unichat-mobile-release — phát hành, OTA và rollback bản mobile UniChat
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UniChat M4 (UNI-1836) · **Workflow:** `.github/workflows/chat-mobile-release.yml`, `.github/workflows/chat-mobile-production.yml`, `.github/workflows/chat-mobile-promote.yml`, `.github/workflows/chat-mobile-release-health.yml`, `.github/workflows/chat-mobile-update.yml`, `.github/workflows/mobile-verify.yml`, `.github/workflows/chat-mobile-verify.yml`
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UniChat M4 (UNI-1836) · **Workflow:** `.github/workflows/chat-mobile-release.yml`, `.github/workflows/chat-mobile-production.yml`, `.github/workflows/chat-mobile-promote.yml`, `.github/workflows/chat-mobile-release-health.yml`, `.github/workflows/chat-mobile-update.yml`, `.github/workflows/chat-mobile-rollback.yml`, `.github/workflows/mobile-verify.yml`, `.github/workflows/chat-mobile-verify.yml`
 
 App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Năm profile:
 
@@ -229,12 +229,15 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
      secret `EXPO_TOKEN` (robot token của tài khoản Expo tổ chức).
    - `chat-mobile-update` (`chat-mobile-update.yml`): Deployment branches → Selected → nhánh `main` và `develop`;
      secret `EXPO_TOKEN` (cùng token), `EAS_UPDATE_PRIVATE_KEY` (bước 9), `SENTRY_AUTH_TOKEN` và variables
-     `SENTRY_ORG`, `SENTRY_PROJECT` (bước 8). Nên thêm Required reviewers.
+     `SENTRY_ORG`, `SENTRY_PROJECT` (bước 8). Nên thêm Required reviewers. `chat-mobile-rollback.yml` chạy trong cùng
+     Environment này (cùng khoá ký, cùng người duyệt).
    - `chat-mobile-production` (`chat-mobile-production.yml`, `chat-mobile-promote.yml`): Deployment branches and tags →
      Selected → tag `chat-mobile-v*` **và** nhánh `main` (promote chạy trên nhánh); **Required reviewers** (owner);
      secrets `EXPO_TOKEN`, `SENTRY_AUTH_TOKEN`, `PLAY_SERVICE_ACCOUNT_JSON` (khoá JSON của một service account Google
      Cloud có quyền phát hành trên `com.uniworkos.chat` — có thể dùng lại khoá đã tải lên EAS cho submit), variables
-     `SENTRY_ORG`, `SENTRY_PROJECT` (và `SENTRY_URL` nếu Sentry tự host).
+     `SENTRY_ORG`, `SENTRY_PROJECT` (và `SENTRY_URL` nếu Sentry tự host). Khi có tài khoản Apple: secrets `ASC_KEY_ID`,
+     `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY` (App Store Connect API key vai trò App Manager, nội dung `.p8`) và variable
+     `ASC_APP_ID` (Apple ID số của `com.uniworkos.chat`) — "UniChat mobile promote" với `platform: ios` đọc chúng.
    - `chat-mobile-release-health` (`chat-mobile-release-health.yml`): mục Sức khoẻ bản phát hành.
    - `chat-mobile-nightly` (`chat-mobile-verify.yml` › `eas-local`): Deployment branches → Selected → nhánh `main` (lịch
      chạy đọc từ nhánh mặc định); secret `EXPO_TOKEN` (cùng robot token). **Không** đặt Required reviewers: run theo lịch
@@ -306,8 +309,8 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
 
 **Phát hành production theo giai đoạn (Play, App Store)**: bản production được build **một lần** và chính binary đó
 đi qua các track (audit "no-production-pipeline-binary-promotion"); một bản store tới một phần máy trước và chỉ mở rộng
-theo crash-free sessions của Sentry cho đúng release đó (`<bundle id>@<version>+<build>`; máy đã nhận một OTA báo dưới
-`…+<build>.ota.<id>`, mục Phát OTA).
+theo sức khoẻ của Sentry cho đúng release đó (`<bundle id>@<version>+<build>.<android|ios>`; máy đã nhận một OTA báo
+dưới `…<os>.ota.<id>`, mục Phát OTA; tên có OS vì số build iOS và version code Android do EAS đếm riêng nên trùng được).
 
 1. **Build.** Viết "Có gì mới" cho version đó trong `apps/chat-mobile/store/release-notes.md` (vi-VN và en-US, ≤ 500 ký
    tự mỗi ngôn ngữ; nháp từ commit: `node scripts/mobile-release-notes.mjs draft`), tag `chat-mobile-v<version>` trên
@@ -343,29 +346,51 @@ theo crash-free sessions của Sentry cho đúng release đó (`<bundle id>@<ver
    **Sức khoẻ bản phát hành** (mục dưới) tự làm việc này khi đủ phiên. Lỗi chỉ ở JS: OTA sửa trên kênh `production`
    (cùng runtime, đánh dấu `critical`), theo dõi lại rồi promote lại cùng version code ở tỷ lệ cũ (resume). Lỗi native:
    revert, bump patch, cắt bản store mới và bắt đầu lại từ 5 %. Lỗi ở một tính năng: kill switch (mục dưới).
-6. iOS: khi nộp bản production bật **Phased release for automatic updates** (App Store Connect, 7 ngày); Pause phased
-   release theo cùng ngưỡng 99.5 %. Chưa có đường iOS tự động (UNI-1838: tài khoản Apple).
+6. iOS: khi nộp bản production bật **Phased release for automatic updates** (App Store Connect, 7 ngày). Tạm dừng, chạy
+   lại hay phát cho mọi máy: "UniChat mobile promote" với `platform: ios`, `version` (`action: halt` = pause;
+   `promote` + `status: inProgress` = resume, `completed` = phát hết) qua `scripts/mobile-asc-release.mjs`; job Sức khoẻ
+   bản phát hành tự pause khi bản iOS dưới ngưỡng. Build, TestFlight và nộp review iOS chưa tự động (UNI-1838: tài khoản
+   Apple; sau đó đổi `--platform android` thành `--platform all` ở các workflow phát hành và thêm `ascAppId`).
 
-**Sức khoẻ bản phát hành (tự động, audit "rollout-gating-manual")**: `chat-mobile-release-health.yml` chạy mỗi giờ
-(phút 17) `scripts/mobile-release-health.mjs`: đọc tổng phiên và crash-free sessions 24 giờ qua của mọi release
-production trong Sentry (`/api/0/organizations/<org>/sessions/`, `groupBy=release`, `environment=production`), theo tên
-release mà app tự đặt — `com.uniworkos.chat@<version>+<version code>` là bundle nhúng của bản store,
-`…+<version code>.ota.<id>` là một bản OTA trên nó. Ngưỡng là của mục trên: **< 99.5 % trên ≥ 200 phiên**, hoặc
-**< 98 % trên ≥ 50 phiên** (vỡ nặng, không chờ đủ 200), thì:
-- bản OTA đang rollout dở (`eas update:list` có `rolloutPercentage` < 100, `eas update:view` chứa id đó):
-  `eas update:revert-update-rollout --group <group>` (ký bằng `EAS_UPDATE_PRIVATE_KEY`) — máy trong phần rollout quay
-  về bản trước;
-- bản store: halt staged rollout của version code đó trên track production qua `scripts/mobile-play-release.mjs`;
-- bản OTA đã 100 %, hay bản store không còn rollout: **không tự làm gì**, ghi "needs a person" — người trực republish
-  bản trước hay roll back về bản nhúng (mục Khắc phục), vì máy không biết bản trước có tốt hơn không.
-Run **đỏ** mỗi khi có release dưới ngưỡng (kể cả khi đã dừng được), summary liệt kê từng release và việc đã làm; GitHub
-báo người theo dõi repo. Bật khi production có người dùng: repository variable `UNICHAT_RELEASE_HEALTH=on`; từ lúc đó
-thiếu thiết lập là đỏ. Chạy tay ("Run workflow") mặc định `dry_run` (chỉ báo cáo). Environment
-`chat-mobile-release-health`: Deployment branches → `main`, **không** Required reviewers (lịch chạy không chờ duyệt
-được); secrets `SENTRY_AUTH_TOKEN` (quyền `org:read`), `EXPO_TOKEN`, `EAS_UPDATE_PRIVATE_KEY`,
-`PLAY_SERVICE_ACCOUNT_JSON`; variable `SENTRY_ORG` (`SENTRY_URL` nếu tự host). Một alert trong Sentry (crash-free <
-99.5 %) vẫn nên đặt để báo trong giờ trước lượt chạy kế tiếp; server có thêm alert `UniChatMobileServerErrors` cho lỗi
-5xx theo bản app (mục Kiểm tra).
+**Sức khoẻ bản phát hành (tự động, audit "rollout-gating-manual", "thresholds-unreachable-at-pilot-scale",
+"health-gate-platform-blind")**: `chat-mobile-release-health.yml` chạy mỗi giờ (phút 17) `scripts/mobile-release-health.mjs`
+hai lần: `--app production` (Sentry environment `production`, kênh OTA `production`) và `--app staging` (bản thử
+`com.uniworkos.chat.staging`, environment `staging`, kênh `internal` và `preview`). Nó đọc 24 giờ qua của mọi release
+trong Sentry theo tên app tự đặt — `<bundle id>@<version>+<build>.<android|ios>` là bundle nhúng của bản store,
+`….ota.<id>` là một bản OTA trên nó (tên cũ không có OS là Android) — và dừng release khi **một** điều sau đúng:
+- crash-free sessions **< 98 % trên ≥ 50 phiên** (vỡ nặng) hoặc **< 99.5 % trên ≥ 200 phiên**;
+- **≥ 3 người** đã crash và crash-free users < 99.5 % (nhóm nhỏ không bao giờ đủ 200 phiên một ngày);
+- một **crash mới**: issue unhandled có `firstRelease` là release đó, **≥ 2 người** gặp;
+- một bản OTA mà **≥ 2 máy** không khởi động được (issue `OtaLaunchError`, tag `failed_update_id`, do
+  `data/release/launch-health.ts` báo — kể cả khi bản đó chưa có phiên nào vì máy chưa từng chạy được nó);
+- chỉ Android: **Play vitals** của version code (ngày đủ dữ liệu gần nhất, trễ 1–2 ngày) vượt ngưỡng "bad behaviour"
+  của Google — user-perceived crash rate > 1,09 % hoặc ANR rate > 0,47 % trên ≥ 20 người (`scripts/mobile-play-vitals.mjs`;
+  service account cần quyền "View app quality information", thiếu thì chỉ cảnh báo).
+
+Pilot nhỏ: hạ các con số bằng repository variables `UNICHAT_HEALTH_MIN_SESSIONS`, `UNICHAT_HEALTH_SEVERE_MIN_SESSIONS`,
+`UNICHAT_HEALTH_MIN_CRASHED_USERS`, `UNICHAT_HEALTH_NEW_CRASH_MIN_USERS`, `UNICHAT_HEALTH_LAUNCH_FAILURE_MIN_USERS`,
+`UNICHAT_HEALTH_VITALS_MIN_USERS` (số nguyên ≥ 1; sai dạng thì run đỏ); ngưỡng phần trăm là của runbook, không đổi. Với
+pilot vài chục người, bắt đầu staged rollout ở 20–50 % thay vì 5 % và mở rộng sau ít nhất 24 giờ không có crash mới.
+Dừng thế nào, theo nền tảng:
+- bản OTA đang rollout dở: `eas update:revert-update-rollout --group <group>` (ký bằng `EAS_UPDATE_PRIVATE_KEY`) — máy
+  trong phần rollout quay về bản trước;
+- bản store Android: halt staged rollout của version code đó trên track đầu tiên trong production, beta, alpha đang có
+  nó (`scripts/mobile-play-release.mjs`);
+- bản store iOS: pause phased release của version đó trên App Store (`scripts/mobile-asc-release.mjs`, cần `ASC_*`);
+- bản OTA đã 100 %: **không tự làm gì**, ghi "needs a person" — người trực chạy "UniChat mobile rollback" (mục Khắc
+  phục), vì máy không biết bản trước có tốt hơn không. Bản thử (staging) trên Play internal/TestFlight: không có
+  rollout để dừng, chỉ liệt kê ("fix forward").
+Run **đỏ** khi giờ đó nó vừa dừng một release hoặc cần người làm. Release đã dừng từ trước — đã halt, đã pause, hay bản
+OTA đã bị một group mới hơn cùng runtime thay (sau revert hay bản sửa) — chỉ được liệt kê, **không** đỏ: máy đã cài vẫn
+giữ nó nên crash-free 24 giờ còn thấp cả ngày, và một run đỏ mỗi giờ cho việc đã làm xong dạy người ta bỏ qua màu đỏ.
+Bật khi production có người dùng: repository variable `UNICHAT_RELEASE_HEALTH=on`; từ lúc đó thiếu thiết lập là đỏ.
+Chạy tay ("Run workflow") mặc định `dry_run` (chỉ báo cáo). Environment `chat-mobile-release-health`: Deployment
+branches → `main`, **không** Required reviewers (lịch chạy không chờ duyệt được); secrets `SENTRY_AUTH_TOKEN` (quyền
+`org:read`, `event:read`), `EXPO_TOKEN`, `EAS_UPDATE_PRIVATE_KEY`, `PLAY_SERVICE_ACCOUNT_JSON`, và khi có tài khoản
+Apple `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY`; variables `SENTRY_ORG` (`SENTRY_URL` nếu tự host), `ASC_APP_ID`.
+Báo trong vài phút, không chờ lượt chạy kế tiếp: alert Prometheus `UniChatMobileCrashes` (> 2 % lần mở lạnh của một bản
+đến sau một crash) và `UniChatMobileUpdateLaunchFailures` (≥ 3 lần một giờ máy không chạy được một bản OTA) đi qua
+Alertmanager như mọi alert server, cùng `UniChatMobileServerErrors` cho lỗi 5xx theo bản app (mục Kiểm tra).
 
 **Thống kê sản phẩm theo bản (audit "no-product-analytics")**: ngoài crash-free, một bản được đánh giá theo cách
 người dùng dùng nó — `uniwork_mobile_events_total{event,result,os,client_version,client_update}` và
@@ -406,8 +431,8 @@ lại sau ≥ 10 phút vắng (iOS đóng băng app ở nền), khi không có c
 app đang chờ (đăng nhập Google/UniWork, chọn ảnh/tệp, hộp xin quyền) — không bao giờ lúc người dùng vừa rời app một
 chút; dùng cho bản sửa crash hay lỗi dữ liệu, không cho bản thường (mỗi lần
 áp dụng là một lần app khởi động lại khi người dùng quay lại). Breadcrumb `updates` trong Sentry ghi lúc tải và lúc áp
-dụng. Mỗi máy chạy một bản OTA báo về Sentry dưới release riêng `<bundle id>@<version>+<build>.ota.<id bản Android>`
-(bản nhúng trong binary vẫn là `<bundle id>@<version>+<build>`), nên crash-free sessions được tính cho từng bản OTA,
+dụng. Mỗi máy chạy một bản OTA báo về Sentry dưới release riêng `<bundle id>@<version>+<build>.<os>.ota.<id bản của
+OS đó>` (bản nhúng trong binary là `<bundle id>@<version>+<build>.<os>`), nên crash-free sessions được tính cho từng bản OTA,
 và job tự động ở mục **Sức khoẻ bản phát hành** đọc đúng con số đó. Theo dõi crash của bản đó trong Sentry khoảng một
 ngày rồi mở rộng: `eas update:edit --branch <kênh>` và chọn tỷ lệ mới
 (hoặc `--rollout-percentage 100`). Phát tay từ máy chỉ khi CI không chạy được, và phải đặt
@@ -768,8 +793,9 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
    lỗi/đang chờ; `eas channel:view internal` cho biết kênh trỏ nhánh nào. Trên máy: Cài đặt › Giới thiệu hiện phiên
    bản, bản dựng, kênh và 8 ký tự đầu của id bản cập nhật ("Bản cài sẵn trong ứng dụng" khi chưa nhận OTA); nút
    "Sao chép thông tin phiên bản" cho chuỗi đầy đủ kèm runtime.
-4. Crash: Sentry, lọc `release` (`<bundle id>@<version>+<build>`) và tag `update_id`/`channel`; crash-free sessions
-   theo release. Server: header `X-Client-Version`/`X-Client-OS`/`X-Client-Update-Id` của mỗi request và
+4. Crash: Sentry, lọc `release` (`<bundle id>@<version>+<build>.<os>`, thêm `.ota.<id>` cho một bản OTA) và tag
+   `update_id`/`channel`; crash-free sessions theo release. Bản OTA máy không khởi động được: issue `OtaLaunchError`
+   (tag `ota_failure`, `failed_update_id`, `failed_update_code`; runbook `UniChatMobileUpdateLaunchFailures.md`). Server: header `X-Client-Version`/`X-Client-OS`/`X-Client-Update-Id` của mỗi request và
    `client_version` của socket cho biết bản nào đang gọi. Lệch hợp đồng app–server: issue mức `warning` có tag
    `endpoint` (route, id thành `{id}`), `http_status` và `error_code`, mỗi tổ hợp một issue — 400/409/413/415/422 mà màn
    hình không tự giải thích; tăng đột ngột sau một lần deploy server là dấu hiệu server đổi hợp đồng mà bản app chưa
@@ -810,13 +836,19 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
 4. Lỗi submit: sửa khoá/`ascAppId` theo bước 3–4 rồi `eas submit -p <ios|android> --profile internal --latest`
    (không build lại). Play báo app nháp: hoàn tất thiết lập app trên Play Console, hoặc tạm đặt
    `"releaseStatus": "draft"` cho `submit.internal.android` và phát hành tay trên Console.
-5. **Rollback OTA** (nhanh nhất, cho lỗi chỉ ở JS):
-   - Phát lại bản tốt trước: `eas update:list --branch internal` lấy group id của bản tốt, rồi
-     `eas update:republish --group <group-id> --message "rollback"`.
-   - Hoặc quay về bản nhúng trong binary: `eas update:roll-back-to-embedded --branch internal --runtime-version <fingerprint>`
-     (fingerprint lấy ở cột runtime version của `eas update:list`).
-   - Bản đang rollout dở (dưới 100 %): `eas update:edit --branch internal` đặt tỷ lệ về 0, hoặc republish bản trước.
-   Máy nhận ở lần mở tiếp theo. Sau đó sửa và phát OTA mới. Bản OTA rollback cũng phải ký nếu app có chứng chỉ.
+5. **Rollback OTA** (nhanh nhất, cho lỗi chỉ ở JS), từ CI, không cần khoá trên máy ai: Actions →
+   "UniChat mobile rollback" (`chat-mobile-rollback.yml`, Environment `chat-mobile-update`, ký bằng
+   `EAS_UPDATE_PRIVATE_KEY` của nó) →
+   `channel`, `platform`, `reason` (UNI-nnn và lỗi gì, ≥ 10 ký tự) và `action`:
+   - `revert-rollout`: bản đang rollout dở (dưới 100 %) — máy trong phần rollout quay về bản trước (job Sức khoẻ tự làm
+     việc này khi đủ ngưỡng);
+   - `republish-previous`: bản đã 100 % — bản trước nó cùng runtime được phát lại, ký, thành bản mới nhất (`group` để
+     trống là bản mới nhất của kênh; script từ chối khi bản đó còn đang rollout hay đã bị bản mới hơn thay);
+   - `roll-back-to-embedded`: không có bản trước nào tốt — máy của runtime đó quay về bundle trong binary
+     (`runtime_version` để trống là runtime của bản mới nhất); máy áp dụng như một bản `critical`.
+   Tick `dry_run` để xem kế hoạch trước. Máy nhận ở lần mở hay lần quay lại foreground tiếp theo. Sau đó sửa và phát OTA
+   mới. Chỉ khi CI không chạy được mới làm tay bằng `eas update:republish` / `eas update:roll-back-to-embedded` /
+   `eas update:revert-update-rollout`, ký bằng khoá lấy từ kho bí mật của tổ chức.
 6. **Rollback bản store** (lỗi native, hoặc OTA không cứu được): store không cho hạ build number, nên đi tới. Revert
    trên `develop`, bump `version` (patch), tag. Trong lúc chờ: TestFlight → build lỗi → Expire build; Play Console →
    Internal testing → tạm dừng/thay release bằng bản mới. OTA cũ không áp vào bản mới vì runtime version khác.

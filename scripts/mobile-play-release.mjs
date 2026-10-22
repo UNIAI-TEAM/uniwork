@@ -12,6 +12,9 @@
 //       (or resumes) a staged rollout in place.
 //   halt --package <id> --version-code <n> --track <track>
 //       stops that release reaching more phones (phones that have it keep it).
+//       A release already halted is left as it is and said so: the hourly
+//       release-health run halts the same bad build again and again while its
+//       crash-free rate stays down, and that is not a failure.
 //
 // The service account's key (JSON) is read from PLAY_SERVICE_ACCOUNT_JSON.
 // chat-mobile-promote.yml and chat-mobile-release-health.yml run it;
@@ -21,7 +24,7 @@ import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import { NOTES_FILE, notesFor } from "./mobile-release-notes.mjs";
 
-const SCOPE = "https://www.googleapis.com/auth/androidpublisher";
+export const PUBLISHER_SCOPE = "https://www.googleapis.com/auth/androidpublisher";
 const API = "https://androidpublisher.googleapis.com/androidpublisher/v3/applications";
 export const TRACKS = ["internal", "alpha", "beta", "production"];
 const STATUSES = ["draft", "inProgress", "completed"];
@@ -32,8 +35,11 @@ export class PlayError extends Error {}
 
 const b64url = (data) => Buffer.from(data).toString("base64url");
 
-/** An OAuth access token for the service account (RFC 7523 JWT bearer grant). */
-export async function accessToken(serviceAccountJson, fetchImpl, now = Date.now()) {
+/**
+ * An OAuth access token for the service account (RFC 7523 JWT bearer grant): the Play Developer API's by default,
+ * the Play Developer Reporting API's (scripts/mobile-play-vitals.mjs) when asked.
+ */
+export async function accessToken(serviceAccountJson, fetchImpl, now = Date.now(), scope = PUBLISHER_SCOPE) {
   let key;
   try {
     key = JSON.parse(serviceAccountJson);
@@ -43,7 +49,7 @@ export async function accessToken(serviceAccountJson, fetchImpl, now = Date.now(
   if (!key?.client_email || !key?.private_key) throw new PlayError("PLAY_SERVICE_ACCOUNT_JSON has no client_email or private_key");
   const tokenUri = key.token_uri || "https://oauth2.googleapis.com/token";
   const iat = Math.floor(now / 1000);
-  const unsigned = `${b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }))}.${b64url(JSON.stringify({ iss: key.client_email, scope: SCOPE, aud: tokenUri, iat, exp: iat + 3600 }))}`;
+  const unsigned = `${b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }))}.${b64url(JSON.stringify({ iss: key.client_email, scope, aud: tokenUri, iat, exp: iat + 3600 }))}`;
   const signature = crypto.sign("RSA-SHA256", Buffer.from(unsigned), key.private_key).toString("base64url");
   const response = await fetchImpl(tokenUri, {
     method: "POST",
@@ -55,7 +61,10 @@ export async function accessToken(serviceAccountJson, fetchImpl, now = Date.now(
   return body.access_token;
 }
 
-/** One Play edit: `run` reads and writes tracks, then the edit is committed (or deleted when `run` throws). */
+/**
+ * One Play edit: `run` reads and writes tracks, then the edit is committed — or deleted when `run` throws, or when it
+ * called `discard()` because it found nothing to change.
+ */
 async function withEdit({ packageName, token, fetchImpl }, run) {
   const call = async (method, path, body) => {
     const response = await fetchImpl(`${API}/${encodeURIComponent(packageName)}${path}`, {
@@ -69,12 +78,17 @@ async function withEdit({ packageName, token, fetchImpl }, run) {
     return json;
   };
   const edit = await call("POST", "/edits", {});
+  let keep = true;
   try {
     const result = await run({
       getTrack: (track) => call("GET", `/edits/${edit.id}/tracks/${track}`),
       putTrack: (track, releases) => call("PUT", `/edits/${edit.id}/tracks/${track}`, { track, releases }),
+      discard: () => {
+        keep = false;
+      },
     });
-    await call("POST", `/edits/${edit.id}:commit`);
+    if (keep) await call("POST", `/edits/${edit.id}:commit`);
+    else await call("DELETE", `/edits/${edit.id}`);
     return result;
   } catch (error) {
     await call("DELETE", `/edits/${edit.id}`).catch(() => undefined);
@@ -115,17 +129,35 @@ export async function promote({ packageName, versionCode, from, to, status, roll
   });
 }
 
-export async function halt({ packageName, versionCode, track, token, fetchImpl }) {
-  if (!TRACKS.includes(track)) throw new PlayError(`tracks are ${TRACKS.join(", ")}`);
-  return withEdit({ packageName, token, fetchImpl }, async ({ getTrack, putTrack }) => {
-    const current = await getTrack(track);
-    const releases = current.releases ?? [];
-    const target = releases.find((r) => hasCode(r, versionCode) && (r.status === "inProgress" || r.status === "completed"));
-    if (!target) throw new PlayError(`no rolling-out or completed release of version code ${versionCode} on ${track} to halt`);
-    const next = releases.map((r) => (r === target ? { ...r, status: "halted" } : r));
-    await putTrack(track, next);
-    return { ...target, status: "halted" };
+/**
+ * Halts the release of `versionCode` on the first of `tracks` that has it rolling out or completed, in one edit.
+ * Returns where and what it found: `alreadyHalted` when that release was halted before (the edit is dropped), null
+ * when no track has it (an internal-testing build, or one replaced since).
+ */
+export async function haltOnTracks({ packageName, versionCode, tracks, token, fetchImpl }) {
+  for (const track of tracks) if (!TRACKS.includes(track)) throw new PlayError(`tracks are ${TRACKS.join(", ")}`);
+  return withEdit({ packageName, token, fetchImpl }, async ({ getTrack, putTrack, discard }) => {
+    for (const track of tracks) {
+      const releases = (await getTrack(track)).releases ?? [];
+      const target = releases.find((r) => hasCode(r, versionCode) && LIVE.has(r.status));
+      if (!target) continue;
+      if (target.status === "halted") {
+        discard();
+        return { track, release: target, alreadyHalted: true };
+      }
+      const halted = { ...target, status: "halted" };
+      await putTrack(track, releases.map((r) => (r === target ? halted : r)));
+      return { track, release: halted, alreadyHalted: false };
+    }
+    discard();
+    return null;
   });
+}
+
+export async function halt({ packageName, versionCode, track, token, fetchImpl }) {
+  const found = await haltOnTracks({ packageName, versionCode, tracks: [track], token, fetchImpl });
+  if (!found) throw new PlayError(`no rolling-out or completed release of version code ${versionCode} on ${track} to halt`);
+  return found.alreadyHalted ? { ...found.release, alreadyHalted: true } : found.release;
 }
 
 /** `--name value` pairs. */
@@ -159,7 +191,7 @@ export async function main(argv, { env = process.env, fetchImpl = fetch, notesMa
   }
   if (command === "halt") {
     const release = await halt({ packageName, versionCode: options["version-code"], track: options.track, token, fetchImpl });
-    log(`${packageName}: version code ${options["version-code"]} is halted on ${options.track}`);
+    log(`${packageName}: version code ${options["version-code"]} is ${release.alreadyHalted ? "already " : ""}halted on ${options.track}`);
     return release;
   }
   throw new PlayError(`unknown command ${command ?? "(none)"}: promote or halt`);

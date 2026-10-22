@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { PlayError, accessToken, halt, main, parseArgs, plannedRelease, promote } from "./mobile-play-release.mjs";
+import { PlayError, accessToken, halt, haltOnTracks, main, parseArgs, plannedRelease, promote } from "./mobile-play-release.mjs";
 import { NOTES_FILE } from "./mobile-release-notes.mjs";
 
 const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -96,10 +96,28 @@ test("halt stops a rolling-out or completed release and leaves the others", asyn
   const halted = await halt({ ...base, fetchImpl: play.fetchImpl, versionCode: 12, track: "production" });
   assert.deepEqual(halted, { versionCodes: ["12"], status: "halted", userFraction: 0.2 });
   assert.deepEqual(play.state.production, [older, halted]);
-  await assert.rejects(halt({ ...base, fetchImpl: play.fetchImpl, versionCode: 12, track: "production" }), /no rolling-out or completed release of version code 12/);
+  // The hourly health run halts the same bad build every hour: a second halt changes nothing and is not an error.
+  const again = await halt({ ...base, fetchImpl: play.fetchImpl, versionCode: 12, track: "production" });
+  assert.deepEqual(again, { ...halted, alreadyHalted: true });
+  assert.equal(play.calls.at(-1).method, "DELETE", "an edit with nothing to change is dropped, not committed");
+  await assert.rejects(halt({ ...base, fetchImpl: play.fetchImpl, versionCode: 13, track: "production" }), /no rolling-out or completed release of version code 13/);
   await assert.rejects(halt({ ...base, fetchImpl: play.fetchImpl, versionCode: 12, track: "nightly" }), /tracks are/);
   const absent = fakePlay();
   await assert.rejects(halt({ ...base, fetchImpl: absent.fetchImpl, versionCode: 12, track: "beta" }), /answered 404: Track not found/);
+});
+
+// Audit "Release engineering" (verifier miss): a build staged on alpha or beta reports to the same Sentry environment
+// as production, so the health run halts it wherever it rolls out.
+test("haltOnTracks halts the build on the first track that rolls it out, and says when it was halted before", async () => {
+  const play = fakePlay({ production: [{ versionCodes: ["11"], status: "completed" }], beta: [{ versionCodes: ["12"], status: "inProgress", userFraction: 0.5 }], alpha: [] });
+  const found = await haltOnTracks({ ...base, fetchImpl: play.fetchImpl, versionCode: "12", tracks: ["production", "beta", "alpha"] });
+  assert.deepEqual(found, { track: "beta", release: { versionCodes: ["12"], status: "halted", userFraction: 0.5 }, alreadyHalted: false });
+  assert.match(play.calls.at(-1).url, /:commit$/);
+  const again = await haltOnTracks({ ...base, fetchImpl: play.fetchImpl, versionCode: "12", tracks: ["production", "beta", "alpha"] });
+  assert.equal(again.alreadyHalted, true);
+  assert.equal(await haltOnTracks({ ...base, fetchImpl: play.fetchImpl, versionCode: "99", tracks: ["production", "beta", "alpha"] }), null);
+  assert.equal(play.calls.at(-1).method, "DELETE");
+  await assert.rejects(haltOnTracks({ ...base, fetchImpl: play.fetchImpl, versionCode: "12", tracks: ["qa"] }), /tracks are/);
 });
 
 test("the command line promotes with the version's notes from the repo, and halts", async () => {
@@ -124,7 +142,9 @@ test("the command line promotes with the version's notes from the repo, and halt
   assert.match(lines.at(-1), /inProgress on beta for 50 % of phones$/);
   const halting = fakePlay({ production: [{ versionCodes: ["12"], status: "completed" }] });
   await main(["halt", "--package", "com.uniworkos.chat", "--version-code", "12", "--track", "production"], { env, fetchImpl: halting.fetchImpl, log: (line) => lines.push(line) });
-  assert.match(lines.at(-1), /halted on production$/);
+  assert.match(lines.at(-1), /12 is halted on production$/);
+  await main(["halt", "--package", "com.uniworkos.chat", "--version-code", "12", "--track", "production"], { env, fetchImpl: halting.fetchImpl, log: (line) => lines.push(line) });
+  assert.match(lines.at(-1), /12 is already halted on production$/);
   await assert.rejects(main(["rollback", "--package", "com.uniworkos.chat"], { env, fetchImpl: play.fetchImpl }), /unknown command rollback/);
   await assert.rejects(main(["halt", "--track", "production"], { env, fetchImpl: play.fetchImpl }), /--package is required/);
   await assert.rejects(main(["halt", "--package", "com.uniworkos.chat"], { env: {}, fetchImpl: play.fetchImpl }), /PLAY_SERVICE_ACCOUNT_JSON is not set/);

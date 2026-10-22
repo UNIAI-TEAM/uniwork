@@ -28,7 +28,7 @@
 4. Server vừa deploy? Panel **Bản build đang chạy** (`uniwork_build_info`). Server mới đổi một hợp đồng (trường SDO,
    route, mã lỗi) mà bản app cũ còn gọi kiểu cũ thì mọi `client_update` của một version cùng lỗi; một OTA làm hỏng hợp
    đồng thì chỉ `client_update` đó lỗi.
-5. Sentry của app: release `com.uniworkos.chat@<version>+<build>.ota.<id>` (mỗi bản OTA một release) — breadcrumb
+5. Sentry của app: release `com.uniworkos.chat@<version>+<build>.<os>.ota.<id>` (mỗi nền tảng và mỗi bản OTA một release) — breadcrumb
    `api` cho thấy request nào trả 5xx ngay trước lỗi.
 
 ## Khắc phục

@@ -15,21 +15,34 @@ name: UniChat mobile promote
 # release rights on the app (the one EAS submits with may be reused).
 # Runbook: docs/runbooks/unichat-mobile-release.md › Phát hành production theo
 # giai đoạn.
+#
+# platform ios moves the App Store version's 7-day phased release instead
+# (scripts/mobile-asc-release.mjs, audit "ios-no-release-path"): halt pauses
+# it, promote with status inProgress resumes it, completed releases it to every
+# phone. The build itself reaches the App Store through a store submission and App Review;
+# this only paces it. The same environment holds ASC_KEY_ID, ASC_ISSUER_ID and
+# ASC_PRIVATE_KEY (an App Store Connect API key, App Manager role) and the
+# variable ASC_APP_ID, once the Apple account exists (UNI-1838).
 
 on:
   workflow_dispatch:
     inputs:
+      platform:
+        description: android (Play tracks) or ios (App Store phased release)
+        type: choice
+        options: [android, ios]
+        default: android
       action:
         description: promote (or widen) a release, or halt one
         type: choice
         options: [promote, halt]
         required: true
       version_code:
-        description: The Android version code (the production build's summary names it)
+        description: The Android version code (the production build's summary names it; not used for ios)
         type: string
-        required: true
+        required: false
       version:
-        description: The store version whose release notes go with it (promote)
+        description: The store version whose release notes go with it (promote), or the App Store version (ios)
         type: string
         required: false
       from_track:
@@ -68,6 +81,7 @@ jobs:
     timeout-minutes: 15
     environment: chat-mobile-production
     env:
+      PLATFORM: ${{ inputs.platform }}
       ACTION: ${{ inputs.action }}
       VERSION_CODE: ${{ inputs.version_code }}
       VERSION: ${{ inputs.version }}
@@ -82,11 +96,36 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Pace the phased release on the App Store
+        if: ${{ inputs.platform == 'ios' }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ASC_APP_ID" ] || [ -z "$VERSION" ]; then
+            echo "::error::ios needs the App Store version and the ASC_APP_ID variable (runbook › Thiết lập lần đầu, Apple)"
+            exit 1
+          fi
+          case "$ACTION/$STATUS" in
+            halt/*) command=pause ;;
+            promote/inProgress) command=resume ;;
+            promote/completed) command=complete ;;
+            *) echo "::error::on the App Store, promote is inProgress (resume) or completed (release to all); draft is App Store Connect's own"; exit 1 ;;
+          esac
+          node scripts/mobile-asc-release.mjs "$command" --app-id "$ASC_APP_ID" --version "$VERSION"
       - name: Move the release on Play
+        if: ${{ inputs.platform != 'ios' }}
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
           set -euo pipefail
+          if [ -z "$VERSION_CODE" ]; then
+            echo "::error::android needs the version code"
+            exit 1
+          fi
           if [ "$ACTION" = "halt" ]; then
             node scripts/mobile-play-release.mjs halt --package com.uniworkos.chat --version-code "$VERSION_CODE" --track "$TO"
             exit 0
@@ -101,6 +140,16 @@ jobs:
       - name: Summary
         if: always()
         run: |
+          if [ "$PLATFORM" = "ios" ]; then
+            if [ "$ACTION" = "halt" ]; then what="phased release paused"; else what="phased release $STATUS"; fi
+            {
+              echo "### UniChat App Store: $ACTION"
+              echo
+              echo "- version \`$VERSION\`: $what"
+              echo "- resume only on crash-free sessions ≥ 99.5 % (runbook); the release-health job pauses it below that"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           if [ "$ACTION" = "halt" ]; then what="halted on $TO"; else what="$FROM → $TO, $STATUS"; fi
           if [ "$ACTION" = "promote" ] && [ "$STATUS" = "inProgress" ]; then what="$what at $ROLLOUT"; fi
           {

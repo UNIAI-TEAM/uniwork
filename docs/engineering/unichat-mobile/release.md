@@ -48,9 +48,14 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   `scripts/mobile-play-release.mjs` (Play Developer API, chỉ built-in của Node; chỉ nhận bản đã live trên track nguồn;
   `PLAY_SERVICE_ACCOUNT_JSON`). Không workflow nào khác build profile `production` cho store.
 - Sức khoẻ bản phát hành: `.github/workflows/chat-mobile-release-health.yml` mỗi giờ (bật bằng biến repo
-  `UNICHAT_RELEASE_HEALTH=on`) chạy `scripts/mobile-release-health.mjs`: crash-free sessions 24 giờ của từng release
-  production trong Sentry (mỗi bản OTA là một release riêng, `lib/build-info.ts › sentryRelease`); < 99.5 % trên ≥ 200
-  phiên (hay < 98 % trên ≥ 50) thì revert rollout của OTA đó hoặc halt rollout Play của bản store, run đỏ.
+  `UNICHAT_RELEASE_HEALTH=on`) chạy `scripts/mobile-release-health.mjs` cho production và staging: 24 giờ của từng
+  release trong Sentry (mỗi nền tảng và mỗi bản OTA là một release riêng, `lib/build-info.ts › sentryRelease`) — crash-free
+  sessions (< 99.5 % trên ≥ 200 phiên, < 98 % trên ≥ 50), số người crash, crash mới của release, bản OTA máy không khởi
+  động được (`data/release/launch-health.ts`) — và Play vitals (crash/ANR) của version code; dừng thì revert rollout
+  của OTA, halt rollout Play (track production/beta/alpha) hay pause phased release App Store
+  (`scripts/mobile-asc-release.mjs`). Đỏ khi vừa dừng hay cần người; release đã dừng từ trước không đỏ lại. Con số cho
+  pilot qua biến `UNICHAT_HEALTH_*`. OTA đã 100 %: `.github/workflows/chat-mobile-rollback.yml` (revert-rollout,
+  republish-previous, roll-back-to-embedded; `scripts/mobile-ota-rollback.mjs`, ký bằng khoá của CI).
 - OTA: `.github/workflows/chat-mobile-update.yml` (chạy tay trên `main`/`develop`:
   kênh, tỷ lệ rollout, message; Environment `chat-mobile-update`, giới hạn hai
   nhánh đó) → `verify` trên SHA → `eas update --platform android

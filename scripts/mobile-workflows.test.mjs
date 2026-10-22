@@ -306,6 +306,19 @@ test("promotion moves a version code through scripts/mobile-play-release.mjs, be
   assert.match(wf, /if \[ "\$STATUS" = "inProgress" \]; then args\+=\(--rollout "\$ROLLOUT"\); fi/, "a rollout only for a staged release");
   assert.doesNotMatch(wf.split(/^jobs:$/m)[1] ?? "", /run: [^\n]*\$\{\{ inputs\./, "inputs reach the shell through env");
   assert.doesNotMatch(wf, /eas build|eas submit/, "promotion never builds or uploads a binary");
+  // iOS: the same workflow paces the App Store phased release (audit "ios-no-release-path").
+  assert.match(wf, /options: \[android, ios\]/);
+  const ios = (env) => runStep("chat-mobile-promote.yml", "- name: Pace the phased release on the App Store", env);
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "asc-"));
+  fs.mkdirSync(path.join(bin, "scripts"));
+  fs.writeFileSync(path.join(bin, "node"), `#!/bin/sh\necho "node $*"\n`, { mode: 0o755 });
+  const said = (env) => runScript(stepScript("chat-mobile-promote.yml", "- name: Pace the phased release on the App Store"), { ASC_APP_ID: "64", VERSION: "0.3.1", ...env }, bin);
+  assert.match(said({ ACTION: "halt", STATUS: "draft" }).stdout, /node scripts\/mobile-asc-release\.mjs pause --app-id 64 --version 0\.3\.1/);
+  assert.match(said({ ACTION: "promote", STATUS: "inProgress" }).stdout, /mobile-asc-release\.mjs resume/);
+  assert.match(said({ ACTION: "promote", STATUS: "completed" }).stdout, /mobile-asc-release\.mjs complete/);
+  assert.notEqual(said({ ACTION: "promote", STATUS: "draft" }).status, 0);
+  assert.match(ios({ ACTION: "halt", STATUS: "draft", ASC_APP_ID: "", VERSION: "0.3.1" }).stdout, /::error::ios needs the App Store version and the ASC_APP_ID variable/);
+  fs.rmSync(bin, { recursive: true, force: true });
 });
 
 // Audit "rollout-gating-manual": the runbook's floor runs every hour once production has users, and a switched-on
@@ -317,13 +330,71 @@ test("release health runs hourly once switched on, needs its settings, and acts 
   assert.match(wf, /^ {4}environment: chat-mobile-release-health$/m);
   assert.match(wf, /^ {6}dry_run:\n {8}description: [^\n]+\n {8}type: boolean\n {8}default: true$/m, "a dispatched run reports only unless told otherwise");
   assert.equal(envPin(wf, "EAS_CLI_VERSION"), envPin(read("chat-mobile-release.yml"), "EAS_CLI_VERSION"));
-  assert.match(wf, /node scripts\/mobile-release-health\.mjs "\$\{args\[@\]\}"/);
   assert.match(wf, /rm -f "\$RUNNER_TEMP\/eas-update-private-key\.pem"/);
   const settings = (env) => runStep("chat-mobile-release-health.yml", "- name: Settings", env);
   assert.equal(settings({ EXPO_TOKEN: "t", SENTRY_AUTH_TOKEN: "s", SENTRY_ORG: "o" }).status, 0);
   const missing = settings({ EXPO_TOKEN: "t", SENTRY_AUTH_TOKEN: "", SENTRY_ORG: "" });
   assert.notEqual(missing.status, 0);
   assert.match(missing.stdout, /::error::release health is on but the chat-mobile-release-health environment lacks: SENTRY_AUTH_TOKEN SENTRY_ORG/);
+  // Every pilot count the script reads reaches it from a repository variable of the same name.
+  for (const name of ["UNICHAT_HEALTH_MIN_SESSIONS", "UNICHAT_HEALTH_NEW_CRASH_MIN_USERS", "UNICHAT_HEALTH_LAUNCH_FAILURE_MIN_USERS", "UNICHAT_HEALTH_VITALS_MIN_USERS"]) {
+    assert.match(wf, new RegExp(`^ {10}${name}: \\$\\{\\{ vars\\.${name} \\}\\}$`, "m"), name);
+  }
+});
+
+// Audit "health-gate-platform-blind" and the verifier's miss on tester builds: both variants are read every hour, and
+// one red variant does not stop the other from being read.
+test("release health reads production and staging every hour, each through the script, and is red when either is", () => {
+  const script = stepScript("chat-mobile-release-health.yml", "- name: Read release health and stop what must stop");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "health-step-"));
+  const log = path.join(dir, "calls");
+  fs.mkdirSync(path.join(dir, "scripts"));
+  // A stand-in script: records its arguments and variant, red for production only.
+  fs.writeFileSync(
+    path.join(dir, "scripts/mobile-release-health.mjs"),
+    `require("fs").appendFileSync(${JSON.stringify(log)}, process.env.UNICHAT_ENV + " " + process.argv.slice(2).join(" ") + "\\n"); process.exit(process.argv.includes("production") ? 1 : 0);`,
+  );
+  fs.renameSync(path.join(dir, "scripts/mobile-release-health.mjs"), path.join(dir, "scripts/mobile-release-health.cjs"));
+  const run = (env) => {
+    fs.writeFileSync(log, "");
+    let status = 0;
+    try {
+      execFileSync("bash", ["-c", script.replace("scripts/mobile-release-health.mjs", "scripts/mobile-release-health.cjs")], { cwd: dir, env: { PATH: process.env.PATH, RUNNER_TEMP: dir, ...env }, stdio: "ignore" });
+    } catch (error) {
+      status = error.status;
+    }
+    return { status, calls: fs.readFileSync(log, "utf8").trim().split("\n") };
+  };
+  const dry = run({ DRY_RUN: "true", EAS_UPDATE_PRIVATE_KEY: "" });
+  assert.equal(dry.status, 1, "red because production was");
+  assert.deepEqual(dry.calls, ["production --app production --dry-run", "staging --app staging --dry-run"]);
+  assert.deepEqual(run({ DRY_RUN: "false", EAS_UPDATE_PRIVATE_KEY: "k" }).calls, ["production --app production", "staging --app staging"]);
+  assert.ok(fs.existsSync(path.join(dir, "eas-update-private-key.pem")), "the revert key is written for the script");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// Audit "no-ci-rollback": a fully rolled-out OTA is rolled back from CI, signed with the key CI holds.
+test("the rollback workflow is dispatched by hand, signs with the update environment's key, and acts only through the script", () => {
+  const wf = read("chat-mobile-rollback.yml");
+  assert.match(wf, /^ {2}workflow_dispatch:$/m);
+  assert.doesNotMatch(wf, /^ {2}(push|pull_request|schedule):/m);
+  assert.match(wf, /^ {4}environment: chat-mobile-update$/m, "the environment that holds the signing key and its reviewers");
+  assert.match(wf, /^ {2}group: chat-mobile-update-\$\{\{ inputs\.channel \}\}$/m, "never races a publish on the same channel");
+  assert.match(read("chat-mobile-update.yml"), /^ {2}group: chat-mobile-update-\$\{\{ inputs\.channel \}\}$/m);
+  assert.equal(envPin(wf, "EAS_CLI_VERSION"), envPin(read("chat-mobile-release.yml"), "EAS_CLI_VERSION"));
+  assert.match(wf, /options: \[revert-rollout, republish-previous, roll-back-to-embedded\]/);
+  assert.match(wf, /node \.\.\/\.\.\/scripts\/mobile-ota-rollback\.mjs "\$\{args\[@\]\}"/);
+  assert.match(wf, /rm -f "\$RUNNER_TEMP\/eas-update-private-key\.pem"/);
+  assert.doesNotMatch(wf.split(/^jobs:$/m)[1] ?? "", /run: [^\n]*\$\{\{ inputs\./, "inputs reach the shell through env");
+  assert.doesNotMatch(wf, /eas update --|eas build|eas submit/, "a rollback never publishes new code");
+  const settings = (env) => runStep("chat-mobile-rollback.yml", "- name: Settings", env);
+  assert.equal(settings({ EXPO_TOKEN: "t", EAS_UPDATE_PRIVATE_KEY: "k" }).status, 0);
+  const missing = settings({ EXPO_TOKEN: "t", EAS_UPDATE_PRIVATE_KEY: "" });
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stdout, /lacks: EAS_UPDATE_PRIVATE_KEY/);
+  const runbook = fs.readFileSync(path.join(root, "docs/runbooks/unichat-mobile-release.md"), "utf8");
+  const fix = runbook.split("## Khắc phục")[1]?.split("## Leo thang")[0] ?? "";
+  assert.match(fix, /UniChat mobile rollback/, "the runbook's fix points at the workflow, not a laptop");
 });
 
 // The push filter is the scope script's list, and a pull request is never
@@ -460,6 +531,7 @@ const WORKFLOWS = [
   "chat-mobile-production.yml",
   "chat-mobile-promote.yml",
   "chat-mobile-release-health.yml",
+  "chat-mobile-rollback.yml",
   "chat-mobile-device-farm.yml",
 ];
 
