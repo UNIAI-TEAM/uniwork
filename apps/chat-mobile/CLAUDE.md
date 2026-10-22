@@ -123,5 +123,7 @@ Root `typecheck`/`test`/`lint` và CI chính lọc `!@uniwork/chat-mobile`; app 
 - `@babel/plugin-transform-react-jsx`: preset `react-native-css-interop/babel` gọi nó theo tên mà không khai; thiếu
   thì bước `createReleaseUpdatesResources` của build release đỏ.
 - `@expo-google-fonts/*`: `app.config.ts` chỉ trỏ tới file `.ttf` của chúng (plugin `expo-font`).
+- `@sentry/cli`: bước Xcode "Upload Debug Symbols to Sentry" và Gradle của Sentry tìm nó từ thư mục app; chỉ là
+  phụ thuộc của `@sentry/react-native` thì pnpm không cho với tới và build iOS đỏ trước cả `SENTRY_ALLOW_FAILURE`.
 - `react-native-css-interop`: phụ thuộc của `nativewind` mà `metro.config.js` trỏ tới (một bản duy nhất trong
   bundle); app không khai nó.

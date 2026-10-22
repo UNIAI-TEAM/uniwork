@@ -51,6 +51,7 @@
     },
     "apps/chat-mobile": {
       "ignoreDependencies": [
+        "@sentry/cli",
         "@babel/plugin-transform-react-jsx",
         "@expo-google-fonts/inter",
         "@expo-google-fonts/plus-jakarta-sans",
