@@ -49,7 +49,8 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
 - Mọi chữ người dùng đọc hay nghe đi qua `t()` (`i18next/no-literal-string`); chuỗi viết ở nguồn i18n rồi chạy
   `scripts/sync-i18n.mjs` (vi và en đủ, `lib/i18n.test.ts`); ngày giờ chỉ qua `lib/locale-format.ts`.
 - Vùng chạm 44 pt / 48 dp qua `useTapTarget` / `hitSlopFor`; tương phản AA ở cả hai chế độ (`lib/theme-contrast.test.ts`);
-  cỡ chữ theo vai trò (`lib/type-scale.test.ts`).
+  cỡ chữ theo vai trò (`lib/type-scale.test.ts`); hàng đặt tên, dấu và giờ cạnh nhau thì xếp chồng ở cỡ chữ trợ năng
+  (`useLargeText`), menu/sheet dài thì cuộn trong chiều cao còn lại (`lib/action-menu-layout.ts`, `ActionSheet`).
 - Quyền native, dịch vụ nền và loại dữ liệu khớp `store/listing.md` (`android-manifest.test.ts`,
   `store-listing.test.ts`); thêm quyền thì sửa bảng ở đó, checklist ở `docs/runbooks/unichat-mobile-release.md`.
 - Công tắc mobile mới: `MOBILE_FLAG_DEFAULTS` (`data/remote-config.ts`) và `server/internal/featureflags/keys.go` cùng

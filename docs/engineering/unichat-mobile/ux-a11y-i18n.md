@@ -10,9 +10,12 @@ Trình đọc màn hình, cảm giác, chuyển động, quy ước Android, c�
   mỗi lần đổi) — banner kết nối, lỗi đăng nhập, bong bóng gõ, thông báo push ở Cài đặt, dòng trạng thái cuộc gọi
   (đồng hồ cuộc gọi là `timer`, không live region). Tin mới của người khác ở đáy phòng đang mở được đọc
   (`lib/arrivals.ts` = luật live region của web; `use-arrival-announcements.ts`: một tin "Bình: …", nhiều tin "N tin
-  nhắn mới", tối đa một câu mỗi 4 s, chỉ khi trình đọc màn hình bật). Bong bóng là một phần tử: nhãn gồm trích dẫn, nội
+  nhắn mới", tối đa một câu mỗi 4 s, chỉ khi trình đọc màn hình bật; iOS xếp hàng sau lời VoiceOver đang đọc
+  — `announceForAccessibilityWithOptions(…, { queue: true })` —, Android đưa câu vào live region `polite` ẩn
+  `components/ui/live-region.tsx` vì Android 16 bỏ announcement event). Bong bóng là một phần tử: nhãn gồm trích dẫn, nội
   dung, trạng thái (đang gửi/chờ mạng/lỗi/đã sửa) và đã gửi/đã tới/đã xem; tin chưa gửi có hint; hành động
-  `longpress` (menu) và `open_quote` (trích dẫn ẩn khỏi cây trợ năng khi bong bóng là một phần tử); card có nút riêng
+  `reply` (nơi vuốt trả lời được), `react` (👍, hay "Bỏ cảm xúc" khi đã thả), `longpress` (menu), `open_quote` (trích
+  dẫn ẩn khỏi cây trợ năng khi bong bóng là một phần tử) và một `link_n` mỗi liên kết; card có nút riêng
   (ảnh, tệp, bình chọn…) giữ nút và đọc chân tin là một dòng; ô album có `longpress` và ô đầu nói "Album N ảnh".
   **Cảm giác**: `react-native-keyboard-controller` (`KeyboardProvider` ở root; `KeyboardAvoidingView` của nó cho phòng
   và tạo nhóm; inset home indicator của composer co theo `progress` của bàn phím); rung `data/haptics.ts` (iOS
@@ -43,7 +46,8 @@ Trình đọc màn hình, cảm giác, chuyển động, quy ước Android, c�
   `text-sm`… hay `text-[13px]`. Phần tử chứa chữ dùng `min-h-*` + padding dọc, không `h-*` cố định (cả `Button`, ô tìm kiếm, ô nhập); cùng test đỏ
   khi một chuỗi class có `h-*` cố định mà không có chiều rộng cố định (ô icon/avatar), không phải đường kẻ ≤ 2 và không
   nằm trong `FIXED_HEIGHT_OK` (scrim, skeleton, sóng âm, minh hoạ — ghi lý do); chỉ huy hiệu chặn
-  cỡ chữ (`BADGE_MAX_FONT_SCALE` 1.4). **Quyền**: `data/permissions.ts` (màn giải thích `components/ui/permission-primer.tsx`
+  cỡ chữ (`BADGE_MAX_FONT_SCALE` 1.4) và nhãn tab (`TAB_LABEL_MAX_FONT_SCALE` 1.3, như tab bar native giữ nhãn cố định).
+  **Quyền**: `data/permissions.ts` (màn giải thích `components/ui/permission-primer.tsx`
   qua `stores/permission-primer-store.ts`, instance native `components/ui/permission-gate.ts`): đã cấp thì đi tiếp, hệ
   thống còn hỏi được thì giải thích rồi mới hỏi, không hỏi được nữa thì mở `Linking.openSettings`; `once` (thông báo lúc
   mở app) chỉ hỏi một lần mỗi máy (nhớ ngay khi màn giải thích đã hiện, dù "Để sau" hay từ chối ở hộp thoại hệ thống:
@@ -68,3 +72,21 @@ Trình đọc màn hình, cảm giác, chuyển động, quy ước Android, c�
   chuỗi trong biểu thức JSX và các prop người dùng đọc hay nghe (`accessibilityLabel`, `accessibilityHint`,
   `placeholder`, `title`, `label`…; fixture `lib/lint-copy.test.ts`); `lib/i18n.test.ts` đỏ khi vi và en khác
   `{{placeholder}}`.
+- Vừa màn hình và cỡ chữ lớn (UNI-2053, audit UX 8/10). **Menu nhấn giữ** (`components/chat/message-actions.tsx`) tính
+  bố cục từ cửa sổ, inset và cỡ chữ (`lib/action-menu-layout.ts`): tin được nâng lên còn 3 dòng trên cửa sổ < 700 pt,
+  2 dòng ở cỡ chữ trợ năng (1 dòng nếu không thì menu ngắn hơn 2,5 hàng), thẻ menu rộng theo chữ tới 1.5× và cao tối đa
+  phần còn lại, quá thì cuộn (iOS nháy thanh cuộn) — máy 360 × 640 dp ở cỡ chữ mặc định đã tràn trước đây; cột menu là
+  một lớp modal với VoiceOver và vuốt chữ Z đóng nó. **ActionSheet** chặn ở 85 % màn hình; hàng tràn thì cuộn và sheet
+  chỉ kéo từ grabber (`dragFrom="handle"`), vừa thì kéo từ đâu cũng được. **Cỡ chữ trợ năng**: `useLargeText()`
+  (`components/ui/a11y.ts`, `fontScale ≥ LARGE_TEXT_SCALE` 1.6 ở `lib/type-scale.ts`) — hàng phòng cho tên và dòng cuối
+  hai dòng mỗi thứ, dấu/giờ/huy hiệu xuống dòng dưới; hàng nhật ký cuộc gọi đưa giờ xuống dưới kết quả; hàng Cài đặt
+  xuống dòng nhãn và đặt giá trị dưới nó. Preset Jest của React Native báo `fontScale` 2, nên `test/jest-setup.ts` đặt
+  về 1; test cỡ chữ lớn tự `jest.spyOn(Dimensions, "get")`. **Danh sách phụ** (Cuộc gọi, Danh bạ, Nhắn tin mới, Tạo
+  nhóm, Kênh): `components/ui/list-states.tsx` — `ListSkeleton` (khung hàng, một phần tử progressbar) và
+  `ListLoadError` (nói cái gì hỏng, gợi ý kiểm tra mạng, Thử lại; live region `assertive` trên Android, `useAnnounce`
+  trên iOS). **Splash** chờ cả theme đã lưu (`useThemeReady`, cờ `ready` của `data/theme-preference.ts`), nên chọn
+  tối trên máy sáng không còn một khung sáng. **Bàn phím** kéo xuống từ danh sách tin: iOS bằng
+  `keyboardDismissMode="interactive"`, Android bằng `KeyboardGestureArea` (`interpolator="ios"`,
+  `components/chat/timeline-list.tsx`; Android 11+). Kiểm trên thiết bị: `maestro/flows/message-menu-large-text.yaml`
+  (nightly, Android font_scale 2.0 + dark + cửa sổ 360 × 640 dp; iOS AX5 + dark) và
+  `flows/a11y-large-text-dark.yaml` trên simulator ở mỗi PR chạm iOS (`mobile-verify.yml › ios-release`).

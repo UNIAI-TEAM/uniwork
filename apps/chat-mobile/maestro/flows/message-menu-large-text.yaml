@@ -1,0 +1,64 @@
+# The long-press menu at the largest text size, in dark mode (audit UX
+# "long-press-menu-overflows"): on a 360 x 640 dp Android phone the menu of
+# one's own message did not fit even at the default size, and clipped the
+# reaction bar at the top and Delete at the bottom. The nightly runs this right
+# after chat-read-send.yaml, signed in, with the emulator at font_scale 2.0,
+# night mode and a 360 x 640 dp window (chat-mobile-verify.yml › android), and
+# the iOS simulator at accessibility-extra-extra-extra-large and dark
+# (› ios). The reaction bar must stay on screen, and Delete must be reachable
+# by scrolling the menu.
+appId: com.uniworkos.chat.staging
+name: Long-press menu at the largest text size, in dark mode
+tags:
+  - golden
+  - a11y
+---
+# A relaunch picks the text size and the window up from the start; the session survives it.
+- stopApp
+- launchApp
+- openLink: uniworkchat://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat')}
+- extendedWaitUntil:
+    visible:
+      id: room-row-${MAESTRO_ROOM_ID}
+    timeout: 30000
+- tapOn:
+    id: room-row-${MAESTRO_ROOM_ID}
+- extendedWaitUntil:
+    visible:
+      id: composer-input
+    timeout: 30000
+# One's own text message has the longest menu: reply, thread, copy, pin, task, follow-up, forward, edit, delete.
+- evalScript: ${output.menuStamp = 'Maestro menu ' + Date.now()}
+- tapOn:
+    id: composer-input
+- inputText: ${output.menuStamp}
+- tapOn:
+    id: composer-send
+- extendedWaitUntil:
+    visible: .*${output.menuStamp}.*
+    timeout: 15000
+- hideKeyboard
+- longPressOn: .*${output.menuStamp}.*
+- extendedWaitUntil:
+    visible:
+      id: message-actions-menu
+    timeout: 10000
+# The reaction bar is not clipped off the top.
+- assertVisible: "Like|Thích"
+# Delete is reachable: the menu scrolls inside the height the window leaves it.
+- repeat:
+    while:
+      notVisible: "Delete|Xóa"
+    times: 5
+    commands:
+      - swipe:
+          from:
+            id: message-actions-menu
+          direction: UP
+          duration: 400
+- assertVisible: "Delete|Xóa"
+- assertVisible: "Like|Thích"
+# Close from the dimmed backdrop, as a person would.
+- tapOn: "Close|Đóng"
+- assertNotVisible:
+    id: message-actions-menu

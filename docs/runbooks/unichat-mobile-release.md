@@ -514,7 +514,23 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
 - [ ] Ảnh xem lớn: chụm phóng to quanh ngón tay, chạm hai lần phóng to/thu nhỏ, kéo ảnh đang phóng to không đổi trang,
   ở 1x vuốt ngang đổi ảnh, vuốt xuống (hoặc lên) đóng và nền mờ dần; Android trong Modal cũng chạy (GestureHandlerRootView).
 - [ ] Cỡ chữ hệ thống lớn nhất (iOS Larger Accessibility Sizes, Android Font size + Display size lớn nhất): danh sách
-  chat, phòng, composer, Cài đặt không cắt chữ; nút và chip cao lên theo chữ; số trên huy hiệu chỉ to tới 1.4×.
+  chat, phòng, composer, Cài đặt không cắt chữ; nút và chip cao lên theo chữ; số trên huy hiệu chỉ to tới 1.4×, nhãn tab
+  tới 1.3×. Hàng phòng: tên hai dòng, giờ và huy hiệu xuống dòng dưới; nhật ký cuộc gọi: giờ dưới kết quả; Cài đặt: giá
+  trị dưới nhãn.
+- [ ] Menu nhấn giữ tin của mình (nhiều hàng nhất) trên máy Android 360 × 640 dp ở cỡ chữ mặc định và lớn nhất, và trên
+  iPhone SE: thanh cảm xúc không bị cắt ở trên, menu cuộn được tới "Xóa", tin nâng lên còn 2–3 dòng. Menu nhấn giữ một
+  phòng ở cỡ chữ lớn nhất: các hàng cuộn được, kéo grabber vẫn đóng sheet.
+- [ ] VoiceOver (iPhone thật, chưa có bản iOS ký thì ghi "chưa kiểm" vào checklist go/no-go) và TalkBack: trên bong bóng,
+  Actions/rotor có "Trả lời", "Thả cảm xúc Thích" trước "Thao tác với tin nhắn" và chạy đúng; trên hàng phòng có chưa
+  đọc: "Đánh dấu đã đọc", "Ghim hội thoại", "Tắt thông báo" trước "Quản lý phòng"; menu nhấn giữ tin vuốt chữ Z đóng.
+  Người khác gửi tin khi VoiceOver đang đọc một dòng khác: câu "Bình: …" đợi đọc xong mới nói (không cắt ngang);
+  TalkBack đọc câu đó khi rảnh (live region), không bỏ qua khi hai câu giống hệt liền nhau. Tab Cuộc gọi/Danh bạ khi
+  tắt mạng lúc mở lần đầu: đọc "Không tải được … Kiểm tra kết nối mạng rồi thử lại.", có nút Thử lại.
+- [ ] Vuốt hàng phòng (Android và iOS): phải quá ngưỡng rồi thả thì hết chưa đọc (rung một nhịp khi qua ngưỡng), ngắn
+  thì bật lại; trái thì lộ Ghim và Tắt tiếng, chạm một nút chạy lệnh rồi đóng; mở hàng khác hay cuộn thì hàng trước
+  đóng; chạm hàng đang mở thì đóng, không mở phòng. Danh sách cuộn dọc không bị vuốt ngang cướp.
+- [ ] Android 11+: trong phòng, bàn phím mở, kéo danh sách tin xuống chạm bàn phím thì bàn phím đi theo ngón tay và đóng
+  khi thả dưới nửa; composer đi cùng. Chọn giao diện Tối trên máy để Sáng, kill app rồi mở: khung đầu sau splash đã tối.
 - [ ] Màn giải thích quyền: lần đầu ghi tin thoại, gọi, gọi video, bật camera giữa cuộc gọi thoại, lần đầu vào app (thông báo) đều hiện màn của UniChat
   trước hộp thoại hệ thống; "Để sau" không hiện hộp thoại; đã từ chối hẳn thì màn nói quyền đang tắt và "Mở Cài đặt"
   mở đúng trang của UniChat. Lời nhắc thông báo lúc mở app chỉ hiện một lần mỗi máy, kể cả khi bấm "Tiếp tục" rồi từ

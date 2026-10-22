@@ -61,6 +61,12 @@ test("mobile-verify can be called and builds the release only through its jobs",
   assert.match(ios, /-configuration Release -sdk iphonesimulator/);
   assert.match(ios, /CODE_SIGN_IDENTITY=- /, "ad-hoc signed: no Apple account");
   assert.match(ios, /maestro-retry\.sh --device "\$UDID" test flows\/smoke-launch\.yaml/, "and boots to sign-in on a simulator");
+  // Audit UX "no-ios-a11y-verification": the same sign-in check at the largest Dynamic Type, in dark mode.
+  assert.match(
+    ios,
+    /content_size accessibility-extra-extra-extra-large\n\s+xcrun simctl ui "\$UDID" appearance dark\n\s+\$\{\{ github\.workspace \}\}\/scripts\/maestro-retry\.sh --device "\$UDID" test flows\/a11y-large-text-dark\.yaml/,
+    "the simulator runs the sign-in at the largest Dynamic Type in dark mode",
+  );
   // Accessibility on the device: the largest font scale and dark mode, the flow, then the audit, blocking.
   assert.match(
     wf,
@@ -103,13 +109,22 @@ test("the nightly pins Maestro, fails a scheduled run without its settings, and 
   const ios = jobsOf(wf).jobs.get("ios") ?? "";
   assert.match(ios, /^ {4}if: \$\{\{ !cancelled\(\) \}\}$/m, "the nightly iOS build runs without the Maestro settings");
   assert.match(ios, /- name: Build for the simulator\n(?! {8}if:)/, "the build step itself is unconditional");
-  for (const step of ["Boot a simulator and install the app", "Sign in, read and send", "Push opens the room", "Join a call"]) {
+  const steps = ["Boot a simulator and install the app", "Sign in, read and send", "Push opens the room", "Join a call", "Long-press menu at the largest Dynamic Type, in dark mode"];
+  for (const step of steps) {
     assert.match(ios, new RegExp(`- name: ${step}\\n {8}if: needs\\.gate\\.outputs\\.ready == 'true'`), `${step} waits for the gate`);
   }
   assert.match(wf, /\.\/gradlew :app:bundleRelease/);
   // The golden chat flow again at the largest text in dark mode, and the room audited (as warnings: its pills
   // reach their target through hit slop, which a dump cannot see).
   assert.match(wf, /font_scale 2\.0\n\s+adb shell cmd uimode night yes\n\s+cd apps\/chat-mobile\/maestro && \$\{\{ github\.workspace \}\}\/scripts\/maestro-retry\.sh test flows\/chat-read-send\.yaml\n\s+node scripts\/mobile-a11y-audit\.mjs/);
+  // Audit UX "long-press-menu-overflows": the menu at font scale 2.0 in a 360 x 640 dp window keeps its reactions on
+  // screen and scrolls to Delete, the window and the text size put back after; the simulator checks it at AX5.
+  assert.match(
+    wf,
+    /mobile-a11y-audit\.mjs [^\n]*\n\s+adb shell wm size 720x1280\n\s+adb shell wm density 320\n\s+cd apps\/chat-mobile\/maestro && [^\n]*test flows\/message-menu-large-text\.yaml\n\s+adb shell wm size reset\n\s+adb shell wm density reset\n\s+adb shell settings put system font_scale 1\.0/,
+    "the long-press menu runs at the largest text on a 360 x 640 dp window",
+  );
+  assert.match(ios, /content_size accessibility-extra-extra-extra-large\n\s+xcrun simctl ui "\$UDID" appearance dark\n\s+[^\n]*test flows\/message-menu-large-text\.yaml/);
 });
 
 // The OTA path (audit R3): from CI, after every PR check on the SHA, staged by

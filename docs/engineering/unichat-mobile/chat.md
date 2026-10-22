@@ -48,3 +48,10 @@ Ba lớp của tab Chat, key, cache, màn hình và luật của file route. Đ�
   (`{ view: "image", file }`, `{ view: "poll", poll }`…): card nhận payload đã thu hẹp, không `x!` (lint
   `@typescript-eslint/no-non-null-assertion` đỏ trong `app/`/`components/`); kind lạ hay kind biết mà thiếu payload →
   `unsupported` → hàng "Mở trên web" (`expo-web-browser`, không kích hoạt universal link).
+- Hàng phòng (`components/chat/room-row.tsx`) vuốt như Mail/WhatsApp (`components/chat/room-swipe.tsx`, số ở
+  `lib/room-swipe.ts`): vuốt phải quá 80 pt rồi thả thì đánh dấu đã đọc (chỉ khi có chưa đọc), vuốt trái mở Ghim và Tắt
+  tiếng (giữ mở khi quá nửa hoặc hất); rung một nhịp khi qua điểm thả là chạy; một hàng mở mỗi lúc, cuộn hay chạm hàng
+  đang mở thì đóng, cell tái chế vẽ phòng khác thì đóng. Trình đọc màn hình có cùng lệnh làm hành động của hàng (đánh dấu
+  đã đọc, ghim/bỏ ghim, tắt/bật thông báo) trước "Quản lý phòng". Menu nhấn giữ, vuốt và hành động trợ năng chạy cùng
+  lệnh của `components/chat/use-room-commands.ts` (menu cũng có "Đánh dấu đã đọc"); không có "đánh dấu chưa đọc" vì
+  server chưa có lệnh đó.
