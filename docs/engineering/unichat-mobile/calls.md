@@ -78,6 +78,29 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   không hiện được (bản thiếu module, hệ thống từ chối) thì một thông báo thường trên kênh `missed_calls` (`callFallback`
   trong `call-wiring.ts`, id `call-ring:<callId>`) mở màn đổ chuông, push kết thúc gỡ nó — một lần đổ chuông data-only
   không bao giờ mất im lặng;
+  **Đổ chuông không cần JavaScript** (review "killed-app-ring-js-dependent"): dịch vụ FCM của app là
+  `UniChatMessagingService` (khai ở `plugins/with-unichat-calls.js` với priority 1, trên `ExpoFirebaseMessagingService`
+  của expo-notifications ở -1; `android-manifest.test.ts › messagingServices` giữ thứ tự) và đưa mọi tin FCM qua
+  `NativeCallPush.handle` trước: push đổ chuông khi activity của app không ở trước (`AppVisibility`, từ listener của
+  `UniChatCallsPackage`) và không có cuộc gọi đang chạy thì hiện ngay thông báo CallStyle, không khởi động Hermes hay
+  đọc phiên; push kết thúc gỡ nó và thông báo dự phòng `call-ring:<id>`; công tắc tắt, đã đăng xuất hay hết cửa sổ thì
+  không reo. Những gì cần JavaScript quyết — app đang mở (engine biết in_app/bận), đang trong cuộc gọi, chưa có cấu hình
+  chuông, hệ thống từ chối thông báo — và mọi push khác đi tiếp tới expo-notifications như cũ. Cấu hình chuông
+  (`RingConfig`: bật khi công tắc gọi bật và có người đăng nhập, scheme, chữ theo ngôn ngữ app) do
+  `data/calls/native-ring.ts` ghi lúc mở app và mỗi khi công tắc, phiên hay ngôn ngữ đổi (`ringSyncEnv` trong
+  `call-wiring.ts`); kết quả của đường native (`RingReports`) được đếm khi JavaScript chạy lại: `call_push` `native`, và
+  `call_ring` (từ lúc server gọi — `expires_at` trừ cửa sổ 60 s — tới lúc máy reo, cả đường JavaScript với `app`; alert
+  `UniChatCallRingSlow`). Task nền JavaScript (`runCallPushTask`) đọc lại cấu hình từ xa đã giữ trước khi quyết, nên
+  công tắc tắt vẫn giữ trong runtime không giao diện.
+  **Đang có cuộc gọi khác** (cuộc gọi điện thoại hay VoIP của app khác: `AudioManager.mode` là `IN_CALL`,
+  `IN_COMMUNICATION` hay `CALL_SCREENING`, đọc lúc reo, mọi API level): thông báo đổ chuông là chờ cuộc gọi — vẫn Nghe/Từ
+  chối, nhưng im lặng và không `FLAG_INSISTENT`; chuông trong app chỉ rung ngắn (`CallRinger.ringFor`). Telecom vẫn chưa
+  làm (ADR 0038 §5): đây là phần thay tạm cho call-waiting của Telecom.
+  **Khi app đóng mà máy chặn**: `BackgroundDelivery.kt` báo tối ưu pin, hạn chế nền (API 28+) và hãng có công tắc tự khởi
+  động (Xiaomi/Redmi/POCO, Oppo/realme, vivo/iQOO, Huawei/Honor, OnePlus, Asus); Cài đặt › Thông báo
+  (`components/settings/background-calls-rows.tsx`, logic ở `lib/background-delivery.ts`) hiện dòng mở trang pin của
+  hệ thống (trang của app từ Android 12, danh sách tối ưu pin trước đó) và trang tự khởi động của hãng (không có thì
+  trang của app), với các bước theo từng hãng; đọc lại khi quay về app. Không xin `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`.
   `data/calls/call-actions.ts` (Từ chối khi app đã kill chỉ báo server cho cuộc gọi 1-1, bằng phiên đã lưu);
   `data/calls/call-native-sync.ts` theo engine (service từ connecting tới hết, thử lại mỗi lần app về foreground —
   `onAppStateChange`, hỏi `BLUETOOTH_CONNECT` lúc bắt đầu
@@ -116,6 +139,10 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   chạy (chỉ token của chính thông báo đó mới cho hiện trên màn khoá và Nghe, token thu hồi/hết hạn/giả thì không),
   `PendingActions` (giữ 10 mục mới nhất, lấy một lần), và thông báo như hệ thống nhận (`CallStyle` thật, `FLAG_INSISTENT`,
   full-screen intent, intent mang token, chỉ Nghe có `EXTRA_ANSWER`, Gác máy của cuộc gọi đang diễn ra),
+  `NativeCallPush` (push Expo đổ chuông khi app đóng thành thông báo theo cấu hình đã ghi, push kết thúc gỡ nó, app đang
+  mở hay chưa có cấu hình thì để JavaScript, công tắc tắt hay muộn thì không reo), `BackgroundDelivery` (hãng theo
+  thương hiệu con, trạng thái pin, mở trang của hãng hay trang của app), `RingReports`/`RingConfig`, chờ cuộc gọi khi
+  máy đang gọi (`CallNotifications`, `CallRinger.ringFor`),
   `CallService` (loại phoneCall, thêm micro/camera khi đã cấp; Android từ chối một loại thì giữ loại đã có, từ chối hết
   lúc đầu thì tự dừng; một cuộc gọi chỉ một `startForegroundService`, cập nhật sau đi thẳng vào dịch vụ đang chạy — shadow
   `ShadowRefusingService` trong test giả lời từ chối theo loại của Android 14), `CallActionReceiver` (Từ chối gỡ thông báo
@@ -125,7 +152,8 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   rung chỉ rung), `CallProximity` (giữ một lần, nhả khi tắt và khi cuộc gọi dừng, máy không có cảm biến thì không giữ); CI chạy
   `:unichat-calls:testReleaseUnitTest` cùng lượt Gradle của `android-release`. Thêm một test instrumented
   (`src/androidTest`, UiAutomator): cuộc gọi đến đăng qua `CallNotifications` hiện trong khay của System UI như một cuộc
-  gọi có Nghe/Từ chối và biến mất khi huỷ; `android-release` build APK test (`:unichat-calls:assembleDebugAndroidTest`),
+  gọi có Nghe/Từ chối và biến mất khi huỷ, và cùng thông báo đó tới từ một push FCM qua `NativeCallPush` không có
+  JavaScript (`NativeCallPushRingTest`); `android-release` build APK test (`:unichat-calls:assembleDebugAndroidTest`),
   `android-smoke` cài và chạy nó trên emulator (`am instrument`, đỏ nếu không `OK (`). Hai thư mục test nằm ngoài
   fingerprint (`fingerprint.config.js › ignorePaths`): thêm test không tách runtime.
   Hằng đêm `chat-mobile-verify.yml › android-two-party` chạy `maestro/flows/call-answer-incoming.yaml` với FCM thật trên

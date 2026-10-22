@@ -187,9 +187,14 @@ App content): kiểu `phoneCall` — "VoIP voice and video calls between members
 `camera` — "the user's own microphone/camera during a call they started or answered", kèm video quay màn hình: nhận
 cuộc gọi trên máy khoá → Nghe → khoá máy giữa cuộc gọi → thông báo cuộc gọi đang diễn ra → Gác máy. `expo-audio` tắt
 phát/ghi nền (`enableBackgroundPlayback: false`; tin thoại dừng khi rời app), `MediaProjectionService` của WebRTC (chia
-sẻ màn hình, app không dùng) bị gỡ khỏi manifest. Hai dịch vụ không chạy nền khác: `TaskJobService` của
-`expo-task-manager` (nhận push cuộc gọi data-only khi app đóng) và `CallActionTaskService` (Từ chối/Gác máy trên thông
-báo báo cho server). Danh sách quyền và dịch vụ cuối cùng của bản release do `android-manifest.test.ts` giữ.
+sẻ màn hình, app không dùng) bị gỡ khỏi manifest. Ba dịch vụ không chạy nền khác: `UniChatMessagingService` (dịch vụ
+FCM của app: push đổ chuông thành màn đổ chuông ngay, không cần khởi động JavaScript; mọi push khác chuyển cho dịch vụ
+của `expo-notifications`), `TaskJobService` của `expo-task-manager` (đường dự phòng của push cuộc gọi khi app đang mở)
+và `CallActionTaskService` (Từ chối/Gác máy trên thông báo báo cho server). App không xin quyền
+bỏ qua tối ưu pin (REQUEST_IGNORE_BATTERY_OPTIMIZATIONS; Play chỉ cho app không dùng được FCM): Cài đặt › Thông báo chỉ mở trang pin của
+hệ thống và trang tự khởi động của hãng (Xiaomi, Oppo, vivo, Huawei, OnePlus, Asus) để người dùng tự bật; manifest khai
+`<queries>` đúng tên gói các app cài đặt đó (không xin quyền thấy mọi app). Danh sách quyền, dịch vụ và gói được hỏi của
+bản release do `android-manifest.test.ts` giữ.
 
 ## Tài khoản demo cho review
 

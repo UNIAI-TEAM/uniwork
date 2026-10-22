@@ -114,6 +114,19 @@ export function ringRemainingMs(push: Extract<CallPush, { type: "call_invite" }>
   return Math.max(0, Math.min(CALL_RING_WINDOW_MS, push.expiresAt - now));
 }
 
+/** Where a group call's room name goes in the native ring's line (modules/unichat-calls › RingConfig.kt). */
+export const RING_ROOM_PLACEHOLDER = "{room}";
+
+/**
+ * From the server's ring (its end less the ring window) to `now`, or null when the push did not say when it ends.
+ * Measured against the server's clock, so a phone's clock skew is in it; a negative one is not a measurement.
+ */
+export function ringLatencyMs(push: Extract<CallPush, { type: "call_invite" }>, now: number): number | null {
+  if (!push.expiresAt) return null;
+  const latency = now - (push.expiresAt - CALL_RING_WINDOW_MS);
+  return latency >= 0 ? latency : null;
+}
+
 /** The custom-scheme wrapper every build opens, verified app links or not (lib/deep-link.ts › parseDeepLink). */
 export function appLink(scheme: string, webUrl: string): string {
   return `${scheme}://open?url=${encodeURIComponent(webUrl)}`;

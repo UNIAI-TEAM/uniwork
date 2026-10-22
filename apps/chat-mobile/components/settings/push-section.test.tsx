@@ -14,6 +14,7 @@ const mockSetPush = jest.fn<Promise<string | null>, [{ enabled: boolean; ask?: (
 jest.mock("@/data/mutations/push", () => ({ useSetPushEnabled: jest.fn(() => ({ mutateAsync: mockSetPush })) }));
 // Its own test (full-screen-calls-row.test.tsx); here it would only read the native calls module.
 jest.mock("./full-screen-calls-row", () => ({ FullScreenCallsRow: () => null }));
+jest.mock("./background-calls-rows", () => ({ BackgroundCallsRows: () => null }));
 
 const enabled = jest.mocked(isPushEnabled);
 const toggle = () => screen.getByLabelText(viText("mobile.settings.push_this_device"));

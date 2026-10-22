@@ -104,5 +104,26 @@ class UniChatCallsModule : Module() {
     Function("takeAnsweredCall") { callId: String ->
       CallLaunchTokens.takeAnswered(context, callId, System.currentTimeMillis())
     }
+
+    // What a call push needs to ring with no JavaScript running (NativeCallPush), kept on the phone.
+    Function("configureRing") { config: RingConfig ->
+      RingConfig.write(context, config)
+    }
+
+    Function("takeRingReports") {
+      RingReports.take(context)
+    }
+
+    Function("backgroundDelivery") {
+      BackgroundDelivery.status(context)
+    }
+
+    Function("openBatterySettings") {
+      BackgroundDelivery.openBatterySettings(context)
+    }
+
+    Function("openAutostartSettings") {
+      BackgroundDelivery.openAutostartSettings(context)
+    }
   }
 }

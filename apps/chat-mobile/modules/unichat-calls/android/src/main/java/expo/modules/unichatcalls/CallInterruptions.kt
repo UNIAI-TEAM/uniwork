@@ -35,6 +35,16 @@ internal object CallInterruptions {
   /** The modes in which the phone's own call has the line; MODE_RINGTONE (it only rings) is not one. */
   fun holdsTheLine(mode: Int): Boolean = mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_CALL_SCREENING
 
+  /**
+   * The phone is in a call now: its own (MODE_IN_CALL, MODE_CALL_SCREENING) or another app's VoIP call
+   * (MODE_IN_COMMUNICATION). A UniChat ring then is call waiting, not a ringtone (CallNotifications, CallRinger).
+   * Read once per ring, so it needs no listener and works on every API level, unlike the hold above.
+   */
+  fun phoneBusy(context: Context): Boolean {
+    val mode = context.getSystemService(AudioManager::class.java)?.mode ?: return false
+    return holdsTheLine(mode) || mode == AudioManager.MODE_IN_COMMUNICATION
+  }
+
   @Synchronized
   fun modeChanged(mode: Int) {
     val now = holdsTheLine(mode)

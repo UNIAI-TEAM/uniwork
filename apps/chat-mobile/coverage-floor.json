@@ -510,6 +510,12 @@
       "functions": 100,
       "lines": 100
     },
+    "components/settings/background-calls-rows.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/settings/delete-account.tsx": {
       "statements": 100,
       "branches": 100,

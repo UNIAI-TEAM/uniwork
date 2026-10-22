@@ -25,6 +25,11 @@ import androidx.core.content.ContextCompat
  * the ringtone's audio attributes (so the ringer switch and Do Not Disturb
  * decide, not the media volume), looping (FLAG_INSISTENT) until answered,
  * declined or timed out, with a full-screen intent for a locked phone.
+ * While the phone is already in a call (its own, or another app's VoIP call:
+ * CallInterruptions.phoneBusy) the ring is call waiting instead: the same
+ * notification and buttons, silent and posted once, so it never rings over
+ * the call the person is on (review "android-no-telecom": without Telecom
+ * nothing else arbitrates the two).
  * Ongoing: CallStyle.forOngoingCall for the foreground service, with a
  * chronometer and Hang up.
  */
@@ -116,6 +121,7 @@ internal object CallNotifications {
     val open = PendingIntent.getActivity(context, requestCode, linkIntent(context, call.openUrl, call.callId, token, false), pendingFlags)
     val answer = PendingIntent.getActivity(context, requestCode + 1, linkIntent(context, call.openUrl, call.callId, token, true), pendingFlags)
     val decline = CallActionReceiver.pendingIntent(context, CallActionReceiver.ACTION_DECLINE, call.callId, call.roomId, call.workspaceId, call.callKind)
+    val waiting = CallInterruptions.phoneBusy(context)
     val builder = NotificationCompat.Builder(context, CHANNEL_CALLS)
       .setSmallIcon(smallIcon(context))
       .setContentTitle(call.callerName)
@@ -131,22 +137,25 @@ internal object CallNotifications {
       .setFullScreenIntent(open, true)
       .setTimeoutAfter(call.timeoutMs.toLong().coerceAtLeast(1_000L))
       .addPerson(person)
+    // Call waiting: no ringtone or buzz over the call under way (setSilent overrides the channel's sound).
+    if (waiting) builder.setSilent(true).setVibrate(null)
     return try {
-      post(context, requestCode, builder.setStyle(NotificationCompat.CallStyle.forIncomingCall(person, decline, answer).setIsVideo(call.video)).build())
+      post(context, requestCode, builder.setStyle(NotificationCompat.CallStyle.forIncomingCall(person, decline, answer).setIsVideo(call.video)).build(), waiting)
       true
     } catch (e: IllegalArgumentException) {
       // A CallStyle the system refuses (no usable full-screen intent on some
       // builds): the same notification with plain Decline / Answer actions.
       Log.w(TAG, "CallStyle refused, posting a plain call notification", e)
-      postPlain(context, requestCode, builder, call, decline, answer)
+      postPlain(context, requestCode, builder, call, decline, answer, waiting)
     } catch (e: SecurityException) {
       Log.w(TAG, "incoming call notification not allowed", e)
       false
     }
   }
 
-  private fun post(context: Context, id: Int, notification: Notification) {
-    notification.flags = notification.flags or Notification.FLAG_INSISTENT
+  /** A ring loops its sound until answered (FLAG_INSISTENT); call waiting does not. */
+  private fun post(context: Context, id: Int, notification: Notification, waiting: Boolean) {
+    if (!waiting) notification.flags = notification.flags or Notification.FLAG_INSISTENT
     NotificationManagerCompat.from(context).notify(TAG_INCOMING, id, notification)
   }
 
@@ -156,12 +165,13 @@ internal object CallNotifications {
     builder: NotificationCompat.Builder,
     call: IncomingCall,
     decline: PendingIntent,
-    answer: PendingIntent
+    answer: PendingIntent,
+    waiting: Boolean
   ): Boolean = try {
     builder.setStyle(null)
       .addAction(0, call.declineLabel, decline)
       .addAction(0, call.answerLabel, answer)
-    post(context, id, builder.build())
+    post(context, id, builder.build(), waiting)
     true
   } catch (e: RuntimeException) {
     Log.w(TAG, "incoming call notification failed", e)

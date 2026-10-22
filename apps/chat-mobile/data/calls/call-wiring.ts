@@ -13,12 +13,19 @@
 //   Hang up taps that could not run before, the foreground push handler
 //   (lib/notification-presentation.ts), the hand-over of a call ringing
 //   on screen to the notification when the person leaves the app, and the
-//   call's service started again on the way back.
+//   call's service started again on the way back; and the native ring path
+//   kept able to ring without JavaScript (native-ring.ts), its rings counted.
+//
+// The background task is only the fallback ring path on Android now: a call
+// push for a closed or backgrounded app rings from the FCM service itself
+// (modules/unichat-calls › NativeCallPush.kt) and never reaches JavaScript;
+// the task sees a ring the native path left to it (UniChat on screen, a call
+// under way, no ring config yet, a notification the system refused).
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
 import { AppRegistry, AppState, PermissionsAndroid, Platform } from "react-native";
-import { callPushFromData, taskPayloadData } from "@/lib/call-push";
+import { callPushFromData, ringLatencyMs, taskPayloadData } from "@/lib/call-push";
 import { chatNotificationAction } from "@/lib/chat-notification";
 import { i18n } from "@/lib/i18n/singleton";
 import { showInForeground } from "@/lib/notification-presentation";
@@ -31,13 +38,16 @@ import { runChatNotificationAction } from "../chat-notification-actions";
 import { createLogger } from "../logger";
 import { callChannelNames } from "../notification-channels";
 import { queryClient } from "../query-client";
-import { readMobileFlag } from "../remote-config";
+import { readMobileFlag, remoteConfigKey, restoreRemoteConfig } from "../remote-config";
+import { bestEffort } from "../report";
+import { openDeviceStore } from "../storage/device-store";
 import { getCurrentWorkspace } from "../stores/workspace-store";
 import { callActionFrom, handleCallAction, type CallActionEnv } from "./call-actions";
 import { createNativeCallSync, installNativeCallSync } from "./call-native-sync";
 import { handleCallPush, incomingSpecFromState, type CallPushEnv } from "./call-push";
 import { callEngine } from "./call-store";
 import { nativeCalls } from "./native-calls";
+import { installNativeRingSync, reportNativeRings, type NativeRingSyncEnv } from "./native-ring";
 
 /** expo-task-manager's name for the background notification task. */
 export const CALL_PUSH_TASK = "unichat-call-push";
@@ -110,10 +120,16 @@ export async function runCallPushTask(payload: unknown): Promise<void> {
   if (!push) return;
   bootRuntime();
   await applyStoredLocale();
+  // A headless runtime has no screen that seeded the kept remote config: without it the calls switch would read
+  // its default (on), and a switch the server turned off would still ring here (review: kill switch fails open).
+  await restoreRemoteConfig(queryClient, openDeviceStore).catch(bestEffort("remote-config", "kept answer not read", "breadcrumb"));
+  reportNativeRings(nativeCalls, track);
   try {
     const outcome = await handleCallPush(push, pushEnv);
     log.info("call push", { type: push.type, outcome });
     track({ name: "call_push", result: outcome });
+    const latency = push.type === "call_invite" && (outcome === "shown" || outcome === "fallback") ? ringLatencyMs(push, Date.now()) : null;
+    if (latency !== null) track({ name: "call_ring", result: "app", duration_ms: latency });
   } catch (error) {
     log.warn("call push failed", { type: push.type, error: error instanceof Error ? error.name : typeof error });
     if (push.type === "call_invite") track({ name: "call_push", result: "lost" });
@@ -193,18 +209,52 @@ export function handOverRing(status: string): void {
  * background (no foreground-start exemption) gets another try in front.
  */
 export function onAppStateChange(status: string): void {
-  if (status === "active") nativeCallSync.refresh(current());
+  if (status === "active") {
+    nativeCallSync.refresh(current());
+    reportNativeRings(nativeCalls, track);
+  }
   handOverRing(status);
 }
+
+/**
+ * The native ring path's config follows the calls switch (every update of the remote-config query), the session
+ * (a sign-out stops native rings at once) and the language; a return to the app writes it again if anything else
+ * moved meanwhile.
+ */
+export const ringSyncEnv: NativeRingSyncEnv = {
+  native: nativeCalls,
+  t,
+  scheme: authConfig.scheme,
+  callsOn: () => readMobileFlag(queryClient, "unichat_mobile_calls"),
+  signedIn: () => session.status() !== "signed-out",
+  subscribe(listener) {
+    const offConfig = queryClient.getQueryCache().subscribe((event) => {
+      if (event.query.queryKey[0] === remoteConfigKey[0]) listener();
+    });
+    const offSession = session.onChange(() => listener());
+    const appState = AppState.addEventListener("change", (status) => status === "active" && listener());
+    i18n.on("languageChanged", listener);
+    return () => {
+      offConfig();
+      offSession();
+      appState.remove();
+      i18n.off("languageChanged", listener);
+    };
+  },
+};
 
 /** Once the app's screens load; the function it returns undoes it (tests). */
 export function startNativeCalls(): () => void {
   const stopSync = installNativeCallSync(callEngine.store, nativeCallSync);
+  const stopRingSync = installNativeRingSync(ringSyncEnv);
   for (const pending of nativeCalls.takePendingActions()) void runCallActionTask(pending);
+  // Rings the FCM service handled while JavaScript was not running, counted now.
+  reportNativeRings(nativeCalls, track);
   Notifications.setNotificationHandler({ handleNotification: (notification) => foregroundBehavior(notification.request.content.data) });
   const appState = AppState.addEventListener("change", onAppStateChange);
   return () => {
     stopSync();
+    stopRingSync();
     appState.remove();
     Notifications.setNotificationHandler(null);
   };

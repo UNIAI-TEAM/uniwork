@@ -21,6 +21,8 @@ const report = (env: Record<string, string> = {}) =>
     removedPermissions: string[];
     services: { name: string; foregroundServiceType: string }[];
     removedServices: string[];
+    messagingServices: { name: string; priority: number }[];
+    queriedPackages: string[];
   };
 
 // One introspection for every case below: `expo config` is the slow part.
@@ -83,13 +85,33 @@ describe("the release build's Android manifest", () => {
     // service is off (enableBackgroundPlayback: false) and WebRTC's
     // mediaProjection one is removed (plugins/with-removed-android-services.js).
     // expo-task-manager's job service runs the data-only call push in the
-    // background; the headless task service tells the server about Decline.
+    // background; the headless task service tells the server about Decline. UniChatMessagingService is the app's
+    // FCM service (a call push rings natively, everything else goes on to expo-notifications'), not a foreground one.
     expect(manifest.services).toEqual([
       { name: "com.google.android.gms.metadata.ModuleDependencies", foregroundServiceType: "" },
       { name: "expo.modules.notifications.service.ExpoFirebaseMessagingService", foregroundServiceType: "" },
       { name: "expo.modules.taskManager.TaskJobService", foregroundServiceType: "" },
       { name: "expo.modules.unichatcalls.CallActionTaskService", foregroundServiceType: "" },
       { name: "expo.modules.unichatcalls.CallService", foregroundServiceType: "phoneCall|microphone|camera" },
+      { name: "expo.modules.unichatcalls.UniChatMessagingService", foregroundServiceType: "" },
+    ]);
+    // FCM hands a message to the MESSAGING_EVENT service with the highest priority: UniChat's, which takes a call
+    // push natively (modules/unichat-calls › NativeCallPush.kt) and passes the rest to expo-notifications'. Were
+    // expo-notifications' first, a killed app would ring only once JavaScript booted (review killed-app-ring).
+    expect(manifest.messagingServices).toEqual([
+      { name: "expo.modules.unichatcalls.UniChatMessagingService", priority: 1 },
+      { name: "expo.modules.notifications.service.ExpoFirebaseMessagingService", priority: -1 },
+    ]);
+    // Named vendor apps only (their autostart screens, BackgroundDelivery.kt), never QUERY_ALL_PACKAGES.
+    expect(manifest.queriedPackages).toEqual([
+      "com.asus.mobilemanager",
+      "com.coloros.safecenter",
+      "com.huawei.systemmanager",
+      "com.iqoo.secure",
+      "com.miui.securitycenter",
+      "com.oneplus.security",
+      "com.oppo.safe",
+      "com.vivo.permissionmanager",
     ]);
     expect(manifest.removedServices).toEqual(["com.oney.WebRTCModule.MediaProjectionService"]);
     expect(manifest.permissions.filter((name) => name.startsWith("android.permission.FOREGROUND_SERVICE_"))).toEqual([

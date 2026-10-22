@@ -6,6 +6,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.media.AudioManager
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -93,6 +94,22 @@ class CallNotificationsTest {
     assertEquals(open.data, answer.data)
     CallLaunchTokens.recordAnswer(app, answer, System.currentTimeMillis())
     assertTrue(CallLaunchTokens.takeAnswered(app, "call-1", System.currentTimeMillis()))
+  }
+
+  @Test
+  fun duringAnotherCallTheRingIsCallWaitingSilentAndNotInsistent() {
+    val audio = app.getSystemService(AudioManager::class.java)
+    audio.mode = AudioManager.MODE_IN_CALL
+    try {
+      assertTrue(CallNotifications.showIncoming(app, incoming()))
+      val notification = posted()
+      // Still the call, with Answer and Decline, but no ringtone loop or buzz over the call under way.
+      assertEquals(Notification.CATEGORY_CALL, notification.category)
+      assertEquals(0, notification.flags and Notification.FLAG_INSISTENT)
+      assertNull(notification.vibrate)
+    } finally {
+      audio.mode = AudioManager.MODE_NORMAL
+    }
   }
 
   @Test

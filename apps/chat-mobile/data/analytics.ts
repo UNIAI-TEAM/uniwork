@@ -24,7 +24,10 @@ export type ProductEvent =
   | { name: "call_connect"; result: "connected"; duration_ms: number }
   | { name: "call_connect"; result: "failed" }
   // What a call push did on the phone (data/calls/call-push.ts › CallPushOutcome): ring delivery, measured in the field.
-  | { name: "call_push"; result: "shown" | "fallback" | "in_app" | "ignored" | "cleared" | "lost" }
+  // `native`: rung by the FCM service with no JavaScript (data/calls/native-ring.ts), counted when JavaScript next runs.
+  | { name: "call_push"; result: "shown" | "native" | "fallback" | "in_app" | "ignored" | "cleared" | "lost" }
+  // How long after the server rang a call the phone rang it: natively, or by the JavaScript task (`app`).
+  | { name: "call_ring"; result: "native" | "app"; duration_ms: number }
   // How a launch went (data/release/launch-health.ts): an OTA update that failed to launch, and a run that crashed.
   | { name: "ota_launch"; result: "emergency" | "failed_update" }
   | { name: "app_crash"; result: "last_run" };

@@ -2,7 +2,8 @@
 // device's subscription on the server before the switch moves
 // (useSetPushEnabled over data/push.ts › setPushEnabled); the hint states the
 // server's rule that a person active elsewhere gets no push here. Below it, on Android 14+, the full-screen
-// calls permission when it has been taken away (full-screen-calls-row.tsx).
+// calls permission when it has been taken away (full-screen-calls-row.tsx), and on Android what keeps a call from
+// ringing once the app is closed (background-calls-rows.tsx: battery, vendor autostart).
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Switch, View } from "react-native";
@@ -14,6 +15,7 @@ import { useSetPushEnabled } from "@/data/mutations/push";
 import { isPushEnabled } from "@/data/push";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
+import { BackgroundCallsRows } from "./background-calls-rows";
 import { FullScreenCallsRow } from "./full-screen-calls-row";
 import { SettingsSection } from "./settings-section";
 
@@ -80,6 +82,7 @@ export function PushSection() {
         </Text>
       ) : null}
       <FullScreenCallsRow />
+      <BackgroundCallsRows />
     </SettingsSection>
   );
 }

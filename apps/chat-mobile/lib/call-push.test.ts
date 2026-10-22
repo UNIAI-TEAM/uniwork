@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CALL_RING_WINDOW_MS, appLink, callPushFromData, ringRemainingMs, taskPayloadData, type CallPush } from "./call-push";
+import { CALL_RING_WINDOW_MS, appLink, callPushFromData, ringLatencyMs, ringRemainingMs, taskPayloadData, type CallPush } from "./call-push";
 import { parseDeepLink } from "./deep-link";
 
 // What server notification/push_expo.go › callData sends (every value a string).
@@ -116,5 +116,18 @@ describe("appLink", () => {
     const link = appLink("uniworkchat", INVITE.url);
     expect(link.startsWith("uniworkchat://open?url=https%3A%2F%2Fapp.uniworkos.com%2F")).toBe(true);
     expect(parseDeepLink(link, "https://app.uniworkos.com", "uniworkchat")).toEqual({ orgSlug: "acme", wsSlug: "hq", roomId: "r-1", callId: "c-1" });
+  });
+});
+
+describe("ringLatencyMs", () => {
+  const ring = (expiresAt: number) => ({ ...(callPushFromData(INVITE) as Extract<CallPush, { type: "call_invite" }>), expiresAt });
+
+  it("is the time since the server rang: the ring's end less the ring window", () => {
+    expect(ringLatencyMs(ring(1_700_000_060_000), 1_700_000_001_500)).toBe(1_500);
+  });
+
+  it("is nothing without an end, or when the phone's clock runs behind the server's", () => {
+    expect(ringLatencyMs(ring(0), 1_700_000_001_500)).toBeNull();
+    expect(ringLatencyMs(ring(1_700_000_060_000), 1_699_999_999_000)).toBeNull();
   });
 });

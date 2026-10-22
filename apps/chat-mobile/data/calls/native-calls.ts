@@ -3,9 +3,15 @@
 // everywhere else (iOS, Expo Go, tests), so no caller branches on the
 // platform. `available` says which, for the few places that pick another
 // path without it (the in-app ringtone).
-import { UniChatCalls, type NativeCallAction, type UniChatCallsModule } from "@/modules/unichat-calls";
+import {
+  UniChatCalls,
+  type NativeBackgroundDelivery,
+  type NativeCallAction,
+  type NativeRingReport,
+  type UniChatCallsModule,
+} from "@/modules/unichat-calls";
 
-export type { CallChannelNames, NativeCallAction, NativeIncomingCall, NativeOngoingCall } from "@/modules/unichat-calls";
+export type { CallChannelNames, NativeCallAction, NativeIncomingCall, NativeOngoingCall, NativeRingConfig } from "@/modules/unichat-calls";
 
 /** The module's calls, its event as a subscription: `onCallHeld` returns the unsubscribe. */
 type Calls = Omit<UniChatCallsModule, "addListener"> & { onCallHeld(listener: (held: boolean) => void): () => void };
@@ -31,6 +37,18 @@ const NONE: Calls = {
   // Without the module nothing watches the phone's own calls: a call is never held.
   isCallHeld: () => false,
   onCallHeld: () => () => undefined,
+  // No native ring path: every call push is JavaScript's, and nothing waits to be counted.
+  configureRing: () => undefined,
+  takeRingReports: (): NativeRingReport[] => [],
+  // Nothing to check without the module: no row asks the person to change a setting.
+  backgroundDelivery: (): NativeBackgroundDelivery => ({
+    batteryOptimized: false,
+    backgroundRestricted: false,
+    autostartBrand: "",
+    manufacturer: "",
+  }),
+  openBatterySettings: () => false,
+  openAutostartSettings: () => false,
 };
 
 /** Each call goes to the module itself: a native module's functions expect it as `this`. */
@@ -53,6 +71,11 @@ export function nativeCallsFrom(module: UniChatCallsModule | null): NativeCalls 
     takePendingActions: () => module.takePendingActions(),
     takeAnsweredCall: (callId) => module.takeAnsweredCall(callId),
     isCallHeld: () => module.isCallHeld(),
+    configureRing: (config) => module.configureRing(config),
+    takeRingReports: () => module.takeRingReports(),
+    backgroundDelivery: () => module.backgroundDelivery(),
+    openBatterySettings: () => module.openBatterySettings(),
+    openAutostartSettings: () => module.openAutostartSettings(),
     onCallHeld: (listener) => {
       const sub = module.addListener("onCallHeld", (event) => listener(event.held === true));
       return () => sub.remove();

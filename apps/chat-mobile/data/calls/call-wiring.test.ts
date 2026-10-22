@@ -32,7 +32,20 @@ vi.mock("@uniwork/core/runtime-config", () => ({ runtimeConfig: () => ({ appUrl:
 const deps = vi.hoisted(() => ({
   applyStoredLocale: vi.fn(async () => "vi"),
   bootRuntime: vi.fn(),
-  session: { status: vi.fn(() => "signed-out"), restore: vi.fn(async () => true) },
+  session: {
+    status: vi.fn(() => "signed-out"),
+    restore: vi.fn(async () => true),
+    onChange: vi.fn((listener: (token: string | null) => void) => {
+      deps.sessionListener = listener;
+      return deps.offSession;
+    }),
+  },
+  sessionListener: (_token: string | null) => undefined as void,
+  offSession: vi.fn(),
+  cacheListener: (_event: { query: { queryKey: readonly unknown[] } }) => undefined as void,
+  offCache: vi.fn(),
+  restoreRemoteConfig: vi.fn(async () => true),
+  openDeviceStore: vi.fn(),
   signalVoiceHangup: vi.fn(async () => true),
   callsOn: true,
   workspace: { orgSlug: "acme", wsSlug: "hq", wsId: "w-1" } as { orgSlug: string; wsSlug: string; wsId: string } | null,
@@ -42,8 +55,17 @@ vi.mock("../app-locale", () => ({ applyStoredLocale: deps.applyStoredLocale }));
 vi.mock("../boot", () => ({ bootRuntime: deps.bootRuntime }));
 vi.mock("../auth/flow", () => ({ authConfig: { scheme: "uniworkchat" }, session: deps.session }));
 vi.mock("../chat-api", () => ({ chatApi: { signalVoiceHangup: deps.signalVoiceHangup } }));
-vi.mock("../query-client", () => ({ queryClient: {} }));
-vi.mock("../remote-config", () => ({ readMobileFlag: () => deps.callsOn }));
+const queryClient = vi.hoisted(() => ({
+  getQueryCache: () => ({
+    subscribe: (listener: (event: { query: { queryKey: readonly unknown[] } }) => void) => {
+      deps.cacheListener = listener;
+      return deps.offCache;
+    },
+  }),
+}));
+vi.mock("../query-client", () => ({ queryClient }));
+vi.mock("../remote-config", () => ({ readMobileFlag: () => deps.callsOn, remoteConfigKey: ["remote-config"], restoreRemoteConfig: deps.restoreRemoteConfig }));
+vi.mock("../storage/device-store", () => ({ openDeviceStore: deps.openDeviceStore }));
 vi.mock("../stores/workspace-store", () => ({ getCurrentWorkspace: () => deps.workspace }));
 const analytics = vi.hoisted(() => ({ track: vi.fn() }));
 vi.mock("../analytics", () => analytics);
@@ -82,10 +104,13 @@ const native = vi.hoisted(() => ({
   openFullScreenIntentSettings: vi.fn(),
   releaseLockScreen: vi.fn(),
   takePendingActions: vi.fn(() => deps.pending),
+  configureRing: vi.fn(),
+  takeRingReports: vi.fn((): { result: string; latencyMs: number }[] => []),
 }));
 vi.mock("./native-calls", () => ({ nativeCalls: native }));
 
 const wiring = await import("./call-wiring");
+const { i18n } = await import("@/lib/i18n/singleton");
 
 const NOW = Date.now();
 const INVITE = {
@@ -191,6 +216,39 @@ describe("runCallPushTask", () => {
     });
     await wiring.runCallPushTask({ data: { type: "call_end", call_id: "c-1", room_id: "r-1", workspace_id: "w-1" } });
     expect(notifications.dismissNotificationAsync).toHaveBeenCalledWith("call-ring:c-1");
+  });
+
+  it("reads the kept remote config first, so a calls switch the server turned off holds in a headless runtime", async () => {
+    deps.restoreRemoteConfig.mockImplementationOnce(async () => {
+      deps.callsOn = false;
+      return true;
+    });
+    await wiring.runCallPushTask({ data: INVITE });
+    expect(deps.restoreRemoteConfig).toHaveBeenCalledWith(queryClient, deps.openDeviceStore);
+    expect(native.showIncomingCall).not.toHaveBeenCalled();
+    expect(analytics.track).toHaveBeenCalledWith({ name: "call_push", result: "ignored" });
+  });
+
+  it("still rings when the kept config cannot be read", async () => {
+    deps.restoreRemoteConfig.mockRejectedValueOnce(new Error("locked"));
+    await wiring.runCallPushTask({ data: INVITE });
+    expect(native.showIncomingCall).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts how long after the server rang the phone rang, and what the native path did meanwhile", async () => {
+    native.takeRingReports.mockReturnValueOnce([{ result: "native", latencyMs: 700 }]);
+    await wiring.runCallPushTask({ data: INVITE });
+    expect(analytics.track).toHaveBeenCalledWith({ name: "call_push", result: "native" });
+    expect(analytics.track).toHaveBeenCalledWith({ name: "call_ring", result: "native", duration_ms: 700 });
+    // expires_at is 40 s ahead, so the server rang 20 s before now (the ring window is 60 s).
+    const ring = analytics.track.mock.calls.map(([event]) => event as { name: string; result: string; duration_ms?: number }).find((e) => e.result === "app");
+    expect(ring?.name).toBe("call_ring");
+    expect(ring?.duration_ms).toBeGreaterThanOrEqual(20_000);
+    // A ring that says nothing of when it ends has no latency to count.
+    analytics.track.mockClear();
+    await wiring.runCallPushTask({ data: { ...INVITE, expires_at: "" } });
+    expect(analytics.track).toHaveBeenCalledWith({ name: "call_push", result: "shown" });
+    expect(analytics.track.mock.calls.some(([event]) => (event as { name: string }).name === "call_ring")).toBe(false);
   });
 
   it("ignores a push that is not about a call, without booting anything", async () => {
@@ -345,6 +403,46 @@ describe("onAppStateChange", () => {
     wiring.onAppStateChange("active");
     expect(native.startRinging).toHaveBeenCalledTimes(1);
     expect(native.startOngoingCall).not.toHaveBeenCalled();
+  });
+});
+
+describe("the native ring path", () => {
+  it("is configured at start with the switch, the session and the app's words, and counts what it rang meanwhile", () => {
+    native.takeRingReports.mockReturnValueOnce([{ result: "cleared", latencyMs: -1 }]);
+    const stop = wiring.startNativeCalls();
+    expect(native.configureRing).toHaveBeenCalledTimes(1);
+    // Signed out at this point (the session restores after): no native ring yet.
+    expect(native.configureRing).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false, scheme: "uniworkchat" }));
+    expect(analytics.track).toHaveBeenCalledWith({ name: "call_push", result: "cleared" });
+    deps.session.status.mockReturnValue("signed-in");
+    deps.sessionListener("token");
+    expect(native.configureRing).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }));
+    // The server turns calling off: the next answer of the remote-config query turns native rings off.
+    deps.callsOn = false;
+    deps.cacheListener({ query: { queryKey: ["chat", "w-1"] } });
+    expect(native.configureRing).toHaveBeenCalledTimes(2);
+    deps.cacheListener({ query: { queryKey: ["remote-config"] } });
+    expect(native.configureRing).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
+    stop();
+    expect(deps.offCache).toHaveBeenCalledTimes(1);
+    expect(deps.offSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("is written again on a return to the app and when the language changes, and counts rings on the way back", () => {
+    const listener = vi.fn();
+    const stop = wiring.ringSyncEnv.subscribe(listener);
+    const onState = rn.AppState.addEventListener.mock.calls.at(-1)![1] as (status: string) => void;
+    onState("background");
+    expect(listener).not.toHaveBeenCalled();
+    onState("active");
+    void i18n.changeLanguage("en");
+    expect(listener).toHaveBeenCalledTimes(2);
+    stop();
+    void i18n.changeLanguage("vi");
+    expect(listener).toHaveBeenCalledTimes(2);
+    native.takeRingReports.mockReturnValueOnce([{ result: "native", latencyMs: 300 }]);
+    wiring.onAppStateChange("active");
+    expect(analytics.track).toHaveBeenCalledWith({ name: "call_ring", result: "native", duration_ms: 300 });
   });
 });
 

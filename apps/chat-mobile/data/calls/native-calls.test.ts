@@ -22,6 +22,11 @@ function fakeModule(): UniChatCallsModule {
     takePendingActions: vi.fn(() => [{ action: "decline", callId: "c", roomId: "r", workspaceId: "w", callKind: "dm", at: 1 }]),
     takeAnsweredCall: vi.fn((callId: string) => callId === "c"),
     isCallHeld: vi.fn(() => true),
+    configureRing: vi.fn(),
+    takeRingReports: vi.fn(() => [{ result: "native", latencyMs: 900 }]),
+    backgroundDelivery: vi.fn(() => ({ batteryOptimized: true, backgroundRestricted: false, autostartBrand: "xiaomi", manufacturer: "Xiaomi" })),
+    openBatterySettings: vi.fn(() => true),
+    openAutostartSettings: vi.fn(() => true),
     addListener: vi.fn((_event: "onCallHeld", listener: (event: { held: boolean }) => void) => {
       held.push(listener);
       return { remove: removeHeld };
@@ -33,6 +38,17 @@ const held: ((event: { held: boolean }) => void)[] = [];
 const removeHeld = vi.fn();
 
 const INCOMING = { callId: "c", roomId: "r", workspaceId: "w", callerName: "Minh", callKind: "dm", text: "", video: false, openUrl: "x://", timeoutMs: 1, answerLabel: "", declineLabel: "" };
+const RING = {
+  enabled: true,
+  scheme: "uniworkchat",
+  incomingVoice: "v",
+  incomingVideo: "vi",
+  incomingGroup: "g {room}",
+  groupFallback: "gf",
+  unknownCaller: "u",
+  answerLabel: "a",
+  declineLabel: "d",
+};
 const ONGOING = { callId: "c", roomId: "r", workspaceId: "w", peerName: "Minh", text: "", video: false, startedAt: 0 };
 
 describe("nativeCalls", () => {
@@ -54,6 +70,11 @@ describe("nativeCalls", () => {
     expect(nativeCalls.takeAnsweredCall("c")).toBe(false);
     expect(nativeCalls.isCallHeld()).toBe(false);
     nativeCalls.onCallHeld(() => undefined)();
+    nativeCalls.configureRing(RING);
+    expect(nativeCalls.takeRingReports()).toEqual([]);
+    expect(nativeCalls.backgroundDelivery()).toEqual({ batteryOptimized: false, backgroundRestricted: false, autostartBrand: "", manufacturer: "" });
+    expect(nativeCalls.openBatterySettings()).toBe(false);
+    expect(nativeCalls.openAutostartSettings()).toBe(false);
   });
 
   it("hands the phone's own call taking and giving back the line to its listener, until unsubscribed", () => {
@@ -100,7 +121,24 @@ describe("nativeCalls", () => {
     expect(module.startOngoingCall).toHaveBeenCalledWith(ONGOING);
     expect(module.setProximityScreenOff).toHaveBeenCalledWith(true);
     expect(vi.mocked(module.setProximityScreenOff).mock.contexts[0]).toBe(module);
-    for (const fn of [module.stopOngoingCall, module.startRinging, module.stopRinging, module.openFullScreenIntentSettings, module.releaseLockScreen]) {
+    calls.configureRing(RING);
+    expect(module.configureRing).toHaveBeenCalledWith(RING);
+    expect(calls.takeRingReports()).toEqual([{ result: "native", latencyMs: 900 }]);
+    expect(calls.backgroundDelivery().autostartBrand).toBe("xiaomi");
+    expect(calls.openBatterySettings()).toBe(true);
+    expect(calls.openAutostartSettings()).toBe(true);
+    for (const fn of [
+      module.stopOngoingCall,
+      module.startRinging,
+      module.stopRinging,
+      module.openFullScreenIntentSettings,
+      module.releaseLockScreen,
+      module.configureRing,
+      module.takeRingReports,
+      module.backgroundDelivery,
+      module.openBatterySettings,
+      module.openAutostartSettings,
+    ]) {
       expect(fn).toHaveBeenCalledTimes(1);
       expect(vi.mocked(fn).mock.contexts[0]).toBe(module);
     }

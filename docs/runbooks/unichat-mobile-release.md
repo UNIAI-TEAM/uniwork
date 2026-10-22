@@ -699,7 +699,8 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; test J
 (`modules/unichat-calls/android/src/test`, chạy trong `android-release`) giữ token khởi chạy, hành động chờ, thông báo
 như hệ thống nhận, dịch vụ nền của cuộc gọi, nút Từ chối/Gác máy, màn khoá và tiếng reo theo chế độ chuông; test
 instrumented (`src/androidTest`, chạy trên emulator của `android-smoke`) giữ thông báo đổ chuông như System UI vẽ nó (khay,
-Nghe/Từ chối). Đỏ ở bước `am instrument`: tải artifact `maestro-smoke` không có gì cho nó — đọc log job (dòng
+Nghe/Từ chối), kể cả khi nó đến từ một push FCM qua đường native không có JavaScript (`NativeCallPushRingTest`: push
+Expo data-only → thông báo trong khay → push kết thúc gỡ nó). Đỏ ở bước `am instrument`: tải artifact `maestro-smoke` không có gì cho nó — đọc log job (dòng
 `FAILURES!!!` và stack), tái hiện bằng `./gradlew :unichat-calls:connectedDebugAndroidTest` trên một emulator API 35.
 Chỉ máy Android thật (bản `preview`/`internal` có `GOOGLE_SERVICES_JSON` và FCM) xác nhận phần còn
 lại — nhạc chuông, màn toàn màn hình, push khi app bị kill, OEM. Chạy test đó trên máy dev cần Android SDK:
@@ -709,7 +710,14 @@ lại — nhạc chuông, màn toàn màn hình, push khi app bị kill, OEM. Ch
 kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ máy thật kiểm được. Hai tài khoản, A gọi B:
 
 - [ ] B kill app, khoá máy; A gọi 1-1: màn B sáng, màn đổ chuông toàn màn hình hiện trên màn khoá (tên A, "Cuộc gọi
-  thoại đến", Nghe / Từ chối), nhạc chuông là nhạc chuông của máy; chế độ rung chỉ rung, im lặng không kêu.
+  thoại đến", Nghe / Từ chối), nhạc chuông là nhạc chuông của máy; chế độ rung chỉ rung, im lặng không kêu. Chuông hiện
+  trong vòng 1–2 s sau khi A bấm gọi (đường native, không chờ JavaScript); `adb logcat -s UniChatCalls ReactNativeJS`
+  không thấy JavaScript khởi động cho tới khi bấm Nghe.
+- [ ] B đang nghe một cuộc gọi điện thoại (hoặc cuộc gọi Zalo/WhatsApp); A gọi UniChat: B thấy thông báo cuộc gọi đến có
+  Nghe / Từ chối nhưng không có nhạc chuông lặp đè lên cuộc gọi đang nghe (chờ cuộc gọi); app đang mở thì chỉ rung ngắn.
+- [ ] Trên Xiaomi/Redmi, Oppo/realme, vivo và Samsung có pin "tối ưu": Cài đặt › Thông báo hiện dòng "Cho UniChat chạy
+  nền" và (trừ Samsung) "Bật tự khởi động cho UniChat"; mỗi dòng mở đúng trang của hệ thống/hãng; bật xong, quay lại app
+  thì dòng pin biến mất. Vuốt tắt app khỏi đa nhiệm, A gọi: B vẫn đổ chuông.
 - [ ] Nghe: app mở trên màn cuộc gọi và nối; khoá máy giữa cuộc gọi — tiếng hai chiều vẫn còn sau 2 phút; thanh thông
   báo có "Cuộc gọi thoại · chạm để quay lại" với đồng hồ và Gác máy; Gác máy ở đó kết thúc cuộc gọi ở cả hai bên.
 - [ ] Nghe từ màn khoá chưa mở khoá: màn cuộc gọi hiện ngay trên màn khoá (không đòi mở khoá); gác máy thì màn khoá
@@ -921,8 +929,12 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
 
 18. Cuộc gọi native trên Android hỏng (triệu chứng ở trên). Không reo khi app đóng: push data-only không tới — thiếu
    `GOOGLE_SERVICES_JSON` của bản build, máy tắt thông báo hay đang tiết kiệm pin nặng (Doze vẫn nhận FCM ưu tiên cao;
-   chế độ "hạn chế" của vài hãng thì không: hướng dẫn người dùng bỏ hạn chế pin cho UniChat), hoặc
-   `uniwork_push_sent_total{result="failed"}` tăng ở server. Reo mà không toàn màn hình: Android 14 đã thu hồi
+   chế độ "hạn chế" và tự khởi động của vài hãng thì không: Cài đặt › Thông báo của app có dòng "Cho UniChat chạy nền" và
+   "Bật tự khởi động", hướng dẫn người dùng bấm vào), hoặc `uniwork_push_sent_total{result="failed"}` tăng ở server.
+   Push tới mà không reo khi app đóng: đường native (`UniChatMessagingService`, `NativeCallPush.kt`) cần cấu hình chuông
+   app ghi lúc mở (`RingConfig`): người dùng chưa mở app lần nào sau khi cài/cập nhật thì push đi đường JavaScript cũ;
+   `adb logcat -s UniChatCalls` cho biết lỗi native. Tỷ lệ `call_push{result="native"}` trên `shown` theo bản cho biết
+   đường nào đang chạy (alert `UniChatCallRingSlow` khi chuông trễ). Reo mà không toàn màn hình: Android 14 đã thu hồi
    full-screen intent (Cài đặt › Thông báo trong app có dòng bật lại) hoặc Play chưa duyệt khai báo. Từ chối không tới
    người gọi khi app đã kill: Android từ chối khởi động task nền — hành động chờ tới lần mở app sau (người gọi vẫn hết
    giờ đổ chuông). Mất tiếng khi khoá máy: dịch vụ cuộc gọi không chạy (Sentry/breadcrumb của bản đó; quyền micro chưa

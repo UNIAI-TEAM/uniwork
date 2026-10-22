@@ -1586,7 +1586,16 @@
       "channel_general": "Thông báo khác",
       "channel_general_hint": "Công việc, tài liệu, nhắc hẹn và các cập nhật khác.",
       "full_screen_calls": "Hiện cuộc gọi đến toàn màn hình",
-      "full_screen_calls_hint": "Android đang chặn màn hình đổ chuông khi máy khóa, nên cuộc gọi chỉ hiện như một thông báo. Bật lại để không lỡ cuộc gọi."
+      "full_screen_calls_hint": "Android đang chặn màn hình đổ chuông khi máy khóa, nên cuộc gọi chỉ hiện như một thông báo. Bật lại để không lỡ cuộc gọi.",
+      "background_battery": "Cho UniChat chạy nền",
+      "background_battery_hint": "Android đang tiết kiệm pin bằng cách hạn chế UniChat, nên cuộc gọi đến lúc bạn đã đóng app có thể không đổ chuông. Mở trang này, chọn Pin rồi chọn Không hạn chế.",
+      "background_autostart": "Bật tự khởi động cho UniChat",
+      "autostart_hint_xiaomi": "Máy Xiaomi, Redmi và POCO chặn cuộc gọi tới app đã đóng nếu app chưa được tự khởi động. Bật Tự khởi động cho UniChat, rồi trong Tiết kiệm pin của UniChat chọn Không hạn chế.",
+      "autostart_hint_oppo": "Máy OPPO, realme và OnePlus chặn cuộc gọi tới app đã đóng nếu app chưa được tự khởi động. Bật Cho phép tự khởi động cho UniChat, rồi trong Pin của UniChat cho phép chạy nền.",
+      "autostart_hint_vivo": "Máy vivo và iQOO chặn cuộc gọi tới app đã đóng nếu app chưa được khởi động nền. Bật Tự khởi động (hay Khởi động nền) cho UniChat, rồi cho phép UniChat dùng pin khi chạy nền.",
+      "autostart_hint_huawei": "Máy Huawei và Honor chặn cuộc gọi tới app đã đóng khi app do hệ thống quản lý. Trong Khởi chạy ứng dụng, tắt Quản lý tự động cho UniChat rồi bật cả Tự khởi chạy, Khởi chạy phụ và Chạy nền.",
+      "autostart_hint_oneplus": "Máy OnePlus chặn cuộc gọi tới app đã đóng nếu app chưa được tự khởi chạy. Bật Tự khởi chạy cho UniChat, rồi trong Tối ưu hóa pin chọn Không tối ưu hóa.",
+      "autostart_hint_asus": "Máy ASUS chặn cuộc gọi tới app đã đóng nếu app chưa được tự khởi động. Bật Tự khởi động cho UniChat trong Trình quản lý di động."
     },
     "call_notify": {
       "incoming_voice": "Cuộc gọi thoại đến",

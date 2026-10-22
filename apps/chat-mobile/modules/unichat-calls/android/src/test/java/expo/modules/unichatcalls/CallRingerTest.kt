@@ -5,6 +5,7 @@ import android.media.AudioManager
 import android.os.VibratorManager
 import androidx.test.core.app.ApplicationProvider
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -64,5 +65,23 @@ class CallRingerTest {
     assertTrue(buzzing())
     CallRinger.stop()
     assertFalse(buzzing())
+  }
+
+  @Test
+  fun duringAnotherCallARingIsCallWaitingNeverTheRingtone() {
+    ringerMode(AudioManager.RINGER_MODE_NORMAL)
+    assertEquals(CallRinger.Ring.RINGTONE, CallRinger.ringFor(app))
+    val audio = app.getSystemService(AudioManager::class.java)
+    // The phone's own call, and another app's VoIP call.
+    for (mode in listOf(AudioManager.MODE_IN_CALL, AudioManager.MODE_IN_COMMUNICATION, AudioManager.MODE_CALL_SCREENING)) {
+      audio.mode = mode
+      assertEquals(CallRinger.Ring.WAITING, CallRinger.ringFor(app))
+    }
+    // Silent stays silent, even for call waiting.
+    ringerMode(AudioManager.RINGER_MODE_SILENT)
+    assertEquals(CallRinger.Ring.NOTHING, CallRinger.ringFor(app))
+    audio.mode = AudioManager.MODE_NORMAL
+    ringerMode(AudioManager.RINGER_MODE_VIBRATE)
+    assertEquals(CallRinger.Ring.VIBRATE, CallRinger.ringFor(app))
   }
 }

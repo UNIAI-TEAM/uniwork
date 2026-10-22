@@ -80,10 +80,24 @@ function readLibrary(dir) {
   }
   const permissions = [...xml.matchAll(/<uses-permission(?:-sdk-23)?\b[^>]*>/g)].map((m) => attrs(m[0]));
   const services = [...xml.matchAll(/<service\b[^>]*>/g)].map((m) => attrs(m[0]));
+  // A service's FCM intent filter and its priority: FCM delivers to the highest one.
+  const messaging = [...xml.matchAll(/<service\b([^>]*)>([\s\S]*?)<\/service>/g)].flatMap((m) => {
+    const filter = [...m[2].matchAll(/<intent-filter\b([^>]*)>([\s\S]*?)<\/intent-filter>/g)].find((f) => f[2].includes(MESSAGING_EVENT));
+    return filter ? [{ name: qualify(attrs(m[1])["android:name"], pkg), priority: Number(attrs(filter[1])["android:priority"] ?? 0) }] : [];
+  });
   return {
     permissions: permissions.filter((p) => p["tools:node"] !== "remove").map((p) => ({ name: p["android:name"], maxSdkVersion: p["android:maxSdkVersion"] ?? "" })),
     services: services.filter((s) => s["tools:node"] !== "remove").map((s) => ({ name: qualify(s["android:name"], pkg), type: s["android:foregroundServiceType"] ?? "" })),
+    messaging,
   };
+}
+
+const MESSAGING_EVENT = "com.google.firebase.MESSAGING_EVENT";
+
+/** The priority of an app-manifest service's FCM intent filter, or null when it has none. */
+function messagingPriority(service) {
+  const filter = (service["intent-filter"] ?? []).find((f) => (f.action ?? []).some((a) => a.$?.["android:name"] === MESSAGING_EVENT));
+  return filter ? Number(filter.$?.["android:priority"] ?? 0) : null;
 }
 
 export function androidManifestReport() {
@@ -100,6 +114,8 @@ export function androidManifestReport() {
     caps.set(name, [...(caps.get(name) ?? []), maxSdkVersion]);
   };
   const services = new Map();
+  // name → priority of every service that receives FCM messages
+  const messaging = new Map();
   for (const p of manifest["uses-permission"] ?? []) {
     if (p.$["tools:node"] === "remove") removed.permissions.add(p.$["android:name"]);
     else declare(p.$["android:name"], p.$["android:maxSdkVersion"] ?? "");
@@ -108,6 +124,8 @@ export function androidManifestReport() {
     const name = qualify(s.$["android:name"], appPkg);
     if (s.$["tools:node"] === "remove") removed.services.add(name);
     else services.set(name, s.$["android:foregroundServiceType"] ?? "");
+    const priority = messagingPriority(s);
+    if (priority !== null && s.$["tools:node"] !== "remove") messaging.set(name, priority);
   }
   const pkg = JSON.parse(fs.readFileSync(path.join(appRoot, "package.json"), "utf8"));
   const expoDir = locate("expo", [appRoot]);
@@ -119,9 +137,13 @@ export function androidManifestReport() {
     if (!library) continue;
     for (const permission of library.permissions) declare(permission.name, permission.maxSdkVersion);
     for (const service of library.services) if (!services.has(service.name)) services.set(service.name, service.type);
+    for (const service of library.messaging) if (!messaging.has(service.name)) messaging.set(service.name, service.priority);
   }
   for (const name of removed.permissions) permissions.delete(name);
-  for (const name of removed.services) services.delete(name);
+  for (const name of removed.services) {
+    services.delete(name);
+    messaging.delete(name);
+  }
   const appAttrs = application.$ ?? {};
   return {
     // What leaves the phone in a backup or a device transfer, and whether cleartext is allowed (MASVS-STORAGE, -NETWORK).
@@ -141,6 +163,12 @@ export function androidManifestReport() {
     removedPermissions: [...removed.permissions].sort(),
     services: [...services].map(([name, foregroundServiceType]) => ({ name, foregroundServiceType })).sort((a, b) => a.name.localeCompare(b.name)),
     removedServices: [...removed.services].sort(),
+    // Other apps this one may see (Android 11+ package visibility): Play reviews a broad query, never named ones.
+    queriedPackages: (manifest.queries ?? []).flatMap((q) => (q.package ?? []).map((p) => p.$["android:name"])).sort(),
+    // Every FCM service, highest priority first: the first is the one FCM delivers to.
+    messagingServices: [...messaging]
+      .map(([name, priority]) => ({ name, priority }))
+      .sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name)),
   };
 }
 

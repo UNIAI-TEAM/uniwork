@@ -28,6 +28,10 @@ dependencies {
   implementation 'androidx.core:core:1.17.0'
   // HeadlessJsTaskService for the decline and hang-up actions; the app links React Native itself.
   compileOnly 'com.facebook.react:react-android'
+  // UniChatMessagingService extends expo-notifications' FCM service to take a call push before JavaScript does.
+  // Both are linked by the app (expo-notifications brings Firebase Messaging at this version), so compile only.
+  compileOnly project(':expo-notifications')
+  compileOnly 'com.google.firebase:firebase-messaging:25.0.1'
 
   // The launch tokens, the pending actions and the call notifications as the system receives
   // them (src/test), run by mobile-verify › android-release. The versions expo-modules-core
