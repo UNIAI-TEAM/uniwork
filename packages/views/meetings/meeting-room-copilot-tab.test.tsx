@@ -345,16 +345,13 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
       await new Promise((r) => setTimeout(r, 0));
     });
     fireEvent.click(screen.getByRole("button", { name: "Giao 1 việc" }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: /^Tạo/ }));
 
     await waitFor(() => expect(posted().items).toHaveLength(1));
     expect(posted()).toMatchObject({
       items: [{ action_item_id: "a0", assignee_id: null, due_date: null, project_id: "p1" }],
       locale: "vi",
     });
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Giao việc" })).toHaveAttribute("aria-disabled", "true");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Giao việc" })).toHaveAttribute("aria-disabled", "true"));
   });
 
   it("folds the tasks earlier meetings of the project left open into one group", async () => {

@@ -102,14 +102,12 @@ describe("CreateTaskDialog", () => {
           defaults={{ title: "Đặt phòng", assignee_id: null, project_id: null }}
           submitter={{ submit, pending: false }}
           heading="Việc sau họp 2/2"
-          hint="Trong họp nói: anh Hùng"
         />,
       ),
     );
     const next = await screen.findByDisplayValue("Đặt phòng");
     await waitFor(() => expect(next).toHaveFocus());
-    // The meeting's context is the dialog's description, read with its name.
-    expect(screen.getByRole("dialog")).toHaveAccessibleDescription("Trong họp nói: anh Hùng");
+
     expect(requestMock).not.toHaveBeenCalledWith(expect.stringMatching(/\/tasks$/), expect.objectContaining({ method: "POST" }));
     fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);

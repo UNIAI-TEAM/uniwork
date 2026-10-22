@@ -40,10 +40,8 @@ export type CreateTaskManualPanelProps = {
   setCreateAnother: (createAnother: boolean) => void;
   /** Another command creates the task: no drafts, no agent mode, no "create another". */
   submitter?: CreateTaskSubmitter;
-  /** Replaces "New task" after the workspace name (e.g. "Follow-up 1 of 3"). */
+  /** Replaces "New task" after the workspace name (e.g. "Meeting follow-up"). */
   heading?: string;
-  /** One line of context under the header (what was said in the meeting). */
-  hint?: string;
 };
 
 export function CreateTaskManualPanel({
@@ -58,7 +56,6 @@ export function CreateTaskManualPanel({
   setCreateAnother,
   submitter,
   heading,
-  hint,
 }: CreateTaskManualPanelProps) {
   const editorRef = useRef<ContentEditorRef>(null);
   const sendShortcut = useShortcut("send");
@@ -129,12 +126,7 @@ export function CreateTaskManualPanel({
             </span>
             <span className="text-foreground">{heading ?? t("tasks.create.manual_breadcrumb")}</span>
           </DialogTitle>
-          {/* The meeting's context is the description when there is one: seen, read, never cut. */}
-          {hint ? (
-            <DialogDescription className="text-caption text-pretty text-muted-foreground">{hint}</DialogDescription>
-          ) : (
-            <DialogDescription className="sr-only">{t("tasks.create.sr_manual")}</DialogDescription>
-          )}
+          <DialogDescription className="sr-only">{t("tasks.create.sr_manual")}</DialogDescription>
         </div>
         <TooltipProvider delay={300}>
           <div className="flex shrink-0 items-center gap-1">

@@ -682,12 +682,11 @@ Trang là các mục xếp chồng, không có tab. Thêm, theo thứ tự sau `
    - Đầu mục: chip đếm "Chờ xử lý n · Đã giao n · Đã bỏ qua n"; dòng tiến độ "Đã xong
      x/y · z quá hạn".
    - Nhóm **Chờ xử lý**: mỗi dòng có ô chọn, người gợi ý, nút Bỏ qua (popover lý do không
-     bắt buộc); thanh hành động "Giao n việc" và "+ Thêm việc". Sửa 2026-10-22: mọi chức
-     năng sinh task dùng chung giao diện màn Task, nên "Giao n việc" mở ô soạn task
-     (`CreateTaskDialog`) lần lượt từng việc đã chọn ("Việc sau họp k/n"), điền sẵn tiêu đề,
-     người và hạn gợi ý, dự án của cuộc họp; bấm Tạo thì convert riêng việc đó rồi mở việc
-     kế, đóng là dừng (các việc còn lại giữ dấu chọn). Mỗi việc là một transaction riêng,
-     nên người được giao nhận một thông báo cho mỗi việc.
+     bắt buộc); thanh hành động "Giao n việc" và "+ Thêm task". Sửa 2026-10-22 (lần 2, theo
+     chủ sản phẩm): "Giao n việc" tạo task ngay cho mọi việc đã chọn trong một transaction,
+     theo gợi ý sẵn có (người, hạn, mức độ, mô tả AI + căn cứ, dự án cuộc họp) — không mở
+     form; muốn sửa thì mở task. "Thêm task" mở ô soạn task của màn Task (`CreateTaskDialog`),
+     bấm Tạo thì thêm việc tay rồi convert nó với những gì đã nhập (không còn form 3 ô).
    - Nhóm **Đã giao**: tiêu đề (mở task), người, hạn, trạng thái, quá hạn tô cảnh báo,
      chip căn cứ (đợt 6).
    - Nhóm **Đã bỏ qua**: thu gọn mặc định, hiện lý do, nút Khôi phục.

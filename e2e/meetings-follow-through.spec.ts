@@ -11,8 +11,8 @@ import {
 
 // The program spec of "after the meeting" (UNI-1995, spec meeting
 // follow-through §13.3): end a meeting that has notes → summarise → assign
-// two items, dismiss one, add one by hand → the assignee gets a
-// notification per task and the task says which meeting it came from → regenerate
+// two items, dismiss one, add one through the task composer → the assignee gets
+// one notification and the task says which meeting it came from → regenerate
 // the summary, the handled items stay → the next meeting of the project
 // shows the tasks still open.
 //
@@ -72,50 +72,48 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   );
   test.skip(firstItems.items.length !== notes.length, "the server's AI provider is not the fake one (AI_PROVIDER=fake)");
 
-  // Host: assign two items in the task screen's composer, one after the other
-  // (the owner phrase names the peer, so each opens with them), dismiss one
-  // with a reason, add one the summary missed.
+  // Host: assign two items at once on the meeting's suggestions (the owner
+  // phrase names the peer), dismiss one with a reason, add one the summary
+  // missed through the task composer.
   await loginViaUi(page, host.email);
   const meetingURL = `/${host.orgSlug}/${host.wsSlug}/meetings/${first.id}`;
   await page.goto(meetingURL);
   const section = page.getByRole("region", { name: "Việc cần làm", exact: true });
   await section.getByRole("checkbox", { name: "Gửi báo giá" }).check({ timeout: 20_000 });
   await section.getByRole("checkbox", { name: "Đặt phòng hội thảo" }).check();
-  await section.getByRole("button", { name: "Giao 2 việc" }).click();
-  const composer = page.getByRole("dialog", { name: /Việc sau họp/ });
-  await expect(composer.getByText("Việc sau họp 1/2")).toBeVisible();
-  await composer.getByRole("button", { name: /^Tạo/ }).click();
-  await expect(composer.getByText("Việc sau họp 2/2")).toBeVisible({ timeout: 15_000 });
-  await composer.getByRole("button", { name: /^Tạo/ }).click();
-  await expect(composer).toBeHidden({ timeout: 15_000 });
-  await expect(section.getByRole("heading", { name: "Đã giao (2)" })).toBeVisible();
+  const assign = section.getByRole("button", { name: "Giao 2 việc" });
+  await expect(assign).not.toHaveAttribute("aria-busy", "true");
+  await assign.click();
+  await expect(section.getByRole("heading", { name: "Đã giao (2)" })).toBeVisible({ timeout: 15_000 });
 
   await section.getByRole("button", { name: 'Bỏ qua "In tài liệu"' }).click();
   await page.getByLabel("Lý do (không bắt buộc)").fill("Đã có bản in");
   await page.getByRole("button", { name: "Bỏ qua việc" }).click();
   await expect(section.getByRole("button", { name: "Đã bỏ qua (1)" })).toBeVisible();
 
-  await section.getByRole("button", { name: "Thêm việc" }).click();
-  await section.getByLabel("Tên việc").fill("Chốt ngân sách");
-  await section.getByRole("button", { name: "Thêm", exact: true }).click();
-  await expect(section.getByRole("heading", { name: "Chờ xử lý (2)" })).toBeVisible();
+  await section.getByRole("button", { name: "Thêm task" }).click();
+  const composer = page.getByRole("dialog", { name: /Task sau họp/ });
+  await composer.getByRole("textbox", { name: "Tiêu đề issue" }).fill("Chốt ngân sách");
+  await composer.getByRole("button", { name: /^Tạo/ }).click();
+  await expect(composer).toBeHidden({ timeout: 15_000 });
+  await expect(section.getByRole("heading", { name: "Đã giao (3)" })).toBeVisible();
+  await expect(section.getByRole("heading", { name: "Chờ xử lý (1)" })).toBeVisible();
 
   const { items } = await ok<{ items: { title: string; status: string; task?: { id: string; assignee_id?: string } }[] }>(
     await page.request.get(`${api}/api/v1/meetings/${first.id}/action-items`, { headers: auth }),
     "list items",
   );
   const assigned = items.filter((i) => i.status === "CONVERTED");
-  expect(assigned.map((i) => i.title).sort()).toEqual(["Gửi báo giá", "Đặt phòng hội thảo"]);
-  expect(assigned.every((i) => i.task?.assignee_id === peerUser.id)).toBeTruthy();
+  expect(assigned.map((i) => i.title).sort()).toEqual(["Chốt ngân sách", "Gửi báo giá", "Đặt phòng hội thảo"]);
+  expect(assigned.filter((i) => i.title !== "Chốt ngân sách").every((i) => i.task?.assignee_id === peerUser.id)).toBeTruthy();
   const taskId = assigned.find((i) => i.title === "Gửi báo giá")!.task!.id;
 
-  // Peer: a notification per task (each was its own convert), and the task names its meeting.
+  // Peer: one notification for the two tasks (one convert), and the task names its meeting.
   const peerContext = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
   const peerPage = await peerContext.newPage();
   await loginViaUi(peerPage, peer.email);
   await peerPage.goto(`/${host.orgSlug}/${host.wsSlug}/inbox`);
-  await expect(peerPage.getByRole("link", { name: /ft-host đã giao bạn việc "Gửi báo giá"/ })).toBeVisible({ timeout: 20_000 });
-  await expect(peerPage.getByRole("link", { name: /ft-host đã giao bạn việc "Đặt phòng hội thảo"/ })).toBeVisible();
+  await expect(peerPage.getByRole("link", { name: /ft-host đã giao bạn 2 việc/ })).toBeVisible({ timeout: 20_000 });
   await peerPage.goto(`/${host.orgSlug}/${host.wsSlug}/tasks/${taskId}`);
   await expect(peerPage.getByRole("link", { name: new RegExp(`^Từ cuộc họp ${title} · `) })).toBeVisible({ timeout: 20_000 });
   await peerContext.close();
@@ -123,8 +121,8 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   // Host: a new summary replaces only what nobody handled.
   await ok(await summarize(), "summarize again");
   await page.reload();
-  await expect(section.getByRole("heading", { name: "Chờ xử lý (2)" })).toBeVisible({ timeout: 20_000 });
-  await expect(section.getByRole("heading", { name: "Đã giao (2)" })).toBeVisible();
+  await expect(section.getByRole("heading", { name: "Chờ xử lý (1)" })).toBeVisible({ timeout: 20_000 });
+  await expect(section.getByRole("heading", { name: "Đã giao (3)" })).toBeVisible();
   await expect(section.getByRole("button", { name: "Đã bỏ qua (1)" })).toBeVisible();
   await expect(section.getByText("Gửi báo giá", { exact: true })).toHaveCount(1);
 

@@ -36,7 +36,6 @@ import {
   type ActionItemsVariant,
 } from "./action-item-rows";
 import { MeetingEvidenceChip } from "../meeting-evidence-chip";
-import { AddActionItemForm } from "./add-action-item-form";
 import { useActionItemConversion, type ActionItemSelection } from "./use-action-item-conversion";
 
 /** "2/5 done · 1 overdue", once anything is assigned; the groups carry their own counts. */
@@ -102,15 +101,14 @@ function RowsSkeleton() {
 }
 
 /**
- * The clerk's pending list: tick, then assign each in the task screen's
- * composer (the server's suggestions are the starting point and the clerk's
- * choices are final), one after the other; dismiss one with an optional
- * reason; add one the summary missed. The call to action stays rendered
+ * The clerk's pending list: tick, then "Assign" makes the tasks at once on
+ * the meeting's suggestions (what needs changing is changed on the task);
+ * dismiss one with an optional reason; "Add task" opens the task screen's
+ * composer for one the summary missed. The call to action stays rendered
  * once there is any item, even with none left pending (aria-disabled, with
- * the reason beside it), so the focus the dialog hands back on close has
- * somewhere to land; it is the primary button only once something is
- * ticked, and on a phone it then sticks to the bottom of the screen so it
- * is never below every row.
+ * the reason beside it), so focus has somewhere to land; it is the primary
+ * button only once something is ticked, and on a phone it then sticks to the
+ * bottom of the screen so it is never below every row.
  */
 function ClerkPendingList({
   workspaceId,
@@ -134,22 +132,12 @@ function ClerkPendingList({
   const { t } = useTranslation();
   const reasonId = useId();
   const { memberOf } = useMemberIndex(workspaceId);
-  const flow = useActionItemConversion({
-    workspaceId,
-    meetingId,
-    projectId,
-    items,
-    announce,
-    selection,
-    nameOf: (id) => memberOf(id)?.display_name,
-  });
+  const flow = useActionItemConversion({ workspaceId, meetingId, projectId, items, announce, selection });
   const dismiss = useDismissMeetingActionItem(meetingId);
-  const [adding, setAdding] = useState(false);
   const [dismissError, setDismissError] = useState<{ id: string; text: string } | null>(null);
   const addRef = useRef<HTMLButtonElement>(null);
   const assignRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const returnFocus = useRef(false);
   // A dismissed row unmounts with its focused button: once it leaves, focus the next row, else Add item.
   const landing = useRef<{ leaving: string; next?: string } | null>(null);
   const count = flow.pickedPending.length;
@@ -162,17 +150,6 @@ function ClerkPendingList({
     landing.current = null;
     if (!focusPendingRow(listRef.current, l.next)) (addRef.current ?? assignRef.current)?.focus();
   }, [pending]);
-
-  // The form unmounts the button that opened it: when it closes, focus goes back there, not to <body>.
-  useEffect(() => {
-    if (adding || !returnFocus.current) return;
-    returnFocus.current = false;
-    addRef.current?.focus();
-  }, [adding]);
-  const closeAdd = () => {
-    returnFocus.current = true;
-    setAdding(false);
-  };
 
   return (
     <div className="space-y-2.5">
@@ -224,11 +201,6 @@ function ClerkPendingList({
           ))}
         </ul>
       ) : null}
-      {adding ? (
-        <div className={cn(sticky && STICKY_BAR_CLEARANCE)}>
-          <AddActionItemForm meetingId={meetingId} onDone={closeAdd} announce={announce} />
-        </div>
-      ) : null}
       <div
         data-testid="action-items-bar"
         className={cn(
@@ -246,18 +218,16 @@ function ClerkPendingList({
             aria-disabled={blocked || undefined}
             aria-busy={flow.pending || undefined}
             aria-describedby={count === 0 ? reasonId : undefined}
-            onClick={flow.openReview}
+            onClick={flow.assign}
           >
             {flow.pending ? <Spinner data-icon="inline-start" /> : <ListChecks aria-hidden />}
             {count > 0 ? t("meetings.actionItemsSection.assign", { count }) : t("meetings.actionItemsSection.assignNone")}
           </Button>
         ) : null}
-        {adding ? null : (
-          <Button ref={addRef} type="button" size="sm" variant="ghost" onClick={() => setAdding(true)}>
-            <Plus aria-hidden />
-            {t("meetings.actionItemsSection.add")}
-          </Button>
-        )}
+        <Button ref={addRef} type="button" size="sm" variant="ghost" onClick={() => flow.setAddOpen(true)}>
+          <Plus aria-hidden />
+          {t("meetings.actionItemsSection.add")}
+        </Button>
         {count === 0 && items.length > 0 ? (
           <p id={reasonId} className="text-caption text-muted-foreground">
             {pending.length > 0
@@ -266,17 +236,16 @@ function ClerkPendingList({
           </p>
         ) : null}
       </div>
-      {/* The task screen's own composer, one ticked item at a time. */}
+      {/* The task screen's own composer: a task the summary missed. */}
       <CreateTaskDialog
         workspaceId={workspaceId}
-        open={flow.dialogOpen}
-        onOpenChange={flow.setDialogOpen}
+        open={flow.addOpen}
+        onOpenChange={flow.setAddOpen}
         showTrigger={false}
-        defaults={flow.defaults}
+        defaults={flow.addDefaults}
         submitter={flow.submitter}
-        heading={flow.heading}
-        hint={flow.hint}
-        finalFocus={assignRef}
+        heading={t("meetings.actionItemsSection.addHeading")}
+        finalFocus={addRef}
       />
     </div>
   );
