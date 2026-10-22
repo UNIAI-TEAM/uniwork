@@ -100,6 +100,8 @@ func (h *handlers) convertActionItems(w http.ResponseWriter, r *http.Request) {
 			ActionItemID: it.ActionItemID, Title: it.Title, Description: it.Description,
 			AssigneeID: blankAsNil(it.AssigneeID), DueDate: blankAsNil(it.DueDate),
 			ProjectID: it.ProjectID, Priority: it.Priority,
+			Status: it.Status, AssigneeKind: it.AssigneeKind, StartDate: blankAsNil(it.StartDate), ParentTaskID: blankAsNil(it.ParentTaskID),
+			Stage: it.Stage, LabelIDs: it.LabelIDs, AttachmentIDs: it.AttachmentIDs, Properties: it.Properties,
 		})
 	}
 	links, err := h.Meetings.ConvertActionItems(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), summaryLocale(in.Locale), items)

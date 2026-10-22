@@ -347,6 +347,15 @@ type ConvertActionItem struct {
 	// ProjectID nil takes the meeting's project; "" is no project.
 	ProjectID *string
 	Priority  string
+	// The rest of the task screen's composer, validated as POST /tasks does.
+	Status        string
+	AssigneeKind  string
+	StartDate     *string
+	ParentTaskID  *string
+	Stage         *int32
+	LabelIDs      []string
+	AttachmentIDs []string
+	Properties    map[string]json.RawMessage
 }
 
 // ActionItemLink pairs a converted item with its new task.
@@ -433,6 +442,8 @@ func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meeting
 			Title: title, Description: actionItemTaskDescription(it, item, locale),
 			AssigneeID: it.AssigneeID, DueDate: it.DueDate, ProjectID: projectID,
 			Priority: strings.TrimSpace(it.Priority), OriginType: "meeting", OriginID: &origin,
+			Status: it.Status, AssigneeKind: it.AssigneeKind, StartDate: it.StartDate, ParentTaskID: it.ParentTaskID,
+			Stage: it.Stage, LabelIDs: it.LabelIDs, AttachmentIDs: it.AttachmentIDs, Properties: it.Properties,
 		})
 	}
 
@@ -444,12 +455,13 @@ func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meeting
 			if err != nil {
 				return err
 			}
-			// The people and projects named are checked before the items'
-			// state: a reference the workspace does not have is refused as
-			// such, whatever became of the item.
+			// The people, projects and parents named are checked before the
+			// items' state: a reference the workspace does not have is refused
+			// as such, whatever became of the item.
 			projects := make([]pgtype.Text, 0, len(inputs))
+			parents := make([]pgtype.Text, 0, len(inputs))
 			for _, ti := range inputs {
-				if _, err := s.Tasks.assigneeKind(ctx, ws.OrganizationID, ws.ID, ti.AssigneeID, "", true); err != nil {
+				if _, err := s.Tasks.assigneeKind(ctx, ws.OrganizationID, ws.ID, ti.AssigneeID, ti.AssigneeKind, true); err != nil {
 					return err
 				}
 				projectID, err := s.Tasks.normalizeProjectID(ctx, q, ws.OrganizationID, ws.ID, ti.ProjectID)
@@ -457,6 +469,11 @@ func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meeting
 					return err
 				}
 				projects = append(projects, projectID)
+				parentID, err := normalizeParentTaskID(ctx, q, ws.OrganizationID, ws.ID, ti.ParentTaskID)
+				if err != nil {
+					return err
+				}
+				parents = append(parents, parentID)
 			}
 			var handled []string
 			for _, r := range locked {
@@ -467,7 +484,7 @@ func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meeting
 			if len(handled) > 0 {
 				return errActionItemNotPending(handled)
 			}
-			return refuseActionItemDuplicates(ctx, q, ws, ids, inputs, projects)
+			return refuseActionItemDuplicates(ctx, q, ws, ids, inputs, projects, parents)
 		},
 		After: func(ctx context.Context, q *db.Queries, ws db.Workspace, tasks []db.Task) error {
 			taskIDs := make([]string, 0, len(tasks))
@@ -509,15 +526,15 @@ func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meeting
 
 // refuseActionItemDuplicates finds, before any insert, every item the
 // active-duplicate guard of createTaskInTx would refuse: a title that matches
-// an open task under the same project (these tasks have no parent), or that
-// repeats an earlier item of the batch under the same project. One refusal
+// an open task under the same project and parent, or that repeats an earlier
+// item of the batch under the same project and parent. One refusal
 // names them all in fields.action_item_ids, so the clerk knows which items to
 // leave out, instead of the batch rolling back on the first one with no item
 // named. The open task of the first refused item that has one is named in the
 // guard's own fields. The guard's key locks are taken here, in sorted order so
 // two batches cannot deadlock on them, and held until commit, so the answer
 // stays true while the batch inserts.
-func refuseActionItemDuplicates(ctx context.Context, q *db.Queries, ws db.Workspace, ids []string, inputs []CreateTaskInput, projects []pgtype.Text) error {
+func refuseActionItemDuplicates(ctx context.Context, q *db.Queries, ws db.Workspace, ids []string, inputs []CreateTaskInput, projects, parents []pgtype.Text) error {
 	keys := make([]string, len(inputs))
 	locks := make([]string, 0, len(inputs))
 	for i, in := range inputs {
@@ -525,7 +542,7 @@ func refuseActionItemDuplicates(ctx context.Context, q *db.Queries, ws db.Worksp
 		if normalized == "" {
 			continue
 		}
-		keys[i] = activeDuplicateLockKey(ws, projects[i], pgtype.Text{}, normalized)
+		keys[i] = activeDuplicateLockKey(ws, projects[i], parents[i], normalized)
 		locks = append(locks, keys[i])
 	}
 	sort.Strings(locks)
@@ -548,7 +565,7 @@ func refuseActionItemDuplicates(ctx context.Context, q *db.Queries, ws db.Worksp
 		}
 		seen[keys[i]] = struct{}{}
 		dup, err := q.FindActiveDuplicateTask(ctx, db.FindActiveDuplicateTaskParams{
-			OrganizationID: ws.OrganizationID, WorkspaceID: ws.ID, ProjectID: projects[i],
+			OrganizationID: ws.OrganizationID, WorkspaceID: ws.ID, ProjectID: projects[i], ParentTaskID: parents[i],
 			NormalizedTitle: normalizeTaskTitle(in.Title),
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -604,9 +621,11 @@ func actionItemTaskDescription(it ConvertActionItem, item db.MeetingActionItem, 
 	if len(extra) == 0 {
 		return desc
 	}
-	block := strings.Join(extra, "\n")
+	// Each its own paragraph: the description the composer sends may end in a
+	// quote (the meeting's cited lines), which a bare newline would continue.
+	block := strings.Join(extra, "\n\n")
 	if desc == "" {
 		return block
 	}
-	return desc + "\n" + block
+	return desc + "\n\n" + block
 }

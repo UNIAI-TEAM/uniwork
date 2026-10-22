@@ -251,6 +251,43 @@ func TestConvertActionItemsKeepsTheClerksChoice(t *testing.T) {
 	}
 }
 
+// The clerk converts through the task screen's composer, so every field it
+// sends lands on the task as POST /tasks would put it there.
+func TestConvertActionItemsTakesTheComposersFields(t *testing.T) {
+	s, ua, _, w, m := summaryTasksFixture(t)
+	ctx := context.Background()
+	parent, err := s.Tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Gửi báo cáo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	label, err := s.Tasks.CreateTaskLabel(ctx, Human(ua.ID), w.ID, CreateTaskLabelInput{Name: "Khách", Color: "#ef4444"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The open parent has the item's title: under that parent it is no duplicate.
+	seedSummary(t, s, m, ua.ID, ai.ActionItem{Title: "Gửi báo cáo"})
+	items := itemsByTitle(t, s, ua.ID, m)
+	stage := int32(2)
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{
+		ActionItemID: items["Gửi báo cáo"].Item.ID, Status: "in_progress", StartDate: strPtr("2026-11-02"),
+		ParentTaskID: &parent.ID, Stage: &stage, LabelIDs: []string{label.ID},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.q.GetTask(ctx, links[0].TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != "in_progress" || task.ParentTaskID.String != parent.ID || task.Stage.Int32 != 2 ||
+		task.StartDate.Time.Format("2006-01-02") != "2026-11-02" {
+		t.Fatalf("composer fields: %+v", task)
+	}
+	if n := countRows(t, s, `SELECT count(*) FROM task_label_links WHERE task_id = $1 AND label_id = $2`, task.ID, label.ID); n != 1 {
+		t.Fatalf("label rows = %d, want 1", n)
+	}
+}
+
 // The labels follow the language the clerk converts in, not users.locale:
 // that column is written once at sign-up and the language switch never moves it.
 func TestConvertActionItemsLabelsFollowTheRequestLocale(t *testing.T) {
@@ -269,7 +306,7 @@ func TestConvertActionItemsLabelsFollowTheRequestLocale(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if task.Description != "Owner (AI): B\nDue (AI): ngày mai" {
+	if task.Description != "Owner (AI): B\n\nDue (AI): ngày mai" {
 		t.Fatalf("description = %q", task.Description)
 	}
 }
@@ -726,13 +763,15 @@ func TestActionItemTaskDescriptionSpeaksTheRequestLocale(t *testing.T) {
 		locale string
 		want   string
 	}{
-		{"en", ConvertActionItem{Description: "Floor 3"}, ai, "en", "Floor 3\nOwner (AI): B\nDue (AI): tomorrow"},
-		{"vi", ConvertActionItem{}, ai, "vi", "Người phụ trách (AI): B\nHạn (AI): tomorrow"},
-		{"unknown is Vietnamese", ConvertActionItem{}, ai, "fr", "Người phụ trách (AI): B\nHạn (AI): tomorrow"},
-		{"empty is Vietnamese", ConvertActionItem{}, ai, "", "Người phụ trách (AI): B\nHạn (AI): tomorrow"},
-		{"manual has no AI mark", ConvertActionItem{}, manual, "en", "Owner: B\nDue: tomorrow"},
+		{"en", ConvertActionItem{Description: "Floor 3"}, ai, "en", "Floor 3\n\nOwner (AI): B\n\nDue (AI): tomorrow"},
+		{"vi", ConvertActionItem{}, ai, "vi", "Người phụ trách (AI): B\n\nHạn (AI): tomorrow"},
+		{"unknown is Vietnamese", ConvertActionItem{}, ai, "fr", "Người phụ trách (AI): B\n\nHạn (AI): tomorrow"},
+		{"empty is Vietnamese", ConvertActionItem{}, ai, "", "Người phụ trách (AI): B\n\nHạn (AI): tomorrow"},
+		{"manual has no AI mark", ConvertActionItem{}, manual, "en", "Owner: B\n\nDue: tomorrow"},
 		{"an assignee drops the owner", ConvertActionItem{AssigneeID: &someone}, ai, "en", "Due (AI): tomorrow"},
-		{"a due date drops the phrase", ConvertActionItem{Description: "x", DueDate: &someday}, ai, "vi", "x\nNgười phụ trách (AI): B"},
+		{"a due date drops the phrase", ConvertActionItem{Description: "x", DueDate: &someday}, ai, "vi", "x\n\nNgười phụ trách (AI): B"},
+		// A quote ending the description does not swallow what follows it.
+		{"after a quote", ConvertActionItem{Description: "> a cited line", AssigneeID: &someone}, ai, "en", "> a cited line\n\nDue (AI): tomorrow"},
 		{"both set leaves the description", ConvertActionItem{Description: "x", AssigneeID: &someone, DueDate: &someday}, ai, "en", "x"},
 	} {
 		if got := actionItemTaskDescription(tc.it, tc.item, tc.locale); got != tc.want {

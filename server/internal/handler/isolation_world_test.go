@@ -1167,9 +1167,9 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 	}
 
 	// A summary of the scheduled meeting - the fake model answers with none -
-	// and its action items: the reference cases convert items 0-2, item 3
-	// becomes a task here, and "actionItem" is the pending one the routes
-	// with {actionItemID} name.
+	// and its action items: the reference cases convert items 0-2 and 4-6,
+	// item 3 becomes a task here, and "actionItem" is the pending one the
+	// routes with {actionItemID} name.
 	tn.ids["meetingSummary"] = util.NewID()
 	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_summaries
 		(id, organization_id, meeting_id, summary, decisions, action_items, model, created_by)
@@ -1177,7 +1177,7 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		tn.ids["meetingSummary"], tn.orgID, tn.ids["meeting"], m+" summary", tn.userID); err != nil {
 		t.Fatalf("meeting summary: %v", err)
 	}
-	for i, key := range []string{"actionItem0", "actionItem1", "actionItem2", "actionItem3", "actionItem"} {
+	for i, key := range []string{"actionItem0", "actionItem1", "actionItem2", "actionItem3", "actionItem4", "actionItem5", "actionItem6", "actionItem"} {
 		tn.ids[key] = util.NewID()
 		if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_action_items
 			(id, organization_id, workspace_id, meeting_id, source, summary_id, position, title, owner_text, created_by, created_by_kind)

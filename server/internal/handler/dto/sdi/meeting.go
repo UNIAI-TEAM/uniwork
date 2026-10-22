@@ -1,6 +1,9 @@
 package sdi
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // CreateMeetingSDI is POST /api/v1/workspaces/{workspaceID}/meetings.
 type CreateMeetingSDI struct {
@@ -227,6 +230,15 @@ type ConvertActionItemSDI struct {
 	DueDate      *string `json:"due_date" description:"YYYY-MM-DD; null hoặc rỗng = không có hạn (server không tự đọc hạn được nhắc)" example:"2026-09-05"`
 	ProjectID    *string `json:"project_id,omitempty" description:"Dự án workspace; bỏ qua = dự án của cuộc họp, rỗng = không thuộc dự án" example:"01JABC1234567890ABCDEFGH"`
 	Priority     string  `json:"priority,omitempty" description:"none | low | medium | high | urgent" example:"medium"`
+	// The rest of the task composer (CreateTaskSDI), validated the same way.
+	Status        string                     `json:"status,omitempty" description:"Key trạng thái trong catalog workspace; mặc định todo" example:"in_progress"`
+	AssigneeKind  string                     `json:"assignee_kind,omitempty" description:"human (mặc định) hoặc agent" example:"human"`
+	StartDate     *string                    `json:"start_date,omitempty" description:"Ngày bắt đầu YYYY-MM-DD" example:"2026-09-01"`
+	ParentTaskID  *string                    `json:"parent_task_id,omitempty" description:"Task cha cùng workspace" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+	Stage         *int32                     `json:"stage,omitempty" description:"Thứ tự giai đoạn, từ 1 trở lên" example:"1"`
+	LabelIDs      []string                   `json:"label_ids,omitempty" description:"Các nhãn active cùng workspace, gắn nguyên tử khi tạo"`
+	AttachmentIDs []string                   `json:"attachment_ids,omitempty" description:"Các đính kèm tạm cùng workspace, gắn nguyên tử khi tạo"`
+	Properties    map[string]json.RawMessage `json:"properties,omitempty" description:"Giá trị custom property active cùng workspace, lưu nguyên tử khi tạo"`
 }
 
 // ConvertActionItemsSDI is POST /api/v1/meetings/{meetingID}/action-items/convert.

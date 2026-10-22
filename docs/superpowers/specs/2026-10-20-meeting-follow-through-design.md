@@ -358,6 +358,11 @@ trường giữ nguyên như `MeetingSummaryTaskItem` hiện nay: `title` rỗng
 việc; `project_id` vắng thì lấy dự án của cuộc họp nếu dự án còn tồn tại, `""` là không
 dự án; server không bao giờ đọc lại `owner_text`/`due_text` vào người hay hạn.
 
+Bổ sung 2026-10-22: mỗi phần tử nhận thêm các trường còn lại của ô soạn task (`status`,
+`assignee_kind`, `start_date`, `parent_task_id`, `stage`, `label_ids`, `attachment_ids`,
+`properties`), cùng nghĩa và cùng kiểm tra như `POST /tasks` (`createTaskInTx`); chặn
+trùng tiêu đề tính theo dự án và task cha như guard của task.
+
 Trong một transaction (`CreateManyWith`):
 
 1. `LockMeetingSummaryChanges(meeting)` — xếp hàng với việc lưu bản tóm tắt mới.

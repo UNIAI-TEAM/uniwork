@@ -254,6 +254,15 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "action item", body: map[string]any{
 		"items": []any{map[string]any{"action_item_id": isoRef("actionItem2")}}},
 		covers: []string{"ConvertActionItemSDI.action_item_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "parent", body: map[string]any{
+		"items": []any{map[string]any{"action_item_id": isoOwn("actionItem4"), "parent_task_id": isoRef("task2")}}},
+		covers: []string{"ConvertActionItemSDI.parent_task_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "label", body: map[string]any{
+		"items": []any{map[string]any{"action_item_id": isoOwn("actionItem5"), "label_ids": []any{isoRef("label")}}}},
+		covers: []string{"ConvertActionItemSDI.label_ids"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "attachment", body: map[string]any{
+		"items": []any{map[string]any{"action_item_id": isoOwn("actionItem6"), "attachment_ids": []any{isoRef("attachment")}}}},
+		noControl: "the attachment is already attached to a task; a staged one would be needed", covers: []string{"ConvertActionItemSDI.attachment_ids"}},
 
 	// Documents.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent page", body: map[string]any{
