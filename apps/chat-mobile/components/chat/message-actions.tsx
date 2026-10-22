@@ -210,11 +210,16 @@ export function MessageActionsSheet(props: Props) {
 
   return (
     <CallAwareModal visible={message !== null} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose} onDismiss={onDismiss}>
-      {/* The wall blurred and dimmed behind the sheet (MobileActions board); Android blurs only where the runtime can. */}
+      {/* The wall blurred and dimmed behind the sheet (MobileActions board). Android cannot blur it: expo-blur's
+          Android blur needs a blurTarget in the same window, and a modal is a window of its own, so it dims deeper. */}
       <Pressable className="absolute inset-0" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")}>
-        <BlurView intensity={30} tint="dark" experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined} style={{ flex: 1 }}>
-          <View className="flex-1 bg-black/35" />
-        </BlurView>
+        {Platform.OS === "ios" ? (
+          <BlurView intensity={30} tint="dark" style={{ flex: 1 }} testID="message-actions-blur">
+            <View className="flex-1 bg-black/35" />
+          </BlurView>
+        ) : (
+          <View className="flex-1 bg-black/50" testID="message-actions-dim" />
+        )}
       </Pressable>
       {/* box-none: a tap between the pieces reaches the backdrop and closes. */}
       {/* One modal layer to VoiceOver, and its two-finger scrub closes it, as every BottomSheet does. */}

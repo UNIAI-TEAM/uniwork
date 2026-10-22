@@ -212,6 +212,16 @@ describe("MessageActionsSheet › fit", () => {
     expect(flash).toHaveBeenCalledTimes(1);
   });
 
+  it("blurs the wall on iOS and dims it deeper on Android, where a modal cannot blur the window behind it", async () => {
+    const { unmount } = await render(<MessageActionsSheet {...props(false)} />);
+    expect(screen.getByTestId("message-actions-dim", { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByTestId("message-actions-blur", { includeHiddenElements: true })).toBeNull();
+    await unmount();
+    jest.replaceProperty(Platform, "OS", "ios");
+    await render(<MessageActionsSheet {...props(false)} />);
+    expect(screen.getByTestId("message-actions-blur", { includeHiddenElements: true })).toBeTruthy();
+  });
+
   it("is one modal layer to VoiceOver, closed by its escape scrub", async () => {
     const p = props(false);
     await render(<MessageActionsSheet {...p} />);
