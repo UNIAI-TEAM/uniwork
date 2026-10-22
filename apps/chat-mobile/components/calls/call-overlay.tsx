@@ -51,7 +51,6 @@ function CallRoom(props: Parameters<typeof CallRoomComponent>[0]) {
   return <Room {...props} />;
 }
 
-
 /** Declining or ending a call: felt, then sent. */
 function hangUp(): void {
   haptics.callEnd();
@@ -65,7 +64,19 @@ const CALL_BACK_REASONS = new Set(["no_answer", "missed", "declined"]);
 /** How often a live call asks whether it is being recorded ("Đang ghi"). */
 const RECORDING_POLL_MS = 15_000;
 
-function CallBody({ call, recording, onMinimize, minimized, seed }: { call: Exclude<VoiceCallOverlayState, { status: "idle" }>; recording: boolean; onMinimize?: () => void; minimized: boolean; seed?: string }) {
+function CallBody({
+  call,
+  recording,
+  onMinimize,
+  minimized,
+  seed,
+}: {
+  call: Exclude<VoiceCallOverlayState, { status: "idle" }>;
+  recording: boolean;
+  onMinimize?: () => void;
+  minimized: boolean;
+  seed?: string;
+}) {
   const { t } = useTranslation();
   switch (call.status) {
     case "incoming":
@@ -73,9 +84,14 @@ function CallBody({ call, recording, onMinimize, minimized, seed }: { call: Excl
         <View className="flex-1" testID="call-incoming">
           <CallerHero
             name={call.peerName}
-            line={isMultiPartyVoiceCall(call.callKind) ? t("chat.voice_call_incoming_group", { caller: call.callerName, group: call.peerName }) : t("chat.voice_call_incoming_label")}
+            line={
+              isMultiPartyVoiceCall(call.callKind)
+                ? t("chat.voice_call_incoming_group", { caller: call.callerName, group: call.peerName })
+                : t("chat.voice_call_incoming_label")
+            }
             rings={CALL.ringIncoming}
-            seed={seed} room={isMultiPartyVoiceCall(call.callKind)}
+            seed={seed}
+            room={isMultiPartyVoiceCall(call.callKind)}
           />
           <View className="flex-row justify-evenly px-6 pb-14">
             <CallButton icon="call" label={t("chat.voice_call_decline")} tone="danger" testID="call-decline" onPress={() => hangUp()} />
@@ -105,7 +121,8 @@ function CallBody({ call, recording, onMinimize, minimized, seed }: { call: Excl
             line={t(call.status === "ringing" ? "chat.voice_call_calling" : "chat.voice_call_connecting")}
             rings={call.status === "ringing" ? CALL.ringOutgoing : undefined}
             ringCount={1}
-            seed={seed} room={isMultiPartyVoiceCall(call.callKind)}
+            seed={seed}
+            room={isMultiPartyVoiceCall(call.callKind)}
           />
           <View className="items-center px-6 pb-14">
             <CallButton icon="call" label={t("chat.voice_call_end")} tone="danger" testID="call-hangup" onPress={() => hangUp()} />
@@ -113,7 +130,19 @@ function CallBody({ call, recording, onMinimize, minimized, seed }: { call: Excl
         </View>
       );
     case "active":
-      return <CallRoom url={call.url} token={call.token} peerName={call.peerName} withCamera={call.withCamera ?? false} recording={recording} onMinimize={onMinimize} minimized={minimized} seed={seed} roomFace={isMultiPartyVoiceCall(call.callKind)} />;
+      return (
+        <CallRoom
+          url={call.url}
+          token={call.token}
+          peerName={call.peerName}
+          withCamera={call.withCamera ?? false}
+          recording={recording}
+          onMinimize={onMinimize}
+          minimized={minimized}
+          seed={seed}
+          roomFace={isMultiPartyVoiceCall(call.callKind)}
+        />
+      );
     case "ended": {
       const again = RETRY_REASONS.has(call.reason) ? t("common.retry") : CALL_BACK_REASONS.has(call.reason) ? t("chat.voice_call_call_back") : null;
       return (
@@ -129,7 +158,9 @@ function CallBody({ call, recording, onMinimize, minimized, seed }: { call: Excl
                 testID="call-again"
                 onPress={() => {
                   callEngine.dismissEnded();
-                  void ensureCallPermissions(call.withCamera ?? false).then(() => callEngine.startCall(call.roomId, call.peerName, call.callKind, { withCamera: call.withCamera }));
+                  void ensureCallPermissions(call.withCamera ?? false).then(() =>
+                    callEngine.startCall(call.roomId, call.peerName, call.callKind, { withCamera: call.withCamera }),
+                  );
                 }}
               />
             ) : null}

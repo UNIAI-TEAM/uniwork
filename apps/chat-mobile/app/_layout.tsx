@@ -86,7 +86,12 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
  *  for one, or is pushed only when expo-router did not already route it
  *  (+native-intent routes Linking URLs; a notification tap is not one). */
 function openUrl(url: string, navigate = false) {
-  const action = incomingUrlAction(url, { appUrl: runtimeConfig().appUrl, scheme: authConfig.scheme, signedIn: useAuthStore.getState().user !== null, navigate });
+  const action = incomingUrlAction(url, {
+    appUrl: runtimeConfig().appUrl,
+    scheme: authConfig.scheme,
+    signedIn: useAuthStore.getState().user !== null,
+    navigate,
+  });
   if (action.kind === "callback") void session.completeCallback(url);
   else if (action.kind === "keep") setPendingDeepLink(action.link);
   else if (action.kind === "open") router.push(action.href);
@@ -185,29 +190,29 @@ function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       {/* The keyboard's frame-by-frame position for the composer (components/chat/composer.tsx). */}
       <KeyboardProvider>
-      <I18nProvider>
-        <SafeAreaProvider>
-          <QueryClientProvider client={queryClient}>
-            <ThemeProvider value={NAV_THEME[colorScheme]}>
-              <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
-              <UpdateGate>
-                <AuthInitializer>
-                  <Stack screenOptions={{ headerShown: false }}>
-                    <Stack.Screen name="index" />
-                    <Stack.Screen name="(auth)" />
-                    <Stack.Screen name="(app)" />
-                  </Stack>
-                  <PortalHost />
-                </AuthInitializer>
-              </UpdateGate>
-              <ToastHost />
-              <PermissionPrimerHost />
-              {/* Above everything the person could read: the app switcher cover and the app lock. */}
-              <PrivacyGuard />
-            </ThemeProvider>
-          </QueryClientProvider>
-        </SafeAreaProvider>
-      </I18nProvider>
+        <I18nProvider>
+          <SafeAreaProvider>
+            <QueryClientProvider client={queryClient}>
+              <ThemeProvider value={NAV_THEME[colorScheme]}>
+                <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+                <UpdateGate>
+                  <AuthInitializer>
+                    <Stack screenOptions={{ headerShown: false }}>
+                      <Stack.Screen name="index" />
+                      <Stack.Screen name="(auth)" />
+                      <Stack.Screen name="(app)" />
+                    </Stack>
+                    <PortalHost />
+                  </AuthInitializer>
+                </UpdateGate>
+                <ToastHost />
+                <PermissionPrimerHost />
+                {/* Above everything the person could read: the app switcher cover and the app lock. */}
+                <PrivacyGuard />
+              </ThemeProvider>
+            </QueryClientProvider>
+          </SafeAreaProvider>
+        </I18nProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>
   );

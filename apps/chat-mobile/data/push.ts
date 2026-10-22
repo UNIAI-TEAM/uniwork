@@ -71,7 +71,12 @@ export async function registerPushToken({ api, projectId, platform, channels, ca
   const granted = ask ? await ask() : (await Notifications.requestPermissionsAsync()).granted;
   if (!granted) return null;
   const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-  await api.subscribePush({ endpoint: token, keys: { p256dh: "", auth: "" }, platform, ...(platform === "android" && callUI ? { call_ui: true } : {}) });
+  await api.subscribePush({
+    endpoint: token,
+    keys: { p256dh: "", auth: "" },
+    platform,
+    ...(platform === "android" && callUI ? { call_ui: true } : {}),
+  });
   registeredToken = token;
   return token;
 }

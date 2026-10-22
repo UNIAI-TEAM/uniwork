@@ -17,7 +17,11 @@ export function VoiceWave() {
     return () => clearInterval(timer);
   }, [still]);
   return (
-    <View className="h-6 flex-1 flex-row items-center gap-[2px] overflow-hidden" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View
+      className="h-6 flex-1 flex-row items-center gap-[2px] overflow-hidden"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
       {Array.from({ length: BARS }, (_, i) => {
         const level = 0.35 + 0.65 * Math.abs(Math.sin((i + tick) * 0.7) * Math.cos((i - tick) * 0.31));
         return <View key={i} className="w-[3px] rounded-full bg-destructive-solid/70" style={{ height: Math.max(4, Math.round(22 * level)) }} />;

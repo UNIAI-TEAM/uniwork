@@ -38,7 +38,8 @@ export const REFRESH_CONCURRENCY = 4;
 /** Per client: the list's last_message_at each room's timeline was last read against. */
 const readAgainst = new WeakMap<QueryClient, Map<string, string>>();
 
-const observed = (qc: QueryClient, queryKey: readonly unknown[]) => (qc.getQueryCache().find({ queryKey, exact: true })?.getObserversCount() ?? 0) > 0;
+const observed = (qc: QueryClient, queryKey: readonly unknown[]) =>
+  (qc.getQueryCache().find({ queryKey, exact: true })?.getObserversCount() ?? 0) > 0;
 
 /**
  * One room's newest page, read once; a timeline on screen is left to the
@@ -100,7 +101,9 @@ export async function hydrateFromPush(qc: QueryClient, data: unknown, env: PushL
   const link = typeof url === "string" ? parseDeepLink(url, env.appUrl, env.scheme) : null;
   // A call's push opens a ringing screen, not a timeline.
   if (!link?.roomId || link.callId) return;
-  const workspace = qc.getQueryData<Workspace[]>(workspaceKeys.list())?.find((ws) => ws.slug === link.wsSlug && ws.organization_slug === link.orgSlug);
+  const workspace = qc
+    .getQueryData<Workspace[]>(workspaceKeys.list())
+    ?.find((ws) => ws.slug === link.wsSlug && ws.organization_slug === link.orgSlug);
   if (!workspace) return;
   const rooms = chatKeys.rooms(workspace.id);
   // The list is read too: the workspace may have no socket on this phone.

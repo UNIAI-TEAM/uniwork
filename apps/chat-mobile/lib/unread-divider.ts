@@ -17,7 +17,9 @@ export interface UnreadSnapshot {
 }
 
 /** The room's read pointer while it still has unread messages, else none. */
-export function unreadSnapshot(room: Pick<ChatRoomRecord, "unread_count" | "mention_unread_count" | "last_read_at"> | undefined): UnreadSnapshot | null {
+export function unreadSnapshot(
+  room: Pick<ChatRoomRecord, "unread_count" | "mention_unread_count" | "last_read_at"> | undefined,
+): UnreadSnapshot | null {
   const hasUnread = (room?.unread_count ?? 0) > 0 || (room?.mention_unread_count ?? 0) > 0;
   return hasUnread && room?.last_read_at ? { since: room.last_read_at, count: room.unread_count } : null;
 }
@@ -33,7 +35,12 @@ function sentAtMs(message: TimelineMessage): number {
  * start it. When the oldest loaded message is already unread and older pages remain (`complete` false), the real
  * first unread is further up than what is loaded: no line, rather than one in the wrong place.
  */
-export function firstUnreadMessageId(messages: readonly TimelineMessage[], currentUserId: string, since: string | null, complete: boolean): string | null {
+export function firstUnreadMessageId(
+  messages: readonly TimelineMessage[],
+  currentUserId: string,
+  since: string | null,
+  complete: boolean,
+): string | null {
   const at = since ? Date.parse(since) : Number.NaN;
   if (Number.isNaN(at)) return null;
   const first = messages.find((message) => message.sender !== currentUserId && !message.pending && sentAtMs(message) > at);
@@ -52,5 +59,9 @@ export const UNREAD_BACKFILL_PAGES = 4;
 
 /** True when only the history not loaded yet keeps the unread line from being drawn: an older page would place it. */
 export function unreadLineNeedsOlder(messages: readonly TimelineMessage[], currentUserId: string, since: string | null, complete: boolean): boolean {
-  return !complete && firstUnreadMessageId(messages, currentUserId, since, false) === null && firstUnreadMessageId(messages, currentUserId, since, true) !== null;
+  return (
+    !complete &&
+    firstUnreadMessageId(messages, currentUserId, since, false) === null &&
+    firstUnreadMessageId(messages, currentUserId, since, true) !== null
+  );
 }

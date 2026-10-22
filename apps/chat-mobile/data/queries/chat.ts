@@ -3,7 +3,13 @@
 // factories (the screens call useQuery / useInfiniteQuery with them).
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { chatApi } from "../chat-api";
-import { CHAT_HISTORY_PAGE_SIZE, compareMessages, flattenRoomTimeline, olderRoomPageParam, type RoomMessagesPageParam } from "@uniwork/core/chat/room-timeline-pages";
+import {
+  CHAT_HISTORY_PAGE_SIZE,
+  compareMessages,
+  flattenRoomTimeline,
+  olderRoomPageParam,
+  type RoomMessagesPageParam,
+} from "@uniwork/core/chat/room-timeline-pages";
 import { chatKeys } from "./chat-keys";
 
 export const roomsOptions = (wsId: string) =>
@@ -32,8 +38,7 @@ export const roomTimelineOptions = (wsId: string, roomId: string) =>
     queryFn: ({ pageParam, signal }) =>
       chatApi.listMessages(wsId, roomId, { ...(pageParam ?? {}), limit: CHAT_HISTORY_PAGE_SIZE, markRead: false }, signal),
     initialPageParam: null as RoomMessagesPageParam,
-    getNextPageParam: (lastPage, allPages, lastPageParam) =>
-      olderRoomPageParam(lastPage, allPages, lastPageParam, CHAT_HISTORY_PAGE_SIZE),
+    getNextPageParam: (lastPage, allPages, lastPageParam) => olderRoomPageParam(lastPage, allPages, lastPageParam, CHAT_HISTORY_PAGE_SIZE),
     select: flattenRoomTimeline,
     staleTime: 5_000,
     refetchOnReconnect: "always",
@@ -51,8 +56,7 @@ export const roomAroundOptions = (wsId: string, roomId: string, messageId: strin
 export const threadTimelineOptions = (wsId: string, roomId: string, rootId: string) =>
   infiniteQueryOptions({
     queryKey: chatKeys.threadMessages(wsId, roomId, rootId),
-    queryFn: ({ pageParam }) =>
-      chatApi.listThreadMessages(wsId, roomId, rootId, { ...(pageParam ?? {}), limit: CHAT_HISTORY_PAGE_SIZE }),
+    queryFn: ({ pageParam }) => chatApi.listThreadMessages(wsId, roomId, rootId, { ...(pageParam ?? {}), limit: CHAT_HISTORY_PAGE_SIZE }),
     initialPageParam: null as RoomMessagesPageParam,
     // The root heads the first page and is older than every reply: page from the replies only.
     getNextPageParam: (lastPage, allPages, lastPageParam) =>
@@ -94,7 +98,11 @@ export const taskOptions = (wsId: string, taskId: string) =>
 
 /** Stickers or GIFs for the picker: trending, or a search once the query has text. */
 export const expressionsOptions = (wsId: string, kind: "stickers" | "gifs", q: string) =>
-  queryOptions({ queryKey: chatKeys.expressions(wsId, kind, q.trim()), queryFn: () => chatApi.listExpressions(wsId, kind, q), staleTime: 5 * 60_000 });
+  queryOptions({
+    queryKey: chatKeys.expressions(wsId, kind, q.trim()),
+    queryFn: () => chatApi.listExpressions(wsId, kind, q),
+    staleTime: 5 * 60_000,
+  });
 
 export const workspaceMembersOptions = (wsId: string) =>
   queryOptions({ queryKey: chatKeys.members(wsId), queryFn: () => chatApi.listWorkspaceMembers(wsId), staleTime: 5 * 60_000 });

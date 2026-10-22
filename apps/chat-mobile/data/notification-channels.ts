@@ -20,7 +20,10 @@ export function callChannelNames(t: Translate): CallChannelNames {
   };
 }
 
-export async function ensureNotificationChannels(t: Translate, env: { platform: string; native: Pick<NativeCalls, "ensureChannels"> }): Promise<void> {
+export async function ensureNotificationChannels(
+  t: Translate,
+  env: { platform: string; native: Pick<NativeCalls, "ensureChannels"> },
+): Promise<void> {
   if (env.platform !== "android") return;
   try {
     env.native.ensureChannels(callChannelNames(t));
@@ -29,7 +32,8 @@ export async function ensureNotificationChannels(t: Translate, env: { platform: 
         name: t(channel.nameKey),
         description: t(channel.descriptionKey),
         importance: channel.importance === "high" ? Notifications.AndroidImportance.HIGH : Notifications.AndroidImportance.DEFAULT,
-        lockscreenVisibility: channel.lockscreen === "public" ? Notifications.AndroidNotificationVisibility.PUBLIC : Notifications.AndroidNotificationVisibility.PRIVATE,
+        lockscreenVisibility:
+          channel.lockscreen === "public" ? Notifications.AndroidNotificationVisibility.PUBLIC : Notifications.AndroidNotificationVisibility.PRIVATE,
         sound: "default",
         enableVibrate: true,
         showBadge: true,

@@ -6,13 +6,18 @@
 
 const VOICE_RATES = [1, 1.5, 2] as const;
 export type VoiceRate = (typeof VOICE_RATES)[number];
+// The cycle, spelled out: each speed and the one after it.
+const NEXT_RATE = new Map<number, VoiceRate>([
+  [1, 1.5],
+  [1.5, 2],
+  [2, 1],
+]);
 /** How far one increment or decrement of the player moves, in seconds. */
 export const VOICE_SEEK_STEP_S = 5;
 
 /** The next speed after `rate`, round the cycle; an unknown rate starts it over. */
 export function nextVoiceRate(rate: number): VoiceRate {
-  const index = VOICE_RATES.indexOf(rate as VoiceRate);
-  return VOICE_RATES[(index + 1) % VOICE_RATES.length] as VoiceRate;
+  return NEXT_RATE.get(rate) ?? VOICE_RATES[0];
 }
 
 /** `current` moved by `delta`, kept within the clip (a clip of unknown length only stops at its start). */

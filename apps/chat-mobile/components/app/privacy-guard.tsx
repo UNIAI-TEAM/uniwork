@@ -65,8 +65,7 @@ export function PrivacyGuard({ now = Date.now }: { now?: () => number }) {
       if (next === "background") {
         leftAt.current = now();
         autoPrompted.current = false;
-      }
-      else if (next === "active" && leftAt.current !== null) {
+      } else if (next === "active" && leftAt.current !== null) {
         if (shouldLock(latest.current, leftAt.current, now())) setLocked(true);
         leftAt.current = null;
       }
@@ -110,7 +109,12 @@ export function PrivacyGuard({ now = Date.now }: { now?: () => number }) {
 
   if (lockShown) {
     return (
-      <View style={StyleSheet.absoluteFill} className="items-center justify-center gap-4 bg-background px-8" accessibilityViewIsModal testID="privacy-lock">
+      <View
+        style={StyleSheet.absoluteFill}
+        className="items-center justify-center gap-4 bg-background px-8"
+        accessibilityViewIsModal
+        testID="privacy-lock"
+      >
         <Text accessibilityRole="header" className="text-title2 font-display font-bold text-foreground">
           {t("mobile.security.locked_title")}
         </Text>

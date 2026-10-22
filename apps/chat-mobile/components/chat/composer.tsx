@@ -289,7 +289,13 @@ export function Composer(props: Props) {
               {banner.text}
             </Text>
           </View>
-          <Pressable {...roundTap} accessibilityRole="button" accessibilityLabel={edit ? t("common.cancel") : t("chat.mobile.cancel_reply")} onPress={banner.cancel} className="h-11 w-11 items-center justify-center">
+          <Pressable
+            {...roundTap}
+            accessibilityRole="button"
+            accessibilityLabel={edit ? t("common.cancel") : t("chat.mobile.cancel_reply")}
+            onPress={banner.cancel}
+            className="h-11 w-11 items-center justify-center"
+          >
             <Ionicons name="close" size={18} color={theme.mutedForeground} />
           </Pressable>
         </View>
@@ -307,7 +313,11 @@ export function Composer(props: Props) {
           </Pressable>
         ) : null}
         {voice.active ? (
-          <View className="min-h-11 flex-1 flex-row items-center gap-2.5 rounded-[22px] bg-tint-red px-3.5" accessible accessibilityLabel={t("chat.voice_recording_aria")}>
+          <View
+            className="min-h-11 flex-1 flex-row items-center gap-2.5 rounded-[22px] bg-tint-red px-3.5"
+            accessible
+            accessibilityLabel={t("chat.voice_recording_aria")}
+          >
             <View className="h-2.5 w-2.5 rounded-full bg-destructive-solid" />
             <Text className="text-body font-semibold text-foreground">
               {formatVoiceCallDuration(voice.elapsedMs / 1000)}{" "}
@@ -343,15 +353,36 @@ export function Composer(props: Props) {
         )}
         {voice.active ? (
           <>
-            <Pressable {...roundTap} accessibilityRole="button" accessibilityLabel={t("common.cancel")} testID="composer-voice-cancel" onPress={() => void voice.cancel()} className="h-11 w-11 items-center justify-center rounded-full">
+            <Pressable
+              {...roundTap}
+              accessibilityRole="button"
+              accessibilityLabel={t("common.cancel")}
+              testID="composer-voice-cancel"
+              onPress={() => void voice.cancel()}
+              className="h-11 w-11 items-center justify-center rounded-full"
+            >
               <Ionicons name="trash-outline" size={22} color={theme.destructive} />
             </Pressable>
-            <Pressable {...roundTap} accessibilityRole="button" accessibilityLabel={t("chat.send")} testID="composer-voice-send" onPress={() => void voice.send()} className="h-11 w-11 items-center justify-center rounded-full bg-primary">
+            <Pressable
+              {...roundTap}
+              accessibilityRole="button"
+              accessibilityLabel={t("chat.send")}
+              testID="composer-voice-send"
+              onPress={() => void voice.send()}
+              className="h-11 w-11 items-center justify-center rounded-full bg-primary"
+            >
               <Ionicons name="send" size={20} color={theme.primaryForeground} />
             </Pressable>
           </>
         ) : !trimmed && attach && voiceOn ? (
-          <Pressable {...roundTap} accessibilityRole="button" accessibilityLabel={t("chat.voice_message")} testID="composer-voice" onPress={startVoice} className="h-11 w-11 items-center justify-center rounded-full bg-primary">
+          <Pressable
+            {...roundTap}
+            accessibilityRole="button"
+            accessibilityLabel={t("chat.voice_message")}
+            testID="composer-voice"
+            onPress={startVoice}
+            className="h-11 w-11 items-center justify-center rounded-full bg-primary"
+          >
             <Ionicons name="mic-outline" size={22} color={theme.primaryForeground} />
           </Pressable>
         ) : (
@@ -365,7 +396,11 @@ export function Composer(props: Props) {
             testID="composer-send"
             className={cn("h-11 w-11 items-center justify-center rounded-full", !trimmed || tooLong ? "bg-muted" : "bg-primary")}
           >
-            <Ionicons name={edit ? "checkmark" : "send"} size={edit ? 24 : 20} color={!trimmed || tooLong ? theme.mutedForeground : theme.primaryForeground} />
+            <Ionicons
+              name={edit ? "checkmark" : "send"}
+              size={edit ? 24 : 20}
+              color={!trimmed || tooLong ? theme.mutedForeground : theme.primaryForeground}
+            />
           </Pressable>
         )}
       </View>
@@ -383,11 +418,29 @@ export function Composer(props: Props) {
         actions={[
           ...(mediaOn
             ? [
-                { key: "photo", label: t("chat.media_image"), icon: "image-outline" as const, tint: "blue" as const, onPress: () => void pickPhoto() },
-                { key: "file", label: t("chat.composer_attach_file"), icon: "attach" as const, tint: "orange" as const, onPress: () => void pickFile() },
+                {
+                  key: "photo",
+                  label: t("chat.media_image"),
+                  icon: "image-outline" as const,
+                  tint: "blue" as const,
+                  onPress: () => void pickPhoto(),
+                },
+                {
+                  key: "file",
+                  label: t("chat.composer_attach_file"),
+                  icon: "attach" as const,
+                  tint: "orange" as const,
+                  onPress: () => void pickFile(),
+                },
               ]
             : []),
-          { key: "expressions", label: `${t("chat.expression_tab_sticker")} · ${t("chat.expression_tab_gif")}`, icon: "happy-outline", tint: "yellow", onPress: props.onOpenExpressions },
+          {
+            key: "expressions",
+            label: `${t("chat.expression_tab_sticker")} · ${t("chat.expression_tab_gif")}`,
+            icon: "happy-outline",
+            tint: "yellow",
+            onPress: props.onOpenExpressions,
+          },
           { key: "reminder", label: t("chat.composer_create_reminder"), icon: "alarm-outline", tint: "teal", onPress: props.onOpenReminder },
         ]}
       />

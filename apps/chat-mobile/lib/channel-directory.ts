@@ -10,5 +10,7 @@ export function channelDirectory(discoverable: readonly ChatRoomRecord[], mine: 
   for (const channel of [...discoverable, ...mine.filter((c) => c.kind === "channel" && c.visibility !== "private" && !c.is_default)]) {
     if (!byId.has(channel.id)) byId.set(channel.id, channel);
   }
-  return [...byId.values()].filter((c) => foldedIncludes(c.name, query) || foldedIncludes(c.topic ?? "", query)).sort((a, b) => a.name.localeCompare(b.name));
+  return [...byId.values()]
+    .filter((c) => foldedIncludes(c.name, query) || foldedIncludes(c.topic ?? "", query))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }

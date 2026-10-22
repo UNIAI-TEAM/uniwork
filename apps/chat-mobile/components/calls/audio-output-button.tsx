@@ -14,7 +14,15 @@ import { ActionSheet } from "@/components/ui/action-sheet";
 import { nativeCalls } from "@/data/calls/native-calls";
 import { bestEffort } from "@/data/report";
 import { toast } from "@/data/stores/toast-store";
-import { AUDIO_OUTPUT_ICONS, AUDIO_OUTPUT_LABEL_KEYS, audioOutputOptions, automaticOutput, isSpeakerToggle, proximityScreenOff, type AudioOutput } from "@/lib/audio-outputs";
+import {
+  AUDIO_OUTPUT_ICONS,
+  AUDIO_OUTPUT_LABEL_KEYS,
+  audioOutputOptions,
+  automaticOutput,
+  isSpeakerToggle,
+  proximityScreenOff,
+  type AudioOutput,
+} from "@/lib/audio-outputs";
 import { CallButton } from "./call-surface";
 
 /** The outputs LiveKit reports; none when it cannot say (the speaker toggle stands in). */

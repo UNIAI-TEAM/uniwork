@@ -18,7 +18,17 @@ import { cn } from "@/lib/utils";
 import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 
 /** A 44 pt round icon button in brand: 48 dp of target on Android through hit slop, with a round ripple there. */
-export function HeaderIconButton({ icon, label, onPress, testID }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; testID?: string }) {
+export function HeaderIconButton({
+  icon,
+  label,
+  onPress,
+  testID,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  testID?: string;
+}) {
   const { colorScheme } = useColorScheme();
   const ripple = useRipple(true);
   return (
@@ -56,16 +66,38 @@ interface Props {
   titleActionLabel?: string;
 }
 
-export function ChatHeader({ title, subtitle, typing, avatar, right, backBadge = 0, backLabel, centered, flat, onPressTitle, titleActionLabel }: Props) {
+export function ChatHeader({
+  title,
+  subtitle,
+  typing,
+  avatar,
+  right,
+  backBadge = 0,
+  backLabel,
+  centered,
+  flat,
+  onPressTitle,
+  titleActionLabel,
+}: Props) {
   const { t } = useTranslation();
   const label = backLabel ?? t("common.back");
   const back = (
     <View className="flex-row items-center">
       {/* Android's back is an arrow, iOS's a chevron (lib/platform-ui.ts). */}
-      <HeaderIconButton icon={backIcon(Platform.OS)} label={backBadge > 0 ? `${label}, ${t("chat.unread_badge_aria", { count: backBadge })}` : label} onPress={() => router.back()} />
+      <HeaderIconButton
+        icon={backIcon(Platform.OS)}
+        label={backBadge > 0 ? `${label}, ${t("chat.unread_badge_aria", { count: backBadge })}` : label}
+        onPress={() => router.back()}
+      />
       {backBadge > 0 ? (
-        <View className="-ml-2.5 min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5" accessibilityElementsHidden importantForAccessibility="no">
-          <Text className="text-meta font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{backBadge > 99 ? "99+" : String(backBadge)}</Text>
+        <View
+          className="-ml-2.5 min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5"
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        >
+          <Text className="text-meta font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>
+            {backBadge > 99 ? "99+" : String(backBadge)}
+          </Text>
         </View>
       ) : null}
     </View>

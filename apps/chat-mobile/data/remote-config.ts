@@ -176,7 +176,11 @@ function parseJson(raw: string): unknown {
  * answer that arrived first wins; a copy that does not read, or is too old, is
  * removed. True when a copy was seeded.
  */
-export async function restoreRemoteConfig(queryClient: Pick<QueryClient, "getQueryData" | "setQueryData">, openStore: () => Promise<DeviceStore>, now = Date.now()): Promise<boolean> {
+export async function restoreRemoteConfig(
+  queryClient: Pick<QueryClient, "getQueryData" | "setQueryData">,
+  openStore: () => Promise<DeviceStore>,
+  now = Date.now(),
+): Promise<boolean> {
   const store = await openStore();
   const raw = store.getString(REMOTE_CONFIG_STORE_KEY);
   if (raw === undefined) return false;
@@ -204,7 +208,11 @@ export async function forgetKeptFlags(openStore: () => Promise<DeviceStore>): Pr
 }
 
 /** Keeps every answer the server gives on the device (not a seeded copy written back); returns the unsubscribe. */
-export function persistRemoteConfig(queryClient: Pick<QueryClient, "getQueryCache">, openStore: () => Promise<DeviceStore>, now: () => number = Date.now): () => void {
+export function persistRemoteConfig(
+  queryClient: Pick<QueryClient, "getQueryCache">,
+  openStore: () => Promise<DeviceStore>,
+  now: () => number = Date.now,
+): () => void {
   return queryClient.getQueryCache().subscribe((event: QueryCacheNotifyEvent) => {
     if (event.type !== "updated" || event.action.type !== "success" || event.action.manual) return;
     if (event.query.queryKey[0] !== remoteConfigKey[0]) return;

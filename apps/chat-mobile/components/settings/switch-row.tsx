@@ -30,7 +30,13 @@ export function SwitchRow({
 }) {
   const { colorScheme } = useColorScheme();
   return (
-    <View className={first ? "min-h-[60px] flex-row items-center gap-3 py-2 pl-4 pr-3.5" : "min-h-[60px] flex-row items-center gap-3 border-t-hairline border-border py-2 pl-4 pr-3.5"}>
+    <View
+      className={
+        first
+          ? "min-h-[60px] flex-row items-center gap-3 py-2 pl-4 pr-3.5"
+          : "min-h-[60px] flex-row items-center gap-3 border-t-hairline border-border py-2 pl-4 pr-3.5"
+      }
+    >
       <TintTile tint={tint} icon={icon} size={36} iconSize={19} className="rounded-[10px]" />
       <View className="flex-1 gap-0.5 py-1">
         <Text className="text-body text-foreground">{label}</Text>

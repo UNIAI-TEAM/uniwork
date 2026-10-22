@@ -49,7 +49,11 @@ function Tile({ message, file, ctx, width, height, more, corners, lead, onLongPr
   return (
     <Pressable
       accessibilityRole="imagebutton"
-      accessibilityLabel={[lead, t("chat.message_list.file_open_named", { name: file.filename || t("chat.media_image") }), more > 0 ? t("chat.info_panel.more_photos", { count: more }) : null]
+      accessibilityLabel={[
+        lead,
+        t("chat.message_list.file_open_named", { name: file.filename || t("chat.media_image") }),
+        more > 0 ? t("chat.info_panel.more_photos", { count: more }) : null,
+      ]
         .filter(Boolean)
         .join(", ")}
       accessibilityActions={[{ name: "longpress", label: t("chat.message_actions_aria") }]}
@@ -60,7 +64,9 @@ function Tile({ message, file, ctx, width, height, more, corners, lead, onLongPr
       className="overflow-hidden bg-muted"
       style={[{ width, height }, corners]}
     >
-      {src ? <Image source={chatMediaSource(src, message.id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ width, height }} /> : null}
+      {src ? (
+        <Image source={chatMediaSource(src, message.id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ width, height }} />
+      ) : null}
       {more > 0 ? (
         <View className="absolute inset-0 items-center justify-center bg-black/45">
           <Text className="text-title2 font-display font-bold text-on-solid">+{more}</Text>
@@ -70,7 +76,15 @@ function Tile({ message, file, ctx, width, height, more, corners, lead, onLongPr
   );
 }
 
-export function AlbumGrid({ photos: messages, ctx, onLongPress }: { photos: readonly TimelineMessage[]; ctx: MessageCardContext; onLongPress: () => void }) {
+export function AlbumGrid({
+  photos: messages,
+  ctx,
+  onLongPress,
+}: {
+  photos: readonly TimelineMessage[];
+  ctx: MessageCardContext;
+  onLongPress: () => void;
+}) {
   const { t } = useTranslation();
   // An album holds file messages only (lib/album.ts › isAlbumPhoto); the file travels with each tile.
   const photos = messages.flatMap((message): AlbumPhoto[] => (message.record?.file ? [{ message, file: message.record.file }] : []));

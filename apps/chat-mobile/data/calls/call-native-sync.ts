@@ -51,7 +51,10 @@ export function createNativeCallSync(env: NativeCallSyncEnv) {
       roomId: state.roomId,
       workspaceId: env.workspaceId(),
       peerName: state.peerName,
-      text: state.status === "connecting" ? env.t("chat.voice_call_connecting") : env.t(video ? "mobile.call_notify.ongoing_video" : "mobile.call_notify.ongoing_voice"),
+      text:
+        state.status === "connecting"
+          ? env.t("chat.voice_call_connecting")
+          : env.t(video ? "mobile.call_notify.ongoing_video" : "mobile.call_notify.ongoing_voice"),
       video,
       startedAt: connectedAt,
     };

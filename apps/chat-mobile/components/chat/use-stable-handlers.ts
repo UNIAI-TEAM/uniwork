@@ -13,10 +13,11 @@ export function useStableHandlers<T extends Record<string, Handler>>(handlers: T
     latest.current = handlers;
   });
   return useMemo(() => {
-    const stable: Record<string, (...args: unknown[]) => unknown> = {};
+    const stable: Record<string, Handler> = {};
     for (const name of Object.keys(latest.current)) {
-      stable[name] = (...args) => (latest.current[name] as unknown as (...args: unknown[]) => unknown)(...args);
+      stable[name] = (...args: never[]) => latest.current[name]?.(...args);
     }
-    return stable as unknown as T;
+    // One wrapper per handler name, each calling that handler with its own arguments: the shape of T.
+    return stable as T;
   }, []);
 }

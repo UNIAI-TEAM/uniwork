@@ -12,7 +12,12 @@ import type { TimelineMessage } from "@/lib/timeline-display";
 
 export const ARRIVAL_QUIET_MS = 4_000;
 
-export function useArrivalAnnouncements(roomId: string, messages: readonly TimelineMessage[], userId: string, describe: (message: TimelineMessage) => Arrival): void {
+export function useArrivalAnnouncements(
+  roomId: string,
+  messages: readonly TimelineMessage[],
+  userId: string,
+  describe: (message: TimelineMessage) => Arrival,
+): void {
   const { t } = useTranslation();
   const enabled = useScreenReaderEnabled();
   const mark = useRef<BottomMark | null>(null);

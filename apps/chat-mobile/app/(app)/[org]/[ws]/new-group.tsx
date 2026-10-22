@@ -45,8 +45,12 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const already = useMemo(() => new Set((inRoom.data ?? []).map((m) => userKey(m.user_id))), [inRoom.data]);
-  const people = useMemo(() => pickerPeople(members.data ?? [], { currentUserId: chat.userId, nicknames, query: q }), [members.data, nicknames, chat.userId, q]);
-  const labelOf = (userId: string) => people.find((p) => p.user_id === userId)?.label ?? (members.data ?? []).find((m) => m.user_id === userId)?.display_name ?? "";
+  const people = useMemo(
+    () => pickerPeople(members.data ?? [], { currentUserId: chat.userId, nicknames, query: q }),
+    [members.data, nicknames, chat.userId, q],
+  );
+  const labelOf = (userId: string) =>
+    people.find((p) => p.user_id === userId)?.label ?? (members.data ?? []).find((m) => m.user_id === userId)?.display_name ?? "";
   // Stable, so a row redraws only for its own presence or selection (member-rows.tsx).
   const toggle = useCallback(
     (userId: string) => setPicked((current) => (current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId])),
@@ -81,15 +85,38 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
         </View>
       )}
       <View className="px-4 py-2">
-        <SearchField value={q} onChangeText={setQ} placeholder={t("chat.member_search_placeholder")} accessibilityLabel={t("chat.member_search_label")} autoCapitalize="none" />
+        <SearchField
+          value={q}
+          onChangeText={setQ}
+          placeholder={t("chat.member_search_placeholder")}
+          accessibilityLabel={t("chat.member_search_label")}
+          autoCapitalize="none"
+        />
       </View>
       {picked.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ height: 80, flexGrow: 0 }} contentContainerClassName="items-start gap-3 px-4 pb-2 pt-1" accessibilityLabel={t("chat.group_selected_members")}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ height: 80, flexGrow: 0 }}
+          contentContainerClassName="items-start gap-3 px-4 pb-2 pt-1"
+          accessibilityLabel={t("chat.group_selected_members")}
+        >
           {picked.map((userId) => (
-            <Pressable key={userId} accessibilityRole="button" accessibilityLabel={t("chat.remove_member", { name: labelOf(userId) })} onPress={() => toggle(userId)} className="w-14 items-center gap-1">
+            <Pressable
+              key={userId}
+              accessibilityRole="button"
+              accessibilityLabel={t("chat.remove_member", { name: labelOf(userId) })}
+              onPress={() => toggle(userId)}
+              className="w-14 items-center gap-1"
+            >
               <View>
                 <PersonAvatar name={labelOf(userId)} size={48} seed={userId} />
-                <View className="absolute -right-1 -top-1 h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-muted-foreground">
+                <View
+                  className={cn(
+                    "absolute -right-1 -top-1 h-5 w-5 items-center justify-center",
+                    "rounded-full border-2 border-background bg-muted-foreground",
+                  )}
+                >
                   <Ionicons name="close" size={11} color={theme.background} />
                 </View>
               </View>
@@ -114,18 +141,29 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
         }
         ListEmptyComponent={members.isPending ? <ActivityIndicator className="py-8" accessibilityLabel={t("chat.loading_members")} /> : null}
         renderItem={({ item, index }) => (
-          <GroupPickRow person={item} last={index === people.length - 1} isIn={already.has(userKey(item.user_id))} selected={picked.includes(item.user_id)} onToggle={toggle} />
+          <GroupPickRow
+            person={item}
+            last={index === people.length - 1}
+            isIn={already.has(userKey(item.user_id))}
+            selected={picked.includes(item.user_id)}
+            onToggle={toggle}
+          />
         )}
       />
       <SafeAreaView edges={["bottom"]} className="border-t border-border bg-background px-4 pt-2.5">
         <Text className="pb-2 text-center text-footnote text-muted-foreground">
-          {picked.length > 0 ? t("chat.mobile.group_selected", { count: picked.length }) : t(roomId ? "chat.add_group_members_hint" : "chat.mobile.group_members_hint")}
+          {picked.length > 0
+            ? t("chat.mobile.group_selected", { count: picked.length })
+            : t(roomId ? "chat.add_group_members_hint" : "chat.mobile.group_members_hint")}
         </Text>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ disabled: !ready, busy }}
           onPress={submit}
-          className={cn("mb-2 min-h-12 flex-row items-center justify-center gap-2 rounded-full py-3", ready ? "bg-primary active:opacity-80" : "bg-muted")}
+          className={cn(
+            "mb-2 min-h-12 flex-row items-center justify-center gap-2 rounded-full py-3",
+            ready ? "bg-primary active:opacity-80" : "bg-muted",
+          )}
         >
           {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={theme.primaryForeground} /> : null}
           <Text className={cn("text-body font-semibold", ready ? "text-primary-foreground" : "text-muted-foreground")}>

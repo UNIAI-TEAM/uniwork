@@ -39,7 +39,14 @@ export function PermissionPrimerHost() {
   return (
     // An ask for a call stays over that call's ringing screen: answering from the notification brings the app to the
     // front, the call rings here meanwhile, and closing the primer then would answer without the microphone.
-    <BottomSheet visible={!closing} onClose={decline} onDismiss={onDismiss} keepOpenForCall={request.callId} backdropCloses={false} className="px-5 pb-3">
+    <BottomSheet
+      visible={!closing}
+      onClose={decline}
+      onDismiss={onDismiss}
+      keepOpenForCall={request.callId}
+      backdropCloses={false}
+      className="px-5 pb-3"
+    >
       <View className="items-center gap-3 pb-5 pt-2">
         <TintTile tint="blue" icon={ICON[request.kind]} size={64} iconSize={30} className="rounded-full" />
         <Text className="text-center text-title2 font-display font-bold text-foreground" accessibilityRole="header">
@@ -54,9 +61,16 @@ export function PermissionPrimerHost() {
           onPress={() => choose(() => answerPrimer(true))}
           className="min-h-12 items-center justify-center rounded-full bg-primary px-4 py-3 active:opacity-90"
         >
-          <Text className="text-body font-semibold text-primary-foreground">{t(settings ? "mobile.permissions.open_settings" : "mobile.permissions.continue")}</Text>
+          <Text className="text-body font-semibold text-primary-foreground">
+            {t(settings ? "mobile.permissions.open_settings" : "mobile.permissions.continue")}
+          </Text>
         </Pressable>
-        <Pressable accessibilityRole="button" testID="permission-primer-later" onPress={decline} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
+        <Pressable
+          accessibilityRole="button"
+          testID="permission-primer-later"
+          onPress={decline}
+          className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70"
+        >
           <Text className="text-body font-semibold text-foreground">{t("mobile.permissions.not_now")}</Text>
         </Pressable>
       </View>

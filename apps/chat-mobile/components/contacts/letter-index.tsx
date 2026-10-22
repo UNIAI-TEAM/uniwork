@@ -7,7 +7,11 @@ import { Text } from "@/components/ui/text";
 export function LetterIndex({ letters, onJump }: { letters: readonly string[]; onJump: (sectionIndex: number) => void }) {
   const { t } = useTranslation();
   return (
-    <View className="absolute bottom-0 right-0 top-0 justify-center pr-1" accessibilityRole="menubar" accessibilityLabel={t("chat.mobile.alphabet_index")}>
+    <View
+      className="absolute bottom-0 right-0 top-0 justify-center pr-1"
+      accessibilityRole="menubar"
+      accessibilityLabel={t("chat.mobile.alphabet_index")}
+    >
       {letters.map((letter, index) => (
         <Pressable
           key={letter}

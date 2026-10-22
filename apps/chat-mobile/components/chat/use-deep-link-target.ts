@@ -90,10 +90,14 @@ export function useDeepLinkTarget(chat: ChatWorkspace | null) {
         // Resolving may create the room, a write on the account: the person decides, knowing with whom.
         const member = qc.getQueryData(workspaceMembersOptions(chat.wsId).queryKey)?.find((m) => sameUser(m.user_id, plan.userId));
         const name = member?.display_name || member?.email;
-        Alert.alert(t("mobile.security.dm_confirm_title"), name ? t("mobile.security.dm_confirm_body", { name }) : t("mobile.security.dm_confirm_body_unknown"), [
-          { text: t("common.cancel"), style: "cancel" },
-          { text: t("mobile.security.dm_confirm_open"), onPress: () => void open() },
-        ]);
+        Alert.alert(
+          t("mobile.security.dm_confirm_title"),
+          name ? t("mobile.security.dm_confirm_body", { name }) : t("mobile.security.dm_confirm_body_unknown"),
+          [
+            { text: t("common.cancel"), style: "cancel" },
+            { text: t("mobile.security.dm_confirm_open"), onPress: () => void open() },
+          ],
+        );
         return;
       }
       default:

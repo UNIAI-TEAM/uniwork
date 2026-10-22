@@ -42,25 +42,29 @@ export function WorkspaceSwitchSheet({ visible, onClose, currentWsId }: { visibl
 
   const select = (ws: Workspace) => {
     if (ws.id === currentWsId) return;
-    void setCurrent({ orgSlug: ws.organization_slug, wsSlug: ws.slug, wsId: ws.id }).then(() => router.replace(`/${ws.organization_slug}/${ws.slug}/chat`));
+    void setCurrent({ orgSlug: ws.organization_slug, wsSlug: ws.slug, wsId: ws.id }).then(() =>
+      router.replace(`/${ws.organization_slug}/${ws.slug}/chat`),
+    );
   };
 
   return (
     <BottomSheet
-    visible={visible}
-    onClose={onClose}
-    onDismiss={onDismiss}
-    dragFrom="handle"
-    sizeClassName="max-h-[80%]"
-    className="pb-2"
-    accessibilityLabel={t("mobile.settings.switch_workspace")}
-  >
+      visible={visible}
+      onClose={onClose}
+      onDismiss={onDismiss}
+      dragFrom="handle"
+      sizeClassName="max-h-[80%]"
+      className="pb-2"
+      accessibilityLabel={t("mobile.settings.switch_workspace")}
+    >
       <View className="px-5 pb-2.5">
         <Text accessibilityRole="header" className="text-title1 font-display font-extrabold leading-7 text-foreground">
           {t("chat.mobile.workspace_sheet_title")}
         </Text>
         {organization ? (
-          <Text className="mt-0.5 text-callout text-muted-foreground">{t("chat.mobile.workspace_count", { org: organization, count: list.length })}</Text>
+          <Text className="mt-0.5 text-callout text-muted-foreground">
+            {t("chat.mobile.workspace_count", { org: organization, count: list.length })}
+          </Text>
         ) : null}
       </View>
       <ScrollView bounces={false}>
@@ -90,8 +94,15 @@ export function WorkspaceSwitchSheet({ visible, onClose, currentWsId }: { visibl
               </View>
               {current ? <Ionicons name="checkmark" size={22} color={theme.primary} accessibilityLabel={t("chat.mobile.workspace_open")} /> : null}
               {badge ? (
-                <View className={cn("min-h-6 min-w-6 items-center justify-center rounded-full px-2", counts.mentions > 0 ? "bg-destructive-solid" : "bg-primary")}>
-                  <Text className="text-caption font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{badge}</Text>
+                <View
+                  className={cn(
+                    "min-h-6 min-w-6 items-center justify-center rounded-full px-2",
+                    counts.mentions > 0 ? "bg-destructive-solid" : "bg-primary",
+                  )}
+                >
+                  <Text className="text-caption font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>
+                    {badge}
+                  </Text>
                 </View>
               ) : null}
             </Pressable>

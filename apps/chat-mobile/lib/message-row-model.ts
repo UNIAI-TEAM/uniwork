@@ -65,7 +65,7 @@ export interface MessageRowModelInput {
   taskIdsByMessage: ReadonlyMap<string, readonly string[]>;
 }
 
-const sameList = <T,>(a: readonly T[] | undefined, b: readonly T[] | undefined): boolean =>
+const sameList = <T>(a: readonly T[] | undefined, b: readonly T[] | undefined): boolean =>
   a === b || (a !== undefined && b !== undefined && a.length === b.length && a.every((item, index) => item === b[index]));
 
 const sameQuote = (a: QuoteModel | null, b: QuoteModel | null): boolean =>
@@ -125,7 +125,14 @@ const sameReaders = (a: Readers, b: Readers): boolean =>
  */
 export function buildMessageRowModels(input: MessageRowModelInput, previous?: ReadonlyMap<string, MessageRowModel>): Map<string, MessageRowModel> {
   const { userId, threadRootId, isGroup } = input;
-  const readers: Readers = { userId, threadRootId, isGroup, senderName: input.senderName, quoteText: input.quoteText, unknownQuoteSender: input.unknownQuoteSender };
+  const readers: Readers = {
+    userId,
+    threadRootId,
+    isGroup,
+    senderName: input.senderName,
+    quoteText: input.quoteText,
+    unknownQuoteSender: input.unknownQuoteSender,
+  };
   const last = previous ? workings.get(previous) : undefined;
   const sameReadersAsLast = last !== undefined && sameReaders(last.readers, readers);
   const { byId } = input;

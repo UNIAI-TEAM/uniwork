@@ -44,7 +44,13 @@ export function WorkspaceAvatar({ name, iconUrl, iconEmoji, size = 24, className
   if (resolved) {
     return (
       <View className={cn("overflow-hidden border border-border", className)} style={box}>
-        <Image source={stableImageSource(resolved)} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" accessibilityLabel={name} style={{ width: "100%", height: "100%" }} />
+        <Image
+          source={stableImageSource(resolved)}
+          cachePolicy={IMAGE_CACHE_POLICY}
+          contentFit="cover"
+          accessibilityLabel={name}
+          style={{ width: "100%", height: "100%" }}
+        />
       </View>
     );
   }

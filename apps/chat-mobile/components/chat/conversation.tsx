@@ -155,7 +155,9 @@ export function Conversation(props: Props) {
   const photos: ViewerPhoto[] = useMemo(
     () =>
       viewerOpen
-        ? messages.filter((m) => m.record && !m.pending && messageView(m.record) === "image").map((m) => ({ id: m.id, record: m.record, sender: senderName(m), ts: m.ts }))
+        ? messages
+            .filter((m) => m.record && !m.pending && messageView(m.record) === "image")
+            .map((m) => ({ id: m.id, record: m.record, sender: senderName(m), ts: m.ts }))
         : NO_PHOTOS,
     [viewerOpen, messages, senderName],
   );
@@ -182,7 +184,8 @@ export function Conversation(props: Props) {
     },
     [roomKind, receiptsOn, readAt, deliveredAt],
   );
-  const seenByOf = (message: TimelineMessage | null) => (message?.record && receiptsOn ? seenByMembers(message.record, room.members, message.sender) : []);
+  const seenByOf = (message: TimelineMessage | null) =>
+    message?.record && receiptsOn ? seenByMembers(message.record, room.members, message.sender) : [];
 
   const failed = useCallback(() => toast.error(t("common.error")), [t]);
 
@@ -214,7 +217,10 @@ export function Conversation(props: Props) {
   );
   const unreadCount = props.unread?.count ?? 0;
   const unreadLine = useMemo(
-    () => (firstUnreadId ? { id: firstUnreadId, label: unreadCount > 0 ? t("chat.unread_count_chip", { count: unreadCount }) : t("chat.new_messages") } : null),
+    () =>
+      firstUnreadId
+        ? { id: firstUnreadId, label: unreadCount > 0 ? t("chat.unread_count_chip", { count: unreadCount }) : t("chat.new_messages") }
+        : null,
     [firstUnreadId, unreadCount, t],
   );
 
@@ -299,7 +305,21 @@ export function Conversation(props: Props) {
     );
     previousModels.current = next;
     return next;
-  }, [rows, byId, userId, threadRootId, room.isGroup, continued, albums, room.senderName, quoteText, t, receiptOf, props.jumpTo?.id, taskIdsByMessage]);
+  }, [
+    rows,
+    byId,
+    userId,
+    threadRootId,
+    room.isGroup,
+    continued,
+    albums,
+    room.senderName,
+    quoteText,
+    t,
+    receiptOf,
+    props.jumpTo?.id,
+    taskIdsByMessage,
+  ]);
 
   // One object of handlers for every cell, always running the latest closures.
   const handlers: MessageHandlers = useStableHandlers({
@@ -374,7 +394,12 @@ export function Conversation(props: Props) {
         }}
         onTyping={signalTyping}
         onSendVoice={(clip) =>
-          enqueue({ body: "", file: { uri: clip.uri, name: "voice.m4a", mimeType: "audio/mp4" }, voiceDurationMs: clip.durationMs, replyToMessageId: takeReply() })
+          enqueue({
+            body: "",
+            file: { uri: clip.uri, name: "voice.m4a", mimeType: "audio/mp4" },
+            voiceDurationMs: clip.durationMs,
+            replyToMessageId: takeReply(),
+          })
         }
         onOpenExpressions={() => setSheet("expressions")}
         onOpenReminder={() => setSheet("reminder")}
@@ -383,14 +408,20 @@ export function Conversation(props: Props) {
       <ReminderSheet
         visible={sheet === "reminder"}
         onClose={() => setSheet(null)}
-        onCreate={(input) => enqueue({ body: "", reminder: { body: input.body.trim(), remindAt: input.remindAt.toISOString(), repeat: input.repeat } })}
+        onCreate={(input) =>
+          enqueue({ body: "", reminder: { body: input.body.trim(), remindAt: input.remindAt.toISOString(), repeat: input.repeat } })
+        }
       />
       <MessageActionsSheet
         message={actionMessage}
         own={actionMessage?.sender === userId}
         senderName={actionMessage ? room.senderName(actionMessage) : undefined}
         seenBy={seenByOf(actionMessage)}
-        avatar={actionMessage && room.isGroup && actionMessage.sender !== userId ? <PersonAvatar name={room.senderName(actionMessage)} size={30} seed={actionMessage.sender} /> : undefined}
+        avatar={
+          actionMessage && room.isGroup && actionMessage.sender !== userId ? (
+            <PersonAvatar name={room.senderName(actionMessage)} size={30} seed={actionMessage.sender} />
+          ) : undefined
+        }
         inThread={Boolean(threadRootId)}
         followUp={actionMessage ? openFollowUp(actionMessage.id) : null}
         onClose={() => setActionMessage(null)}

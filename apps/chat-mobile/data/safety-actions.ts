@@ -9,6 +9,9 @@ import { safetyApi } from "./safety-api";
 /** Blocks or unblocks; rejects when the server did not say ok, so the caller can say it failed. */
 export async function setBlocked(qc: Pick<QueryClient, "invalidateQueries">, wsId: string, userId: string, blocked: boolean): Promise<void> {
   const ok = blocked ? await safetyApi.block(wsId, userId) : await safetyApi.unblock(wsId, userId);
-  await Promise.all([qc.invalidateQueries({ queryKey: chatKeys.blockStatus(wsId, userId) }), qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) })]);
+  await Promise.all([
+    qc.invalidateQueries({ queryKey: chatKeys.blockStatus(wsId, userId) }),
+    qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) }),
+  ]);
   if (!ok) throw new Error(blocked ? "block refused" : "unblock refused");
 }

@@ -59,7 +59,13 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
     <View className="flex-1 bg-background">
       <ChatHeader title={t("chat.mobile.room_info")} centered flat />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="pb-10">
-        <RoomInfoHero room={room.room} roomId={roomId} title={room.title} peerOnline={room.peerOnline} memberCount={room.members.length || (room.room?.member_count ?? 0)} />
+        <RoomInfoHero
+          room={room.room}
+          roomId={roomId}
+          title={room.title}
+          peerOnline={room.peerOnline}
+          memberCount={room.members.length || (room.room?.member_count ?? 0)}
+        />
         {room.room ? (
           <RoomQuickActions
             muted={muted}
@@ -67,13 +73,23 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
             isGroup={room.room.kind === "group"}
             onToggleMute={() => void setRoomMuted({ roomId, muted: !muted }).catch(() => toast.error(t("common.error")))}
             onSearch={() => searchInput.current?.focus()}
-            onCall={() => void ensureCallPermissions(false).then(() => callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera: false }))}
+            onCall={() =>
+              void ensureCallPermissions(false).then(() =>
+                callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera: false }),
+              )
+            }
             onAddPeople={() => router.push(chatRoutes.newGroup(chat, roomId))}
           />
         ) : null}
 
         <View className="px-5 pb-3.5">
-          <SearchField ref={searchInput} value={q} onChangeText={setQ} placeholder={t("chat.search_messages")} accessibilityLabel={t("chat.search_messages")} />
+          <SearchField
+            ref={searchInput}
+            value={q}
+            onChangeText={setQ}
+            placeholder={t("chat.search_messages")}
+            accessibilityLabel={t("chat.search_messages")}
+          />
         </View>
         <RoomSearchResults query={q} fetching={search.isFetching} results={search.data} senderName={room.senderName} onOpen={openAt} />
 

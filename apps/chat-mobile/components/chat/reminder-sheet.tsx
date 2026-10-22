@@ -95,7 +95,13 @@ export function ReminderSheet({
           <Chip key={value} label={t(`chat.reminder_repeat_${value}`)} selected={repeat === value} onPress={() => setRepeat(value)} />
         ))}
       </View>
-      <Button disabled={!ready} accessibilityState={{ disabled: !ready }} onPress={create} className="mb-3 mt-5 min-h-12 rounded-full py-3" testID="reminder-create">
+      <Button
+        disabled={!ready}
+        accessibilityState={{ disabled: !ready }}
+        onPress={create}
+        className="mb-3 mt-5 min-h-12 rounded-full py-3"
+        testID="reminder-create"
+      >
         <Text className="text-body font-semibold">{t("chat.reminder_create_submit")}</Text>
       </Button>
     </BottomSheet>

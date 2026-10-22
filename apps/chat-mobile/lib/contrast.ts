@@ -20,12 +20,15 @@ export function hslToRgb(token: string): [number, number, number] {
 
 /** Relative luminance (WCAG 2.x). */
 export function relativeLuminance(token: string): number {
-  const [r, g, b] = hslToRgb(token).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)) as [number, number, number];
+  const [r = 0, g = 0, b = 0] = hslToRgb(token).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
 /** The contrast ratio of two tokens, 1 to 21, in either order. */
 export function contrastRatio(a: string, b: string): number {
-  const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x) as [number, number];
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  const hi = Math.max(la, lb);
+  const lo = Math.min(la, lb);
   return (hi + 0.05) / (lo + 0.05);
 }

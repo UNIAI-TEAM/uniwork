@@ -87,7 +87,9 @@ function recentRoomIds(queries: readonly DehydratedQuery[], limit: number): Set<
   for (const query of queries) {
     const [root, wsId, kind] = query.queryKey;
     if (root !== "chat" || kind !== "rooms") continue;
-    const rooms = persistedRooms(query.state.data).sort((a, b) => lastActivity(b) - lastActivity(a)).slice(0, limit);
+    const rooms = persistedRooms(query.state.data)
+      .sort((a, b) => lastActivity(b) - lastActivity(a))
+      .slice(0, limit);
     for (const room of rooms) keep.add(`${String(wsId)}/${room.id}`);
   }
   return keep;
@@ -229,7 +231,13 @@ export function createDevicePersister(open: () => Promise<DeviceStore>): DeviceP
         store.remove(key);
         written.delete(key);
       }
-      const envelope = { buster: shaped.buster, timestamp: shaped.timestamp, clientState: { mutations: [], queries: [] }, first, later: [...rest, ...later] };
+      const envelope = {
+        buster: shaped.buster,
+        timestamp: shaped.timestamp,
+        clientState: { mutations: [], queries: [] },
+        first,
+        later: [...rest, ...later],
+      };
       store.set(STORE_KEY, JSON.stringify(envelope));
     },
     restoreClient: async () => {
@@ -350,8 +358,8 @@ async function restoreAndSubscribe(userId: string, { queryClient, persister }: I
   let timer: ReturnType<typeof setTimeout> | null = null;
   const save = () => {
     timer = null;
-    persistQueryClientSave({ queryClient, persister: carrying, buster, dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery } }).catch((error: unknown) =>
-      log.warn("cached rooms not saved", { error: errorName(error) }),
+    persistQueryClientSave({ queryClient, persister: carrying, buster, dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery } }).catch(
+      (error: unknown) => log.warn("cached rooms not saved", { error: errorName(error) }),
     );
   };
   // Only new data in a kept query is worth a write: not a fetch starting, an observer, or memory letting a query go.

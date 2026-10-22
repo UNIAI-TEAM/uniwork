@@ -59,11 +59,20 @@ export function CallButton(props: {
       <View className="h-16 w-16">
         {props.ring ? <PulseRings color={props.ring} size={64} /> : null}
         <View
-          className={cn("h-16 w-16 items-center justify-center rounded-full", tone === "danger" && "bg-destructive-solid", tone === "accept" && "bg-success-solid")}
+          className={cn(
+            "h-16 w-16 items-center justify-center rounded-full",
+            tone === "danger" && "bg-destructive-solid",
+            tone === "accept" && "bg-success-solid",
+          )}
           style={tone === "default" ? { backgroundColor: active ? CALL.text : CALL.fill } : undefined}
         >
           {/* Danger is always hang up or decline: the receiver put down, as the canvas draws it. */}
-          <Ionicons name={props.icon} size={28} color={tone === "default" && active ? CALL.onFill : CALL.text} style={tone === "danger" ? HANG_UP : undefined} />
+          <Ionicons
+            name={props.icon}
+            size={28}
+            color={tone === "default" && active ? CALL.onFill : CALL.text}
+            style={tone === "danger" ? HANG_UP : undefined}
+          />
         </View>
       </View>
       <Text className="text-footnote" style={[{ color: CALL.label }, SHADOW]} numberOfLines={1}>
@@ -81,7 +90,9 @@ function PulseRings({ color, size = 148, count = 2 }: { color: string; size?: nu
   const pulses = useRef([new Animated.Value(0), new Animated.Value(0)].slice(0, count)).current;
   useEffect(() => {
     if (reduced) return;
-    const loops = pulses.map((p) => Animated.loop(Animated.timing(p, { toValue: 1, duration: 1800, easing: Easing.out(Easing.ease), useNativeDriver: true })));
+    const loops = pulses.map((p) =>
+      Animated.loop(Animated.timing(p, { toValue: 1, duration: 1800, easing: Easing.out(Easing.ease), useNativeDriver: true })),
+    );
     const all = Animated.stagger(900, loops);
     all.start();
     return () => all.stop();
@@ -131,10 +142,18 @@ export function CallerHero({
   useAnnounce(live ? null : line);
   return (
     <View className="flex-1 items-center justify-center gap-2 px-6 pb-10 pt-11">
-      <View className="items-center justify-center" style={{ width: 148, height: 148 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View
+        className="items-center justify-center"
+        style={{ width: 148, height: 148 }}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
         {rings ? <PulseRings color={rings} count={ringCount} /> : null}
         {/* The face on the person's own colour, two letters (MobileCall board). */}
-        <View className={`items-center justify-center rounded-full ${SOLID_TINT_BG[identityTint(seed || name || "")]}`} style={{ width: 132, height: 132 }}>
+        <View
+          className={`items-center justify-center rounded-full ${SOLID_TINT_BG[identityTint(seed || name || "")]}`}
+          style={{ width: 132, height: 132 }}
+        >
           <Text className="font-display font-bold text-on-solid" style={{ fontSize: 44, lineHeight: 54 }}>
             {room ? roomInitialsOf(name) : initialsOf(name)}
           </Text>

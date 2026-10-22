@@ -19,10 +19,34 @@ export interface ChannelSpec {
 }
 
 export const NOTIFICATION_CHANNELS: readonly ChannelSpec[] = [
-  { id: "missed_calls", nameKey: "mobile.notify.channel_missed", descriptionKey: "mobile.notify.channel_missed_hint", importance: "high", lockscreen: "public" },
-  { id: "mentions", nameKey: "mobile.notify.channel_mentions", descriptionKey: "mobile.notify.channel_mentions_hint", importance: "high", lockscreen: "private" },
-  { id: "messages", nameKey: "mobile.notify.channel_messages", descriptionKey: "mobile.notify.channel_messages_hint", importance: "high", lockscreen: "private" },
-  { id: "general", nameKey: "mobile.notify.channel_general", descriptionKey: "mobile.notify.channel_general_hint", importance: "default", lockscreen: "private" },
+  {
+    id: "missed_calls",
+    nameKey: "mobile.notify.channel_missed",
+    descriptionKey: "mobile.notify.channel_missed_hint",
+    importance: "high",
+    lockscreen: "public",
+  },
+  {
+    id: "mentions",
+    nameKey: "mobile.notify.channel_mentions",
+    descriptionKey: "mobile.notify.channel_mentions_hint",
+    importance: "high",
+    lockscreen: "private",
+  },
+  {
+    id: "messages",
+    nameKey: "mobile.notify.channel_messages",
+    descriptionKey: "mobile.notify.channel_messages_hint",
+    importance: "high",
+    lockscreen: "private",
+  },
+  {
+    id: "general",
+    nameKey: "mobile.notify.channel_general",
+    descriptionKey: "mobile.notify.channel_general_hint",
+    importance: "default",
+    lockscreen: "private",
+  },
 ];
 
 /** modules/unichat-calls › ensureChannels: the ringing call and the call under way. */

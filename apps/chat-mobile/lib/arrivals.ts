@@ -14,7 +14,12 @@ export interface BottomMark {
 }
 
 /** Others' messages below the bottom the conversation had last time; empty when nothing new arrived. */
-export function arrivedSince(messages: readonly TimelineMessage[], previous: BottomMark | null, roomId: string, currentUserId: string): TimelineMessage[] {
+export function arrivedSince(
+  messages: readonly TimelineMessage[],
+  previous: BottomMark | null,
+  roomId: string,
+  currentUserId: string,
+): TimelineMessage[] {
   const lastId = messages.at(-1)?.id ?? null;
   if (!previous || previous.roomId !== roomId || !previous.lastId || !lastId || previous.lastId === lastId) return [];
   const previousIndex = messages.findIndex((message) => message.id === previous.lastId);

@@ -13,7 +13,15 @@ const FILTERS: { value: CallLogFilter; label: string }[] = [
   { value: "missed", label: "mobile.calls.filter_missed" },
 ];
 
-export function CallLogFilters({ value, onChange, missedCount }: { value: CallLogFilter; onChange: (filter: CallLogFilter) => void; missedCount: number }) {
+export function CallLogFilters({
+  value,
+  onChange,
+  missedCount,
+}: {
+  value: CallLogFilter;
+  onChange: (filter: CallLogFilter) => void;
+  missedCount: number;
+}) {
   const { t } = useTranslation();
   return (
     <View className="flex-row gap-2 pb-1 pt-3">
@@ -28,12 +36,23 @@ export function CallLogFilters({ value, onChange, missedCount }: { value: CallLo
             accessibilityLabel={counted ? `${t(option.label)}, ${missedCount}` : t(option.label)}
             accessibilityState={{ selected }}
             hitSlop={{ top: 5, bottom: 5 }}
-            className={cn("min-h-[34px] flex-row items-center gap-1.5 rounded-full px-3.5 py-1", selected ? "bg-primary" : "bg-muted active:bg-secondary")}
+            className={cn(
+              "min-h-[34px] flex-row items-center gap-1.5 rounded-full px-3.5 py-1",
+              selected ? "bg-primary" : "bg-muted active:bg-secondary",
+            )}
           >
             <Text className={cn("text-callout font-semibold", selected ? "text-primary-foreground" : "text-foreground")}>{t(option.label)}</Text>
             {counted ? (
-              <View className={cn("min-h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px]", selected ? "bg-primary-foreground" : "bg-destructive-solid")}>
-                <Text className={cn("text-meta font-semibold", selected ? "text-primary" : "text-on-solid")} maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>
+              <View
+                className={cn(
+                  "min-h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px]",
+                  selected ? "bg-primary-foreground" : "bg-destructive-solid",
+                )}
+              >
+                <Text
+                  className={cn("text-meta font-semibold", selected ? "text-primary" : "text-on-solid")}
+                  maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}
+                >
                   {missedCount > 99 ? "99+" : String(missedCount)}
                 </Text>
               </View>

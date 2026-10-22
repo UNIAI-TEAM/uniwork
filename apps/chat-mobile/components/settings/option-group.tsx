@@ -51,7 +51,11 @@ export function OptionGroup<T extends string>({
               ) : null}
               <Text
                 numberOfLines={1}
-                className={cn("font-semibold", option.icon ? "text-footnote" : "text-subhead", selected ? "text-primary-foreground" : "text-foreground")}
+                className={cn(
+                  "font-semibold",
+                  option.icon ? "text-footnote" : "text-subhead",
+                  selected ? "text-primary-foreground" : "text-foreground",
+                )}
               >
                 {t(option.label)}
               </Text>

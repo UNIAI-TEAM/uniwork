@@ -50,7 +50,27 @@ function useElapsed(running: boolean) {
   return seconds;
 }
 
-function RoomStage({ peerName, connected, recording, held, onMinimize, minimized, seed, room, video }: { peerName: string; connected: boolean; recording: boolean; held: boolean; onMinimize?: () => void; minimized: boolean; seed?: string; room?: boolean; video: boolean }) {
+function RoomStage({
+  peerName,
+  connected,
+  recording,
+  held,
+  onMinimize,
+  minimized,
+  seed,
+  room,
+  video,
+}: {
+  peerName: string;
+  connected: boolean;
+  recording: boolean;
+  held: boolean;
+  onMinimize?: () => void;
+  minimized: boolean;
+  seed?: string;
+  room?: boolean;
+  video: boolean;
+}) {
   const { t } = useTranslation();
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
   const tracks = useTracks([Track.Source.Camera]);
@@ -93,7 +113,12 @@ function RoomStage({ peerName, connected, recording, held, onMinimize, minimized
         <View className="flex-1 items-center gap-1">
           {held ? (
             // The phone's own call has the line (use-cellular-hold.ts): our microphone and the other side are off.
-            <View className="min-h-7 flex-row items-center gap-1.5 rounded-full px-2.5" style={{ backgroundColor: CALL.fill }} accessibilityRole="text" accessibilityLiveRegion="polite">
+            <View
+              className="min-h-7 flex-row items-center gap-1.5 rounded-full px-2.5"
+              style={{ backgroundColor: CALL.fill }}
+              accessibilityRole="text"
+              accessibilityLiveRegion="polite"
+            >
               <Ionicons name="pause" size={12} color={CALL.text} />
               <Text className="text-footnote font-semibold" style={{ color: CALL.text }} numberOfLines={1}>
                 {t("mobile.call_audio.held")}
@@ -101,7 +126,11 @@ function RoomStage({ peerName, connected, recording, held, onMinimize, minimized
             </View>
           ) : null}
           {recording ? (
-            <View className="min-h-7 flex-row items-center gap-1.5 rounded-full px-2.5" style={{ backgroundColor: CALL.fill }} accessibilityRole="text">
+            <View
+              className="min-h-7 flex-row items-center gap-1.5 rounded-full px-2.5"
+              style={{ backgroundColor: CALL.fill }}
+              accessibilityRole="text"
+            >
               <View className="h-2 w-2 rounded-full bg-destructive-solid" />
               <Text className="text-footnote font-semibold" style={{ color: CALL.text }}>
                 {t("chat.mobile.call_recording")}
@@ -135,7 +164,18 @@ function RoomStage({ peerName, connected, recording, held, onMinimize, minimized
         </View>
       ) : null}
       {local && isTrackReference(local) && isCameraEnabled ? (
-        <View className="absolute right-4 top-16 overflow-hidden rounded-[14px] border" style={{ width: 110, height: 160, borderColor: CALL.fill, shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } }}>
+        <View
+          className="absolute right-4 top-16 overflow-hidden rounded-[14px] border"
+          style={{
+            width: 110,
+            height: 160,
+            borderColor: CALL.fill,
+            shadowColor: "#000",
+            shadowOpacity: 0.35,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 6 },
+          }}
+        >
           <VideoTrack trackRef={local} style={{ width: 110, height: 160 }} objectFit="cover" mirror />
           <View className="absolute bottom-1.5 left-1.5 rounded-full px-2 py-0.5" style={{ backgroundColor: CALL.scrim }}>
             <Text className="text-caption font-semibold" style={{ color: CALL.text }}>
@@ -161,7 +201,11 @@ function RoomStage({ peerName, connected, recording, held, onMinimize, minimized
           testID="call-mute"
           onPress={() => void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
         />
-        <CallButton icon="call" label={t("chat.voice_call_end")} tone="danger" testID="call-hangup"
+        <CallButton
+          icon="call"
+          label={t("chat.voice_call_end")}
+          tone="danger"
+          testID="call-hangup"
           onPress={() => {
             haptics.callEnd();
             void callEngine.hangUp();
@@ -234,7 +278,17 @@ export function CallRoom({
         nativeCallSync.refresh(callEngine.store.getState().call);
       }}
     >
-      <RoomStage peerName={peerName} connected={connected} recording={recording} held={held} onMinimize={onMinimize} minimized={minimized} seed={seed} room={roomFace} video={withCamera} />
+      <RoomStage
+        peerName={peerName}
+        connected={connected}
+        recording={recording}
+        held={held}
+        onMinimize={onMinimize}
+        minimized={minimized}
+        seed={seed}
+        room={roomFace}
+        video={withCamera}
+      />
     </LiveKitRoom>
   );
 }

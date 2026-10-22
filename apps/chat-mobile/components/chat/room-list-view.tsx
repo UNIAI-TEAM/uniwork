@@ -65,7 +65,8 @@ function RoomListItem({ row, typingLine, queued, draft, handlers }: ItemProps) {
 /** A cell redraws when its row draws differently, its typing line or send state changed. */
 const MemoRoomListItem = memo(
   RoomListItem,
-  (a, b) => a.typingLine === b.typingLine && a.queued === b.queued && a.draft === b.draft && a.handlers === b.handlers && sameRoomListRow(a.row, b.row),
+  (a, b) =>
+    a.typingLine === b.typingLine && a.queued === b.queued && a.draft === b.draft && a.handlers === b.handlers && sameRoomListRow(a.row, b.row),
 );
 
 type ListProps = Pick<ComponentProps<typeof FlashList<RoomListRow>>, "ListHeaderComponent" | "ListEmptyComponent" | "refreshControl">;

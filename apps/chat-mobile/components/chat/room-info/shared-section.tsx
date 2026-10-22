@@ -39,7 +39,14 @@ export function SharedSection({ shared, onOpenMessage }: { shared: ChatRoomShare
       <Text className="mb-2 px-5 text-footnote font-semibold text-muted-foreground" accessibilityRole="header">
         {t("chat.mobile.shared_title")}
       </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="grow-0" contentContainerClassName="gap-1.5 px-5 pb-2.5" accessibilityRole="tablist" accessibilityLabel={t("chat.mobile.shared_kinds_aria")}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        className="grow-0"
+        contentContainerClassName="gap-1.5 px-5 pb-2.5"
+        accessibilityRole="tablist"
+        accessibilityLabel={t("chat.mobile.shared_kinds_aria")}
+      >
         {tabs.map((item) => {
           const active = item.key === tab;
           return (
@@ -50,7 +57,10 @@ export function SharedSection({ shared, onOpenMessage }: { shared: ChatRoomShare
               onPress={() => setTab(item.key)}
               className={cn("min-h-8 justify-center rounded-full px-3 py-1", active ? "bg-tint-blue" : "active:bg-secondary")}
             >
-              <Text className={cn("text-footnote font-semibold", active ? "text-primary" : "text-muted-foreground")} style={{ fontVariant: ["tabular-nums"] }}>
+              <Text
+                className={cn("text-footnote font-semibold", active ? "text-primary" : "text-muted-foreground")}
+                style={{ fontVariant: ["tabular-nums"] }}
+              >
                 {item.label}
               </Text>
             </Pressable>
@@ -72,7 +82,12 @@ export function SharedSection({ shared, onOpenMessage }: { shared: ChatRoomShare
                 style={{ width: tile, height: tile }}
               >
                 {thumb ? (
-                  <Image source={chatMediaSource(thumb, photo.message_id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ width: "100%", height: "100%" }} />
+                  <Image
+                    source={chatMediaSource(thumb, photo.message_id, "thumb")}
+                    cachePolicy={IMAGE_CACHE_POLICY}
+                    contentFit="cover"
+                    style={{ width: "100%", height: "100%" }}
+                  />
                 ) : null}
                 {last ? (
                   <View className="absolute inset-0 items-center justify-center bg-black/45">

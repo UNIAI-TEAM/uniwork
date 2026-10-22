@@ -11,10 +11,28 @@ import { Text } from "@/components/ui/text";
 import { roomHeaderMark } from "@/lib/conversation-display";
 import { QuickAction } from "./quick-action";
 
-export function RoomInfoHero({ room, roomId, title, peerOnline, memberCount }: { room: ChatRoomRecord | null; roomId: string; title: string; peerOnline: boolean; memberCount: number }) {
+export function RoomInfoHero({
+  room,
+  roomId,
+  title,
+  peerOnline,
+  memberCount,
+}: {
+  room: ChatRoomRecord | null;
+  roomId: string;
+  title: string;
+  peerOnline: boolean;
+  memberCount: number;
+}) {
   const { t } = useTranslation();
   const line =
-    room?.kind === "dm" ? (peerOnline ? t("chat.presence_online") : null) : memberCount > 0 ? t("chat.group_member_count", { count: memberCount }) : null;
+    room?.kind === "dm"
+      ? peerOnline
+        ? t("chat.presence_online")
+        : null
+      : memberCount > 0
+        ? t("chat.group_member_count", { count: memberCount })
+        : null;
   return (
     <View className="items-center px-5 pb-5 pt-3">
       <RoomAvatar mark={roomHeaderMark(room, title, peerOnline)} size={84} seed={roomId} />
@@ -44,8 +62,17 @@ export function RoomQuickActions(props: {
         onPress={props.onToggleMute}
       />
       <QuickAction icon="search" label={t("chat.mobile.search_short")} accessibilityLabel={t("chat.search_messages")} onPress={props.onSearch} />
-      {props.callable ? <QuickAction icon="call-outline" label={t("chat.mobile.call_short")} accessibilityLabel={t("chat.voice_call_start")} onPress={props.onCall} /> : null}
-      {props.isGroup ? <QuickAction icon="person-add-outline" label={t("chat.add_to_group")} accessibilityLabel={t("chat.add_group_members")} onPress={props.onAddPeople} /> : null}
+      {props.callable ? (
+        <QuickAction icon="call-outline" label={t("chat.mobile.call_short")} accessibilityLabel={t("chat.voice_call_start")} onPress={props.onCall} />
+      ) : null}
+      {props.isGroup ? (
+        <QuickAction
+          icon="person-add-outline"
+          label={t("chat.add_to_group")}
+          accessibilityLabel={t("chat.add_group_members")}
+          onPress={props.onAddPeople}
+        />
+      ) : null}
     </View>
   );
 }

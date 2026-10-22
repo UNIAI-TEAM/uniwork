@@ -45,7 +45,26 @@ export interface RoomRowProps {
 }
 
 export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
-  const { title, mark, seed, prefix, subtitle, typing, missed, seen, queued, draft, time, unread, mentionUnread, muted, pinned, onPress, onLongPress, testID } = props;
+  const {
+    title,
+    mark,
+    seed,
+    prefix,
+    subtitle,
+    typing,
+    missed,
+    seen,
+    queued,
+    draft,
+    time,
+    unread,
+    mentionUnread,
+    muted,
+    pinned,
+    onPress,
+    onLongPress,
+    testID,
+  } = props;
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
@@ -109,7 +128,10 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
             </Text>
           ) : (
             <Text
-              className={cn("flex-1 text-subhead leading-5", typing ? "font-medium text-primary" : missed ? "text-destructive" : "text-muted-foreground")}
+              className={cn(
+                "flex-1 text-subhead leading-5",
+                typing ? "font-medium text-primary" : missed ? "text-destructive" : "text-muted-foreground",
+              )}
               numberOfLines={1}
             >
               {prefix ? <Text className="text-subhead font-medium text-foreground">{prefix}</Text> : null}
@@ -118,7 +140,9 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
           )}
           {mentionUnread > 0 ? (
             <View className="min-h-[22px] min-w-[22px] items-center justify-center rounded-full bg-primary">
-              <Text className="text-footnote font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>@</Text>
+              <Text className="text-footnote font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>
+                @
+              </Text>
             </View>
           ) : null}
           {unread > 0 ? (
@@ -128,7 +152,11 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
                 muted ? "bg-muted-foreground" : "bg-primary",
               )}
             >
-              <Text className={cn("text-caption font-semibold", muted ? "text-background" : "text-primary-foreground")} style={TABULAR} maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>
+              <Text
+                className={cn("text-caption font-semibold", muted ? "text-background" : "text-primary-foreground")}
+                style={TABULAR}
+                maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}
+              >
                 {unread > 99 ? "99+" : String(unread)}
               </Text>
             </View>

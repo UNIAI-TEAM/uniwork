@@ -28,7 +28,11 @@ export function focalTranslate(focal: number, translate: number, from: number, t
 }
 
 /** A double tap at `point`: in to DOUBLE_TAP_SCALE towards it, or back to the fitted photo. */
-export function doubleTapTarget(scale: number, point: { x: number; y: number }, size: { width: number; height: number }): { scale: number; x: number; y: number } {
+export function doubleTapTarget(
+  scale: number,
+  point: { x: number; y: number },
+  size: { width: number; height: number },
+): { scale: number; x: number; y: number } {
   "worklet";
   if (scale > 1) return { scale: 1, x: 0, y: 0 };
   const to = DOUBLE_TAP_SCALE;

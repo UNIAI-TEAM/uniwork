@@ -30,7 +30,10 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
   const [q, setQ] = useState("");
   const [opening, setOpening] = useState<string | null>(null);
 
-  const people = useMemo(() => pickerPeople(members.data ?? [], { currentUserId: chat.userId, nicknames, query: q }), [members.data, nicknames, chat.userId, q]);
+  const people = useMemo(
+    () => pickerPeople(members.data ?? [], { currentUserId: chat.userId, nicknames, query: q }),
+    [members.data, nicknames, chat.userId, q],
+  );
 
   // Stable, so a row redraws only for its own presence or its own busy state (member-rows.tsx).
   const open = useCallback(

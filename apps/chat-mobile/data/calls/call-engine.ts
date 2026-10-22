@@ -12,7 +12,15 @@ import { bestEffort, breadcrumb, reportError } from "@/data/report";
 import { VOICE_CALL_HANDLED_CODES } from "@/lib/voice-call";
 import { incomingStateFromInvite, latestRingingInvite, voiceEventForUser, type VoiceInvitePayload } from "@uniwork/core/chat/voice-call-invites";
 import { isMultiPartyVoiceCall } from "@uniwork/core/chat/voice-call-kind";
-import { VOICE_CALL_CONNECTING_TIMEOUT_MS, VOICE_CALL_ENDED_DISMISS_MS, VOICE_CALL_RING_TIMEOUT_MS, isInformationalEnd, type VoiceCallEndInit, type VoiceCallKind, type VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
+import {
+  VOICE_CALL_CONNECTING_TIMEOUT_MS,
+  VOICE_CALL_ENDED_DISMISS_MS,
+  VOICE_CALL_RING_TIMEOUT_MS,
+  isInformationalEnd,
+  type VoiceCallEndInit,
+  type VoiceCallKind,
+  type VoiceCallOverlayState,
+} from "@uniwork/core/chat/voice-call-types";
 
 export interface CallEngineDeps {
   invite(wsId: string, roomId: string, callId: string, video: boolean): Promise<boolean>;
@@ -90,7 +98,10 @@ export function createCallEngine(deps: CallEngineDeps) {
   /** The live call with this id, if it is still the one on screen. */
   const liveWith = <S extends LiveCallState["status"]>(callId: string, status?: S) => {
     const state = current();
-    return (isLive(state) && state.callId === callId && (!status || state.status === status) ? state : null) as Extract<LiveCallState, { status: S }> | null;
+    return (isLive(state) && state.callId === callId && (!status || state.status === status) ? state : null) as Extract<
+      LiveCallState,
+      { status: S }
+    > | null;
   };
 
   function setCall(next: VoiceCallOverlayState) {
@@ -157,7 +168,8 @@ export function createCallEngine(deps: CallEngineDeps) {
     // away instead of letting the second caller ring out. A group call keeps
     // going without us; only a 1-1 caller would be left ringing.
     closed.add(incoming.callId);
-    if (!isMultiPartyVoiceCall(incoming.callKind)) void deps.hangup(ctx.wsId, incoming.roomId, incoming.callId).catch(bestEffort("calls", "busy not signalled", "report"));
+    if (!isMultiPartyVoiceCall(incoming.callKind))
+      void deps.hangup(ctx.wsId, incoming.roomId, incoming.callId).catch(bestEffort("calls", "busy not signalled", "report"));
   }
 
   /**
@@ -192,7 +204,15 @@ export function createCallEngine(deps: CallEngineDeps) {
     return liveWith(callId) !== null;
   }
 
-  async function connectCall(roomId: string, callId: string, peerName: string, outgoing: boolean, callKind: VoiceCallKind, callerName?: string, withCamera = false) {
+  async function connectCall(
+    roomId: string,
+    callId: string,
+    peerName: string,
+    outgoing: boolean,
+    callKind: VoiceCallKind,
+    callerName?: string,
+    withCamera = false,
+  ) {
     setCall({ status: "connecting", callId, roomId, peerName, outgoing, callKind, callerName, withCamera });
     let creds: { token: string; url: string } | null = null;
     let error: unknown;
@@ -296,7 +316,8 @@ export function createCallEngine(deps: CallEngineDeps) {
       if (!relevant(data) || isMultiPartyVoiceCall(data.call_kind)) return;
       const ringing = liveWith(data.call_id, "ringing");
       // connectCall owns its failures (hang up + reason on the panel).
-      if (ringing?.roomId === data.room_id) void connectCall(ringing.roomId, ringing.callId, ringing.peerName, true, "dm", undefined, ringing.withCamera);
+      if (ringing?.roomId === data.room_id)
+        void connectCall(ringing.roomId, ringing.callId, ringing.peerName, true, "dm", undefined, ringing.withCamera);
     },
     onHangup(data: VoiceInvitePayload) {
       if (!relevant(data)) return;

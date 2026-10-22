@@ -30,15 +30,16 @@ const OUTBOX_STEPS: Record<number, PersistedStep> = {};
 
 /** Entries read back from disk: each one whole (lib/persisted-records.ts), and never "sending" (nothing is on the wire after a restart). */
 export function rehydratedEntries(value: unknown): PendingSend[] {
-  return readPersistedList(PendingSendSchema, value).map((entry): PendingSend => (entry.status === "sending" ? { ...entry, status: "queued" } : entry));
+  return readPersistedList(PendingSendSchema, value).map(
+    (entry): PendingSend => (entry.status === "sending" ? { ...entry, status: "queued" } : entry),
+  );
 }
 
 export const useChatSendStore = create<ChatSendState>()(
   persist(
     (set) => ({
       entries: [],
-      upsert: (entry) =>
-        set((state) => ({ entries: [...state.entries.filter((item) => item.clientMsgId !== entry.clientMsgId), entry] })),
+      upsert: (entry) => set((state) => ({ entries: [...state.entries.filter((item) => item.clientMsgId !== entry.clientMsgId), entry] })),
       setStatus: (clientMsgId, status) =>
         set((state) => ({
           entries: state.entries.map((entry) => (entry.clientMsgId === clientMsgId ? { ...entry, status } : entry)),
@@ -53,11 +54,14 @@ export const useChatSendStore = create<ChatSendState>()(
     {
       name: "chat-send-outbox",
       version: OUTBOX_VERSION,
-      migrate: (state, version) => ({ entries: rehydratedEntries(persistedField(migratePersisted(state, version, OUTBOX_VERSION, OUTBOX_STEPS), "entries")) }),
+      migrate: (state, version) => ({
+        entries: rehydratedEntries(persistedField(migratePersisted(state, version, OUTBOX_VERSION, OUTBOX_STEPS), "entries")),
+      }),
       // A write before the boot read would replace the queue on disk with an empty one: dropped until then.
       storage: createJSONStorage(() => ({
         ...deviceStateStorage,
-        setItem: (name: string, value: string): Promise<void> | void => (useChatSendStore.persist.hasHydrated() ? deviceStateStorage.setItem(name, value) : undefined),
+        setItem: (name: string, value: string): Promise<void> | void =>
+          useChatSendStore.persist.hasHydrated() ? deviceStateStorage.setItem(name, value) : undefined,
       })),
       // Read once at boot (data/auth/store.ts › initialize), never by import: nothing is sent before it.
       skipHydration: true,
@@ -65,10 +69,9 @@ export const useChatSendStore = create<ChatSendState>()(
       merge: (persisted, current) => ({
         ...current,
         // An entry added before the read (none in practice) stays, after the ones from disk.
-        entries: [
-          ...rehydratedEntries(persistedField(persisted, "entries")),
-          ...current.entries,
-        ].filter((entry, index, all) => all.findIndex((other) => other.clientMsgId === entry.clientMsgId) === index),
+        entries: [...rehydratedEntries(persistedField(persisted, "entries")), ...current.entries].filter(
+          (entry, index, all) => all.findIndex((other) => other.clientMsgId === entry.clientMsgId) === index,
+        ),
       }),
     },
   ),
@@ -86,5 +89,9 @@ export function selectRoomSends(entries: readonly PendingSend[], workspaceId: st
 
 /** The rooms of a workspace with a message of this sender waiting for the network: their rows say so. */
 export function selectQueuedRoomIds(entries: readonly PendingSend[], workspaceId: string, senderId: string): Set<string> {
-  return new Set(entries.filter((entry) => entry.status === "queued" && entry.workspaceId === workspaceId && entry.senderId === senderId).map((entry) => entry.roomId));
+  return new Set(
+    entries
+      .filter((entry) => entry.status === "queued" && entry.workspaceId === workspaceId && entry.senderId === senderId)
+      .map((entry) => entry.roomId),
+  );
 }

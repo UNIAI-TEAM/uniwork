@@ -47,7 +47,15 @@ export default function TabsLayout() {
             title: t(tab.label),
             // The MobileList board's red count on the Chat tab.
             ...(tab.name === "chat" && chatBadge
-              ? { tabBarBadge: chatBadge, tabBarBadgeStyle: { backgroundColor: theme.destructiveSolid, color: theme.primaryForeground, fontSize: 11, fontWeight: "700" as const } }
+              ? {
+                  tabBarBadge: chatBadge,
+                  tabBarBadgeStyle: {
+                    backgroundColor: theme.destructiveSolid,
+                    color: theme.primaryForeground,
+                    fontSize: 11,
+                    fontWeight: "700" as const,
+                  },
+                }
               : {}),
             tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? tab.icon : tab.iconOutline} size={size} color={color} />,
           }}

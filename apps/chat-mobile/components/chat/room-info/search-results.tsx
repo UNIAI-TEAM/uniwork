@@ -26,9 +26,15 @@ export function RoomSearchResults(props: {
       {(props.results ?? []).map((record) => {
         const message = toTimelineMessage(record);
         return (
-          <Pressable key={record.id} accessibilityRole="button" onPress={() => props.onOpen(record.id)} className="min-h-14 justify-center gap-0.5 px-5 py-2 active:bg-secondary">
+          <Pressable
+            key={record.id}
+            accessibilityRole="button"
+            onPress={() => props.onOpen(record.id)}
+            className="min-h-14 justify-center gap-0.5 px-5 py-2 active:bg-secondary"
+          >
             <Text className="text-caption text-muted-foreground">
-              {props.senderName(message)} · {formatMessageDay(message.ts, i18n.language, { today: t("chat.day_today"), yesterday: t("chat.sidebar_yesterday") })}
+              {props.senderName(message)} ·{" "}
+              {formatMessageDay(message.ts, i18n.language, { today: t("chat.day_today"), yesterday: t("chat.sidebar_yesterday") })}
             </Text>
             <Text className="text-callout text-foreground" numberOfLines={2}>
               {messagePreviewText(record, t)}

@@ -115,7 +115,10 @@ function failedToConnect(reason: string, from: string, connecting: boolean): boo
  * call whose media connects or that fails to. Returns the teardown.
  */
 export function startAnalytics(deps: Omit<AnalyticsDeps, "send">, now: () => number = Date.now): () => void {
-  const sink = createAnalytics({ ...deps, send: (events) => api.request("/api/v1/mobile/events", { method: "POST", body: JSON.stringify({ events }) }) });
+  const sink = createAnalytics({
+    ...deps,
+    send: (events) => api.request("/api/v1/mobile/events", { method: "POST", body: JSON.stringify({ events }) }),
+  });
   instance = sink;
   for (const event of queued.splice(0)) sink.track(event);
   sink.track({ name: "app_open", result: "cold" });
@@ -133,7 +136,9 @@ export function startAnalytics(deps: Omit<AnalyticsDeps, "send">, now: () => num
   const timer = setInterval(() => {
     if (AppState.currentState === "active") void sink.flush();
   }, FLUSH_EVERY_MS);
-  const stopSends = observeChatSends((outcome, ms) => sink.track(outcome === "sent" ? { name: "message_send", result: "sent", duration_ms: ms } : { name: "message_send", result: "failed" }));
+  const stopSends = observeChatSends((outcome, ms) =>
+    sink.track(outcome === "sent" ? { name: "message_send", result: "sent", duration_ms: ms } : { name: "message_send", result: "failed" }),
+  );
 
   // A call's connect runs from "connecting" (the peer answered, or Answer was tapped) to its media room
   // connecting (call-room.tsx › markConnected) — not to "active", which only means a token was minted.

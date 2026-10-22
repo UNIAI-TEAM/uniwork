@@ -47,7 +47,9 @@ export function useRoomContext(chat: ChatWorkspace, roomId: string) {
   const candidates = useMemo(() => {
     if (!room) return [];
     const kind = room.kind === "workspace" || isDefaultWorkspaceChannel(room) ? "workspace" : room.kind;
-    const profiles = Object.fromEntries((members.data ?? []).map((m) => [m.user_id, { user_id: m.user_id, email: m.email, display_name: m.display_name }]));
+    const profiles = Object.fromEntries(
+      (members.data ?? []).map((m) => [m.user_id, { user_id: m.user_id, email: m.email, display_name: m.display_name }]),
+    );
     return buildChatMentionCandidates(
       kind,
       chat.userId,

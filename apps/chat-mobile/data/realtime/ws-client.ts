@@ -29,6 +29,7 @@
  */
 import { DEFAULT_CHAT_SCOPE_LIMIT } from "@uniwork/core/chat/lazy-chat-scopes";
 import { decodeFrame, type FramePayload, type KnownFrameType, type RealtimeFrame } from "./frames";
+import { asRecord, pathOf } from "@/lib/unknown-shape";
 import { reconnectDelayMs, type ConnectionState, type Logger, type WSClientOptions, type WSMessage } from "./ws-types";
 
 type EventHandler = (payload: unknown, actorId?: string, actorType?: string) => void;
@@ -263,16 +264,17 @@ export class WSClient {
     };
 
     ws.onmessage = (event) => {
-      let msg: WSMessage;
+      // Untrusted until each field is read through a guard: no frame shape is assumed.
+      let msg: unknown;
       try {
-        msg = JSON.parse(event.data as string) as WSMessage;
+        msg = JSON.parse(String(event.data));
       } catch {
         this.logger.warn("[ws] non-JSON frame ignored");
         return;
       }
 
       // A pre-auth {error} refusal is terminal: redialling would only repeat it.
-      const error = (msg as { error?: unknown } | null)?.error;
+      const error = pathOf(msg, "error");
       if (!this.authenticated && typeof error === "string") {
         this.teardownSocket();
         this.onSessionEnded(error);
@@ -280,7 +282,7 @@ export class WSClient {
       }
       // Validate the envelope before transport frames or business dispatch.
       // JSON primitives (including null) and non-string types are not events.
-      const type = (msg as { type?: unknown } | null)?.type;
+      const type = pathOf(msg, "type");
       if (typeof type !== "string" || !type) {
         // Server-side error frames have shape {error: "..."}; log and drop.
         this.logger.warn("[ws] frame without a string type", event.data);
@@ -295,7 +297,7 @@ export class WSClient {
         return;
       }
       this.logger.debug("[ws] event", type);
-      const frame = decodeFrame(msg);
+      const frame = decodeFrame({ ...asRecord(msg), type, payload: pathOf(msg, "payload") });
       if (!frame) return;
       const set = this.handlers.get(type);
       if (set) {

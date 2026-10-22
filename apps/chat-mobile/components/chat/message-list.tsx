@@ -104,13 +104,26 @@ const DayRow = memo(function DayRow({ ts }: { ts: number }) {
   );
 });
 
-export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, onRetryOlder, bottom, jumpTo, onAtLatestChange, empty, latestSignal = 0, unread }: Props) {
+export function MessageList({
+  rows,
+  renderMessage,
+  onLoadOlder,
+  loadingOlder,
+  onRetryOlder,
+  bottom,
+  jumpTo,
+  onAtLatestChange,
+  empty,
+  latestSignal = 0,
+  unread,
+}: Props) {
   const list = useRef<FlatList<ListRow>>(null);
   const data = useMemo(() => withUnreadRow(rows, unread), [rows, unread]);
   const jumped = useRef<number | null>(null);
   const atLatest = useRef(true);
   const renderItem: ListRenderItem<ListRow> = useCallback(
-    ({ item }) => (item.type === "day" ? <DayRow ts={item.ts} /> : item.type === "unread" ? <UnreadRow label={item.label} /> : <>{renderMessage(item)}</>),
+    ({ item }) =>
+      item.type === "day" ? <DayRow ts={item.ts} /> : item.type === "unread" ? <UnreadRow label={item.label} /> : <>{renderMessage(item)}</>,
     [renderMessage],
   );
 

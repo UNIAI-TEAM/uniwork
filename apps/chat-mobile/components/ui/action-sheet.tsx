@@ -110,7 +110,11 @@ export function ActionSheet({ visible, onClose, title, label, above, actions, la
         </View>
       )}
       <View className="px-4 pt-3">
-        <Pressable accessibilityRole="button" className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70" onPress={onClose}>
+        <Pressable
+          accessibilityRole="button"
+          className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70"
+          onPress={onClose}
+        >
           <Text className="text-body font-semibold text-foreground">{t("common.cancel")}</Text>
         </Pressable>
       </View>

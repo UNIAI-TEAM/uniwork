@@ -75,7 +75,10 @@ export default function Login() {
           <View className="absolute left-0 right-0 top-[168px] items-center">
             <UniChatLogo size={96} />
           </View>
-          <View className="absolute right-6 top-[300px] flex-row items-end gap-1 bg-chat-bubble-own px-[11px] pb-[7px] pt-1.5" style={bubbleCorners(true, true, false)}>
+          <View
+            className="absolute right-6 top-[300px] flex-row items-end gap-1 bg-chat-bubble-own px-[11px] pb-[7px] pt-1.5"
+            style={bubbleCorners(true, true, false)}
+          >
             <Text className="text-subhead leading-[21px] text-chat-bubble-own-foreground">{t("chat.mobile.login_sample_out")}</Text>
             <Text className="pl-2 text-meta text-chat-bubble-own-meta">10:31</Text>
             <Ionicons name="checkmark-done" size={15} color={THEME[colorScheme].chatBubbleOwnMeta} />
@@ -83,7 +86,10 @@ export default function Login() {
         </SafeAreaView>
       </View>
       <View className="items-center gap-2.5 px-8">
-        <Text accessibilityRole="header" className="text-center text-display font-display font-extrabold leading-[34px] tracking-tight text-foreground">
+        <Text
+          accessibilityRole="header"
+          className="text-center text-display font-display font-extrabold leading-[34px] tracking-tight text-foreground"
+        >
           {t("auth.desktop.unichat_login_title")}
         </Text>
         <Text className="max-w-[300px] text-center text-body leading-6 text-muted-foreground">{t("mobile.login_hint")}</Text>

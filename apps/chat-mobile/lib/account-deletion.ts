@@ -5,6 +5,7 @@
 // delete-account-sheet.tsx) asks which proof to collect and what a failure
 // means; the request is data/account-api.ts.
 import type { User } from "@uniwork/core/types/user";
+import { pathOf } from "./unknown-shape";
 
 /** The one proof the server reads (spec F-01 §2 I9): the password, else a two-factor code, else the typed email. */
 export type DeleteProofMode = "password" | "code" | "email";
@@ -32,16 +33,21 @@ export function deleteProofBody(mode: DeleteProofMode, proof: string): DeleteAcc
 export type DeleteAccountFailure = "proof_refused" | "owner_must_transfer" | "rate_limited" | "offline" | "failed";
 
 function errorCode(err: unknown): unknown {
-  const body = (err as { body?: { error?: { code?: unknown } } } | null)?.body;
-  return body?.error?.code;
+  return pathOf(err, "body", "error", "code");
 }
 
 function errorStatus(err: unknown): unknown {
-  return (err as { status?: unknown } | null)?.status;
+  return pathOf(err, "status");
 }
 
 /** The server codes deleteAccountFailure turns into words: answers, not contract drift (data/report.ts). */
-export const DELETE_ACCOUNT_HANDLED_CODES = ["password_incorrect", "mfa_code_incorrect", "email_confirmation_mismatch", "invalid_credentials", "owner_must_transfer"] as const;
+export const DELETE_ACCOUNT_HANDLED_CODES = [
+  "password_incorrect",
+  "mfa_code_incorrect",
+  "email_confirmation_mismatch",
+  "invalid_credentials",
+  "owner_must_transfer",
+] as const;
 
 export function deleteAccountFailure(err: unknown): DeleteAccountFailure {
   switch (errorCode(err)) {

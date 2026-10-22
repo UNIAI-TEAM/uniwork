@@ -27,7 +27,8 @@ const VOICE_BARS = [8, 14, 20, 12, 24, 18, 26, 16, 10, 22, 26, 14, 8, 18, 24, 12
 
 // iOS defaults to the ambient session, which the silent switch mutes; a voice message is meant to be heard.
 let audioMode: Promise<void> | null = null;
-const ensureAudioMode = () => (audioMode ??= setAudioModeAsync({ playsInSilentMode: true }).catch(bestEffort("chat", "audio mode not set", "breadcrumb")));
+const ensureAudioMode = () =>
+  (audioMode ??= setAudioModeAsync({ playsInSilentMode: true }).catch(bestEffort("chat", "audio mode not set", "breadcrumb")));
 
 interface Props {
   record: ChatMessageRecord;
@@ -96,7 +97,11 @@ export function VoiceCard({ record, voice, ctx, own, onLongPress }: Props) {
         ]}
         onAccessibilityAction={onAction}
         testID="voice-play"
-        className={cn("h-11 w-11 items-center justify-center rounded-full", own ? "bg-chat-bubble-own-foreground" : "bg-chat-bubble-own", !src && "opacity-50")}
+        className={cn(
+          "h-11 w-11 items-center justify-center rounded-full",
+          own ? "bg-chat-bubble-own-foreground" : "bg-chat-bubble-own",
+          !src && "opacity-50",
+        )}
       >
         <Ionicons name={status.playing ? "pause" : "play"} size={18} color={own ? theme.chatBubbleOwn : theme.chatBubbleOwnForeground} />
       </Pressable>
@@ -118,13 +123,21 @@ export function VoiceCard({ record, voice, ctx, own, onLongPress }: Props) {
               key={index}
               className={cn(
                 "w-[3px] rounded-full",
-                index < played ? (own ? "bg-chat-bubble-own-foreground" : "bg-chat-bubble-own") : own ? "bg-chat-bubble-own-foreground/40" : "bg-muted-foreground/40",
+                index < played
+                  ? own
+                    ? "bg-chat-bubble-own-foreground"
+                    : "bg-chat-bubble-own"
+                  : own
+                    ? "bg-chat-bubble-own-foreground/40"
+                    : "bg-muted-foreground/40",
               )}
               style={{ height }}
             />
           ))}
         </Pressable>
-        <Text className={cn("text-caption", own ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>{started ? `${position} / ${total}` : total}</Text>
+        <Text className={cn("text-caption", own ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>
+          {started ? `${position} / ${total}` : total}
+        </Text>
       </View>
       <Pressable
         {...rateTap}
@@ -134,7 +147,10 @@ export function VoiceCard({ record, voice, ctx, own, onLongPress }: Props) {
         testID="voice-rate"
         className={cn("min-h-7 min-w-10 items-center justify-center rounded-full px-2", own ? "bg-chat-bubble-own-foreground/15" : "bg-muted")}
       >
-        <Text className={cn("text-caption font-semibold", own ? "text-chat-bubble-own-foreground" : "text-foreground")} style={{ fontVariant: ["tabular-nums"] }}>
+        <Text
+          className={cn("text-caption font-semibold", own ? "text-chat-bubble-own-foreground" : "text-foreground")}
+          style={{ fontVariant: ["tabular-nums"] }}
+        >
           {t("chat.voice_speed", { rate })}
         </Text>
       </Pressable>

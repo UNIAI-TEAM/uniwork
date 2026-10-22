@@ -56,7 +56,12 @@ export function LicensesList({ entries = ENTRIES }: { entries?: readonly License
       ListHeaderComponent={
         <View className="gap-3 px-5 pb-3 pt-1">
           <Text className="text-subhead leading-[21px] text-muted-foreground">{t("mobile.licenses.intro", { count: entries.length })}</Text>
-          <SearchField value={query} onChangeText={setQuery} placeholder={t("mobile.licenses.search")} accessibilityLabel={t("mobile.licenses.search")} />
+          <SearchField
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t("mobile.licenses.search")}
+            accessibilityLabel={t("mobile.licenses.search")}
+          />
         </View>
       }
       ListEmptyComponent={<Text className="px-5 py-6 text-center text-subhead text-muted-foreground">{t("mobile.licenses.empty")}</Text>}

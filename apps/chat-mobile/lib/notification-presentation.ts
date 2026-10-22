@@ -5,6 +5,7 @@
 // (a call or a message there: the socket of this one never hears it) shows a
 // banner with its sound, and a tap opens it there (audit C3).
 import { parseDeepLink } from "./deep-link";
+import { pathOf } from "./unknown-shape";
 
 export interface OpenWorkspace {
   orgSlug: string;
@@ -12,7 +13,7 @@ export interface OpenWorkspace {
 }
 
 export function showInForeground(data: unknown, open: OpenWorkspace | null, appUrl: string, scheme: string): boolean {
-  const url = data && typeof data === "object" ? (data as { url?: unknown }).url : undefined;
+  const url = pathOf(data, "url");
   if (!open || typeof url !== "string") return true;
   const link = parseDeepLink(url, appUrl, scheme);
   return !link || link.orgSlug !== open.orgSlug || link.wsSlug !== open.wsSlug;

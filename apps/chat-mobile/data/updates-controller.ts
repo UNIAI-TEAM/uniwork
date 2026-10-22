@@ -28,7 +28,10 @@ export const CHECK_INTERVAL_MS = 30 * 60_000;
 export const FIRST_CHECK_DELAY_MS = 60_000;
 /** How long the app stays in the background before a critical update is applied there. */
 export const APPLY_AFTER_AWAY_MS = 60_000;
-/** An absence long enough that the return is as good as a cold start: a critical update the OS did not let us apply in the background is applied then. */
+/**
+ * An absence long enough that the return is as good as a cold start: a critical update the OS did not let us
+ * apply in the background is applied then.
+ */
 export const APPLY_ON_RETURN_MS = 10 * 60_000;
 
 const log = createLogger("updates");
@@ -127,7 +130,8 @@ export function createUpdatesController(deps: UpdatesControllerDeps): UpdatesCon
         }
         const fetched = await deps.fetch();
         // Already downloaded at launch is not new, and is still the update this bundle is not running.
-        critical = fetched.isRollBackToEmbedded === true || found.isRollBackToEmbedded === true || isCriticalManifest(fetched.manifest ?? found.manifest);
+        critical =
+          fetched.isRollBackToEmbedded === true || found.isRollBackToEmbedded === true || isCriticalManifest(fetched.manifest ?? found.manifest);
         log.info("update downloaded", { critical, isNew: fetched.isNew });
       } catch (error) {
         log.warn("update check failed", { reason: reason(error) });

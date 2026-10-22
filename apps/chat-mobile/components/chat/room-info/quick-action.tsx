@@ -7,7 +7,12 @@ import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { THEME } from "@/lib/theme";
 
-export function QuickAction(props: { icon: ComponentProps<typeof Ionicons>["name"]; label: string; accessibilityLabel?: string; onPress: () => void }) {
+export function QuickAction(props: {
+  icon: ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  accessibilityLabel?: string;
+  onPress: () => void;
+}) {
   const { colorScheme } = useColorScheme();
   return (
     <Pressable

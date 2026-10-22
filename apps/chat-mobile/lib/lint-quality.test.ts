@@ -104,7 +104,9 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
 
   it("a labelled, translated control with a valid role and state is green", async () => {
     const code =
-      'export const A = () => { const { t } = useTranslation(); return <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} accessibilityLabel={t("chat.send")}><Text>{t("chat.send")}</Text></Pressable>; };';
+      "export const A = () => {\n  const { t } = useTranslation();\n" +
+      '  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} accessibilityLabel={t("chat.send")}>\n' +
+      '    <Text>{t("chat.send")}</Text>\n  </Pressable>;\n};';
     expect(await ruleIds(head + code)).toEqual([]);
   });
 

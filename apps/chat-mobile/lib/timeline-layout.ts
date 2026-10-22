@@ -78,25 +78,24 @@ function albumPhoto(message: TimelineMessage): boolean {
 /** Lay out `messages` (oldest first). */
 export function layoutTimeline(messages: readonly TimelineMessage[]): TimelineLayout {
   const epoch = dayKeysEpoch();
-  const count = messages.length;
   const byId = new Map<string, TimelineMessage>();
   const continued = new Set<string>();
   const albums: TimelineAlbums = { byFirstId: new Map(), folded: new Set() };
-  const laid: Unit[] = new Array<Unit>(count);
+  const laid: Unit[] = [];
   let rowCount = 0;
   let prev: TimelineMessage | undefined;
   let prevPhoto = false;
   // The photos of the album being gathered, oldest first; NO_RUN (never pushed to) after a message that is no photo.
   let run: TimelineMessage[] = NO_RUN;
   const closeRun = () => {
-    if (run.length < 2) return;
-    albums.byFirstId.set((run[0] as TimelineMessage).id, run);
-    for (let photo = 1; photo < run.length; photo += 1) albums.folded.add((run[photo] as TimelineMessage).id);
+    const [first, ...rest] = run;
+    if (!first || rest.length === 0) return;
+    albums.byFirstId.set(first.id, run);
+    for (const photo of rest) albums.folded.add(photo.id);
   };
-  for (let index = 0; index < count; index += 1) {
-    const message = messages[index] as TimelineMessage;
+  for (const message of messages) {
     const unit = unitOf(prev, message, epoch);
-    laid[index] = unit;
+    laid.push(unit);
     rowCount += unit.day ? 2 : 1;
     byId.set(message.id, message);
     if (prev && unit.row.compactTop) continued.add(prev.id);
@@ -111,12 +110,12 @@ export function layoutTimeline(messages: readonly TimelineMessage[]): TimelineLa
     prevPhoto = photo;
   }
   closeRun();
+  // Newest first (the list is inverted): each unit's row, then its day header, filled from the end.
   const rows = new Array<TimelineRow>(rowCount);
-  let at = 0;
-  for (let index = count - 1; index >= 0; index -= 1) {
-    const unit = laid[index] as Unit;
-    rows[at++] = unit.row;
-    if (unit.day) rows[at++] = unit.day;
+  let at = rowCount;
+  for (const unit of laid) {
+    if (unit.day) rows[--at] = unit.day;
+    rows[--at] = unit.row;
   }
   return { rows, continued, albums, byId };
 }

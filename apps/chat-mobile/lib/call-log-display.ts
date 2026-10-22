@@ -17,10 +17,7 @@ export interface CallLogView {
   missed: boolean;
 }
 
-export function callLogView(
-  log: Pick<CallLog, "outcome" | "video" | "caller_id" | "duration_seconds">,
-  currentUserId: string,
-): CallLogView {
+export function callLogView(log: Pick<CallLog, "outcome" | "video" | "caller_id" | "duration_seconds">, currentUserId: string): CallLogView {
   const outgoing = log.caller_id === currentUserId;
   const kind = log.video ? "video_call_log" : "voice_call_log";
   const view = (labelKey: string, labelParams?: { duration: string }): CallLogView => ({
@@ -92,6 +89,9 @@ export function callLogSections<T extends SectionedLog>(
 }
 
 /** MobCalls board: how many of the loaded calls rang for the reader and went unanswered (the "Cuộc gọi nhỡ" chip). */
-export function missedCallCount(logs: readonly Pick<CallLog, "outcome" | "video" | "caller_id" | "duration_seconds">[], currentUserId: string): number {
+export function missedCallCount(
+  logs: readonly Pick<CallLog, "outcome" | "video" | "caller_id" | "duration_seconds">[],
+  currentUserId: string,
+): number {
   return logs.filter((log) => callLogView(log, currentUserId).missed).length;
 }

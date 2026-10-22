@@ -72,3 +72,91 @@ describe("MessageActionsSheet › touch", () => {
     expect(screen.getByRole("button", { name: viText("chat.action_copy") }).props.className).toContain("min-h-[46px]");
   });
 });
+
+describe("MessageActionsSheet › commands", () => {
+  // A row's name is its label, or its label and hint ("Tạo việc, …").
+  const name = (key: string) => new RegExp(`^${viText(key)}(, .*)?$`);
+  const button = (key: string) => screen.getByRole("button", { name: name(key) });
+
+  it("runs each command of someone else's message with that message, and closes first", async () => {
+    const p = props(false);
+    await render(<MessageActionsSheet {...p} />);
+    const runs: [string, jest.Mock][] = [
+      ["chat.action_reply", p.onReply],
+      ["chat.action_thread", p.onThread],
+      ["chat.action_copy", p.onCopy],
+      ["chat.action_pin", p.onPin],
+      ["chat.link.create_task", p.onCreateTask],
+      ["chat.forward.action", p.onForward],
+    ];
+    for (const [key, handler] of runs) {
+      await fireEvent.press(button(key));
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ id: "m1" }));
+    }
+    await fireEvent.press(button("chat.follow_up.action"));
+    expect(p.onFollowUp).toHaveBeenCalledWith(expect.objectContaining({ id: "m1" }), "create");
+    expect(p.onClose).toHaveBeenCalledTimes(runs.length + 1);
+  });
+
+  it("reacts with a quick emoji, or opens the full set", async () => {
+    const p = props(false);
+    await render(<MessageActionsSheet {...p} />);
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.mobile.react_label_like") }));
+    expect(p.onReact).toHaveBeenCalledWith(expect.objectContaining({ id: "m1" }), expect.any(String));
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.action_react_more") }));
+    expect(p.onMoreReactions).toHaveBeenCalledWith(expect.objectContaining({ id: "m1" }));
+  });
+
+  it("edits and deletes one's own text message", async () => {
+    const p = props(true);
+    await render(<MessageActionsSheet {...p} />);
+    await fireEvent.press(button("chat.action_edit"));
+    expect(p.onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: "m1" }));
+    await fireEvent.press(button("chat.action_delete"));
+    expect(p.onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: "m1" }));
+  });
+
+  it("completes, converts or removes an open follow-up instead of setting one", async () => {
+    const p = { ...props(false), followUp: { id: "f1", message_id: "m1", note: "", due_at: null, completed_at: null } };
+    await render(<MessageActionsSheet {...p} />);
+    expect(screen.queryByRole("button", { name: name("chat.follow_up.action") })).toBeNull();
+    for (const [key, command] of [
+      ["chat.follow_up.complete", "complete"],
+      ["chat.follow_up.convert", "convert"],
+      ["chat.mobile.follow_up_remove", "remove"],
+    ] as const) {
+      await fireEvent.press(button(key));
+      expect(p.onFollowUp).toHaveBeenLastCalledWith(expect.objectContaining({ id: "m1" }), command);
+    }
+  });
+
+  it("offers retry and discard for a failed send, and no reactions", async () => {
+    const pending = {
+      workspaceId: "w1",
+      roomId: "r1",
+      senderId: "u1",
+      clientMsgId: "c1",
+      body: "chưa gửi",
+      createdAt: Date.parse("2026-10-21T08:00:00Z"),
+      status: "failed" as const,
+    };
+    const message = { id: "pending:c1", sender: "u1", body: "chưa gửi", ts: pending.createdAt, clientMsgId: "c1", pending };
+    const p = { ...props(true), message };
+    await render(<MessageActionsSheet {...p} />);
+    expect(screen.queryByRole("button", { name: viText("chat.mobile.react_label_like") })).toBeNull();
+    expect(screen.getByText("chưa gửi")).toBeOnTheScreen();
+    await fireEvent.press(button("chat.retry"));
+    expect(p.onRetry).toHaveBeenCalledWith(message);
+    await fireEvent.press(button("chat.action_delete"));
+    expect(p.onDiscard).toHaveBeenCalledWith(message);
+  });
+
+  it("names who has read the message above the menu", async () => {
+    const seenBy = [
+      { user_id: "u3", display_name: "Lan" },
+      { user_id: "u4", display_name: "Minh" },
+    ];
+    await render(<MessageActionsSheet {...props(false)} seenBy={seenBy} />);
+    expect(screen.getByLabelText(viText("chat.seen_by_count", { count: 2 }))).toBeOnTheScreen();
+  });
+});

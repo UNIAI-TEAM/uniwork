@@ -129,7 +129,21 @@ function Pill({ label, tint, icon }: { label: string; tint?: Tint; icon?: keyof 
 }
 
 /** The head of a card: its tinted tile, the kind as an overline, and an optional pill. */
-function Card({ own, tint, icon, kind, badge, children }: { own: boolean; tint: Tint; icon: keyof typeof Ionicons.glyphMap; kind: string; badge?: ReactNode; children?: ReactNode }) {
+function Card({
+  own,
+  tint,
+  icon,
+  kind,
+  badge,
+  children,
+}: {
+  own: boolean;
+  tint: Tint;
+  icon: keyof typeof Ionicons.glyphMap;
+  kind: string;
+  badge?: ReactNode;
+  children?: ReactNode;
+}) {
   return (
     <View className="min-w-[230px] gap-1">
       <View className="mb-1 flex-row items-center gap-2.5">
@@ -144,7 +158,17 @@ function Card({ own, tint, icon, kind, badge, children }: { own: boolean; tint: 
   );
 }
 
-function ImageCard({ record, file, ctx, onLongPress }: { record: ChatMessageRecord; file: ChatFile; ctx: MessageCardContext; onLongPress: () => void }) {
+function ImageCard({
+  record,
+  file,
+  ctx,
+  onLongPress,
+}: {
+  record: ChatMessageRecord;
+  file: ChatFile;
+  ctx: MessageCardContext;
+  onLongPress: () => void;
+}) {
   const { t } = useTranslation();
   const longPress = useLongPressProps(onLongPress);
   const src = useChatImageSrc(ctx.wsId, ctx.roomId, record.id, file.thumb_url || file.url, file.url_expires_at);
@@ -156,7 +180,12 @@ function ImageCard({ record, file, ctx, onLongPress }: { record: ChatMessageReco
   // Shaped like the photo when the server read its size, so the bubble does not jump when it arrives.
   const box = bubbleImageSize(file.width, file.height);
   return (
-    <Pressable {...longPress} onPress={open} accessibilityRole="imagebutton" accessibilityLabel={t("chat.message_list.file_open_named", { name: file.filename || t("chat.media_image") })}>
+    <Pressable
+      {...longPress}
+      onPress={open}
+      accessibilityRole="imagebutton"
+      accessibilityLabel={t("chat.message_list.file_open_named", { name: file.filename || t("chat.media_image") })}
+    >
       {src ? (
         // The grey box shows behind a photo still on its way (or waiting for a fresh URL).
         <View className="overflow-hidden rounded-[14px] bg-muted" style={box}>
@@ -171,7 +200,19 @@ function ImageCard({ record, file, ctx, onLongPress }: { record: ChatMessageReco
   );
 }
 
-function FileCard({ record, file, ctx, own, onLongPress }: { record: ChatMessageRecord; file: ChatFile; ctx: MessageCardContext; own: boolean; onLongPress: () => void }) {
+function FileCard({
+  record,
+  file,
+  ctx,
+  own,
+  onLongPress,
+}: {
+  record: ChatMessageRecord;
+  file: ChatFile;
+  ctx: MessageCardContext;
+  own: boolean;
+  onLongPress: () => void;
+}) {
   const { t } = useTranslation();
   const theme = useTheme();
   const longPress = useLongPressProps(onLongPress);
@@ -184,7 +225,13 @@ function FileCard({ record, file, ctx, own, onLongPress }: { record: ChatMessage
       .then((url) => WebBrowser.openBrowserAsync(url))
       .catch(() => toast.error(t("chat.file_download_failed")));
   return (
-    <Pressable {...longPress} onPress={open} accessibilityRole="button" accessibilityLabel={t("chat.message_list.file_open_named", { name })} className="min-w-[240px] flex-row items-center gap-3">
+    <Pressable
+      {...longPress}
+      onPress={open}
+      accessibilityRole="button"
+      accessibilityLabel={t("chat.message_list.file_open_named", { name })}
+      className="min-w-[240px] flex-row items-center gap-3"
+    >
       <View className={cn("h-12 w-12 items-center justify-center rounded-lg", TINTS[badge.tint].bg)}>
         {badge.label ? (
           <Text className={cn("text-meta font-display font-extrabold", TINTS[badge.tint].text)}>{badge.label}</Text>
@@ -208,17 +255,39 @@ function FileCard({ record, file, ctx, own, onLongPress }: { record: ChatMessage
 }
 
 /** Each option is a vote button (chat-poll-message-row.tsx); your picks are marked, a closed poll only shows its results. */
-function PollCard({ record, poll, own, ctx, onLongPress }: { record: ChatMessageRecord; poll: NonNullable<ChatMessageRecord["poll"]>; own: boolean; ctx: MessageCardContext; onLongPress: () => void }) {
+function PollCard({
+  record,
+  poll,
+  own,
+  ctx,
+  onLongPress,
+}: {
+  record: ChatMessageRecord;
+  poll: NonNullable<ChatMessageRecord["poll"]>;
+  own: boolean;
+  ctx: MessageCardContext;
+  onLongPress: () => void;
+}) {
   const { t } = useTranslation();
   const theme = useTheme();
   const longPress = useLongPressProps(onLongPress);
   const results = pollResults(poll);
   const many = poll.settings.allow_multiple;
-  const footer = [results.closed ? t("chat.poll_closed") : null, results.hideCounts ? null : t("chat.poll_vote_hint", { count: results.total })].filter(Boolean).join(" · ");
+  const footer = [results.closed ? t("chat.poll_closed") : null, results.hideCounts ? null : t("chat.poll_vote_hint", { count: results.total })]
+    .filter(Boolean)
+    .join(" · ");
   return (
-    <Card own={own} tint="blue" icon="stats-chart-outline" kind={t("chat.poll_message_badge")} badge={results.closed ? <Pill label={t("chat.poll_closed_status")} /> : null}>
+    <Card
+      own={own}
+      tint="blue"
+      icon="stats-chart-outline"
+      kind={t("chat.poll_message_badge")}
+      badge={results.closed ? <Pill label={t("chat.poll_closed_status")} /> : null}
+    >
       <Text className={cn("text-subhead font-display font-bold", ink(own).text)}>{poll.question}</Text>
-      <Text className={cn("mb-1 text-caption", ink(own).meta)}>{t(many ? "chat.message_list.poll_pick_many" : "chat.message_list.poll_pick_one")}</Text>
+      <Text className={cn("mb-1 text-caption", ink(own).meta)}>
+        {t(many ? "chat.message_list.poll_pick_many" : "chat.message_list.poll_pick_one")}
+      </Text>
       {results.options.map((option) => (
         <Pressable
           key={option.id}
@@ -250,9 +319,20 @@ function PollCard({ record, poll, own, ctx, onLongPress }: { record: ChatMessage
             {results.hideCounts ? null : <Text className={cn("text-footnote font-semibold", ink(own).meta)}>{option.percent}%</Text>}
           </View>
           {results.hideCounts ? null : (
-            <View className={cn("ml-[30px] h-[5px] overflow-hidden rounded-full", own ? "bg-chat-bubble-own-foreground/25" : "bg-muted-foreground/20")}>
+            <View
+              className={cn("ml-[30px] h-[5px] overflow-hidden rounded-full", own ? "bg-chat-bubble-own-foreground/25" : "bg-muted-foreground/20")}
+            >
               <View
-                className={cn("h-[5px] rounded-full", option.mine ? (own ? "bg-chat-bubble-own-foreground" : "bg-primary") : own ? "bg-chat-bubble-own-foreground/50" : "bg-muted-foreground/50")}
+                className={cn(
+                  "h-[5px] rounded-full",
+                  option.mine
+                    ? own
+                      ? "bg-chat-bubble-own-foreground"
+                      : "bg-primary"
+                    : own
+                      ? "bg-chat-bubble-own-foreground/50"
+                      : "bg-muted-foreground/50",
+                )}
                 style={{ width: `${option.percent}%` }}
               />
             </View>
@@ -303,9 +383,19 @@ function CallLogChip({ record, ctx }: { record: ChatMessageRecord; ctx: MessageC
   const at = Date.parse(record.created_at);
   return (
     <View className={cn("min-h-8 flex-row items-center gap-1.5 self-center rounded-full px-3", missed ? "bg-tint-red" : "bg-chat-chip")}>
-      <Ionicons name={call?.video ? "videocam-outline" : "call-outline"} size={15} color={missed ? theme.tintRedForeground : theme.chatChipForeground} />
-      <Text className={cn("text-footnote", missed ? "font-semibold text-tint-red-foreground" : "font-medium text-chat-chip-foreground")}>{voiceCallLogLabel(call, ctx.userId, t)}</Text>
-      {Number.isFinite(at) ? <Text className={cn("text-footnote", missed ? "text-tint-red-foreground" : "text-muted-foreground")}>· {formatMessageTime(at, i18n.language)}</Text> : null}
+      <Ionicons
+        name={call?.video ? "videocam-outline" : "call-outline"}
+        size={15}
+        color={missed ? theme.tintRedForeground : theme.chatChipForeground}
+      />
+      <Text className={cn("text-footnote", missed ? "font-semibold text-tint-red-foreground" : "font-medium text-chat-chip-foreground")}>
+        {voiceCallLogLabel(call, ctx.userId, t)}
+      </Text>
+      {Number.isFinite(at) ? (
+        <Text className={cn("text-footnote", missed ? "text-tint-red-foreground" : "text-muted-foreground")}>
+          · {formatMessageTime(at, i18n.language)}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -339,7 +429,17 @@ function CallSummaryCard({ summary, own }: { summary: NonNullable<ChatMessageRec
 }
 
 /** A row for what this build cannot show: say so, and open the message on the web. */
-function UnsupportedCard({ record, ctx, own, onLongPress }: { record: Pick<ChatMessageRecord, "id">; ctx: MessageCardContext; own: boolean; onLongPress: () => void }) {
+function UnsupportedCard({
+  record,
+  ctx,
+  own,
+  onLongPress,
+}: {
+  record: Pick<ChatMessageRecord, "id">;
+  ctx: MessageCardContext;
+  own: boolean;
+  onLongPress: () => void;
+}) {
   const { t } = useTranslation();
   const theme = useTheme();
   const longPress = useLongPressProps(onLongPress);
@@ -355,7 +455,9 @@ function UnsupportedCard({ record, ctx, own, onLongPress }: { record: Pick<ChatM
         onPress={() => void WebBrowser.openBrowserAsync(`${runtimeConfig().appUrl}${href}`)}
       >
         <Ionicons name="open-outline" size={16} color={own ? theme.chatBubbleOwnForeground : theme.primary} />
-        <Text className={cn("text-callout font-semibold", own ? "text-chat-bubble-own-foreground underline" : "text-primary")}>{t("chat.mobile.open_on_web")}</Text>
+        <Text className={cn("text-callout font-semibold", own ? "text-chat-bubble-own-foreground underline" : "text-primary")}>
+          {t("chat.mobile.open_on_web")}
+        </Text>
       </Pressable>
     </View>
   );
@@ -366,7 +468,17 @@ function UnsupportedCard({ record, ctx, own, onLongPress }: { record: Pick<ChatM
  * "call-log" is a centred chip with its own time, meant to stand on the wall
  * without a bubble.
  */
-export function MessageContent({ record, own, ctx, onLongPress }: { record: ChatMessageRecord; own: boolean; ctx: MessageCardContext; onLongPress: () => void }) {
+export function MessageContent({
+  record,
+  own,
+  ctx,
+  onLongPress,
+}: {
+  record: ChatMessageRecord;
+  own: boolean;
+  ctx: MessageCardContext;
+  onLongPress: () => void;
+}) {
   const { t } = useTranslation();
   const body = cn("text-subhead", ink(own).text);
   const content = messageContent(record);
@@ -374,7 +486,15 @@ export function MessageContent({ record, own, ctx, onLongPress }: { record: Chat
     case "text":
       return <MessageText body={record.body} own={own} ctx={ctx} />;
     case "media":
-      return <Image source={{ uri: content.media.url }} cachePolicy={IMAGE_CACHE_POLICY} contentFit="contain" style={{ width: 160, height: 160 }} accessibilityLabel={content.media.alt} />;
+      return (
+        <Image
+          source={{ uri: content.media.url }}
+          cachePolicy={IMAGE_CACHE_POLICY}
+          contentFit="contain"
+          style={{ width: 160, height: 160 }}
+          accessibilityLabel={content.media.alt}
+        />
+      );
     case "image":
       return <ImageCard record={record} file={content.file} ctx={ctx} onLongPress={onLongPress} />;
     case "file":

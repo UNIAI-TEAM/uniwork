@@ -23,7 +23,9 @@ tách file ở core, không nới lint. Fixture: `lib/lint-boundary.test.ts`.
 Logic thuần dùng chung nằm ở core và được import (UNI-2053 S7: `chat/search-fold`, `chat/initials`,
 `chat/identity-tint`, `chat/contact-labels`, `chat/typing-label`, `chat/voice-call-{types,kind,invites,duration}`,
 `chat/room-timeline-pages` — trang timeline và mọi phép thuần trên nó, tách khỏi `room-timeline.ts` của core —,
-`chat/chat-mention-utils` — token nhắc tên, nháp composer, bộ chọn nhắc tên —; web và điện thoại cùng một bản; thêm mục thì
+`chat/chat-mention-utils` — token nhắc tên, nháp composer, bộ chọn nhắc tên —, `chat/chat-cache-records` — frame làm gì với
+một bản ghi: dòng danh sách phòng, số trả lời của gốc chủ đề, chỗ của một trả lời —, `chat/room-timeline-cache` — mở, bắt
+kịp, đánh dấu stale timeline trên `QueryClient`, nhận key và transport của mỗi bên —; web và điện thoại cùng một bản; thêm mục thì
 thêm vào `core-allowlist.json` và `exports` của core). Endpoint dùng chung là factory nhận transport
 (`api/endpoints/chat-{rooms,messages,threads,channels,media,forward,voice,users,presence}-api`, đọc câu trả lời qua
 `chat-endpoint-kit`): web bind `request` của `http.ts` (file endpoint web chỉ còn dòng bind cộng phần multipart của
@@ -32,8 +34,9 @@ gửi multipart (phần tệp `{uri}` của React Native), câu trả lời ch�
 gọn của follow-up, liên kết tin, task, thành viên workspace — bản copy, `web-copies.json` đếm. Logic khác của web:
 **copy, ghi nguồn ở comment đầu file** ("Copied/Ported from …", "← packages/…"), test parity — không import.
 `web-copies.json` ghi sha256 của từng file nguồn web mà mỗi bản copy nêu, lúc bản copy được rà lần cuối, và
-`copiedLines` — tổng số dòng của mọi bản copy, một ratchet chỉ đi xuống (`--write` hạ nó khi bản copy co lại, không bao
-giờ nâng; test đỏ khi bản copy dài ra; nâng là sửa tay trong PR có lý do vì sao không chia sẻ được qua core);
+`copiedCodeChars` — cỡ code của mọi bản copy (ký tự không phải khoảng trắng, bỏ dòng comment, nên xuống dòng hay thụt lề
+không làm nó đổi), một ratchet chỉ đi xuống (`--write` hạ nó khi bản copy co lại, không bao giờ nâng; test đỏ khi bản copy
+lớn ra; nâng là sửa tay trong PR có lý do vì sao không chia sẻ được qua core);
 `scripts/mobile-web-copies.test.mjs` (chạy cả ở `ci.yml`, nên PR chỉ sửa web cũng đỏ) đỏ khi một nguồn đổi, khi có
 bản copy mới chưa ghi, hay khi header và manifest lệch. Rà bản copy (port bản sửa hoặc quyết định không áp dụng) rồi
 `node scripts/mobile-web-copies.mjs --write`.
@@ -62,6 +65,12 @@ như `packages/views`; `no-console` ngoài `data/logger.ts`; và không `Modal` 
 ngoài `components/ui/call-aware-modal.tsx` (sheet phải đóng khi có cuộc gọi đến; trừ sheet ghi `keepOpenForCall` của
 chính cuộc gọi đó — màn giải thích micro khi nghe từ thông báo). Tắt một luật ở
 một dòng thì ghi lý do ở dòng trên.
+
+Ba luật cấu trúc (fixture: `lib/lint-structure.test.ts`): `data/` không import `components/` hay `app/`, kể cả `import
+type` (thứ cả hai cần nằm ở `data/` hay `lib/`, hiệu ứng nền tảng do composition root tiêm vào); `lib/` không ép kiểu
+(`@typescript-eslint/consistent-type-assertions` `never`, `as const` vẫn được) mà thu hẹp bằng guard của
+`lib/unknown-shape.ts` (`isRecord`, `asRecord`, `pathOf`); và không dòng mã nguồn nào dài quá 150 ký tự (`max-len`, trừ URL
+và regex) — trần 500 dòng mỗi file vô nghĩa khi một dòng gói ba câu lệnh.
 
 ## Cấu trúc
 
@@ -392,9 +401,9 @@ một dòng thì ghi lý do ở dòng trên.
   `org-members.ts` (khoá tầng tổ chức), `workspaceKeys`, `deviceKeys`; thành viên workspace và biệt danh chỉ
   đọc qua `chatApi`. Call log refetch khi có `chat.voice.hangup` (server ghi log trước khi phát frame), khi hangup
   của chính máy xong (`onHangupSettled` của `call-store.ts`) và khi reconnect; reconnect cũng refetch thành viên), cache
-  (`chat-timeline.ts` ← core `room-timeline` — chỉ phần thao tác cache trên `QueryClient`; trang và phép thuần import từ
-  `@uniwork/core/chat/room-timeline-pages` —, `chat-cache.ts` ← core
-  `realtime-cache`, viewer là tham số), outbox bền (`chat-send.ts` +
+  (`chat-timeline.ts` bind `createRoomTimelineCache` của core với key và `chatApi` của app, chỉ giữ riêng lần làm mới sau
+  reconnect — giữ các trang đã cuộn; `chat-cache.ts` nối frame vào cache của app qua `chat-cache-records` của core, viewer
+  là tham số), outbox bền (`chat-send.ts` +
   `stores/chat-send-store.ts`, mục Offline-first), `realtime/chat-realtime.ts` (bảng §8
   spec cha, thuần) và `realtime/use-chat-realtime.ts` (hook mỏng, gắn ở
   `[org]/[ws]/_layout.tsx`, ≤ 25 scope qua `selectLazyChatScopeRoomIds`);

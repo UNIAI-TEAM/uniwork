@@ -147,7 +147,13 @@ export function createApiClient(deps: ApiClientDeps) {
         body = undefined;
       }
       const retryAfter = Number(res.headers.get("Retry-After"));
-      throw new ApiError(messageOf(body, res), res.status, body, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined, endpointShape(init.method, path));
+      throw new ApiError(
+        messageOf(body, res),
+        res.status,
+        body,
+        Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
+        endpointShape(init.method, path),
+      );
     }
     unauthorizedReported = false;
     if (res.status === 204) return undefined;

@@ -26,7 +26,10 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
   const rooms = useQuery({ ...roomsOptions(chat.wsId), enabled: messageId !== null });
   const nicknames = useQuery({ ...nicknamesOptions(chat.wsId), enabled: messageId !== null }).data;
   const rows = useMemo(() => {
-    const titled = (rooms.data ?? []).map((room) => ({ room, title: roomTitle(room, { nicknamesByUserId: nicknames ?? {}, workspaceName: chat.workspaceName, t }) }));
+    const titled = (rooms.data ?? []).map((room) => ({
+      room,
+      title: roomTitle(room, { nicknamesByUserId: nicknames ?? {}, workspaceName: chat.workspaceName, t }),
+    }));
     const q = query.trim();
     return q ? titled.filter((row) => foldedIncludes(row.title, q)) : titled;
   }, [rooms.data, nicknames, chat.workspaceName, t, query]);
@@ -44,7 +47,12 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
         {t("chat.mobile.forward_pick_room")}
       </Text>
       <View className="px-4 pb-2">
-        <SearchField value={query} onChangeText={setQuery} placeholder={t("chat.mobile.search_placeholder")} accessibilityLabel={t("chat.search_conversations_label")} />
+        <SearchField
+          value={query}
+          onChangeText={setQuery}
+          placeholder={t("chat.mobile.search_placeholder")}
+          accessibilityLabel={t("chat.search_conversations_label")}
+        />
       </View>
       <ScrollView keyboardShouldPersistTaps="handled">
         {rows.map(({ room, title }) => (

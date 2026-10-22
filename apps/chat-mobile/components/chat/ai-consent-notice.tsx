@@ -103,7 +103,11 @@ export function AiConsentActions({ onDecline, onAgreed }: { onDecline: () => voi
         {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={THEME[colorScheme].primaryForeground} /> : null}
         <Text className="text-body font-semibold text-primary-foreground">{t("mobile.ai_consent.agree")}</Text>
       </Pressable>
-      <Pressable accessibilityRole="button" onPress={onDecline} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
+      <Pressable
+        accessibilityRole="button"
+        onPress={onDecline}
+        className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70"
+      >
         <Text className="text-body font-semibold text-foreground">{t("mobile.ai_consent.decline")}</Text>
       </Pressable>
     </View>
@@ -154,7 +158,10 @@ export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose
               accessibilityRole="button"
               accessibilityState={{ busy, disabled: busy }}
               onPress={() => void withdraw()}
-              className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-muted py-3", busy ? "opacity-70" : "active:opacity-80")}
+              className={cn(
+                "min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-muted py-3",
+                busy ? "opacity-70" : "active:opacity-80",
+              )}
             >
               {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} /> : null}
               <Text className="text-body font-semibold text-destructive">{t("mobile.ai_consent.withdraw")}</Text>

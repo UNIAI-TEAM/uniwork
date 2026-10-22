@@ -222,6 +222,39 @@ export default [
       }],
     },
   },
+  // data/ sits below components/ and app/ (CLAUDE.md › Layers): a store, a query or a service never
+  // reaches up into a screen or a component, not even for a type. What both need lives in data/ or lib/.
+  // Replaces the rule's options for data/, so it restates the boundary above.
+  {
+    files: ["data/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        paths: restrictedPaths,
+        patterns: [
+          ...restrictedPatterns,
+          {
+            group: ["@/components", "@/components/*", "**/components/*", "@/app", "@/app/*", "**/app/*"],
+            message: "data/ sits below components/ and app/: move what both need into data/ or lib/, and inject platform effects from the composition root.",
+          },
+        ],
+      }],
+    },
+  },
+  // lib/ narrows unknown values with guards (lib/unknown-shape.ts), never a type assertion: a cast there is a
+  // claim about a value the compiler cannot check, in the layer every other one trusts. `as const` stays allowed.
+  {
+    files: ["lib/**/*.ts"],
+    ignores: ["**/*.test.ts"],
+    rules: { "@typescript-eslint/consistent-type-assertions": ["error", { assertionStyle: "never" }] },
+  },
+  // A line says one thing (audit "max-lines defeated by long lines"): the 500-line file cap means little when a
+  // line packs three statements or a whole function signature. URLs and regex literals are exempt.
+  {
+    files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "data/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.{ts,tsx}"],
+    rules: { "max-len": ["error", { code: 150, tabWidth: 2, ignoreUrls: true, ignoreRegExpLiterals: true }] },
+  },
   // Replaces the rule's options for app/ and components/, so it restates the boundary above.
   // app/_layout.tsx and app/(app)/_layout.tsx are the composition roots: they hand the transport
   // and endpoints to boot services (push registration) as dependencies.

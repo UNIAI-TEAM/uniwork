@@ -23,7 +23,13 @@ export function AboutSection() {
     [t("mobile.about.update"), info.updateId ? shortUpdateId(info.updateId) : t("mobile.about.embedded")],
   ];
   const copy = async () => {
-    const details = `UniChat ${info.version} (${info.build || "-"}) · ${info.os} · ${info.channel || "-"} · ${info.updateId ?? "embedded"} · ${info.runtimeVersion || "-"}`;
+    const details = [
+      `UniChat ${info.version} (${info.build || "-"})`,
+      info.os,
+      info.channel || "-",
+      info.updateId ?? "embedded",
+      info.runtimeVersion || "-",
+    ].join(" · ");
     await Clipboard.setStringAsync(details);
     toast.success(t("mobile.about.copied"));
   };
@@ -41,7 +47,12 @@ export function AboutSection() {
         </Fragment>
       ))}
       <Separator className="ml-4 w-auto" />
-      <Pressable onPress={() => void copy()} accessibilityRole="button" testID="about-copy" className="min-h-[48px] justify-center px-4 py-2.5 active:bg-secondary">
+      <Pressable
+        onPress={() => void copy()}
+        accessibilityRole="button"
+        testID="about-copy"
+        className="min-h-[48px] justify-center px-4 py-2.5 active:bg-secondary"
+      >
         <Text className="text-body font-medium text-primary">{t("mobile.about.copy")}</Text>
       </Pressable>
     </SettingsSection>

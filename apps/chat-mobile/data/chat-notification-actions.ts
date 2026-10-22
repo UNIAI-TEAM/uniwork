@@ -97,7 +97,8 @@ export const appChatActionEnv: ChatActionEnv = {
   send: (input) => sendChatMessage(queryClient, input, chatSendDeps),
   markRead: (workspaceId, roomId, userId) => markRoomRead(queryClient, workspaceId, roomId, userId),
   // The reply is already in the outbox: a notification that will not come down is only untidy.
-  dismiss: (notificationId) => Notifications.dismissNotificationAsync(notificationId).catch(bestEffort("push", "notification not dismissed", "breadcrumb")),
+  dismiss: (notificationId) =>
+    Notifications.dismissNotificationAsync(notificationId).catch(bestEffort("push", "notification not dismissed", "breadcrumb")),
 };
 
 /** Runs one action and logs how it went; never throws into a listener or a task. */

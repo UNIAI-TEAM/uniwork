@@ -188,7 +188,13 @@ function mediaHold(entry: PendingSend, deps: ChatSendDeps): number {
   const at = entries.indexOf(entry);
   // Written before it: an earlier time, or the same millisecond and earlier in the queue (the order of upserts).
   const head = entries
-    .filter((e, i) => e.status !== "failed" && sameLine(e, workspaceId, roomId, senderId) && laneOf(e) === "media" && (e.createdAt < entry.createdAt || (e.createdAt === entry.createdAt && i < at)))
+    .filter(
+      (e, i) =>
+        e.status !== "failed" &&
+        sameLine(e, workspaceId, roomId, senderId) &&
+        laneOf(e) === "media" &&
+        (e.createdAt < entry.createdAt || (e.createdAt === entry.createdAt && i < at)),
+    )
     .sort((a, b) => a.createdAt - b.createdAt)[0];
   if (!head) return 0;
   const since = onWireSince.get(head.clientMsgId);
@@ -301,7 +307,8 @@ export function flushQueuedSends(qc: QueryClient, workspaceId: string, senderId:
 function dropExpiredFailures(senderId: string, deps: ChatSendDeps): void {
   const now = (deps.now ?? Date.now)();
   for (const entry of useChatSendStore.getState().entries) {
-    if (entry.senderId === senderId && entry.status === "failed" && now - entry.createdAt > FAILED_SEND_TTL_MS) discardPendingSend(entry.clientMsgId, deps);
+    if (entry.senderId === senderId && entry.status === "failed" && now - entry.createdAt > FAILED_SEND_TTL_MS)
+      discardPendingSend(entry.clientMsgId, deps);
   }
 }
 

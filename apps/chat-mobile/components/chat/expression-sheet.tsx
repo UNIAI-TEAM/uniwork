@@ -21,7 +21,17 @@ import { IMAGE_CACHE_POLICY } from "@/lib/media-source";
 
 type Kind = "stickers" | "gifs";
 
-export function ExpressionSheet({ wsId, visible, onClose, onPick }: { wsId: string; visible: boolean; onClose: () => void; onPick: (body: string) => void }) {
+export function ExpressionSheet({
+  wsId,
+  visible,
+  onClose,
+  onPick,
+}: {
+  wsId: string;
+  visible: boolean;
+  onClose: () => void;
+  onPick: (body: string) => void;
+}) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const [kind, setKind] = useState<Kind>("stickers");
@@ -89,7 +99,12 @@ export function ExpressionSheet({ wsId, visible, onClose, onPick }: { wsId: stri
               className={cn("overflow-hidden bg-muted", kind === "stickers" ? "rounded-[18px] p-2" : "rounded-xl")}
               style={{ aspectRatio: kind === "stickers" ? 1 : 16 / 10 }}
             >
-              <Image source={{ uri: item.previewUrl }} cachePolicy={IMAGE_CACHE_POLICY} contentFit={kind === "stickers" ? "contain" : "cover"} style={{ flex: 1 }} />
+              <Image
+                source={{ uri: item.previewUrl }}
+                cachePolicy={IMAGE_CACHE_POLICY}
+                contentFit={kind === "stickers" ? "contain" : "cover"}
+                style={{ flex: 1 }}
+              />
             </View>
           </Pressable>
         )}

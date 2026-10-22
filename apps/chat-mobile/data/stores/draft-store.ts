@@ -59,11 +59,14 @@ export const useDraftStore = create<DraftState>()(
     {
       name: "chat-drafts",
       version: DRAFT_VERSION,
-      migrate: (state, version) => ({ drafts: readDrafts(persistedField(migratePersisted(state, version, DRAFT_VERSION, DRAFT_STEPS), "drafts"), Date.now()) }),
+      migrate: (state, version) => ({
+        drafts: readDrafts(persistedField(migratePersisted(state, version, DRAFT_VERSION, DRAFT_STEPS), "drafts"), Date.now()),
+      }),
       // Written only after the boot read, as the outbox (stores/chat-send-store.ts).
       storage: createJSONStorage(() => ({
         ...deviceStateStorage,
-        setItem: (name: string, value: string): Promise<void> | void => (useDraftStore.persist.hasHydrated() ? deviceStateStorage.setItem(name, value) : undefined),
+        setItem: (name: string, value: string): Promise<void> | void =>
+          useDraftStore.persist.hasHydrated() ? deviceStateStorage.setItem(name, value) : undefined,
       })),
       skipHydration: true,
       partialize: (state) => ({ drafts: state.drafts }),

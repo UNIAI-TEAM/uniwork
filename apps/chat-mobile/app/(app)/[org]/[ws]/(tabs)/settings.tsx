@@ -84,7 +84,13 @@ export default function SettingsTab() {
             accessibilityLabel={`${t("mobile.settings.switch_workspace")}, ${t("chat.mobile.workspace_at", { name: workspace?.name ?? ws })}`}
             className="min-h-[64px] flex-row items-center gap-3 py-2.5 pl-4 pr-3.5 active:bg-secondary"
           >
-            <WorkspaceAvatar name={workspace?.name ?? ws} iconUrl={workspace?.icon_url} iconEmoji={workspace?.icon_emoji} size={40} seed={workspace?.id} />
+            <WorkspaceAvatar
+              name={workspace?.name ?? ws}
+              iconUrl={workspace?.icon_url}
+              iconEmoji={workspace?.icon_emoji}
+              size={40}
+              seed={workspace?.id}
+            />
             <View className="flex-1">
               <Text numberOfLines={1} className="text-body font-semibold text-foreground">
                 {workspace?.name ?? ws}

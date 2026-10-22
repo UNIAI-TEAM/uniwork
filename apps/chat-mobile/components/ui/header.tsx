@@ -43,7 +43,11 @@ export function Header({ title, subtitle, center, left, right, large = false, ch
           </View>
         ) : null}
         {title ? (
-          <Text accessibilityRole="header" className="mt-3 text-display-lg font-display font-extrabold leading-9 tracking-tight text-foreground" numberOfLines={1}>
+          <Text
+            accessibilityRole="header"
+            className="mt-3 text-display-lg font-display font-extrabold leading-9 tracking-tight text-foreground"
+            numberOfLines={1}
+          >
             {title}
           </Text>
         ) : null}
@@ -60,11 +64,22 @@ export function Header({ title, subtitle, center, left, right, large = false, ch
           {center ??
             (title ? (
               <>
-                <Text accessibilityRole="header" className={centered ? "text-center text-title-nav font-display font-bold text-foreground" : "text-title3 font-display font-bold text-foreground"} numberOfLines={1}>
+                <Text
+                  accessibilityRole="header"
+                  className={
+                    centered
+                      ? "text-center text-title-nav font-display font-bold text-foreground"
+                      : "text-title3 font-display font-bold text-foreground"
+                  }
+                  numberOfLines={1}
+                >
                   {title}
                 </Text>
                 {subtitle ? (
-                  <Text className={centered ? "text-center text-caption text-muted-foreground" : "text-caption text-muted-foreground"} numberOfLines={1}>
+                  <Text
+                    className={centered ? "text-center text-caption text-muted-foreground" : "text-caption text-muted-foreground"}
+                    numberOfLines={1}
+                  >
                     {subtitle}
                   </Text>
                 ) : null}

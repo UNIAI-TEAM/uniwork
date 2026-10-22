@@ -94,29 +94,99 @@ export function MessageActionsSheet(props: Props) {
   const record = message?.record;
   const items: MenuItem[] = [];
   if (message?.pending) {
-    if (message.pending.status !== "sending") items.push({ key: "retry", group: 0, icon: "refresh-outline", label: t("chat.retry"), onPress: () => props.onRetry(message) });
-    items.push({ key: "discard", group: 1, icon: "trash-outline", label: t("chat.action_delete"), destructive: true, onPress: () => props.onDiscard(message) });
+    if (message.pending.status !== "sending")
+      items.push({ key: "retry", group: 0, icon: "refresh-outline", label: t("chat.retry"), onPress: () => props.onRetry(message) });
+    items.push({
+      key: "discard",
+      group: 1,
+      icon: "trash-outline",
+      label: t("chat.action_delete"),
+      destructive: true,
+      onPress: () => props.onDiscard(message),
+    });
   } else if (message && record) {
     const text = messageView(record) === "text";
-    if (!inThread) items.push({ key: "reply", group: 0, icon: "arrow-undo-outline", label: t("chat.action_reply"), onPress: () => props.onReply(message) });
+    if (!inThread)
+      items.push({ key: "reply", group: 0, icon: "arrow-undo-outline", label: t("chat.action_reply"), onPress: () => props.onReply(message) });
     if (!inThread && !record.thread_root_id)
-      items.push({ key: "thread", group: 0, icon: "chatbubble-ellipses-outline", label: t("chat.action_thread"), onPress: () => props.onThread(message) });
+      items.push({
+        key: "thread",
+        group: 0,
+        icon: "chatbubble-ellipses-outline",
+        label: t("chat.action_thread"),
+        onPress: () => props.onThread(message),
+      });
     if (text) items.push({ key: "copy", group: 0, icon: "copy-outline", label: t("chat.action_copy"), onPress: () => props.onCopy(message) });
-    items.push({ key: "pin", group: 0, icon: record.pinned ? "pin" : "pin-outline", label: t(record.pinned ? "chat.action_unpin" : "chat.action_pin"), onPress: () => props.onPin(message) });
-    items.push({ key: "task", group: 1, icon: "checkmark-circle-outline", label: t("chat.link.create_task"), hint: t("chat.mobile.task_hint_link"), onPress: () => props.onCreateTask(message) });
+    items.push({
+      key: "pin",
+      group: 0,
+      icon: record.pinned ? "pin" : "pin-outline",
+      label: t(record.pinned ? "chat.action_unpin" : "chat.action_pin"),
+      onPress: () => props.onPin(message),
+    });
+    items.push({
+      key: "task",
+      group: 1,
+      icon: "checkmark-circle-outline",
+      label: t("chat.link.create_task"),
+      hint: t("chat.mobile.task_hint_link"),
+      onPress: () => props.onCreateTask(message),
+    });
     if (props.followUp) {
       items.push(
-        { key: "follow-up-complete", group: 1, icon: "checkmark-done-outline", label: t("chat.follow_up.complete"), onPress: () => props.onFollowUp(message, "complete") },
-        { key: "follow-up-convert", group: 1, icon: "swap-horizontal-outline", label: t("chat.follow_up.convert"), onPress: () => props.onFollowUp(message, "convert") },
-        { key: "follow-up-remove", group: 1, icon: "close-circle-outline", label: t("chat.mobile.follow_up_remove"), onPress: () => props.onFollowUp(message, "remove") },
+        {
+          key: "follow-up-complete",
+          group: 1,
+          icon: "checkmark-done-outline",
+          label: t("chat.follow_up.complete"),
+          onPress: () => props.onFollowUp(message, "complete"),
+        },
+        {
+          key: "follow-up-convert",
+          group: 1,
+          icon: "swap-horizontal-outline",
+          label: t("chat.follow_up.convert"),
+          onPress: () => props.onFollowUp(message, "convert"),
+        },
+        {
+          key: "follow-up-remove",
+          group: 1,
+          icon: "close-circle-outline",
+          label: t("chat.mobile.follow_up_remove"),
+          onPress: () => props.onFollowUp(message, "remove"),
+        },
       );
     } else {
-      items.push({ key: "follow-up", group: 1, icon: "alarm-outline", label: t("chat.follow_up.action"), hint: t("chat.mobile.follow_up_hint", { hours: FOLLOW_UP_HOURS }), onPress: () => props.onFollowUp(message, "create") });
+      items.push({
+        key: "follow-up",
+        group: 1,
+        icon: "alarm-outline",
+        label: t("chat.follow_up.action"),
+        hint: t("chat.mobile.follow_up_hint", { hours: FOLLOW_UP_HOURS }),
+        onPress: () => props.onFollowUp(message, "create"),
+      });
     }
     items.push({ key: "forward", group: 1, icon: "arrow-redo-outline", label: t("chat.forward.action"), onPress: () => props.onForward(message) });
-    if (own && text) items.push({ key: "edit", group: 2, icon: "create-outline", label: t("chat.action_edit"), onPress: () => props.onEdit(message) });
-    if (own) items.push({ key: "delete", group: 2, icon: "trash-outline", label: t("chat.action_delete"), destructive: true, onPress: () => props.onDelete(message) });
-    if (!own && message.sender) items.push({ key: "report", group: 2, icon: "flag-outline", label: t("mobile.report.action"), destructive: true, onPress: () => props.onReport(message) });
+    if (own && text)
+      items.push({ key: "edit", group: 2, icon: "create-outline", label: t("chat.action_edit"), onPress: () => props.onEdit(message) });
+    if (own)
+      items.push({
+        key: "delete",
+        group: 2,
+        icon: "trash-outline",
+        label: t("chat.action_delete"),
+        destructive: true,
+        onPress: () => props.onDelete(message),
+      });
+    if (!own && message.sender)
+      items.push({
+        key: "report",
+        group: 2,
+        icon: "flag-outline",
+        label: t("mobile.report.action"),
+        destructive: true,
+        onPress: () => props.onReport(message),
+      });
   }
   const mine = new Set(record?.my_reactions ?? []);
   const pending = message?.pending;
@@ -165,24 +235,35 @@ export function MessageActionsSheet(props: Props) {
         ) : null}
         {message ? (
           <View className="max-w-full flex-row items-end gap-1.5">
-          {props.avatar}
-          <View className={cn("max-w-[85%] rounded-[18px] px-3 pb-1.5 pt-1.5 shadow-lg", own ? "rounded-br-[4px] bg-chat-bubble-own" : "rounded-bl-[4px] bg-chat-bubble-other")}>
-            {!own && props.senderName ? (
-              <Text className={cn("text-footnote font-semibold", senderNameClass(message.sender))} numberOfLines={1}>
-                {props.senderName}
+            {props.avatar}
+            <View
+              className={cn(
+                "max-w-[85%] rounded-[18px] px-3 pb-1.5 pt-1.5 shadow-lg",
+                own ? "rounded-br-[4px] bg-chat-bubble-own" : "rounded-bl-[4px] bg-chat-bubble-other",
+              )}
+            >
+              {!own && props.senderName ? (
+                <Text className={cn("text-footnote font-semibold", senderNameClass(message.sender))} numberOfLines={1}>
+                  {props.senderName}
+                </Text>
+              ) : null}
+              <Text className={cn("text-body", own ? "text-chat-bubble-own-foreground" : "text-foreground")} numberOfLines={6}>
+                {preview}
               </Text>
-            ) : null}
-            <Text className={cn("text-body", own ? "text-chat-bubble-own-foreground" : "text-foreground")} numberOfLines={6}>
-              {preview}
-            </Text>
-            <Text className={cn("self-end text-meta", own ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>{formatMessageTime(message.ts, i18n.language)}</Text>
-          </View>
+              <Text className={cn("self-end text-meta", own ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>
+                {formatMessageTime(message.ts, i18n.language)}
+              </Text>
+            </View>
           </View>
         ) : null}
         {items.length > 0 ? (
           <View className={cn("w-64 overflow-hidden rounded-2xl bg-card shadow-xl", props.avatar && "ml-9")}>
             {props.seenBy && props.seenBy.length > 0 ? (
-              <View className="min-h-12 flex-row items-center gap-2.5 px-3.5" accessible accessibilityLabel={t("chat.seen_by_count", { count: props.seenBy.length })}>
+              <View
+                className="min-h-12 flex-row items-center gap-2.5 px-3.5"
+                accessible
+                accessibilityLabel={t("chat.seen_by_count", { count: props.seenBy.length })}
+              >
                 <Ionicons name="checkmark-done" size={20} color={theme.primary} />
                 <Text className="flex-1 text-subhead text-foreground">{t("chat.seen_by_count", { count: props.seenBy.length })}</Text>
                 <View className="flex-row">
@@ -205,7 +286,11 @@ export function MessageActionsSheet(props: Props) {
                     // The label, not the children: the icon's glyph is a character a screen reader would spell.
                     accessibilityLabel={item.hint ? `${item.label}, ${item.hint}` : item.label}
                     onPress={() => choose(item.onPress)}
-                    className={cn(rowHeight, "flex-row items-center gap-3 px-3.5 active:bg-secondary", index > 0 && !divider && "border-t border-border")}
+                    className={cn(
+                      rowHeight,
+                      "flex-row items-center gap-3 px-3.5 active:bg-secondary",
+                      index > 0 && !divider && "border-t border-border",
+                    )}
                   >
                     <Ionicons name={item.icon} size={20} color={item.destructive ? theme.destructive : theme.mutedForeground} />
                     <Text className={cn("flex-1 text-subhead", item.destructive ? "text-destructive" : "text-foreground")}>{item.label}</Text>

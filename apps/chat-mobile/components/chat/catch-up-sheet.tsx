@@ -59,7 +59,17 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: string; target: CatchUpTarget | null; onClose: () => void; onOpenRoom: (roomId: string) => void }) {
+export function CatchUpSheet({
+  wsId,
+  target,
+  onClose,
+  onOpenRoom,
+}: {
+  wsId: string;
+  target: CatchUpTarget | null;
+  onClose: () => void;
+  onOpenRoom: (roomId: string) => void;
+}) {
   const { t, i18n } = useTranslation();
   const { colorScheme } = useColorScheme();
   const brief = useCatchUp(wsId);
@@ -132,7 +142,9 @@ export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: stri
                     <Ionicons name="checkmark-circle-outline" size={18} color={THEME[colorScheme].primary} />
                     <View className="flex-1">
                       <Text className="text-subhead text-foreground">{item.title}</Text>
-                      {item.owner || item.due ? <Text className="text-footnote text-muted-foreground">{[item.owner, item.due].filter(Boolean).join(" · ")}</Text> : null}
+                      {item.owner || item.due ? (
+                        <Text className="text-footnote text-muted-foreground">{[item.owner, item.due].filter(Boolean).join(" · ")}</Text>
+                      ) : null}
                     </View>
                   </View>
                 ))}
@@ -143,7 +155,11 @@ export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: stri
       </ScrollView>
       {target && consented ? (
         <View className="px-4 pb-2 pt-1">
-          <Pressable accessibilityRole="button" className="min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 active:opacity-80" onPress={() => onOpenRoom(target.roomId)}>
+          <Pressable
+            accessibilityRole="button"
+            className="min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 active:opacity-80"
+            onPress={() => onOpenRoom(target.roomId)}
+          >
             <Text className="text-body font-semibold text-primary-foreground">{t("chat.mobile.catch_up_open", { name: target.title })}</Text>
           </Pressable>
         </View>

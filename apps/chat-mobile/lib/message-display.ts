@@ -40,7 +40,10 @@ export type MessageContent =
 
 export type MessageView = MessageContent["view"];
 
-type ContentFields = Pick<ChatMessageRecord, "kind" | "body" | "file" | "voice" | "poll" | "note" | "post" | "reminder" | "voice_call" | "voice_call_summary">;
+type ContentFields = Pick<
+  ChatMessageRecord,
+  "kind" | "body" | "file" | "voice" | "poll" | "note" | "post" | "reminder" | "voice_call" | "voice_call_summary"
+>;
 
 const UNSUPPORTED: MessageContent = { view: "unsupported" };
 

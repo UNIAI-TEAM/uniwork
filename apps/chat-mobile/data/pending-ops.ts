@@ -198,7 +198,13 @@ async function enqueue(qc: QueryClient, op: PendingOp | null, dropKey: string, d
 }
 
 /** Opening a room, reaching its newest message, or leaving it: the badge clears now, the server follows. */
-export async function markRoomRead(qc: QueryClient, wsId: string, roomId: string, userId: string, deps: PendingOpsDeps = pendingOpsDeps): Promise<void> {
+export async function markRoomRead(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  userId: string,
+  deps: PendingOpsDeps = pendingOpsDeps,
+): Promise<void> {
   clearUnread(qc, wsId, roomId);
   // Its notifications come down with the badge (data/notification-tray.ts).
   roomWasRead(roomId);
@@ -211,7 +217,15 @@ export async function markRoomRead(qc: QueryClient, wsId: string, roomId: string
 }
 
 /** One tap on a reaction: shown at once, delivered when it can be. */
-export function toggleReaction(qc: QueryClient, wsId: string, roomId: string, messageId: string, emoji: string, userId: string, deps: PendingOpsDeps = pendingOpsDeps): Promise<void> {
+export function toggleReaction(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  messageId: string,
+  emoji: string,
+  userId: string,
+  deps: PendingOpsDeps = pendingOpsDeps,
+): Promise<void> {
   const key = `reaction/${wsId}/${messageId}/${emoji}`;
   const existing = find(key);
   const record = cachedMessage(qc, wsId, roomId, messageId);
@@ -243,7 +257,15 @@ export function toggleReaction(qc: QueryClient, wsId: string, roomId: string, me
 }
 
 /** One tap on a poll option: the choice shows at once, the server is brought to it when it can be. */
-export async function votePoll(qc: QueryClient, wsId: string, roomId: string, messageId: string, optionId: string, userId: string, deps: PendingOpsDeps = pendingOpsDeps): Promise<void> {
+export async function votePoll(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  messageId: string,
+  optionId: string,
+  userId: string,
+  deps: PendingOpsDeps = pendingOpsDeps,
+): Promise<void> {
   const record = cachedMessage(qc, wsId, roomId, messageId);
   if (!record?.poll) {
     // Nothing on screen to show a choice on: the server answers now, as before.
@@ -281,12 +303,31 @@ export async function votePoll(qc: QueryClient, wsId: string, roomId: string, me
  * shows as edited, offline too) and the server gets it when it can; the last
  * edit wins. Rejects when the server refused it for good (the room refetches).
  */
-export function editMessage(qc: QueryClient, wsId: string, roomId: string, messageId: string, body: string, userId: string, deps: PendingOpsDeps = pendingOpsDeps): Promise<void> {
+export function editMessage(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  messageId: string,
+  body: string,
+  userId: string,
+  deps: PendingOpsDeps = pendingOpsDeps,
+): Promise<void> {
   const key = `edit/${wsId}/${messageId}`;
   const existing = find(key);
   const record = cachedMessage(qc, wsId, roomId, messageId);
   if (record) applyChatMessageResponse(qc, wsId, roomId, withEdit(record, body, new Date().toISOString()), false);
-  const op: PendingOp = { kind: "edit", key, workspaceId: wsId, roomId, userId, messageId, body, createdAt: existing?.createdAt ?? Date.now(), rev: (existing?.rev ?? 0) + 1, verify: false };
+  const op: PendingOp = {
+    kind: "edit",
+    key,
+    workspaceId: wsId,
+    roomId,
+    userId,
+    messageId,
+    body,
+    createdAt: existing?.createdAt ?? Date.now(),
+    rev: (existing?.rev ?? 0) + 1,
+    verify: false,
+  };
   return enqueue(qc, op, key, deps);
 }
 
@@ -296,14 +337,31 @@ export function editMessage(qc: QueryClient, wsId: string, roomId: string, messa
  * not take them for a message it no longer has. Rejects when the server
  * refused for good (the room refetches and the message comes back).
  */
-export function deleteMessage(qc: QueryClient, wsId: string, roomId: string, messageId: string, userId: string, deps: PendingOpsDeps = pendingOpsDeps): Promise<void> {
+export function deleteMessage(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  messageId: string,
+  userId: string,
+  deps: PendingOpsDeps = pendingOpsDeps,
+): Promise<void> {
   const key = `delete/${wsId}/${messageId}`;
   for (const op of usePendingOpsStore.getState().ops) {
     if (op.workspaceId === wsId && "messageId" in op && op.messageId === messageId && op.key !== key) usePendingOpsStore.getState().remove(op.key);
   }
   patchChatMessageDeleted(qc, wsId, roomId, messageId);
   const existing = find(key);
-  const op: PendingOp = { kind: "delete", key, workspaceId: wsId, roomId, userId, messageId, createdAt: existing?.createdAt ?? Date.now(), rev: (existing?.rev ?? 0) + 1, verify: false };
+  const op: PendingOp = {
+    kind: "delete",
+    key,
+    workspaceId: wsId,
+    roomId,
+    userId,
+    messageId,
+    createdAt: existing?.createdAt ?? Date.now(),
+    rev: (existing?.rev ?? 0) + 1,
+    verify: false,
+  };
   return enqueue(qc, op, key, deps);
 }
 

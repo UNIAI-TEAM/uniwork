@@ -13,7 +13,10 @@ import { PendingOpSchema, migratePersisted, persistedField, readPersistedList, t
 import { deviceStateStorage } from "../storage/device-store";
 
 interface OpBase {
-  /** One entry per thing: `read/<ws>/<room>`, `reaction/<ws>/<message>/<emoji>`, `vote/<ws>/<message>`, `edit/<ws>/<message>`, `delete/<ws>/<message>`. */
+  /**
+   * One entry per thing: `read/<ws>/<room>`, `reaction/<ws>/<message>/<emoji>`, `vote/<ws>/<message>`,
+   * `edit/<ws>/<message>`, `delete/<ws>/<message>`.
+   */
   key: string;
   workspaceId: string;
   roomId: string;
@@ -78,7 +81,8 @@ export const usePendingOpsStore = create<PendingOpsState>()(
       // Written only after the boot read, as the outbox (stores/chat-send-store.ts).
       storage: createJSONStorage(() => ({
         ...deviceStateStorage,
-        setItem: (name: string, value: string): Promise<void> | void => (usePendingOpsStore.persist.hasHydrated() ? deviceStateStorage.setItem(name, value) : undefined),
+        setItem: (name: string, value: string): Promise<void> | void =>
+          usePendingOpsStore.persist.hasHydrated() ? deviceStateStorage.setItem(name, value) : undefined,
       })),
       skipHydration: true,
       partialize: (state) => ({ ops: state.ops }),

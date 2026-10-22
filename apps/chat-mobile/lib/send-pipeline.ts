@@ -6,6 +6,7 @@
 // send-pipeline.test.ts runs the web tests' cases on that shape.
 import { pendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
 import type { ReminderRepeat } from "@uniwork/core/chat/reminder-utils";
+import { pathOf } from "./unknown-shape";
 
 export type SendStatus = "sending" | "queued" | "failed";
 
@@ -101,8 +102,10 @@ const CHAT_SEND_MAX_RETRY_AFTER_MS = 5_000;
 type StatusError = { status: number; retryAfterSeconds?: number };
 
 function statusOf(err: unknown): StatusError | null {
-  if (typeof err !== "object" || err === null || !("status" in err)) return null;
-  return typeof err.status === "number" ? (err as StatusError) : null;
+  const status = pathOf(err, "status");
+  if (typeof status !== "number") return null;
+  const retryAfter = pathOf(err, "retryAfterSeconds");
+  return typeof retryAfter === "number" ? { status, retryAfterSeconds: retryAfter } : { status };
 }
 
 /** True when repeating the same client_msg_id send may succeed later. */

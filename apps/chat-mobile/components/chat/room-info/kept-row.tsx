@@ -13,7 +13,11 @@ export function KeptRow({ kept, onPress }: { kept: { pins: number; notes: number
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} className="min-h-[60px] flex-row items-center gap-3 border-t-hairline border-border px-5 active:bg-secondary">
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      className="min-h-[60px] flex-row items-center gap-3 border-t-hairline border-border px-5 active:bg-secondary"
+    >
       <View className="h-10 w-10 items-center justify-center rounded-xl bg-tint-yellow">
         <Ionicons name="pin-outline" size={20} color={theme.tintYellowForeground} />
       </View>

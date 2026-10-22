@@ -46,7 +46,12 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
     <View className="flex-1 bg-background">
       <ChatHeader title={t("chat.channel.directory_title")} flat />
       <View className="px-4 py-2">
-        <SearchField value={q} onChangeText={setQ} placeholder={t("chat.channel.directory_search")} accessibilityLabel={t("chat.channel.directory_search")} />
+        <SearchField
+          value={q}
+          onChangeText={setQ}
+          placeholder={t("chat.channel.directory_search")}
+          accessibilityLabel={t("chat.channel.directory_search")}
+        />
       </View>
       <FlatList
         data={shown}

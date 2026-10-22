@@ -5,6 +5,7 @@
 // changes unreviewed. The call states, clocks and invites themselves are
 // core's (@uniwork/core/chat/voice-call-{types,kind,invites}).
 import type { VoiceCallEndedState } from "@uniwork/core/chat/voice-call-types";
+import { pathOf } from "./unknown-shape";
 
 type Translate = (key: string, params?: Record<string, string>) => string;
 
@@ -13,7 +14,7 @@ export const VOICE_CALL_HANDLED_CODES = ["livekit_not_configured", "chat_user_bl
 
 /** The server's refusal, in chat's own words (voice-call-copy.ts › voiceCallErrorMessage, never its raw message). */
 function voiceCallErrorMessage(err: unknown, t: Translate, fallback: string): string {
-  const code = (err as { body?: { error?: { code?: unknown } } } | undefined)?.body?.error?.code;
+  const code = pathOf(err, "body", "error", "code");
   if (code === "livekit_not_configured") return t("chat.voice_call_not_configured");
   if (code === "chat_user_blocked") return t("chat.voice_call_blocked");
   return fallback;

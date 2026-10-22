@@ -6,6 +6,7 @@
 // iPhone gets the ring as a visible push. Every value arrives as a string and
 // is read leniently: an unknown type or a missing id is not a call push.
 import type { VoiceCallKind } from "@uniwork/core/chat/voice-call-types";
+import { asRecord } from "./unknown-shape";
 
 export type CallPush =
   | {
@@ -36,9 +37,7 @@ function callKind(value: unknown): VoiceCallKind {
   return value === "group" || value === "channel" ? value : "dm";
 }
 
-function record(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-}
+const record = asRecord;
 
 function parseJson(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "string") return null;

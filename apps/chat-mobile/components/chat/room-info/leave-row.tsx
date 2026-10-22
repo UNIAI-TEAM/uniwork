@@ -14,17 +14,21 @@ export function LeaveRoomRow({ dm, onLeave }: { dm: boolean; onLeave: () => Prom
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const leave = () =>
-    Alert.alert(t("chat.leave_conversation_confirm_title"), dm ? t("chat.leave_conversation_confirm_description_dm") : t("chat.leave_conversation_confirm_description_group"), [
-      { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t("chat.leave_conversation"),
-        style: "destructive",
-        onPress: () =>
-          void onLeave()
-            .then(() => router.dismissAll())
-            .catch(() => toast.error(t("chat.leave_conversation_failed"))),
-      },
-    ]);
+    Alert.alert(
+      t("chat.leave_conversation_confirm_title"),
+      dm ? t("chat.leave_conversation_confirm_description_dm") : t("chat.leave_conversation_confirm_description_group"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("chat.leave_conversation"),
+          style: "destructive",
+          onPress: () =>
+            void onLeave()
+              .then(() => router.dismissAll())
+              .catch(() => toast.error(t("chat.leave_conversation_failed"))),
+        },
+      ],
+    );
   return (
     <Pressable accessibilityRole="button" onPress={leave} className="min-h-14 flex-row items-center gap-3 px-5 active:bg-secondary">
       <Ionicons name="exit-outline" size={22} color={THEME[colorScheme].destructive} />

@@ -36,8 +36,21 @@ export function LegalSection() {
 
   return (
     <SettingsSection title={t("mobile.legal.title")}>
-      <SettingsRow first icon="shield-checkmark-outline" label={t("mobile.legal.privacy")} external testID="legal-privacy" onPress={() => openWebPage(links.privacy)} />
-      <SettingsRow icon="document-text-outline" label={t("mobile.legal.terms")} external testID="legal-terms" onPress={() => openWebPage(links.terms)} />
+      <SettingsRow
+        first
+        icon="shield-checkmark-outline"
+        label={t("mobile.legal.privacy")}
+        external
+        testID="legal-privacy"
+        onPress={() => openWebPage(links.privacy)}
+      />
+      <SettingsRow
+        icon="document-text-outline"
+        label={t("mobile.legal.terms")}
+        external
+        testID="legal-terms"
+        onPress={() => openWebPage(links.terms)}
+      />
       <SettingsRow
         icon="sparkles-outline"
         label={t("mobile.legal.ai")}
@@ -46,7 +59,12 @@ export function LegalSection() {
         onPress={() => setAiOpen(true)}
       />
       <SettingsRow icon="mail-outline" label={t("mobile.legal.support")} external testID="legal-support" onPress={() => void contactSupport()} />
-      <SettingsRow icon="code-slash-outline" label={t("mobile.legal.licenses")} testID="legal-licenses" onPress={() => router.push(accountRoutes.licenses)} />
+      <SettingsRow
+        icon="code-slash-outline"
+        label={t("mobile.legal.licenses")}
+        testID="legal-licenses"
+        onPress={() => router.push(accountRoutes.licenses)}
+      />
       <AiConsentSheet visible={aiOpen} onClose={() => setAiOpen(false)} />
     </SettingsSection>
   );

@@ -10,6 +10,7 @@ import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Text } from "@/components/ui/text";
 import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 import { THEME } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 export function JumpToLatest({ count, onPress }: { count: number; onPress: () => void }) {
@@ -23,7 +24,10 @@ export function JumpToLatest({ count, onPress }: { count: number; onPress: () =>
         accessibilityLabel={count > 0 ? t("chat.jump_latest_new", { count }) : t("chat.search_back_to_latest")}
         testID="jump-to-latest"
         onPress={onPress}
-        className="h-11 w-11 items-center justify-center rounded-full border border-border bg-background shadow-md shadow-black/20 active:bg-secondary"
+        className={cn(
+          "h-11 w-11 items-center justify-center rounded-full border border-border bg-background",
+          "shadow-md shadow-black/20 active:bg-secondary",
+        )}
       >
         <Ionicons name="chevron-down" size={22} color={theme.foreground} />
         {count > 0 ? (

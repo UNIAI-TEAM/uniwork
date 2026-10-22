@@ -35,7 +35,9 @@ export function useAccountSync(userId: string | null): void {
     if (!userId) return;
     const flush = () => void flushOwed(qc, userId);
     const hydrate = (data: unknown) =>
-      void hydrateFromPush(qc, data, { appUrl: runtimeConfig().appUrl, scheme: authConfig.scheme }).catch(bestEffort("push", "push not read into the cache", "report"));
+      void hydrateFromPush(qc, data, { appUrl: runtimeConfig().appUrl, scheme: authConfig.scheme }).catch(
+        bestEffort("push", "push not read into the cache", "report"),
+      );
     flush();
     let wasOnline = onlineManager.isOnline();
     const unsubscribeNet = NetInfo.addEventListener((state) => {

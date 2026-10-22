@@ -30,7 +30,10 @@ import { useOpenWebPage } from "./use-open-web-page";
 import { SettingsRow } from "./settings-row";
 import { SettingsSection } from "./settings-section";
 
-const INPUT: Record<DeleteProofMode, Pick<ComponentProps<typeof TextInput>, "secureTextEntry" | "keyboardType" | "autoComplete" | "textContentType">> = {
+const INPUT: Record<
+  DeleteProofMode,
+  Pick<ComponentProps<typeof TextInput>, "secureTextEntry" | "keyboardType" | "autoComplete" | "textContentType">
+> = {
   password: { secureTextEntry: true, autoComplete: "current-password", textContentType: "password" },
   code: { keyboardType: "number-pad", autoComplete: "one-time-code", textContentType: "oneTimeCode" },
   email: { keyboardType: "email-address", autoComplete: "email", textContentType: "emailAddress" },
@@ -186,7 +189,10 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
               returnKeyType="done"
               onSubmitEditing={() => void submit()}
               testID="delete-account-proof"
-              className={cn("min-h-12 rounded-xl border bg-muted px-3.5 py-3 text-body text-foreground", error ? "border-destructive" : "border-border")}
+              className={cn(
+                "min-h-12 rounded-xl border bg-muted px-3.5 py-3 text-body text-foreground",
+                error ? "border-destructive" : "border-border",
+              )}
             />
             {error ? (
               <Text accessibilityRole="alert" className="text-subhead text-destructive">
@@ -204,13 +210,22 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
               accessibilityState={{ busy, disabled: busy }}
               testID="delete-account-confirm"
               onPress={() => void submit()}
-              className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid py-3", busy ? "opacity-70" : "active:opacity-90")}
+              className={cn(
+                "min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid py-3",
+                busy ? "opacity-70" : "active:opacity-90",
+              )}
             >
               {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={THEME.light.primaryForeground} /> : null}
-              <Text className="text-body font-semibold text-on-solid">{busy ? t("mobile.account.deleting") : t("settings.security.delete.confirm")}</Text>
+              <Text className="text-body font-semibold text-on-solid">
+                {busy ? t("mobile.account.deleting") : t("settings.security.delete.confirm")}
+              </Text>
             </Pressable>
           )}
-          <Pressable accessibilityRole="button" onPress={close} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
+          <Pressable
+            accessibilityRole="button"
+            onPress={close}
+            className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70"
+          >
             <Text className="text-body font-semibold text-foreground">{t("settings.security.delete.cancel")}</Text>
           </Pressable>
         </View>
@@ -225,7 +240,14 @@ export function DeleteAccountSection({ workspace }: { workspace?: WorkspaceSlugs
   const [open, setOpen] = useState(false);
   return (
     <SettingsSection title={t("settings.security.delete.section")} hint={t("settings.security.delete.hint")}>
-      <SettingsRow first destructive icon="trash-outline" label={t("settings.security.delete.open")} testID="settings-delete-account" onPress={() => setOpen(true)} />
+      <SettingsRow
+        first
+        destructive
+        icon="trash-outline"
+        label={t("settings.security.delete.open")}
+        testID="settings-delete-account"
+        onPress={() => setOpen(true)}
+      />
       <DeleteAccountSheet visible={open} onClose={() => setOpen(false)} workspace={workspace} />
     </SettingsSection>
   );

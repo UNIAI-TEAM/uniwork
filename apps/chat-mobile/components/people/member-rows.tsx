@@ -25,7 +25,13 @@ interface PickPerson {
 const ROW_BODY = "min-w-0 flex-1 flex-row items-center gap-3 self-stretch py-2 pr-4";
 
 /** "Tin nhắn mới": a tap opens the DM with this person; `busy` while it is being opened. */
-export const DmPickRow = memo(function DmPickRow(props: { person: PickPerson; last: boolean; busy: boolean; disabled: boolean; onOpen: (userId: string) => void }) {
+export const DmPickRow = memo(function DmPickRow(props: {
+  person: PickPerson;
+  last: boolean;
+  busy: boolean;
+  disabled: boolean;
+  onOpen: (userId: string) => void;
+}) {
   const { person, busy } = props;
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
@@ -60,7 +66,13 @@ export const DmPickRow = memo(function DmPickRow(props: { person: PickPerson; la
 });
 
 /** "Tạo nhóm" / "Thêm": a tap picks or unpicks this person; someone already in the group reads as picked and cannot be. */
-export const GroupPickRow = memo(function GroupPickRow(props: { person: PickPerson; last: boolean; isIn: boolean; selected: boolean; onToggle: (userId: string) => void }) {
+export const GroupPickRow = memo(function GroupPickRow(props: {
+  person: PickPerson;
+  last: boolean;
+  isIn: boolean;
+  selected: boolean;
+  onToggle: (userId: string) => void;
+}) {
   const { person, isIn } = props;
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
@@ -107,7 +119,13 @@ function MemberRowShell({ label, onPress, children }: { label: string; onPress?:
     );
   }
   return (
-    <Pressable android_ripple={ripple} accessibilityRole="button" accessibilityLabel={label} onPress={onPress} className={`${className} active:opacity-70`}>
+    <Pressable
+      android_ripple={ripple}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      className={`${className} active:opacity-70`}
+    >
       {children}
     </Pressable>
   );

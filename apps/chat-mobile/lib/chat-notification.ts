@@ -8,6 +8,7 @@
 // — into the action to run. Every value is read leniently: an unknown action,
 // a missing id or an empty reply is not one. Pure.
 import { CHAT_MESSAGE_BODY_MAX_LENGTH } from "@uniwork/core/chat/client-msg-id";
+import { asRecord } from "./unknown-shape";
 
 export const CHAT_MESSAGE_CATEGORY = "chat_message";
 export const REPLY_ACTION = "reply";
@@ -25,9 +26,7 @@ export type ChatNotificationAction =
   | { action: "reply"; key: string; notificationId: string; target: ChatPushTarget; text: string }
   | { action: "mark_read"; key: string; notificationId: string; target: ChatPushTarget };
 
-function record(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-}
+const record = asRecord;
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";

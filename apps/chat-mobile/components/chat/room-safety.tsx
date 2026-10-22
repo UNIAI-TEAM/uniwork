@@ -55,12 +55,27 @@ function useBlockToggle(wsId: string) {
   };
 }
 
-function SafetyRow({ icon, label, destructive, onPress }: { icon: "ban-outline" | "flag-outline"; label: string; destructive: boolean; onPress: () => void }) {
+function SafetyRow({
+  icon,
+  label,
+  destructive,
+  onPress,
+}: {
+  icon: "ban-outline" | "flag-outline";
+  label: string;
+  destructive: boolean;
+  onPress: () => void;
+}) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   return (
     // The label, not the children: the icon's glyph is a character a screen reader would spell.
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} className="min-h-14 flex-row items-center gap-3 px-5 active:bg-secondary">
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      className="min-h-14 flex-row items-center gap-3 px-5 active:bg-secondary"
+    >
       <Ionicons name={icon} size={22} color={destructive ? theme.destructive : theme.mutedForeground} />
       <Text className={destructive ? "text-body font-semibold text-destructive" : "text-body font-semibold text-foreground"}>{label}</Text>
     </Pressable>
@@ -82,16 +97,44 @@ export function DmSafetyRows({ wsId, person }: { wsId: string; person: SafetyPer
         {t("mobile.safety.section")}
       </Text>
       {status?.blocked_me ? <Text className="px-5 pb-1 text-footnote text-muted-foreground">{t("chat.blocked_me_hint")}</Text> : null}
-      <SafetyRow icon="ban-outline" label={blockedByMe ? t("chat.unblock_user") : t("chat.block_user")} destructive={!blockedByMe} onPress={() => toggle(person, blockedByMe, leave)} />
-      <SafetyRow icon="flag-outline" label={t("mobile.report.action_user", { name: person.name })} destructive onPress={() => setReport({ kind: "user", userId: person.userId, name: person.name })} />
-      <Text className="px-5 pb-3 pt-1 text-footnote leading-[18px] text-muted-foreground">{blockedByMe ? t("chat.block_active_hint") : t("chat.block_dm_hint")}</Text>
-      <ReportSheet wsId={wsId} target={report} blockUserId={blockedByMe ? undefined : person.userId} onClose={() => setReport(null)} onReported={(blocked) => blocked && leave()} />
+      <SafetyRow
+        icon="ban-outline"
+        label={blockedByMe ? t("chat.unblock_user") : t("chat.block_user")}
+        destructive={!blockedByMe}
+        onPress={() => toggle(person, blockedByMe, leave)}
+      />
+      <SafetyRow
+        icon="flag-outline"
+        label={t("mobile.report.action_user", { name: person.name })}
+        destructive
+        onPress={() => setReport({ kind: "user", userId: person.userId, name: person.name })}
+      />
+      <Text className="px-5 pb-3 pt-1 text-footnote leading-[18px] text-muted-foreground">
+        {blockedByMe ? t("chat.block_active_hint") : t("chat.block_dm_hint")}
+      </Text>
+      <ReportSheet
+        wsId={wsId}
+        target={report}
+        blockUserId={blockedByMe ? undefined : person.userId}
+        onClose={() => setReport(null)}
+        onReported={(blocked) => blocked && leave()}
+      />
     </View>
   );
 }
 
 /** A group member's menu: a DM, report them, block or unblock them. */
-export function MemberSafetySheet({ wsId, person, onClose, onMessage }: { wsId: string; person: SafetyPerson | null; onClose: () => void; onMessage: (person: SafetyPerson) => void }) {
+export function MemberSafetySheet({
+  wsId,
+  person,
+  onClose,
+  onMessage,
+}: {
+  wsId: string;
+  person: SafetyPerson | null;
+  onClose: () => void;
+  onMessage: (person: SafetyPerson) => void;
+}) {
   const { t } = useTranslation();
   const status = useQuery(blockStatusOptions(wsId, person?.userId ?? "")).data;
   const toggle = useBlockToggle(wsId);
@@ -99,15 +142,40 @@ export function MemberSafetySheet({ wsId, person, onClose, onMessage }: { wsId: 
   const blockedByMe = status?.blocked_by_me === true;
   const actions: SheetAction[] = person
     ? [
-        ...(status?.blocked_me || blockedByMe ? [] : [{ key: "message", icon: "chatbubble-outline" as const, label: t("mobile.safety.message"), onPress: () => onMessage(person) }]),
-        { key: "report", icon: "flag-outline", label: t("mobile.report.action_user", { name: person.name }), destructive: true, onPress: () => setReport({ kind: "user", userId: person.userId, name: person.name }) },
-        { key: "block", icon: "ban-outline", label: blockedByMe ? t("chat.unblock_user") : t("chat.block_user"), destructive: !blockedByMe, onPress: () => toggle(person, blockedByMe) },
+        ...(status?.blocked_me || blockedByMe
+          ? []
+          : [{ key: "message", icon: "chatbubble-outline" as const, label: t("mobile.safety.message"), onPress: () => onMessage(person) }]),
+        {
+          key: "report",
+          icon: "flag-outline",
+          label: t("mobile.report.action_user", { name: person.name }),
+          destructive: true,
+          onPress: () => setReport({ kind: "user", userId: person.userId, name: person.name }),
+        },
+        {
+          key: "block",
+          icon: "ban-outline",
+          label: blockedByMe ? t("chat.unblock_user") : t("chat.block_user"),
+          destructive: !blockedByMe,
+          onPress: () => toggle(person, blockedByMe),
+        },
       ]
     : [];
   return (
     <>
-      <ActionSheet visible={person !== null} onClose={onClose} title={person?.name} label={person ? t("mobile.safety.member_actions", { name: person.name }) : undefined} actions={actions} />
-      <ReportSheet wsId={wsId} target={report} blockUserId={blockedByMe ? undefined : report?.kind === "user" ? report.userId : undefined} onClose={() => setReport(null)} />
+      <ActionSheet
+        visible={person !== null}
+        onClose={onClose}
+        title={person?.name}
+        label={person ? t("mobile.safety.member_actions", { name: person.name }) : undefined}
+        actions={actions}
+      />
+      <ReportSheet
+        wsId={wsId}
+        target={report}
+        blockUserId={blockedByMe ? undefined : report?.kind === "user" ? report.userId : undefined}
+        onClose={() => setReport(null)}
+      />
     </>
   );
 }
@@ -119,7 +187,9 @@ export function DmBlockBanner({ wsId, peerUserId }: { wsId: string; peerUserId: 
   if (!status?.blocked_by_me && !status?.blocked_me) return null;
   return (
     <View accessibilityRole="alert" className="border-b border-border bg-secondary px-4 py-2">
-      <Text className="text-footnote text-muted-foreground">{status.blocked_by_me ? t("chat.block_active_banner") : t("chat.blocked_me_banner")}</Text>
+      <Text className="text-footnote text-muted-foreground">
+        {status.blocked_by_me ? t("chat.block_active_banner") : t("chat.blocked_me_banner")}
+      </Text>
     </View>
   );
 }

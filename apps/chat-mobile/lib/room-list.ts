@@ -17,7 +17,17 @@ import {
   unreadMapFromRooms,
 } from "@uniwork/core/chat/chat-room-helpers";
 import { buildChatNameContext } from "./people-display";
-import { applyKnownPeopleToRoomPreviews, buildUnifiedSidebarEntries, formatChatSidebarPreviewText, formatChatSidebarTime, isMissedCallPreview, sidebarEntryRoomId, splitChatSidebarPreviewPrefix, type ChatRoomPreference, type UnifiedSidebarEntry } from "./rooms-display";
+import {
+  applyKnownPeopleToRoomPreviews,
+  buildUnifiedSidebarEntries,
+  formatChatSidebarPreviewText,
+  formatChatSidebarTime,
+  isMissedCallPreview,
+  sidebarEntryRoomId,
+  splitChatSidebarPreviewPrefix,
+  type ChatRoomPreference,
+  type UnifiedSidebarEntry,
+} from "./rooms-display";
 import { displayLabelForChatContact, type ChatContact } from "@uniwork/core/chat/contact-labels";
 import { formatSidebarTypingPreview, typingNameByUserIdFromContext } from "./typing-display";
 import { sameUser } from "./user-id";
@@ -142,8 +152,6 @@ export function roomListTypingLines(input: {
 
 /** Two rows draw the same (the row's record and entry aside: a tap reads the newest row by key). */
 export function sameRoomListRow(a: RoomListRow, b: RoomListRow): boolean {
-  const markA = a.mark as { kind: string; label?: string; online?: boolean; userId?: string };
-  const markB = b.mark as { kind: string; label?: string; online?: boolean; userId?: string };
   return (
     a.key === b.key &&
     a.roomId === b.roomId &&
@@ -158,11 +166,15 @@ export function sameRoomListRow(a: RoomListRow, b: RoomListRow): boolean {
     a.mentionUnread === b.mentionUnread &&
     a.muted === b.muted &&
     a.pinned === b.pinned &&
-    markA.kind === markB.kind &&
-    markA.label === markB.label &&
-    markA.online === markB.online &&
-    markA.userId === markB.userId
+    sameMark(a.mark, b.mark)
   );
+}
+
+/** Every field a mark of any kind may carry: a RoomMark of each kind is one, so no cast is needed. */
+type MarkFields = { kind: string; label?: string; online?: boolean; userId?: string };
+
+function sameMark(a: MarkFields, b: MarkFields): boolean {
+  return a.kind === b.kind && a.label === b.label && a.online === b.online && a.userId === b.userId;
 }
 
 /** The newest row with the key of one a skipped cell still holds; that very row once it has left the list. */
@@ -215,8 +227,8 @@ export function buildRoomList(input: {
 
   return entries.map((entry) => {
     const roomId = sidebarEntryRoomId(entry);
-    // Every entry with a room id was built from `rooms`.
-    const room = roomId ? (byId.get(roomId) as ChatRoomRecord) : null;
+    // Every entry with a room id was built from `rooms`; one without has no record.
+    const room = byId.get(roomId ?? "") ?? null;
     const isGroup = entry.kind !== "dm";
     const preview = roomId ? previews[roomId] : undefined;
     const typing = typingLine(roomId ? (typingByRoomId[roomId] ?? []) : [], isGroup, words);

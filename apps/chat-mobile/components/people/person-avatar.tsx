@@ -51,7 +51,10 @@ export function PersonAvatar({ name, avatarUrl, size = 40, online = false, squir
           style={{ width: size, height: size, borderRadius }}
         />
       ) : (
-        <View className={`items-center justify-center ${SOLID_TINT_BG[identityTint(seed || name || "")]}`} style={[squircle && continuousCorners, { width: size, height: size, borderRadius }]}>
+        <View
+          className={`items-center justify-center ${SOLID_TINT_BG[identityTint(seed || name || "")]}`}
+          style={[squircle && continuousCorners, { width: size, height: size, borderRadius }]}
+        >
           <Text className="font-display font-bold text-on-solid" style={letterStyle(size, letters.length > 1 ? 0.33 : 0.42)}>
             {letters}
           </Text>

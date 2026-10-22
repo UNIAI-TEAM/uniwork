@@ -27,7 +27,14 @@ const FILTER_LABEL: Record<RoomListFilter, string> = {
 };
 
 /** The workspace the list belongs to; a tap opens the workspace switch. */
-export function WorkspacePill(props: { name: string; seed?: string; iconUrl?: string | null; iconEmoji?: string | null; otherUnread?: number; onPress: () => void }) {
+export function WorkspacePill(props: {
+  name: string;
+  seed?: string;
+  iconUrl?: string | null;
+  iconEmoji?: string | null;
+  otherUnread?: number;
+  onPress: () => void;
+}) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const other = props.otherUnread ?? 0;
@@ -36,7 +43,11 @@ export function WorkspacePill(props: { name: string; seed?: string; iconUrl?: st
     <Pressable
       {...tap}
       accessibilityRole="button"
-      accessibilityLabel={other > 0 ? t("chat.mobile.workspace_pill_aria", { name: props.name, count: other }) : t("chat.mobile.workspace_pill_aria_quiet", { name: props.name })}
+      accessibilityLabel={
+        other > 0
+          ? t("chat.mobile.workspace_pill_aria", { name: props.name, count: other })
+          : t("chat.mobile.workspace_pill_aria_quiet", { name: props.name })
+      }
       onPress={props.onPress}
       className="min-h-11 max-w-[70%] flex-row items-center gap-2 rounded-full bg-muted py-1 pl-1.5 pr-2 active:opacity-80"
     >
@@ -48,7 +59,9 @@ export function WorkspacePill(props: { name: string; seed?: string; iconUrl?: st
       {/* Unread elsewhere in the organization: red, the way the MobileList board draws it. */}
       {other > 0 ? (
         <View className="min-h-[22px] min-w-[22px] items-center justify-center rounded-full bg-destructive-solid px-1.5">
-          <Text className="text-caption font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{other > 99 ? "99+" : String(other)}</Text>
+          <Text className="text-caption font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>
+            {other > 99 ? "99+" : String(other)}
+          </Text>
         </View>
       ) : null}
     </Pressable>
@@ -94,15 +107,30 @@ export function FilterChips({
             hitSlop={slop}
             android_ripple={tap.android_ripple}
             onPress={() => onChange(filter)}
-            className={cn("min-h-[34px] flex-row items-center gap-1.5 rounded-full px-3.5 py-1", active ? "bg-primary" : "bg-muted active:opacity-80")}
+            className={cn(
+              "min-h-[34px] flex-row items-center gap-1.5 rounded-full px-3.5 py-1",
+              active ? "bg-primary" : "bg-muted active:opacity-80",
+            )}
           >
-            <Text className={cn("text-callout font-semibold", active ? "text-primary-foreground" : "text-foreground")}>{t(FILTER_LABEL[filter])}</Text>
+            <Text className={cn("text-callout font-semibold", active ? "text-primary-foreground" : "text-foreground")}>
+              {t(FILTER_LABEL[filter])}
+            </Text>
             {filter === "all" && total > 0 ? (
               <Text className={cn("text-caption", active ? "text-primary-foreground/90" : "text-muted-foreground")}>{String(total)}</Text>
             ) : null}
             {count > 0 ? (
-              <View className={cn("min-h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px]", active ? "bg-primary-foreground" : "bg-primary")}>
-                <Text className={cn("text-meta font-semibold", active ? "text-primary" : "text-primary-foreground")} maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{count > 99 ? "99+" : String(count)}</Text>
+              <View
+                className={cn(
+                  "min-h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px]",
+                  active ? "bg-primary-foreground" : "bg-primary",
+                )}
+              >
+                <Text
+                  className={cn("text-meta font-semibold", active ? "text-primary" : "text-primary-foreground")}
+                  maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}
+                >
+                  {count > 99 ? "99+" : String(count)}
+                </Text>
               </View>
             ) : null}
           </Pressable>
@@ -162,17 +190,33 @@ export function ScopeSwitch(props: {
             // The lift is a style, not `shadow-sm`: a shadow class appearing on a mounted
             // Pressable makes NativeWind remount it, and in dev that crashes on the router's context.
             style={on ? SEGMENT_LIFT : undefined}
-            className={cn("min-h-11 flex-1 flex-row items-center justify-center gap-2 rounded-[11px] py-1.5 active:opacity-80", on ? "bg-background" : "bg-transparent")}
+            className={cn(
+              "min-h-11 flex-1 flex-row items-center justify-center gap-2 rounded-[11px] py-1.5 active:opacity-80",
+              on ? "bg-background" : "bg-transparent",
+            )}
           >
             {side.scope === "messages" ? (
               <Ionicons name="chatbubbles-outline" size={18} color={on ? theme.primary : theme.mutedForeground} />
             ) : (
-              <WorkspaceAvatar name={props.workspaceName} iconUrl={props.workspaceIconUrl} iconEmoji={props.workspaceIconEmoji} size={18} seed={props.workspaceSeed} />
+              <WorkspaceAvatar
+                name={props.workspaceName}
+                iconUrl={props.workspaceIconUrl}
+                iconEmoji={props.workspaceIconEmoji}
+                size={18}
+                seed={props.workspaceSeed}
+              />
             )}
             <Text className={cn("text-subhead", on ? "font-semibold text-foreground" : "font-medium text-muted-foreground")}>{side.label}</Text>
             {unread > 0 ? (
-              <View className={cn("min-h-5 min-w-5 items-center justify-center rounded-full px-1.5", (side.totals?.mentions ?? 0) > 0 ? "bg-destructive-solid" : "bg-primary")}>
-                <Text className="text-caption font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{unread > 99 ? "99+" : String(unread)}</Text>
+              <View
+                className={cn(
+                  "min-h-5 min-w-5 items-center justify-center rounded-full px-1.5",
+                  (side.totals?.mentions ?? 0) > 0 ? "bg-destructive-solid" : "bg-primary",
+                )}
+              >
+                <Text className="text-caption font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>
+                  {unread > 99 ? "99+" : String(unread)}
+                </Text>
               </View>
             ) : null}
           </Pressable>
@@ -194,7 +238,9 @@ export function ScopeHint({ scope }: { scope: ChatScope }) {
       ) : (
         <Text className="text-footnote font-bold text-muted-foreground">#</Text>
       )}
-      <Text className="text-footnote text-muted-foreground">{scope === "messages" ? t("chat.scope.messages_hint") : t("chat.scope.channels_hint")}</Text>
+      <Text className="text-footnote text-muted-foreground">
+        {scope === "messages" ? t("chat.scope.messages_hint") : t("chat.scope.channels_hint")}
+      </Text>
     </View>
   );
 }
@@ -254,7 +300,10 @@ function PillButton({ icon, label, primary = false, onPress }: { icon: IconName;
       android_ripple={ripple}
       accessibilityRole="button"
       onPress={onPress}
-      className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full px-6 py-3 active:opacity-80", primary ? "bg-primary" : "bg-muted")}
+      className={cn(
+        "min-h-12 flex-row items-center justify-center gap-2 rounded-full px-6 py-3 active:opacity-80",
+        primary ? "bg-primary" : "bg-muted",
+      )}
     >
       <Ionicons name={icon} size={20} color={primary ? theme.primaryForeground : theme.foreground} />
       <Text className={cn("text-body font-semibold", primary ? "text-primary-foreground" : "text-foreground")}>{label}</Text>
@@ -306,7 +355,9 @@ export function RoomListError({ onRetry }: { onRetry: () => void }) {
   return (
     <View accessibilityRole="alert" className="flex-1 items-center px-8 pt-28">
       <StateTile icon="alert-circle-outline" tone="red" />
-      <Text className="mt-5 max-w-[300px] text-center text-headline font-display font-bold leading-6 text-foreground">{t("chat.sidebar_load_failed")}</Text>
+      <Text className="mt-5 max-w-[300px] text-center text-headline font-display font-bold leading-6 text-foreground">
+        {t("chat.sidebar_load_failed")}
+      </Text>
       <Pressable
         {...tap}
         accessibilityRole="button"

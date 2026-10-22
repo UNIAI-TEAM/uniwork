@@ -26,9 +26,7 @@ export async function setRoomMuted(qc: QueryClient, wsId: string, roomId: string
   const key = chatKeys.rooms(wsId);
   await qc.cancelQueries({ queryKey: key });
   const previous = qc.getQueryData<ChatRoomRecord[]>(key);
-  qc.setQueryData<ChatRoomRecord[]>(key, (old) =>
-    old?.map((room) => (room.id === roomId ? { ...room, notifications_muted: muted } : room)),
-  );
+  qc.setQueryData<ChatRoomRecord[]>(key, (old) => old?.map((room) => (room.id === roomId ? { ...room, notifications_muted: muted } : room)));
   try {
     if (!(await chatApi.setRoomMuted(wsId, roomId, muted))) throw new Error("chat_room_mute_failed");
   } catch (error) {
@@ -110,7 +108,9 @@ export async function createTaskFromMessage(
   from: { messageId: string; title?: string } | { followUpId: string },
 ): Promise<ChatTask> {
   const task =
-    "followUpId" in from ? await chatApi.convertFollowUpToTask(wsId, from.followUpId) : await chatApi.createTaskFromMessage(wsId, from.messageId, { title: from.title });
+    "followUpId" in from
+      ? await chatApi.convertFollowUpToTask(wsId, from.followUpId)
+      : await chatApi.createTaskFromMessage(wsId, from.messageId, { title: from.title });
   void qc.invalidateQueries({ queryKey: chatKeys.roomLinksRoot(wsId, roomId) });
   if ("followUpId" in from) void qc.invalidateQueries({ queryKey: chatKeys.followUps(wsId) });
   if (!task) throw new Error("chat_task_create_failed");

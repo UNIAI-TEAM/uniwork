@@ -44,7 +44,8 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
   // Where this room's unread messages began, read from the inbox before opening marks it read (lib/unread-divider.ts).
   const [unread] = useState(() => unreadSnapshot(qc.getQueryData(roomsOptions(chat.wsId).queryKey)?.find((entry) => entry.id === roomId)));
   // Unread in the other conversations, on the back button (MobileChat board).
-  const otherUnread = useQuery(roomsOptions(chat.wsId)).data?.reduce((sum, entry) => (entry.id === roomId ? sum : sum + (entry.unread_count ?? 0)), 0) ?? 0;
+  const otherUnread =
+    useQuery(roomsOptions(chat.wsId)).data?.reduce((sum, entry) => (entry.id === roomId ? sum : sum + (entry.unread_count ?? 0)), 0) ?? 0;
 
   // A new link while the room is open moves the anchor.
   useEffect(() => {
@@ -88,7 +89,9 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
   const callable = canCallRoom(room.room, callsOn);
   // The microphone (and the camera) is explained and asked before the call starts.
   const call = (withCamera: boolean) =>
-    void ensureCallPermissions(withCamera).then(() => callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera }));
+    void ensureCallPermissions(withCamera).then(() =>
+      callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera }),
+    );
 
   const backToLatest = () => {
     setAnchorId(null);
@@ -117,7 +120,12 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
                 {callable ? (
                   <>
                     <HeaderIconButton icon="call-outline" label={t("chat.voice_call_start")} testID="room-call-voice" onPress={() => call(false)} />
-                    <HeaderIconButton icon="videocam-outline" label={t("chat.video_call_start")} testID="room-call-video" onPress={() => call(true)} />
+                    <HeaderIconButton
+                      icon="videocam-outline"
+                      label={t("chat.video_call_start")}
+                      testID="room-call-video"
+                      onPress={() => call(true)}
+                    />
                   </>
                 ) : null}
               </View>

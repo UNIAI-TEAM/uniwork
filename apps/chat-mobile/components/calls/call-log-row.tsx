@@ -23,7 +23,17 @@ export function CallLogSeparator() {
   return <Separator className="ml-[72px] w-auto" />;
 }
 
-export function CallLogRow({ log, userId, nicknames, onPress }: { log: CallLog; userId: string; nicknames: Record<string, string>; onPress: () => void }) {
+export function CallLogRow({
+  log,
+  userId,
+  nicknames,
+  onPress,
+}: {
+  log: CallLog;
+  userId: string;
+  nicknames: Record<string, string>;
+  onPress: () => void;
+}) {
   const { t, i18n } = useTranslation();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
@@ -44,7 +54,12 @@ export function CallLogRow({ log, userId, nicknames, onPress }: { log: CallLog; 
       accessibilityLabel={[title, direction, label, spokenTime].filter(Boolean).join(", ")}
       className="min-h-[64px] flex-row items-center gap-3 py-2.5 pl-4 pr-1 active:bg-secondary"
     >
-      <PersonAvatar name={title} size={44} squircle={log.room_kind !== "dm"} seed={log.room_kind === "dm" ? (log.peer_user_id ?? log.room_id) : log.room_id} />
+      <PersonAvatar
+        name={title}
+        size={44}
+        squircle={log.room_kind !== "dm"}
+        seed={log.room_kind === "dm" ? (log.peer_user_id ?? log.room_id) : log.room_id}
+      />
       <View className="flex-1 gap-0.5">
         <Text numberOfLines={1} className={cn("text-body font-semibold", view.missed ? "text-destructive" : "text-foreground")}>
           {title}
@@ -69,7 +84,11 @@ export function CallLogRow({ log, userId, nicknames, onPress }: { log: CallLog; 
           accessibilityLabel={`${t("chat.voice_call_call_back")} ${title}`}
           testID="calls-row-callback"
           hitSlop={4}
-          onPress={() => void ensureCallPermissions(log.video).then(() => callEngine.startCall(log.room_id, title, voiceCallKindFromServer(log.room_kind), { withCamera: log.video }))}
+          onPress={() =>
+            void ensureCallPermissions(log.video).then(() =>
+              callEngine.startCall(log.room_id, title, voiceCallKindFromServer(log.room_kind), { withCamera: log.video }),
+            )
+          }
           className="h-11 w-11 items-center justify-center rounded-full active:bg-secondary"
         >
           <Ionicons name={log.video ? "videocam-outline" : "call-outline"} size={22} color={theme.primary} />

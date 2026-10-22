@@ -56,7 +56,12 @@ export interface BottomSheetProps {
 /** The grabber: the strip a drag starts from on a sheet that scrolls, decorative to a screen reader. */
 function Grabber() {
   return (
-    <View className="w-full items-center pb-3 pt-2" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="sheet-grabber">
+    <View
+      className="w-full items-center pb-3 pt-2"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      testID="sheet-grabber"
+    >
       <View className="h-[5px] w-9 rounded-full bg-muted-foreground/30" />
     </View>
   );
@@ -124,11 +129,23 @@ export function BottomSheet(props: BottomSheetProps) {
   const draggable = dragFrom === "panel" ? <GestureDetector gesture={drag}>{panel}</GestureDetector> : panel;
 
   return (
-    <CallAwareModal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={props.onDismiss} keepOpenForCall={props.keepOpenForCall}>
+    <CallAwareModal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      onDismiss={props.onDismiss}
+      keepOpenForCall={props.keepOpenForCall}
+    >
       {/* A modal is its own window on Android: the drag needs its own gesture root there. */}
       <GestureHandlerRootView style={{ flex: 1 }}>
         {backdropCloses ? (
-          <Pressable className="flex-1 justify-end bg-black/40 pb-4" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")}>
+          <Pressable
+            className="flex-1 justify-end bg-black/40 pb-4"
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={t("common.close")}
+          >
             {props.above}
           </Pressable>
         ) : (

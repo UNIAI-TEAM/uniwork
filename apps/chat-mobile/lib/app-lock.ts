@@ -12,6 +12,7 @@
 // Either one also covers the app while it is not in front, so the app
 // switcher's snapshot shows no conversation.
 
+import { asRecord } from "./unknown-shape";
 /** The choices "lock again after leaving the app" offers: at once, 1, 5 or 15 minutes. */
 export const RELOCK_AFTER_MS = [0, 60_000, 300_000, 900_000] as const;
 export type RelockAfterMs = (typeof RELOCK_AFTER_MS)[number];
@@ -36,7 +37,7 @@ export function parsePrivacySettings(raw: string | null): PrivacySettings {
   } catch {
     value = null;
   }
-  const saved = value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  const saved = asRecord(value) ?? {};
   return {
     appLock: saved.appLock === true,
     relockAfterMs: isRelock(saved.relockAfterMs) ? saved.relockAfterMs : DEFAULT_PRIVACY_SETTINGS.relockAfterMs,

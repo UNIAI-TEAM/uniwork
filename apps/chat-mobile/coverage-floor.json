@@ -6,10 +6,10 @@
     "lines": 90
   },
   "routes": {
-    "statements": 66,
+    "statements": 68,
     "branches": 66,
-    "functions": 53,
-    "lines": 67
+    "functions": 56,
+    "lines": 68
   },
   "files": {
     "components/app/app-lock-state.ts": {
@@ -91,6 +91,12 @@
       "lines": 100
     },
     "components/calls/use-call-ringtone.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/calls/use-cellular-hold.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -181,10 +187,10 @@
       "lines": 100
     },
     "components/chat/message-actions.tsx": {
-      "statements": 64,
-      "branches": 84,
-      "functions": 21,
-      "lines": 77
+      "statements": 100,
+      "branches": 92,
+      "functions": 100,
+      "lines": 100
     },
     "components/chat/message-cards.tsx": {
       "statements": 44,
@@ -534,6 +540,12 @@
       "functions": 100,
       "lines": 100
     },
+    "components/settings/sign-in-legal-note.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/settings/switch-row.tsx": {
       "statements": 100,
       "branches": 100,
@@ -673,10 +685,10 @@
       "lines": 72
     },
     "components/workspace/workspace-switch-sheet.tsx": {
-      "statements": 76,
-      "branches": 60,
-      "functions": 42,
-      "lines": 85
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "data/calls/call-store.ts": {
       "statements": 70,

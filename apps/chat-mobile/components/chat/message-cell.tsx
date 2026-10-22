@@ -47,7 +47,13 @@ export const MessageCell = memo(function MessageCell({ model, ctx, scheme, handl
       showSender={model.showSender}
       quote={model.quote}
       receipt={model.receipt}
-      avatar={model.avatar === "face" ? <PersonAvatar name={model.senderName} size={30} seed={message.sender} /> : model.avatar === "spacer" ? <View style={AVATAR_SPACER} /> : undefined}
+      avatar={
+        model.avatar === "face" ? (
+          <PersonAvatar name={model.senderName} size={30} seed={message.sender} />
+        ) : model.avatar === "spacer" ? (
+          <View style={AVATAR_SPACER} />
+        ) : undefined
+      }
       album={model.album}
       ringed={model.root}
       highlighted={model.highlighted}

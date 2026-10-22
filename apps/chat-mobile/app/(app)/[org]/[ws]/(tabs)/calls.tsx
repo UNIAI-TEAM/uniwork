@@ -68,7 +68,9 @@ export default function CallsTab() {
       </Button>
     </View>
   ) : (
-    <Text className="px-8 py-12 text-center text-callout text-muted-foreground">{t(filter === "missed" ? "mobile.calls.no_missed" : "mobile.calls.empty")}</Text>
+    <Text className="px-8 py-12 text-center text-callout text-muted-foreground">
+      {t(filter === "missed" ? "mobile.calls.no_missed" : "mobile.calls.empty")}
+    </Text>
   );
 
   return (

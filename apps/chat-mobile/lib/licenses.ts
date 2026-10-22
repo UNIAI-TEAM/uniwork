@@ -19,8 +19,9 @@ export function npmPackageUrl(name: string, version: string): string {
 export function licenseEntries(rows: unknown): LicenseEntry[] {
   if (!Array.isArray(rows)) return [];
   return rows.flatMap((row: unknown) => {
-    if (!Array.isArray(row) || row.length < 3 || !row.slice(0, 3).every((cell) => typeof cell === "string")) return [];
-    const [name, version, license] = row as [string, string, string];
+    if (!Array.isArray(row)) return [];
+    const [name, version, license]: unknown[] = row;
+    if (typeof name !== "string" || typeof version !== "string" || typeof license !== "string") return [];
     return name && version ? [{ name, version, license, url: npmPackageUrl(name, version) }] : [];
   });
 }

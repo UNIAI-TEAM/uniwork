@@ -11,5 +11,8 @@ import { useColorScheme } from "./use-color-scheme";
 
 export function useRipple(borderless = false): PressableAndroidRippleConfig {
   const { colorScheme } = useColorScheme();
-  return useMemo(() => ({ color: withAlpha(THEME[colorScheme].foreground, colorScheme === "dark" ? 0.16 : 0.12), borderless, foreground: false }), [colorScheme, borderless]);
+  return useMemo(
+    () => ({ color: withAlpha(THEME[colorScheme].foreground, colorScheme === "dark" ? 0.16 : 0.12), borderless, foreground: false }),
+    [colorScheme, borderless],
+  );
 }

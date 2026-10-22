@@ -14,7 +14,15 @@ import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl, View } from "react-native";
 import { CatchUpBanner, CatchUpSheet, type CatchUpTarget } from "@/components/chat/catch-up-sheet";
 import { ConnectionBanner } from "@/components/chat/connection-banner";
-import { FilterChips, RoomListEmpty, RoomListError, RoomListSkeleton, ScopeHint, ScopeSwitch, WorkspacePill } from "@/components/chat/room-list-parts";
+import {
+  FilterChips,
+  RoomListEmpty,
+  RoomListError,
+  RoomListSkeleton,
+  ScopeHint,
+  ScopeSwitch,
+  WorkspacePill,
+} from "@/components/chat/room-list-parts";
 import { RoomListView } from "@/components/chat/room-list-view";
 import { useRoomDraftLines } from "@/components/chat/use-drafts";
 import { RoomPreview } from "@/components/chat/room-preview";
@@ -151,7 +159,14 @@ export default function ChatTab() {
   }
 
   const pill = chat ? (
-    <WorkspacePill name={chat.workspaceName} seed={wsId} iconUrl={workspace?.icon_url} iconEmoji={workspace?.icon_emoji} otherUnread={otherUnread} onPress={() => setSwitchOpen(true)} />
+    <WorkspacePill
+      name={chat.workspaceName}
+      seed={wsId}
+      iconUrl={workspace?.icon_url}
+      iconEmoji={workspace?.icon_emoji}
+      otherUnread={otherUnread}
+      onPress={() => setSwitchOpen(true)}
+    />
   ) : null;
   // "+" starts something where the reader is: a DM or group in messages, the channel directory in a workspace.
   const newChat = chat ? (
@@ -212,7 +227,10 @@ export default function ChatTab() {
                 <CatchUpBanner
                   total={catchUpPick.total}
                   rooms={catchUpPick.rooms}
-                  onPress={() => catchUpPick.top?.roomId && setCatchUp({ roomId: catchUpPick.top.roomId, title: catchUpPick.top.title, unread: catchUpPick.top.unread })}
+                  onPress={() =>
+                    catchUpPick.top?.roomId &&
+                    setCatchUp({ roomId: catchUpPick.top.roomId, title: catchUpPick.top.title, unread: catchUpPick.top.unread })
+                  }
                 />
               ) : null
             }

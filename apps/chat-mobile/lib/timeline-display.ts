@@ -155,11 +155,12 @@ export function buildMainTimelineMessages(input: {
 }): TimelineMessage[] {
   const { anchorRows, latestRows, pending, currentUserId } = input;
   if (anchorRows) return anchorRows.map(toTimelineMessage).filter((message) => !message.threadRootId);
-  const merged = mergeOptimisticChatMessages(
+  // A local send is a TimelineMessage too (its id, sender, body, time and the pending entry itself).
+  const merged: TimelineMessage[] = mergeOptimisticChatMessages(
     latestRows.map(toTimelineMessage),
     pending.filter((entry) => !entry.threadRootId),
     currentUserId,
-  ) as TimelineMessage[];
+  );
   return merged.filter((message) => !message.threadRootId);
 }
 
@@ -171,11 +172,11 @@ export function buildThreadViewMessages(input: {
   currentUserId: string;
 }): TimelineMessage[] {
   const { threadRoot, threadRows, pending, currentUserId } = input;
-  const merged = mergeOptimisticChatMessages(
+  const merged: TimelineMessage[] = mergeOptimisticChatMessages(
     (threadRows ?? []).map(toTimelineMessage),
     pending.filter((entry) => entry.threadRootId === threadRoot.id),
     currentUserId,
-  ) as TimelineMessage[];
+  );
   const root = toTimelineMessage(threadRoot);
   return [root, ...merged.filter((message) => message.id !== root.id)].sort((a, b) => a.ts - b.ts);
 }

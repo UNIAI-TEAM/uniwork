@@ -26,7 +26,12 @@ export function RoomPreview({ wsId, row, userId }: { wsId: string; row: RoomList
   const messages = [...(latest ?? [])].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)).slice(-PREVIEW_MESSAGES);
   const group = row.mark.kind !== "dm";
   return (
-    <View className="mx-4 overflow-hidden rounded-[22px] bg-background shadow-xl" style={continuousCorners} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View
+      className="mx-4 overflow-hidden rounded-[22px] bg-background shadow-xl"
+      style={continuousCorners}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
       <View className="min-h-[68px] flex-row items-center gap-3 px-3.5">
         <RoomAvatar mark={row.mark} seed={row.roomId ?? row.key} size={46} />
         <Text className="flex-1 text-body font-display font-bold text-foreground" numberOfLines={1}>
@@ -34,7 +39,9 @@ export function RoomPreview({ wsId, row, userId }: { wsId: string; row: RoomList
         </Text>
         {row.unread > 0 ? (
           <View className="min-h-[22px] min-w-[22px] items-center justify-center rounded-full bg-primary px-[7px]">
-            <Text className="text-caption font-semibold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{row.unread > 99 ? "99+" : String(row.unread)}</Text>
+            <Text className="text-caption font-semibold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>
+              {row.unread > 99 ? "99+" : String(row.unread)}
+            </Text>
           </View>
         ) : null}
       </View>

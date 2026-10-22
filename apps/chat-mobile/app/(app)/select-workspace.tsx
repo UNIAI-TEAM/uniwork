@@ -76,35 +76,53 @@ export default function SelectWorkspace() {
               const counts = unreadOfWorkspace(summary.data, ws.id);
               const badge = badgeText(counts.unread);
               return (
-              <CardPressable
-                key={ws.id}
-                accessibilityRole="button"
-                accessibilityLabel={[ws.name, ws.organization_name, counts.unread > 0 ? t("chat.mobile.workspace_unread", { count: counts.unread }) : null].filter(Boolean).join(", ")}
-                className="min-h-[76px] flex-row items-center gap-3.5 rounded-2xl py-3.5 pl-4 pr-3.5"
-                onPress={() => void onSelect(ws)}
-              >
-                <WorkspaceAvatar name={ws.name} iconUrl={ws.icon_url} iconEmoji={ws.icon_emoji} size={48} seed={ws.id} />
-                <View className="flex-1 gap-0.5">
-                  <Text numberOfLines={1} className="text-body font-display font-bold text-foreground">
-                    {ws.name}
-                  </Text>
-                  <Text numberOfLines={1} className="text-footnote text-muted-foreground">
-                    {ws.organization_name}
-                  </Text>
-                </View>
-                {badge ? (
-                  <View className={cn("min-h-6 min-w-6 items-center justify-center rounded-full px-2", counts.mentions > 0 ? "bg-destructive-solid" : "bg-primary")}>
-                    <Text className="text-caption font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{badge}</Text>
+                <CardPressable
+                  key={ws.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={[
+                    ws.name,
+                    ws.organization_name,
+                    counts.unread > 0 ? t("chat.mobile.workspace_unread", { count: counts.unread }) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
+                  className="min-h-[76px] flex-row items-center gap-3.5 rounded-2xl py-3.5 pl-4 pr-3.5"
+                  onPress={() => void onSelect(ws)}
+                >
+                  <WorkspaceAvatar name={ws.name} iconUrl={ws.icon_url} iconEmoji={ws.icon_emoji} size={48} seed={ws.id} />
+                  <View className="flex-1 gap-0.5">
+                    <Text numberOfLines={1} className="text-body font-display font-bold text-foreground">
+                      {ws.name}
+                    </Text>
+                    <Text numberOfLines={1} className="text-footnote text-muted-foreground">
+                      {ws.organization_name}
+                    </Text>
                   </View>
-                ) : null}
-                <Ionicons name="chevron-forward" size={18} color={THEME[colorScheme].mutedForeground} />
-              </CardPressable>
+                  {badge ? (
+                    <View
+                      className={cn(
+                        "min-h-6 min-w-6 items-center justify-center rounded-full px-2",
+                        counts.mentions > 0 ? "bg-destructive-solid" : "bg-primary",
+                      )}
+                    >
+                      <Text className="text-caption font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>
+                        {badge}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <Ionicons name="chevron-forward" size={18} color={THEME[colorScheme].mutedForeground} />
+                </CardPressable>
               );
             })}
           </View>
         )}
         <View className="gap-3 border-t border-border pt-5">
-          <Button variant="outline" className="min-h-12 rounded-full py-3" testID="select-workspace-settings" onPress={() => router.push(accountRoutes.settings)}>
+          <Button
+            variant="outline"
+            className="min-h-12 rounded-full py-3"
+            testID="select-workspace-settings"
+            onPress={() => router.push(accountRoutes.settings)}
+          >
             <Ionicons name="settings-outline" size={18} color={THEME[colorScheme].foreground} />
             <Text className="text-subhead font-semibold">{t("nav.settings")}</Text>
           </Button>

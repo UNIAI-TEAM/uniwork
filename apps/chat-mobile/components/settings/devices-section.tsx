@@ -16,7 +16,14 @@ import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { SettingsSection } from "./settings-section";
 import { toast } from "@/data/stores/toast-store";
 
-const PLATFORM_NAMES: Record<string, string> = { ios: "iOS", android: "Android", macos: "macOS", darwin: "macOS", windows: "Windows", linux: "Linux" };
+const PLATFORM_NAMES: Record<string, string> = {
+  ios: "iOS",
+  android: "Android",
+  macos: "macOS",
+  darwin: "macOS",
+  windows: "Windows",
+  linux: "Linux",
+};
 
 function DeviceRow({ device, onRevoke }: { device: Device; onRevoke: (name: string) => void }) {
   const { t, i18n } = useTranslation();
@@ -40,7 +47,13 @@ function DeviceRow({ device, onRevoke }: { device: Device; onRevoke: (name: stri
         </Text>
       </View>
       {device.current ? null : (
-        <Button variant="ghost" size="sm" className="min-h-11 rounded-full px-3 py-2" onPress={() => onRevoke(name)} accessibilityLabel={`${t("settings.security.sessions.revoke")} ${name}`}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="min-h-11 rounded-full px-3 py-2"
+          onPress={() => onRevoke(name)}
+          accessibilityLabel={`${t("settings.security.sessions.revoke")} ${name}`}
+        >
           <Text className="font-semibold text-destructive">{t("settings.security.sessions.revoke")}</Text>
         </Button>
       )}
@@ -56,7 +69,11 @@ export function DevicesSection() {
   const confirm = (device: Device, name: string) =>
     Alert.alert(t("mobile.settings.revoke_title", { device: name }), t("mobile.settings.revoke_body"), [
       { text: t("common.cancel"), style: "cancel" },
-      { text: t("settings.security.sessions.revoke"), style: "destructive", onPress: () => void revoke(device.id).catch(() => toast.error(t("settings.security.sessions.revokeFailed"))) },
+      {
+        text: t("settings.security.sessions.revoke"),
+        style: "destructive",
+        onPress: () => void revoke(device.id).catch(() => toast.error(t("settings.security.sessions.revokeFailed"))),
+      },
     ]);
 
   return (

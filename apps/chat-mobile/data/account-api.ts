@@ -53,7 +53,9 @@ export function createAccountApi(request: Request) {
     /** Whether the organization hides the message's words in every chat push (it wins over the person's choice). */
     async pushPreviewPolicy(orgSlug: string, signal?: AbortSignal): Promise<PushPreviewPolicy> {
       const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/push-preview-policy`, { signal });
-      return parseWithFallback<PushPreviewPolicy>(raw, PushPreviewPolicySchema, NO_POLICY, { endpoint: "GET /api/v1/orgs/{org}/push-preview-policy" });
+      return parseWithFallback<PushPreviewPolicy>(raw, PushPreviewPolicySchema, NO_POLICY, {
+        endpoint: "GET /api/v1/orgs/{org}/push-preview-policy",
+      });
     },
     /** The language the server writes pushes and emails in (users.locale); null when the answer drifted. */
     setLocale(locale: "vi" | "en"): Promise<User | null> {

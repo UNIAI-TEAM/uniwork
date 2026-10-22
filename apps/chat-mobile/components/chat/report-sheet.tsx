@@ -73,7 +73,13 @@ export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: 
       return;
     }
     // The report stands even if the block fails; the person can block from the details later.
-    const blocked = alsoBlock && blockUserId ? await setBlocked({ userId: blockUserId, blocked: true }).then(() => true, () => false) : false;
+    const blocked =
+      alsoBlock && blockUserId
+        ? await setBlocked({ userId: blockUserId, blocked: true }).then(
+            () => true,
+            () => false,
+          )
+        : false;
     setBusy(false);
     reset();
     onClose();
@@ -90,7 +96,12 @@ export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: 
           </Text>
           <Text className="text-subhead leading-[21px] text-muted-foreground">{t("mobile.report.body", { name })}</Text>
         </View>
-        <View accessibilityRole="radiogroup" accessibilityLabel={t("mobile.report.reason_label")} className="overflow-hidden rounded-xl border border-border" style={continuousCorners}>
+        <View
+          accessibilityRole="radiogroup"
+          accessibilityLabel={t("mobile.report.reason_label")}
+          className="overflow-hidden rounded-xl border border-border"
+          style={continuousCorners}
+        >
           {REPORT_REASONS.map((value, index) => {
             const selected = value === reason;
             return (
@@ -105,7 +116,12 @@ export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: 
                 }}
                 className={cn("min-h-12 flex-row items-center gap-3 px-3.5 active:bg-secondary", index > 0 && "border-t-hairline border-border")}
               >
-                <View className={cn("h-5 w-5 items-center justify-center rounded-full border-2", selected ? "border-primary" : "border-muted-foreground/50")}>
+                <View
+                  className={cn(
+                    "h-5 w-5 items-center justify-center rounded-full border-2",
+                    selected ? "border-primary" : "border-muted-foreground/50",
+                  )}
+                >
                   {selected ? <View className="h-2.5 w-2.5 rounded-full bg-primary" /> : null}
                 </View>
                 <Text className="flex-1 text-body text-foreground">{t(`mobile.report.reason_${value}`)}</Text>
@@ -131,7 +147,12 @@ export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: 
         {blockUserId ? (
           <View className="min-h-12 flex-row items-center gap-3">
             <Text className="flex-1 text-body text-foreground">{t("mobile.report.also_block", { name })}</Text>
-            <Switch value={alsoBlock} onValueChange={setAlsoBlock} accessibilityLabel={t("mobile.report.also_block", { name })} trackColor={{ true: theme.destructive }} />
+            <Switch
+              value={alsoBlock}
+              onValueChange={setAlsoBlock}
+              accessibilityLabel={t("mobile.report.also_block", { name })}
+              trackColor={{ true: theme.destructive }}
+            />
           </View>
         ) : null}
         {error ? (
@@ -145,12 +166,19 @@ export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: 
             accessibilityState={{ busy, disabled: busy || !reason }}
             testID="report-submit"
             onPress={() => void submit()}
-            className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid py-3", busy || !reason ? "opacity-60" : "active:opacity-90")}
+            className={cn(
+              "min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid py-3",
+              busy || !reason ? "opacity-60" : "active:opacity-90",
+            )}
           >
             {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={THEME.light.primaryForeground} /> : null}
             <Text className="text-body font-semibold text-on-solid">{t("mobile.report.submit")}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={close} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
+          <Pressable
+            accessibilityRole="button"
+            onPress={close}
+            className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70"
+          >
             <Text className="text-body font-semibold text-foreground">{t("common.cancel")}</Text>
           </Pressable>
         </View>
