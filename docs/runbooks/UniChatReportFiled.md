@@ -26,11 +26,14 @@
 
 ## Khắc phục
 
-- Nội dung vi phạm điều khoản: yêu cầu chủ sở hữu/quản trị viên của tổ chức xoá tin và gỡ hoặc vô hiệu hoá người đăng
-  (Cài đặt › Tổ chức trên web). Tổ chức không làm trong hạn, hay chính chủ sở hữu là người vi phạm: tạm ngưng tổ chức ở
-  `/admin/organizations/<id>` (lý do ≥ 10 ký tự; mọi thành viên nhận 403 `organization_suspended`).
-- Xong việc (đã xử lý, hay báo cáo không có cơ sở): bấm "Đóng báo cáo" trên dòng đó, ghi lý do ≥ 10 ký tự (vd. "đã yêu cầu
-  chủ sở hữu gỡ tin, đã gỡ 14:20"). Một dòng `admin_actions` và một dòng audit `chat.report.resolved` trong tổ chức đó
+- Nội dung vi phạm điều khoản: yêu cầu chủ sở hữu/quản trị viên của tổ chức gỡ hoặc vô hiệu hoá người đăng (Cài đặt ›
+  Tổ chức trên web). Vô hiệu hoá chặn người đó ngay, **nhưng tin họ đã gửi vẫn hiện**: chưa ai xoá được tin của người
+  khác — chỉ người gửi xoá tin của mình, kể cả chủ sở hữu tổ chức và nhà vận hành cũng không. Nội dung phải biến mất
+  (phạm pháp, nghiêm trọng), tổ chức không làm trong hạn, hay chính chủ sở hữu là người vi phạm: tạm ngưng tổ chức ở
+  `/admin/organizations/<id>` (lý do ≥ 10 ký tự; mọi thành viên nhận 403 `organization_suspended`) — cách duy nhất hôm
+  nay ẩn nội dung.
+- Xong việc (đã xử lý, hay báo cáo không có cơ sở): bấm "Đóng báo cáo" trên dòng đó, ghi lý do ≥ 10 ký tự (vd. "chủ sở hữu đã
+  vô hiệu hoá người đăng lúc 14:20"). Một dòng `admin_actions` và một dòng audit `chat.report.resolved` trong tổ chức đó
   được ghi cùng transaction: chủ sở hữu thấy nhà vận hành đã xử lý.
 - Alert tắt khi báo cáo mở cuối cùng được đóng (`uniwork_chat_reports_open` về 0), không tự tắt theo thời gian.
 

@@ -122,3 +122,16 @@ describe("the generated store metadata", () => {
     expect(() => storeMetadata(listing.replace("**en — description:**", "**en — nothing:**"))).toThrow(/no "\*\*en — description/);
   });
 });
+
+// Review is answered from this file (Apple 1.2: act on a report by removing the content and ejecting the user). Only
+// the sender deletes a chat message (ChatService.DeleteChatMessage), and deactivating a member keeps everything they
+// wrote visible (the F-03 lifecycle), so the listing may not offer deactivation as a way to take content down.
+describe("the listing's moderation paragraph", () => {
+  const moderation = listing.slice(listing.indexOf("Điều khoản sử dụng (`/terms`"), listing.indexOf("## Quyền và chuỗi xin quyền"));
+
+  it("says deactivating the poster stops them but leaves their messages, and only a suspension hides content", () => {
+    expect(moderation).not.toMatch(/gỡ nội dung nghĩa là vô hiệu hoá/);
+    expect(moderation).toMatch(/vô hiệu hoá người đăng chặn họ lại nhưng tin họ đã gửi vẫn hiện/);
+    expect(moderation).toMatch(/chỉ tạm ngưng tổ chức mới ẩn nội dung/);
+  });
+});

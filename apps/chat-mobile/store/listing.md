@@ -118,8 +118,9 @@ chứa chữ tự do); chủ sở hữu đọc nó trong bản xuất dữ liệ
 đợi của console (`/admin/chat-reports`: tổ chức, lý do, người và tin bị báo cáo, người báo cáo, thời điểm — không nội
 dung, không lời mô tả) và nhận alert `UniChatReportFiled` khi có báo cáo đang chờ, `UniChatReportOverdue` khi một báo cáo chờ quá 20 giờ (runbook cùng tên); đóng báo cáo kèm lý
 do ghi `chat.report.resolved` vào nhật ký của tổ chức. Người dùng và reviewer cũng báo cáo thẳng qua
-`contact@unicomhub.com` (chính sách riêng tư nói vậy). Chưa ai xoá được tin của người khác (chỉ người gửi): gỡ nội dung
-nghĩa là vô hiệu hoá người đăng hay tạm ngưng tổ chức. Chặn: chi tiết cuộc trò chuyện riêng hoặc thành
+`contact@unicomhub.com` (chính sách riêng tư nói vậy). Chưa ai xoá được tin của người khác (chỉ người gửi xoá tin của
+mình): vô hiệu hoá người đăng chặn họ lại nhưng tin họ đã gửi vẫn hiện; chỉ tạm ngưng tổ chức mới ẩn nội dung (không ai
+trong tổ chức xem được nữa). Công cụ gỡ một tin bị báo cáo chờ owner quyết ai được dùng. Chặn: chi tiết cuộc trò chuyện riêng hoặc thành
 viên nhóm › Chặn nhắn tin (hai bên không nhắn riêng được; cuộc trò chuyện biến khỏi danh sách người chặn); cuộc trò
 chuyện hiện người nào đã chặn. Ghi chú cho reviewer: **Review notes (en)** ở mục "Tài khoản demo cho review".
 
