@@ -28,6 +28,20 @@ describe("account endpoints", () => {
     await expect(account.deleteAccount({ email_confirmation: "a@b.c" })).rejects.toBe(refusal);
   });
 
+  it("transferOwnership posts the new owner and the password, and resolves on any 2xx, a malformed one included", async () => {
+    request.mockResolvedValueOnce({ member: { user_id: "u2", role: "owner" } });
+    await expect(account.transferOwnership("mot minh", "u2", "pw")).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledWith("/api/v1/orgs/mot%20minh/transfer-ownership", {
+      method: "POST",
+      body: JSON.stringify({ to_user_id: "u2", password: "pw" }),
+    });
+    request.mockResolvedValueOnce(["drift"]);
+    await expect(account.transferOwnership("acme", "u2", "pw")).resolves.toBeUndefined();
+    const refusal = Object.assign(new Error("password_incorrect"), { status: 403 });
+    request.mockRejectedValueOnce(refusal);
+    await expect(account.transferOwnership("acme", "u2", "bad")).rejects.toBe(refusal);
+  });
+
   it("setAiConsent puts the version and reads the user back", async () => {
     request.mockResolvedValueOnce({ user });
     await expect(account.setAiConsent("v1")).resolves.toMatchObject({ id: "u1", ai_consent_version: "v1" });

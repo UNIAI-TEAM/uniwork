@@ -9,7 +9,9 @@ import { useToastStore } from "@/data/stores/toast-store";
 import { render, viText } from "@/test/render";
 import { DeleteAccountSection } from "./delete-account";
 
-jest.mock("@/data/account-api", () => ({ accountApi: { deleteAccount: jest.fn() } }));
+jest.mock("@/data/account-api", () => ({ accountApi: { deleteAccount: jest.fn(), transferOwnership: jest.fn() } }));
+const mockRequest = jest.fn<Promise<unknown>, [string, RequestInit | undefined]>();
+jest.mock("@/data/api", () => ({ api: { request: (path: string, init?: RequestInit) => mockRequest(path, init) } }));
 jest.mock("@/data/auth/store", () => {
   const { create } = jest.requireActual<typeof import("zustand")>("zustand");
   return { useAuthStore: create(() => ({ user: null as unknown, accountDeleted: jest.fn(async () => {}) })) };
@@ -17,6 +19,7 @@ jest.mock("@/data/auth/store", () => {
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn(async () => ({ type: "dismiss" })) }));
 
 const deleteAccount = jest.mocked(accountApi.deleteAccount);
+const transferOwnership = jest.mocked(accountApi.transferOwnership);
 const refusal = (code: string, status: number) => Object.assign(new Error(code), { status, body: { error: { code } } });
 const signedIn = (user: Record<string, unknown>) =>
   useAuthStore.setState({ user: { id: "u1", email: "an@acme.vn", display_name: "An", ...user } as never, accountDeleted: jest.fn(async () => {}) });
@@ -38,6 +41,8 @@ afterEach(async () => {
   await act(() => useToastStore.getState().clear());
   jest.restoreAllMocks();
   deleteAccount.mockReset();
+  transferOwnership.mockReset();
+  mockRequest.mockReset();
 });
 
 describe("DeleteAccountSection", () => {
@@ -169,24 +174,43 @@ describe("DeleteAccountSection", () => {
       expect(screen.getByRole("alert")).toHaveTextContent(viText("mobile.account.close_mismatch"));
     });
 
-    it("turns to handing over on the web when someone joined meanwhile", async () => {
+    it("turns to handing over when someone joined meanwhile", async () => {
+      mockRequest.mockResolvedValue({ members: [{ user_id: "u-new", display_name: "Mới", email: "moi@acme.vn", role: "member" }] });
       await reachClose();
       deleteAccount.mockRejectedValueOnce(refusal("organization_has_members", 409));
       await fireEvent.changeText(slugInput(), "mot-minh");
       await confirm();
       expect(screen.getByText(viText("mobile.account.close_has_members"))).toBeOnTheScreen();
-      expect(screen.getByText(viText("mobile.account.owner_body_named", { name: "Một mình" }))).toBeOnTheScreen();
-      expect(screen.queryByTestId("delete-account-confirm")).toBeNull();
+      expect(screen.getByText(viText("mobile.account.transfer_body", { name: "Một mình" }))).toBeOnTheScreen();
+      expect(await screen.findByTestId("hand-over-u-new")).toBeOnTheScreen();
       expect(screen.queryByTestId("delete-account-close-slug")).toBeNull();
     });
 
-    it("names the organization to hand over when it has other members", async () => {
+    it("sends a two-factor owner to the web when someone joined meanwhile", async () => {
+      signedIn({ has_password: false, mfa_enabled_at: "2026-10-01T00:00:00Z" });
+      deleteAccount.mockRejectedValueOnce(soleOwner());
+      await open();
+      await fireEvent.changeText(proofInput("code"), "123456");
+      await confirm();
+      deleteAccount.mockRejectedValueOnce(refusal("organization_has_members", 409));
+      await fireEvent.changeText(proofInput("code"), "654321");
+      await fireEvent.changeText(slugInput(), "mot-minh");
+      await confirm();
+      expect(screen.getByText(viText("mobile.account.close_has_members"))).toBeOnTheScreen();
+      expect(screen.getByText(viText("mobile.account.owner_body_named", { name: "Một mình" }))).toBeOnTheScreen();
+      expect(screen.queryByTestId("delete-account-confirm")).toBeNull();
+      expect(mockRequest).not.toHaveBeenCalled();
+    });
+
+    it("sends a two-factor owner with members to the web, which asks for a password first", async () => {
+      signedIn({ has_password: false, mfa_enabled_at: "2026-10-01T00:00:00Z" });
       deleteAccount.mockRejectedValueOnce(soleOwner(false));
       await open();
-      await fireEvent.changeText(proofInput("password"), "pw");
+      await fireEvent.changeText(proofInput("code"), "123456");
       await confirm();
       expect(screen.getByText(viText("mobile.account.owner_body_named", { name: "Một mình" }))).toBeOnTheScreen();
-      expect(screen.queryByTestId("delete-account-close-slug")).toBeNull();
+      expect(screen.queryByTestId("delete-account-confirm")).toBeNull();
+      expect(mockRequest).not.toHaveBeenCalled();
     });
 
     // Review finding: the first request already used the code (a recovery code is burned there, a TOTP code
@@ -310,5 +334,150 @@ describe("DeleteAccountSection", () => {
     } finally {
       await act(() => i18n.changeLanguage("vi"));
     }
+  });
+});
+
+// Review finding (Apple 5.1.1(v)): an owner whose organization has other members picks who takes over in the sheet,
+// which hands it over with the password already typed and then erases the account.
+describe("an owner whose organization has other members", () => {
+  const withMembers = () =>
+    Object.assign(new Error("owner_must_transfer"), {
+      status: 409,
+      body: { error: { code: "owner_must_transfer", fields: { organization_name: "Acme", organization_slug: "acme", can_close: false } } },
+    });
+  const MEMBERS = {
+    members: [
+      { user_id: "u1", display_name: "An", email: "an@acme.vn", role: "owner" },
+      { user_id: "u-binh", display_name: "Bình", email: "binh@acme.vn", role: "member" },
+      { user_id: "u-chi", display_name: "Chi", email: "chi@acme.vn", role: "admin" },
+      // No display name: the address names them, once.
+      { user_id: "u-dung", display_name: "", email: "dung@acme.vn", role: "member" },
+    ],
+  };
+
+  async function reachHandOver() {
+    mockRequest.mockResolvedValue(MEMBERS);
+    deleteAccount.mockRejectedValueOnce(withMembers());
+    await open();
+    await fireEvent.changeText(proofInput("password"), "pw");
+    await confirm();
+    await screen.findByTestId("hand-over-u-chi");
+  }
+
+  it("lists who may take over, admins first, hands over to the one chosen, then erases", async () => {
+    await reachHandOver();
+    expect(mockRequest).toHaveBeenCalledWith("/api/v1/orgs/acme/members?status=active&limit=100", expect.anything());
+    expect(screen.queryByTestId("hand-over-u1")).toBeNull();
+    const radios = screen.getAllByRole("radio");
+    expect(radios.map((r) => r.props.testID)).toEqual(["hand-over-u-chi", "hand-over-u-binh", "hand-over-u-dung"]);
+    expect(screen.getAllByText("dung@acme.vn")).toHaveLength(1);
+    expect(screen.getByLabelText(`Chi, ${viText("mobile.account.transfer_admin")}`)).toBeOnTheScreen();
+    expect(screen.getByTestId("delete-account-confirm")).toHaveTextContent(viText("mobile.account.transfer_confirm_pick"));
+    expect(screen.queryByTestId("delete-account-proof")).toBeNull();
+
+    await confirm();
+    expect(screen.getByRole("alert")).toHaveTextContent(viText("mobile.account.transfer_choose"));
+    expect(transferOwnership).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByTestId("hand-over-u-chi"));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByTestId("hand-over-u-chi").props.accessibilityState).toMatchObject({ checked: true });
+    expect(screen.getByTestId("delete-account-confirm")).toHaveTextContent(viText("mobile.account.transfer_confirm", { name: "Chi" }));
+    transferOwnership.mockResolvedValueOnce(undefined);
+    deleteAccount.mockResolvedValueOnce(undefined);
+    await confirm();
+    expect(transferOwnership).toHaveBeenCalledWith("acme", "u-chi", "pw");
+    expect(deleteAccount).toHaveBeenLastCalledWith({ password: "pw" });
+    expect(useAuthStore.getState().accountDeleted).toHaveBeenCalledTimes(1);
+  });
+
+  it("says it is handing over while the request is out, and ignores a tap on the list meanwhile", async () => {
+    await reachHandOver();
+    await fireEvent.press(screen.getByTestId("hand-over-u-binh"));
+    let finish: () => void = () => {};
+    transferOwnership.mockReturnValueOnce(new Promise<void>((resolve) => (finish = resolve)));
+    deleteAccount.mockResolvedValueOnce(undefined);
+    await confirm();
+    expect(screen.getByText(viText("mobile.account.transferring"))).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId("hand-over-u-chi"));
+    expect(screen.getByTestId("hand-over-u-binh").props.accessibilityState).toMatchObject({ checked: true });
+    await act(async () => finish());
+    expect(deleteAccount).toHaveBeenLastCalledWith({ password: "pw" });
+  });
+
+  it("puts the password back on screen when the hand-over refuses it", async () => {
+    await reachHandOver();
+    await fireEvent.press(screen.getByTestId("hand-over-u-chi"));
+    transferOwnership.mockRejectedValueOnce(refusal("password_incorrect", 403));
+    await confirm();
+    expect(screen.getByRole("alert")).toHaveTextContent(viText("settings.security.delete.incorrect.password"));
+    expect(proofInput("password").props.value).toBe("");
+    expect(deleteAccount).toHaveBeenCalledTimes(1);
+    transferOwnership.mockResolvedValueOnce(undefined);
+    deleteAccount.mockResolvedValueOnce(undefined);
+    await fireEvent.changeText(proofInput("password"), "pw2");
+    await confirm();
+    expect(transferOwnership).toHaveBeenLastCalledWith("acme", "u-chi", "pw2");
+    expect(deleteAccount).toHaveBeenLastCalledWith({ password: "pw2" });
+  });
+
+  it("reads the list again when the one chosen is gone", async () => {
+    await reachHandOver();
+    await fireEvent.press(screen.getByTestId("hand-over-u-binh"));
+    transferOwnership.mockRejectedValueOnce(refusal("member_deactivated", 403));
+    mockRequest.mockClear();
+    await confirm();
+    expect(screen.getByRole("alert")).toHaveTextContent(viText("mobile.account.transfer_member_gone"));
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("hand-over-u-binh").props.accessibilityState).toMatchObject({ checked: false });
+  });
+
+  it.each([
+    [refusal("password_required", 403), "mobile.account.transfer_password_needed"],
+    [refusal("rate_limited", 429), "mobile.account.rate_limited"],
+    [Object.assign(new Error("offline"), { status: 0 }), "mobile.account.offline"],
+    [refusal("forbidden", 403), "settings.security.delete.failed"],
+  ])("says why the hand-over failed under the list (%s)", async (err, key) => {
+    await reachHandOver();
+    await fireEvent.press(screen.getByTestId("hand-over-u-chi"));
+    transferOwnership.mockRejectedValueOnce(err);
+    await confirm();
+    expect(screen.getByRole("alert")).toHaveTextContent(viText(key));
+    expect(deleteAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the erasure failed under the password once the organization was handed over", async () => {
+    await reachHandOver();
+    await fireEvent.press(screen.getByTestId("hand-over-u-chi"));
+    transferOwnership.mockResolvedValueOnce(undefined);
+    deleteAccount.mockRejectedValueOnce(refusal("internal", 500));
+    await confirm();
+    expect(screen.queryByTestId("hand-over-u-chi")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent(viText("settings.security.delete.failed"));
+    expect(proofInput("password").props.value).toBe("pw");
+    expect(screen.getByTestId("delete-account-confirm")).toHaveTextContent(viText("settings.security.delete.confirm"));
+  });
+
+  it("offers to read the list again, and the web, when it does not load", async () => {
+    mockRequest.mockRejectedValue(Object.assign(new Error("offline"), { status: 0 }));
+    deleteAccount.mockRejectedValueOnce(withMembers());
+    await open();
+    await fireEvent.changeText(proofInput("password"), "pw");
+    await confirm();
+    expect(await screen.findByText(viText("mobile.account.transfer_empty"))).toBeOnTheScreen();
+    mockRequest.mockResolvedValue(MEMBERS);
+    await fireEvent.press(screen.getByRole("button", { name: viText("mobile.account.transfer_retry") }));
+    expect(await screen.findByTestId("hand-over-u-chi")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("link", { name: viText("mobile.account.owner_open_web") }));
+    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://app.example/acme/hq/settings");
+  });
+
+  it("forgets the choice when the sheet is cancelled", async () => {
+    await reachHandOver();
+    await fireEvent.press(screen.getByTestId("hand-over-u-chi"));
+    await fireEvent.press(screen.getByRole("button", { name: viText("settings.security.delete.cancel") }));
+    await fireEvent.press(screen.getByTestId("settings-delete-account"));
+    expect(screen.queryByTestId("hand-over-u-chi")).toBeNull();
+    expect(proofInput("password").props.value).toBe("");
   });
 });

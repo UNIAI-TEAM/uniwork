@@ -107,6 +107,7 @@ export const MOBILE_PATHS = [
   "server/internal/handler/push_preview_policy.go",
   "server/internal/handler/workspace.go",
   "server/internal/handler/task.go",
+  "server/internal/handler/organization_members.go",
   "server/internal/config/unichat_downloads.go",
   "server/internal/featureflags/keys.go",
   "server/internal/service/account_deletion.go",

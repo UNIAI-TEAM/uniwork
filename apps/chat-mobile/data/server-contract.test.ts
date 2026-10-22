@@ -33,6 +33,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ERASED_ACCOUNT_NAME } from "@/lib/erased-account";
 import { MobileSecurityPolicySchema, PushPreviewPolicySchema } from "./account-api";
+import { OrgMemberRowSchema, OrgMembersPageSchema } from "./queries/org-members";
 import { ChatSyncSchema } from "./chat-sync/api";
 import {
   ActiveRecordingSchema,
@@ -56,7 +57,7 @@ const SERVER = path.resolve(__dirname, "../../../server/internal");
 const SDO_DIR = path.join(SERVER, "handler/dto/sdo");
 // The handler files the rows' handlers live in; each pattern is in scripts/mobile-native-scope.mjs › MOBILE_PATHS,
 // so a change to one runs this test (checked below).
-const HANDLER_FILES = ["chat*.go", "auth.go", "identity.go", "config.go", "push_preview_policy.go", "workspace.go", "task.go"];
+const HANDLER_FILES = ["chat*.go", "auth.go", "identity.go", "config.go", "push_preview_policy.go", "workspace.go", "task.go", "organization_members.go"];
 // Structs of other packages an SDO embeds as a field: ConfigSDO.unichat_stores is a config.UniChatStoreLinks.
 const FOREIGN_STRUCTS: Record<string, string> = { config: "config/unichat_downloads.go" };
 
@@ -247,6 +248,14 @@ const CONTRACTS: Contract[] = [
     schema: MobileSecurityPolicySchema,
     sdo: "MobileSecurityPolicySDO",
     handlers: ["orgMobileSecurityPolicy"],
+  },
+  // Who an owner deleting the account can hand the organization to, and whom the contacts tab leaves out.
+  {
+    endpoint: "GET /orgs/{org}/members",
+    schema: OrgMembersPageSchema,
+    sdo: "OrgMemberListSDO",
+    handlers: ["listOrgMembers"],
+    items: { members: OrgMemberRowSchema },
   },
   // Chat.
   {

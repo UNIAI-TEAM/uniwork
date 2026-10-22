@@ -37,7 +37,7 @@ jest.mock("../chat-api", () => ({
 }));
 jest.mock("../safety-actions", () => ({ setBlocked: jest.fn(async () => undefined) }));
 jest.mock("../safety-api", () => ({ safetyApi: { report: jest.fn(async () => ({ id: "rep1" })) } }));
-jest.mock("../account-api", () => ({ accountApi: { deleteAccount: jest.fn(async () => undefined) } }));
+jest.mock("../account-api", () => ({ accountApi: { deleteAccount: jest.fn(async () => undefined), transferOwnership: jest.fn(async () => undefined) } }));
 jest.mock("../ai-consent", () => ({ answerAiConsent: jest.fn(async () => undefined) }));
 jest.mock("../push-previews", () => ({ setPushPreviews: jest.fn(async () => undefined) }));
 jest.mock("../api", () => ({ api: { tag: "transport" } }));
@@ -62,7 +62,7 @@ import { setPushPreviews } from "../push-previews";
 import { api } from "../api";
 import { setPushEnabled } from "../push";
 import { Platform } from "react-native";
-import { useAnswerAiConsent, useDeleteAccount, useRevokeDevice, useSetPushPreviews } from "./account";
+import { useAnswerAiConsent, useDeleteAccount, useRevokeDevice, useSetPushPreviews, useTransferOwnership } from "./account";
 import { useSetPushEnabled } from "./push";
 import {
   useCreateTask,
@@ -178,6 +178,8 @@ describe("safety and account commands", () => {
     const proof = { password: "x" } as never;
     await run(() => useDeleteAccount(), proof);
     expect(accountApi.deleteAccount).toHaveBeenCalledWith(proof);
+    await run(() => useTransferOwnership(), { orgSlug: "acme", toUserId: "u2", password: "x" });
+    expect(accountApi.transferOwnership).toHaveBeenCalledWith("acme", "u2", "x");
   });
 
   it("answers the AI notice and turns push on or off with this build's project and call UI", async () => {

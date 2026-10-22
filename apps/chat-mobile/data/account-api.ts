@@ -4,7 +4,8 @@
 // /api/v1/me/ai-consent), the person's language (PATCH /api/v1/me, as
 // core's patchMe; data/locale-sync.ts), whether chat pushes show the message's
 // words (PUT /api/v1/me/push-previews) and the organization's rule for that
-// (GET /api/v1/orgs/{org}/push-preview-policy), and the organization's floor
+// (GET /api/v1/orgs/{org}/push-preview-policy), handing an organization to another member before the account is
+// erased (POST /api/v1/orgs/{org}/transfer-ownership, as core's transferOwnership), and the organization's floor
 // under the phone's app lock and screen-capture choices (GET
 // /api/v1/orgs/{org}/mobile-security-policy). account-api.test.ts holds a
 // malformed-response case for each (CLAUDE.md › API Compatibility).
@@ -50,6 +51,17 @@ export function createAccountApi(request: Request) {
     async deleteAccount(body: DeleteAccountBody): Promise<void> {
       const raw = await request("/api/v1/me/delete", { method: "POST", body: JSON.stringify(body) });
       parseWithFallback(raw, StatusSchema, {}, { endpoint: "POST /api/v1/me/delete" });
+    },
+    /**
+     * Hands the organization to toUserId (the owner's password again, as on the web). Resolves on any 2xx, a drifted
+     * body included: the sheet reads nothing from it and erases the account next; a refusal is the ApiError.
+     */
+    async transferOwnership(orgSlug: string, toUserId: string, password: string): Promise<void> {
+      const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/transfer-ownership`, {
+        method: "POST",
+        body: JSON.stringify({ to_user_id: toUserId, password }),
+      });
+      parseWithFallback(raw, StatusSchema, {}, { endpoint: "POST /api/v1/orgs/{org}/transfer-ownership" });
     },
     /** The updated user, or null when the answer drifted (the caller then reloads /me). */
     setAiConsent(version: string): Promise<User | null> {

@@ -534,6 +534,12 @@
       "functions": 100,
       "lines": 100
     },
+    "components/settings/delete-account-hand-over.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/settings/delete-account-owner.tsx": {
       "statements": 100,
       "branches": 100,
@@ -613,6 +619,12 @@
       "lines": 100
     },
     "components/settings/switch-row.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/use-hand-over.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
