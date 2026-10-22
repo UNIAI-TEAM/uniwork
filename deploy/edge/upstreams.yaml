@@ -28,3 +28,25 @@ spec:
       name: uniwork-fe.uniwork.svc.cluster.local
       port: 3000
       weight: 100
+---
+# Office installers and the apt repository live in a dedicated public-read
+# bucket on the S3 provider (object GET only, no listing). Ops replaces
+# OFFICE_DOWNLOADS_S3_HOST with the provider host at apply time; the value is
+# not kept in the repo. Never point this upstream at the user-data bucket.
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: office-downloads
+  namespace: reap-edge
+spec:
+  scheme: https
+  # The provider routes by Host, so the request must carry its own host name.
+  passHost: rewrite
+  upstreamHost: OFFICE_DOWNLOADS_S3_HOST
+  # Plain downloads: no idle WebSocket here, but a .dmg is large and can be slow.
+  timeout: { connect: 5s, read: 300s, send: 300s }
+  externalNodes:
+    - type: Domain
+      name: OFFICE_DOWNLOADS_S3_HOST
+      port: 443
+      weight: 100

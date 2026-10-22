@@ -165,6 +165,7 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	}
 
 	var logID string
+	var summaryMsgID string
 	var summary *VoiceCallSummaryInfo
 	for _, msg := range msgs {
 		if msg.Kind == "voice_call_log" {
@@ -172,6 +173,7 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 			continue
 		}
 		if msg.VoiceCallSummary != nil {
+			summaryMsgID = msg.ID
 			summary = msg.VoiceCallSummary
 		}
 	}
@@ -204,6 +206,13 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	}
 	if meta["summary_message_id"] == nil || meta["summary_message_id"] == "" {
 		t.Fatalf("call log not patched: %+v", meta)
+	}
+	summaryRow, err := q.GetChatMessageByID(ctx, summaryMsgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summaryRow.SenderKind != "system" || summaryRow.SenderID != ua.ID {
+		t.Fatalf("summary attribution: sender=%s kind=%s", summaryRow.SenderID, summaryRow.SenderKind)
 	}
 }
 

@@ -41,9 +41,24 @@
 .product-task-member-menu { position: absolute; z-index: 2; top: 260px; right: 20px; width: 200px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--popover); box-shadow: var(--menu-shadow); }
 .product-task-member-menu > span { display: flex; align-items: center; gap: 8px; padding: 8px; }
 .product-task-member-menu > span[data-demo-target] { background: var(--muted); border-radius: 4px; }
-.product-task-board[data-view=list] .product-task-columns { display: block; overflow-y: auto; }
-.product-task-board[data-view=list] .product-task-column { width: 100%; margin-bottom: 12px; }
-.product-task-board[data-view=list] .product-task-column-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.product-task-board[data-view=list] .product-task-columns { display: block; overflow-x: hidden; overflow-y: auto; }
+.product-task-board[data-view=list] .product-task-column { width: 100%; margin-bottom: 20px; padding: 0; background: transparent; }
+.product-task-board[data-view=list] .product-task-column > header { padding: 8px; margin-bottom: 0; background: var(--muted); border-radius: 8px; }
+.product-task-list-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.product-task-list-heading > span:last-child { color: var(--muted-foreground); font-size: var(--text-caption); }
+.product-task-board[data-view=list] .product-task-column-body { display: block; flex: none; overflow: visible; padding: 0; }
+.product-task-board[data-view=list] .product-task-card { margin: 0; border-bottom: 1px solid var(--border); }
+.product-task-board[data-view=list] .product-task-open { padding: 12px 44px 12px 8px; border-radius: 0; }
+.product-task-board[data-view=list] .product-task-open:hover { background: var(--muted); }
+.product-task-list-row { display: grid; gap: 6px; min-width: 0; }
+.product-task-list-identity { display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); font-size: var(--text-caption); }
+.product-task-list-identity svg { width: 14px; height: 14px; flex-shrink: 0; }
+.product-task-list-title { font-size: var(--text-body); font-weight: 500; line-height: 1.55; overflow-wrap: anywhere; white-space: normal; }
+.product-task-list-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: var(--text-caption); color: var(--muted-foreground); }
+.product-task-list-meta > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.product-task-list-meta svg { width: 14px; height: 14px; flex-shrink: 0; }
+.product-task-list-meta .product-task-assignee { min-height: 24px; }
+.product-task-board[data-view=list] .product-task-card-menu { top: 8px; right: 0; }
 .product-current-task-player { position: relative; }
 .product-current-task-player .product-task-toolbar { padding-right: 56px; }
 .product-current-task-player .product-task-stage { height: auto; border: 0; border-radius: 0; overflow: visible; background: var(--background); }
@@ -54,7 +69,8 @@
 @media (max-width: 767px) {
   .product-task-toolbar { gap: 4px; padding-inline: 8px; }
   .product-task-toolbar > div { gap: 0; }
-  .product-task-toolbar button { padding-inline: 8px; }
+  .product-task-toolbar button { padding-inline: 8px; min-width: 44px; min-height: 44px; }
+  .product-task-tool-label { display: none; }
   .product-task-agent { display: none; }
   .product-task-columns { padding-inline: 8px; }
   .product-task-details { padding: 12px 16px; }

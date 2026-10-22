@@ -247,7 +247,7 @@ func (s *ChatService) postVoiceCallSummaryMessage(
 	msgID := util.NewID()
 	msg, err := q.CreateChatMessage(ctx, db.CreateChatMessageParams{
 		ID: msgID, RoomID: room.ID, OrganizationID: room.OrganizationID, WorkspaceID: workspaceID,
-		SenderID: callerID, SenderKind: string(audit.KindHuman), Body: body, Metadata: rawMeta,
+		SenderID: callerID, SenderKind: string(audit.KindSystem), Body: body, Metadata: rawMeta,
 	})
 	if err != nil {
 		return err

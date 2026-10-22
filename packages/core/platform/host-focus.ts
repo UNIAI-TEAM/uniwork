@@ -37,7 +37,7 @@ function subscribe(onChange: () => void): () => void {
 // Read on every render so a visibility flip without an event is still seen.
 function getSnapshot(): boolean {
   if (typeof document === "undefined") return true;
-  return getDesktopBridge() ? hostFocused : document.visibilityState === "visible" && document.hasFocus();
+  return getDesktopBridge() ? hostFocused : document.visibilityState === "visible";
 }
 
 /**
@@ -49,7 +49,7 @@ export function isHostFocused(): boolean {
   return getSnapshot();
 }
 
-/** Whether the app has focus, including a visible browser behind another application. */
+/** Browser: tab visible. UniChat: shell window focused (via desktop bridge). */
 export function useHostFocus(): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, () => true);
 }

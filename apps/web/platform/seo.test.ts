@@ -2,6 +2,21 @@ import { describe, expect, it } from "vitest";
 import { pageStructuredData, seoMetadata, sitemapEntries, robotsPolicy, serializeStructuredData } from "./seo";
 
 describe("public search policy", () => {
+  it("keeps the Office article indexable and account forms outside the public catalog", () => {
+    const urls = sitemapEntries("https://uniworkos.com").map(entry => entry.url);
+    for (const locale of ["en", "vi"] as const) {
+      const path = locale === "vi" ? "/vi/learn/office-files-and-ai" : "/learn/office-files-and-ai";
+      expect(urls).toContain(`https://uniworkos.com${path}`);
+      const metadata = seoMetadata("/learn/office-files-and-ai", locale);
+      expect(metadata.robots).toEqual({ index: true, follow: true });
+      expect(metadata.alternates?.canonical).toBe(path);
+      expect(metadata.openGraph).toMatchObject({ url: path, description: metadata.description });
+    }
+    for (const path of ["/login", "/register"]) {
+      expect(urls).not.toContain(`https://uniworkos.com${path}`);
+      expect(() => seoMetadata(path)).toThrow("Unknown public route");
+    }
+  });
   it("keeps canonicals and reciprocal language alternates aligned", () => {
     const vi = seoMetadata("/apps/office", "vi");
     expect(vi.alternates).toEqual({ canonical: "/vi/apps/office", languages: { en: "/apps/office", vi: "/vi/apps/office", "x-default": "/apps/office" } });

@@ -9,7 +9,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const JOB_DIR = dirname(fileURLToPath(import.meta.url));
@@ -165,9 +165,11 @@ export function captureAiBlocker(metaState, host, fixture) {
  * A path as it will be written into result.json: relative to the run's out dir.
  */
 export function relativeToOut(outDir, file) {
+  const base = resolve(outDir);
   const abs = resolve(file);
-  const rel = abs.startsWith(resolve(outDir) + "/") ? abs.slice(resolve(outDir).length + 1) : abs;
-  return rel;
+  const rel = relative(base, abs);
+  if (!rel || rel.startsWith("..") || isAbsolute(rel)) return abs;
+  return rel.replace(/\\/g, "/");
 }
 
 /**
