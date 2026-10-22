@@ -515,6 +515,15 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
 - [ ] Ngôn ngữ: iOS Cài đặt › UniChat › Ngôn ngữ và Android 13+ Cài đặt › Ứng dụng › UniChat › Ngôn ngữ chỉ liệt kê
   Tiếng Việt và English; đổi ngôn ngữ trong app rồi nhận một push: push nói đúng ngôn ngữ đó (`users.locale` đổi theo,
   xem bằng `GET /api/v1/me`). Tiếng Anh: "1 reply", "2 replies".
+- [ ] Ngôn ngữ do hệ thống đổi sau: chọn English trong app, rồi đổi ngôn ngữ theo app của hệ thống sang Tiếng Việt —
+  app mở lại bằng tiếng Việt (hệ thống thắng lựa chọn cũ), mở lạnh không thấy khung hình nào bằng ngôn ngữ kia. Máy chỉ
+  có tiếng Nhật/Hàn: app nói tiếng Anh.
+- [ ] Giờ 12/24: tắt "Giờ 24 giờ" của máy (iOS Cài đặt › Cài đặt chung › Ngày & giờ; Android Cài đặt › Hệ thống › Ngày
+  và giờ) khi app ở nền, quay lại: giờ của tin, danh sách phòng và nhật ký cuộc gọi đổi sang "2:05 CH"/"2:05 pm".
+- [ ] Biểu tượng (Android): thông báo tin và cuộc gọi trên thanh trạng thái là glyph bong bóng một màu (không phải ô trắng);
+  Android 13+ bật "Biểu tượng theo chủ đề" thì icon UniChat đổi màu theo hình nền.
+- [ ] Không workspace: tài khoản bị gỡ khỏi mọi workspace đăng nhập vào màn chọn workspace thấy lời giải thích và nút Cài
+  đặt; Cài đặt có chính sách, điều khoản, giấy phép, đăng xuất và Xóa tài khoản.
 
 **Thứ tự phát hành cuộc gọi native (owner).** Server chỉ gửi push cuộc gọi data-only tới máy Android đã đăng ký token
 với `call_ui` (bản 0.3.0 trở lên có module native; app đăng ký lại mỗi lần mở); bản 0.2.x và iPhone vẫn nhận push "X
