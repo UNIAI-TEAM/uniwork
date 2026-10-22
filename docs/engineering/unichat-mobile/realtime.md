@@ -32,3 +32,8 @@ Ba tầng socket, decoder frame, luật socket, ân hạn nền, khôi phục ph
   (`onConnectionStateChange`), provider đưa qua `useConnectionState()` cho
   `components/chat/connection-banner.tsx` ("Đang chờ mạng…" khi NetInfo offline,
   "Đang kết nối…" khi socket mất quá 1.5 s; trên danh sách chat và mọi cuộc trò chuyện).
+  "Online" của app là `lib/reachability.ts`: có kết nối **và** internet không bị biết là không tới được
+  (`isInternetReachable !== false`) — captive portal hay Wi-Fi chết là offline cho `onlineManager` (query dừng, hàng
+  đợi giữ), cho cạnh offline → online (flush, `forceReconnect`) và cho banner. `data/query-client.ts` gọi
+  `NetInfo.configure` trước mọi listener: iOS thăm dò `GET <apiUrl>/healthz` (200 `{"status":"ok"}`; trang đăng nhập
+  của portal không qua), 60 s một lần khi tới được, 5 s khi không; Android dùng `NET_CAPABILITY_VALIDATED` của OS.

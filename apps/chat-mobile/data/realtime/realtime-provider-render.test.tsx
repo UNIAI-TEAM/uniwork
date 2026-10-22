@@ -9,7 +9,7 @@ import { RealtimeProvider, useConnectionState, useWSClient } from "./realtime-pr
 
 jest.mock("@/data/realtime/ws-client", () => ({ WSClient: jest.requireActual("@/test/fake-ws-client").FakeWSClient }));
 
-type NetListener = (state: { isConnected: boolean | null }) => void;
+type NetListener = (state: { isConnected: boolean | null; isInternetReachable?: boolean | null }) => void;
 let mockNetListener: NetListener = () => undefined;
 const mockNetUnsubscribe = jest.fn();
 jest.mock("@react-native-community/netinfo", () => {
@@ -125,6 +125,10 @@ describe("RealtimeProvider", () => {
     await act(async () => mockNetListener({ isConnected: null }));
     await act(async () => mockNetListener({ isConnected: true }));
     expect(ws.calls.filter((call) => call === "forceReconnect")).toHaveLength(1);
+    // Out of a captive portal: the link never dropped, the internet came back.
+    await act(async () => mockNetListener({ isConnected: true, isInternetReachable: false }));
+    await act(async () => mockNetListener({ isConnected: true, isInternetReachable: true }));
+    expect(ws.calls.filter((call) => call === "forceReconnect")).toHaveLength(2);
   });
 
   it("probes after a short trip to the background and pauses after a long one", async () => {

@@ -2,7 +2,7 @@ import { act, screen } from "@testing-library/react-native";
 import { render, viText } from "@/test/render";
 import { ConnectionBanner, RECONNECT_GRACE_MS } from "./connection-banner";
 
-const mockNet: { isConnected: boolean | null } = { isConnected: true };
+const mockNet: { isConnected: boolean | null; isInternetReachable?: boolean | null } = { isConnected: true };
 jest.mock("@react-native-community/netinfo", () => ({ useNetInfo: () => mockNet }));
 const mockSocket: { state: string | null } = { state: "online" };
 jest.mock("@/data/realtime/realtime-provider", () => ({ useConnectionState: () => mockSocket.state }));
@@ -10,6 +10,7 @@ jest.mock("@/data/realtime/realtime-provider", () => ({ useConnectionState: () =
 beforeEach(() => {
   jest.useFakeTimers();
   mockNet.isConnected = true;
+  mockNet.isInternetReachable = null;
   mockSocket.state = "online";
 });
 afterEach(() => jest.useRealTimers());
@@ -28,6 +29,13 @@ describe("ConnectionBanner", () => {
     mockSocket.state = "waiting";
     await render(<ConnectionBanner />);
     expect(screen.getByRole("alert")).toHaveTextContent(viText("chat.mobile.offline_banner"), { exact: false });
+    expect(screen.getByTestId("connection-banner-offline")).toBeTruthy();
+  });
+
+  it("says it waits for the network behind a captive portal or dead Wi-Fi: a link that does not reach the internet", async () => {
+    mockNet.isInternetReachable = false;
+    mockSocket.state = "waiting";
+    await render(<ConnectionBanner />);
     expect(screen.getByTestId("connection-banner-offline")).toBeTruthy();
   });
 

@@ -41,6 +41,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { createContext, use, useEffect, useRef, useState, type ReactNode } from "react";
 import { AppState, type AppStateStatus, Platform } from "react-native";
+import { isOnlineState } from "@/lib/reachability";
 import { buildInfo } from "../build-info";
 import { argsLogger, createLogger } from "../logger";
 import { createBackgroundGrace } from "./background-grace";
@@ -141,7 +142,8 @@ export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSessi
     // ── NetInfo ─────────────────────────────────────────────────
     lastConnectedRef.current = null;
     const netInfoUnsub = NetInfo.addEventListener((state) => {
-      const isConnected = state.isConnected === true;
+      // Reachable, not merely linked (lib/reachability.ts): leaving a captive portal redials too.
+      const isConnected = isOnlineState(state);
       const previous = lastConnectedRef.current;
       lastConnectedRef.current = isConnected;
       // Edge: false → true. First event (previous === null) is skipped —

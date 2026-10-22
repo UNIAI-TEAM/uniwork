@@ -23,6 +23,7 @@ import { runtimeConfig } from "@uniwork/core/runtime-config";
 import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
 import { AppState } from "react-native";
+import { isOnlineState } from "@/lib/reachability";
 import { authConfig } from "./auth/flow";
 import { flushOwed } from "./owed";
 import { bestEffort } from "./report";
@@ -41,7 +42,8 @@ export function useAccountSync(userId: string | null): void {
     flush();
     let wasOnline = onlineManager.isOnline();
     const unsubscribeNet = NetInfo.addEventListener((state) => {
-      const online = state.isConnected === true;
+      // Leaving a captive portal is coming back online too.
+      const online = isOnlineState(state);
       if (online && !wasOnline) flush();
       wasOnline = online;
     });

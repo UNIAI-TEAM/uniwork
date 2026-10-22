@@ -34,8 +34,13 @@ export function appEnvironment(extra: Record<string, unknown> | undefined): "dev
   return env === "staging" || env === "production" ? env : "dev";
 }
 
+/** extra.apiUrl: the API origin of this build (the dev server's when unset). */
+export function apiUrlFromExtra(extra: Record<string, unknown> | undefined): string {
+  return stringOr(extra?.apiUrl, DEV_API_URL);
+}
+
 export function runtimeFromExtra(extra: Record<string, unknown> | undefined): Partial<RuntimeConfig> {
-  const apiUrl = stringOr(extra?.apiUrl, DEV_API_URL);
+  const apiUrl = apiUrlFromExtra(extra);
   return {
     apiUrl,
     appUrl: stringOr(extra?.appUrl, DEV_APP_URL),

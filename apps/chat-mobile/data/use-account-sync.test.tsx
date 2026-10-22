@@ -32,7 +32,7 @@ jest.mock("expo-notifications", () => ({
   },
 }));
 
-type NetListener = (state: { isConnected: boolean | null }) => void;
+type NetListener = (state: { isConnected: boolean | null; isInternetReachable?: boolean | null }) => void;
 const mockNet: { listeners: NetListener[]; unsubscribe: jest.Mock } = { listeners: [], unsubscribe: jest.fn() };
 jest.mock("@react-native-community/netinfo", () => ({
   __esModule: true,
@@ -87,15 +87,20 @@ it("flushes once ready, on the offline → online edge only, and on each return 
   await act(async () => net({ isConnected: null }));
   await act(async () => net({ isConnected: true }));
   expect(mockFlushOwed).toHaveBeenCalledTimes(2);
+  // A captive portal is offline; signing in to it (the probe reaches /healthz) is the online edge.
+  await act(async () => net({ isConnected: true, isInternetReachable: false }));
+  expect(mockFlushOwed).toHaveBeenCalledTimes(2);
+  await act(async () => net({ isConnected: true, isInternetReachable: true }));
+  expect(mockFlushOwed).toHaveBeenCalledTimes(3);
 
   await act(async () => onAppState?.("inactive"));
-  expect(mockFlushOwed).toHaveBeenCalledTimes(2);
+  expect(mockFlushOwed).toHaveBeenCalledTimes(3);
   expect(mockRefreshStale).not.toHaveBeenCalled();
   await act(async () => onAppState?.("active"));
-  expect(mockFlushOwed).toHaveBeenCalledTimes(3);
+  expect(mockFlushOwed).toHaveBeenCalledTimes(4);
   // Leaving the front: what was written just before the switch goes while JS still runs (the socket's grace keeps the path warm).
   await act(async () => onAppState?.("background"));
-  expect(mockFlushOwed).toHaveBeenCalledTimes(4);
+  expect(mockFlushOwed).toHaveBeenCalledTimes(5);
 
   await unmount();
   expect(mockNet.unsubscribe).toHaveBeenCalledTimes(1);
