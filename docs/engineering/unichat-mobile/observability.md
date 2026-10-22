@@ -66,9 +66,10 @@
   lỗi ném ra cũng là lost; trong runtime không giao diện sự kiện chờ tới khi app mở; alert `UniChatCallRingsDegraded`
   khi > 10 % push đổ chuông của một bản thành fallback/lost), `ota_launch` emergency/failed_update và `app_crash` last_run
   (`data/release/launch-health.ts`, mỗi lần mở lạnh từ `startAppServices`: expo-updates quay về bundle nhúng hay bỏ qua
-  một bản OTA không tải/kiểm chữ ký được — `lib/ota-launch.ts` đọc `isEmergencyLaunch` và log `readLogEntriesAsync`,
-  mốc log đã kể giữ trong device store nên mỗi lỗi kể một lần — thì thêm một báo cáo `OtaLaunchError` tag
-  `ota_failure`/`failed_update_id`/`failed_update_code`, fingerprint theo OS và bản OTA, mà job sức khoẻ bản phát hành
+  một bản OTA crash trước màn đầu — `lib/ota-launch.ts` đọc `isEmergencyLaunch`, so bản đang chạy với bản lần mở trước
+  chạy và bản expo-updates báo đã tải cho lần mở này (`latestContext`/`addUpdatesStateChangeListener`, giữ trong device
+  store), cùng dòng log iOS `markFailedLaunchForUpdate`; Android không ghi log nào nêu id bản bị bỏ qua — thì thêm một
+  báo cáo `OtaLaunchError` tag `ota_failure`/`failed_update_id`/`failed_update_evidence`, fingerprint theo OS và bản OTA, mà job sức khoẻ bản phát hành
   đếm cho đúng bản đó; `crashedLastRun` của Sentry nói lần chạy trước crash; alert `UniChatMobileUpdateLaunchFailures`
   và `UniChatMobileCrashes` báo qua Alertmanager không chờ Sentry; `UniChatMobileSendFailures` khi > 5 % tin của một bản
   hỏng hẳn; alert của chính Sentry là code ở `deploy/sentry/unichat-mobile-alerts.json`, `scripts/mobile-sentry-alerts.mjs`)

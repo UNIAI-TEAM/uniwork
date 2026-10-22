@@ -806,7 +806,7 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
    "Sao chép thông tin phiên bản" cho chuỗi đầy đủ kèm runtime.
 4. Crash: Sentry, lọc `release` (`<bundle id>@<version>+<build>.<os>`, thêm `.ota.<id>` cho một bản OTA) và tag
    `update_id`/`channel`; crash-free sessions theo release. Bản OTA máy không khởi động được: issue `OtaLaunchError`
-   (tag `ota_failure`, `failed_update_id`, `failed_update_code`; runbook `UniChatMobileUpdateLaunchFailures.md`). Server: header `X-Client-Version`/`X-Client-OS`/`X-Client-Update-Id` của mỗi request và
+   (tag `ota_failure`, `failed_update_id`, `failed_update_evidence`; runbook `UniChatMobileUpdateLaunchFailures.md`). Server: header `X-Client-Version`/`X-Client-OS`/`X-Client-Update-Id` của mỗi request và
    `client_version` của socket cho biết bản nào đang gọi. Lệch hợp đồng app–server: issue mức `warning` có tag
    `endpoint` (route, id thành `{id}`), `http_status` và `error_code`, mỗi tổ hợp một issue — 400/409/413/415/422 mà màn
    hình không tự giải thích; tăng đột ngột sau một lần deploy server là dấu hiệu server đổi hợp đồng mà bản app chưa

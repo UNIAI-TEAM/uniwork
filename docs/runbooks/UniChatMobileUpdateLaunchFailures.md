@@ -6,7 +6,8 @@
 
 - Alert `UniChatMobileUpdateLaunchFailures` bật cho một `os` và `client_version`: trong 1 giờ, ít nhất 3 lần máy của bản
   đó không chạy được một bản OTA. `result="emergency"`: trình khởi động của expo-updates hỏng và máy chạy bundle nhúng
-  trong binary; `result="failed_update"`: tệp của bản OTA không tải hay không kiểm chữ ký được và máy chạy bản trước nó.
+  trong binary; `result="failed_update"`: một bản OTA đã tải về (hay đã chạy lần trước) mà lần mở này máy lại chạy bản
+  cũ hơn — expo-updates đánh dấu nó hỏng (crash trước màn đầu) và bỏ qua.
 - Người dùng thường **không thấy gì**: app vẫn mở, chỉ là bản cũ. Bản sửa lỗi phát qua OTA không tới họ; một bản
   `critical` cứ tải rồi không áp dụng được.
 - Số đếm đến từ chính máy lần mở sau đó (`apps/chat-mobile/data/release/launch-health.ts`, gửi khi đã đăng nhập và người
@@ -16,18 +17,22 @@
 ## Kiểm tra
 
 1. Bản OTA nào hỏng? Sentry → Issues, lọc `ota_failure:emergency` hoặc `ota_failure:failed_update` (issue
-   `OtaLaunchError`, mỗi bản OTA và mỗi OS một issue): tag `failed_update_id` là id bản OTA, `failed_update_code` là mã
-   log của expo-updates (`UpdateFailedToLoad`, `AssetsFailedToLoad`, `UpdateHasInvalidSignature`,
-   `UpdateCodeSigningError`…), extra `reason` là lời của expo-updates khi là emergency launch.
+   `OtaLaunchError`, mỗi bản OTA và mỗi OS một issue): tag `failed_update_id` là id bản OTA, `failed_update_evidence` là
+   điều đã chỉ ra nó, extra `reason` là lời của expo-updates khi là emergency launch. expo-updates 57 không ghi log nào
+   nêu id một bản bị bỏ qua trên Android (chỉ iOS có một dòng warn), nên app tự giữ trên máy bản nó chạy và bản
+   expo-updates báo đã tải cho lần mở sau (`apps/chat-mobile/lib/ota-launch.ts`).
 2. Bản đó ở kênh nào, rollout bao nhiêu: `cd apps/chat-mobile && eas update:list --branch <kênh> --platform <os> --json`
    rồi `eas update:view <group> --json` chứa id đó. Job summary của "UniChat mobile OTA update" cũng ghi id bản Android.
-3. Phân loại theo mã:
-   - `UpdateHasInvalidSignature` / `UpdateCodeSigningError`: bản OTA ký bằng khoá không khớp chứng chỉ trong binary
-     (xoay chứng chỉ mà chưa có bản store mới, hay `EAS_UPDATE_PRIVATE_KEY` sai) — mọi máy của binary đó đều từ chối.
-   - `AssetsFailedToLoad` / `UpdateFailedToLoad`: asset thiếu hay hỏng khi tải (mạng chập chờn thì lẻ tẻ; một asset
-     thiếu thì đều đặn trên mọi máy).
-   - emergency launch với mã `Unknown`: cơ sở dữ liệu của expo-updates hay thư mục update hỏng trên máy; nhiều máy cùng
-     lúc thì nghi bản OTA.
+3. Phân loại theo `failed_update_evidence`:
+   - `skipped`: máy đã tải bản đó cho lần mở sau, rồi lần mở sau chạy bản cũ hơn — bản đó crash trước màn đầu (lỗi
+     JS lúc khởi động) hay tệp của nó không nạp được. Nhiều máy cùng bản thì là lỗi của bản OTA: xem crash của release
+     `….ota.<id>` (có khi trống vì crash trước khi Sentry khởi).
+   - `rolled_back`: lần mở trước chạy được bản đó, lần này chạy bản cũ hơn — bản đó crash trước màn đầu ở lần mở thứ hai.
+   - `marked_failed`: dòng log iOS `markFailedLaunchForUpdate` nêu bản đó.
+   - emergency launch với `none`: cơ sở dữ liệu của expo-updates hay thư mục update hỏng trên máy; nhiều máy cùng lúc
+     thì nghi bản OTA.
+   - Lỗi chữ ký (khoá ký không khớp chứng chỉ trong binary) không làm máy bỏ một bản đã tải — bản đó không bao giờ tải
+     xong; dấu hiệu là bản OTA mới không có phiên nào trên kênh, và log `UpdateCodeSigningError` khi gỡ lỗi một máy.
 4. Job `chat-mobile-release-health.yml` (mỗi giờ) đã thấy chưa: summary ghi `launch failures` của bản OTA đó, và nếu nó
    còn đang rollout thì đã revert.
 
