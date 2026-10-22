@@ -42,5 +42,7 @@
   "api/endpoints/chat-voice-api",
   "chat/chat-mention-utils",
   "chat/chat-cache-records",
-  "chat/room-timeline-cache"
+  "chat/room-timeline-cache",
+  "chat/send-retry",
+  "chat/optimistic-merge"
 ]

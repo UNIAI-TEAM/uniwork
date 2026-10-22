@@ -1,6 +1,6 @@
 // Sending a chat message from the phone, mirroring the web's send path
-// (packages/core/chat/{deliver-chat-text-message,send-retry}.ts and
-// use-chat-send-outbox-flush.ts): every send carries a client_msg_id the
+// (packages/core/chat/deliver-chat-text-message.ts and
+// use-chat-send-outbox-flush.ts; when to retry is core's chat/send-retry): every send carries a client_msg_id the
 // server deduplicates on, so a retry after a lost answer cannot post twice.
 //
 // Every send goes through the outbox: text, a photo or a
@@ -20,7 +20,8 @@
 // person retries or discards it; the room's next messages go on without it.
 import { onlineManager, type QueryClient } from "@tanstack/react-query";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
-import { isPermanentChatSendRefusal, runWithChatSendRetry, type PendingFile, type PendingSend } from "@/lib/send-pipeline";
+import { isPermanentChatSendRefusal, runWithChatSendRetry } from "@uniwork/core/chat/send-retry";
+import type { PendingFile, PendingSend } from "@/lib/send-pipeline";
 import { applyChatMessageResponse } from "./chat-cache";
 import { chatApi, type ChatApi } from "./chat-api";
 import { outboxFiles, type OutboxFiles } from "./outbox-files";

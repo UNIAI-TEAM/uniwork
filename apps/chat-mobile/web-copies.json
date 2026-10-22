@@ -1,6 +1,6 @@
 {
   "$comment": "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedCodeChars (the ratchet) in a reviewed PR.",
-  "copiedCodeChars": 147181,
+  "copiedCodeChars": 143866,
   "copies": {
     "apps/chat-mobile/components/chat/use-chat-media.ts": {
       "packages/views/chat/use-chat-media-url.ts": "f9ab781619ddc93ef6bc24b31bf1fba1db5d839a8e1148eb4b6b7404596b9afd"
@@ -42,8 +42,7 @@
       "packages/core/chat/realtime-cache.ts": "730dc56d548c1ac6f663d0e2a32ce48db5707500b95aaba058ce06d7f3635d55"
     },
     "apps/chat-mobile/data/chat-send.ts": {
-      "packages/core/chat/deliver-chat-text-message.ts": "8492a91fe558827741cad7ec0109769b8f3ebace6748c03fb2f4b057c4efcb8c",
-      "packages/core/chat/send-retry.ts": "52b3a188a4394ab989b3bc519d99ef1fc9cf78739f4cc7912102adcd21250394"
+      "packages/core/chat/deliver-chat-text-message.ts": "8492a91fe558827741cad7ec0109769b8f3ebace6748c03fb2f4b057c4efcb8c"
     },
     "apps/chat-mobile/data/queries/chat.ts": {
       "packages/core/chat/chat-hooks-rooms.ts": "ec2b45feb5aa25c928167c63453dab344bd65f8a4a20cac2ca04eeacfef38dc6",
@@ -118,10 +117,6 @@
       "packages/views/chat/chat-sidebar-unified-row.tsx": "7b471da9a3fb5eb9609620fa09dfdc51ef3202a867926de76df726a842033061",
       "packages/views/chat/chat-sidebar-unified.ts": "b271ef83330d4ec0c03771e369319544bede91d0f1086586d451d1981c3c2942",
       "packages/views/chat/use-resolved-room-permissions.ts": "d61fc450e7306dd5adbac71608fd50dd5c47c368caf4def1acf6799b95aa5b32"
-    },
-    "apps/chat-mobile/lib/send-pipeline.ts": {
-      "packages/core/chat/merge-optimistic-chat-messages.ts": "cfc02073ca6e1b291fe247da01ba1e222faa7213b3e9af98aa6a40361a0dd0eb",
-      "packages/core/chat/send-retry.ts": "52b3a188a4394ab989b3bc519d99ef1fc9cf78739f4cc7912102adcd21250394"
     },
     "apps/chat-mobile/lib/sender-colors.ts": {
       "packages/views/chat/sender-colors.ts": "87719e741179ea77c6ab6e1daf25056bd7ab7a5dde98b89156aaf8713f9073a3"

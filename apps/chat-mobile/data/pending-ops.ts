@@ -16,7 +16,7 @@
 import { onlineManager, type QueryClient } from "@tanstack/react-query";
 import type { ChatMessageRecord, ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { hasReaction, pollTapsToReach, toggledPollChoice, withEdit, withPollChoice, withReaction } from "@/lib/optimistic-message";
-import { isRetriableChatSendError } from "@/lib/send-pipeline";
+import { isRetriableChatSendError } from "@uniwork/core/chat/send-retry";
 import { applyChatMessageResponse, patchChatMessageDeleted } from "./chat-cache";
 import { chatApi, type ChatApi } from "./chat-api";
 import type { RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";

@@ -1,12 +1,12 @@
-// The send side of a conversation, copied from packages/core/chat/
-// {merge-optimistic-chat-messages,send-retry}.ts (both reach the web transport
-// or zustand, so neither is on the mobile allowlist). The web keeps two lists
-// (pending sends and a persisted outbox); the phone keeps one persisted list
-// (data/stores/chat-send-store.ts) whose entries carry their own status.
-// send-pipeline.test.ts runs the web tests' cases on that shape.
+// The phone's pending sends and how they show on a timeline. The web keeps two
+// lists (pending sends and a persisted outbox); the phone keeps one persisted
+// list (data/stores/chat-send-store.ts) whose entries carry their own status,
+// so it has its own row shape. Joining those rows to the server's timeline is
+// core's (@uniwork/core/chat/optimistic-merge), and so is when a send is worth
+// repeating (@uniwork/core/chat/send-retry), both shared with the web.
+import { mergeOptimisticMessages, type ServerLikeChatMessage } from "@uniwork/core/chat/optimistic-merge";
 import { pendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
 import type { ReminderRepeat } from "@uniwork/core/chat/reminder-utils";
-import { pathOf } from "./unknown-shape";
 
 export type SendStatus = "sending" | "queued" | "failed";
 
@@ -39,13 +39,8 @@ export interface PendingSend {
 }
 
 /** What the merge needs from a server message (lib/timeline-display.ts › TimelineMessage). */
-export interface ServerLikeMessage {
-  id: string;
-  sender: string;
+export interface ServerLikeMessage extends ServerLikeChatMessage {
   body: string;
-  ts: number;
-  /** Echo of the sender's idempotency key; absent on messages sent elsewhere. */
-  clientMsgId?: string;
 }
 
 export interface OptimisticChatMessage extends ServerLikeMessage {
@@ -68,81 +63,11 @@ export function pendingToOptimisticChatMessage(entry: PendingSend): OptimisticCh
   };
 }
 
-/**
- * The server echoes the idempotency key, so the local copy disappears on an
- * exact match — never on body and a time window, which left a duplicate
- * bubble forever whenever the clock drifted.
- */
-export function shouldHideOptimisticMessage(
-  optimistic: OptimisticChatMessage,
-  serverMessages: readonly ServerLikeMessage[],
-  currentUserId: string,
-): boolean {
-  if (optimistic.sender !== currentUserId) return false;
-  return serverMessages.some((message) => message.clientMsgId === optimistic.clientMsgId);
-}
-
+/** The server's messages and this device's sends it has not echoed yet, oldest first. */
 export function mergeOptimisticChatMessages<T extends ServerLikeMessage>(
   serverMessages: T[],
   pending: readonly PendingSend[],
   currentUserId: string,
 ): Array<T | OptimisticChatMessage> {
-  const visible = pending
-    .map(pendingToOptimisticChatMessage)
-    .filter((message) => !shouldHideOptimisticMessage(message, serverMessages, currentUserId));
-  return [...serverMessages, ...visible].sort((left, right) => left.ts - right.ts);
-}
-
-export const CHAT_SEND_MAX_ATTEMPTS = 3;
-const CHAT_SEND_RETRY_DELAYS_MS = [400, 1_200] as const;
-/** A Retry-After longer than this is handed back: the sender should not watch a spinner. */
-const CHAT_SEND_MAX_RETRY_AFTER_MS = 5_000;
-
-/** The slice of data/api.ts › ApiError the policy reads; status 0 is the client's own timeout. */
-type StatusError = { status: number; retryAfterSeconds?: number };
-
-function statusOf(err: unknown): StatusError | null {
-  const status = pathOf(err, "status");
-  if (typeof status !== "number") return null;
-  const retryAfter = pathOf(err, "retryAfterSeconds");
-  return typeof retryAfter === "number" ? { status, retryAfterSeconds: retryAfter } : { status };
-}
-
-/** True when repeating the same client_msg_id send may succeed later. */
-export function isRetriableChatSendError(err: unknown): boolean {
-  // fetch rejects with a TypeError when there is no network at all.
-  if (err instanceof TypeError) return true;
-  const status = statusOf(err)?.status;
-  if (status === undefined) return false;
-  return status === 0 || status === 408 || status === 429 || status >= 500;
-}
-
-/** True when the server refused this message for good (403, 404, 410, 422…); 401 is the session. */
-export function isPermanentChatSendRefusal(err: unknown): boolean {
-  const status = statusOf(err)?.status;
-  return status !== undefined && status >= 400 && status < 500 && status !== 401 && !isRetriableChatSendError(err);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export async function runWithChatSendRetry<T>(
-  fn: () => Promise<T>,
-  options?: { maxAttempts?: number; delaysMs?: readonly number[] },
-): Promise<T> {
-  const maxAttempts = options?.maxAttempts ?? CHAT_SEND_MAX_ATTEMPTS;
-  const delaysMs = options?.delaysMs ?? CHAT_SEND_RETRY_DELAYS_MS;
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return await fn();
-    } catch (err) {
-      const serverWait = (statusOf(err)?.retryAfterSeconds ?? 0) * 1_000;
-      if (attempt >= maxAttempts - 1 || !isRetriableChatSendError(err) || serverWait > CHAT_SEND_MAX_RETRY_AFTER_MS) {
-        throw err;
-      }
-      const delay = delaysMs[Math.min(attempt, delaysMs.length - 1)] ?? 400;
-      await sleep(Math.max(delay, serverWait));
-    }
-  }
+  return mergeOptimisticMessages(serverMessages, pending.map(pendingToOptimisticChatMessage), currentUserId);
 }

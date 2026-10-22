@@ -126,6 +126,7 @@
     "./chat/pending-messages-store": "./chat/pending-messages-store.ts",
     "./chat/pending-message-id": "./chat/pending-message-id.ts",
     "./chat/merge-optimistic-chat-messages": "./chat/merge-optimistic-chat-messages.ts",
+    "./chat/optimistic-merge": "./chat/optimistic-merge.ts",
     "./chat/realtime-cache": "./chat/realtime-cache.ts",
     "./chat/room-timeline": "./chat/room-timeline.ts",
     "./chat/room-timeline-pages": "./chat/room-timeline-pages.ts",

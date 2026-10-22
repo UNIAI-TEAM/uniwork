@@ -9,8 +9,10 @@ Ba lớp của tab Chat, key, cache, màn hình và luật của file route. Đ�
   plan `2026-10-17-unichat-mobile-chat.md`). Ba lớp:
   `lib/*` thuần, copy từ web có ghi nguồn và test parity chạy đúng case của
   test web (`rooms-display`, `typing-display`, `timeline-display`,
-  `send-pipeline`, `file-accept`, `media-body`,
-  `people-display`, `message-display`, `room-list`; hash nguồn ở `web-copies.json`); `data/*` — endpoint
+  `file-accept`, `media-body`,
+  `people-display`, `message-display`, `room-list`; hash nguồn ở `web-copies.json`; `send-pipeline` chỉ còn
+  hình dạng tin đang gửi của điện thoại, phép ghép với timeline là `chat/optimistic-merge` và chính sách thử lại là
+  `chat/send-retry` của core, dùng chung với web); `data/*` — endpoint
   (`chat-api.ts`, mỗi endpoint một case malformed), key riêng
   (`queries/chat-keys.ts`, không import `chatKeys` web; mỗi resource một module và một key factory — `chatKeys`
   (mọi key dưới `["chat", wsId]` trừ unread-summary của cả tài khoản, kể cả call log, preview nhấn giữ, ghi âm
