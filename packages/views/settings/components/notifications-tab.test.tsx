@@ -80,7 +80,7 @@ describe("NotificationsTab", () => {
     expect(await screen.findByText("Đã lưu")).toBeInTheDocument();
     expect(toastSuccess).not.toHaveBeenCalled();
     // Without push, one quiet line says why the column is missing.
-    expect(screen.getByText(/Máy chủ chưa bật thông báo đẩy/)).toBeInTheDocument();
+    expect(screen.getByText(/Máy chủ chưa bật thông báo đẩy khi đóng tab/)).toBeInTheDocument();
   });
 
   it("in UniChat keeps only the chat kinds and puts this device's chat cues in the desktop card", async () => {

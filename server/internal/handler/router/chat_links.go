@@ -26,13 +26,6 @@ func registerChatLinks(r api, h Routes, chatWriteLimit func(http.Handler) http.H
 			sdo:         sdo.ChatMessageLinkDTO{},
 			auth:        true,
 		})
-		lk.Get("/workspaces/{workspaceID}/chat/messages/{messageID}/links", h.ListChatMessageLinks, apiOp{
-			summary:     "List chat message links",
-			description: "Danh sách liên kết của một tin nhắn.",
-			tags:        []string{"chat"},
-			sdo:         sdo.ChatMessageLinkListSDO{},
-			auth:        true,
-		})
 		lk.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/message-links", h.ListChatRoomMessageLinks, apiOp{
 			summary:     "List links of many chat messages",
 			description: "Danh sách liên kết của nhiều tin nhắn trong một phòng (message_ids=a,b,…; tối đa 200).",

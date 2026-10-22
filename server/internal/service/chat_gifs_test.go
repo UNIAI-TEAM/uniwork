@@ -57,6 +57,48 @@ func TestChatGifsTenorProxy(t *testing.T) {
 	}
 }
 
+func TestTenorFeaturedResponseIsCached(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/featured" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		hits++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"results": [{
+				"id": "trend1",
+				"content_description": "wave",
+				"media_formats": {
+					"gif": {"url": "https://media.tenor.com/trend.gif"},
+					"tinygif": {"url": "https://media.tenor.com/trend-tiny.gif"}
+				}
+			}]
+		}`))
+	}))
+	defer srv.Close()
+
+	prev := tenorAPIBase
+	tenorAPIBase = srv.URL
+	t.Cleanup(func() { tenorAPIBase = prev })
+
+	s, _, _, ua, _, w := chatFixture(t)
+	s.TenorAPIKey = "test-key"
+	ctx := context.Background()
+
+	first, err := s.TrendingChatGifs(ctx, ua.ID, w.ID, 5)
+	if err != nil || len(first) != 1 {
+		t.Fatalf("first trending: err=%v items=%v", err, first)
+	}
+	second, err := s.TrendingChatGifs(ctx, ua.ID, w.ID, 5)
+	if err != nil || len(second) != 1 {
+		t.Fatalf("second trending: err=%v items=%v", err, second)
+	}
+	if hits != 1 {
+		t.Fatalf("Tenor featured hits = %d, want 1", hits)
+	}
+}
+
 func TestMapTenorGif(t *testing.T) {
 	item := mapTenorGif("abc", "wave hello", map[string]tenorMediaFormat{
 		"gif":     {URL: "https://example/full.gif"},

@@ -560,6 +560,15 @@ func (h *handlers) patchChatRoom(w http.ResponseWriter, r *http.Request) {
 	roomID := chi.URLParam(r, "roomID")
 	wsID := chi.URLParam(r, "workspaceID")
 	actorID := middleware.UserID(r.Context())
+	settingsChange := in.Name != nil || in.Topic != nil || in.MemberPermissions != nil
+	if in.Wallpaper == nil && !settingsChange {
+		if _, err := h.Chat.GetRoomMemberPermissions(r.Context(), actorID, wsID, roomID); err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+		respondError(w, http.StatusBadRequest, "invalid_request", "no fields to update")
+		return
+	}
 	if in.Wallpaper != nil {
 		if err := h.Chat.UpdateChatRoomWallpaperPreset(
 			r.Context(), actorID, wsID, roomID, in.Wallpaper.Preset,
@@ -578,11 +587,7 @@ func (h *handlers) patchChatRoom(w http.ResponseWriter, r *http.Request) {
 		next := patchMemberPermissionsFromSDI(current, in.MemberPermissions)
 		merged = &next
 	}
-	settingsChange := in.Name != nil || in.Topic != nil || merged != nil
-	if in.Wallpaper == nil && !settingsChange {
-		respondError(w, http.StatusBadRequest, "invalid_request", "no fields to update")
-		return
-	}
+	settingsChange = in.Name != nil || in.Topic != nil || merged != nil
 	var perms service.ChatRoomMemberPermissions
 	var err error
 	if settingsChange {

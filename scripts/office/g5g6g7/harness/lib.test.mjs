@@ -24,13 +24,14 @@ const STOP_SH = join(HERE, "stop.sh");
 // them is removed by the hook below: `afterEach` so a test cannot leave its
 // own dir behind for the next one (and the last test can prove the file as a
 // whole leaves none), `after` as the final sweep if a hook ever misses one.
-// The snapshot is taken before any test runs, so a `harness-*` dir some other
-// process (or an earlier run) left in os.tmpdir() is not this file's problem.
-const HARNESS_TMP_BEFORE = new Set(readdirSync(tmpdir()).filter((name) => name.startsWith("harness-")));
+// PID in the prefix so parallel CI workers do not fail the leak test on each
+// other's `harness-*` dirs in the shared os.tmpdir().
+const HARNESS_TMP_PID_PREFIX = `harness-${process.pid}-`;
+const HARNESS_TMP_BEFORE = new Set(readdirSync(tmpdir()).filter((name) => name.startsWith(HARNESS_TMP_PID_PREFIX)));
 const TMP_DIRS = new Set();
 
-function tmpDir(prefix) {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
+function tmpDir(suffix) {
+  const dir = mkdtempSync(join(tmpdir(), HARNESS_TMP_PID_PREFIX + suffix));
   TMP_DIRS.add(dir);
   return dir;
 }
@@ -1984,7 +1985,7 @@ test("start.sh passes --remote-debugging-port before the shell app dir so the ru
 // runs a file's tests in declaration order), so a dir this file created and
 // did not remove is still visible here.
 test("no harness-* temp dir of this file is left in os.tmpdir()", () => {
-  const leaked = readdirSync(tmpdir()).filter((name) => name.startsWith("harness-") && !HARNESS_TMP_BEFORE.has(name));
+  const leaked = readdirSync(tmpdir()).filter((name) => name.startsWith(HARNESS_TMP_PID_PREFIX) && !HARNESS_TMP_BEFORE.has(name));
   assert.deepEqual(leaked, [], `temp dirs left behind: ${leaked.join(", ")}`);
 });
 

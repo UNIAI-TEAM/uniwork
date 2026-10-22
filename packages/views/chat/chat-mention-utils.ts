@@ -246,18 +246,23 @@ export function insertMentionToken(
   return { nextDraft, nextCursor: before.length + token.length + 1 };
 }
 
+/** Enough to pick from; typing more letters narrows the rest (UNI-1732). */
+export const MENTION_CANDIDATE_LIMIT = 20;
+
 export function filterMentionCandidates(
   candidates: ChatMentionCandidate[],
   query: string,
   options: { allLabel: string; includeAll?: boolean },
 ): ChatMentionCandidate[] {
   const q = query.trim();
-  const filtered = candidates.filter((candidate) => {
-    if (candidate.kind === "all") return false;
-    if (!q) return true;
-    // Accent-insensitive, so "tuan" finds "Tuấn".
-    return foldedIncludes(candidate.label, q) || foldedIncludes(candidate.email ?? "", q);
-  });
+  const filtered = candidates
+    .filter((candidate) => {
+      if (candidate.kind === "all") return false;
+      if (!q) return true;
+      // Accent-insensitive, so "tuan" finds "Tuấn".
+      return foldedIncludes(candidate.label, q) || foldedIncludes(candidate.email ?? "", q);
+    })
+    .slice(0, MENTION_CANDIDATE_LIMIT);
 
   const includeAll = options.includeAll !== false;
 
