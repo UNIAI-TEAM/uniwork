@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { FLOOR_FILE, MEASURES, raiseFloors, root, unmeasured } from "./mobile-coverage-floor.mjs";
+import { FLOOR_FILE, MEASURES, measuredFrom, raiseFloors, raiseRoutes, root, routesMeasured, unmeasured } from "./mobile-coverage-floor.mjs";
 
 const floor = JSON.parse(fs.readFileSync(FLOOR_FILE, "utf8"));
 
@@ -88,8 +88,30 @@ test("every recorded file exists, with a floor for each measure, and new files m
   for (const m of MEASURES) assert.ok(floor.global[m] >= 80, `the global floor for new files stays high (${m})`);
 });
 
-test("jest.config.js measures the whole component tree and reads this floor", () => {
+test("jest.config.js measures the whole component tree and the route files, and reads this floor", () => {
   const config = fs.readFileSync(path.join(root, "apps/chat-mobile/jest.config.js"), "utf8");
   assert.match(config, /"components\/\*\*\/\*\.\{ts,tsx\}"/);
+  assert.match(config, /"app\/\*\*\/\*\.tsx"/, "the route files are measured (audit 'coverage-allowlist')");
+  assert.match(config, /\[`\$\{path\.join\(__dirname, "app"\)\}\/`\]: floor\.routes/, "as one group, at the routes floor");
+  assert.match(config, /"<rootDir>\/test\/routes\/\*\*\/\*\.test\.tsx"/, "the route tests run");
   assert.match(config, /coverage-floor\.json/);
+});
+
+// app/: composition rendered through the real router (test/routes/), held as one group whose floor only rises.
+test("the route files are measured as one group, outside the per-file floors", () => {
+  const APP = path.join(root, "apps/chat-mobile");
+  const entry = (total, covered) => Object.fromEntries(MEASURES.map((m) => [m, { total, covered, pct: total ? (100 * covered) / total : 100 }]));
+  const summary = {
+    total: entry(30, 20),
+    [path.join(APP, "app/index.tsx")]: entry(10, 9),
+    [path.join(APP, "app/(auth)/login.tsx")]: entry(10, 1),
+    [path.join(APP, "components/ui/button.tsx")]: entry(10, 10),
+  };
+  assert.deepEqual(Object.keys(measuredFrom(summary)), ["components/ui/button.tsx"], "no route file gets a floor of its own");
+  assert.deepEqual(routesMeasured(summary), Object.fromEntries(MEASURES.map((m) => [m, 50])), "covered over total across the group");
+  assert.equal(routesMeasured({ total: entry(1, 1), [path.join(APP, "components/a.tsx")]: entry(1, 1) }), null, "a run that measured no route");
+  assert.deepEqual(raiseRoutes({ statements: 40, branches: 60, functions: 10, lines: 50 }, { statements: 50.9, branches: 55, functions: 23.4, lines: 50 }), { statements: 50, branches: 60, functions: 23, lines: 50 });
+  assert.deepEqual(raiseRoutes(undefined, { statements: 1.5, branches: 0, functions: 0, lines: 0 }), { statements: 1, branches: 0, functions: 0, lines: 0 });
+  for (const m of MEASURES) assert.ok(Number.isInteger(floor.routes?.[m]) && floor.routes[m] > 0, `coverage-floor.json › routes.${m} is recorded`);
+  assert.ok(Object.keys(floor.files).every((file) => !file.startsWith("app/")), "route files are the group's, not per file");
 });

@@ -650,9 +650,12 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
   `fireGestureHandler`; `react-native-gesture-handler/jestSetup` nạp sẵn ở `test/jest-setup.ts` vì mọi sheet có
   `GestureHandlerRootView`); `onUpdate` chỉ chạy từ sự kiện ACTIVE thứ hai. Test đếm render chờ hàng xuất hiện (`waitFor`), không chờ một khoảng cố định.
   `test/jest-resolver.js` thay resolver của worklets (bản gốc khớp mọi đường dẫn
-  pnpm có chữ `react-native-worklets`, làm mất mock native của Expo). Coverage đo **cả cây** `components/**` và các
-  hook React của `data/` mà vitest bỏ ra (mỗi file đúng một lớp đo; chỉ `app/` không đo — file route chỉ ghép, không
-  định nghĩa component con: `lib/route-files.test.ts`).
+  pnpm có chữ `react-native-worklets`, làm mất mock native của Expo). Coverage đo **cả cây** `components/**`, các
+  hook React của `data/` mà vitest bỏ ra và file route `app/**` (mỗi file đúng một lớp đo). File route chỉ ghép, không
+  định nghĩa component con (`lib/route-files.test.ts`), nên được giữ như **một nhóm** ở sàn `routes` của
+  `coverage-floor.json` (khoá thư mục của jest, cộng dồn), không theo từng file; `test/routes/*.test.tsx` render chúng
+  qua expo-router thật (`test/route-render.tsx › renderRoutes`: `jest.unmock("expo-router")` trong file test, mock
+  NetInfo, route con chưa test thì thay bằng stand-in) — cổng vào/đăng nhập/chọn workspace ở `test/routes/entry.test.tsx`.
   Sàn theo từng file ở `coverage-floor.json` (`scripts/mobile-coverage-floor.mjs --write` sau một lần
   `test:components`: lấy số cao hơn giữa sàn cũ và hôm nay, không bao giờ hạ; file đã xoá thì rời); file chưa ghi
   (component mới) gộp vào sàn `global` 90/80/90/90 — component mới không test thì đỏ

@@ -11,6 +11,10 @@
 // that still exists was not measured (a narrowed jest run), instead of
 // dropping that file's floor.
 //
+// The route files (app/) are measured as one group instead (`routes`): they only compose
+// (lib/route-files.test.ts) and are rendered through the real router by test/routes/, so their floor
+// is the group's, raised the same way, never lowered.
+//
 //   pnpm --filter @uniwork/chat-mobile run test:components   (writes coverage/components/coverage-summary.json)
 //   node scripts/mobile-coverage-floor.mjs --write
 import fs from "node:fs";
@@ -46,14 +50,39 @@ export function unmeasured(recorded, measured, exists = (file) => fs.existsSync(
   return Object.keys(recorded).filter((file) => !(file in measured) && exists(file));
 }
 
-/** jest's json-summary, keyed by the app-relative path, as pct per measure. */
+const appRelative = (file) => path.relative(APP, file).split(path.sep).join("/");
+/** A route file (app/), measured with its group, not on its own. */
+export const isRoute = (file) => file.startsWith("app/");
+
+/** jest's json-summary, keyed by the app-relative path, as pct per measure; route files left to routesMeasured. */
 export function measuredFrom(summary) {
   const out = {};
   for (const [file, data] of Object.entries(summary)) {
-    if (file === "total") continue;
-    out[path.relative(APP, file).split(path.sep).join("/")] = Object.fromEntries(MEASURES.map((m) => [m, data[m].pct]));
+    if (file === "total" || isRoute(appRelative(file))) continue;
+    out[appRelative(file)] = Object.fromEntries(MEASURES.map((m) => [m, data[m].pct]));
   }
   return out;
+}
+
+/** The route files' coverage as one group, as jest aggregates a directory threshold; null when none was measured. */
+export function routesMeasured(summary) {
+  const sums = Object.fromEntries(MEASURES.map((m) => [m, { total: 0, covered: 0 }]));
+  let any = false;
+  for (const [file, data] of Object.entries(summary)) {
+    if (file === "total" || !isRoute(appRelative(file))) continue;
+    any = true;
+    for (const m of MEASURES) {
+      sums[m].total += data[m].total;
+      sums[m].covered += data[m].covered;
+    }
+  }
+  if (!any) return null;
+  return Object.fromEntries(MEASURES.map((m) => [m, sums[m].total === 0 ? 100 : (100 * sums[m].covered) / sums[m].total]));
+}
+
+/** The group's floor raised to what was measured (rounded down), never lowered. */
+export function raiseRoutes(recorded, measured) {
+  return Object.fromEntries(MEASURES.map((m) => [m, Math.max(recorded?.[m] ?? 0, Math.floor(measured[m]))]));
 }
 
 if (process.argv.includes("--write")) {
@@ -69,6 +98,12 @@ if (process.argv.includes("--write")) {
     console.error(`below the global floor ${JSON.stringify(floor.global)}, not recorded — test them first:\n  ${refused.join("\n  ")}`);
     process.exit(1);
   }
+  const routes = routesMeasured(JSON.parse(fs.readFileSync(SUMMARY, "utf8")));
+  if (routes === null) {
+    console.error("the route files (app/) were not measured by the last run: run the whole test:components suite");
+    process.exit(1);
+  }
+  floor.routes = raiseRoutes(floor.routes, routes);
   floor.files = files;
   fs.writeFileSync(FLOOR_FILE, `${JSON.stringify(floor, null, 2)}\n`);
   console.log(`recorded ${Object.keys(floor.files).length} files in ${path.relative(root, FLOOR_FILE)}`);

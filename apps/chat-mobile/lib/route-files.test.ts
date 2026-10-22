@@ -1,7 +1,8 @@
 // Route files (app/**) compose a screen: its queries, its state and the wiring
 // of parts that live in components/ (measured by jest) or lib/ (measured here).
-// jest.config.js does not measure app/, so a component or hook defined in a
-// route file would sit outside every coverage floor. This test holds that: a
+// jest.config.js measures app/ only as one group (coverage-floor.json › routes,
+// rendered through the real router by test/routes/), so a component or hook
+// defined in a route file would escape the per-file floors. This test holds that: a
 // route file defines its default export and nothing else, except the names
 // below, each with the reason it has to be there. The list only shrinks.
 import fs from "node:fs";

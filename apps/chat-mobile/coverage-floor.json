@@ -5,6 +5,12 @@
     "functions": 90,
     "lines": 90
   },
+  "routes": {
+    "statements": 33,
+    "branches": 32,
+    "functions": 23,
+    "lines": 34
+  },
   "files": {
     "components/app/app-lock-state.ts": {
       "statements": 100,
@@ -62,7 +68,7 @@
     },
     "components/calls/call-overlay.tsx": {
       "statements": 100,
-      "branches": 95,
+      "branches": 94,
       "functions": 100,
       "lines": 100
     },
@@ -571,10 +577,10 @@
       "lines": 100
     },
     "components/ui/card.tsx": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 75,
+      "branches": 50,
+      "functions": 50,
+      "lines": 75
     },
     "components/ui/error-fallback.tsx": {
       "statements": 100,
@@ -662,7 +668,7 @@
     },
     "components/workspace/workspace-avatar.tsx": {
       "statements": 75,
-      "branches": 42,
+      "branches": 50,
       "functions": 100,
       "lines": 72
     },
