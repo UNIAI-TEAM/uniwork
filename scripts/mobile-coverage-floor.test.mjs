@@ -60,7 +60,6 @@ const BELOW_GLOBAL = new Set([
   "components/settings/devices-section.tsx",
   "components/settings/push-section.tsx",
   "components/ui/card.tsx",
-  "components/ui/permission-gate.ts",
   "components/ui/separator.tsx",
   "components/ui/text.tsx",
   "components/ui/use-color-scheme.ts",

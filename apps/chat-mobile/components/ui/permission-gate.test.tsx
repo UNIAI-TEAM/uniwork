@@ -70,6 +70,20 @@ describe("permissionGate on the expo permission modules", () => {
     expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
   });
 
+  it("asks for notifications at launch once per phone, on the device store", async () => {
+    jest.mocked(Notifications.getPermissionsAsync).mockResolvedValueOnce(status(false) as never).mockResolvedValueOnce(status(false) as never);
+    jest.mocked(Notifications.requestPermissionsAsync).mockResolvedValueOnce(status(true) as never);
+    const first = permissionGate.ensure("notifications", "notifications", { once: true });
+    await settle();
+    expect(usePrimerStore.getState().request).toMatchObject({ kind: "notifications", step: "prime" });
+    answerPrimer(true);
+    await expect(first).resolves.toBe(true);
+    // Remembered: the launch ask never shows again, whatever the system says now.
+    await expect(permissionGate.ensure("notifications", "notifications", { once: true })).resolves.toBe(false);
+    expect(usePrimerStore.getState().request).toBeNull();
+    expect(Notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back to the system prompt when the status cannot be read", async () => {
     jest.mocked(getRecordingPermissionsAsync).mockRejectedValueOnce(new Error("no activity"));
     jest.mocked(requestRecordingPermissionsAsync).mockResolvedValueOnce(status(false) as never);

@@ -6,6 +6,12 @@
     "lines": 90
   },
   "files": {
+    "components/app/app-lock-state.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/app/i18n-provider.tsx": {
       "statements": 100,
       "branches": 100,
@@ -56,7 +62,7 @@
     },
     "components/calls/call-overlay.tsx": {
       "statements": 100,
-      "branches": 94,
+      "branches": 95,
       "functions": 100,
       "lines": 100
     },
@@ -595,10 +601,10 @@
       "lines": 100
     },
     "components/ui/permission-gate.ts": {
-      "statements": 58,
+      "statements": 100,
       "branches": 100,
-      "functions": 16,
-      "lines": 66
+      "functions": 100,
+      "lines": 100
     },
     "components/ui/permission-primer.tsx": {
       "statements": 100,
