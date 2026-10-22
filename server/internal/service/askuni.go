@@ -742,6 +742,8 @@ type askTurn struct {
 	Steps                    []AskStep
 	Followups                []string
 	Regenerates              string
+	// Model is the catalogue key of the model the person chose; "" for Auto.
+	Model string
 }
 
 // jsonOrEmptyList marshals v, writing "[]" for a nil slice.
@@ -781,7 +783,7 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTu
 	msg, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
 		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: t.Answer,
 		Citations: jsonOrEmptyList(t.Citations), UsageEventID: strText(t.UsageEventID), Notice: strText(t.Notice),
-		Steps: jsonOrEmptyList(t.Steps), Followups: jsonOrEmptyList(t.Followups), Mentions: "[]",
+		Steps: jsonOrEmptyList(t.Steps), Followups: jsonOrEmptyList(t.Followups), Mentions: "[]", Model: t.Model,
 	})
 	if err != nil {
 		return db.AiMessage{}, err

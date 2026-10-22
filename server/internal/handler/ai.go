@@ -19,7 +19,7 @@ import (
 func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	var cites []service.AskCitation
 	_ = json.Unmarshal([]byte(m.Citations), &cites)
-	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: citationDTOs(cites), Notice: m.Notice.String, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
+	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: citationDTOs(cites), Notice: m.Notice.String, Model: m.Model, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
 	out.Steps, out.Followups, out.Mentions = []sdo.AiStepDTO{}, []string{}, []sdo.AiContextRefDTO{}
 	// A column that is NULL or does not decode reads as empty, never an error.
 	for _, st := range decodeList[service.AskStep](m.Steps) {
@@ -67,7 +67,7 @@ func (h *handlers) aiCapabilities(w http.ResponseWriter, r *http.Request) {
 	}
 	models := make([]sdo.AiModelOptionDTO, 0, len(c.Models))
 	for _, m := range c.Models {
-		models = append(models, sdo.AiModelOptionDTO{Key: m.Key, Speed: m.Speed, Intelligence: m.Intelligence, Cost: m.Cost, Enabled: m.Enabled})
+		models = append(models, sdo.AiModelOptionDTO{Key: m.Key, Provider: m.Provider, Speed: m.Speed, Intelligence: m.Intelligence, Cost: m.Cost, Enabled: m.Enabled})
 	}
 	respondJSON(w, 200, sdo.AiCapabilitiesSDO{
 		Enabled: c.Enabled, AskUni: c.AskUni, MeetingSummary: c.MeetingSummary,

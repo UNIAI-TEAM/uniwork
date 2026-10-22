@@ -419,6 +419,10 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	msgs := append(slices.Clip(hist), provider.Message{Role: "user", Content: prompt.Render(vars)})
 	tools := s.agentTools()
 	model, effort := s.resolveAskModel(runCtx, w.OrganizationID, in.Model, in.Effort)
+	// The answer records the choice when it held, Auto ("") when it fell back.
+	if model != "" {
+		base.Model = in.Model
+	}
 	req := ai.Request{
 		Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
 		Capability: ai.CapCopilotAgent, PromptID: promptID, Vars: vars, History: hist,
@@ -636,7 +640,7 @@ func namedSources(answer string, b *sourceBook) string {
 // finishAgent stores the turn with the last call's usage row. Its text
 // already streamed, so it ends with citations, any follow-ups and done.
 func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, base askTurn, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep, followups []string) (AskResult, error) {
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates})
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model})
 	if err != nil {
 		return AskResult{}, err
 	}

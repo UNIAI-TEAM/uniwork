@@ -21,6 +21,7 @@ type AiCapabilitiesSDO struct {
 // AiModelOptionDTO is one selectable Ask UNI model.
 type AiModelOptionDTO struct {
 	Key          string `json:"key" description:"haiku, sonnet hoặc opus" example:"sonnet"`
+	Provider     string `json:"provider" description:"Nhà cung cấp chạy model này: anthropic, openai, ollama" example:"anthropic"`
 	Speed        int    `json:"speed" description:"Độ nhanh, 1-5" example:"4"`
 	Intelligence int    `json:"intelligence" description:"Độ thông minh, 1-5" example:"4"`
 	Cost         int    `json:"cost" description:"Nấc chi phí, 1-5, theo giá vào + ra" example:"3"`
@@ -67,6 +68,7 @@ type AiMessageDTO struct {
 	Followups []string          `json:"followups" description:"Câu hỏi gợi ý tiếp theo" example:"[\"Việc nào trễ nhất?\"]"`
 	Focus     *AiContextRefDTO  `json:"focus,omitempty" description:"Đối tượng câu hỏi đang xem; vắng khi không có" example:"{\"kind\":\"task\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\",\"title\":\"Viết spec F-09\"}"`
 	Mentions  []AiContextRefDTO `json:"mentions" description:"Các đối tượng người hỏi @-nhắc tới" example:"[{\"kind\":\"member\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\",\"title\":\"An\"}]"`
+	Model     string            `json:"model" description:"Model người hỏi chọn cho câu trả lời (haiku, sonnet, opus); rỗng khi là Tự động" example:"opus"`
 	CreatedAt string            `json:"created_at" example:"2026-09-06T08:00:00Z"`
 }
 

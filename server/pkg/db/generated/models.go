@@ -67,6 +67,7 @@ type AiMessage struct {
 	Focus          pgtype.Text        `json:"focus"`
 	Mentions       string             `json:"mentions"`
 	SupersededAt   pgtype.Timestamptz `json:"superseded_at"`
+	Model          string             `json:"model"`
 }
 
 type AiMessageFeedback struct {
