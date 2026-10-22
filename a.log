@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18520 13440; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18520/tcp 13440/tcp 2>/dev/null; sleep 1; for p in 18520 13440; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+bdc1b62a73b87dc1d3b74abd4422a2cfc4addc2a
+bdc1b62a7 chore: merge the UNI-2074 web slice (f12108ce0) into the lane branch
+99ffe2ea7 docs(adr): amend ADR 0037 point 5 for every trashed root
+8ec93fecd feat(documents): relocate unmanaged documents when any root is trashed
+d2e8b1e2f test(documents): pin the trash relocation for every root (red)
