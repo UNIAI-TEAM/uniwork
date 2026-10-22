@@ -6,10 +6,10 @@
     "lines": 90
   },
   "routes": {
-    "statements": 33,
-    "branches": 32,
-    "functions": 23,
-    "lines": 34
+    "statements": 66,
+    "branches": 66,
+    "functions": 53,
+    "lines": 67
   },
   "files": {
     "components/app/app-lock-state.ts": {
@@ -68,19 +68,19 @@
     },
     "components/calls/call-overlay.tsx": {
       "statements": 100,
-      "branches": 94,
+      "branches": 96,
       "functions": 100,
       "lines": 100
     },
     "components/calls/call-room.tsx": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "components/calls/call-surface.tsx": {
       "statements": 100,
-      "branches": 86,
+      "branches": 97,
       "functions": 100,
       "lines": 100
     },
@@ -116,7 +116,7 @@
     },
     "components/chat/chat-header.tsx": {
       "statements": 100,
-      "branches": 76,
+      "branches": 95,
       "functions": 100,
       "lines": 100
     },
@@ -140,9 +140,9 @@
     },
     "components/chat/conversation.tsx": {
       "statements": 70,
-      "branches": 72,
-      "functions": 45,
-      "lines": 72
+      "branches": 73,
+      "functions": 46,
+      "lines": 73
     },
     "components/chat/emoji-sheet.tsx": {
       "statements": 80,
@@ -361,14 +361,14 @@
       "lines": 100
     },
     "components/chat/use-read-marking.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "components/chat/use-room-context.ts": {
       "statements": 100,
-      "branches": 88,
+      "branches": 95,
       "functions": 100,
       "lines": 100
     },
@@ -397,10 +397,10 @@
       "lines": 100
     },
     "components/chat/use-voice-recorder.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "components/chat/voice-card.tsx": {
       "statements": 100,
@@ -475,10 +475,10 @@
       "lines": 100
     },
     "components/settings/devices-section.tsx": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "components/settings/full-screen-calls-row.tsx": {
       "statements": 100,
@@ -517,10 +517,10 @@
       "lines": 100
     },
     "components/settings/push-section.tsx": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "components/settings/settings-row.tsx": {
       "statements": 100,
@@ -596,7 +596,7 @@
     },
     "components/ui/header.tsx": {
       "statements": 100,
-      "branches": 81,
+      "branches": 90,
       "functions": 100,
       "lines": 100
     },
@@ -674,15 +674,15 @@
     },
     "components/workspace/workspace-switch-sheet.tsx": {
       "statements": 76,
-      "branches": 55,
+      "branches": 60,
       "functions": 42,
       "lines": 85
     },
     "data/calls/call-store.ts": {
-      "statements": 40,
+      "statements": 70,
       "branches": 100,
-      "functions": 33,
-      "lines": 42
+      "functions": 66,
+      "lines": 71
     },
     "data/mutations/account.ts": {
       "statements": 100,
@@ -721,16 +721,16 @@
       "lines": 100
     },
     "data/query-client.ts": {
-      "statements": 77,
+      "statements": 88,
       "branches": 100,
-      "functions": 60,
-      "lines": 75
+      "functions": 80,
+      "lines": 87
     },
     "data/realtime/realtime-provider.tsx": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "data/realtime/use-call-realtime.ts": {
       "statements": 100,
@@ -739,10 +739,10 @@
       "lines": 100
     },
     "data/realtime/use-chat-realtime.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "data/realtime/use-workspace-realtime.ts": {
       "statements": 100,
@@ -751,8 +751,8 @@
       "lines": 100
     },
     "data/realtime/use-ws-subscriptions.ts": {
-      "statements": 87,
-      "branches": 50,
+      "statements": 100,
+      "branches": 75,
       "functions": 100,
       "lines": 100
     },

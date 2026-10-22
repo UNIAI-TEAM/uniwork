@@ -669,7 +669,12 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
   định nghĩa component con (`lib/route-files.test.ts`), nên được giữ như **một nhóm** ở sàn `routes` của
   `coverage-floor.json` (khoá thư mục của jest, cộng dồn), không theo từng file; `test/routes/*.test.tsx` render chúng
   qua expo-router thật (`test/route-render.tsx › renderRoutes`: `jest.unmock("expo-router")` trong file test, mock
-  NetInfo, route con chưa test thì thay bằng stand-in) — cổng vào/đăng nhập/chọn workspace ở `test/routes/entry.test.tsx`.
+  NetInfo, route con chưa test thì thay bằng stand-in) — cổng vào/đăng nhập/chọn workspace ở `test/routes/entry.test.tsx`;
+  mọi màn trong workspace (layout với socket, thanh tab, Chat/Cuộc gọi/Danh bạ/Cài đặt, phòng, chi tiết, chủ đề, tin
+  mới, nhóm mới, kênh, giấy phép, công tắc gọi của server) ở `test/routes/workspace.test.tsx`, trên một server giả sau
+  `api.request` (theo đường dẫn; mọi thứ khác trả `{}`) và socket giả `test/fake-ws-client.ts` (test đóng vai server:
+  trạng thái, frame, reconnect, phiên bị kết thúc). Server giả chỉ trả lời sau khi router đã mount: `renderRouter` mount
+  dưới fake timer, và một lô cập nhật TanStack hẹn trên fake timer mà `renderRoutes` không chạy sẽ giữ mọi cập nhật sau.
   Sàn theo từng file ở `coverage-floor.json` (`scripts/mobile-coverage-floor.mjs --write` sau một lần
   `test:components`: lấy số cao hơn giữa sàn cũ và hôm nay, không bao giờ hạ; file đã xoá thì rời); file chưa ghi
   (component mới) gộp vào sàn `global` 90/80/90/90 — component mới không test thì đỏ
