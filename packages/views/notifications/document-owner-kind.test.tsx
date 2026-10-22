@@ -60,7 +60,8 @@ describe("document_owner_transferred kind", () => {
   });
 
   it("uses a title-less sentence once the name is gone, and it resolves", () => {
-    for (const params of [{ actor: "Bình" }, { actor: "Bình", document: "" }, { actor: "Bình", document: "  " }]) {
+    const cases: Record<string, string>[] = [{ actor: "Bình" }, { actor: "Bình", document: "" }, { actor: "Bình", document: "  " }];
+    for (const params of cases) {
       const n = notification(params);
       expect(notificationTitleKey(n)).toBe(`notifications.kind.${KIND}_untitled`);
       const text = sentence(n) ?? "";
