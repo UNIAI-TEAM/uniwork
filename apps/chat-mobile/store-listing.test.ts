@@ -171,3 +171,29 @@ describe("the Data safety column's Shared answers", () => {
     }
   });
 });
+
+// Review finding: the opt-out copy said "what you write is never sent to AI", but the server
+// (server/internal/service/ai_opt_out.go) leaves a decliner's words out of conversation messages in catch-up,
+// Ask UNI and the call summary only; meeting chat and transcripts, task comments and documents still reach the
+// provider. The app, the listing and the privacy policy promise that scope and nothing wider.
+describe("the AI opt-out promise", () => {
+  const SCOPE = { vi: "Bắt kịp, Hỏi UNI và tóm tắt cuộc gọi", en: "catch-up, Ask UNI and call summaries" } as const;
+  const OVERCLAIM = { vi: /không (còn )?được gửi tới AI|mọi yêu cầu AI/, en: /never sent to AI|not sent to AI|every AI request/ } as const;
+
+  it.each(["vi", "en"] as const)("%s: every line that states it names the paths the server filters", (locale) => {
+    const bundle = JSON.parse(fs.readFileSync(path.join(__dirname, `locales/${locale}.json`), "utf8")) as {
+      mobile: { ai_consent: Record<string, string> };
+    };
+    for (const key of ["point_withdraw", "withdrawn", "refused", "refused_note"]) {
+      const line = bundle.mobile.ai_consent[key]!;
+      expect(line, key).toContain(SCOPE[locale]);
+      expect(line, key).not.toMatch(OVERCLAIM[locale]);
+    }
+  });
+
+  it("the listing answers review with the same scope", () => {
+    const [, when, apple] = tableRows("## Quyền riêng tư").find(([name]) => name!.startsWith("Xử lý AI"))!;
+    expect(when).toContain("chỉ bỏ tin họ viết trong các cuộc trò chuyện khỏi Bắt kịp, Hỏi UNI và tóm tắt cuộc gọi");
+    expect(`${when} ${apple}`).not.toMatch(OVERCLAIM.vi);
+  });
+});

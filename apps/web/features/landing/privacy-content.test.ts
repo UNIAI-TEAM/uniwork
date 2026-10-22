@@ -56,7 +56,14 @@ describe("privacy policy", () => {
       expect(ai).toContain(locale === "vi" ? "ứng dụng UniChat cho Android và iPhone" : "UniChat apps for Android and iPhone");
       expect(ai).toContain(locale === "vi" ? "khi bất kỳ thành viên nào dùng AI" : "whenever any member uses AI");
       expect(ai).toContain(locale === "vi" ? "chỉ áp dụng cho yêu cầu AI của chính bạn" : "covers only your own AI requests");
-      expect(ai).toContain(locale === "vi" ? "tin nhắn chat bạn viết không được gửi tới AI nữa" : "the chat messages you write are left out of every AI request");
+      // Only what ai_opt_out.go filters: conversation messages in catch-up, Ask UNI and the call summary.
+      expect(ai).toContain(
+        locale === "vi"
+          ? "tin nhắn bạn viết trong các cuộc trò chuyện được loại khỏi Bắt kịp, Hỏi UNI và tóm tắt cuộc gọi"
+          : "the messages you write in conversations are left out of catch-up, Ask UNI and call summaries",
+      );
+      expect(ai).toContain(locale === "vi" ? "không áp dụng cho lời nói và tin nhắn trong cuộc họp" : "does not cover what you say or write in a meeting");
+      expect(ai).not.toMatch(locale === "vi" ? /không được gửi tới AI nữa/ : /every AI request/);
       expect(ai).not.toMatch(locale === "vi" ? /Trong ứng dụng UniChat, trước lần đầu/ : /In the UniChat app you are asked/);
     }
   });

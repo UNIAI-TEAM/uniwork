@@ -29,7 +29,10 @@ Xoá tài khoản, pháp lý, giấy phép, đồng ý AI, báo cáo và chặn,
   `useAiConsent()`. Đồng ý mở AI cho chính người dùng trên điện thoại; **từ chối** (nút "Không cho phép" của
   Cài đặt, hay rút lại) là `DELETE /me/ai-consent`, server ghi `users.ai_opt_out_at` (lộ ra ở `user.ai_opt_out_at`,
   `lib/ai-consent.ts › hasDeclinedAi`) và mọi đường AI đọc chat — Bắt kịp, nguồn chat và công cụ đọc phòng của Hỏi UNI
-  (cả qua MCP), tóm tắt cuộc gọi — bỏ tin của người đó (`server/internal/service/ai_opt_out.go`), dù ai yêu cầu. Người
+  (cả qua MCP), tóm tắt cuộc gọi — bỏ tin của người đó (`server/internal/service/ai_opt_out.go`), dù ai yêu cầu.
+  Phạm vi chỉ có vậy: tóm tắt cuộc họp (chat và bản ghi lời nói trong phòng họp), bình luận công việc (kể cả bình luận
+  chép từ tin chat) và tài liệu không lọc, nên chữ của app, listing và chính sách chỉ hứa "loại khỏi Bắt kịp, Hỏi UNI và
+  tóm tắt cuộc gọi" (`store-listing.test.ts › the AI opt-out promise`, `privacy-content.test.ts`). Người
   chưa trả lời thì tin vẫn tới Anthropic khi thành viên khác dùng AI trên web — chính sách và dòng "Xử lý AI" của listing
   nói đúng vậy (`privacy-content.test.ts`), đừng viết lại thành "chỉ khi người dùng đồng ý". Biên bản cuộc họp
   (meetings) chưa lọc theo người từ chối. **Báo cáo và chặn**: `data/safety-api.ts` (route chặn qua factory `chat-users-api` của core + `POST …/chat/reports`), key
