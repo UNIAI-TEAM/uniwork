@@ -139,6 +139,12 @@ và `Limit` (`query:"limit"`); SDO là `{Resource}ListSDO` với
 gửi lại nguyên văn. Ví dụ: `sdi.ListChatCallLogsSDI` /
 `sdo.ChatCallLogListSDO` của `GET /workspaces/{workspaceID}/chat/call-logs`.
 
+Query param lặp (`?type=docx&type=xlsx`): khai `[]string` với `query:"type"`;
+`example` của slice phải là JSON (`example:"[\"docx\",\"xlsx\"]"`), nếu không
+spec panic lúc khởi động. Handler đọc bằng `r.URL.Query()["type"]`, không dùng
+`Get`. Ví dụ: `ListDocumentsSDI.Type` (UNI-2113);
+`TestDocumentListsDocumentTheRepeatedTypeParam` giữ spec là mảng explode.
+
 Không dùng tag Gin `binding:"required"`. Field bắt buộc = value
 (không pointer), không `omitempty`. Optional PATCH = `*string`.
 

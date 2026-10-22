@@ -527,7 +527,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		summary: "List documents",
 		description: "Danh sách tài liệu workspace, mới sửa trước. parent_id = một cấp cây theo position; q = tìm toàn workspace kèm snippet; shared_by_me=true = tài liệu sống người gọi làm ACL owner đang chia sẻ (dùng cùng parent_id -> 400 invalid_filter); kind/archived/updated_by/updated_from/updated_to là filter. " +
 			"format (docx, xlsx, pptx, pdf, md, html, txt) lọc theo định dạng của phiên bản hiện tại (MIME đã xác minh, nếu không có thì theo phần mở rộng tiêu đề; thư mục luôn ở lại, trang không khớp) và access (manage, edit, restricted) lọc theo quyền của người gọi trên dòng, cùng cấp mà my_level báo. " +
-			"Giá trị lạ, format cùng kind=page, và access=manage/edit trên thùng rác -> 400 invalid_filter. Quyền và cả hai filter được lọc trong query trước limit nên cursor ổn định và trang luôn đầy khi còn dòng khớp; archived=1 chỉ manage.",
+			"Giá trị lạ, format cùng kind=page, và access=manage/edit trên thùng rác -> 400 invalid_filter. type lặp được (?type=docx&type=xlsx; page hoặc một định dạng, cộng nhau) và thu hẹp thêm cùng kind/format, giá trị lạ hoặc rỗng -> 400 invalid_type. Quyền và cả hai filter được lọc trong query trước limit nên cursor ổn định và trang luôn đầy khi còn dòng khớp; archived=1 chỉ manage.",
 		tags: []string{"documents"},
 		sdi:  sdi.ListDocumentsSDI{},
 		sdo:  sdo.DocumentListSDO{},
@@ -535,7 +535,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Get("/workspaces/{workspaceID}/documents/recent", h.ListRecentDocuments, apiOp{
 		summary:     "List recent documents",
-		description: "Tài liệu người dùng đã mở (access log) hoặc sửa gần đây, lọc quyền trước limit, cursor ổn định. format và access nhận như danh sách phẳng (giá trị lạ -> 400 invalid_filter). include_owned=true thêm cả tài liệu người gọi sở hữu. Agent không có \"gần đây\" -> 403.",
+		description: "Tài liệu người dùng đã mở (access log) hoặc sửa gần đây, lọc quyền trước limit, cursor ổn định. format, access và type lặp nhận như danh sách phẳng (giá trị lạ -> 400 invalid_filter, type lạ -> 400 invalid_type). include_owned=true thêm cả tài liệu người gọi sở hữu. Agent không có \"gần đây\" -> 403.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListRecentDocumentsSDI{},
 		sdo:         sdo.DocumentListSDO{},
@@ -543,7 +543,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Get("/workspaces/{workspaceID}/documents/favorites", h.ListFavoriteDocuments, apiOp{
 		summary:     "List my favorite documents in a workspace",
-		description: "Tài liệu người gọi đã gắn sao trong workspace này, mỗi dòng là DocumentSummaryDTO kèm favorited_at (người gọi gắn sao khi nào), mới gắn trước (sort=starred mặc định giảm dần). Chỉ trả dòng người gọi còn đọc được: chia sẻ bị thu hồi hoặc tài liệu vào thùng rác rụng khỏi danh sách, dòng sao vẫn còn và quay lại khi có quyền. Lọc kind, format như danh sách phẳng (giá trị lạ -> 400 invalid_filter); cursor keyset gắn với sort/order; agent -> 403. Route favorites cấp tổ chức (/orgs/{orgID}/documents/favorites) giữ nguyên.",
+		description: "Tài liệu người gọi đã gắn sao trong workspace này, mỗi dòng là DocumentSummaryDTO kèm favorited_at (người gọi gắn sao khi nào), mới gắn trước (sort=starred mặc định giảm dần). type lặp (?type=docx&type=xlsx) lọc như danh sách phẳng, giá trị lạ hoặc rỗng -> 400 invalid_type. Chỉ trả dòng người gọi còn đọc được: chia sẻ bị thu hồi hoặc tài liệu vào thùng rác rụng khỏi danh sách, dòng sao vẫn còn và quay lại khi có quyền. Lọc kind, format như danh sách phẳng (giá trị lạ -> 400 invalid_filter); cursor keyset gắn với sort/order; agent -> 403. Route favorites cấp tổ chức (/orgs/{orgID}/documents/favorites) giữ nguyên.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListFavoriteDocumentsSDI{},
 		sdo:         sdo.DocumentListSDO{},
@@ -559,7 +559,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Get("/workspaces/{workspaceID}/documents/shared-with-me", h.ListSharedWithMe, apiOp{
 		summary:     "List documents shared with me",
-		description: "Tài liệu người gọi nhận qua share, gồm workspace khác trong tổ chức; một share đã thu hồi hoặc không còn hiệu lực sẽ biến mất. Duyệt ứng viên bằng keyset và lọc quyền trước khi xếp trang nên ứng viên bị từ chối không chiếm suất; cursor ổn định như các list khác. format và access (cấp người gọi nhận qua share) nhận như danh sách phẳng, giá trị lạ -> 400 invalid_filter. Workspace trên URL là ngữ cảnh thành viên, danh sách trải theo tổ chức.",
+		description: "Tài liệu người gọi nhận qua share, gồm workspace khác trong tổ chức; một share đã thu hồi hoặc không còn hiệu lực sẽ biến mất. Duyệt ứng viên bằng keyset và lọc quyền trước khi xếp trang nên ứng viên bị từ chối không chiếm suất; cursor ổn định như các list khác. format và access (cấp người gọi nhận qua share) nhận như danh sách phẳng, giá trị lạ -> 400 invalid_filter; type lặp (?type=docx&type=xlsx) lọc như danh sách phẳng, giá trị lạ hoặc rỗng -> 400 invalid_type. Workspace trên URL là ngữ cảnh thành viên, danh sách trải theo tổ chức.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListSharedWithMeSDI{},
 		sdo:         sdo.DocumentListSDO{},
