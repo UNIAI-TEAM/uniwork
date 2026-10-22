@@ -330,7 +330,7 @@ func TestDocumentSourceListsDocumentFilesOnly(t *testing.T) {
 	}
 
 	for _, typ := range []string{"image", "other"} {
-		_, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Type: typ})
+		_, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Types: []string{typ}})
 		var ve ValidationError
 		if !errors.As(err, &ve) {
 			t.Errorf("type=%s: err = %v, want a validation error (400)", typ, err)

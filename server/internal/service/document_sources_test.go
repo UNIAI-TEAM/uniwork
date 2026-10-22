@@ -418,7 +418,7 @@ func TestDocumentSourceListPagesAcrossSources(t *testing.T) {
 			t.Fatalf("%s never listed", id)
 		}
 	}
-	page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Source: DocumentSourceTask, Type: "pdf"})
+	page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Source: DocumentSourceTask, Types: []string{"pdf"}})
 	if err != nil {
 		t.Fatal(err)
 	}
