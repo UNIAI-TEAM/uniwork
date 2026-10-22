@@ -21,7 +21,8 @@ Logic thuần dùng chung nằm ở core và được import (UNI-2053 S7: `chat
 `chat/room-timeline-pages` — trang timeline và mọi phép thuần trên nó, tách khỏi `room-timeline.ts` của core —,
 `chat/chat-mention-utils` — token nhắc tên, nháp composer, bộ chọn nhắc tên —, `chat/chat-cache-records` — frame làm gì với
 một bản ghi: dòng danh sách phòng, số trả lời của gốc chủ đề, chỗ của một trả lời —, `chat/room-timeline-cache` — mở, bắt
-kịp, đánh dấu stale timeline trên `QueryClient`, nhận key và transport của mỗi bên —, `chat/send-retry` — khi nào gửi lại
+kịp, đánh dấu stale timeline trên `QueryClient`, nhận key và transport của mỗi bên —, `chat/chat-message-cache` — tin
+từ câu trả lời, frame hay lệnh xoá vào cache, nhận key, transport, viewer và hook cho phần mỗi bên giữ riêng —, `chat/send-retry` — khi nào gửi lại
 một tin, đọc `status` của ApiError mỗi bên theo cấu trúc nên không import transport —, `chat/optimistic-merge` — ghép
 hàng đang gửi của mỗi bên với timeline của server —; web và điện thoại cùng một bản; thêm mục thì
 thêm vào `core-allowlist.json` và `exports` của core). Endpoint dùng chung là factory nhận transport

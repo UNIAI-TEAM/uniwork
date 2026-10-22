@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ChatMessageRecord, ChatRoomRecord } from "../api/endpoints/chat-schemas";
 import {
   bumpThreadRootReplyCount,
+  patchRoomRead,
   patchRoomSidebarFromMessage,
   placeThreadReply,
   removeMessageFromList,
@@ -12,7 +13,7 @@ import type { RoomTimeline } from "./room-timeline-pages";
 
 // The record transforms both clients apply frames through (the web's
 // realtime-cache.ts, the phone's data/chat-cache.ts); the query-cache wiring
-// around them is tested beside each.
+// around them is chat-message-cache.ts, tested there and beside each binding.
 const message = (id: string, createdAt: string, extra: Partial<ChatMessageRecord> = {}): ChatMessageRecord => ({
   id,
   room_id: "room1",
@@ -93,5 +94,41 @@ describe("chat-cache-records", () => {
     expect(shouldIncrementUnreadLocally(room("c", { kind: "channel", is_default: true }))).toBe(true);
     expect(shouldIncrementUnreadLocally(room("d"))).toBe(false);
     expect(shouldIncrementUnreadLocally(undefined)).toBe(false);
+  });
+});
+
+describe("patchRoomRead", () => {
+  const dm = (extra: Partial<ChatRoomRecord> = {}): ChatRoomRecord => ({
+    id: "room1",
+    kind: "dm",
+    name: "Bob",
+    workspace_id: "ws1",
+    member_user_ids: [],
+    member_count: 2,
+    unread_count: 3,
+    mention_unread_count: 1,
+    last_message_at: "2026-01-01T10:00:00Z",
+    ...extra,
+  });
+
+  it("clears my own badges on the room I read, and leaves the others", () => {
+    const rooms = patchRoomRead([dm(), dm({ id: "room2" })], "room1", true);
+    expect(rooms?.map((room) => [room.unread_count, room.mention_unread_count])).toEqual([
+      [0, 0],
+      [3, 1],
+    ]);
+  });
+
+  it("moves a DM's Seen to its latest message on a peer's read, and only forward", () => {
+    expect(patchRoomRead([dm()], "room1", false)?.[0]?.peer_last_read_at).toBe("2026-01-01T10:00:00Z");
+    const ahead = dm({ peer_last_read_at: "2026-01-01T11:00:00Z" });
+    expect(patchRoomRead([ahead], "room1", false)?.[0]).toBe(ahead);
+  });
+
+  it("leaves a group, or a room with no message yet, alone on a peer's read", () => {
+    const group = dm({ kind: "group" });
+    const empty = dm({ last_message_at: undefined });
+    expect(patchRoomRead([group, empty], "room1", false)).toEqual([group, empty]);
+    expect(patchRoomRead(undefined, "room1", true)).toBeUndefined();
   });
 });

@@ -1,6 +1,6 @@
 {
   "$comment": "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedCodeChars (the ratchet) in a reviewed PR.",
-  "copiedCodeChars": 143866,
+  "copiedCodeChars": 136363,
   "copies": {
     "apps/chat-mobile/components/chat/use-chat-media.ts": {
       "packages/views/chat/use-chat-media-url.ts": "f9ab781619ddc93ef6bc24b31bf1fba1db5d839a8e1148eb4b6b7404596b9afd"
@@ -38,9 +38,6 @@
       "packages/core/api/endpoints/tasks.ts": "22da34793d4599aef6323d57e5bee4fa3be33b84038fe0af60dd67e1447350ec",
       "packages/core/api/endpoints/workspaces.ts": "9a01a8b55ffe7b3165cd67c7a1181a298838c1cfb4ee67acdfa688a200c32359"
     },
-    "apps/chat-mobile/data/chat-cache.ts": {
-      "packages/core/chat/realtime-cache.ts": "730dc56d548c1ac6f663d0e2a32ce48db5707500b95aaba058ce06d7f3635d55"
-    },
     "apps/chat-mobile/data/chat-send.ts": {
       "packages/core/chat/deliver-chat-text-message.ts": "8492a91fe558827741cad7ec0109769b8f3ebace6748c03fb2f4b057c4efcb8c"
     },
@@ -49,7 +46,6 @@
       "packages/core/chat/thread-hooks.ts": "5bc995cb60f1b595b879ec635a88e236c60458976213e9a1573dbe39ab147e91"
     },
     "apps/chat-mobile/data/realtime/chat-realtime.ts": {
-      "packages/core/chat/realtime-cache.ts": "730dc56d548c1ac6f663d0e2a32ce48db5707500b95aaba058ce06d7f3635d55",
       "packages/core/realtime/use-realtime-sync.ts": "c084aa7dd868ced906fe4b4e9ed98fa983a77efc870264220d32ff7ec2dcc4f8"
     },
     "apps/chat-mobile/data/realtime/use-chat-scopes.ts": {

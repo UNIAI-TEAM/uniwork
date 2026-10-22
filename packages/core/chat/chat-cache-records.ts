@@ -132,3 +132,26 @@ export function placeThreadReply(data: RoomTimeline, message: ChatMessageRecord)
 export function shouldIncrementUnreadLocally(room: ChatRoomRecord | undefined): boolean {
   return room !== undefined && isDefaultWorkspaceChannel(room);
 }
+
+/** The server sets a peer's read cursor to the room's latest message, which is our last_message_at. */
+function withPeerRead(room: ChatRoomRecord): ChatRoomRecord {
+  const readAt = room.last_message_at;
+  if (room.kind !== "dm" || !readAt) return room;
+  const prior = room.peer_last_read_at ? Date.parse(room.peer_last_read_at) : Number.NEGATIVE_INFINITY;
+  if (Date.parse(readAt) <= prior) return room;
+  return { ...room, peer_last_read_at: readAt };
+}
+
+/**
+ * `chat.room.read` on the room list. My own read (on any device) clears the
+ * room's badges: the server already moved last_read_at, and ignoring self left
+ * a stuck unread. Someone else's read changes nothing of mine but a DM's
+ * "Seen", so it is patched here: refetching the list instead cost every reader
+ * O(rooms) queries per read (C3).
+ */
+export function patchRoomRead(rooms: ChatRoomRecord[] | undefined, roomId: string, isSelf: boolean): ChatRoomRecord[] | undefined {
+  return rooms?.map((room) => {
+    if (room.id !== roomId) return room;
+    return isSelf ? { ...room, unread_count: 0, mention_unread_count: 0 } : withPeerRead(room);
+  });
+}

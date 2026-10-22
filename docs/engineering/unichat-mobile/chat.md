@@ -21,8 +21,8 @@ Ba lớp của tab Chat, key, cache, màn hình và luật của file route. Đ�
   đọc qua `chatApi`. Call log refetch khi có `chat.voice.hangup` (server ghi log trước khi phát frame), khi hangup
   của chính máy xong (`onHangupSettled` của `call-store.ts`) và khi reconnect; reconnect cũng refetch thành viên), cache
   (`chat-timeline.ts` bind `createRoomTimelineCache` của core với key và `chatApi` của app, chỉ giữ riêng lần làm mới sau
-  reconnect — giữ các trang đã cuộn; `chat-cache.ts` nối frame vào cache của app qua `chat-cache-records` của core, viewer
-  là tham số), outbox bền (`chat-send.ts` +
+  reconnect — giữ các trang đã cuộn; `chat-cache.ts` bind `createChatMessageCache` của core (dùng chung với web) với key,
+  `chatApi` và phần chỉ điện thoại giữ — trang quanh tin được nhảy tới, bản phòng chỉ đĩa còn —; viewer là tham số), outbox bền (`chat-send.ts` +
   `stores/chat-send-store.ts`, mục Offline-first), `realtime/chat-realtime.ts` (bảng §8
   spec cha, thuần) và `realtime/use-chat-realtime.ts` (hook mỏng, gắn ở
   `[org]/[ws]/_layout.tsx`, ≤ 25 scope qua `selectLazyChatScopeRoomIds`);

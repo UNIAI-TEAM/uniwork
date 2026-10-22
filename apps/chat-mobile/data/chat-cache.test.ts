@@ -1,7 +1,8 @@
-// Parity: packages/core/chat/realtime-cache.test.ts, with the viewer passed
-// in (the web reads its auth store) and without the legacy workspace list and
-// task-link caches the phone does not keep. The record transforms themselves
-// (core's chat-cache-records.ts) are tested in core.
+// The phone's binding of core's chat-message-cache.ts, through the frame cases
+// the web's binding runs (packages/core/chat/realtime-cache.test.ts), with the
+// viewer passed in and without the legacy workspace list and task-link caches
+// the phone does not keep, plus what only the phone keeps (around pages, the
+// disk copy). The wiring and the record transforms are tested in core.
 import { InfiniteQueryObserver, QueryClient, QueryObserver, type QueryKey } from "@tanstack/react-query";
 import type { ChatMessageRecord, ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { afterEach, describe, expect, it, vi } from "vitest";

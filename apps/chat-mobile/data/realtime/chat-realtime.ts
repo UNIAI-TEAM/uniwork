@@ -1,8 +1,9 @@
 // What each chat frame does to the phone's caches: the parity table of the
 // native-apps spec §8, mirroring packages/core/realtime/use-realtime-sync.ts
-// (its chat cases) and packages/core/chat/realtime-cache.ts. Pure apart from
-// the query client it is handed, so chat-realtime.test.ts drives it frame by
-// frame; use-chat-realtime.ts wires it to the socket.
+// (its chat cases). A message frame lands through core's shared cache wiring
+// (chat-message-cache, bound in ../chat-cache.ts). Pure apart from the query
+// client it is handed, so chat-realtime.test.ts drives it frame by frame;
+// use-chat-realtime.ts wires it to the socket.
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import {
   fetchAndPatchChatMessage,
