@@ -355,7 +355,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2113, UNI-2045 W10)
     expect(typeFilterSelect()).toBeNull();
   });
 
-  it("keeps client filtering for merged source rows: the chip goes to the sources API, Người sửa never does", async () => {
+  it("sends the Loại picks to the sources API as type= while Người sửa still filters on the client", async () => {
     route({
       list: (path) => {
         const q = queryOf(path);

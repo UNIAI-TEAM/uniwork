@@ -51,7 +51,7 @@ export const PILL_ON = "border-primary bg-primary/10 font-medium text-primary";
 /**
  * The one filter bar of the document list screens (UNI-2045 W10), the same
  * controls in the same order everywhere but Thùng rác, which has none: the
- * Loại select (Mọi loại · UniNote · .docx … .txt), then Người sửa, then Cập
+ * Loại select (Tất cả · UniNote · .docx … .txt), then Người sửa, then Cập
  * nhật; Gần đây leads with its Tất cả / Đã mở / Đã sửa segment. There is no
  * access filter and no Group by (Q6): Gần đây, Được chia sẻ với tôi and Thùng
  * rác group by date on their own. Sorting lives in the table headers.
@@ -298,7 +298,7 @@ function TypeChips({
               onTypes(types.filter((value) => value !== type));
               focusTrigger();
             }}
-            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground pointer-coarse:size-11"
+            className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground pointer-coarse:size-11"
           >
             <X aria-hidden className="size-3.5" />
           </button>
