@@ -129,7 +129,9 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   (`lib/notification-presentation.ts`: push của workspace đang mở thì im, khác thì banner). `data/boot.ts` là phần
   boot chung (Sentry, `configureRuntime`, header) mà task nền cũng gọi; `data/app-locale.ts` cho task nền nói đúng ngôn
   ngữ. Kênh Android (`lib/notification-channels.ts`, `data/notification-channels.ts`): `calls`, `call_ongoing` (native),
-  `missed_calls`, `mentions`, `messages`, `general`, dịch theo ngôn ngữ app lúc mở và khi đổi ngôn ngữ, kênh cũ `chat`
+  `missed_calls`, `mentions`, `messages`, `general`, dịch theo ngôn ngữ app lúc mở và khi đổi ngôn ngữ (hai kênh native,
+  khi máy reo trước lần chạy JavaScript đầu, lấy tên từ `res/values*/strings.xml` của module — `values` tiếng Anh,
+  `values-vi` tiếng Việt — mà `scripts/sync-i18n.mjs` sinh từ cùng chuỗi `mobile.notify.channel_*`), kênh cũ `chat`
   bị xoá; server chọn kênh theo kind (`push_expo.go › pushChannel`) — đổi âm thanh/độ ưu tiên của kênh thì phải đổi id.
   Thông báo tin chat (DM, nhắc tên, trả lời chủ đề) mang category `chat_message` và id workspace/phòng/tin/chủ đề
   (server `push_expo.go › ChatMessageCategory`, `chatData`); app đăng ký category đó lúc mở và khi đổi ngôn ngữ

@@ -75,7 +75,7 @@ internal object CallNotifications {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
     val manager = context.getSystemService(NotificationManager::class.java) ?: return
     if (manager.getNotificationChannel(CHANNEL_CALLS) == null || manager.getNotificationChannel(CHANNEL_ONGOING) == null) {
-      ensureChannels(context, ChannelNames())
+      ensureChannels(context, ChannelNames.fromResources(context))
     }
   }
 

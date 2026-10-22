@@ -1,10 +1,15 @@
 package expo.modules.unichatcalls
 
+import android.content.Context
 import android.os.Bundle
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
 
-/** The two call channels' names, in the app's language (lib/notification-channels.ts). */
+/**
+ * The two call channels' names, in the app's language (lib/notification-channels.ts). Before JavaScript has
+ * run once, [fromResources] gives the same words from res/values*/strings.xml, which scripts/sync-i18n.mjs
+ * generates from the app's copy.
+ */
 class ChannelNames : Record {
   @Field
   var calls: String = "Calls"
@@ -17,6 +22,16 @@ class ChannelNames : Record {
 
   @Field
   var ongoingDescription: String = ""
+
+  companion object {
+    /** The names in the app's language as the system resolves it (the per-app language on Android 13+). */
+    fun fromResources(context: Context): ChannelNames = ChannelNames().apply {
+      calls = context.getString(R.string.unichat_calls_channel_calls)
+      callsDescription = context.getString(R.string.unichat_calls_channel_calls_hint)
+      ongoing = context.getString(R.string.unichat_calls_channel_ongoing)
+      ongoingDescription = context.getString(R.string.unichat_calls_channel_ongoing_hint)
+    }
+  }
 }
 
 /** A call ringing for this person (data/calls/call-push.ts › incomingCallSpec). */
