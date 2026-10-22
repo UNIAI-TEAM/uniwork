@@ -108,6 +108,7 @@ export const MOBILE_PATHS = [
   "server/internal/handler/task.go",
   "server/internal/config/unichat_downloads.go",
   "server/internal/featureflags/keys.go",
+  "server/internal/service/account_deletion.go",
 ];
 
 /** A GitHub `paths` glob as a RegExp: `**` crosses folders, `*` does not. */

@@ -406,3 +406,20 @@ describe("chat endpoints", () => {
     expect(transport.request).toHaveBeenCalledWith(`${W}/chat/rooms`, { signal: controller.signal });
   });
 });
+
+// Audit "number-format-and-server-copy": the server names an erased account in Vietnamese for every reader; the app
+// reads it in its own language wherever a chat answer names it (lib/erased-account.ts).
+describe("an erased account's name", () => {
+  it("reads in the app's language in every chat answer", async () => {
+    const { ERASED_ACCOUNT_NAME } = await import("@/lib/erased-account");
+    const { i18n } = await import("@/lib/i18n/singleton");
+    request.mockResolvedValueOnce({ messages: [{ ...msg, sender_display_name: ERASED_ACCOUNT_NAME }], has_more: false });
+    await i18n.changeLanguage("en");
+    try {
+      const page = await chat.listMessages("w1", "r1");
+      expect(JSON.stringify(page)).toContain('"sender_display_name":"Deleted user"');
+    } finally {
+      await i18n.changeLanguage("vi");
+    }
+  });
+});

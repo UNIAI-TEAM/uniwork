@@ -72,7 +72,10 @@ Trình đọc màn hình, cảm giác, chuyển động, quy ước Android, c�
   bằng ","; en ngược lại) — cỡ tệp trên thẻ tệp (`lib/message-display.ts › formatFileSize`) và mọi `{{count}}` của chuỗi
   dịch (`countFormatter` của `lib/i18n/singleton.ts`, `interpolation.alwaysFormat`; chuỗi không dùng định dạng
   `{{x, number}}` của i18next, `lib/i18n.test.ts` giữ). `formatSyntax` của `eslint.config.mjs` đỏ khi `toFixed`,
-  `toLocale*` hay `new Intl.*` xuất hiện ngoài `lib/locale-format.ts`. Chữ dựng ngoài JSX (toast, `Alert`, lời đọc
+  `toLocale*` hay `new Intl.*` xuất hiện ngoài `lib/locale-format.ts`. Tên của tài khoản đã xoá: server ghi
+  "Người dùng đã xóa" cho mọi người đọc (`account_deletion.go › deletedDisplayName`); `data/chat-api.ts` đọc lại mọi trường
+  `display_name`/`…_display_name` mang tên đó theo ngôn ngữ app (`lib/erased-account.ts`, `mobile.account.erased_name`),
+  `data/server-contract.test.ts` giữ hai bên cùng một chữ; bản đã lưu trên máy đổi theo ở lần tải lại kế tiếp. Chữ dựng ngoài JSX (toast, `Alert`, lời đọc
   `announceForAccessibility*`, title/body/name của thông báo và kênh) cũng phải qua `t()` (`copySyntax`, fixture
   `lib/lint-copy.test.ts`). **Hướng chữ**: app chỉ viết trái sang phải (`expo-localization › supportsRTL: false` trong
   `app.config.ts`: máy đặt tiếng Ả Rập hay Do Thái đọc app bằng tiếng Anh và không bị lật bố cục); khoảng cách dùng lớp

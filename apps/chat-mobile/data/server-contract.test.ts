@@ -31,6 +31,7 @@ import {
 } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { ERASED_ACCOUNT_NAME } from "@/lib/erased-account";
 import { MobileSecurityPolicySchema, PushPreviewPolicySchema } from "./account-api";
 import { ChatSyncSchema } from "./chat-sync/api";
 import {
@@ -350,6 +351,12 @@ describe("the app's response schemas against the server's SDOs and handlers", ()
     }
   });
 
+  // The app reads an erased account's name in its own language by matching the server's word for it.
+  it("knows the name the server gives an erased account", () => {
+    const deletion = readFileSync(path.join(SERVER, "service/account_deletion.go"), "utf8");
+    expect(deletion).toContain(`const deletedDisplayName = "${ERASED_ACCOUNT_NAME}"`);
+  });
+
   it("runs on every server change it reads (scripts/mobile-native-scope.mjs › MOBILE_PATHS)", () => {
     const scope = readFileSync(path.resolve(__dirname, "../../../scripts/mobile-native-scope.mjs"), "utf8");
     const read = [
@@ -357,6 +364,7 @@ describe("the app's response schemas against the server's SDOs and handlers", ()
       ...HANDLER_FILES.map((f) => `server/internal/handler/${f}`),
       ...Object.values(FOREIGN_STRUCTS).map((f) => `server/internal/${f}`),
       "server/internal/featureflags/keys.go",
+      "server/internal/service/account_deletion.go",
     ];
     for (const glob of read) expect(scope).toContain(`"${glob}"`);
   });

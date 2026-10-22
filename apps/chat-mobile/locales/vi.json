@@ -1510,7 +1510,8 @@
       "deleting": "Đang xóa…",
       "deleted": "Đã xóa tài khoản của bạn.",
       "no_workspace": "Bạn chưa ở workspace nào. Nhờ quản trị viên tổ chức thêm bạn vào một workspace, hoặc mở UniWork trên web.",
-      "signed_in_as": "Đang đăng nhập bằng {{email}}"
+      "signed_in_as": "Đang đăng nhập bằng {{email}}",
+      "erased_name": "Người dùng đã xóa"
     },
     "legal": {
       "title": "Quyền riêng tư và pháp lý",

@@ -1566,7 +1566,8 @@
       "deleting": "Deleting…",
       "deleted": "Your account has been deleted.",
       "no_workspace": "You're not in any workspace yet. Ask an admin of your organization to add you to one, or open UniWork on the web.",
-      "signed_in_as": "Signed in as {{email}}"
+      "signed_in_as": "Signed in as {{email}}",
+      "erased_name": "Deleted user"
     },
     "legal": {
       "title": "Privacy & legal",

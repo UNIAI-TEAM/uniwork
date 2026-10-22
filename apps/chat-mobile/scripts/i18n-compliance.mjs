@@ -30,6 +30,7 @@ export const COMPLIANCE_ONLY = {
       deleted: "Đã xóa tài khoản của bạn.",
       no_workspace: "Bạn chưa ở workspace nào. Nhờ quản trị viên tổ chức thêm bạn vào một workspace, hoặc mở UniWork trên web.",
       signed_in_as: "Đang đăng nhập bằng {{email}}",
+      erased_name: "Người dùng đã xóa",
     },
     legal: {
       title: "Quyền riêng tư và pháp lý",
@@ -131,6 +132,7 @@ export const COMPLIANCE_ONLY = {
       deleted: "Your account has been deleted.",
       no_workspace: "You're not in any workspace yet. Ask an admin of your organization to add you to one, or open UniWork on the web.",
       signed_in_as: "Signed in as {{email}}",
+      erased_name: "Deleted user",
     },
     legal: {
       title: "Privacy & legal",
