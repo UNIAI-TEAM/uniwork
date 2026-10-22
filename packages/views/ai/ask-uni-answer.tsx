@@ -22,11 +22,12 @@ const CITE_TOKEN = /\[S(\d+)\]/g;
 export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps" | "focus" | "mentions" | "created_at">>;
 
 /** The model-written answer as markdown: raw html inert, no images, links only in-app or to a cited source, `[S#]` as entity chips. */
-function AnswerBody({ content, byId, wsId }: { content: string; byId: Map<string, AiCitation>; wsId: string }) {
+function AnswerBody({ content, byId, wsId, streaming }: { content: string; byId: Map<string, AiCitation>; wsId: string; streaming: boolean }) {
   // A cited href is held to the same rule as any other: only in-app paths become links.
   const isLinkAllowed = isInAppHref;
-  // Copy (answerPlainText) drops the same echoes, so both read the name once.
-  const text = useMemo(() => dropEchoedNames(content, byId), [content, byId]);
+  // Copy (answerPlainText) drops the same echoes, so both read the name once; a draft keeps them, or a name would
+  // show and vanish as its words arrive.
+  const text = useMemo(() => (streaming ? content : dropEchoedNames(content, byId)), [content, byId, streaming]);
   return (
     <SafeMarkdown
       isLinkAllowed={isLinkAllowed}
@@ -106,7 +107,7 @@ export function AskUniMessageTurn({
           <AskUniMessageMeta from="assistant" createdAt={message.created_at ?? ""} />
         </div>
         <AskUniProgress steps={steps ?? message.steps ?? []} running={streaming} writing={writing} />
-        {message.content ? <AnswerBody content={message.content} byId={byId} wsId={wsId} /> : null}
+        {message.content ? <AnswerBody content={message.content} byId={byId} wsId={wsId} streaming={streaming} /> : null}
         {showNotice ? (
           <p className={cn("text-caption text-muted-foreground", message.content ? "mt-2" : "")}>{t(`notice.${noticeKey}`)}</p>
         ) : null}

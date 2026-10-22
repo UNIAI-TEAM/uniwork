@@ -14,12 +14,11 @@ export function answerPlainText(content: string, byId: Map<string, AiCitation>):
 const MARKER = /\[S(\d+)\]/g;
 const OPEN = /^(\*\*|__|\*|_)/;
 const CLOSE = /(\*\*|__|\*|_)$/;
-// A plain name ends the phrase: then the line ends, a stop or bracket follows, or a dash starts an aside.
-const NAME_END = /^(?:$|\n|[.,:;!?)]|[ \t]+[-–—][ \t])/;
-// A plain name starts its phrase: at a line start (after any list mark) or after a bracket, colon, comma or semicolon.
-const NAME_START = /(?:^|\n)[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?$|[(:,;][ \t]*$/;
+// The echo is a whole word run: no letter or digit right outside it.
+const WORD = /[\p{L}\p{N}\p{M}]/u;
 
-const same = (a: string, b: string) => foldText(a) === foldText(b);
+// Case-blind but not accent-blind: "hợp" is not an echo of "Họp".
+const same = (a: string, b: string) => a.normalize("NFC").toLocaleLowerCase("vi") === b.normalize("NFC").toLocaleLowerCase("vi");
 
 /** Where an echo of `title` right after `at` ends (wrapping marks included), or -1. */
 function echoAfter(text: string, at: number, title: string): number {
@@ -29,7 +28,7 @@ function echoAfter(text: string, at: number, title: string): number {
   const to = from + title.length;
   if (!same(text.slice(from, to), title)) return -1;
   if (mark) return text.startsWith(mark, to) ? to + mark.length : -1;
-  return NAME_END.test(text.slice(to)) ? to : -1;
+  return WORD.test(text.charAt(to)) ? -1 : to;
 }
 
 /** Where an echo of `title` right before `at` starts (wrapping marks included), or -1. */
@@ -40,13 +39,14 @@ function echoBefore(text: string, at: number, title: string): number {
   const from = to - title.length;
   if (from < 0 || !same(text.slice(from, to), title)) return -1;
   if (mark) return text.slice(0, from).endsWith(mark) ? from - mark.length : -1;
-  return NAME_START.test(text.slice(0, from)) ? from : -1;
+  return from > 0 && WORD.test(text.charAt(from - 1)) ? -1 : from;
 }
 
 /**
  * The answer without the object names the model wrote right next to their own `[S#]` ("[S4] Thiết kế trang chủ."),
- * since the marker already shows that name. Only the whole title goes (case- and accent-blind, bold or italic marks
- * around it included); a stop after it and every other word stay, and a marker the map does not know is left alone.
+ * since the marker already shows that name in the same place, so the sentence reads the same. Only the whole title
+ * goes, as whole words (case-blind, accents kept, bold or italic marks around it included); every other word stays,
+ * and a marker the map does not know is left alone.
  */
 export function dropEchoedNames(content: string, byId: Map<string, AiCitation>): string {
   const cuts: [number, number][] = [];

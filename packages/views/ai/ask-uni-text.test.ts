@@ -35,11 +35,17 @@ describe("dropEchoedNames", () => {
     ["another case and a comma", page, "[S4] thiết kế trang chủ, rồi", "[S4], rồi"],
     ["a bold name after the marker", page, "[S4] **Thiết kế trang chủ** đang làm", "[S4] đang làm"],
     ["a dash after the name", page, "- [S4] Thiết kế trang chủ — Cần làm", "- [S4] — Cần làm"],
+    ["the name with more words after it", page, "[S4] Thiết kế trang chủ đang chậm", "[S4] đang chậm"],
+    ["the name inside a sentence before it", site, "Dự án Website mới [S1] đang", "Dự án [S1] đang"],
+    ["the name after 'và'", page, "Hai việc: [S1] và Thiết kế trang chủ [S4] đều chậm", "Hai việc: [S1] và [S4] đều chậm"],
+    ["the name in a table cell", page, "| Thiết kế trang chủ [S4] | todo |", "| [S4] | todo |"],
+    ["the name before a bracket", page, "[S4] Thiết kế trang chủ (hạn 25/10)", "[S4] (hạn 25/10)"],
   ])("drops %s", (_n, byId, input, out) => expect(dropEchoedNames(input, byId)).toBe(out));
+  const meeting = new Map([["S2", { ...src("S2", "Họp"), kind: "meeting" }]]);
   it.each([
     ["a partial name", page, "[S4] Thiết kế mới"],
-    ["the name with more words after it", page, "[S4] Thiết kế trang chủ đang chậm"],
-    ["the name inside a sentence before it", site, "Dự án Website mới [S1] đang"],
+    ["a name that runs on into a longer word", site, "[S1] Website mớiii"],
+    ["a word that differs only in its tone mark", meeting, "[S2] hợp lý"],
     ["an unknown marker", page, "[S9] Thiết kế trang chủ."],
   ])("keeps %s", (_n, byId, input) => expect(dropEchoedNames(input, byId)).toBe(input));
   it("copies the name once", () => {

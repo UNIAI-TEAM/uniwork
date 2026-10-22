@@ -227,13 +227,13 @@ describe("AskUniThread regenerate in place", () => {
     expect(items.findIndex((x) => x.includes("Đang viết lại"))).toBe(items.findIndex((x) => x.includes("Task nào quá hạn?")) + 1);
   });
 
-  it("brings the old answer back with an error when the regenerate fails", async () => {
+  it("brings the old answer back, with its follow-ups and an error, when the regenerate fails", async () => {
     serve([history[0], { ...history[1], followups: ["A?", "B?"] }]);
     mount(stream({ status: "error", question: "Task nào quá hạn?", regenerateOf: "a1", errorCode: "ai_rate_limited" }));
     expect(await screen.findByText("Có 3 task quá hạn.")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("Bạn hỏi quá nhanh");
     expect(screen.getAllByText("Task nào quá hạn?")).toHaveLength(1);
-    expect(screen.queryByRole("button", { name: "A?" })).toBeNull();
+    expect(screen.getByRole("button", { name: "A?" })).toBeInTheDocument();
   });
 
   it("shows no follow-ups under a stopped regenerate, and the stored partial decides after the refetch", async () => {

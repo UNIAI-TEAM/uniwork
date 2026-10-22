@@ -143,7 +143,8 @@ export function AskUniThread({
   // The answer being regenerated keeps its place: the live cell replaces it while it streams.
   const regen = sameConversation && state.regenerateOf ? state.regenerateOf : null;
   const followups =
-    streaming || live || (regen !== null && state.status !== "done") || !lastAssistant || lastAssistant.notice
+    // A regenerate that failed leaves the old answer standing, with its own follow-ups.
+    streaming || live || (regen !== null && state.status !== "done" && state.status !== "error") || !lastAssistant || lastAssistant.notice
       ? []
       : lastAssistant.followups.length > 0
         ? lastAssistant.followups
