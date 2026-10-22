@@ -36,7 +36,7 @@ func NewNotifications() *Notifications {
 		}),
 		PushSuppressed: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_push_suppressed_total",
-			Help: "Pushes dropped before sending, by kind: a chat push to a recipient reading its workspace (a visible presence beat there within 45s that no leave cleared), or an incoming-call push while the unichat_mobile_calls switch is off for them.",
+			Help: "Pushes dropped before sending, by kind: a chat push to a recipient reading where it shows (a visible presence beat within 45s that no leave cleared, in its workspace or, for a DM or group, in any workspace of its organization), or an incoming-call push while the unichat_mobile_calls switch is off for them.",
 		}, []string{"kind"}),
 		PushReceipts: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_push_receipts_total",

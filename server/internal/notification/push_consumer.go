@@ -50,7 +50,8 @@ type PresenceChecker interface {
 }
 
 // pushActiveWindow: a recipient who beat this recently in the push's
-// workspace is reading it and sees the message in the app, so the chat push
+// workspace (for a DM or group, in any workspace of its organization:
+// readingRoom) is reading it and sees the message in the app, so the chat push
 // is dropped (spec N2 §3.5). A visible page beats every 15s, so three beats'
 // worth outlasts a late or lost one. A page that leaves (a tab closing, the
 // phone going to the background) clears its beat at once; the window only
@@ -58,6 +59,47 @@ type PresenceChecker interface {
 // message in the first two minutes after a phone was put away went
 // unnotified (audit "Calls, push & background", chat-push-swallowed).
 const pushActiveWindow = 45 * time.Second
+
+// readingRoom says whether the recipient has a visible page that beat within
+// pushActiveWindow somewhere this room's messages show. A channel shows in its
+// own workspace only. A DM or group belongs to the organization and shows in
+// every workspace of it the person can open, while the notification carries
+// just one of them (chatRecipientWorkspace: the room's anchor, or the
+// person's first workspace there), so someone reading the DM from another
+// workspace of the organization is reading it all the same. Presence is
+// best-effort: a lookup error or a stalled Redis reads as not reading, so the
+// push goes out (fail open), and every lookup shares one 100ms bound — the
+// rate limiter's — so a stalled Redis cannot hold the push lane.
+func (c *PushConsumer) readingRoom(ctx context.Context, n db.Notification, roomID string) (bool, error) {
+	workspaces := []string{n.WorkspaceID.String}
+	room, err := c.q.GetChatRoomByID(ctx, roomID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return false, err
+	}
+	if err == nil && (room.Kind == "dm" || room.Kind == "group") && room.OrganizationID == n.OrganizationID {
+		all, err := c.q.ListWorkspacesForUser(ctx, n.UserID)
+		if err != nil {
+			return false, err
+		}
+		for _, w := range all {
+			if w.OrganizationID == n.OrganizationID && w.ID != n.WorkspaceID.String {
+				workspaces = append(workspaces, w.ID)
+			}
+		}
+	}
+	pctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	for _, ws := range workspaces {
+		t, ok, err := c.presence.LastPresenceBeat(pctx, n.UserID, ws)
+		if err != nil {
+			return false, nil
+		}
+		if ok && c.now().Sub(t) <= pushActiveWindow {
+			return true, nil
+		}
+	}
+	return false, nil
+}
 
 // NewPushConsumer wires the consumer; a nil sender means push is off and
 // rows are acknowledged without sending.
@@ -149,17 +191,28 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if len(subs) == 0 {
 		return c.q.MarkNotificationPushed(ctx, n.ID)
 	}
-	if c.presence != nil && isChatPushKind(n.Kind) && n.WorkspaceID.Valid {
-		// Same bound as the rate limiter's best-effort Redis call: a stalled
-		// Redis fails open instead of holding the push lane.
-		pctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-		t, ok, err := c.presence.LastPresenceBeat(pctx, n.UserID, n.WorkspaceID.String)
-		cancel()
-		if err == nil && ok && c.now().Sub(t) <= pushActiveWindow {
-			if m := c.metrics; m != nil {
-				m.IncPushSuppressed(n.Kind)
-			}
+	var chatMsg db.ChatMessage
+	if isChatPushKind(n.Kind) {
+		// The preview is read at delivery, so a message deleted in the
+		// meantime sends nothing.
+		chatMsg, err = c.q.GetChatMessageByID(ctx, n.ResourceID)
+		if errors.Is(err, pgx.ErrNoRows) {
 			return c.q.MarkNotificationPushed(ctx, n.ID)
+		}
+		if err != nil {
+			return err
+		}
+		if c.presence != nil && n.WorkspaceID.Valid {
+			reading, err := c.readingRoom(ctx, n, chatMsg.RoomID)
+			if err != nil {
+				return err
+			}
+			if reading {
+				if m := c.metrics; m != nil {
+					m.IncPushSuppressed(n.Kind)
+				}
+				return c.q.MarkNotificationPushed(ctx, n.ID)
+			}
 		}
 	}
 	user, err := c.q.GetUserByID(ctx, n.UserID)
@@ -171,15 +224,6 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	msg := PushMessage{Title: PushTitle(user.Locale, n.Kind, params), Channel: pushChannel(n.Kind), Tag: n.GroupKey}
 	var link string
 	if isChatPushKind(n.Kind) {
-		// The preview is read at delivery, so a message deleted in the
-		// meantime sends nothing.
-		chatMsg, err := c.q.GetChatMessageByID(ctx, n.ResourceID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.q.MarkNotificationPushed(ctx, n.ID)
-		}
-		if err != nil {
-			return err
-		}
 		msg.Body = pushBody(user.Locale, chatMsg)
 		// The words pass through Expo, FCM and APNs and sit on a lock screen: hidden when the person or the
 		// organization asked (audit "Security & privacy", push-preview-plaintext). A missed call has no body.

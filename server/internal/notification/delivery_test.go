@@ -535,6 +535,63 @@ func TestChatPushIsSuppressedWhileTheRecipientIsActive(t *testing.T) {
 	}
 }
 
+// A DM belongs to the organization and shows in every workspace of it, but
+// its notification carries one workspace only (the anchor). Someone reading
+// it from another workspace of theirs is reading it: their beat there holds
+// the push back. A beat in a workspace they do not belong to, or that belongs
+// to another organization, does not.
+func TestDMPushIsSuppressedForABeatInAnotherWorkspaceOfTheOrganization(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	other, err := f.ws.CreateInOrg(f.ctx, f.owner.ID, f.orgID, "Notif WS B", "notif-ws-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsB := other.Workspace.ID
+	if err := f.q.AddWorkspaceMember(f.ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsB, OrganizationID: f.orgID, UserID: f.member.ID, Role: "member"}); err != nil {
+		t.Fatal(err)
+	}
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
+	now := time.Now()
+	run := func(p PresenceChecker) (*spySender, *countingMetrics) {
+		f.readAll(t, f.member.ID)
+		if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "x"}); err != nil {
+			t.Fatal(err)
+		}
+		f.handleLast(t, "chat.dm.received")
+		ev := f.lastEvent(t, TopicPush)
+		var payload map[string]string
+		if err := json.Unmarshal([]byte(ev.Payload), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if n, err := f.q.GetNotification(f.ctx, payload["notification_id"]); err != nil || n.WorkspaceID.String != f.wsID {
+			t.Fatalf("the DM's notification is stamped with its anchor: %+v err=%v", n, err)
+		}
+		spy, m := &spySender{}, &countingMetrics{suppressed: map[string]int{}, sent: map[string]int{}}
+		pc := NewPushConsumer(f.q, spy, "http://app.test")
+		pc.SetMetrics(m)
+		pc.now = func() time.Time { return now }
+		pc.SetPresence(p)
+		if err := pc.Handle(f.ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+		return spy, m
+	}
+	if spy, m := run(workspacePresence{workspaceID: wsB, at: now.Add(-10 * time.Second)}); len(spy.sent) != 0 || m.suppressed[KindChatDM] != 1 {
+		t.Fatalf("reading the DM from workspace B: sent=%d suppressed=%v", len(spy.sent), m.suppressed)
+	}
+	if spy, m := run(workspacePresence{workspaceID: wsB, at: now.Add(-time.Minute)}); len(spy.sent) != 1 || len(m.suppressed) != 0 {
+		t.Fatal("a stale beat in workspace B must not hold the push back")
+	}
+	if spy, _ := run(workspacePresence{workspaceID: "a-workspace-of-another-organization", at: now.Add(-10 * time.Second)}); len(spy.sent) != 1 {
+		t.Fatal("a beat outside the DM's organization must not hold the push back")
+	}
+}
+
 // blockingPresence stands in for a stalled Redis: it answers only when its
 // context is done.
 type blockingPresence struct{}
