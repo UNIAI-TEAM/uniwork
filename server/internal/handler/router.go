@@ -113,6 +113,10 @@ type Deps struct {
 	// DocumentChanges is the Office change feed (G5-01a). When omitted, New
 	// derives it from Documents, FeatureFlags and the deployment config.
 	DocumentChanges *service.DocumentChangesService
+	// MemberDocuments answers the document-ownership routes of an organization
+	// member (DOC-06b). When omitted, New derives it from OrgMembers and
+	// Documents; without Documents the routes answer 501.
+	MemberDocuments *service.OrganizationMemberDocumentService
 	// OfficeLease grants, renews and releases offline leases (G5-08s). When
 	// omitted, New derives it from Documents, FeatureFlags and JWT_SECRET.
 	OfficeLease *service.OfficeLeaseService
@@ -194,6 +198,9 @@ func New(d Deps) http.Handler {
 	}
 	if d.DocumentChanges == nil && d.Documents != nil {
 		d.DocumentChanges = service.NewDocumentChangesService(d.Documents, d.FeatureFlags, d.Cfg)
+	}
+	if d.MemberDocuments == nil && d.OrgMembers != nil && d.Documents != nil {
+		d.MemberDocuments = service.NewOrganizationMemberDocumentService(d.OrgMembers, d.Documents)
 	}
 	if d.OfficeLease == nil && d.Documents != nil {
 		d.OfficeLease = service.NewOfficeLeaseService(d.Documents, d.FeatureFlags, d.Cfg)
@@ -336,6 +343,9 @@ func New(d Deps) http.Handler {
 		ReactivateOrgMember: h.reactivateOrgMember,
 		LeaveOrganization:   h.leaveOrganization,
 		CloseOrganization:   h.closeOrganization,
+
+		GetMemberDocumentOwnership: h.getMemberDocumentOwnership,
+		TransferMemberDocuments:    h.transferMemberDocuments,
 
 		InviteToOrganization: h.inviteToOrganization,
 		ListOrgInvitations:   h.listOrgInvitations,

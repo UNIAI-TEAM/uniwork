@@ -75,3 +75,13 @@ type TransferOwnershipSDI struct {
 type CloseOrganizationSDI struct {
 	ConfirmSlug string `json:"confirm_slug" description:"Slug của tổ chức, gõ lại để xác nhận đóng" example:"unicom"`
 }
+
+// TransferMemberDocumentsSDI is POST /api/v1/orgs/{org}/members/{userID}/document-ownership
+// (DOC-06b, addendum §2.2, §4.2): one batch of the member's documents to one
+// recipient. A run's later calls send back the first answer's bulk_id and
+// the previous answer's cursor.
+type TransferMemberDocumentsSDI struct {
+	ToUserID string  `json:"to_user_id" description:"ULID người nhận, thành viên đang hoạt động của tổ chức, khác thành viên nguồn" example:"01J8X4USER0N1P2Q3R4S5T6U7V8"`
+	BulkID   *string `json:"bulk_id" description:"ULID của đợt, lấy từ phản hồi đầu và gửi lại ở các lần tiếp; bỏ trống ở lần đầu" example:"01J8X4BULK0N1P2Q3R4S5T6U7"`
+	Cursor   *string `json:"cursor" description:"Mờ, lấy từ phản hồi trước khi has_more; bỏ trống ở lần đầu" example:"01J8X4DOCZN1P2Q3R4S5T6U7"`
+}

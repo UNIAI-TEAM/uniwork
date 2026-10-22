@@ -108,6 +108,10 @@ type Routes struct {
 	LeaveOrganization   http.HandlerFunc
 	CloseOrganization   http.HandlerFunc
 
+	// DOC-06b: the documents an organization member owns, and their bulk transfer.
+	GetMemberDocumentOwnership http.HandlerFunc
+	TransferMemberDocuments    http.HandlerFunc
+
 	InviteToOrganization http.HandlerFunc
 	ListOrgInvitations   http.HandlerFunc
 	RevokeOrgInvitation  http.HandlerFunc

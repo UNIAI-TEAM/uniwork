@@ -390,6 +390,11 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/orgs/{org}/invitations", what: "granted workspace", body: map[string]any{
 		"emails": []any{"iso-ref-invitee@example.com"}, "org_role": "member", "workspace_ids": []any{isoRef("ws")}},
 		covers: []string{"OrgInviteSDI.workspace_ids"}},
+	// DOC-06b (UNI-2092 §4.2): A's person as the recipient of a bulk transfer
+	// in B is 422 owner_target_not_member, naming nobody. The control hands
+	// B's peer's documents to B's owner, who skips the peer's restricted one.
+	{method: "POST", pattern: "/api/v1/orgs/{org}/members/{userID}/document-ownership", what: "recipient", body: map[string]any{
+		"to_user_id": isoRef("owner")}, covers: []string{"TransferMemberDocumentsSDI.to_user_id"}},
 	{method: "POST", pattern: "/api/v1/orgs/{org}/transfer-ownership", what: "new owner", body: map[string]any{
 		"to_user_id": isoRef("peer"), "password": "password123"}, noControl: "transferring B's ownership would end the run", covers: []string{"TransferOwnershipSDI.to_user_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/agents", what: "agent", body: map[string]any{"agent_id": isoRef("agent")},
@@ -555,6 +560,7 @@ func isoAccessRequestSourceAfterAttack(t *testing.T, w *isoWorld, label string) 
 const editLockIDExempt = "compared, never stored: the same checkDocumentEditLock gate the PatchDocumentSDI.edit_lock_id case attacks; a control would need its own upload/version and base revision, which the existing commit cases consume; TestEditLockIDFromAnotherTenantIsRefused sends another organization's live tenure id to all four writes"
 
 var isoRefFieldExempt = map[string]string{
+	"TransferMemberDocumentsSDI.bulk_id":          "server-generated correlation id of one bulk transfer, never resolved to a row",
 	"FlagOverrideSDI.scope_id":                    "platform console: an override names any organization or user by design (RequirePlatformRole)",
 	"FlagOverrideDeleteSDI.scope_id":              "platform console: an override names any organization or user by design (RequirePlatformRole)",
 	"CalendarSelectionSDI.calendar_ids":           "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
