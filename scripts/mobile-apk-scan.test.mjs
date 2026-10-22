@@ -6,9 +6,13 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { compare, manifestFindings, parseXmlTree, scanBytes } from "./mobile-apk-scan.mjs";
+import { fakeDex } from "./mobile-apk-scan.fixture.mjs";
+import { REQUIRED_DEX_CLASSES, compare, dexClassDescriptors, dexFindings, isDexPath, manifestFindings, parseXmlTree, scanBytes } from "./mobile-apk-scan.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+
+const REQUIRED = REQUIRED_DEX_CLASSES.map((entry) => entry.descriptor);
+const JNI_INIT = "Llivekit/org/jni_zero/JniInit;";
 
 // `aapt2 dump xmltree --file AndroidManifest.xml` of an APK linked from a test manifest (build-tools 36).
 const XMLTREE = `N: android=http://schemas.android.com/apk/res/android (line=1)
@@ -141,11 +145,76 @@ test("the app's baseline names a reason for every exception", () => {
   for (const entry of [...baseline.exported, ...baseline.secrets]) assert.ok(String(entry.reason ?? "").length >= 20, JSON.stringify(entry));
 });
 
+test("reads the classes a dex file defines, not the ones it only references", () => {
+  const dex = fakeDex(["Lcom/a/Kept;", "Lcom/a/b;"], [JNI_INIT, "Ljava/lang/Object;"]);
+  assert.deepEqual([...dexClassDescriptors(dex)].sort(), ["Lcom/a/Kept;", "Lcom/a/b;"]);
+  assert.deepEqual([...dexClassDescriptors(fakeDex([]))], []);
+  assert.throws(() => dexClassDescriptors(Buffer.from("PK\u0003\u0004")), /no dex magic/);
+  const broken = fakeDex(["Lcom/a/Kept;"]);
+  broken.writeUInt32LE(7, 0x70 + 8); // the class_def names a type id past the table
+  assert.throws(() => dexClassDescriptors(broken), /names type 7 of 1/);
+});
+
+test("a dex file sits at an APK's root or under an AAB module's dex/", () => {
+  for (const file of ["classes.dex", "classes2.dex", "classes12.dex", "base/dex/classes.dex", "base/dex/classes3.dex"]) assert.ok(isDexPath(file), file);
+  for (const file of ["assets/classes.dex", "base/assets/x/classes.dex", "base/dex/other.dex", "classes.dex.prof", "lib/classes.dex"]) assert.ok(!isDexPath(file), file);
+});
+
+test("every class found by name must be defined in some dex file; a miss names the class and the keep rule", () => {
+  const split = [
+    { file: "base/dex/classes.dex", bytes: fakeDex(REQUIRED.slice(0, 2)) },
+    { file: "base/dex/classes2.dex", bytes: fakeDex(REQUIRED.slice(2)) },
+  ];
+  assert.deepEqual(dexFindings(split), [], "multidex: the classes may sit in any file");
+
+  // 0.3.0 (11): R8 removed JniInit; another class still names it, which is not a definition.
+  const lost = dexFindings([{ file: "classes.dex", bytes: fakeDex(REQUIRED.filter((d) => d !== JNI_INIT), [JNI_INIT]) }]);
+  assert.equal(lost.length, 1);
+  assert.equal(lost[0].rule, "dex-class-missing");
+  assert.equal(lost[0].file, "classes*.dex");
+  assert.equal(lost[0].name, JNI_INIT);
+  assert.match(lost[0].hint, /Llivekit\/org\/jni_zero\/JniInit; is not defined in any of 1 dex file\(s\)/);
+  assert.match(lost[0].hint, /Keep it with "-keep class livekit\.org\.jni_zero\.\*\* \{ \*; \}" in ANDROID_KEEP_RULES \(apps\/chat-mobile\/app\.config\.ts\)$/);
+
+  const library = dexFindings([{ file: "classes.dex", bytes: fakeDex(["Lcom/x/A;"]) }], [{ descriptor: "Lcom/x/B;", keep: "-keep class com.x.** { *; }", by: "x's consumer-rules" }]);
+  assert.match(library[0].hint, /; x's consumer-rules carried that rule until now$/);
+
+  assert.deepEqual(dexFindings([]).map((f) => f.rule), ["no-dex"], "a binary with no code is wrong");
+  const unreadable = dexFindings([{ file: "classes.dex", bytes: Buffer.from("not a dex file at all") }, { file: "classes2.dex", bytes: fakeDex(REQUIRED) }]);
+  assert.deepEqual(unreadable.map((f) => [f.rule, f.file]), [["dex-unreadable", "classes.dex"]]);
+});
+
+test("the required classes and ANDROID_KEEP_RULES (apps/chat-mobile/app.config.ts) name each other", () => {
+  const config = fs.readFileSync(path.join(here, "../apps/chat-mobile/app.config.ts"), "utf8");
+  const block = /export const ANDROID_KEEP_RULES = \[([^\]]*)\]\.join/.exec(config);
+  assert.ok(block, "ANDROID_KEEP_RULES is an array literal of strings joined by newlines");
+  const rules = [...block[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+  assert.ok(rules.length > 0);
+  for (const rule of rules) {
+    const pkg = /^-keep class ([\w.]+)\.\*\* \{ \*; \}$/.exec(rule);
+    assert.ok(pkg, `${rule}: REQUIRED_DEX_CLASSES only knows "-keep class <package>.** { *; }"; teach it the new shape`);
+    assert.ok(
+      REQUIRED_DEX_CLASSES.some((entry) => entry.keep === rule && entry.by === "ANDROID_KEEP_RULES"),
+      `${rule} keeps something native code finds by name: list one such class under ${pkg[1]} in scripts/mobile-apk-scan.mjs › REQUIRED_DEX_CLASSES`,
+    );
+  }
+  for (const { descriptor, keep, by } of REQUIRED_DEX_CLASSES) {
+    const pkg = /^-keep class ([\w.]+)\.\*\* \{ \*; \}$/.exec(keep);
+    assert.ok(pkg && descriptor.startsWith(`L${pkg[1].replaceAll(".", "/")}/`) && descriptor.endsWith(";"), `${descriptor} sits under ${keep}`);
+    if (by === "ANDROID_KEEP_RULES") assert.ok(rules.includes(keep), `${descriptor}: ${keep} is not in ANDROID_KEEP_RULES any more`);
+    else assert.ok(!rules.includes(keep) && by.length >= 10, `${descriptor}: say which library's rules keep it, or mark it ANDROID_KEEP_RULES`);
+  }
+  assert.ok(REQUIRED.includes(JNI_INIT) && REQUIRED.includes("Llivekit/org/webrtc/PeerConnectionFactory;"));
+  assert.equal(new Set(REQUIRED).size, REQUIRED.length);
+});
+
 test("scans an archive end to end and fails on a credential the baseline does not name", { skip: spawnSync("zip", ["-v"]).status !== 0 }, () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apk-scan-test-"));
   try {
     fs.mkdirSync(path.join(dir, "base", "assets"), { recursive: true });
     fs.writeFileSync(path.join(dir, "base", "assets", "index.android.bundle"), `var a = 1; var token = "ghp_${"z".repeat(36)}";`);
+    fs.mkdirSync(path.join(dir, "base", "dex"));
+    fs.writeFileSync(path.join(dir, "base", "dex", "classes.dex"), fakeDex(REQUIRED));
     execFileSync("zip", ["-qr", "app.aab", "base"], { cwd: dir });
     const baseline = path.join(dir, "baseline.json");
     fs.writeFileSync(baseline, JSON.stringify({ exported: [], secrets: [] }));
@@ -157,7 +226,35 @@ test("scans an archive end to end and fails on a credential the baseline does no
     fs.writeFileSync(baseline, JSON.stringify({ exported: [], secrets: [{ rule: "github-token", file: "base/assets/index.android.bundle", reason: "fixture" }] }));
     const excused = spawnSync(process.execPath, [path.join(here, "mobile-apk-scan.mjs"), path.join(dir, "app.aab"), "--baseline", baseline], { encoding: "utf8" });
     assert.equal(excused.status, 0, excused.stdout + excused.stderr);
-    assert.match(excused.stdout, /only the secret scan ran/);
+    assert.match(excused.stdout, /only the secret and dex scans ran/);
+    assert.match(excused.stdout, /dex: 1 file\(s\) define all \d+ class\(es\) found by name/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("fails an archive whose dex lost a class found by name, or that has no dex at all", { skip: spawnSync("zip", ["-v"]).status !== 0 }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apk-scan-test-"));
+  try {
+    const baseline = path.join(dir, "baseline.json");
+    fs.writeFileSync(baseline, JSON.stringify({ exported: [], secrets: [] }));
+    const scan = () => spawnSync(process.execPath, [path.join(here, "mobile-apk-scan.mjs"), path.join(dir, "app.aab"), "--baseline", baseline], { encoding: "utf8" });
+    fs.mkdirSync(path.join(dir, "base", "dex"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "base", "dex", "classes.dex"), fakeDex(REQUIRED.filter((d) => d !== JNI_INIT)));
+    fs.writeFileSync(path.join(dir, "base", "dex", "classes2.dex"), fakeDex(["Lcom/a/Other;"], [JNI_INIT]));
+    execFileSync("zip", ["-qr", "app.aab", "base"], { cwd: dir });
+    const lost = scan();
+    assert.equal(lost.status, 1, lost.stdout + lost.stderr);
+    assert.match(lost.stdout, /::error::dex-class-missing in base\/dex\/classes\*\.dex: Llivekit\/org\/jni_zero\/JniInit; is not defined in any of 2 dex file\(s\).*"-keep class livekit\.org\.jni_zero\.\*\* \{ \*; \}"/);
+
+    fs.rmSync(path.join(dir, "app.aab"));
+    fs.rmSync(path.join(dir, "base", "dex"), { recursive: true });
+    fs.mkdirSync(path.join(dir, "base", "assets"));
+    fs.writeFileSync(path.join(dir, "base", "assets", "index.android.bundle"), "var a = 1;");
+    execFileSync("zip", ["-qr", "app.aab", "base"], { cwd: dir });
+    const empty = scan();
+    assert.equal(empty.status, 1, empty.stdout + empty.stderr);
+    assert.match(empty.stdout, /::error::no-dex in classes\*\.dex: the archive has no dex file/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

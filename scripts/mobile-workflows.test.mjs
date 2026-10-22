@@ -8,6 +8,8 @@ import { parseAllDocuments } from "yaml";
 import { MOBILE_PATHS } from "./mobile-native-scope.mjs";
 import { ABI } from "./mobile-ftl-devices.mjs";
 import { JOBS as GATE_JOBS } from "./mobile-verify-gate.mjs";
+import { REQUIRED_DEX_CLASSES } from "./mobile-apk-scan.mjs";
+import { fakeDex } from "./mobile-apk-scan.fixture.mjs";
 
 // The release path of UniChat mobile (docs/runbooks/unichat-mobile-release.md,
 // ADR 0043): what the four workflows promise, held so an edit cannot quietly
@@ -248,6 +250,8 @@ test("the production AAB is scanned for credentials before it is submitted", () 
       const src = path.join(dir, name);
       fs.mkdirSync(path.join(src, "base", "assets"), { recursive: true });
       fs.writeFileSync(path.join(src, "base", "assets", "index.android.bundle"), bundle);
+      fs.mkdirSync(path.join(src, "base", "dex"));
+      fs.writeFileSync(path.join(src, "base", "dex", "classes.dex"), fakeDex(REQUIRED_DEX_CLASSES.map((entry) => entry.descriptor)));
       execFileSync("zip", ["-qr", "../" + name + ".aab", "base"], { cwd: src });
       return path.join(dir, `${name}.aab`);
     };

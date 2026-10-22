@@ -24,6 +24,7 @@ name: UniChat mobile production build
 # summary records.
 #
 # Before the submit, the built AAB is downloaded and scanned for credentials
+# and for the classes native code finds by name, which R8 must not drop
 # (scripts/mobile-apk-scan.mjs); a finding outside
 # apps/chat-mobile/apk-scan-baseline.json stops the release.
 #
@@ -154,7 +155,8 @@ jobs:
           ' "$RUNNER_TEMP/build.json"
       - name: Security scan of the built bundle
         # Audit "Security & privacy", no-ci-binary-security-scan: the AAB the store would get, built with the production
-        # EAS environment, carries no credential in any file (scripts/mobile-apk-scan.mjs). Its manifest is protobuf, so
+        # EAS environment, carries no credential in any file and still defines every class native code finds by name
+        # (scripts/mobile-apk-scan.mjs; 0.3.0 (11) reached Play without WebRTC's JniInit). Its manifest is protobuf, so
         # the CI release APK (mobile-verify.yml › android-release) is what scans the manifest. Before anything is submitted.
         run: |
           set -euo pipefail

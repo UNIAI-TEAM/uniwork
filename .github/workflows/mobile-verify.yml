@@ -28,7 +28,8 @@ name: Mobile Verify
 #                   (scripts/mobile-apk-scan.mjs: no credential in any file,
 #                   not debuggable, no backup or cleartext, no component other
 #                   apps reach without a permission beyond
-#                   apps/chat-mobile/apk-scan-baseline.json).
+#                   apps/chat-mobile/apk-scan-baseline.json, every class
+#                   native code finds by name still in the dex).
 #                   Only when the change reaches the binary
 #                   (scripts/mobile-native-scope.mjs): the app's code, config
 #                   or assets, the install graph, or a packages/core file the

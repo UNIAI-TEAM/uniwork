@@ -96,7 +96,8 @@ hai lớp test, `pnpm knip --workspace apps/chat-mobile`, `expo install --check`
 `scripts/mobile-bundle-budget.mjs`, trần cho từng nền tảng — iOS có ngân sách trước khi có bản build) và `android-release` (`expo prebuild` +
 `./gradlew :app:assembleRelease` x86_64, rồi quét bảo mật tĩnh APK đó bằng `scripts/mobile-apk-scan.mjs`: không
 credential nào trong mọi file, không debuggable/testOnly, không backup hay cleartext, không component nào app khác gọi
-được mà không có permission ngoài `apk-scan-baseline.json` (mỗi ngoại lệ một lý do); `chat-mobile-production.yml` quét
+được mà không có permission ngoài `apk-scan-baseline.json` (mỗi ngoại lệ một lý do), và dex định nghĩa đủ các lớp mã
+native hay Android tìm theo tên (`REQUIRED_DEX_CLASSES`: R8 bỏ một lớp không luật giữ là app chết khi mở); `chat-mobile-production.yml` quét
 cả AAB dựng trên EAS trước khi submit — Kotlin của `modules/*/android` thì job `mobile` chạy ktlint ở mọi PR mobile
 (ghim `KTLINT_VERSION` + checksum, kiểu ở `.editorconfig` › `[*.{kt,kts}]`; trong KDoc đừng viết `/*`, Kotlin coi là
 mở comment lồng), chỉ khi `scripts/mobile-native-scope.mjs`

@@ -17,6 +17,11 @@
 //             is reachable from other apps (exported, or an intent filter
 //             without an `exported` attribute) without a permission guarding
 //             it, unless the baseline names it with a reason.
+//   dex       (an APK or an AAB) the archive's dex files define every class in
+//             REQUIRED_DEX_CLASSES: what native code or Android finds by name,
+//             which R8 drops or renames when no keep rule covers it, and the
+//             app dies at launch (0.3.0 (11) reached Play without WebRTC's
+//             livekit.org.jni_zero.JniInit). An archive with no dex fails too.
 //
 // The baseline (apps/chat-mobile/apk-scan-baseline.json) is the reviewed
 // exceptions, each with a reason; `{package}` in a name stands for the
@@ -52,6 +57,81 @@ export const SECRET_RULES = [
   ["openai-key", /\bsk-(?!ant-)(?:proj-)?[A-Za-z0-9_-]{40,}/g],
   ["uniwork-token", /\buwm_(?:at|rt)_[A-Za-z0-9_-]{16,}/g],
 ];
+
+/**
+ * Classes the shipped dex must define under their own name, each with the keep rule that holds it and who carries
+ * that rule today: "ANDROID_KEEP_RULES" (apps/chat-mobile/app.config.ts) or a library's consumer rules. Every
+ * `-keep class <pkg>.**` in ANDROID_KEEP_RULES has an entry here under that package and every entry kept by
+ * ANDROID_KEEP_RULES names one of its rules (mobile-apk-scan.test.mjs), so the two lists cannot drift apart.
+ * List only a name R8 keeps as it is (read it from a release dex): an obfuscated one (com.oney.WebRTCModule.q)
+ * changes with every build. Each was read from 0.3.0 (11)'s native libraries, manifest or module config.
+ */
+export const REQUIRED_DEX_CLASSES = [
+  // liblkjingle_peerconnection_so.so's JNI_OnLoad finds it and traps without it: every launch dies.
+  { descriptor: "Llivekit/org/jni_zero/JniInit;", keep: "-keep class livekit.org.jni_zero.** { *; }", by: "ANDROID_KEEP_RULES" },
+  // The same library registers its natives on it; the first call builds one.
+  { descriptor: "Llivekit/org/webrtc/PeerConnectionFactory;", keep: "-keep class livekit.org.webrtc.** { *; }", by: "@livekit/react-native-webrtc consumer-rules" },
+  // libNitroModules.so and libNitroMmkv.so bind these through fbjni; MMKV holds the app's storage, read at boot.
+  { descriptor: "Lcom/margelo/nitro/core/HybridObject;", keep: "-keep class com.margelo.nitro.** { *; }", by: "ANDROID_KEEP_RULES" },
+  { descriptor: "Lcom/margelo/nitro/mmkv/HybridMMKVPlatformContextSpec;", keep: "-keep class com.margelo.nitro.** { *; }", by: "ANDROID_KEEP_RULES" },
+  // The call module, named by modules/unichat-calls/expo-module.config.json, and the service the manifest names as
+  // the first stop of every FCM message.
+  { descriptor: "Lexpo/modules/unichatcalls/UniChatCallsModule;", keep: "-keep class expo.modules.unichatcalls.** { *; }", by: "ANDROID_KEEP_RULES" },
+  { descriptor: "Lexpo/modules/unichatcalls/UniChatMessagingService;", keep: "-keep class expo.modules.unichatcalls.** { *; }", by: "ANDROID_KEEP_RULES" },
+];
+
+/** A dex file: classes.dex, classes2.dex… at an APK's root or in an AAB module's dex/ (base/dex/). */
+export const isDexPath = (file) => /^(?:[^/]+\/dex\/)?classes\d*\.dex$/.test(file);
+
+/** The type descriptors of the classes one dex file defines (class_defs → type_ids → string_ids), not the ones it only references. */
+export function dexClassDescriptors(bytes) {
+  if (bytes.length < 0x70 || bytes.toString("latin1", 0, 4) !== "dex\n") throw new Error("no dex magic");
+  const u32 = (at) => bytes.readUInt32LE(at);
+  const [stringCount, stringIds, typeCount, typeIds, classCount, classDefs] = [u32(56), u32(60), u32(64), u32(68), u32(96), u32(100)];
+  const defined = new Set();
+  for (let i = 0; i < classCount; i++) {
+    const type = u32(classDefs + i * 32);
+    if (type >= typeCount) throw new Error(`class_def ${i} names type ${type} of ${typeCount}`);
+    const string = u32(typeIds + type * 4);
+    if (string >= stringCount) throw new Error(`type ${type} names string ${string} of ${stringCount}`);
+    let at = u32(stringIds + string * 4);
+    while (at < bytes.length && bytes[at] & 0x80) at++; // the uleb128 UTF-16 length
+    at++;
+    const end = bytes.indexOf(0, at);
+    if (at > bytes.length || end === -1) throw new Error(`string ${string} runs past the end`);
+    defined.add(bytes.toString("latin1", at, end));
+  }
+  return defined;
+}
+
+/** What the archive's dex files miss of `required`: nothing to read, an unreadable file, a class no file defines. */
+export function dexFindings(dexFiles, required = REQUIRED_DEX_CLASSES) {
+  if (dexFiles.length === 0) return [{ kind: "dex", rule: "no-dex", file: "classes*.dex", hint: "the archive has no dex file: a binary with no code is not the app" }];
+  const findings = [];
+  const defined = new Set();
+  for (const { file, bytes } of dexFiles) {
+    try {
+      for (const descriptor of dexClassDescriptors(bytes)) defined.add(descriptor);
+    } catch (error) {
+      findings.push({ kind: "dex", rule: "dex-unreadable", file, hint: `${error.message}: its classes cannot be checked` });
+    }
+  }
+  const where = path.posix.join(path.posix.dirname(dexFiles[0].file), "classes*.dex");
+  for (const { descriptor, keep, by } of required) {
+    if (defined.has(descriptor)) continue;
+    findings.push({
+      kind: "dex",
+      rule: "dex-class-missing",
+      file: where,
+      name: descriptor,
+      hint:
+        `${descriptor} is not defined in any of ${dexFiles.length} dex file(s), yet native code or Android finds it by name: R8 dropped or ` +
+        `renamed it. Keep it with "${keep}" in ANDROID_KEEP_RULES (apps/chat-mobile/app.config.ts)` +
+        (by === "ANDROID_KEEP_RULES" ? "" : `; ${by} carried that rule until now`),
+    });
+  }
+  return findings;
+}
 
 /** The rule hits in one file's bytes: rule, file, offset and a hint that is never the value. */
 export function scanBytes(file, bytes) {
@@ -183,7 +263,16 @@ function main(argv) {
   try {
     execFileSync("unzip", ["-qq", "-o", archive, "-d", out], { stdio: ["ignore", "ignore", "inherit"] });
     const findings = [];
-    for (const file of walk(out)) findings.push(...scanBytes(path.relative(out, file), fs.readFileSync(file)));
+    const dexFiles = [];
+    for (const file of walk(out)) {
+      const name = path.relative(out, file).split(path.sep).join("/");
+      const bytes = fs.readFileSync(file);
+      findings.push(...scanBytes(name, bytes));
+      if (isDexPath(name)) dexFiles.push({ file: name, bytes });
+    }
+    const dex = dexFindings(dexFiles.sort((a, b) => a.file.localeCompare(b.file, undefined, { numeric: true })));
+    findings.push(...dex);
+    if (dex.length === 0) console.log(`dex: ${dexFiles.length} file(s) define all ${REQUIRED_DEX_CLASSES.length} class(es) found by name`);
     let packageName = "";
     if (archive.endsWith(".apk")) {
       const aapt2 = findAapt2(aapt2Flag);
@@ -196,7 +285,7 @@ function main(argv) {
       packageName = manifest.packageName;
       findings.push(...manifest.findings);
     } else {
-      console.log("::notice::an app bundle's manifest is protobuf: only the secret scan ran (the CI release APK covers the manifest)");
+      console.log("::notice::an app bundle's manifest is protobuf: only the secret and dex scans ran (the CI release APK covers the manifest)");
     }
     const { fresh, stale } = compare(findings, baseline, packageName);
     for (const entry of stale) console.log(`::notice::apk-scan-baseline.json excuses ${entry.name ?? `${entry.rule} in ${entry.file}`}, which no longer appears: drop it`);

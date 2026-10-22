@@ -204,7 +204,10 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   --dump-sourcemap` rồi `node scripts/mobile-bundle-budget.mjs /tmp/uc` (trần riêng cho Android và iOS).
 - Bản release Android chạy R8 và thu gọn tài nguyên (`app.config.ts` › `expo-build-properties`). Crash chỉ có ở bản
   release (`ClassNotFoundException`, `NoSuchMethodError` trong một module native) thường là một lớp R8 đã bỏ: thêm luật
-  `-keep` vào `ANDROID_KEEP_RULES` (đổi fingerprint: bản store mới), xác nhận bằng `android-smoke` và nightly. Bật R8
+  `-keep` vào `ANDROID_KEEP_RULES` (đổi fingerprint: bản store mới), xác nhận bằng `android-smoke` và nightly. Lớp mã
+  native tìm theo tên thì ghi thêm một lớp của gói đó vào `REQUIRED_DEX_CLASSES` (`scripts/mobile-apk-scan.mjs`, đọc tên
+  từ dex của một bản release: tên đã bị đổi như `com.oney.WebRTCModule.q` thì không ghi); test của scan đỏ khi một luật
+  `-keep class <gói>.**` không có lớp nào ở đó. Bật R8
   đổi fingerprint của bản đầu tiên mang nó: bump `version` trước bản store kế tiếp.
 
 **Thiết lập lần đầu (khi có tài khoản, UNI-1838)**
@@ -348,7 +351,9 @@ dưới `…<os>.ota.<id>`, mục Phát OTA; tên có OS vì số build iOS và 
    Sentry/GitHub, khoá AWS/Stripe/AI, service account Play, token `uwm_` — trong bất kỳ file nào thì đỏ và không nộp; log
    chỉ in tên luật, file và vài ký tự đầu. Xử lý: tìm biến môi trường EAS hay file đã lọt vào bundle, gỡ, xoay vòng
    credential đó vì nó đã nằm trong một artifact trên EAS, build lại; chỉ khi chắc là dương tính giả mới thêm vào
-   `apps/chat-mobile/apk-scan-baseline.json` kèm lý do) → kiểm Sentry đã có release `com.uniworkos.chat@<version>+<version code>` (Gradle tải source map
+   `apps/chat-mobile/apk-scan-baseline.json` kèm lý do; `dex-class-missing` là R8 đã bỏ một lớp mã native tìm theo tên,
+   như `livekit.org.jni_zero.JniInit` khiến 0.3.0 (11) chết khi mở: thêm luật `-keep` mà lỗi in ra vào
+   `ANDROID_KEEP_RULES`, bump `version`, build lại) → kiểm Sentry đã có release `com.uniworkos.chat@<version>+<version code>` (Gradle tải source map
    và symbol dưới tên đó; không có là tải hỏng, đỏ) → `eas submit --profile production-internal --id <build>`: đúng
    binary đó lên **internal track của app production** `com.uniworkos.chat`. Summary ghi version code.
 2. **Thử** bản đó trên internal track của app production (người thử nội bộ, checklist máy thật bên dưới).
