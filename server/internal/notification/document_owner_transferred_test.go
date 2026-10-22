@@ -114,7 +114,8 @@ func TestDocumentOwnerTransferredTitleAndPrefs(t *testing.T) {
 	if p := DefaultPrefs(KindDocumentOwnerTransferred); !p.InApp || p.Push {
 		t.Fatalf("default prefs = %+v, want in-app on, push off", p)
 	}
-	if !ValidKind(KindDocumentOwnerTransferred) || Kinds[len(Kinds)-1] != KindDocumentOwnerTransferred {
-		t.Fatalf("kind not registered last: %v", Kinds[len(Kinds)-3:])
+	// The bulk kind (DOC-06b) is appended right after it.
+	if !ValidKind(KindDocumentOwnerTransferred) || Kinds[len(Kinds)-2] != KindDocumentOwnerTransferred {
+		t.Fatalf("kind not registered before the bulk kind: %v", Kinds[len(Kinds)-3:])
 	}
 }
