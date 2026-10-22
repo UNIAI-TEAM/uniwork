@@ -126,11 +126,15 @@ function serverUrl(name: "UNICHAT_API_URL" | "UNICHAT_APP_URL", env: AppEnv, dev
 
 /** A base64 SHA-256 of a SubjectPublicKeyInfo: 32 bytes, 44 characters with padding. */
 const SPKI_PIN = /^[A-Za-z0-9+/]{43}=$/;
+/** A bare DNS hostname: no scheme, port, path or wildcard. */
+const HOSTNAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 
 /**
  * TLS pinning of UniChat's own servers (plugins/with-tls-pins.js), from the build's environment:
  * UNICHAT_TLS_PINS (comma-separated base64 SPKI SHA-256, at least two: the current CA key and a backup)
- * and UNICHAT_TLS_PIN_EXPIRES (YYYY-MM-DD, after which Android stops enforcing them). Unset, nothing is
+ * and UNICHAT_TLS_PIN_EXPIRES (YYYY-MM-DD, after which Android stops enforcing them). The API and web
+ * hosts are pinned, plus any UNICHAT_TLS_PIN_HOSTS names (comma-separated hostnames: the LiveKit
+ * signalling host, which carries a call's join token; its chain must end in one of the pins). Unset, nothing is
  * pinned. Half a configuration, one pin, a malformed pin or a past date is a broken build, not a phone
  * that cannot reach its server: the config refuses it. Never for dev, whose server is plain http on a LAN.
  */
@@ -140,14 +144,20 @@ export function tlsPinning(env: AppEnv, hosts: string[], now: Date = new Date())
     .map((pin: string) => pin.trim())
     .filter(Boolean);
   const expiration = String(process.env.UNICHAT_TLS_PIN_EXPIRES ?? "").trim();
-  if (pins.length === 0 && !expiration) return null;
+  const extraHosts: string[] = String(process.env.UNICHAT_TLS_PIN_HOSTS ?? "")
+    .split(",")
+    .map((host: string) => host.trim())
+    .filter(Boolean);
+  if (pins.length === 0 && !expiration && extraHosts.length === 0) return null;
   if (env === "dev") throw new Error("UNICHAT_TLS_PINS is for staging and production builds only");
   if (pins.length < 2) throw new Error("UNICHAT_TLS_PINS needs at least two pins: the current CA key and a backup");
   const bad = pins.find((pin: string) => !SPKI_PIN.test(pin));
   if (bad) throw new Error(`UNICHAT_TLS_PINS has a value that is not a base64 SHA-256: ${bad}`);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(expiration) || Number.isNaN(Date.parse(expiration))) throw new Error("UNICHAT_TLS_PIN_EXPIRES must be a date like 2027-10-01");
   if (Date.parse(expiration) <= now.getTime()) throw new Error("UNICHAT_TLS_PIN_EXPIRES is in the past: Android would not enforce the pins");
-  const domains: string[] = [...new Set(hosts.filter(Boolean))];
+  const badHost = extraHosts.find((host: string) => !HOSTNAME.test(host));
+  if (badHost) throw new Error(`UNICHAT_TLS_PIN_HOSTS has a value that is not a bare hostname: ${badHost}`);
+  const domains: string[] = [...new Set([...hosts, ...extraHosts.map((host: string) => host.toLowerCase())].filter(Boolean))];
   if (domains.length === 0) throw new Error("UNICHAT_TLS_PINS needs UNICHAT_API_URL and UNICHAT_APP_URL to name the hosts to pin");
   return { domains, pins: [...new Set(pins)], expiration };
 }

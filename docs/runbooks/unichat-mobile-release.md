@@ -807,13 +807,18 @@ lại — nhạc chuông, màn toàn màn hình, push khi app bị kill, OEM. Ch
    ít nhất một CA dự phòng (CA khác, hoặc khoá kế tiếp của cùng CA):
    `openssl s_client -connect api.uniworkos.com:443 -showcerts </dev/null | awk '/BEGIN/{n++} n==2' | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64`
    (`n==2` là chứng chỉ trung gian; dự phòng tính từ PEM của CA đó). Đặt trong môi trường EAS của bản build (`preview`
-   trước, `production` sau một tuần không lỗi): `UNICHAT_TLS_PINS=<pin1>,<pin2>` và `UNICHAT_TLS_PIN_EXPIRES=<ngày,
-   ~12 tháng sau>`; config từ chối một pin, pin sai dạng, thiếu hay quá ngày hết hạn. Đây là thay đổi native (bản store
+   trước, `production` sau một tuần không lỗi): `UNICHAT_TLS_PINS=<pin1>,<pin2>`, `UNICHAT_TLS_PIN_EXPIRES=<ngày,
+   ~12 tháng sau>` và `UNICHAT_TLS_PIN_HOSTS=<host signalling LiveKit>` (host trong `LIVEKIT_URL` của server, bỏ
+   `wss://`; tính pin của nó như trên — nếu CA khác CA của API thì thêm pin của CA đó vào `UNICHAT_TLS_PINS`); config từ chối một pin, pin sai dạng, thiếu hay quá ngày hết hạn. Đây là thay đổi native (bản store
    mới). Xoay vòng: thêm pin của CA mới vào bản store trước khi server đổi CA, bỏ pin cũ ở bản sau; gia hạn ngày hết hạn
    mỗi bản store. Sự cố (server đổi sang CA không có trong pin): Android tự bỏ ghim sau ngày hết hạn, trước đó cần bản
    store mới; iOS không có hết hạn — chỉ bật pin trên bản iOS khi đã có quy trình phát bản khẩn. OTA vẫn tới được vì
-   `u.expo.dev` không bị ghim, nhưng OTA không đổi được cấu hình native. Kiểm sau khi bật: app vào được inbox trên mạng
-   thường; qua proxy chặn TLS (mitmproxy với CA người dùng tự cài) thì app báo mất kết nối, không lộ token.
+   `u.expo.dev` không bị ghim, nhưng OTA không đổi được cấu hình native. Kiểm sau khi bật, trên Android và (khi có) iOS:
+   app vào được inbox và gọi được trên mạng thường; qua proxy chặn TLS (mitmproxy với CA người dùng tự cài, hoặc CA hệ
+   thống trên máy test đã root) thì cả request REST, socket `wss://` và cuộc gọi LiveKit đều hỏng, app báo mất kết nối,
+   không lộ token. Ghi kết quả vào bằng chứng của bản (iOS: kiểm riêng socket, vì chưa xác minh `NSPinnedDomains` có
+   phủ WebSocket SocketRocket hay không). Lỗi ghim không phân biệt được với mất mạng trong JS (đều là lỗi mạng), nên
+   không có sự kiện Sentry riêng: theo dõi tỉ lệ `ApiError` status 0 theo bản sau khi bật.
 
 ## Leo thang
 

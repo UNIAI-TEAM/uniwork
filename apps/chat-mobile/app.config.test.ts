@@ -399,6 +399,31 @@ describe("TLS pinning", () => {
     expect(pinsPlugin(build())).toEqual({ domains: ["api.uniworkos.com", "app.uniworkos.com"], pins: [PIN_A, PIN_B], expiration: "2099-01-01" });
   });
 
+  // Audit "Security & privacy", tls-pinning-off: the LiveKit signalling host carries the call's join token, so it
+  // is pinned with the API and the web app when the build names it.
+  it("adds the hosts UNICHAT_TLS_PIN_HOSTS names (the LiveKit signalling host), and refuses one that is not a host", () => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    vi.stubEnv("UNICHAT_API_URL", "https://api.uniworkos.com");
+    vi.stubEnv("UNICHAT_APP_URL", "https://app.uniworkos.com");
+    vi.stubEnv("UNICHAT_TLS_PINS", `${PIN_A},${PIN_B}`);
+    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", "2099-01-01");
+    vi.stubEnv("UNICHAT_TLS_PIN_HOSTS", " livekit.uniworkos.com , api.uniworkos.com,");
+    expect(pinsPlugin(build())?.domains).toEqual(["api.uniworkos.com", "app.uniworkos.com", "livekit.uniworkos.com"]);
+    for (const bad of ["wss://livekit.uniworkos.com", "livekit.uniworkos.com:7880", "*.uniworkos.com", "live kit"]) {
+      vi.stubEnv("UNICHAT_TLS_PIN_HOSTS", bad);
+      expect(build).toThrow("UNICHAT_TLS_PIN_HOSTS");
+    }
+  });
+
+  it("refuses hosts to pin without pins", () => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    stubServers();
+    vi.stubEnv("UNICHAT_TLS_PINS", undefined);
+    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", undefined);
+    vi.stubEnv("UNICHAT_TLS_PIN_HOSTS", "livekit.uniworkos.com");
+    expect(build).toThrow("at least two pins");
+  });
+
   it.each([
     ["one pin, no backup", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=", "2099-01-01", "at least two pins"],
     ["a value that is not a SHA-256", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,not-a-pin", "2099-01-01", "not a base64 SHA-256"],
