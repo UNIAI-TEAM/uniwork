@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+da02be7189233a9311e81c1938ea0e54fde8b311
+da02be718 chore: merge the fixed G5-G7 root 3e15fbefb into the UNI-2084 lane
+3e15fbefb test(scripts): exempt the three develop (ci) commits from the history check
+ed27dca38 chore: merge the develop-sync fix (develop 59253aa47) into the G5-G7 root
