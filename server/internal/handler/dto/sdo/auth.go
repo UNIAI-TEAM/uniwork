@@ -38,6 +38,13 @@ type PushPreviewPolicySDO struct {
 	CanManage bool    `json:"can_manage" description:"true khi người gọi là owner/admin và đổi được chính sách" example:"true"`
 }
 
+// MobileSecurityPolicySDO is GET/PUT /api/v1/orgs/{org}/mobile-security-policy.
+type MobileSecurityPolicySDO struct {
+	RequireAppLock     bool `json:"require_app_lock" description:"true khi tổ chức bắt buộc khoá UniChat (Face ID, vân tay hay mã máy) trên điện thoại của mọi thành viên; app coi là mức tối thiểu người dùng không hạ được" example:"false"`
+	BlockScreenCapture bool `json:"block_screen_capture" description:"true khi tổ chức bắt buộc chặn chụp và quay màn hình UniChat (kèm che nội dung trong trình chuyển ứng dụng) trên điện thoại của mọi thành viên" example:"false"`
+	CanManage          bool `json:"can_manage" description:"true khi người gọi là owner/admin và đổi được chính sách" example:"true"`
+}
+
 // AuthProvidersSDO is GET /api/v1/auth/providers.
 type AuthProvidersSDO struct {
 	Google bool `json:"google" description:"true khi Google sign-in được cấu hình trên server" example:"true"`

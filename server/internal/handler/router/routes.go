@@ -108,6 +108,9 @@ type Routes struct {
 
 	OrgPushPreviewPolicy    http.HandlerFunc
 	SetOrgPushPreviewPolicy http.HandlerFunc
+	// The organization's floor under members' phone app lock and screen capture.
+	OrgMobileSecurityPolicy    http.HandlerFunc
+	SetOrgMobileSecurityPolicy http.HandlerFunc
 
 	ListOrgMembers      http.HandlerFunc
 	GetOrgMembershipMe  http.HandlerFunc

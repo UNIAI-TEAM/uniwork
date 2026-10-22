@@ -337,8 +337,10 @@ func New(d Deps) http.Handler {
 		ListOrgWorkspaces:  h.listOrgWorkspaces,
 		CreateOrgWorkspace: h.createOrgWorkspace,
 
-		OrgPushPreviewPolicy:    h.orgPushPreviewPolicy,
-		SetOrgPushPreviewPolicy: h.setOrgPushPreviewPolicy,
+		OrgPushPreviewPolicy:       h.orgPushPreviewPolicy,
+		SetOrgPushPreviewPolicy:    h.setOrgPushPreviewPolicy,
+		OrgMobileSecurityPolicy:    h.orgMobileSecurityPolicy,
+		SetOrgMobileSecurityPolicy: h.setOrgMobileSecurityPolicy,
 
 		ListOrgMembers:      h.listOrgMembers,
 		GetOrgMembershipMe:  h.getOrgMembershipMe,

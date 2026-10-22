@@ -79,6 +79,21 @@ func registerOrganizations(r api, h Routes) {
 		sdo:         sdo.PushPreviewPolicySDO{},
 		auth:        true,
 	})
+	r.Get("/orgs/{org}/mobile-security-policy", h.OrgMobileSecurityPolicy, apiOp{
+		summary:     "Read the organization's phone security requirements",
+		description: "Chính sách của tổ chức cho UniChat trên điện thoại: bắt buộc khoá app, bắt buộc chặn chụp/quay màn hình. Mọi thành viên đọc được (điện thoại coi là mức tối thiểu và nói vì sao công tắc bị khoá); can_manage cho owner/admin.",
+		tags:        []string{"organizations"},
+		sdo:         sdo.MobileSecurityPolicySDO{},
+		auth:        true,
+	})
+	r.Put("/orgs/{org}/mobile-security-policy", h.SetOrgMobileSecurityPolicy, apiOp{
+		summary:     "Require the app lock or screen-capture blocking on members' phones",
+		description: "Owner/admin bật/tắt yêu cầu khoá UniChat và chặn chụp màn hình trên điện thoại của mọi thành viên (ít nhất một trường; trường bỏ trống giữ nguyên). Thành viên thường -> 403. Không đổi gì thì không ghi audit; có đổi thì ghi organization.mobile_security_policy_changed.",
+		tags:        []string{"organizations"},
+		sdi:         sdi.MobileSecurityPolicySDI{},
+		sdo:         sdo.MobileSecurityPolicySDO{},
+		auth:        true,
+	})
 	r.Get("/orgs/{org}/members", h.ListOrgMembers, apiOp{
 		summary:     "List organization members",
 		description: "Danh sách thành viên tổ chức. Mọi thành viên đọc được; lọc theo status (active mặc định, deactivated, all) và phân trang bằng cursor.",

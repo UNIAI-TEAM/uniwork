@@ -430,6 +430,11 @@ var isoRoutes = map[string]isoSpec{
 		body: func(w *isoWorld, tn *isoTenant) isoBody {
 			return isoBody{json: map[string]any{"hidden": tn == w.alpha}}
 		}},
+	"PUT /api/v1/orgs/{org}/mobile-security-policy": {
+		reason: "the attack on A sends both requirements true, which would lock every phone of A, so A's tenant digest catches a breach; every other tenant's own call sends both false, the default, which answers 200 and changes nothing",
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"require_app_lock": tn == w.alpha, "block_screen_capture": tn == w.alpha}}
+		}},
 	"PUT /api/v1/orgs/{org}/mcp-policy/write": {
 		reason: "the attack on A sends enabled false, which would switch A's write access off, so A's tenant digest catches a breach; every other tenant's own call sends true, a repeated enable (buildMcp turns write on) that answers 200",
 		body: func(w *isoWorld, tn *isoTenant) isoBody {

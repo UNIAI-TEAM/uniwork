@@ -1270,7 +1270,7 @@ func (q *Queries) AdminRevertInvoiceRefundRequest(ctx context.Context, id string
 const adminSetOrganizationStatus = `-- name: AdminSetOrganizationStatus :one
 UPDATE organizations SET status = $2, suspended_at = $3, suspended_reason = $4, updated_at = now()
 WHERE id = $1 AND status IN ('active', 'suspended')
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by
 `
 
 type AdminSetOrganizationStatusParams struct {
@@ -1310,6 +1310,10 @@ func (q *Queries) AdminSetOrganizationStatus(ctx context.Context, arg AdminSetOr
 		&i.AskUniModelsUpdatedAt,
 		&i.PushPreviewsHiddenAt,
 		&i.PushPreviewsHiddenBy,
+		&i.MobileAppLockRequiredAt,
+		&i.MobileAppLockRequiredBy,
+		&i.MobileScreenCaptureBlockedAt,
+		&i.MobileScreenCaptureBlockedBy,
 	)
 	return i, err
 }

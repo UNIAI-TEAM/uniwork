@@ -84,6 +84,13 @@ type PushPreviewPolicySDI struct {
 	Hidden *bool `json:"hidden" description:"true ẩn nội dung (tên, tiêu đề, chữ trong tin) trong mọi push của tổ chức; bắt buộc" example:"true"`
 }
 
+// MobileSecurityPolicySDI is PUT /api/v1/orgs/{org}/mobile-security-policy:
+// at least one field; a field left out keeps its value.
+type MobileSecurityPolicySDI struct {
+	RequireAppLock     *bool `json:"require_app_lock,omitempty" description:"true bắt buộc khoá UniChat trên điện thoại của mọi thành viên, false bỏ yêu cầu; bỏ trống thì giữ nguyên" example:"true"`
+	BlockScreenCapture *bool `json:"block_screen_capture,omitempty" description:"true bắt buộc chặn chụp/quay màn hình UniChat, false bỏ yêu cầu; bỏ trống thì giữ nguyên" example:"true"`
+}
+
 // SetAIConsentSDI is PUT /api/v1/me/ai-consent.
 type SetAIConsentSDI struct {
 	Version string `json:"version" description:"Phiên bản thông báo xử lý AI người dùng vừa đồng ý (tối đa 64 ký tự, không khoảng trắng)" example:"2026-10-anthropic"`

@@ -313,6 +313,10 @@ const (
 	// An owner or admin hid (or showed again) the message's words in every
 	// chat push of the organization (OrganizationService.SetPushPreviewPolicy).
 	ActionOrganizationPushPreviewPolicyChanged = "organization.push_preview_policy_changed"
+	// An owner or admin required (or stopped requiring) the UniChat app lock or
+	// screen-capture blocking on members' phones
+	// (OrganizationService.SetMobileSecurityPolicy).
+	ActionOrganizationMobileSecurityPolicyChanged = "organization.mobile_security_policy_changed"
 
 	// An organization owner/admin chose which Claude models Ask UNI offers
 	// (AskUNIService.SetAskModels).

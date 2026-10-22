@@ -749,6 +749,13 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionOrganizationMobileSecurityPolicyChanged: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			on := true
+			if _, err := f.orgs.SetMobileSecurityPolicy(f.ctx, f.owner.ID, f.orgID, MobileSecurityPolicyChange{RequireAppLock: &on}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatReportCreated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
 			if _, err := f.chat.ReportChat(f.ctx, f.owner.ID, w.ID, ReportChatInput{UserID: f.member.ID, Reason: "spam"}); err != nil {
@@ -2009,6 +2016,7 @@ func auditActions() []string {
 		audit.ActionOrganizationMcpPolicyChanged,
 		audit.ActionOrganizationMcpWritePolicyChanged,
 		audit.ActionOrganizationPushPreviewPolicyChanged,
+		audit.ActionOrganizationMobileSecurityPolicyChanged,
 		audit.ActionOrganizationAskModelsChanged,
 	}
 }
