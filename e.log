@@ -1,0 +1,13 @@
+$ (. scripts/local-env.sh && cd server && go test ./migrations ./internal -count=1 -v -run '^(TestEveryQueryNamesItsTenant|TestTenantReasonsSitOnTenantQueries|TestMembershipDecidedInOnePlace|TestAuditAndOutboxWritesGoThroughTheAuditPackage|TestLayering|TestActorConstructedOnlyInService)$' > /tmp/g.log 2>&1); rc=$?; grep -E "^--- (PASS|FAIL|SKIP): |^(ok|FAIL)\s" /tmp/g.log; echo; echo "TEST_GO_GUARDS_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- PASS: TestEveryQueryNamesItsTenant (0.10s)
+--- FAIL: TestTenantReasonsSitOnTenantQueries (0.05s)
+FAIL	github.com/unicomhub/uniwork/server/migrations	0.154s
+--- PASS: TestLayering (0.30s)
+--- PASS: TestMembershipDecidedInOnePlace (0.01s)
+--- PASS: TestActorConstructedOnlyInService (0.01s)
+--- PASS: TestAuditAndOutboxWritesGoThroughTheAuditPackage (0.01s)
+ok  	github.com/unicomhub/uniwork/server/internal	0.334s
+
+TEST_GO_GUARDS_EXIT=1
