@@ -52,7 +52,7 @@ focusManager.setEventListener((handleFocus) => {
 });
 
 // ── onlineManager ← NetInfo ──────────────────────────────────────────
-// NetInfo probes UniChat's own /healthz (iOS; Android asks the OS whether the
+// NetInfo probes UniChat's own /api/v1/healthz (iOS; Android asks the OS whether the
 // network is validated). Configured before any listener is added: configure()
 // stops the listeners added before it.
 NetInfo.configure(reachabilityConfig(apiUrlFromExtra(Constants.expoConfig?.extra)));

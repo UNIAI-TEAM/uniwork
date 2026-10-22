@@ -87,7 +87,7 @@ it("flushes once ready, on the offline → online edge only, and on each return 
   await act(async () => net({ isConnected: null }));
   await act(async () => net({ isConnected: true }));
   expect(mockFlushOwed).toHaveBeenCalledTimes(2);
-  // A captive portal is offline; signing in to it (the probe reaches /healthz) is the online edge.
+  // A captive portal is offline; signing in to it (the probe reaches /api/v1/healthz) is the online edge.
   await act(async () => net({ isConnected: true, isInternetReachable: false }));
   expect(mockFlushOwed).toHaveBeenCalledTimes(2);
   await act(async () => net({ isConnected: true, isInternetReachable: true }));

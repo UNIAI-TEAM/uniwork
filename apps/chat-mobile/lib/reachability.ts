@@ -5,8 +5,10 @@
 // nothing has shown the internet to be out of reach: isInternetReachable
 // false is offline too, as WhatsApp and Telegram treat a captive portal.
 // Android answers it from the OS (NET_CAPABILITY_VALIDATED); iOS asks
-// reachabilityUrl, here UniChat's own /healthz, so "reachable" means our API
-// answers, not that some other site does.
+// reachabilityUrl, here UniChat's own /api/v1/healthz, so "reachable" means our
+// API answers, not that some other site does. Under /api on purpose: the
+// production edge sends only /api (and the MCP paths) to the server, and a bare
+// /healthz on the public host reaches the web app, which never answers it.
 
 /** The slice of NetInfo's state this reads. */
 interface NetSnapshot {
@@ -30,7 +32,7 @@ interface ProbeResponse {
   json(): Promise<unknown>;
 }
 
-/** /healthz answered as our server does (200 `{"status":"ok"}`); a captive portal's 200 login page is not it. */
+/** The liveness probe answered as our server does (200 `{"status":"ok"}`); a captive portal's 200 login page is not it. */
 async function isHealthzAnswer(response: ProbeResponse): Promise<boolean> {
   if (response.status !== 200) return false;
   const body = await response.json().then(
@@ -43,7 +45,7 @@ async function isHealthzAnswer(response: ProbeResponse): Promise<boolean> {
 /** NetInfo's configuration for the build's API origin (lib/runtime-extra.ts › apiUrl). */
 export function reachabilityConfig(apiUrl: string) {
   return {
-    reachabilityUrl: `${apiUrl.replace(/\/+$/, "")}/healthz`,
+    reachabilityUrl: `${apiUrl.replace(/\/+$/, "")}/api/v1/healthz`,
     // The server routes GET only (chi answers HEAD with 405).
     reachabilityMethod: "GET" as const,
     reachabilityTest: isHealthzAnswer,

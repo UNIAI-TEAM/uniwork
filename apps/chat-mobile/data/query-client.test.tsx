@@ -1,5 +1,5 @@
 // TanStack's online flag is the app's "online" (lib/reachability.ts): a captive portal or dead Wi-Fi pauses
-// queries and holds the queues, and NetInfo probes UniChat's own /healthz, configured before any listener.
+// queries and holds the queues, and NetInfo probes UniChat's own /api/v1/healthz, configured before any listener.
 import { focusManager, onlineManager } from "@tanstack/react-query";
 import { AppState } from "react-native";
 import { queryClient } from "./query-client";
@@ -36,9 +36,9 @@ jest.mock("expo-constants", () => ({ __esModule: true, default: { expoConfig: { 
 // per-test mock reset).
 const onAppState = jest.mocked(AppState.addEventListener).mock.calls.filter(([type]) => type === "change").at(-1)?.[1];
 
-it("probes /healthz, counts a link that does not reach the internet as offline, and follows the app to the front", () => {
+it("probes /api/v1/healthz, counts a link that does not reach the internet as offline, and follows the app to the front", () => {
   expect(queryClient.getDefaultOptions().queries?.retry).toBe(1);
-  expect(mockNet.configured).toEqual([expect.objectContaining({ reachabilityUrl: "https://api.unichat.example/healthz", reachabilityMethod: "GET" })]);
+  expect(mockNet.configured).toEqual([expect.objectContaining({ reachabilityUrl: "https://api.unichat.example/api/v1/healthz", reachabilityMethod: "GET" })]);
   // configure() drops the listeners added before it.
   expect(mockNet.order[0]).toBe("configure");
 

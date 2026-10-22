@@ -24,10 +24,13 @@ describe("online", () => {
 });
 
 describe("the probe", () => {
-  it("is our /healthz, by GET, answered as our server answers it", async () => {
+  // Under /api: the production edge sends only /api (and the MCP paths) to the server; a bare /healthz on the
+  // public host reaches the web app, never answers {"status":"ok"}, and left every iPhone offline for good.
+  it("is our /api/v1/healthz, by GET, answered as our server answers it", async () => {
     const config = reachabilityConfig("https://api.unichat.example/");
-    expect(config).toMatchObject({ reachabilityUrl: "https://api.unichat.example/healthz", reachabilityMethod: "GET", reachabilityLongTimeout: 60_000 });
-    expect(reachabilityConfig("http://10.0.2.2:8090").reachabilityUrl).toBe("http://10.0.2.2:8090/healthz");
+    expect(config).toMatchObject({ reachabilityUrl: "https://api.unichat.example/api/v1/healthz", reachabilityMethod: "GET", reachabilityLongTimeout: 60_000 });
+    expect(reachabilityConfig("http://10.0.2.2:8090").reachabilityUrl).toBe("http://10.0.2.2:8090/api/v1/healthz");
+    expect(new URL(config.reachabilityUrl).pathname.startsWith("/api/")).toBe(true);
     expect(await config.reachabilityTest(answer(200, { status: "ok" }))).toBe(true);
     // A portal's login page, a redirect, a server down, a body that is not ours.
     expect(await config.reachabilityTest(answer(200, new Error("not json")))).toBe(false);
