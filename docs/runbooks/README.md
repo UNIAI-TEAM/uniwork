@@ -26,6 +26,7 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `GraphProjectorLagHigh` | 3 | Work Graph chiếu chậm hơn nguồn | [GraphProjectorLagHigh.md](GraphProjectorLagHigh.md) |
 | `WebVitalsLCPPoor` | 3 | p75 LCP > 2,5 s trong 30 phút | [WebVitalsLCPPoor.md](WebVitalsLCPPoor.md) |
 | `UniChatMobileServerErrors` | 2 | một bản UniChat mobile (version + OTA) nhận 5xx > 5 % request trong 15 phút | [UniChatMobileServerErrors.md](UniChatMobileServerErrors.md) |
+| `UniChatCallRingsDegraded` | 3 | một bản UniChat Android: > 10 % push cuộc gọi trong 1 giờ (≥ 20) không thành màn đổ chuông native | [UniChatCallRingsDegraded.md](UniChatCallRingsDegraded.md) |
 | `OfficeChangeFeedLagHigh` | 2 | change feed Office trễ > 300 s trong 10 phút (pending G7-D1) | [OfficeChangeFeedLagHigh.md](OfficeChangeFeedLagHigh.md) |
 | `OfficeLeaseRevokeFailed` | 2 | revoke lease offline fail-closed không ghi được (pending G7-D1) | [OfficeLeaseRevokeFailed.md](OfficeLeaseRevokeFailed.md) |
 | `UniworkAiModelErrors` | 2 | > 10 % lượt model `office_uniwork_ai` lỗi trong 10 phút (pending G7-D1) | [UniworkAiModelErrors.md](UniworkAiModelErrors.md) |

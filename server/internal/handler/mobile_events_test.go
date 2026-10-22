@@ -46,6 +46,7 @@ func TestMobileEventsEndpoint(t *testing.T) {
 		{"name":"message_send","result":"sent","duration_ms":420},
 		{"name":"message_send","result":"failed"},
 		{"name":"call_connect","result":"connected","duration_ms":2100},
+		{"name":"call_push","result":"lost"},
 		{"name":"push_open","result":"leaked-room-id"},
 		{"name":"room_opened","result":"ok"}
 	]}`
@@ -58,8 +59,11 @@ func TestMobileEventsEndpoint(t *testing.T) {
 	if got := testutil.ToFloat64(events.Events.WithLabelValues("message_send", "sent", "android", "0.3.0", "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b")); got != 1 {
 		t.Fatalf("message_send sent = %v, want 1", got)
 	}
-	if n := testutil.CollectAndCount(events.Events, "uniwork_mobile_events_total"); n != 4 {
-		t.Fatalf("series = %d, want 4 (unknown events and results are dropped)", n)
+	if got := testutil.ToFloat64(events.Events.WithLabelValues("call_push", "lost", "android", "0.3.0", "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b")); got != 1 {
+		t.Fatalf("call_push lost = %v, want 1 (a ring that reached no notification is counted)", got)
+	}
+	if n := testutil.CollectAndCount(events.Events, "uniwork_mobile_events_total"); n != 5 {
+		t.Fatalf("series = %d, want 5 (unknown events and results are dropped)", n)
 	}
 	if n := testutil.CollectAndCount(events.Durations, "uniwork_mobile_event_duration_seconds"); n != 2 {
 		t.Fatalf("duration series = %d, want 2", n)

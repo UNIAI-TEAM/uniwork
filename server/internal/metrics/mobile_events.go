@@ -26,6 +26,10 @@ var mobileEventResults = map[string]map[string]bool{
 	"message_send": {"sent": true, "failed": true},
 	"push_open":    {"chat": true, "call": true, "other": true},
 	"call_connect": {"connected": true, "failed": true},
+	// What a call push did on an Android phone (apps/chat-mobile/data/calls/call-push.ts): the native ring shown,
+	// a plain fallback, rung in the app already, ignored (switch off, over, busy), an end that cleared a ring, or a
+	// ring lost (neither notification could be posted). Ring delivery is judged by these, not by a device farm.
+	"call_push": {"shown": true, "fallback": true, "in_app": true, "ignored": true, "cleared": true, "lost": true},
 }
 
 // mobileEventTimed are the events whose duration is observed.
@@ -38,7 +42,7 @@ const maxMobileEventSeconds = 600
 func NewMobileEvents() *MobileEvents {
 	events := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "uniwork_mobile_events_total",
-		Help: "UniChat mobile product events (opens, sends, push opens, call connects), by result, OS, store version and OTA update.",
+		Help: "UniChat mobile product events (opens, sends, push opens, call connects, call pushes), by result, OS, store version and OTA update.",
 	}, []string{"event", "result", "os", "client_version", "client_update"})
 	// Durations carry the store version but not the OTA: buckets times updates
 	// would be the one label set that could grow past a few thousand series.
