@@ -11320,6 +11320,7 @@
       "filters": {
         "editor": "Edited by",
         "updated": "Updated",
+        "type": "Type",
         "editor_any": "Any",
         "editor_me": "Me",
         "updated_any": "Any time",
@@ -11366,7 +11367,6 @@
         "meeting": "Meetings",
         "email": "Email"
       },
-      "chips_label": "Filter by type",
       "chips": {
         "all": "All types",
         "page": "UniNote",

@@ -6,6 +6,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
+import { pickTypeFilter, typeFilterSelect } from "../../test/type-filter";
 import { DocumentsPageView } from "../documents-page-view";
 
 // UNI-2045 W10 + W11 on the real page: one filter bar, in one order, on every
@@ -99,7 +100,6 @@ const listCalls = (prefix = LIST_BASE) =>
 const lastCall = (match: (path: string) => boolean) => listCalls().filter(match).at(-1) ?? "";
 
 const CHIP_LABELS = ["Mọi loại", "UniNote", ".docx", ".xlsx", ".pptx", ".pdf", ".md", ".html", ".txt"];
-const chipGroup = () => screen.queryByRole("group", { name: t("documents.home.chips_label") });
 const editorSelect = () => screen.queryByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.editor")}`) });
 const updatedSelect = () => screen.queryByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.updated")}`) });
 const activityGroup = () => screen.queryByRole("radiogroup", { name: t("documents.home.filters.activity_label") });
@@ -115,13 +115,14 @@ async function choose(combobox: HTMLElement, label: string) {
 }
 
 function expectOneFilterBar(opts: { segment: boolean }) {
-  const chips = chipGroup();
-  expect(chips).not.toBeNull();
-  expect(within(chips!).getAllByRole("button").map((button) => button.textContent)).toEqual(CHIP_LABELS);
+  const type = typeFilterSelect();
+  expect(type).not.toBeNull();
+  // The chip row is gone: no type is a button of the bar any more.
+  expect(screen.queryByRole("button", { name: ".docx" })).toBeNull();
   expect(editorSelect()).not.toBeNull();
   expect(updatedSelect()).not.toBeNull();
-  // The chips come first, then Người sửa, then Cập nhật, in document order.
-  expect(chips!.compareDocumentPosition(editorSelect()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // Loại comes first, then Người sửa, then Cập nhật, in document order.
+  expect(type!.compareDocumentPosition(editorSelect()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(editorSelect()!.compareDocumentPosition(updatedSelect()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(activityGroup() !== null).toBe(opts.segment);
   // Q6: no Truy cập filter and no Nhóm theo select anywhere.
@@ -142,6 +143,27 @@ afterEach(() => {
 });
 
 describe("one filter bar (W10)", () => {
+  it("offers every type in one Loại select, in order, each with its icon, and shows the pick in the trigger (UNI-2113)", async () => {
+    route({ list: () => [summary("r-home")] });
+    renderView();
+    await screen.findByText("r-home");
+    const trigger = typeFilterSelect()!;
+    expect(trigger).toHaveTextContent(`${t("documents.home.filters.type")}: Mọi loại`);
+    fireEvent.click(trigger);
+    const options = within(await screen.findByRole("listbox")).getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual(CHIP_LABELS);
+    // Every type but Mọi loại carries its mark, hidden from assistive tech: the label names it.
+    for (const option of options.slice(1)) {
+      expect(option.querySelector("svg")).not.toBeNull();
+      expect(option.querySelector("[role='img']")).toBeNull();
+    }
+    const option = options[3]!;
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+    await waitFor(() => expect(typeFilterSelect()).toHaveTextContent(`${t("documents.home.filters.type")}: .xlsx`));
+    expect(typeFilterSelect()!.querySelector("svg")).not.toBeNull();
+  });
+
   it.each([
     ["home root", undefined, "r-home"],
     ["Gần đây", "/?view=recent", "r-recent"],
@@ -166,7 +188,7 @@ describe("one filter bar (W10)", () => {
     route({ list: () => [summary("r-trash", { archived_at: ago(60), purge_after: inDays(20) })] });
     renderView("/?view=archived");
     await screen.findByText("r-trash");
-    expect(chipGroup()).toBeNull();
+    expect(typeFilterSelect()).toBeNull();
     expect(editorSelect()).toBeNull();
     expect(updatedSelect()).toBeNull();
     expect(activityGroup()).toBeNull();
@@ -178,7 +200,7 @@ describe("one filter bar (W10)", () => {
     await screen.findAllByText("r1");
     const recent = (path: string) => path.startsWith(`${LIST_BASE}/recent`);
 
-    fireEvent.click(within(chipGroup()!).getByRole("button", { name: ".txt" }));
+    await pickTypeFilter("txt");
     await waitFor(() => expect(queryOf(lastCall(recent)).get("format")).toBe("txt"));
 
     fireEvent.click(within(activityGroup()!).getByRole("radio", { name: "Đã sửa" }));
@@ -219,10 +241,10 @@ describe("one filter bar (W10)", () => {
     });
     renderView("/?folder=fo1");
     await screen.findByText("notes.txt");
-    fireEvent.click(within(chipGroup()!).getByRole("button", { name: ".txt" }));
+    await pickTypeFilter("txt");
     await waitFor(() => expect(screen.queryByText("plan")).toBeNull());
     expect(screen.getByText("notes.txt")).toBeInTheDocument();
-    fireEvent.click(within(chipGroup()!).getByRole("button", { name: "Mọi loại" }));
+    await pickTypeFilter("all");
     await screen.findByText("plan");
     await choose(editorSelect()!, "Bình");
     await waitFor(() => expect(screen.queryByText("notes.txt")).toBeNull());

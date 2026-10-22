@@ -6,6 +6,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
+import { pickTypeFilter, typeFilterSelect } from "../test/type-filter";
 import { DocumentsPageView } from "./documents-page-view";
 
 // LISTFILTER-01 (UNI-1868) and UNI-2045 W10: the type chips and Người sửa
@@ -138,11 +139,6 @@ const listCalls = () =>
   requestMock.mock.calls
     .map(([path]) => String(path))
     .filter((path) => path.startsWith(LIST_BASE) && !path.startsWith(`${LIST_BASE}/sources`));
-/** Presses a type chip of the filter bar every list screen carries (UNI-2045 W10). */
-const clickChip = async (key: string) => {
-  const group = await screen.findByRole("group", { name: t("documents.home.chips_label") });
-  fireEvent.click(within(group).getByRole("button", { name: t(`documents.home.chips.${key}`) }));
-};
 /** Picks "Người sửa: Tôi" in the filter bar. */
 const pickEditorMe = async () => {
   fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.editor")}`) }));
@@ -181,7 +177,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
       cursor: (path) => (queryOf(path).get("cursor") === "c2" || queryOf(path).get("format") ? null : "c2"),
     });
     renderView();
-    await clickChip("xlsx");
+    await pickTypeFilter("xlsx");
     expect(await screen.findByText("Số liệu.xlsx")).toBeInTheDocument();
     expect(screen.queryByText("Báo giá.docx")).toBeNull();
     expect(screen.queryByText("Trang hai")).toBeNull();
@@ -195,11 +191,11 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
     renderView();
     await screen.findByText("Kế hoạch Q4");
     // kind=page goes to the main list only.
-    await clickChip("page");
+    await pickTypeFilter("page");
     await waitFor(() => expect(listCalls().some((path) => queryOf(path).get("kind") === "page")).toBe(true));
 
     fireEvent.click(await scopeTab("recent"));
-    await clickChip("docx");
+    await pickTypeFilter("docx");
     await pickEditorMe();
     await waitFor(() =>
       expect(
@@ -230,7 +226,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
 
     fireEvent.click(await scopeTab("recent"));
     await screen.findByText("Mở gần đây");
-    await clickChip("docx");
+    await pickTypeFilter("docx");
     await waitFor(() =>
       expect(
         listCalls().some((path) => path.startsWith(`${LIST_BASE}/recent`) && queryOf(path).get("format") === "docx"),
@@ -242,7 +238,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
     // picked on that view, not carried over.
     fireEvent.click(await scopeTab("shared"));
     await screen.findByText("Được chia sẻ");
-    await clickChip("docx");
+    await pickTypeFilter("docx");
     await pickEditorMe();
     await waitFor(() =>
       expect(
@@ -256,7 +252,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
 
     fireEvent.click(await scopeTab("shared_by_me"));
     await screen.findByText("Tôi chia sẻ");
-    await clickChip("docx");
+    await pickTypeFilter("docx");
     await pickEditorMe();
     await waitFor(() =>
       expect(
@@ -301,7 +297,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
 
     fireEvent.click(await scopeTab(scope));
     await screen.findByText("Tệp của tôi.docx");
-    await clickChip("page");
+    await pickTypeFilter("page");
     // Rows narrowed: only the page survives; no kind/format is sent to this endpoint.
     const table = screen.getByRole("table");
     expect(await within(table).findByText("Trang của tôi")).toBeInTheDocument();
@@ -325,7 +321,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
 
     fireEvent.click(await scopeTab(scope));
     await screen.findByText("Chỉ có tệp.docx");
-    await clickChip("page");
+    await pickTypeFilter("page");
     expect(await screen.findByText(t("documents.home.no_matches_more_description"))).toBeInTheDocument();
     expect(screen.queryByText("Chỉ có tệp.docx")).toBeNull();
   });
@@ -337,7 +333,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
     renderView();
     await screen.findByText("Kế hoạch Q4");
     fireEvent.click(await scopeTab("recent"));
-    await clickChip("docx");
+    await pickTypeFilter("docx");
     await pickEditorMe();
     await waitFor(() => expect(listCalls().some((path) => queryOf(path).get("updated_by") === "u1")).toBe(true));
 
@@ -351,7 +347,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
       }
     }
     // The trash view has no filter bar at all (UNI-2045 W10).
-    expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
+    expect(typeFilterSelect()).toBeNull();
   });
 
   it("keeps client filtering for merged source rows: the chip goes to the sources API, Người sửa never does", async () => {
@@ -379,7 +375,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
     const sourceCallsList = requestMock.mock.calls.filter(([path]) => String(path).startsWith(`${LIST_BASE}/sources`));
     expect(sourceCallsList.every(([path]) => !queryOf(String(path)).get("updated_by"))).toBe(true);
 
-    await clickChip("docx");
+    await pickTypeFilter("docx");
     // The chip reaches the sources API as `type`; the doc list sees `format`.
     await waitFor(() =>
       expect(
@@ -404,7 +400,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
     expect(await screen.findByText("Hợp đồng.pdf")).toBeInTheDocument();
     const callsBefore = listCalls().length;
 
-    await clickChip("pdf");
+    await pickTypeFilter("pdf");
     expect(await screen.findByText("Hợp đồng.pdf")).toBeInTheDocument();
     expect(screen.queryByText("Báo giá.docx")).toBeNull();
     // No refetch for a client-only filter on this view, and the starred route takes no format.
@@ -436,7 +432,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
     renderView();
     await screen.findByText("Kế hoạch Q4");
 
-    await clickChip("pdf");
+    await pickTypeFilter("pdf");
     expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
     expect(screen.queryByText(t("documents.home.no_matches_more_description"))).toBeNull();
     expect(screen.queryByText(t("documents.home.no_matches_filters_more_description"))).toBeNull();

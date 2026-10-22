@@ -11,6 +11,7 @@ import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { requestMock, wrap } from "../test/api-mock";
+import { pickTypeFilter } from "../test/type-filter";
 import { DocumentsPageView } from "./documents-page-view";
 
 // ARCHIVE-01 (UNI-1845) "Lưu trữ" list (U-1..U-5): its own nav row and
@@ -261,13 +262,13 @@ describe("shelved nav + list", () => {
     expect(within(third).getAllByText(t("documents.shelved_list.shelved_by_system")).length).toBeGreaterThan(0);
   });
 
-  it("sends the type chip as format= and re-fetches", async () => {
+  it("sends the type filter as format= and re-fetches", async () => {
     route({ list: () => [shelved()] });
     renderView();
     await openShelved();
     await screen.findByText("Kế hoạch Q4");
 
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.docx") }));
+    await pickTypeFilter("docx");
     await waitFor(() =>
       expect(shelvedRequests().some((path) => query(path).get("format") === "docx")).toBe(true),
     );

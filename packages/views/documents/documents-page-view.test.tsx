@@ -12,6 +12,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { defaultStorage } from "@uniwork/core/platform";
 import { fakeNav, requestMock, wrap, wrapWithNav } from "../test/api-mock";
+import { pickTypeFilter, typeFilterSelect } from "../test/type-filter";
 import type { OfficeLaunchSessionFactory } from "../office";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { DocumentsPageView } from "./documents-page-view";
@@ -283,16 +284,37 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     expect(await screen.findByText("Số liệu.xlsx")).toBeInTheDocument();
 
-    await pickType(t("documents.home.chips.docx"));
+    await pickTypeFilter("docx");
     await waitFor(() => expect(urls.some((url) => queryOf(url).get("format") === "docx")).toBe(true));
     expect(await screen.findByText("Báo giá.docx")).toBeInTheDocument();
     expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
     expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
 
-    await pickType(t("documents.home.chips.page"));
+    await pickTypeFilter("page");
     await waitFor(() => expect(urls.some((url) => queryOf(url).get("kind") === "page")).toBe(true));
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.queryByText("Báo giá.docx")).toBeNull();
+  });
+
+  it("sets the same state through the Loại select as the chips did: the server query changes, the URL does not (UNI-2113)", async () => {
+    const urls: string[] = [];
+    route({ list: (path) => (urls.push(path), queryOf(path).get("format") === "xlsx" ? [file("f2", "Số liệu.xlsx")] : [summary(), file("f2", "Số liệu.xlsx")]) });
+    const { nav } = renderView(vi.fn());
+    await screen.findByText("Kế hoạch Q4");
+    const search = nav.searchParams.toString();
+
+    await pickTypeFilter("xlsx");
+    await waitFor(() => expect(urls.some((url) => queryOf(url).get("format") === "xlsx")).toBe(true));
+    await waitFor(() => expect(screen.queryByText("Kế hoạch Q4")).toBeNull());
+    expect(typeFilterSelect()).toHaveTextContent(`${t("documents.home.filters.type")}: .xlsx`);
+    // The type is page state, never a query parameter: no push, no replace, the same search string.
+    expect(nav.push).not.toHaveBeenCalled();
+    expect(nav.replace).not.toHaveBeenCalled();
+    expect(nav.searchParams.toString()).toBe(search);
+
+    await pickTypeFilter("all");
+    expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
+    expect(typeFilterSelect()).toHaveTextContent(`${t("documents.home.filters.type")}: ${t("documents.home.chips.all")}`);
   });
 
   it("shows the filtered empty state when a chip matches nothing, and clears it", async () => {
@@ -300,7 +322,7 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     await screen.findByText("Kế hoạch Q4");
 
-    await pickType(t("documents.home.chips.pdf"));
+    await pickTypeFilter("pdf");
     expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: t("documents.library.clear_filters") }));
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
@@ -1242,7 +1264,7 @@ describe("DocumentsPageView", () => {
       const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
       fireEvent.click(within(crumbs).getByRole("button", { name: t("documents.home.sidebar.home") }));
       await screen.findByText("Tài liệu gốc");
-      expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+      expect(typeFilterSelect()).toBeInTheDocument();
 
       setItemSpy.mockClear();
       fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục B/ }));
@@ -1474,7 +1496,7 @@ describe("DocumentsPageView", () => {
       await screen.findByText("Báo giá.docx");
 
       expect(noSortSelect()).toBe(true);
-      expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+      expect(typeFilterSelect()).toBeInTheDocument();
       expect(screen.queryByText("Nhóm theo")).toBeNull();
       expect(screen.queryByRole("columnheader", { name: t("documents.home.columns.type") })).toBeNull();
       expect(headerOf("updated")).toHaveAttribute("aria-sort", "descending");
@@ -1486,7 +1508,7 @@ describe("DocumentsPageView", () => {
       await screen.findByRole("columnheader", { name: t("documents.home.columns.access") });
       expect(noSortSelect()).toBe(true);
       expect(headerOf("updated")).toHaveAttribute("aria-sort", "descending");
-      expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+      expect(typeFilterSelect()).toBeInTheDocument();
       expect(screen.queryByText("Nhóm theo")).toBeNull();
       // Same six board columns inside a folder (F-7): Truy cập, never Loại.
       expect(screen.queryByRole("columnheader", { name: t("documents.home.columns.type") })).toBeNull();
@@ -1558,7 +1580,7 @@ describe("DocumentsPageView", () => {
       setSpy.mockRestore();
     });
 
-    it("gives every breadcrumb button and, on the Recent view, every toolbar chip a 44x44 coarse-pointer floor (V-F6 / N3)", async () => {
+    it("gives every breadcrumb button and, on the Recent view, every filter-bar select a 44px coarse-pointer floor (V-F6 / N3)", async () => {
       route({
         tree: () => [
           treeNode({
@@ -1578,32 +1600,32 @@ describe("DocumentsPageView", () => {
       await screen.findByText("Kế hoạch Q4");
 
       // A folder carries the shared filter bar (UNI-2045 W10) and no scope tabs.
-      expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+      expect(typeFilterSelect()).toBeInTheDocument();
       const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
       for (const btn of within(crumbs).getAllByRole("button")) {
         expect(btn).toHaveClass("pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
       }
 
       await openView("recent");
-      const chipGroup = await screen.findByRole("group", { name: t("documents.home.chips_label") });
-      const chips = within(chipGroup).getAllByRole("button");
-      expect(chips.length).toBeGreaterThan(0);
-      for (const chip of chips) {
-        expect(chip).toHaveClass("h-7", "px-3", "pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
+      await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) });
+      for (const name of ["type", "editor", "updated"]) {
+        const select = screen.getByRole("combobox", { name: new RegExp(`^${t(`documents.home.filters.${name}`)}`) });
+        expect(select).toHaveClass("h-8", "px-3", "pointer-coarse:h-11", "pointer-coarse:min-h-11");
       }
     });
 
-    // overflow-x-auto alone turns overflow-y into auto too, which grew a stray
-    // vertical scrollbar (UNI-1752). The scope tabs are gone; the type chips
-    // of the Recent view still scroll sideways only, with no visible scrollbar.
-    it("keeps the type chips scrolling sideways only, without a visible scrollbar", async () => {
+    // The Loại select is a FilterSelect like Người sửa and Cập nhật (UNI-2113): same
+    // control style, same width rules, so the row wraps as a whole at 390px.
+    it("draws the Loại select with the very classes of Người sửa and Cập nhật", async () => {
       route({ list: () => [summary({ id: "d1", title: "Kế hoạch Q4" })] });
       renderView(vi.fn());
       await screen.findByText("Kế hoạch Q4");
       await openView("recent");
 
-      const chipGroup = await screen.findByRole("group", { name: t("documents.home.chips_label") });
-      expect(chipGroup).toHaveClass("overflow-x-auto", "overflow-y-hidden", "no-scrollbar");
+      const classes = (name: string) =>
+        screen.getByRole("combobox", { name: new RegExp(`^${t(`documents.home.filters.${name}`)}`) }).className;
+      expect(classes("type")).toBe(classes("editor"));
+      expect(classes("type")).toBe(classes("updated"));
     });
   });
 });
@@ -1706,12 +1728,6 @@ function sourceCalls() {
 async function pillButton(type: string) {
   const strip = await screen.findByRole("region", { name: t("documents.home.quick_create.label") });
   return within(strip).getByRole("button", { name: new RegExp(escape(t(`documents.home.create.${type}.chip`))) });
-}
-
-/** Presses a type chip of the filter bar (UNI-2045 W10). */
-async function pickType(label: string) {
-  const chips = await screen.findByRole("group", { name: t("documents.home.chips_label") });
-  fireEvent.click(within(chips).getByRole("button", { name: label }));
 }
 
 /** Switches the view through the sidebar nav (the scope tabs are gone). */

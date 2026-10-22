@@ -6,6 +6,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import { defaultStorage } from "@uniwork/core/platform";
 import type { User, Workspace } from "@uniwork/core/types";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
+import { pickTypeFilter, typeFilterSelect } from "../test/type-filter";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { DocumentsPageView } from "./documents-page-view";
 
@@ -114,9 +115,9 @@ const headerTexts = () => Array.from(document.querySelectorAll("thead th")).map(
 /** Read at assertion time: the session locale (vi) applies once the view mounts. */
 const sharedColumns = () => ["select", "name", "access", "editor", "updated", "size", "actions"].map((id) => t(`documents.list.column.${id}`));
 
-/** Every list screen's filter bar: the type chips, Người sửa, Cập nhật, in that order. */
+/** Every list screen's filter bar: the Loại select, Người sửa, Cập nhật, in that order. */
 async function expectSharedToolbar() {
-  const chips = await screen.findByRole("group", { name: t("documents.home.chips_label") });
+  const chips = await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) });
   const editor = screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.editor")}`) });
   const updated = screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.updated")}`) });
   expect(chips.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -199,8 +200,7 @@ describe("Recent on the approved recent-canvas layout (UNI-2045 W14)", () => {
     route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("format") === "pdf" ? [] : rows) });
     renderView("/?view=recent");
     await screen.findByRole("region", { name: t("documents.recent.continue_title") });
-    const chips = screen.getByRole("group", { name: t("documents.home.chips_label") });
-    fireEvent.click(within(chips).getByRole("button", { name: t("documents.home.chips.docx") }));
+    await pickTypeFilter("docx");
     await waitFor(() => expect(screen.queryByRole("region", { name: t("documents.recent.continue_title") })).toBeNull());
   });
 
@@ -211,14 +211,14 @@ describe("Recent on the approved recent-canvas layout (UNI-2045 W14)", () => {
     expect(screen.queryByRole("region", { name: t("documents.recent.continue_title") })).toBeNull();
   });
 
-  it("leads the toolbar with the Tất cả / Đã mở / Đã sửa segment as a radio group, then chips, Người sửa, Cập nhật", async () => {
+  it("leads the toolbar with the Tất cả / Đã mở / Đã sửa segment as a radio group, then Loại, Người sửa, Cập nhật", async () => {
     route({ list: () => rows });
     renderView("/?view=recent");
     const segment = await screen.findByRole("radiogroup", { name: t("documents.home.filters.activity_label") });
     const radios = within(segment).getAllByRole("radio");
     expect(radios.map((radio) => radio.textContent)).toEqual(["all", "opened", "edited"].map((v) => t(`documents.home.filters.activity_${v}`)));
     expect(radios[0]).toHaveAttribute("aria-checked", "true");
-    const chips = screen.getByRole("group", { name: t("documents.home.chips_label") });
+    const chips = typeFilterSelect()!;
     expect(segment.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await expectSharedToolbar();
     fireEvent.click(radios[2]!);
