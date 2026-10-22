@@ -1,18 +1,39 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
-import { resetChatWallpapersForTests, useChatWallpaperStore } from "@uniwork/core/chat/chat-wallpaper-store";
 import { ChatWallpaperPicker } from "./chat-wallpaper-picker";
 
 initI18n();
 
-beforeEach(() => resetChatWallpapersForTests());
+const patchChatRoom = vi.fn().mockResolvedValue({});
+vi.mock("@uniwork/core/chat", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/core/chat")>();
+  return {
+    ...actual,
+    useChatRooms: () => ({
+      data: [{ id: "room-a", kind: "dm", name: "A", workspace_id: "ws1", wallpaper: { preset: "default" } }],
+    }),
+    useUpdateChatRoomWallpaper: () => ({
+      isPending: false,
+      mutateAsync: (input: { roomId: string; preset: string }) => {
+        patchChatRoom(input);
+        return Promise.resolve();
+      },
+    }),
+    useUploadChatRoomWallpaper: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  };
+});
+
+beforeEach(() => {
+  patchChatRoom.mockClear();
+});
 
 describe("ChatWallpaperPicker", () => {
-  it("selects a preset for one room only", () => {
-    render(<ChatWallpaperPicker roomId="room-a" />);
+  it("saves a preset to the server when the user can edit", async () => {
+    render(<ChatWallpaperPicker workspaceId="ws1" roomId="room-a" canEdit />);
     fireEvent.click(screen.getByRole("button", { name: "Trời xanh" }));
-    expect(useChatWallpaperStore.getState().wallpaperFor("room-a")).toEqual({ type: "preset", id: "sky" });
-    expect(useChatWallpaperStore.getState().wallpaperFor("room-b")).toEqual({ type: "default" });
+    await waitFor(() => {
+      expect(patchChatRoom).toHaveBeenCalledWith({ roomId: "room-a", preset: "sky" });
+    });
   });
 });

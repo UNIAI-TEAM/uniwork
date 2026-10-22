@@ -4,13 +4,18 @@ import { useId, useRef, useState } from "react";
 import { Check, ImagePlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
+  useChatRooms,
+  useUpdateChatRoomWallpaper,
+  useUploadChatRoomWallpaper,
+} from "@uniwork/core/chat";
+import {
   CHAT_WALLPAPER_PRESET_IDS,
   type ChatWallpaper,
   type ChatWallpaperPresetId,
   MAX_CHAT_WALLPAPER_BYTES,
 } from "@uniwork/core/chat/chat-wallpaper";
+import { chatWallpaperFromRoom } from "@uniwork/core/chat/chat-wallpaper-from-room";
 import { resolveChatWallSurface } from "@uniwork/core/chat/chat-wallpaper-resolve";
-import { useChatWallpaperStore } from "@uniwork/core/chat/chat-wallpaper-store";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 
@@ -23,23 +28,27 @@ function PresetTile({
   id,
   label,
   selected,
+  disabled,
   onSelect,
 }: {
   id: ChatWallpaperPresetId;
   label: string;
   selected: boolean;
+  disabled: boolean;
   onSelect: () => void;
 }) {
   const surface = resolveChatWallSurface(id === "default" ? { type: "default" } : { type: "preset", id });
   return (
     <button
       type="button"
+      disabled={disabled}
       aria-pressed={selected}
       aria-label={label}
       onClick={onSelect}
       className={cn(
         "relative aspect-[4/3] overflow-hidden rounded-xl border-2 transition-shadow duration-(--duration-fast)",
         selected ? "border-primary ring-2 ring-primary/25" : "border-border hover:border-muted-foreground/40",
+        disabled && "cursor-not-allowed opacity-50",
       )}
     >
       <span className="absolute inset-0" style={surface.style} aria-hidden />
@@ -53,19 +62,31 @@ function PresetTile({
   );
 }
 
-/** Preset grid + custom upload for one conversation room. */
-export function ChatWallpaperPicker({ roomId, className }: { roomId: string; className?: string }) {
+/** Preset grid + custom upload; changes sync to every member via the server. */
+export function ChatWallpaperPicker({
+  workspaceId,
+  roomId,
+  canEdit,
+  className,
+}: {
+  workspaceId: string;
+  roomId: string;
+  canEdit: boolean;
+  className?: string;
+}) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.preferences" });
   const inputId = useId();
   const fileRef = useRef<HTMLInputElement>(null);
-  const wallpaper = useChatWallpaperStore((s) => s.wallpaperFor(roomId));
-  const setPreset = useChatWallpaperStore((s) => s.setPreset);
-  const setCustom = useChatWallpaperStore((s) => s.setCustom);
-  const reset = useChatWallpaperStore((s) => s.reset);
+  const { data: rooms } = useChatRooms(workspaceId);
+  const room = rooms?.find((entry) => entry.id === roomId);
+  const wallpaper = chatWallpaperFromRoom(room);
+  const setPreset = useUpdateChatRoomWallpaper(workspaceId);
+  const uploadWallpaper = useUploadChatRoomWallpaper(workspaceId);
   const [error, setError] = useState<string | null>(null);
+  const busy = setPreset.isPending || uploadWallpaper.isPending;
 
   const onFile = async (file: File | undefined) => {
-    if (!file) return;
+    if (!file || !canEdit) return;
     setError(null);
     if (!file.type.startsWith("image/")) {
       setError(t("chatWallpaper_not_image"));
@@ -75,20 +96,10 @@ export function ChatWallpaperPicker({ roomId, className }: { roomId: string; cla
       setError(t("chatWallpaper_too_large"));
       return;
     }
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error("read_failed"));
-      reader.readAsDataURL(file);
-    });
-    if (dataUrl.length > MAX_CHAT_WALLPAPER_BYTES) {
-      setError(t("chatWallpaper_too_large"));
-      return;
-    }
     try {
-      setCustom(roomId, dataUrl);
+      await uploadWallpaper.mutateAsync({ roomId, file });
     } catch {
-      setError(t("chatWallpaper_too_large"));
+      setError(t("chatWallpaper_save_failed"));
     }
   };
 
@@ -96,7 +107,9 @@ export function ChatWallpaperPicker({ roomId, className }: { roomId: string; cla
 
   return (
     <div className={className}>
-      <p className="mb-3 text-caption text-muted-foreground">{t("chatWallpaperPerRoomHint")}</p>
+      <p className="mb-3 text-caption text-muted-foreground">
+        {canEdit ? t("chatWallpaperSharedHint") : t("chatWallpaperModeratorOnlyHint")}
+      </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {CHAT_WALLPAPER_PRESET_IDS.map((id) => (
           <PresetTile
@@ -104,17 +117,22 @@ export function ChatWallpaperPicker({ roomId, className }: { roomId: string; cla
             id={id}
             label={t(`chatWallpaperPresets.${id}`)}
             selected={isSelected(wallpaper, id)}
-            onSelect={() => setPreset(roomId, id)}
+            disabled={!canEdit || busy}
+            onSelect={() => {
+              void setPreset.mutateAsync({ roomId, preset: id });
+            }}
           />
         ))}
         <button
           type="button"
+          disabled={!canEdit || busy}
           aria-pressed={customSelected}
           aria-label={t("chatWallpaper_upload")}
           onClick={() => fileRef.current?.click()}
           className={cn(
             "relative flex aspect-[4/3] flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed text-label transition-colors duration-(--duration-fast)",
             customSelected ? "border-primary ring-2 ring-primary/25" : "border-border hover:border-muted-foreground/40",
+            (!canEdit || busy) && "cursor-not-allowed opacity-50",
           )}
         >
           {customSelected ? (
@@ -139,6 +157,7 @@ export function ChatWallpaperPicker({ roomId, className }: { roomId: string; cla
         type="file"
         accept="image/*"
         className="sr-only"
+        disabled={!canEdit || busy}
         onChange={(event) => {
           const file = event.target.files?.[0];
           event.target.value = "";
@@ -150,9 +169,17 @@ export function ChatWallpaperPicker({ roomId, className }: { roomId: string; cla
           {error}
         </p>
       ) : null}
-      {wallpaper.type !== "default" ? (
+      {canEdit && wallpaper.type !== "default" ? (
         <div className="mt-3 flex justify-end">
-          <Button type="button" variant="outline" size="sm" onClick={() => reset(roomId)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => {
+              void setPreset.mutateAsync({ roomId, preset: "default" });
+            }}
+          >
             {t("chatWallpaper_reset")}
           </Button>
         </div>

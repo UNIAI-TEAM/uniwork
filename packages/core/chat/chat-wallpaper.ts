@@ -1,4 +1,4 @@
-/** Preset chat backgrounds (device-local, like Telegram wallpapers). */
+/** Built-in chat background presets (shared per room via the server). */
 export const CHAT_WALLPAPER_PRESET_IDS = [
   "default",
   "sky",

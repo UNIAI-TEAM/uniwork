@@ -470,6 +470,7 @@ type Routes struct {
 	PatchChatRoomMember              http.HandlerFunc
 	PatchChatRoom                    http.HandlerFunc
 	UploadChatRoomAvatar             http.HandlerFunc
+	UploadChatRoomWallpaper          http.HandlerFunc
 	RemoveChatRoomAvatar             http.HandlerFunc
 	RemoveChatRoomMember             http.HandlerFunc
 	LeaveChatRoom                    http.HandlerFunc

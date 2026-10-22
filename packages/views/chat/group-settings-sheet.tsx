@@ -399,7 +399,13 @@ export function GroupSettingsSheet({
             currentName={displayName}
           />
         ) : null}
-        <ChatWallpaperSheet open={wallpaperOpen} onOpenChange={setWallpaperOpen} roomId={group.room_id} />
+        <ChatWallpaperSheet
+          open={wallpaperOpen}
+          onOpenChange={setWallpaperOpen}
+          workspaceId={workspaceId}
+          roomId={group.room_id}
+          canEdit={isModerator}
+        />
         {bulletinOpen ? (
           <ChatRoomBulletinSheet
             open={bulletinOpen}

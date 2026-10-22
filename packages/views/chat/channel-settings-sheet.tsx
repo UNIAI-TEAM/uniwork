@@ -465,7 +465,13 @@ export function ChannelSettingsSheet({
             next?.();
           }}
         />
-        <ChatWallpaperSheet open={wallpaperOpen} onOpenChange={setWallpaperOpen} roomId={channel.id} />
+        <ChatWallpaperSheet
+          open={wallpaperOpen}
+          onOpenChange={setWallpaperOpen}
+          workspaceId={workspaceId}
+          roomId={channel.id}
+          canEdit={canAdmin}
+        />
       </SheetContent>
     </Sheet>
   );

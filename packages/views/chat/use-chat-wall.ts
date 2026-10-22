@@ -1,15 +1,22 @@
 "use client";
 
 import { useMemo } from "react";
+import { useChatRooms } from "@uniwork/core/chat";
+import { chatWallpaperFromRoom } from "@uniwork/core/chat/chat-wallpaper-from-room";
 import { DEFAULT_CHAT_WALLPAPER } from "@uniwork/core/chat/chat-wallpaper";
 import { resolveChatWallSurface, type ChatWallSurface } from "@uniwork/core/chat/chat-wallpaper-resolve";
-import { useChatWallpaperStore } from "@uniwork/core/chat/chat-wallpaper-store";
+import { useWorkspaceId } from "../layout/workspace-context";
 
-/** Per-room chat background; without a room id the dotted default is used. */
+/** Shared room wallpaper from the server (every member sees the same background). */
 export function useChatWall(roomId?: string | null): ChatWallSurface {
-  const wallpaper = useChatWallpaperStore((s) => (roomId ? s.byRoomId[roomId] : undefined));
+  const workspaceId = useWorkspaceId();
+  const { data: rooms } = useChatRooms(workspaceId);
+  const room = useMemo(
+    () => (roomId ? rooms?.find((entry) => entry.id === roomId) : undefined),
+    [roomId, rooms],
+  );
   return useMemo(
-    () => resolveChatWallSurface(wallpaper ?? DEFAULT_CHAT_WALLPAPER),
-    [wallpaper],
+    () => resolveChatWallSurface(room ? chatWallpaperFromRoom(room) : DEFAULT_CHAT_WALLPAPER),
+    [room],
   );
 }

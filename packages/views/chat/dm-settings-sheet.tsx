@@ -312,7 +312,13 @@ export function DmSettingsSheet({
         </div>
 
         {roomId ? (
-          <ChatWallpaperSheet open={wallpaperOpen} onOpenChange={setWallpaperOpen} roomId={roomId} />
+          <ChatWallpaperSheet
+            open={wallpaperOpen}
+            onOpenChange={setWallpaperOpen}
+            workspaceId={workspaceId}
+            roomId={roomId}
+            canEdit
+          />
         ) : null}
         {roomId && bulletinOpen ? (
           <ChatRoomBulletinSheet

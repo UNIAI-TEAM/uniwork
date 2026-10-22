@@ -10,11 +10,15 @@ import { ChatWallpaperPicker } from "./chat-wallpaper-picker";
 export function ChatWallpaperSheet({
   open,
   onOpenChange,
+  workspaceId,
   roomId,
+  canEdit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  workspaceId: string;
   roomId: string;
+  canEdit: boolean;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.preferences" });
   const { t: tChat } = useTranslation();
@@ -24,11 +28,11 @@ export function ChatWallpaperSheet({
       <SheetContent side="right" showCloseButton={false} closeLabel={tChat("common.close")} className={CHAT_SHEET_CLASS}>
         <SheetHeader className="sr-only">
           <SheetTitle>{t("chatWallpaper")}</SheetTitle>
-          <SheetDescription>{t("chatWallpaperPerRoomHint")}</SheetDescription>
+          <SheetDescription>{canEdit ? t("chatWallpaperSharedHint") : t("chatWallpaperModeratorOnlyHint")}</SheetDescription>
         </SheetHeader>
         <ChatSettingsHeader title={t("chatWallpaper")} />
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          <ChatWallpaperPicker roomId={roomId} />
+          <ChatWallpaperPicker workspaceId={workspaceId} roomId={roomId} canEdit={canEdit} />
         </div>
       </SheetContent>
     </Sheet>

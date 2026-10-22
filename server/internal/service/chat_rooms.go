@@ -69,6 +69,10 @@ type ChatRoomSummary struct {
 	NotificationsMuted bool
 	// AvatarURL is a group's uploaded avatar, signed; "" shows its members.
 	AvatarURL string
+	// WallpaperPreset is the shared room wallpaper id (default, a preset, or custom).
+	WallpaperPreset string
+	// WallpaperURL is a signed URL when WallpaperPreset is custom.
+	WallpaperURL string
 	// CanSendDocument is set on the room DETAIL read only (UNI-1966 L5): the
 	// caller may send a document here. Since UNI-2012 S1c removed the
 	// recipient cap it is send permission alone (chatDocumentCanSend); the
@@ -97,8 +101,11 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 		return nil, err
 	}
 	out := make([]ChatRoomSummary, 0, len(channelRows)+1)
+	wallScope := files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}
 	if len(channelRows) > 0 && channelRows[0].IsDefault {
-		out = append(out, channelSummaryFromMineRow(channelRows[0]))
+		sum := channelSummaryFromMineRow(channelRows[0])
+		s.applyWallpaperToSummary(ctx, &sum, wallScope, channelRows[0].WallpaperPreset, channelRows[0].WallpaperFileID)
+		out = append(out, sum)
 	} else if def, err := s.defaultRoomForNonMember(ctx, workspaceID); err != nil {
 		return nil, err
 	} else if def != nil {
@@ -115,7 +122,9 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 		if row.IsDefault {
 			continue // already first
 		}
-		out = append(out, channelSummaryFromMineRow(row))
+		sum := channelSummaryFromMineRow(row)
+		s.applyWallpaperToSummary(ctx, &sum, wallScope, row.WallpaperPreset, row.WallpaperFileID)
+		out = append(out, sum)
 	}
 	return out, nil
 }
@@ -182,11 +191,11 @@ func (s *ChatService) directRooms(ctx context.Context, userID, orgID, workspaceI
 			row.LastMessageSenderName, row.LastMessageCallOutcome, int(row.LastMessageDurationMs), row.LastMessageAt,
 		))
 		summary.LastReadAt = timePtr(row.MyLastReadAt)
+		scope := files.Scope{OrganizationID: orgID, WorkspaceID: textOrEmpty(row.WorkspaceID)}
 		if row.Kind == chatRoomKindGroup {
-			summary.AvatarURL = s.roomAvatarURL(ctx, row.ID, files.Scope{
-				OrganizationID: orgID, WorkspaceID: textOrEmpty(row.WorkspaceID),
-			}, row.AvatarFileID)
+			summary.AvatarURL = s.roomAvatarURL(ctx, row.ID, scope, row.AvatarFileID)
 		}
+		s.applyWallpaperToSummary(ctx, &summary, scope, row.WallpaperPreset, row.WallpaperFileID)
 		out = append(out, summary)
 	}
 	return out, nil

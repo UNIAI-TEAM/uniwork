@@ -110,6 +110,7 @@
     "./chat/chat-wallpaper": "./chat/chat-wallpaper.ts",
     "./chat/chat-wallpaper-store": "./chat/chat-wallpaper-store.ts",
     "./chat/chat-wallpaper-resolve": "./chat/chat-wallpaper-resolve.ts",
+    "./chat/chat-wallpaper-from-room": "./chat/chat-wallpaper-from-room.ts",
     "./chat/room-permissions-utils": "./chat/room-permissions-utils.ts",
     "./chat/poll-utils": "./chat/poll-utils.ts",
     "./chat/reminder-utils": "./chat/reminder-utils.ts",

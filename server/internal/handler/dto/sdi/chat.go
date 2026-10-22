@@ -187,6 +187,12 @@ type PatchChatRoomSDI struct {
 	Name              *string                       `json:"name,omitempty" description:"Group or workspace room display name" example:"Team Alpha"`
 	Topic             *string                       `json:"topic,omitempty" description:"Room description, ≤280 chars; empty clears it" example:"Nơi team thiết kế trao đổi hằng ngày"`
 	MemberPermissions *ChatRoomMemberPermissionsSDI `json:"member_permissions,omitempty" description:"Permissions granted to regular members"`
+	Wallpaper         *PatchChatRoomWallpaperSDI    `json:"wallpaper,omitempty" description:"Shared room wallpaper preset for every member"`
+}
+
+// PatchChatRoomWallpaperSDI sets a built-in wallpaper preset (not custom upload).
+type PatchChatRoomWallpaperSDI struct {
+	Preset string `json:"preset" description:"default, a built-in preset id, or custom after upload" example:"sky"`
 }
 
 // ListChatRoomLinkedTasksSDI is GET .../chat/rooms/{roomID}/linked-tasks.
@@ -197,6 +203,11 @@ type ListChatRoomLinkedTasksSDI struct {
 // UploadChatRoomAvatarSDI is POST .../chat/rooms/{roomID}/avatar (multipart).
 type UploadChatRoomAvatarSDI struct {
 	File []byte `formData:"file" description:"Ảnh PNG, JPEG, GIF hoặc WebP, tối đa 2 MiB"`
+}
+
+// UploadChatRoomWallpaperSDI is POST .../chat/rooms/{roomID}/wallpaper (multipart).
+type UploadChatRoomWallpaperSDI struct {
+	File []byte `formData:"file" description:"Ảnh nền PNG, JPEG, GIF hoặc WebP, tối đa 900 KB"`
 }
 
 // CreateChatChannelSDI is POST .../chat/channels.
