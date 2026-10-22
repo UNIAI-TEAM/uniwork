@@ -3970,6 +3970,7 @@
       "add": "Thêm task",
       "addHeading": "Task sau họp",
       "editAssign": "Sửa & giao",
+      "priorityValue": "ưu tiên {{priority}}",
       "dismiss": "Bỏ qua",
       "dismissLabel": "Bỏ qua \"{{title}}\"",
       "dismissTitle": "Bỏ qua việc này?",

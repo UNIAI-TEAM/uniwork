@@ -3,6 +3,7 @@ import { useId, useState, type ReactNode } from "react";
 import { Circle, CircleCheck, RotateCcw, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MeetingActionItem } from "@uniwork/core/meetings/action-items";
+import { actionItemTaskDefaults } from "@uniwork/core/meetings/summary-task-items";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
@@ -12,7 +13,6 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../../navigation";
-import { sameName } from "../../tasks/ai-summary-tasks-dialog";
 import { formatMeetingClock, formatMeetingDay, meetingLocale } from "../meeting-datetime";
 
 export type ActionItemsVariant = "panel" | "compact";
@@ -30,6 +30,14 @@ const ROW_CLASS: Record<ActionItemsVariant, string> = {
 /** A YYYY-MM-DD due date in the hero's date style ("Thứ Sáu, 25 tháng 9"); the raw string when it does not parse. */
 function formatDueDate(date: string, locale: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? formatMeetingDay(date, locale) : date;
+}
+
+/** "Minh" said of "Minh Lê": every word said is a word of the member's name. */
+function saidOfMember(said: string, name: string): boolean {
+  const words = (text: string) => text.normalize("NFC").toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const named = new Set(words(name));
+  const spoken = words(said);
+  return spoken.length > 0 && spoken.every((word) => named.has(word));
 }
 
 /** What an open task's state reads as: not every unfinished task is being worked on. */
@@ -122,12 +130,23 @@ export function PendingRow({
 }) {
   const checkboxId = useId();
   const { t, i18n } = useTranslation();
-  // The owner as said, unless the suggestion names the same person: one name, once.
-  const sameOwner = Boolean(suggestedName) && sameName(item.owner_text ?? "", suggestedName);
-  const said = [sameOwner ? null : item.owner_text, item.due_text].filter((v): v is string => Boolean(v?.trim())).join(" · ");
-  const dueLabel = item.suggested_due_date ? formatDueDate(item.suggested_due_date, meetingLocale(i18n.language)) : null;
+  const locale = meetingLocale(i18n.language);
   const selectable = onCheckedChange !== undefined;
-  const suggestion = [suggestedName, dueLabel ? t("meetings.summaryAi.dueOn", { date: dueLabel }) : null]
+  const dueLabel = item.suggested_due_date ? formatDueDate(item.suggested_due_date, locale) : null;
+  // The priority "Assign" applies, so the clerk sees it before assigning without opening the item.
+  const priority = actionItemTaskDefaults(item, undefined).priority;
+  // What was said, less what the suggestion already names: one name and one due date, once.
+  const sameOwner = Boolean(suggestedName) && saidOfMember(item.owner_text ?? "", suggestedName ?? "");
+  const said = [sameOwner ? null : item.owner_text, selectable && dueLabel ? null : item.due_text]
+    .filter((v): v is string => Boolean(v?.trim()))
+    .join(" · ");
+  const suggestion = [
+    suggestedName,
+    dueLabel ? t("meetings.summaryAi.dueOn", { date: dueLabel }) : null,
+    priority
+      ? t("meetings.actionItemsSection.priorityValue", { priority: t(`tasks.priority_${priority}`).toLocaleLowerCase(locale) })
+      : null,
+  ]
     .filter(Boolean)
     .join(" · ");
   return (
@@ -158,9 +177,14 @@ export function PendingRow({
           {selectable && suggestion ? (
             <p className="text-caption text-muted-foreground">{t("meetings.actionItemsSection.suggestion", { value: suggestion })}</p>
           ) : null}
-          {evidence}
+          {/* The commands sit under the title, so it keeps the full width in the room's narrow panel too. */}
+          {evidence || action ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              {evidence}
+              {action ? <div className="ml-auto">{action}</div> : null}
+            </div>
+          ) : null}
         </div>
-        {action}
       </div>
     </RowShell>
   );

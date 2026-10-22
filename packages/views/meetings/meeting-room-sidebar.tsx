@@ -12,6 +12,7 @@ import { MeetingRoomCopilotTab } from "./meeting-room-copilot-tab";
 import { MeetingRoomFilesTab } from "./meeting-room-files-tab";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
 import { MeetingUnderlineTabBadge, MeetingUnderlineTabs } from "./meeting-underline-tabs";
+import { RoomPanelNavigation } from "./room-panel-navigation";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
 
 export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "motions" | "recordings";
@@ -211,7 +212,7 @@ export function MeetingRoomSidebar({
         aria-label={tabLabel(activeTab)}
         className={PANEL_CLASS}
       >
-        {panelContent(activeTab)}
+        <RoomPanelNavigation>{panelContent(activeTab)}</RoomPanelNavigation>
       </div>
     </aside>
   );

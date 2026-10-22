@@ -163,12 +163,20 @@ describe("MeetingActionItemsSection", () => {
     expect(screen.getByRole("checkbox", { name: "Gửi biên bản" })).toBeChecked();
   });
 
-  it("names the suggested owner once, as a suggestion, when it is who was said", async () => {
+  it("says who, when and how urgent once, on the line of what Assign applies", async () => {
+    // "Mai" was said of Mai Anh and "thứ Sáu" became a date: neither is repeated above the suggestion.
+    respond({ items: () => ({ ...list, items: [{ ...pendingAI, owner_text: "Mai", suggested_priority: "high" }] }) });
     renderSection();
-    expect(await screen.findByText(/^Gợi ý giao: Mai Anh · hạn /)).toBeInTheDocument();
-    // "Mai Anh" was also the owner said in the room: not repeated on the line above.
-    expect(screen.getByText("thứ Sáu")).toBeInTheDocument();
-    expect(screen.queryByText("Mai Anh · thứ Sáu")).not.toBeInTheDocument();
+    expect(await screen.findByText(/^Gợi ý giao: Mai Anh · hạn .+ · ưu tiên cao$/)).toBeInTheDocument();
+    expect(screen.queryByText("thứ Sáu")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Mai\b/)).not.toBeInTheDocument();
+  });
+
+  it("keeps what was said when the suggestion names someone else", async () => {
+    respond({ items: () => ({ ...list, items: [{ ...pendingAI, owner_text: "anh Hùng" }] }) });
+    renderSection();
+    expect(await screen.findByText(/^Gợi ý giao: Mai Anh/)).toBeInTheDocument();
+    expect(screen.getByText("anh Hùng")).toBeInTheDocument();
   });
 
   it("says a task nobody started has not started, without the done check", async () => {

@@ -3971,6 +3971,7 @@
       "add": "Add task",
       "addHeading": "Meeting follow-up",
       "editAssign": "Edit & assign",
+      "priorityValue": "{{priority}} priority",
       "dismiss": "Dismiss",
       "dismissLabel": "Dismiss \"{{title}}\"",
       "dismissTitle": "Dismiss this item?",
