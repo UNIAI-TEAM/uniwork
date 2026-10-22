@@ -31,10 +31,17 @@ describe("apt repository commands", () => {
     expect(APT_INSTALL_COMMAND).toBe("sudo apt update && sudo apt install uniwork-office");
   });
 
-  it.each(["dev", "beta", "stable"] as const)("points the %s quick install at the latest .deb of its suite", (suite) => {
-    const url = `https://uniworkos.com/downloads/office/apt/latest/${suite}/uniwork-office_amd64.deb`;
+  it.each([
+    ["dev", "https://uniworkos.com/downloads/office/apt/latest/dev/uniwork-office_amd64.deb"],
+    ["beta", "https://uniworkos.com/downloads/office/apt/latest/beta/uniwork-office_amd64.deb"],
+    ["stable", "https://uniworkos.com/downloads/office/apt/latest/uniwork-office_amd64.deb"],
+  ] as const)("points the %s quick install at the latest .deb (stable has the short address)", (suite, url) => {
     expect(aptLatestDebUrl(suite)).toBe(url);
-    expect(aptQuickInstallCommand(suite)).toBe(`wget -qO /tmp/uniwork-office.deb ${url} && sudo apt install /tmp/uniwork-office.deb`);
+    expect(aptQuickInstallCommand(suite)).toBe(`wget -nv -O /tmp/uniwork-office.deb ${url} && sudo apt install /tmp/uniwork-office.deb`);
+  });
+
+  it("keeps wget's error line visible on a failed download", () => {
+    expect(aptQuickInstallCommand("dev")).not.toMatch(/wget\s+-\w*q/);
   });
 
   it("never pipes a download into a shell", () => {

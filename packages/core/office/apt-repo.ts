@@ -45,16 +45,22 @@ export function aptInstallCommands(suite: AptSuite): string[] {
   ];
 }
 
-/** The newest .deb of one suite, at a fixed address (the repository keeps it current). */
+/**
+ * The newest .deb of one suite, at a fixed address (the repository keeps it current).
+ * Stable has the short address; dev and beta keep their suite in the path.
+ */
 export function aptLatestDebUrl(suite: AptSuite): string {
-  return `${APT_REPO_URL}/latest/${suite}/uniwork-office_amd64.deb`;
+  return suite === "stable"
+    ? `${APT_REPO_URL}/latest/uniwork-office_amd64.deb`
+    : `${APT_REPO_URL}/latest/${suite}/uniwork-office_amd64.deb`;
 }
 
 /**
  * The one-line install: download the newest .deb and let apt install it. The
  * deb's postinst adds the keyring and the source, so later versions arrive
- * through `apt upgrade`. `&&` keeps apt from running on a failed download.
+ * through `apt upgrade`. `&&` keeps apt from running on a failed download, and
+ * `-nv` (not `-q`) still prints wget's error line when the download is a 404.
  */
 export function aptQuickInstallCommand(suite: AptSuite): string {
-  return `wget -qO /tmp/uniwork-office.deb ${aptLatestDebUrl(suite)} && sudo apt install /tmp/uniwork-office.deb`;
+  return `wget -nv -O /tmp/uniwork-office.deb ${aptLatestDebUrl(suite)} && sudo apt install /tmp/uniwork-office.deb`;
 }
