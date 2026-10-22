@@ -185,7 +185,7 @@ func (b *sourceBook) source(it agentItem) {
 	if r := []rune(quote); len(r) > askQuoteMax {
 		quote = string(r[:askQuoteMax])
 	}
-	b.byID[id] = AskCitation{SourceID: id, Quote: quote, Kind: it.Kind, Title: it.Title, Href: it.Href}
+	b.byID[id] = AskCitation{SourceID: id, Quote: quote, Kind: it.Kind, Title: it.Title, Href: it.Href, ObjectID: it.ID}
 }
 
 // render is the numbered sources, then any note or error text (ruling P10),

@@ -59,7 +59,7 @@ func writeAskEvent(sw *sseWriter, ev service.AskEvent) {
 	case "citations":
 		cites := make([]sdo.AiCitationDTO, 0, len(ev.Citations))
 		for _, c := range ev.Citations {
-			cites = append(cites, sdo.AiCitationDTO{SourceID: c.SourceID, Quote: c.Quote, Kind: c.Kind, Title: c.Title, Href: c.Href})
+			cites = append(cites, sdo.AiCitationDTO{SourceID: c.SourceID, Quote: c.Quote, Kind: c.Kind, Title: c.Title, Href: c.Href, ObjectID: c.ObjectID})
 		}
 		sw.event("citations", sdo.AskStreamCitationsDTO{Citations: cites})
 	case "done":

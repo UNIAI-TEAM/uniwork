@@ -21,7 +21,7 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	_ = json.Unmarshal([]byte(m.Citations), &cites)
 	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: make([]sdo.AiCitationDTO, 0, len(cites)), Notice: m.Notice.String, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
 	for _, c := range cites {
-		out.Citations = append(out.Citations, sdo.AiCitationDTO{SourceID: c.SourceID, Quote: c.Quote, Kind: c.Kind, Title: c.Title, Href: c.Href})
+		out.Citations = append(out.Citations, sdo.AiCitationDTO{SourceID: c.SourceID, Quote: c.Quote, Kind: c.Kind, Title: c.Title, Href: c.Href, ObjectID: c.ObjectID})
 	}
 	return out
 }

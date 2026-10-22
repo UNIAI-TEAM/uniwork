@@ -140,8 +140,8 @@ func (s *AskUNIService) mentionedMember(ctx context.Context, tc ai.ToolContext, 
 	}
 	for _, r := range rows {
 		if r.UserID == userID {
-			h := base + "/members?user=" + r.UserID
-			return []agentItem{{Kind: "member", Key: h, Title: r.DisplayName, Href: h, Text: "ID: " + r.UserID + "\nRole: " + r.Role}}, nil
+			it := personItem(base, r.UserID, r.DisplayName, "ID: "+r.UserID+"\nRole: "+r.Role)
+			return []agentItem{it}, nil
 		}
 	}
 	return nil, ErrNotFound

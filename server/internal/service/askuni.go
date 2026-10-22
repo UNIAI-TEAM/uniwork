@@ -110,6 +110,8 @@ type AskCitation struct {
 	Kind     string `json:"kind"`
 	Title    string `json:"title"`
 	Href     string `json:"href"`
+	// ObjectID is the one object the source is; empty for a source that is none.
+	ObjectID string `json:"object_id,omitempty"`
 }
 
 type AskResult struct {
@@ -317,7 +319,7 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	for _, c := range answer.Citations {
 		for _, src := range pack {
 			if src.ID == c.SourceID {
-				citations = append(citations, AskCitation{SourceID: c.SourceID, Quote: c.Quote, Kind: src.Kind, Title: src.Title, Href: src.Href})
+				citations = append(citations, AskCitation{SourceID: c.SourceID, Quote: c.Quote, Kind: src.Kind, Title: src.Title, Href: src.Href, ObjectID: sourceObjectID(src.Kind, src.Href)})
 			}
 		}
 	}

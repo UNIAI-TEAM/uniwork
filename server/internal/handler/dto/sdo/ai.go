@@ -39,6 +39,7 @@ type AiCitationDTO struct {
 	Kind     string `json:"kind" description:"task, meeting, chat, members" example:"task"`
 	Title    string `json:"title" example:"Viết spec F-09"`
 	Href     string `json:"href" description:"Đường dẫn nội bộ" example:"/acme/team/tasks/01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+	ObjectID string `json:"object_id,omitempty" description:"Mã của đối tượng nguồn trỏ tới; vắng khi nguồn không là một đối tượng" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
 }
 
 // AiMessageDTO is one turn of a conversation.

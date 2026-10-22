@@ -179,3 +179,15 @@ func TestAskContextRejectsBadMentions(t *testing.T) {
 		t.Fatalf("duplicates must collapse to two sources:\n%s", p)
 	}
 }
+
+func TestMentionedMemberLinksThePersonPage(t *testing.T) {
+	c := newCtxWorld(t)
+	tc := ai.ToolContext{ActorID: c.x.ua.ID, OrganizationID: c.x.w.OrganizationID, WorkspaceID: c.x.w.ID}
+	items, err := c.s.mentionedMember(context.Background(), tc, c.x.ub.ID)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("mentionedMember = %+v, %v", items, err)
+	}
+	if it := items[0]; !strings.HasSuffix(it.Href, "/people/"+c.x.ub.ID) || strings.Contains(it.Href, "/members") || it.ID != c.x.ub.ID {
+		t.Errorf("item = %+v", it)
+	}
+}

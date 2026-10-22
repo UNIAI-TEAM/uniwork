@@ -28,7 +28,8 @@ import (
 // conversation, the Href, so the same task keeps its S# on every turn. An
 // error item has Kind "error", no Key, and Text "error: <code>". Body is the
 // object's own words within Text, without the field lines: what a citation quotes.
-type agentItem struct{ Kind, Key, Title, Href, Text, Body string }
+// ID is the one object the item is (a task, a person...); empty for a note or error.
+type agentItem struct{ Kind, Key, Title, Href, Text, Body, ID string }
 
 // agentTool is a read tool the agent loop runs itself: Handle stays nil.
 type agentTool struct {
@@ -222,7 +223,7 @@ func sourceItem(src ai.Source) agentItem {
 	if id := sourceObjectID(src.Kind, src.Href); id != "" {
 		text = withText("ID: "+id, src.Excerpt)
 	}
-	return agentItem{Kind: src.Kind, Key: src.Href, Title: src.Title, Href: src.Href, Text: text, Body: src.Excerpt}
+	return agentItem{Kind: src.Kind, Key: src.Href, Title: src.Title, Href: src.Href, Text: text, Body: src.Excerpt, ID: sourceObjectID(src.Kind, src.Href)}
 }
 
 // sourceObjectID is the id at the end of a source's href ("…/tasks/<id>",
@@ -291,7 +292,7 @@ func (s *AskUNIService) taskItem(l taskLabels, t McpTask, text string) agentItem
 	fields := fmt.Sprintf("Ref: %s\nStatus: %s\nPriority: %s\nDue: %s\nAssignee: %s\nProject: %s",
 		l.ref(t), t.Status, orNone(t.Priority), orNone(t.DueDate), nameOf(l.names, t.AssigneeID), project)
 	h := s.href(t.URL)
-	return agentItem{Kind: "task", Key: h, Title: t.Title, Href: h, Text: withText(fields, text), Body: text}
+	return agentItem{Kind: "task", ID: t.ID, Key: h, Title: t.Title, Href: h, Text: withText(fields, text), Body: text}
 }
 
 func (s *AskUNIService) agentListTasks(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {
@@ -353,7 +354,7 @@ func (s *AskUNIService) agentGetTask(ctx context.Context, tc ai.ToolContext, raw
 func (s *AskUNIService) meetingItem(names map[string]string, m McpMeeting, extra, text string) agentItem {
 	fields := fmt.Sprintf("ID: %s\nStatus: %s\nStarts: %s\nEnds: %s\nHost: %s%s", m.ID, m.Status, orNone(m.StartsAt), orNone(m.EndsAt), nameOf(names, m.HostUserID), extra)
 	h := s.href(m.URL)
-	return agentItem{Kind: "meeting", Key: h, Title: m.Title, Href: h, Text: withText(fields, text), Body: text}
+	return agentItem{Kind: "meeting", ID: m.ID, Key: h, Title: m.Title, Href: h, Text: withText(fields, text), Body: text}
 }
 
 func (s *AskUNIService) agentListMeetings(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {
@@ -428,7 +429,7 @@ func (s *AskUNIService) projectItem(names map[string]string, p McpProject, text 
 	fields := fmt.Sprintf("ID: %s\nStatus: %s\nPriority: %s\nDue: %s\nLead: %s\nTask count: %d (%d done)",
 		p.ID, p.Status, orNone(p.Priority), orNone(p.DueDate), nameOf(names, p.LeadID), p.TaskCount, p.DoneCount)
 	h := s.href(p.URL)
-	return agentItem{Kind: "project", Key: h, Title: p.Title, Href: h, Text: withText(fields, text), Body: text}
+	return agentItem{Kind: "project", ID: p.ID, Key: h, Title: p.Title, Href: h, Text: withText(fields, text), Body: text}
 }
 
 func (s *AskUNIService) agentListProjects(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {
@@ -503,7 +504,7 @@ func (s *AskUNIService) agentGetDocument(ctx context.Context, tc ai.ToolContext,
 		fields += "\nNote: " + d.Note
 	}
 	h := s.href(d.URL)
-	return []agentItem{{Kind: "document", Key: h, Title: d.Title, Href: h, Text: withText(fields, d.Content), Body: d.Content}}, nil
+	return []agentItem{{Kind: "document", ID: d.ID, Key: h, Title: d.Title, Href: h, Text: withText(fields, d.Content), Body: d.Content}}, nil
 }
 
 // roomTitle is what the sidebar calls a room: its name, else the dm peer's.
@@ -530,7 +531,7 @@ func (s *AskUNIService) agentListChatRooms(ctx context.Context, tc ai.ToolContex
 			last = r.LastMessageAt.UTC().Format(time.RFC3339)
 		}
 		h := base + "/chat?room=" + r.ID
-		out = append(out, agentItem{Kind: "chat", Key: h, Title: roomTitle(r), Href: h, Text: "ID: " + r.ID + "\nType: " + r.Kind + "\nLast activity: " + last})
+		out = append(out, agentItem{Kind: "chat", ID: r.ID, Key: h, Title: roomTitle(r), Href: h, Text: "ID: " + r.ID + "\nType: " + r.Kind + "\nLast activity: " + last})
 	}
 	return out, nil
 }
@@ -585,7 +586,7 @@ func (s *AskUNIService) agentReadChatRoom(ctx context.Context, tc ai.ToolContext
 	}
 	h := base + "/chat?room=" + a.RoomID
 	text := strings.TrimSuffix(b.String(), "\n")
-	return []agentItem{{Kind: "chat", Key: h, Title: title, Href: h, Text: text, Body: text}}, nil
+	return []agentItem{{Kind: "chat", ID: a.RoomID, Key: h, Title: title, Href: h, Text: text, Body: text}}, nil
 }
 
 func (s *AskUNIService) agentListMembers(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {
@@ -600,15 +601,14 @@ func (s *AskUNIService) agentListMembers(ctx context.Context, tc ai.ToolContext,
 	if len(list.Members) == 0 {
 		return nil, nil
 	}
-	var b strings.Builder
-	for _, m := range list.Members {
-		fmt.Fprintf(&b, "- %s (%s), user id %s\n", m.Name, m.Role, m.UserID)
-	}
 	base, err := s.base(ctx, tc.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
-	out := []agentItem{{Kind: "members", Key: base + "/members", Title: "Thành viên workspace", Href: base + "/members", Text: strings.TrimSuffix(b.String(), "\n")}}
+	out := make([]agentItem, 0, len(list.Members)+1)
+	for _, m := range list.Members {
+		out = append(out, personItem(base, m.UserID, m.Name, "Role: "+m.Role))
+	}
 	if list.Truncated {
 		out = append(out, moreNote("More members match; narrow the query."))
 	}
@@ -630,13 +630,20 @@ func (s *AskUNIService) agentMemberWorkload(ctx context.Context, tc ai.ToolConte
 		return nil, err
 	}
 	names := s.memberNames(ctx, tc)
-	var b strings.Builder
-	for _, r := range rows {
-		fmt.Fprintf(&b, "- %s: %d open, %d overdue\n", nameOf(names, r.AssigneeID), r.OpenCount, r.OverdueCount)
-	}
 	base, err := s.base(ctx, tc.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
-	return []agentItem{{Kind: "workload", Key: base + "/tasks", Title: "Khối lượng việc", Href: base + "/tasks", Text: strings.TrimSuffix(b.String(), "\n")}}, nil
+	out := make([]agentItem, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, personItem(base, r.AssigneeID, nameOf(names, r.AssigneeID), fmt.Sprintf("Open tasks: %d\nOverdue: %d", r.OpenCount, r.OverdueCount)))
+	}
+	return out, nil
+}
+
+// personItem is one person as a source: list_members and member_workload give
+// the same person the same Key, so they share one S#.
+func personItem(base, userID, name, text string) agentItem {
+	h := base + "/people/" + userID
+	return agentItem{Kind: "member", ID: userID, Key: h, Title: name, Href: h, Text: text}
 }
