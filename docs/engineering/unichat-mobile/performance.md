@@ -49,12 +49,20 @@ Model hàng, danh sách tái chế, timeline dài, cửa sổ trượt, ảnh, b
   Timeline tin nhắn mặc định là FlatList đảo ngược (lý do ở `message-list.tsx`: neo cuộn của danh sách đảo ngược chỉ
   kiểm được trên máy), chỉnh cửa sổ: 15 ô đầu, 10 ô một lượt, `windowSize` 7 (audit timeline-flatlist: 11 giữ quá
   nhiều bong bóng giàu nội dung); nhảy tới tin xa hơn 30 hàng không animate, đích chưa đo thì cuộn theo chiều cao
-  trung bình rồi thử lại chỉ số tối đa 3 lần, không animate. **Timeline tái chế** (A/B): công tắc
+  trung bình rồi thử lại chỉ số tối đa 3 lần, không animate. Không có bộ nhớ chiều cao theo `onLayout` cho từng tin:
+  `getItemLayout` cần offset của mọi hàng, kể cả hàng chưa đo — đúng những hàng một cú nhảy xa nhắm tới — nên bộ nhớ đó
+  không làm `scrollToIndex` tới đích chưa đo chính xác hơn, mà thêm một callback cho mỗi ô; việc nhảy chính xác dồn cho
+  nhánh FlashList của A/B, và `maestro/flows/perf-jump-quote.yaml` kiểm kết quả mỗi đêm trên nhánh tài khoản thử đang
+  được phát. **Timeline tái chế** (A/B): công tắc
   `unichat_mobile_timeline_recycled` (mặc định tắt, `FF_…=N%` theo id người dùng) cho cùng hợp đồng chạy trên
   FlashList 2 (`components/chat/recycled-message-list.tsx`): hàng xếp cũ trước (đảo một lần mỗi lần timeline đổi),
   `maintainVisibleContentPosition.startRenderingFromBottom`, trang cũ hơn qua `onStartReached`, tin mới tự cuộn khi
   người đọc ở trong 20 % màn cuối, ô tái chế theo loại (`timelineItemType`: ngày, dòng chưa đọc, tin theo kiểu bong
-  bóng), `scrollToIndex` của FlashList tự đo tới đích chưa đo. `components/chat/timeline-list.tsx` đọc công tắc một
+  bóng), `scrollToIndex` của FlashList tự đo tới đích chưa đo. Sau layout đầu FlashList tự cuộn về đáy và lặp lại
+  trong 100 ms, nên đích lúc mở (tin một link chỉ tới, dòng chưa đọc ngoài màn đầu) là `initialScrollIndex` của nó,
+  còn `scrollToIndex` của danh sách chỉ chạy sau `onLoad` có hàng cộng `SETTLE_MS` (150 ms) — gọi sớm hơn là bị cú
+  cuộn về đáy ghi đè (`recycled-message-list.flash.test.tsx` đọc offset cuối cùng ScrollView nhận).
+  `components/chat/timeline-list.tsx` đọc công tắc một
   lần mỗi phòng được mở (refetch cấu hình không đổi danh sách dưới tay người đọc) và gắn tag `timeline_list`
   (`inverted`/`recycled`) cho báo cáo Sentry, để khung chậm/đơ của phòng tách theo danh sách. Cách chạy A/B: runbook ›
   Đo hiệu năng trên thiết bị. **Timeline dài**

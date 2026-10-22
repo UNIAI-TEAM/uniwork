@@ -79,13 +79,15 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   `flows/background-resume.yaml` (người kia viết qua `scripts/post-as-peer.js` khi app ở nền, trong và quá cửa sổ ân
   hạn của socket); ba luồng vàng `flows/{chat-read-send,push-open-room,call-join}.yaml` và, chỉ Android (Maestro bật
   chế độ máy bay ở đó), `flows/offline-send-relaunch.yaml` (tin viết offline sống qua kill, mở lạnh offline từ cache,
-  tới đúng thứ tự mỗi tin một lần) chạy hằng đêm bởi
+  tới đúng thứ tự mỗi tin một lần), cùng ba bước đo `flows/perf-{open-room,scroll-room,jump-quote}.yaml` (cú nhảy
+  tới trích dẫn xa phải tới đúng tin) chạy hằng đêm bởi
   `.github/workflows/chat-mobile-verify.yml` với server staging (biến
   `MAESTRO_*`; thiếu thì run theo lịch **đỏ**, chạy tay bỏ chọn `maestro` để chỉ
   build), Maestro ghim `MAESTRO_VERSION`; cùng đêm đó job `android-production`
   build AAB release từ profile production, không cần secret. Trong app flow chọn theo `testID`
   (`room-row-<roomId>`, `conversation-<roomId>`, `composer-input`,
-  `composer-send`, `room-call-*`, `call-*`, `connection-banner-{offline,connecting}`) — đổi tên một id thì sửa flow cùng
+  `composer-send`, `room-call-*`, `call-*`, `connection-banner-{offline,connecting}`, `message-quote`,
+  `message-highlighted`) — đổi tên một id thì sửa flow cùng
   PR; trang web trong sheet đăng nhập thì theo chữ vi|en. `lib/maestro-flows.test.ts` đỏ khi một chữ trong ngoặc kép của
   flow không khớp (regex, cả chuỗi) chuỗi nào của `locales/` hay locale web ở cả vi lẫn en, hay một `id:` không có
   testID nào trong `app/`/`components/` (giá trị không phải chữ của app ghi ở `NOT_COPY` kèm lý do).

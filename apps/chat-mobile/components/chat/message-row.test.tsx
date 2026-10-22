@@ -174,6 +174,15 @@ describe("MessageRow", () => {
     // A sighted tap on the quote still jumps.
     await fireEvent.press(screen.getByText("Ai đi họp?", { includeHiddenElements: true }));
     expect(p.onPressQuote).toHaveBeenCalledTimes(2);
+    // The ids the nightly's jump flow (maestro/flows/perf-jump-quote.yaml) taps and waits for.
+    await fireEvent.press(screen.getByTestId("message-quote", { includeHiddenElements: true }));
+    expect(p.onPressQuote).toHaveBeenCalledTimes(3);
+    expect(screen.queryByTestId("message-highlighted")).toBeNull();
+  });
+
+  it("marks the message a jump landed on for the jump flow to find", async () => {
+    await render(<MessageRow {...props(sent(), { highlighted: true })} />);
+    expect(screen.getByTestId("message-highlighted")).toBeOnTheScreen();
   });
 
   it("keeps a quote over a card with its own button a button of its own", async () => {

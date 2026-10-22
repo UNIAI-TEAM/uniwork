@@ -17,6 +17,7 @@ const repoRoot = path.resolve(appRoot, "../..");
 const NOT_COPY: Record<string, string> = {
   "UniChat Maestro": "the seeded room's name (MAESTRO_* fixtures), not a string of the app",
   "UniChat never draws this text": "a sentinel the flow waits on to time out on purpose",
+  ".*Perf jump target.*": "the body of the message perf-jump-quote.yaml's seeded quote names (runbook), not a string of the app",
 };
 
 function filesUnder(dir: string, ext: RegExp): string[] {

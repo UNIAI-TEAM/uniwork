@@ -547,7 +547,8 @@ test("the smoke and the nightly time the app on the emulator against perf-budget
   assert.match(nightly, /^\s+UNICHAT_PERF_MARKS: "1"$/m, "the nightly's APK logs its startup marks");
   assert.match(nightly, /mobile-perf\.mjs startup --package "\$APP_ID" --mark inbox/, "cold starts to the inbox, signed in");
   assert.match(nightly, /dumpsys gfxinfo "\$APP_ID" reset\n[^\n]*perf-scroll-room\.yaml\n[^\n]*mobile-perf\.mjs frames/, "frames counted over the scroll alone");
-  assert.match(nightly, /mobile-perf\.mjs check "\$RUNNER_TEMP\/perf\/inbox\.json" "\$RUNNER_TEMP\/perf\/scroll\.json"/);
+  assert.match(nightly, /mobile-perf\.mjs check "\$RUNNER_TEMP\/perf\/inbox\.json" "\$RUNNER_TEMP\/perf\/scroll\.json"\n[^\n]*maestro-retry\.sh test flows\/perf-jump-quote\.yaml\n/, "a quote's jump lands, after the frames are counted");
+  assert.ok(fs.existsSync(path.join(root, "apps/chat-mobile/maestro/flows/perf-jump-quote.yaml")), "the jump flow exists");
   assert.match(nightly, /name: unichat-perf-android-nightly\n/);
 
   // Store binaries and OTA updates never carry the flag.

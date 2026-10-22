@@ -11,7 +11,8 @@ name: UniChat mobile verify
 # proves is written at its top). On Android the signed-in app is measured too
 # (scripts/mobile-perf.mjs against apps/chat-mobile/perf-budget.json): five
 # cold starts to the inbox, then frames and memory while scrolling back
-# through MAESTRO_ROOM_ID's history (seed it with 500+ messages: runbook).
+# through MAESTRO_ROOM_ID's history (seed it with 500+ messages: runbook),
+# and a tap on a quote whose message is pages back must land on it.
 # Typecheck, lint, unit and component tests, the bundle budget, an x86_64
 # Android release build and an iOS simulator release build stay in
 # mobile-verify.yml on every PR that reaches the app (scripts/mobile-workflows.test.mjs
@@ -297,6 +298,7 @@ jobs:
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/perf-scroll-room.yaml
             node scripts/mobile-perf.mjs frames --package "$APP_ID" --out "$RUNNER_TEMP/perf/scroll.json"
             node scripts/mobile-perf.mjs check "$RUNNER_TEMP/perf/inbox.json" "$RUNNER_TEMP/perf/scroll.json"
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/perf-jump-quote.yaml
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/push-open-room.yaml
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/call-join.yaml
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/offline-send-relaunch.yaml

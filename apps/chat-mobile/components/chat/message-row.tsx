@@ -191,7 +191,11 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   const lift = own || scheme === "dark" ? null : Platform.OS === "ios" ? (ringed ? null : LIFT_IOS) : LIFT_ANDROID;
 
   const body = (
-    <View className={cn("px-2.5", compactTop ? "pt-0.5" : "pt-2.5", own ? "items-end" : "items-start", highlighted && "bg-primary/10")}>
+    <View
+      className={cn("px-2.5", compactTop ? "pt-0.5" : "pt-2.5", own ? "items-end" : "items-start", highlighted && "bg-primary/10")}
+      // The message a jump landed on, for the nightly's jump flow (maestro/flows/perf-jump-quote.yaml).
+      testID={highlighted ? "message-highlighted" : undefined}
+    >
       <View className={cn("max-w-full flex-row items-end gap-1.5", own ? "justify-end" : "justify-start")}>
         {avatar}
         <Pressable
@@ -225,6 +229,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
               importantForAccessibility={interactive ? "auto" : "no-hide-descendants"}
               hitSlop={8}
               android_ripple={quoteRipple}
+              testID="message-quote"
               onPress={() => props.onPressQuote(quote.id)}
               className={cn(
                 "rounded-[10px] border-l-[3px] px-2 py-1",

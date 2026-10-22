@@ -101,7 +101,9 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   mốc `first-screen` (màn đầu vẽ xong dưới splash vừa nhấc). Nightly Android (`chat-mobile-verify.yml`, tài khoản
   staging): 5 lần mở lạnh tới mốc `inbox` (danh sách phòng đã vẽ, đã đăng nhập), rồi `perf-open-room.yaml` mở
   `MAESTRO_ROOM_ID`, reset `dumpsys gfxinfo`, `perf-scroll-room.yaml` cuộn lùi 20 lần rồi xuống lại; đo % khung giật,
-  khung p90 và PSS. Mỗi lần mở lạnh còn đo tới mốc `js-boot` (dòng đầu của bundle, `data/perf/boot-clock.ts`): trước
+  khung p90 và PSS; sau khi đã đếm khung, `perf-jump-quote.yaml` chạm trích dẫn của tin "Perf jump quote" và chờ tin
+  nó trích ("Perf jump target", cách hơn 200 tin, ngoài trang mới nhất) hiện, được tô (`message-highlighted`).
+  Mỗi lần mở lạnh còn đo tới mốc `js-boot` (dòng đầu của bundle, `data/perf/boot-clock.ts`): trước
   nó là phần native, sau nó là đồ thị module JS và boot. Chặng 2 GB của `android-matrix` (nightly) đo 5 lần mở lạnh
   tới `first-screen` theo profile `android-2gb`; `ios-release` (mỗi PR chạm iOS) đo 5 lần mở lạnh bản Release trên
   simulator theo profile `ios-simulator` (`simctl launch`, mốc đọc từ tệp `Documents/unichat-perf-marks.txt` của app —
@@ -120,15 +122,24 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   **A/B danh sách tin** (`unichat_mobile_timeline_recycled`, FlashList 2 thay FlatList đảo ngược): (1) nightly như
   thường 5 đêm làm mốc; (2) bật override mức người dùng cho tài khoản `MAESTRO_TEST_EMAIL` ở console admin (hay
   `FF_UNICHAT_MOBILE_TIMELINE_RECYCLED=true` trên staging) và chạy 5 đêm nữa; so `scrollJankyPercent`,
-  `scrollP90FrameMs`, `memoryPssMB` của hai nhóm artifact `unichat-perf-android-nightly`, cộng tay một lượt nhảy tới
-  trích dẫn và mở phòng có dòng chưa đọc trên máy thật (neo cuộn dưới bàn phím chỉ máy thấy). Thắng thì bật dần
+  `scrollP90FrameMs`, `memoryPssMB` của hai nhóm artifact `unichat-perf-android-nightly`; cú nhảy tới trích dẫn thì
+  `perf-jump-quote.yaml` kiểm mỗi đêm trên danh sách mà tài khoản đang được phát, cả hai nhóm. Cộng tay trên máy thật:
+  mở phòng có dòng chưa đọc ngoài màn đầu và mở link tới một tin cũ (cả hai phải mở tại đó, không ở đáy), và neo cuộn
+  dưới bàn phím (chỉ máy thấy). Thắng thì bật dần
   `FF_…=10%` ở production và so khung chậm/đơ theo tag `timeline_list` trong Sentry › Performance; thua hay lỗi thì
   tắt — phòng mở sau đó về FlatList, không cần bản mới. Phòng `MAESTRO_ROOM_ID` cần ≥ 500 tin để lần cuộn tải nhiều trang: gieo một lần
   bằng một access token của tài khoản thử (`TOKEN`), id workspace (`WS_ID`) và URL API staging (`API`):
   `for i in $(seq 1 500); do curl -fsS -X POST "$API/api/v1/workspaces/$WS_ID/chat/rooms/$MAESTRO_ROOM_ID/messages"
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json'
   -d "{\"body\":\"Seed $i\",\"client_msg_id\":\"perf-seed-$i\"}" >/dev/null; done` (`client_msg_id` cố định nên
-  chạy lại không nhân đôi). Đỏ ở đây:
+  chạy lại không nhân đôi). Cho `perf-jump-quote.yaml`, gieo tiếp một lần theo đúng thứ tự (cần `jq`): đích, 200 tin
+  đệm, rồi tin trả lời trích đích —
+  `TARGET=$(curl -fsS -X POST "$API/api/v1/workspaces/$WS_ID/chat/rooms/$MAESTRO_ROOM_ID/messages" -H "Authorization:
+  Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"body":"Perf jump target","client_msg_id":"perf-jump-target"}'
+  | jq -r .id)`; vòng `for` như trên với `Jump fill $i` / `perf-jump-fill-$i` cho `i` từ 1 tới 200; rồi
+  `-d "{\"body\":\"Perf jump quote\",\"client_msg_id\":\"perf-jump-quote\",\"reply_to_message_id\":\"$TARGET\"}"`.
+  Tin mỗi đêm `chat-read-send.yaml` gửi nằm dưới tin trả lời; flow cuộn lên tìm nó (tối đa 60 s), nên chỉ phải gieo lại
+  khi phòng đã nhận vài trăm tin sau nó. Đỏ ở đây:
   xem bảng trong step summary — số nào vượt, so với run xanh trước để tìm commit; trên máy dev, render của hàng xem bằng
   các test đếm render (mục Kiểm tra 8), chi phí dựng timeline bằng `lib/timeline-perf.test.ts`.
 - **Canary: chứng minh mỗi cổng đỏ được (owner, một lần sau khi nhánh UNI-2053 lên remote — audit "gates-never-ran").**
