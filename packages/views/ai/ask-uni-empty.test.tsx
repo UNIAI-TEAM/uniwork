@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import { initI18n } from "@uniwork/core/i18n";
@@ -114,6 +114,21 @@ describe("AskUniPanel empty state", () => {
     await screen.findByText("Đã tải xong");
     expect(screen.getByText("Đã tải xong")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Hỏi UNI về công việc" })).toBeNull();
+  });
+
+  it("Ask about this with a conversation open starts over on that object's set", async () => {
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/conversations/c1/messages") ? { messages: [{ id: "a1", role: "assistant", content: "Câu trả lời cũ", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" }] } : path.endsWith("/ai/conversations") ? { conversations: [] } : {}),
+    );
+    useAiPanelStore.setState({ conversationId: "c1" });
+    mount();
+    await screen.findByText("Câu trả lời cũ");
+    act(() => useAiPanelStore.getState().openWithFocus({ kind: "meeting", id: "M", label: "Họp tuần" }));
+    expect(useAiPanelStore.getState().conversationId).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Tóm tắt cuộc họp này" }));
+    await vi.waitFor(() => expect(askBody()).toBeDefined());
+    expect(askBody()?.focus).toEqual({ kind: "meeting", id: "M" });
+    expect(screen.queryByText("Câu trả lời cũ")).toBeNull();
   });
 
   it("hides while the first turn streams", async () => {

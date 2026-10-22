@@ -1,7 +1,7 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Logo } from "@uniwork/ui/brand";
 
 const KINDS = ["task", "project", "meeting", "document", "room"];
 const QUESTIONS = [1, 2, 3, 4];
@@ -13,7 +13,7 @@ export function AskUniEmptyState({ kind, onAsk, disabled = false }: { kind: stri
   const set = kind && KINDS.includes(kind) ? kind : "other";
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto px-4 py-6" data-slot="ask-uni-empty">
-      <Sparkles aria-hidden className="size-8 text-muted-foreground" />
+      <Logo variant="mark" size={40} decorative />
       <h2 className="text-title font-medium text-foreground">{t("title")}</h2>
       <div className="flex w-full flex-col items-stretch gap-1.5">
         {QUESTIONS.map((n) => {
