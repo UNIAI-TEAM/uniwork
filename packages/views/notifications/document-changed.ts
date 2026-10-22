@@ -12,6 +12,8 @@ const VERBS = [
   "access_changed",
   "version_created",
   "relocated",
+  // UNI-2074: the trashed root was a page or file; `relocated` stays the folder-root verb.
+  "relocated_from_page",
 ] as const;
 type DocumentChangedVerb = (typeof VERBS)[number];
 
