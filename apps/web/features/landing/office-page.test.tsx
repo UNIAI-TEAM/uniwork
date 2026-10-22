@@ -242,7 +242,7 @@ describe("the Office page", () => {
       await setLocale(language);
       await render({ flags: {}, office_installers: onDownloads });
       const apt = (language === "vi" ? viMessages : enMessages).landing.office.apt;
-      expect(container.querySelector("#office-apt-title")?.textContent).toBe(apt.title);
+      expect(container.querySelector(".apt-install h3")?.textContent).toBe(apt.title);
       const [setup, install] = commands();
       expect(setup).toContain("sudo curl -fsSL -o /usr/share/keyrings/uniwork-office-archive-keyring.gpg https://uniworkos.com/downloads/office/apt/key.gpg &&\nsudo tee /etc/apt/sources.list.d/uniwork-office.sources > /dev/null <<'EOF'");
       expect(setup).toContain("sudo tee /etc/apt/sources.list.d/uniwork-office.sources");
@@ -270,9 +270,22 @@ describe("the Office page", () => {
       expect(writeText).toHaveBeenCalledWith("sudo apt update && sudo apt install uniwork-office");
       expect(statuses[1]?.textContent).toBe(viMessages.landing.office.apt.copied);
       writeText.mockRejectedValue(new Error("denied"));
-      document.execCommand = vi.fn().mockReturnValue(false);
+      if (!("execCommand" in document)) Object.defineProperty(document, "execCommand", { configurable: true, writable: true, value: () => false });
+      const execCommand = vi.spyOn(document, "execCommand").mockReturnValue(false);
       await act(async () => { buttons[0]?.click(); });
       expect(statuses[0]?.textContent).toBe(viMessages.landing.office.apt.copyFailed);
+      execCommand.mockRestore();
+    });
+
+    it("gives each block its own heading id, so two on one page keep their own label", async () => {
+      request.mockResolvedValue({ flags: {}, office_installers: installers });
+      await act(async () => { root.render(createElement(QueryProvider, null, createElement("div", null, createElement(AptInstall), createElement(AptInstall, { suite: "beta" })))); });
+      const sections = [...container.querySelectorAll(".apt-install")];
+      const ids = sections.map((section) => section.querySelector("h3")?.id);
+      expect(sections).toHaveLength(2);
+      expect(ids[0]).toBeTruthy();
+      expect(ids[0]).not.toBe(ids[1]);
+      expect(sections.map((section) => section.getAttribute("aria-labelledby"))).toEqual(ids);
     });
   });
 

@@ -1,6 +1,6 @@
 "use client";
 import { Check, Copy } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { APT_KEY_FINGERPRINT, aptInstallCommands, selectOfficeInstallerChannel, type AptSuite } from "@uniwork/core/office";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
@@ -39,10 +39,11 @@ function CommandBlock({ label, command }: { label: string; command: string }) {
  */
 export function AptInstall({ suite }: { suite?: AptSuite }) {
   const { t } = useTranslation();
+  const titleId = useId();
   const selected = selectOfficeInstallerChannel(usePublicConfig().data?.office_installers);
   const lines = aptInstallCommands(suite ?? selected ?? "dev");
-  return <section className="apt-install" aria-labelledby="office-apt-title">
-    <h3 id="office-apt-title">{t("landing.office.apt.title")}</h3>
+  return <section className="apt-install" aria-labelledby={titleId}>
+    <h3 id={titleId}>{t("landing.office.apt.title")}</h3>
     <p className="apt-intro">{t("landing.office.apt.intro")}</p>
     <CommandBlock label={t("landing.office.apt.setup")} command={lines.slice(0, -1).join("\n")} />
     <CommandBlock label={t("landing.office.apt.install")} command={lines.at(-1)!} />
