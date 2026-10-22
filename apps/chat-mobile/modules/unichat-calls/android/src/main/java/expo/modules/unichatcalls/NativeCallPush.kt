@@ -1,6 +1,7 @@
 package expo.modules.unichatcalls
 
 import android.content.Context
+import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import org.json.JSONException
 import org.json.JSONObject
@@ -40,6 +41,8 @@ data class CallPushData(
  * not a call push. The same policy as apps/chat-mobile/data/calls/call-push.ts, which stays the path for those.
  */
 internal object NativeCallPush {
+  private const val TAG = "UniChatCalls"
+
   /** The server's callRingWindow (lib/call-push.ts › CALL_RING_WINDOW_MS). */
   const val RING_WINDOW_MS = 60_000L
 
@@ -132,6 +135,8 @@ internal object NativeCallPush {
     if (appInFront || CallService.isRunning()) return Outcome.DEFER
     if (!CallNotifications.showIncoming(context, config.incomingCall(push, remaining))) return Outcome.DEFER
     RingReports.add(context, RingReports.RESULT_NATIVE, push.ringLatencyMs(now))
+    // The nightly's killed-app call (chat-mobile-verify.yml › android-two-party) checks this line in logcat. No ids.
+    Log.i(TAG, "native ring posted")
     return Outcome.RANG
   }
 

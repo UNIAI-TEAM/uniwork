@@ -380,8 +380,9 @@ jobs:
     # Audit "native-call-push-untested": incoming calls, real FCM pushes and background resume were tested only by
     # hand. A second account acts through the API (maestro/scripts/peer-session.js signs it in each time) while the
     # test account's app is in the background or killed, on a Google APIs emulator (Play services: FCM) and the APK
-    # the android job built with the staging Firebase file. Not proven here: ringing over a locked screen, audio, OEM
-    # battery managers (runbook › Native calls on Android, device farm).
+    # the android job built with the staging Firebase file. The killed-app ring must come from the native FCM service,
+    # before any JavaScript (logcat's "native ring posted", NativeCallPush.kt). Not proven here: ringing over a locked
+    # screen, audio, OEM battery managers (runbook › Native calls on Android, device farm).
     needs: [gate, android]
     if: ${{ !cancelled() && needs.gate.outputs.ready == 'true' }}
     runs-on: ubuntu-latest
@@ -449,7 +450,9 @@ jobs:
             adb shell pm grant "$APP_ID" android.permission.POST_NOTIFICATIONS
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test -e PUSH_FROM_PEER=true flows/push-open-room.yaml
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test -e APP_STATE=background flows/call-answer-incoming.yaml
+            adb logcat -c
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test -e APP_STATE=killed flows/call-answer-incoming.yaml
+            adb logcat -d -s UniChatCalls:I | grep -q "native ring posted" || { echo "::error::The killed app rang, but not from the native FCM service (NativeCallPush.kt): JavaScript had to boot first."; exit 1; }
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/background-resume.yaml
       - uses: actions/upload-artifact@v4
         if: always()
