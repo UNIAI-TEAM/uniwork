@@ -773,6 +773,10 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   chuyển **version code** đó sang alpha/beta/production, mở rộng hay dừng rollout qua
   `scripts/mobile-play-release.mjs` (Play Developer API, chỉ built-in của Node; chỉ nhận bản đã live trên track nguồn;
   `PLAY_SERVICE_ACCOUNT_JSON`). Không workflow nào khác build profile `production` cho store.
+- Sức khoẻ bản phát hành: `.github/workflows/chat-mobile-release-health.yml` mỗi giờ (bật bằng biến repo
+  `UNICHAT_RELEASE_HEALTH=on`) chạy `scripts/mobile-release-health.mjs`: crash-free sessions 24 giờ của từng release
+  production trong Sentry (mỗi bản OTA là một release riêng, `lib/build-info.ts › sentryRelease`); < 99.5 % trên ≥ 200
+  phiên (hay < 98 % trên ≥ 50) thì revert rollout của OTA đó hoặc halt rollout Play của bản store, run đỏ.
 - OTA: `.github/workflows/chat-mobile-update.yml` (chạy tay trên `main`/`develop`:
   kênh, tỷ lệ rollout, message; Environment `chat-mobile-update`, giới hạn hai
   nhánh đó) → `verify` trên SHA → `eas update --platform android

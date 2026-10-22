@@ -1,0 +1,100 @@
+name: UniChat mobile release health
+
+# Every hour, reads the crash-free sessions of every production release of
+# UniChat mobile in Sentry and stops the ones under the runbook's floor
+# (scripts/mobile-release-health.mjs; audit "rollout-gating-manual"): an OTA
+# still rolling out is reverted by its group, a store build's staged rollout
+# is halted on Play. What a machine should not undo (an OTA already at 100 %)
+# is left to a person. A run is red whenever a release is unhealthy, so the
+# repository's watchers are told even when the stop worked. Runbook:
+# docs/runbooks/unichat-mobile-release.md › Sức khoẻ bản phát hành.
+#
+# Off until production has users: the repository variable
+# UNICHAT_RELEASE_HEALTH=on turns the schedule on. From then on a missing
+# setting is red, not a silent skip. The chat-mobile-release-health
+# environment (deployment branch main, no reviewers: a schedule cannot wait for
+# one) holds SENTRY_AUTH_TOKEN (org:read), EXPO_TOKEN, EAS_UPDATE_PRIVATE_KEY
+# (a revert publishes, signed) and PLAY_SERVICE_ACCOUNT_JSON, and the variable
+# SENTRY_ORG (SENTRY_URL for a self-hosted Sentry).
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Report only; revert and halt nothing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-mobile-release-health
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  # The same pinned eas-cli as the store release and the OTA.
+  EAS_CLI_VERSION: "24.12.0"
+  EXPO_NO_TELEMETRY: "1"
+
+jobs:
+  health:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.UNICHAT_RELEASE_HEALTH == 'on' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: chat-mobile-release-health
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    steps:
+      - name: Settings
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+        run: |
+          missing=""
+          for name in EXPO_TOKEN SENTRY_AUTH_TOKEN SENTRY_ORG; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::release health is on but the chat-mobile-release-health environment lacks:$missing (runbook › Sức khoẻ bản phát hành)"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      # eas-cli reads the app's config to find the project: the app and what it imports only.
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: ${{ env.EAS_CLI_VERSION }}
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Read release health and stop what is under the floor
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_URL: ${{ vars.SENTRY_URL }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          EAS_UPDATE_PRIVATE_KEY: ${{ secrets.EAS_UPDATE_PRIVATE_KEY }}
+          UNICHAT_ENV: production
+        run: |
+          set -euo pipefail
+          if [ -n "$EAS_UPDATE_PRIVATE_KEY" ]; then
+            umask 077
+            printf '%s\n' "$EAS_UPDATE_PRIVATE_KEY" > "$RUNNER_TEMP/eas-update-private-key.pem"
+            export EAS_UPDATE_PRIVATE_KEY_PATH="$RUNNER_TEMP/eas-update-private-key.pem"
+          fi
+          args=(--channel production)
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          node scripts/mobile-release-health.mjs "${args[@]}"
+      - name: Remove the signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/eas-update-private-key.pem"

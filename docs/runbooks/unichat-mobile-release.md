@@ -1,6 +1,6 @@
 # unichat-mobile-release — phát hành, OTA và rollback bản mobile UniChat
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UniChat M4 (UNI-1836) · **Workflow:** `.github/workflows/chat-mobile-release.yml`, `.github/workflows/chat-mobile-production.yml`, `.github/workflows/chat-mobile-promote.yml`, `.github/workflows/chat-mobile-update.yml`, `.github/workflows/mobile-verify.yml`, `.github/workflows/chat-mobile-verify.yml`
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UniChat M4 (UNI-1836) · **Workflow:** `.github/workflows/chat-mobile-release.yml`, `.github/workflows/chat-mobile-production.yml`, `.github/workflows/chat-mobile-promote.yml`, `.github/workflows/chat-mobile-release-health.yml`, `.github/workflows/chat-mobile-update.yml`, `.github/workflows/mobile-verify.yml`, `.github/workflows/chat-mobile-verify.yml`
 
 App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Năm profile:
 
@@ -188,6 +188,7 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
      secrets `EXPO_TOKEN`, `SENTRY_AUTH_TOKEN`, `PLAY_SERVICE_ACCOUNT_JSON` (khoá JSON của một service account Google
      Cloud có quyền phát hành trên `com.uniworkos.chat` — có thể dùng lại khoá đã tải lên EAS cho submit), variables
      `SENTRY_ORG`, `SENTRY_PROJECT` (và `SENTRY_URL` nếu Sentry tự host).
+   - `chat-mobile-release-health` (`chat-mobile-release-health.yml`): mục Sức khoẻ bản phát hành.
    - `chat-mobile-nightly` (`chat-mobile-verify.yml` › `eas-local`): Deployment branches → Selected → nhánh `main` (lịch
      chạy đọc từ nhánh mặc định); secret `EXPO_TOKEN` (cùng robot token). **Không** đặt Required reviewers: run theo lịch
      sẽ đứng chờ duyệt. Thiếu token thì run theo lịch đỏ ở job đó.
@@ -202,8 +203,11 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    `project:releases` + `org:read`). Bản build có token thì Gradle/Xcode tải source map và symbol native lên Sentry;
    thiếu token thì build vẫn xanh (`SENTRY_ALLOW_FAILURE=true` trong `eas.json`) và crash hiện stack chưa giải.
    Thiếu `SENTRY_DSN` thì app không khởi động Sentry. GitHub Environment `chat-mobile-update`: secret
-   `SENTRY_AUTH_TOKEN`, variables `SENTRY_ORG`, `SENTRY_PROJECT` cho source map của OTA. Đặt alert crash-free
-   sessions < 99.5 % (`docs/evidence/unichat/go-no-go-template.md`) trong Sentry.
+   `SENTRY_AUTH_TOKEN`, variables `SENTRY_ORG`, `SENTRY_PROJECT` cho source map của OTA; Environment
+   `chat-mobile-production` cùng ba thứ đó (bản production chứng minh symbol đã lên). Bản production và OTA kênh
+   `production` không phát khi thiếu báo crash (trừ khi miễn có ghi lại). Đặt alert crash-free sessions < 99.5 %
+   (`docs/evidence/unichat/go-no-go-template.md`) trong Sentry; việc dừng rollout khi dưới ngưỡng là của job Sức khoẻ
+   bản phát hành.
 9. **Ký OTA (EAS Update code signing).** Chứng chỉ công khai đã commit: `apps/chat-mobile/certs/eas-update-certificate.pem`
    (sinh 2026-10-22 bằng `npx expo-updates codesigning:generate --key-output-directory ../../.secrets/unichat-keys
    --certificate-output-directory certs --certificate-validity-duration-years 10 --certificate-common-name "UniChat"`,
@@ -274,6 +278,27 @@ theo crash-free sessions của Sentry cho đúng release đó (`<bundle id>@<ver
    revert, bump patch, cắt bản store mới và bắt đầu lại từ 5 %. Lỗi ở một tính năng: kill switch (mục dưới).
 6. iOS: khi nộp bản production bật **Phased release for automatic updates** (App Store Connect, 7 ngày); Pause phased
    release theo cùng ngưỡng 99.5 %. Chưa có đường iOS tự động (UNI-1838: tài khoản Apple).
+
+**Sức khoẻ bản phát hành (tự động, audit "rollout-gating-manual")**: `chat-mobile-release-health.yml` chạy mỗi giờ
+(phút 17) `scripts/mobile-release-health.mjs`: đọc tổng phiên và crash-free sessions 24 giờ qua của mọi release
+production trong Sentry (`/api/0/organizations/<org>/sessions/`, `groupBy=release`, `environment=production`), theo tên
+release mà app tự đặt — `com.uniworkos.chat@<version>+<version code>` là bundle nhúng của bản store,
+`…+<version code>.ota.<id>` là một bản OTA trên nó. Ngưỡng là của mục trên: **< 99.5 % trên ≥ 200 phiên**, hoặc
+**< 98 % trên ≥ 50 phiên** (vỡ nặng, không chờ đủ 200), thì:
+- bản OTA đang rollout dở (`eas update:list` có `rolloutPercentage` < 100, `eas update:view` chứa id đó):
+  `eas update:revert-update-rollout --group <group>` (ký bằng `EAS_UPDATE_PRIVATE_KEY`) — máy trong phần rollout quay
+  về bản trước;
+- bản store: halt staged rollout của version code đó trên track production qua `scripts/mobile-play-release.mjs`;
+- bản OTA đã 100 %, hay bản store không còn rollout: **không tự làm gì**, ghi "needs a person" — người trực republish
+  bản trước hay roll back về bản nhúng (mục Khắc phục), vì máy không biết bản trước có tốt hơn không.
+Run **đỏ** mỗi khi có release dưới ngưỡng (kể cả khi đã dừng được), summary liệt kê từng release và việc đã làm; GitHub
+báo người theo dõi repo. Bật khi production có người dùng: repository variable `UNICHAT_RELEASE_HEALTH=on`; từ lúc đó
+thiếu thiết lập là đỏ. Chạy tay ("Run workflow") mặc định `dry_run` (chỉ báo cáo). Environment
+`chat-mobile-release-health`: Deployment branches → `main`, **không** Required reviewers (lịch chạy không chờ duyệt
+được); secrets `SENTRY_AUTH_TOKEN` (quyền `org:read`), `EXPO_TOKEN`, `EAS_UPDATE_PRIVATE_KEY`,
+`PLAY_SERVICE_ACCOUNT_JSON`; variable `SENTRY_ORG` (`SENTRY_URL` nếu tự host). Một alert trong Sentry (crash-free <
+99.5 %) vẫn nên đặt để báo trong giờ trước lượt chạy kế tiếp; server có thêm alert `UniChatMobileServerErrors` cho lỗi
+5xx theo bản app (mục Kiểm tra).
 
 **Bản cài trực tiếp (chưa có store)**: `eas build -p android --profile preview` cho link tải APK. iOS ad hoc cần Apple
 Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios --profile preview`.

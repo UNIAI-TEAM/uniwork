@@ -247,6 +247,24 @@ test("promotion moves a version code through scripts/mobile-play-release.mjs, be
   assert.doesNotMatch(wf, /eas build|eas submit/, "promotion never builds or uploads a binary");
 });
 
+// Audit "rollout-gating-manual": the runbook's floor runs every hour once production has users, and a switched-on
+// job that cannot read Sentry is red rather than quietly green.
+test("release health runs hourly once switched on, needs its settings, and acts only through the script", () => {
+  const wf = read("chat-mobile-release-health.yml");
+  assert.match(wf, /^ {2}schedule:\n {4}- cron: "\d+ \* \* \* \*"$/m, "hourly");
+  assert.match(wf, /^ {4}if: \$\{\{ github\.event_name == 'workflow_dispatch' \|\| vars\.UNICHAT_RELEASE_HEALTH == 'on' \}\}$/m);
+  assert.match(wf, /^ {4}environment: chat-mobile-release-health$/m);
+  assert.match(wf, /^ {6}dry_run:\n {8}description: [^\n]+\n {8}type: boolean\n {8}default: true$/m, "a dispatched run reports only unless told otherwise");
+  assert.equal(envPin(wf, "EAS_CLI_VERSION"), envPin(read("chat-mobile-release.yml"), "EAS_CLI_VERSION"));
+  assert.match(wf, /node scripts\/mobile-release-health\.mjs "\$\{args\[@\]\}"/);
+  assert.match(wf, /rm -f "\$RUNNER_TEMP\/eas-update-private-key\.pem"/);
+  const settings = (env) => runStep("chat-mobile-release-health.yml", "- name: Settings", env);
+  assert.equal(settings({ EXPO_TOKEN: "t", SENTRY_AUTH_TOKEN: "s", SENTRY_ORG: "o" }).status, 0);
+  const missing = settings({ EXPO_TOKEN: "t", SENTRY_AUTH_TOKEN: "", SENTRY_ORG: "" });
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stdout, /::error::release health is on but the chat-mobile-release-health environment lacks: SENTRY_AUTH_TOKEN SENTRY_ORG/);
+});
+
 // The push filter is the scope script's list, and a pull request is never
 // filtered: the gate job is a required check, and a workflow a path filter keeps
 // from starting leaves its required check pending for ever. An edit to any of
@@ -346,7 +364,7 @@ test("the scope job builds natively when the release calls it, even for a re-pus
   assert.equal(decide({ EVENT: "workflow_dispatch" }), all);
 });
 
-const WORKFLOWS = ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml", "chat-mobile-update.yml", "chat-mobile-production.yml", "chat-mobile-promote.yml"];
+const WORKFLOWS = ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml", "chat-mobile-update.yml", "chat-mobile-production.yml", "chat-mobile-promote.yml", "chat-mobile-release-health.yml"];
 
 /** The workflow-level env block and each job's text, by job id. */
 function jobsOf(wf) {
