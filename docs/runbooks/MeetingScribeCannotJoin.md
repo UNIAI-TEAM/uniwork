@@ -4,7 +4,7 @@
 
 ## Triệu chứng
 
-- Alert `MeetingScribeCannotJoin`: hơn 2 sự kiện `scribe_dispatch_failed` (LiveKit từ chối `CreateDispatch`) hoặc `scribe_failed` (ba lần gọi liên tiếp mà agent không báo `/agent/started` trong 60 giây khi phòng có người) trong 15 phút.
+- Alert `MeetingScribeCannotJoin`: hơn 2 sự kiện `scribe_dispatch_failed` (LiveKit từ chối `CreateDispatch`), `scribe_failed` (ba lần gọi liên tiếp mà một worker đã nhận job nhưng agent không báo `/agent/started` trong 60 giây khi phòng có người) hoặc `scribe_no_capacity` (60 giây mà không worker nào nhận job: hết sức chứa, server gửi lại mà không đếm là lỗi, tối đa 10 phút kể từ lúc mở lần chạy) trong 15 phút.
 - Phòng họp hiện chip "AI ghi lời đang gặp lỗi"; phụ đề quay về Web Speech của từng máy (D12), transcript của cuộc họp chỉ có lời từ Web Speech.
 - Cuộc họp không bị ảnh hưởng gì khác: thư ký lỗi không chặn vào phòng.
 
@@ -14,7 +14,7 @@
    ```promql
    sum by (event) (increase(uniwork_meetings_total{event=~"scribe_.*"}[15m]))
    ```
-   `scribe_dispatched` có mà `scribe_active` không có: agent nhận job nhưng không gọi được server. Chỉ có `scribe_dispatch_failed`: LiveKit không nhận dispatch.
+   `scribe_dispatched` có mà `scribe_active` không có: agent nhận job nhưng không gọi được server. Chỉ có `scribe_dispatch_failed`: LiveKit không nhận dispatch. `scribe_no_capacity`: mọi worker đã quá `load_threshold` 0,7; so `sum(scribe_jobs_running)` với số pod × số cuộc họp mỗi pod.
 2. Worker agent có chạy không: `kubectl -n uniwork get pods -l app.kubernetes.io/name=uniwork-meeting-agent` và `kubectl -n uniwork logs deploy/uniwork-meeting-agent --since=15m | grep -E 'reject|leaving|api retry|stt'`. Log chỉ có id và độ dài, không có lời nói.
 3. Lần chạy trong DB:
    ```sql
@@ -24,11 +24,12 @@
    FROM meeting_scribe_runs WHERE status IN ('DISPATCHED', 'FAILED') ORDER BY updated_at DESC LIMIT 20;
    ```
    `dispatch_id` rỗng: `CreateDispatch` lỗi. Có `dispatch_id` mà vẫn `DISPATCHED`: agent không tới `/agent/started`.
-4. Agent gọi server có bị chặn không: `sum by (status) (rate(uniwork_http_requests_total{route=~"/api/v1/meetings/{meetingID}/agent/.*"}[5m]))`. 404 hàng loạt: `JWT_SECRET` của BE đã đổi sau khi dispatch (token cũ hết hiệu lực). 401: agent gửi sai header. 429: chạm budget `meeting-agent`.
+4. Agent gọi server có bị chặn không: `sum by (status) (rate(uniwork_http_requests_total{route=~"/api/v1/meetings/{meetingID}/agent/.*"}[5m]))`. 404 hàng loạt: `JWT_SECRET` của BE đã đổi sau khi dispatch (token cũ hết hiệu lực; agent tự rời phòng khi `/agent/segments` trả 404 và sweep gửi lần chạy mới). 401: agent gửi sai header. 429: chạm budget `meeting-agent`.
 5. Phiên bản LiveKit dùng chung (≥ v1.9.12 theo kết quả S0) và worker đã đăng ký `agent_name=uniwork-scribe`: log khởi động của pod agent có dòng đăng ký worker.
 
 ## Khắc phục
 
+- `scribe_no_capacity`: tăng `meetingAgent.maxReplicas` (HPA đang ở trần?) hoặc bật `meetingAgent.keda` để scale theo số cuộc họp mỗi pod và giữ sẵn pod trước mỗi giờ.
 - Pod agent không chạy hoặc crash: `kubectl -n uniwork rollout restart deploy/uniwork-meeting-agent`. Pod cũ drain tới 4 giờ, nên chỉ restart khi pod hiện tại không nhận job.
 - `CreateDispatch` bị từ chối: kiểm `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` của BE và secret `uniwork-meeting-agent` cùng một cặp với LiveKit.
 - Agent không gọi được BE: kiểm NetworkPolicy `uniwork-meeting-agent` (egress tới `uniwork-be`) và rule ingress của `uniwork` cho pod agent.

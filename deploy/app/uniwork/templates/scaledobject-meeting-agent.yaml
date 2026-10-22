@@ -1,0 +1,34 @@
+{{- if and .Values.meetingAgent.enabled .Values.meetingAgent.keda.enabled }}
+{{- $ma := .Values.meetingAgent }}
+# Meetings per pod, not CPU (benchmark #13): scribe_jobs_running is the
+# worker's own gauge (apps/meeting-agent/scribe/metrics.py), summed over the
+# pods; KEDA keeps about jobsPerPod meetings on each. The cron trigger holds a
+# floor before each hour, when meetings start together. KEDA must be installed.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: uniwork-meeting-agent
+  namespace: {{ .Values.namespace }}
+spec:
+  scaleTargetRef:
+    name: uniwork-meeting-agent
+  minReplicaCount: {{ $ma.minReplicas }}
+  maxReplicaCount: {{ $ma.maxReplicas }}
+  # A pod drains for hours (terminationGracePeriodSeconds); scale in slowly.
+  cooldownPeriod: 900
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: {{ $ma.keda.prometheusUrl | quote }}
+        # Only the agent exports this metric; no pod label is assumed of the cluster's scrape config.
+        query: sum(scribe_jobs_running) or vector(0)
+        threshold: {{ $ma.keda.jobsPerPod | quote }}
+    {{- if $ma.keda.prescale.enabled }}
+    - type: cron
+      metadata:
+        timezone: {{ $ma.keda.prescale.timezone | quote }}
+        start: {{ $ma.keda.prescale.start | quote }}
+        end: {{ $ma.keda.prescale.end | quote }}
+        desiredReplicas: {{ $ma.keda.prescale.replicas | quote }}
+    {{- end }}
+{{- end }}
