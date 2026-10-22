@@ -26,6 +26,7 @@ const OPERATOR_RUNBOOKS = new Set([
   "folders-unshare.md", // UNI-1974: one-off clean-up command run once after the folder-share-off deploy
   "livekit-sip.md", // UNI-2029/UNI-2030: setting up and operating the SIP service for dial-in by phone
   "folders-into-my-folder.md", // UNI-2055: one-off admin command run once after the workspace-folder (ADR 0037) deploy
+  "browser-notifications.md", // UNI-1965: setting up Web Push (VAPID) and accepting system banners, opened by a deploy step
 ]);
 
 /** `{alert, runbook_url}` pairs from deploy/alerts.yml. */

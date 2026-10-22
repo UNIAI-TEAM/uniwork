@@ -1,10 +1,16 @@
 # Browser system notifications
 
+> **Trạng thái:** shipped · **Sev:** 4 · **Rule:** không có alert — hướng dẫn vận hành của UNI-1965 (bật Web Push, nghiệm thu banner hệ thống) · **File:** `docs/runbooks/browser-notifications.md`
+
 Scope: UNI-1965. The web workspace now invites the person to enable system
 notifications. The browser permission dialog runs only after their click. The
 notification settings page also offers a test while server push is unavailable.
 
-## Two delivery paths
+## Triệu chứng
+
+Người dùng không thấy banner thông báo hệ thống, hoặc chỉ thấy khi tab còn mở. Hai đường giao khác nhau:
+
+### Two delivery paths
 
 - An open workspace receives realtime events and can display system banners
   for new chat messages, mentions, assignments, meeting invitations/reminders
@@ -16,7 +22,31 @@ notification settings page also offers a test while server push is unavailable.
   retaining the ringing check and short call TTL. Open workspaces with a push
   subscription leave the system banner to that path to avoid duplicates.
 
-## Enable background push in a deployment
+## Kiểm tra
+
+### Manual acceptance
+
+Use consenting test accounts and synthetic messages; do not send messages to
+production coworkers as a test.
+
+- Windows Chrome/Edge and macOS Chrome/Safari: permission starts undecided, the
+  invitation alone does not trigger a browser dialog, and its button does.
+- Send a test from Settings and inspect the actual OS notification center.
+  A rendered settings success message alone is insufficient evidence.
+- With the app unfocused, send a new message and a call from another test
+  account. Selecting the system banner opens the correct conversation. Answer
+  or end the call and verify its open-page banner closes.
+- Check meeting reminders, muted rooms, permission denial and an existing
+  granted permission. Browser settings must remain available after dismissing
+  the invitation.
+- With server push configured and the browser registered, close the tab and
+  repeat. Delivery with the browser process fully quit depends on the browser
+  and OS. Chat pushes retain the existing recent-activity suppression policy;
+  allow that window to expire when verifying closed-tab chat delivery.
+
+## Khắc phục
+
+### Enable background push in a deployment
 
 1. Provision one stable VAPID key pair in the deployment's secret manager.
    Configure `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` on the **Go backend**.
@@ -37,22 +67,7 @@ notification settings page also offers a test while server push is unavailable.
    even when browser permission is granted. Do not describe a permission grant
    or a mocked constructor test as proof that the OS displayed a banner.
 
-## Manual acceptance
+## Leo thang
 
-Use consenting test accounts and synthetic messages; do not send messages to
-production coworkers as a test.
-
-- Windows Chrome/Edge and macOS Chrome/Safari: permission starts undecided, the
-  invitation alone does not trigger a browser dialog, and its button does.
-- Send a test from Settings and inspect the actual OS notification center.
-  A rendered settings success message alone is insufficient evidence.
-- With the app unfocused, send a new message and a call from another test
-  account. Selecting the system banner opens the correct conversation. Answer
-  or end the call and verify its open-page banner closes.
-- Check meeting reminders, muted rooms, permission denial and an existing
-  granted permission. Browser settings must remain available after dismissing
-  the invitation.
-- With server push configured and the browser registered, close the tab and
-  repeat. Delivery with the browser process fully quit depends on the browser
-  and OS. Chat pushes retain the existing recent-activity suppression policy;
-  allow that window to expire when verifying closed-tab chat delivery.
+Đã cấu hình VAPID, `GET /api/v1/notifications/push/config` báo `enabled: true`, quyền trình duyệt và hệ điều hành đã bật mà banner vẫn không hiện:
+mở issue cho chủ UNI-1965, kèm trình duyệt, hệ điều hành, kết quả `/push/config` và dòng `POST /api/v1/me/push-subscriptions` của trình duyệt đó.
