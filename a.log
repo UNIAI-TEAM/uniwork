@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -5; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7 2>/dev/null || git fetch -q origin feature/UNI-923-office-g5-g6-g7 && git merge-base HEAD FETCH_HEAD
+bdc1b62a73b87dc1d3b74abd4422a2cfc4addc2a
+bdc1b62a7 chore: merge the UNI-2074 web slice (f12108ce0) into the lane branch
+99ffe2ea7 docs(adr): amend ADR 0037 point 5 for every trashed root
+8ec93fecd feat(documents): relocate unmanaged documents when any root is trashed
+d2e8b1e2f test(documents): pin the trash relocation for every root (red)
+f12108ce0 fix(documents): kind-neutral wording for the page/file trash dialog
+760723c61d0d0e5e1e3dfd588da4f0117dbdca17
