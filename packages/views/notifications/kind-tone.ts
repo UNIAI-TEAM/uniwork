@@ -24,6 +24,8 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   meeting_summary_reminder: moduleTone("meetings"),
   meeting_summary_ready: moduleTone("meetings"),
   meeting_recap_ready: moduleTone("meetings"),
+  meeting_action_items_pending: moduleTone("meetings"),
+  meeting_task_due: moduleTone("tasks"),
   meeting_transcript_ready: moduleTone("meetings"),
   meeting_transcript_failed: moduleTone("meetings"),
   member_added: moduleTone("people"),

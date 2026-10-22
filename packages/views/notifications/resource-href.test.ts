@@ -37,6 +37,11 @@ describe("resourceHref", () => {
     expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");
   });
 
+  it("opens the action items when a meeting still has items to assign", () => {
+    const n = notification({ kind: "meeting_action_items_pending", resource_type: "meeting", resource_id: "m1" });
+    expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=action-items");
+  });
+
   it("opens the summary, or the minutes once they are final, from a participant's recap", () => {
     const summary = notification({ kind: "meeting_recap_ready", resource_type: "meeting", resource_id: "m1" });
     expect(resourceHref(summary, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");

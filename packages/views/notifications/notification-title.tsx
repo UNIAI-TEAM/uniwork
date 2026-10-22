@@ -59,6 +59,7 @@ export function notificationTitleKey(n: Notification): string {
   if (n.kind === "tasks_assigned" && !n.params.meeting?.trim()) return `${n.title_key}_nomeeting`;
   // Finalized minutes have their own sentence (server titles.go recapMinutesTitleKey).
   if (n.kind === "meeting_recap_ready" && n.params.stage === "minutes") return `${n.title_key}_minutes`;
+  if (n.kind === "meeting_task_due" && n.params.stage === "overdue") return `${n.title_key}_overdue`;
   const untitled = n.resource_type === "document" && n.title_key.startsWith("notifications.kind.document_") && !n.kind.startsWith("document_edit_");
   const key = untitled && !n.params.document?.trim() ? `${n.title_key}_untitled` : n.title_key;
   if (n.kind === "document_shared" && !SHARE_LEVELS.has(n.params.level ?? "")) return `${key}_nolevel`;

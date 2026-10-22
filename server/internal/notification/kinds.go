@@ -25,6 +25,11 @@ const (
 	// The recap for everyone else in the meeting (follow-1): its first
 	// summary, then its finalized minutes (params.stage = "minutes").
 	KindMeetingRecapReady = "meeting_recap_ready"
+	// follow-2: a day after a meeting ends, its clerks hear how many items
+	// nobody assigned yet; a task a meeting handed out reminds its assignee
+	// on its due day and once overdue (params.stage = "overdue").
+	KindMeetingActionItemsPending = "meeting_action_items_pending"
+	KindMeetingTaskDue            = "meeting_task_due"
 	// An uploaded meeting recording was transcribed, or failed for good
 	// (UNI-2001, parent spec §8.3): sent to the clerk who asked.
 	KindMeetingTranscriptReady  = "meeting_transcript_ready"
@@ -93,6 +98,7 @@ const (
 var Kinds = []string{
 	KindTaskAssigned, KindTasksAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
 	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder, KindMeetingSummaryReady, KindMeetingRecapReady,
+	KindMeetingActionItemsPending, KindMeetingTaskDue,
 	KindMeetingTranscriptReady, KindMeetingTranscriptFailed,
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned, KindDocumentBodyMentioned,

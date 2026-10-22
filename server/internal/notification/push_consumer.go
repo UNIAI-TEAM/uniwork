@@ -236,6 +236,8 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 			return base + "/my-tasks", nil
 		case KindMeetingSummaryReminder, KindMeetingSummaryReady:
 			return base + "/meetings/" + n.ResourceID + "?section=summary", nil
+		case KindMeetingActionItemsPending:
+			return base + "/meetings/" + n.ResourceID + "?section=action-items", nil
 		case KindMeetingRecapReady:
 			var params map[string]string
 			_ = json.Unmarshal([]byte(n.Params), &params)

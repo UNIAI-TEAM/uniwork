@@ -25,6 +25,9 @@ var titles = map[string]map[string]string{
 		KindMeetingSummaryReminder:      "\"{{meeting}}\" đã kết thúc · Tóm tắt và tạo việc",
 		KindMeetingSummaryReady:         "Tóm tắt \"{{meeting}}\" đã sẵn sàng · Xem và giao việc",
 		KindMeetingRecapReady:           "Đã có tóm tắt cuộc họp \"{{meeting}}\" · Xem các quyết định và việc cần làm",
+		KindMeetingActionItemsPending:   "\"{{meeting}}\" còn {{count}} việc chưa giao · Xem và giao việc",
+		KindMeetingTaskDue:              "Việc \"{{task}}\" từ cuộc họp \"{{meeting}}\" đến hạn hôm nay",
+		taskOverdueTitleKey:             "Việc \"{{task}}\" từ cuộc họp \"{{meeting}}\" đã quá hạn",
 		recapMinutesTitleKey:            "Biên bản \"{{meeting}}\" đã chốt · Xem lại các quyết định và việc được giao",
 		KindMeetingTranscriptReady:      "Đã có bản ghi lời thoại cho tệp ghi âm của \"{{meeting}}\"",
 		KindMeetingTranscriptFailed:     "Không tạo được bản ghi lời thoại cho tệp ghi âm của \"{{meeting}}\". Mở cuộc họp để tải lại tệp.",
@@ -69,6 +72,9 @@ var titles = map[string]map[string]string{
 		KindMeetingSummaryReminder:      "\"{{meeting}}\" ended · Summarize it and create tasks",
 		KindMeetingSummaryReady:         "\"{{meeting}}\" summary is ready · Review it and assign tasks",
 		KindMeetingRecapReady:           "The recap of \"{{meeting}}\" is ready · See the decisions and next steps",
+		KindMeetingActionItemsPending:   "\"{{meeting}}\" still has {{count}} items to assign · Review and assign them",
+		KindMeetingTaskDue:              "\"{{task}}\" from the meeting \"{{meeting}}\" is due today",
+		taskOverdueTitleKey:             "\"{{task}}\" from the meeting \"{{meeting}}\" is overdue",
 		recapMinutesTitleKey:            "The minutes of \"{{meeting}}\" are final · Review the decisions and assigned tasks",
 		KindMeetingTranscriptReady:      "The transcript of the recording for \"{{meeting}}\" is ready",
 		KindMeetingTranscriptFailed:     "Couldn't transcribe the recording for \"{{meeting}}\". Open the meeting to upload the file again.",
@@ -174,6 +180,10 @@ const tasksAssignedNoMeetingTitleKey = KindTasksAssigned + "_nomeeting"
 // minutes (params.stage = "minutes"); it is not a kind.
 const recapMinutesTitleKey = KindMeetingRecapReady + "_minutes"
 
+// taskOverdueTitleKey keys the meeting_task_due sentence of an overdue task
+// (params.stage = "overdue"); it is not a kind.
+const taskOverdueTitleKey = KindMeetingTaskDue + "_overdue"
+
 // Title renders the kind's title in locale with params, i18next-style
 // {{name}} substitution. Unknown locale falls back to en.
 func Title(locale, kind string, params map[string]string) string {
@@ -187,6 +197,9 @@ func Title(locale, kind string, params map[string]string) string {
 	}
 	if kind == KindMeetingRecapReady && params["stage"] == recapStageMinutes {
 		kind = recapMinutesTitleKey
+	}
+	if kind == KindMeetingTaskDue && params["stage"] == taskStageOverdue {
+		kind = taskOverdueTitleKey
 	}
 	if kind == KindTasksAssigned && strings.TrimSpace(params["meeting"]) == "" {
 		kind = tasksAssignedNoMeetingTitleKey

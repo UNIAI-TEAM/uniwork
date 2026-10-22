@@ -591,6 +591,10 @@ func main() {
 	go func() { billingSvc.RunWorkers(runCtx); close(billingWorkersDone) }()
 	go digest.Run(runCtx)
 	go notification.NewMeetingReminder(notifConsumer).Run(runCtx)
+	// follow-2: pending items a day after a meeting, meeting tasks due and
+	// overdue. Like the reminder above it stops with runCancel; a tick cut
+	// short is retried by the next one, so it is not awaited.
+	go notification.NewFollowThroughReminder(notifConsumer).Run(runCtx)
 	// Chat reminders (H16) fire from here, not the browser; stops with
 	// runCancel and is awaited below.
 	chatRemindersDone := make(chan struct{})

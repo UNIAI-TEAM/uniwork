@@ -12,6 +12,8 @@ export const NOTIFICATION_KINDS = [
   "meeting_summary_reminder",
   "meeting_summary_ready",
   "meeting_recap_ready",
+  "meeting_action_items_pending",
+  "meeting_task_due",
   "meeting_transcript_ready",
   "meeting_transcript_failed",
   "member_added",

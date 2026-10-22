@@ -112,6 +112,16 @@ describe("notificationTitleKey", () => {
     expect(t(notificationTitleKey(summary), summary.params)).toBe('Đã có tóm tắt cuộc họp "Giao ban" · Xem các quyết định và việc cần làm');
   });
 
+  it("words an overdue meeting task in its own sentence", () => {
+    const row = notification({
+      kind: "meeting_task_due", resource_type: "task", resource_id: "t1",
+      title_key: "notifications.kind.meeting_task_due", params: { task: "Gửi báo cáo", meeting: "Giao ban", stage: "overdue" },
+    });
+    expect(t(notificationTitleKey(row), row.params)).toBe('Việc "Gửi báo cáo" từ cuộc họp "Giao ban" đã quá hạn');
+    const today = { ...row, params: { task: "Gửi báo cáo", meeting: "Giao ban" } };
+    expect(t(notificationTitleKey(today), today.params)).toBe('Việc "Gửi báo cáo" từ cuộc họp "Giao ban" đến hạn hôm nay');
+  });
+
   it("leaves a document row whose key is not a document kind alone", () => {
     const row = notification({ title_key: "notifications.kind.other", params: {} });
     expect(notificationTitleKey(row)).toBe("notifications.kind.other");

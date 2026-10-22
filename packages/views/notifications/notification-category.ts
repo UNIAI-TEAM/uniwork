@@ -36,6 +36,8 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   meeting_summary_reminder: "meetings",
   meeting_summary_ready: "meetings",
   meeting_recap_ready: "meetings",
+  meeting_action_items_pending: "meetings",
+  meeting_task_due: "assigned",
   meeting_transcript_ready: "meetings",
   meeting_transcript_failed: "meetings",
   task_status_changed: "updates",
