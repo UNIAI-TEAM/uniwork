@@ -91,6 +91,7 @@ var catalogue = []Flag{
 	{Key: "unichat_mobile_voice_messages", Description: "UniChat mobile: ghi và gửi tin thoại; tắt thì ẩn nút ghi âm của ô soạn tin (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	{Key: "unichat_mobile_ai_catch_up", Description: "UniChat mobile: \"Bắt kịp nhanh\" bằng AI trên danh sách chat; tắt thì ẩn banner (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	{Key: "unichat_mobile_outbox_flush", Description: "UniChat mobile: tự gửi lại tin và thao tác đang chờ (khi có mạng lại, về foreground, socket nối lại); tắt thì chúng nằm yên trên máy, gửi từ ô soạn tin và nút Thử lại vẫn chạy (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	{Key: "unichat_mobile_chat_sync", Description: "UniChat mobile: đồng bộ chat theo nhật ký thay đổi (GET .../chat/sync, ADR 0039 nháp): reconnect và mỗi phút yên lặng chỉ đọc phần đã đổi; tắt thì reconnect refetch mọi timeline đang hiện như trước (UNI-2071)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	{Key: "ask_uni_agent", Description: "Hỏi UNI chạy như agent tự tra cứu bằng tool chỉ đọc (UNI-1962, P1); tắt thì giữ luồng P0", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 1, 31)},
 }
 

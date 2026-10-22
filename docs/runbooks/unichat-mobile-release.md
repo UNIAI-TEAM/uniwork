@@ -372,7 +372,9 @@ máy mở lạnh không có mạng vẫn theo công tắc và mức tối thiể
   `unichat_mobile_media_upload` (ẩn gửi ảnh/tệp trong menu đính kèm; tin đã xếp hàng vẫn đi),
   `unichat_mobile_voice_messages` (ẩn nút ghi tin thoại), `unichat_mobile_ai_catch_up` (ẩn banner "Bắt kịp nhanh"),
   `unichat_mobile_outbox_flush` (ngừng tự gửi lại tin và thao tác đang chờ khi có mạng lại / về foreground / socket nối
-  lại — chúng nằm yên trên máy; gửi từ ô soạn tin và nút Thử lại vẫn chạy; dùng khi bản app gây bão gửi lại).
+  lại — chúng nằm yên trên máy; gửi từ ô soạn tin và nút Thử lại vẫn chạy; dùng khi bản app gây bão gửi lại),
+  `unichat_mobile_chat_sync` (ngừng đồng bộ theo nhật ký thay đổi `GET …/chat/sync`: reconnect lại refetch mọi
+  timeline đang hiện như trước; dùng khi endpoint sync chậm hay trả sai — app không cần bản mới).
 - Bật dần cho một phần người dùng: `FF_<KEY>=N%` hoặc trong tệp `FEATURE_FLAGS_FILE`
   `<key>: {default: false, percent: {percent: N, by: user_id}}` — cùng một người luôn trong hay ngoài (băm id người
   dùng), khoảng N % tổng số; đổi cần khởi động lại server. Override ở console chỉ bật/tắt (người > tổ chức > toàn hệ

@@ -43,7 +43,8 @@
   `PushConsumer.SetMobileCalls`; cuộc gọi đang diễn ra không bị cắt và giữ dịch vụ cuộc gọi;
   `unichat_mobile_media_upload` / `unichat_mobile_voice_messages`: ô soạn tin bỏ ảnh/tệp khỏi menu đính kèm / bỏ nút ghi
   âm; `unichat_mobile_ai_catch_up`: `CatchUpBanner` không hiện; `unichat_mobile_outbox_flush`: `flushOwed` không tự gửi
-  lại gì, gửi từ ô soạn tin và Thử lại vẫn chạy). Công tắc mới: thêm vào `MOBILE_FLAG_DEFAULTS` và vào catalogue
+  lại gì, gửi từ ô soạn tin và Thử lại vẫn chạy; `unichat_mobile_chat_sync`: reconnect và tick yên lặng không đọc
+  `GET …/chat/sync`, đi đường refetch cũ). Công tắc mới: thêm vào `MOBILE_FLAG_DEFAULTS` và vào catalogue
   `server/internal/featureflags/keys.go` với `Mobile: true`, cùng `Default` và `ReviewAt` (`data/server-contract.test.ts`
   đỏ khi lệch); bật dần theo tỷ lệ người dùng là việc của server (`FF_<KEY>=N%`, runbook). Câu trả lời cuối của server được giữ trên máy
   (`remote-config/v1` trong device store, `persistRemoteConfig`, ≤ 30 ngày, ngoài mọi tài khoản — nên đăng xuất

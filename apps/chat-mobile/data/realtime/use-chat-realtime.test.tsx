@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import { AppState, type AppStateStatus } from "react-native";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
+import { syncChat } from "@/data/chat-sync/sync";
 import { flushOwed } from "@/data/owed";
 import { useActiveChatRoomStore } from "@/data/stores/chat-active-room-store";
 import { useChatPinsStore } from "@/data/stores/chat-pins-store";
@@ -21,7 +22,7 @@ import { useChatRealtime } from "./use-chat-realtime";
 import { useChatScopes } from "./use-chat-scopes";
 
 jest.mock("@react-native-community/netinfo", () => {
-  const netInfo = { addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
+  const netInfo = { configure: () => undefined, addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
   return { __esModule: true, default: netInfo, ...netInfo, useNetInfo: () => ({ isConnected: true }) };
 });
 const mockSocket: { current: FakeWSClient | null } = { current: null };
@@ -30,6 +31,7 @@ const mockRealtime = { handle: jest.fn(), reconnect: jest.fn(), dispose: jest.fn
 jest.mock("./chat-realtime", () => ({ createChatRealtime: jest.fn(() => mockRealtime) }));
 jest.mock("./use-chat-scopes", () => ({ useChatScopes: jest.fn() }));
 jest.mock("@/data/owed", () => ({ flushOwed: jest.fn(async () => undefined) }));
+jest.mock("@/data/chat-sync/sync", () => ({ syncChat: jest.fn(async () => "synced") }));
 
 const scopes = jest.mocked(useChatScopes);
 // Every AppState listener (the query client listens too); a change reaches them all, as on the device.
@@ -88,6 +90,31 @@ describe("useChatRealtime", () => {
     ws.emitReconnect();
     expect(mockRealtime.reconnect).toHaveBeenCalledTimes(1);
     expect(flushOwed).toHaveBeenCalledWith(queryClient, "ME");
+  });
+
+  it("reads the chat change log on opening the workspace, and hands chat-realtime the log and the live check", async () => {
+    const { queryClient, hook } = mount();
+    await hook;
+    const ws = mockSocket.current as FakeWSClient;
+    expect(syncChat).toHaveBeenCalledWith(queryClient, "w1", "ME");
+    const wired = jest.mocked(createChatRealtime).mock.calls[0]?.[1];
+    await wired?.sync?.();
+    expect(syncChat).toHaveBeenCalledTimes(2);
+    ws.emitState("online");
+    expect(wired?.isLive?.()).toBe(true);
+    ws.emitState("waiting");
+    expect(wired?.isLive?.()).toBe(false);
+    ws.emitState("online");
+    Object.defineProperty(AppState, "currentState", { value: "background", configurable: true, writable: true });
+    expect(wired?.isLive?.()).toBe(false);
+  });
+
+  it("signed out: no log to read", async () => {
+    useAuthStore.setState({ user: null });
+    const { hook } = mount();
+    await hook;
+    expect(syncChat).not.toHaveBeenCalled();
+    expect(jest.mocked(createChatRealtime).mock.calls[0]?.[1].sync).toBeUndefined();
   });
 
   it("subscribes the open room first, then the rooms with unread, then the rest", async () => {

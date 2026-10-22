@@ -19,6 +19,7 @@ import { forgetPushToken, unregisterPushToken } from "../push";
 import { workspaceListOptions } from "../queries/workspaces";
 import { queryClient } from "../query-client";
 import { dropAccountCache, restoreAccountCache } from "../query-persister";
+import { forgetChatSyncHeads } from "../chat-sync/heads";
 import { clearAccountCache } from "../remote-config";
 import { bestEffort, setReportUser } from "../report";
 import { currentSessionEpoch } from "../session-epoch";
@@ -121,7 +122,7 @@ async function endAccountSession(): Promise<void> {
  * their files, drafts, and the cached photos, tray notifications and badge (data/local-wipe.ts › wipeSessionTraces).
  */
 async function forgetAccountLocally(): Promise<void> {
-  await Promise.all([useWorkspaceStore.getState().clear(), forgetLastUser(), dropAccountCache(), wipeSessionTraces()]);
+  await Promise.all([useWorkspaceStore.getState().clear(), forgetLastUser(), dropAccountCache(), forgetChatSyncHeads(), wipeSessionTraces()]);
   clearAccountCache(queryClient, openDeviceStore);
   clearChatOutbox(chatSendDeps);
   clearPendingOps(pendingOpsDeps);

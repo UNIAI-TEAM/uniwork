@@ -4,7 +4,9 @@
 // chat scopes (the open room, then unread, then recent — at most 25, the
 // web's selectLazyChatScopeRoomIds), flushes what the phone owes (the outbox
 // and the queued reads, reactions and votes of every workspace, owed.ts) when
-// the socket comes back — the network edge and the return to the front are
+// the socket comes back, reads the chat change log on opening the workspace
+// (data/chat-sync/sync.ts; chat-realtime.ts reads it again on each reconnect
+// and every minute the socket is live) — the network edge and the return to the front are
 // use-account-sync.ts's, for the whole signed-in app — and keeps presence
 // beating while the app is in front.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +15,7 @@ import { useEffect, useMemo } from "react";
 import { AppState } from "react-native";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
+import { syncChat } from "@/data/chat-sync/sync";
 import { flushOwed } from "@/data/owed";
 import { roomsOptions } from "@/data/queries/chat";
 import { bestEffort } from "@/data/report";
@@ -83,7 +86,12 @@ export function useChatRealtime(wsId: string) {
         viewer: () => ({ userId: useAuthStore.getState().user?.id ?? null, activeRoomId: useActiveChatRoomStore.getState().roomId }),
         typing: useSidebarTypingStore.getState(),
         presence: usePresenceStore.getState(),
+        // What changed since this phone last looked, from the change log (data/chat-sync/sync.ts).
+        ...(userId ? { sync: () => syncChat(qc, wsId, userId) } : {}),
+        isLive: () => AppState.currentState === "active" && ws.getConnectionState() === "online",
       });
+      // Opening the workspace: where the log is, or what changed while the app was closed.
+      if (userId) void syncChat(qc, wsId, userId).catch(bestEffort("chat-sync", "first sync threw", "report"));
       return [
         ws.onAny((message) => realtime.handle(message)),
         ws.onReconnect(() => {

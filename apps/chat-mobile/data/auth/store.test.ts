@@ -65,6 +65,7 @@ import { ApiError } from "../api";
 import { installReportSink } from "../report";
 import { useChatSendStore } from "../stores/chat-send-store";
 import { useDraftStore } from "../stores/draft-store";
+import { chatSyncHeads } from "../chat-sync/heads";
 import { usePendingOpsStore } from "../stores/pending-ops-store";
 import { PUSH_UNREGISTER_BUDGET_MS, useAuthStore } from "./store";
 import { openDeviceStore } from "../storage/device-store";
@@ -141,8 +142,11 @@ describe("auth store", () => {
     sessionMock.status.mockReturnValue("signed-out");
     useChatSendStore.setState({ entries: [{ clientMsgId: "c1", workspaceId: "w1", roomId: "r1", senderId: "u1", body: "hi", createdAt: 1, status: "queued" }] });
     usePendingOpsStore.setState({ ops: [{ kind: "read", key: "read/w1/r1", workspaceId: "w1", roomId: "r1", userId: "u1", createdAt: 1, rev: 1, verify: false }] });
+    await chatSyncHeads.set("u1", "w1", 42);
     await useAuthStore.getState().initialize();
     expect(useAuthStore.getState()).toMatchObject({ user: null, isLoading: false });
+    // Where the last person was in each workspace's chat change log goes too.
+    expect(await chatSyncHeads.get("u1", "w1")).toBeNull();
     expect(useChatSendStore.getState().entries).toEqual([]);
     expect(usePendingOpsStore.getState().ops).toEqual([]);
     expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(1);

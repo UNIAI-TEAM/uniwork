@@ -37,3 +37,8 @@ Ba tầng socket, decoder frame, luật socket, ân hạn nền, khôi phục ph
   đợi giữ), cho cạnh offline → online (flush, `forceReconnect`) và cho banner. `data/query-client.ts` gọi
   `NetInfo.configure` trước mọi listener: iOS thăm dò `GET <apiUrl>/healthz` (200 `{"status":"ok"}`; trang đăng nhập
   của portal không qua), 60 s một lần khi tới được, 5 s khi không; Android dùng `NET_CAPABILITY_VALIDATED` của OS.
+- Frame chat là ephemeral và không có số thứ tự, nên frame mất (socket rớt, hay relay làm rơi khi socket còn sống)
+  được tìm lại bằng nhật ký thay đổi của server (`data/chat-sync/sync.ts`, `GET …/chat/sync`; chi tiết ở
+  `offline-first.md` › Nhật ký thay đổi): `chat-realtime.ts › reconnect` và kiểm tra sống 60 s
+  (`LIVE_CHECK_MS`, chỉ khi `ws.getConnectionState() === "online"` và app `active`) hỏi nó trước, đường refetch cũ
+  chỉ chạy khi nó không trả lời được.

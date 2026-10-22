@@ -12,8 +12,10 @@ import {
   patchChatRoomRead,
   type ChatViewer,
 } from "../chat-cache";
+import type { ChatSyncOutcome } from "../chat-sync/sync";
 import { catchUpOnChatSubscribeAck, catchUpRoomTimeline, refreshLoadedRoomTimelines } from "../chat-timeline";
 import { chatKeys } from "../queries/chat-keys";
+import { bestEffort } from "../report";
 import { roomWasRead } from "../room-read-signal";
 import { roomTimelineHas, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { sameUser } from "@/lib/user-id";
@@ -24,6 +26,10 @@ export interface ChatRealtimeDeps {
   viewer: () => ChatViewer;
   typing: { bump: (roomId: string, userId: string, currentUserId: string) => void };
   presence: { bump: (userId: string, currentUserId: string) => void; markOffline: (userId: string) => void };
+  /** The chat change log (data/chat-sync/sync.ts); without it a reconnect refetches every shown timeline. */
+  sync?: () => Promise<ChatSyncOutcome>;
+  /** The socket is up and the app in front; given, the live check (LIVE_CHECK_MS) runs while it holds. */
+  isLive?: () => boolean;
 }
 
 /**
@@ -39,6 +45,15 @@ export const ROOM_ACTIVITY_DEBOUNCE_MS = 300;
  * on a timeline someone shows, is one catch-up read instead of a GET each.
  */
 export const BURST_CATCH_UP_MIN = 2;
+
+/**
+ * A frame the relay drops while the socket stays up (a Redis hiccup, a node
+ * dying between commit and publish) would never be noticed: there is no
+ * sequence on frames. Every this often, while the socket is up and the app in
+ * front, the phone asks the change log what changed (one small request), or,
+ * without it, reads what the shown rooms missed after their newest message.
+ */
+export const LIVE_CHECK_MS = 60_000;
 
 interface MessageFrame {
   roomId: string;
@@ -212,20 +227,55 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
     }
   }
 
-  /**
-   * Frames sent while the socket was down are gone: each cache refreshes its own keys (ADR 0011 §5).
-   * A change log with GET /chat/sync?since=<seq> would make this one request; it waits on its ADR
-   * (docs/adr/drafts/0039-dong-bo-chat-theo-nhat-ky-thay-doi.md) and is effort L.
-   */
-  function reconnect(): void {
-    schedule(chatKeys.rooms(wsId), chatKeys.nicknames(wsId), chatKeys.members(wsId), chatKeys.callLogs(wsId), chatKeys.unreadSummary());
+  /** Reload what is shown: every loaded page of each shown timeline, and the threads (ADR 0011 §5). */
+  function reloadShown(): void {
     void qc.invalidateQueries({ queryKey: chatKeys.threadsRoot(wsId) });
     refreshLoadedRoomTimelines(qc, wsId);
   }
 
+  /** A sync that threw (the device store, a bug) is reported and answers nothing: the old path runs. */
+  const syncOutcome = (sync: () => Promise<ChatSyncOutcome>) => sync().catch(bestEffort("chat-sync", "sync threw", "report"));
+
+  /**
+   * Frames sent while the socket was down are gone. The lists refetch; the
+   * timelines read what changed from the change log (data/chat-sync/sync.ts,
+   * one request), and only when it cannot answer (switched off, failed, too far
+   * behind) does every shown timeline refetch its loaded pages.
+   */
+  function reconnect(): void {
+    schedule(chatKeys.rooms(wsId), chatKeys.nicknames(wsId), chatKeys.members(wsId), chatKeys.callLogs(wsId), chatKeys.unreadSummary());
+    if (!deps.sync) {
+      reloadShown();
+      return;
+    }
+    void syncOutcome(deps.sync).then((outcome) => {
+      if (outcome !== "synced") reloadShown();
+    });
+  }
+
+  /** The live check (LIVE_CHECK_MS). */
+  async function checkLive(): Promise<void> {
+    if (!deps.isLive?.()) return;
+    const outcome = deps.sync ? await syncOutcome(deps.sync) : undefined;
+    if (outcome === "synced") return;
+    if (outcome === "reset") {
+      reloadShown();
+      schedule(chatKeys.rooms(wsId), chatKeys.unreadSummary());
+      return;
+    }
+    for (const [queryKey, data] of qc.getQueriesData({ queryKey: chatKeys.roomMessagesRoot(wsId) })) {
+      const roomId = queryKey[3];
+      if (data === undefined || typeof roomId !== "string" || !isShown(roomId)) continue;
+      void catchUpRoomTimeline(qc, wsId, roomId).catch(bestEffort("chat-sync", "live check catch-up failed", "breadcrumb"));
+    }
+  }
+
+  const liveCheck = deps.isLive ? setInterval(() => void checkLive(), LIVE_CHECK_MS) : null;
+
   function dispose(): void {
     if (timer) clearTimeout(timer);
     timer = null;
+    if (liveCheck) clearInterval(liveCheck);
     scheduled.clear();
   }
 

@@ -32,6 +32,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { PushPreviewPolicySchema } from "./account-api";
+import { ChatSyncSchema } from "./chat-sync/api";
 import {
   ActiveRecordingSchema,
   FollowUpEnvelopeSchema,
@@ -268,6 +269,7 @@ const CONTRACTS: Contract[] = [
   { endpoint: "GET …/chat/voice/pending (outgoing)", schema: OutgoingVoiceCallsSchema, sdo: "PendingVoiceInvitesSDO", handlers: ["listPendingChatVoiceInvites"] },
   { endpoint: "GET …/chat/rooms/{id}/members", schema: MembersSchema, sdo: "ChatRoomMemberListSDO", handlers: ["listChatRoomMembers"] },
   { endpoint: "POST …/chat/threads/{id}/read", schema: ThreadReadSchema, sdo: "ChatThreadReadSDO", handlers: ["markChatThreadRead"] },
+  { endpoint: "GET …/chat/sync", schema: ChatSyncSchema, sdo: "ChatSyncSDO", handlers: ["getChatSync"] },
   { endpoint: "GET …/chat/follow-ups", schema: FollowUpListSchema, sdo: "ChatFollowUpListSDO", handlers: ["listChatFollowUps"] },
   { endpoint: "POST|PATCH …/chat/follow-ups", schema: FollowUpEnvelopeSchema, sdo: "ChatFollowUpSDO", handlers: ["createChatFollowUp", "patchChatFollowUp"] },
   { endpoint: "GET …/chat/rooms/{id}/message-links", schema: LinkListSchema, sdo: "ChatMessageLinkListSDO", handlers: ["listChatRoomMessageLinks"] },

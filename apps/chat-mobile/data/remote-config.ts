@@ -35,6 +35,8 @@ export const MOBILE_FLAG_DEFAULTS = {
   unichat_mobile_ai_catch_up: true,
   // The outbox's automatic re-send: off stops data/owed.ts › flushOwed (server: featureflags.unichat_mobile_outbox_flush).
   unichat_mobile_outbox_flush: true,
+  // The chat change log: off makes a reconnect refetch every shown timeline again (server: featureflags.unichat_mobile_chat_sync).
+  unichat_mobile_chat_sync: true,
 } as const satisfies Record<string, boolean>;
 
 export type MobileFlag = keyof typeof MOBILE_FLAG_DEFAULTS;

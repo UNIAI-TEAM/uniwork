@@ -10,7 +10,8 @@ import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-
 import { chatKeys } from "../queries/chat-keys";
 import { onRoomRead } from "../room-read-signal";
 import { decodeFrame, type RealtimeFrame } from "./frames";
-import { BURST_CATCH_UP_MIN, createChatRealtime, ROOM_ACTIVITY_DEBOUNCE_MS, type ChatRealtimeDeps } from "./chat-realtime";
+import { BURST_CATCH_UP_MIN, createChatRealtime, LIVE_CHECK_MS, ROOM_ACTIVITY_DEBOUNCE_MS, type ChatRealtimeDeps } from "./chat-realtime";
+import { installReportSink } from "../report";
 
 const msg = (id: string, minute: number, extra: Partial<ChatMessageRecord> = {}): ChatMessageRecord => ({
   id,
@@ -243,6 +244,77 @@ describe("socket lifecycle", () => {
         timelineKey,
       ]),
     );
+  });
+
+  // ADR 0039 phase 1: the change log answers a reconnect with one request; only when it cannot does every page refetch.
+  it("after a reconnect reads the change log, and refetches the open timelines only when the log cannot answer", async () => {
+    show(qc, timelineKey, { pages: [[msg("m2", 2)], [msg("m1", 1)]], pageParams: [null, { cursor: "c" }] });
+    const timelineInvalidated = (spy: { mock: { calls: Array<[{ queryKey?: unknown }?, ...unknown[]]> } }) =>
+      spy.mock.calls.some(([filters]) => JSON.stringify(filters?.queryKey) === JSON.stringify(timelineKey));
+    for (const [outcome, refetched] of [
+      ["synced", false],
+      ["reset", true],
+      ["unavailable", true],
+    ] as const) {
+      const invalidate = vi.spyOn(qc, "invalidateQueries");
+      const sync = vi.fn(async () => outcome);
+      const realtime = createChatRealtime(qc, { ...deps, sync });
+      realtime.reconnect();
+      await vi.waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(timelineInvalidated(invalidate)).toBe(refetched);
+      realtime.dispose();
+      invalidate.mockRestore();
+    }
+    // A sync that throws is reported, and the old path runs.
+    const captured = vi.fn();
+    installReportSink({ captureException: captured, addBreadcrumb: vi.fn(), setUser: vi.fn(), setTag: vi.fn() });
+    try {
+      const invalidate = vi.spyOn(qc, "invalidateQueries");
+      createChatRealtime(qc, { ...deps, sync: vi.fn(async () => Promise.reject(new Error("bug"))) }).reconnect();
+      await vi.waitFor(() => expect(timelineInvalidated(invalidate)).toBe(true));
+      expect(captured).toHaveBeenCalled();
+    } finally {
+      installReportSink(null);
+    }
+  });
+
+  it("checks the live socket every minute: the log when it answers, a reload on reset, a catch-up of shown rooms without it", async () => {
+    vi.useFakeTimers();
+    show(qc, timelineKey, { pages: [[msg("m2", 2)]], pageParams: [null] });
+    qc.setQueryData(chatKeys.roomMessages("w1", "r9"), { pages: [[]], pageParams: [null] });
+    const list = vi.spyOn(chatApi, "listMessages").mockResolvedValue([]);
+    let live = false;
+    const sync = vi.fn<NonNullable<ChatRealtimeDeps["sync"]>>(async () => "synced");
+    const realtime = createChatRealtime(qc, { ...deps, sync, isLive: () => live });
+    // Not live (the app behind, the socket down): nothing is asked.
+    await vi.advanceTimersByTimeAsync(LIVE_CHECK_MS);
+    expect(sync).not.toHaveBeenCalled();
+    live = true;
+    await vi.advanceTimersByTimeAsync(LIVE_CHECK_MS);
+    expect(sync).toHaveBeenCalledTimes(1);
+    expect(list).not.toHaveBeenCalled();
+
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    sync.mockResolvedValueOnce("reset");
+    await vi.advanceTimersByTimeAsync(LIVE_CHECK_MS);
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toContainEqual(timelineKey);
+
+    // Without the log: the shown room reads what it missed after its newest message; the unshown one waits.
+    sync.mockResolvedValueOnce("unavailable");
+    await vi.advanceTimersByTimeAsync(LIVE_CHECK_MS);
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledWith("w1", "r1", expect.objectContaining({ after: "c-m2" }));
+    realtime.dispose();
+    await vi.advanceTimersByTimeAsync(LIVE_CHECK_MS * 3);
+    expect(sync).toHaveBeenCalledTimes(3);
+
+    // No log wired at all: the same catch-up; a failed one is a breadcrumb, not a throw.
+    list.mockRejectedValueOnce(new TypeError("Network request failed"));
+    const bare = createChatRealtime(qc, { ...deps, isLive: () => true });
+    await vi.advanceTimersByTimeAsync(LIVE_CHECK_MS);
+    expect(list).toHaveBeenCalledTimes(2);
+    bare.dispose();
   });
 
   it("refetches the call logs once a call hangs up (the server wrote the log before the frame)", async () => {
