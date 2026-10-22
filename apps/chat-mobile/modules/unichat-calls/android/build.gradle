@@ -30,6 +30,9 @@ dependencies {
   compileOnly 'com.facebook.react:react-android'
   // UniChatMessagingService extends expo-notifications' FCM service to take a call push before JavaScript does.
   // Both are linked by the app (expo-notifications brings Firebase Messaging at this version), so compile only.
+  // SDK 57 links expo-notifications as its prebuilt AAR unless told otherwise, and then no
+  // ':expo-notifications' project exists: package.json expo.autolinking.android.buildFromSource
+  // keeps it a source project (native-modules.test.ts holds the pair).
   compileOnly project(':expo-notifications')
   compileOnly 'com.google.firebase:firebase-messaging:25.0.1'
 

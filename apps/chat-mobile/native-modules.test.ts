@@ -156,3 +156,17 @@ describe("the app's local Expo modules", () => {
     expect(calls?.projects[0]?.packages).toEqual(["expo.modules.unichatcalls.UniChatCallsPackage"]);
   });
 });
+
+// The calls module compiles against expo-notifications' FCM service as a Gradle project. SDK 57
+// links that package as a prebuilt AAR by default, which leaves no ':expo-notifications' project
+// and fails the release build, so the app asks autolinking to build it from source.
+describe("native build wiring", () => {
+  const read = (file: string) => readFileSync(path.join(appRoot, file), "utf8");
+
+  it("builds expo-notifications from source while the calls module depends on its project", () => {
+    const gradle = read("modules/unichat-calls/android/build.gradle");
+    const pkg = JSON.parse(read("package.json")) as { expo?: { autolinking?: { android?: { buildFromSource?: string[] } } } };
+    expect(gradle).toContain("project(':expo-notifications')");
+    expect(pkg.expo?.autolinking?.android?.buildFromSource).toContain("expo-notifications");
+  });
+});
