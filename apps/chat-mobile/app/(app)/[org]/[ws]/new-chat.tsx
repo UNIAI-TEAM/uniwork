@@ -6,7 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
+import { ActivityIndicator, Pressable, View } from "react-native";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { DmPickRow } from "@/components/people/member-rows";
@@ -50,6 +51,16 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
     [resolveDM, chat, t],
   );
 
+  // A recycling list (audit unvirtualized-secondary-lists) with one stable cell renderer.
+  const lastId = people.at(-1)?.user_id;
+  const personKey = useCallback((person: (typeof people)[number]) => person.user_id, []);
+  const renderPerson: ListRenderItem<(typeof people)[number]> = useCallback(
+    ({ item }) => (
+      <DmPickRow person={item} last={item.user_id === lastId} busy={opening === item.user_id} disabled={opening !== null} onOpen={open} />
+    ),
+    [lastId, opening, open],
+  );
+
   return (
     <View className="flex-1 bg-background">
       <ChatHeader title={t("chat.start_dm_title")} flat />
@@ -62,10 +73,12 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
           autoCapitalize="none"
         />
       </View>
-      <FlatList
+      <FlashList
         data={people}
-        keyExtractor={(m) => m.user_id}
+        extraData={opening}
+        keyExtractor={personKey}
         keyboardShouldPersistTaps="handled"
+        maintainVisibleContentPosition={{ disabled: true }}
         ListHeaderComponent={
           <View>
             <Pressable
@@ -103,9 +116,7 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
             </Text>
           )
         }
-        renderItem={({ item, index }) => (
-          <DmPickRow person={item} last={index === people.length - 1} busy={opening === item.user_id} disabled={opening !== null} onOpen={open} />
-        )}
+        renderItem={renderPerson}
       />
     </View>
   );

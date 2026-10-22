@@ -103,6 +103,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
           currentUserId={chat.userId}
           nameOf={(member) => senderLabelFor({ sender: member.user_id }, chat.userId, t("chat.you"), room.nameContext)}
           onOpen={setMemberMenu}
+          onSeeAll={() => router.push(chatRoutes.members(chat, roomId))}
         />
 
         {room.room?.kind === "dm" && room.room.peer_user_id ? (

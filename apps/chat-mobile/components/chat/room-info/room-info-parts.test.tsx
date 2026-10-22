@@ -96,22 +96,29 @@ describe("RoomMembersSection", () => {
   const member = (n: number, role = "member") => ({ user_id: `u${n}`, email: `u${n}@uni.vn`, role });
   const nameOf = (m: { user_id: string }) => `Người ${m.user_id}`;
 
-  it("lists the first few with a count, then everyone on 'see all'; one's own row does not open", async () => {
+  it("lists the first few with a count and asks for everyone on 'see all'; one's own row does not open", async () => {
     const open = jest.fn();
+    const seeAll = jest.fn();
     const members = [member(1, "admin"), ...Array.from({ length: MEMBERS_PREVIEW }, (_, i) => member(i + 2))];
-    await render(<RoomMembersSection members={members} currentUserId="u1" nameOf={nameOf} onOpen={open} />);
+    await render(<RoomMembersSection members={members} currentUserId="u1" nameOf={nameOf} onOpen={open} onSeeAll={seeAll} />);
     expect(screen.getByRole("header", { name: `${viText("chat.members_title")} · ${members.length}` })).toBeOnTheScreen();
     expect(screen.queryByText(`Người u${members.length}`)).toBeNull();
+    // Everyone is a screen of their own (room-members-screen.tsx), a recycling list: never mapped in here.
     await fireEvent.press(screen.getByRole("button", { name: viText("chat.mobile.see_all") }));
-    expect(screen.getByText(`Người u${members.length}`)).toBeOnTheScreen();
-    expect(screen.queryByRole("button", { name: viText("chat.mobile.see_all") })).toBeNull();
+    expect(seeAll).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(`Người u${members.length}`)).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: /^Người u2,/ }));
     expect(open).toHaveBeenCalledWith({ userId: "u2", name: "Người u2" });
     expect(screen.queryByRole("button", { name: /^Người u1,/ })).toBeNull();
   });
 
+  it("offers no 'see all' while every member fits the preview", async () => {
+    await render(<RoomMembersSection members={[member(1), member(2)]} currentUserId="u1" nameOf={nameOf} onOpen={jest.fn()} onSeeAll={jest.fn()} />);
+    expect(screen.queryByRole("button", { name: viText("chat.mobile.see_all") })).toBeNull();
+  });
+
   it("titles an empty list without a count", async () => {
-    await render(<RoomMembersSection members={[]} currentUserId="u1" nameOf={nameOf} onOpen={jest.fn()} />);
+    await render(<RoomMembersSection members={[]} currentUserId="u1" nameOf={nameOf} onOpen={jest.fn()} onSeeAll={jest.fn()} />);
     expect(screen.getByRole("header", { name: viText("chat.members_title") })).toBeOnTheScreen();
   });
 });

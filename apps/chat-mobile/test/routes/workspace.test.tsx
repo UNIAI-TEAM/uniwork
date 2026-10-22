@@ -19,6 +19,7 @@ import ContactsTab from "@/app/(app)/[org]/[ws]/(tabs)/contacts";
 import SettingsTab from "@/app/(app)/[org]/[ws]/(tabs)/settings";
 import RoomInfoScreen from "@/app/(app)/[org]/[ws]/room/[roomId]/info";
 import RoomScreen from "@/app/(app)/[org]/[ws]/room/[roomId]/index";
+import RoomMembersRoute from "@/app/(app)/[org]/[ws]/room/[roomId]/members";
 import ThreadScreen from "@/app/(app)/[org]/[ws]/room/[roomId]/thread/[rootId]";
 import SelectWorkspace from "@/app/(app)/select-workspace";
 import { api } from "@/data/api";
@@ -67,6 +68,7 @@ const ROUTES = {
   "(app)/licenses": LicensesScreen,
   "(app)/[org]/[ws]/room/[roomId]/index": RoomScreen,
   "(app)/[org]/[ws]/room/[roomId]/info": RoomInfoScreen,
+  "(app)/[org]/[ws]/room/[roomId]/members": RoomMembersRoute,
   "(app)/[org]/[ws]/room/[roomId]/thread/[rootId]": ThreadScreen,
 };
 
@@ -236,6 +238,13 @@ describe("the workspace", () => {
     await fireEvent.press(screen.getAllByRole("button", { name: viText("chat.mobile.back_to_conversation") }).at(-1) as never);
     await waitFor(() => expect(routes.pathname()).toBe("/acme/hq/room/r1"));
     expect(useActiveChatRoomStore.getState().roomId).toBe("r1");
+  });
+
+  it("lists every member of a room on a screen of their own", async () => {
+    const routes = await mount("/acme/hq/room/r1/members");
+    expect(await screen.findByText(`${viText("chat.members_title")} · 2`)).toBeOnTheScreen();
+    expect(await screen.findByText("Bình Trần")).toBeOnTheScreen();
+    expect(routes.pathname()).toBe("/acme/hq/room/r1/members");
   });
 
   it("opens a thread with its root and replies, and marks it read", async () => {

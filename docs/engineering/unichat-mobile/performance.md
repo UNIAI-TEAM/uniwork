@@ -29,7 +29,13 @@ Model hàng, danh sách tái chế, timeline dài, cửa sổ trượt, ảnh, b
   **Danh sách tái chế** (`@shopify/flash-list` 2, chỉ JS — không đổi fingerprint): danh sách phòng, danh bạ
   (`components/contacts/contact-list.tsx`: section dàn phẳng thành ô chữ cái + ô người bằng `contactListItems`, chữ
   cái dính, chữ cái bên phải nhảy bằng `scrollToIndex` — `scrollToLocation` của SectionList không có `getItemLayout`
-  ném invariant khi chữ cái nằm ngoài phần đã đo, crash cả app ở workspace lớn) và dải "đang hoạt động" (ngang).
+  ném invariant khi chữ cái nằm ngoài phần đã đo, crash cả app ở workspace lớn), dải "đang hoạt động" (ngang), và mọi
+  danh sách mà người dùng quyết định độ dài (audit unvirtualized-secondary-lists): mọi thành viên của một phòng là
+  màn riêng `room/[roomId]/members` (`components/chat/room-info/room-members-screen.tsx`: tìm theo tên/email,
+  `lib/room-member-list.ts` đặt tên một lượt qua một map — kênh mặc định chứa cả workspace, tới nghìn người — chi tiết
+  phòng chỉ hiện 5 người đầu và "Xem tất cả"), đích của "Chuyển tiếp" (`forward-sheet.tsx`, hàng memo, một handler
+  ổn định), và hai bộ chọn người của tin nhắn mới và nhóm (`new-chat.tsx`, `new-group.tsx`: renderItem ổn định, lựa
+  chọn là một `Set`).
   Ô tái chế không giữ state riêng (hiện diện đọc theo người của hàng), `getItemType` theo loại ô, avatar có
   `recyclingKey` (ô dùng lại không loé mặt người trước). FlashList 2 mặc định giữ hàng đầu đang thấy tại chỗ khi data
   đổi (`maintainVisibleContentPosition`, khác FlatList): danh sách phòng và danh bạ tắt nó (`{ disabled: true }`) —

@@ -1,7 +1,8 @@
-// The members of a conversation in its details: the first few, then "see all";
-// a tap on someone else opens what can be done with them (a DM, report,
-// block). Moved out of the route file, which only composes.
-import { useState } from "react";
+// The members of a conversation in its details: the first few, then "see all",
+// which opens every one of them on a screen of their own, a recycling list
+// (room-members-screen.tsx): a default channel holds the whole workspace. A tap
+// on someone else opens what can be done with them (a DM, report, block).
+// Moved out of the route file, which only composes.
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { RoomMemberRow } from "@/components/people/member-rows";
@@ -21,18 +22,18 @@ export function RoomMembersSection(props: {
   currentUserId: string;
   nameOf: (member: Member) => string;
   onOpen: (person: { userId: string; name: string }) => void;
+  onSeeAll: () => void;
 }) {
   const { t } = useTranslation();
-  const [all, setAll] = useState(false);
-  const shown = all ? props.members : props.members.slice(0, MEMBERS_PREVIEW);
+  const shown = props.members.slice(0, MEMBERS_PREVIEW);
   return (
     <View className="px-5 pb-2 pt-3.5">
       <View className="mb-1 flex-row items-center">
         <Text className="flex-1 text-footnote font-semibold text-muted-foreground" accessibilityRole="header">
           {props.members.length > 0 ? `${t("chat.members_title")} · ${props.members.length}` : t("chat.members_title")}
         </Text>
-        {props.members.length > MEMBERS_PREVIEW && !all ? (
-          <Pressable accessibilityRole="button" onPress={() => setAll(true)} hitSlop={10} className="min-h-11 justify-center">
+        {props.members.length > MEMBERS_PREVIEW ? (
+          <Pressable accessibilityRole="button" onPress={props.onSeeAll} hitSlop={10} className="min-h-11 justify-center">
             <Text className="text-footnote font-semibold text-primary">{t("chat.mobile.see_all")}</Text>
           </Pressable>
         ) : null}

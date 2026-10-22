@@ -9,6 +9,7 @@ describe("chatRoutes", () => {
     expect(chatRoutes.room(ws, "r1", "m 1")).toBe("/acme/hq/room/r1?message=m%201");
     expect(chatRoutes.thread(ws, "r1", "root")).toBe("/acme/hq/room/r1/thread/root");
     expect(chatRoutes.info(ws, "r1")).toBe("/acme/hq/room/r1/info");
+    expect(chatRoutes.members(ws, "r 1")).toBe("/acme/hq/room/r%201/members");
     expect(chatRoutes.newChat(ws)).toBe("/acme/hq/new-chat");
     expect(chatRoutes.channels({ orgSlug: "a b", wsSlug: "c" })).toBe("/a%20b/c/channels");
     expect(chatRoutes.newGroup(ws)).toBe("/acme/hq/new-group");

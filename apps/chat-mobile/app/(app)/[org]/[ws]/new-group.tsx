@@ -9,7 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, FlatList, Pressable, ScrollView, TextInput, View } from "react-native";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
+import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChatHeader } from "@/components/chat/chat-header";
@@ -57,6 +58,23 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
     [],
   );
   const ready = roomId ? picked.length > 0 : name.trim().length > 0 && picked.length >= GROUP_MIN_OTHERS;
+
+  // A recycling list (audit unvirtualized-secondary-lists): one stable cell renderer, the selection as a Set.
+  const pickedSet = useMemo(() => new Set(picked), [picked]);
+  const lastId = people.at(-1)?.user_id;
+  const personKey = useCallback((person: (typeof people)[number]) => person.user_id, []);
+  const renderPerson: ListRenderItem<(typeof people)[number]> = useCallback(
+    ({ item }) => (
+      <GroupPickRow
+        person={item}
+        last={item.user_id === lastId}
+        isIn={already.has(userKey(item.user_id))}
+        selected={pickedSet.has(item.user_id)}
+        onToggle={toggle}
+      />
+    ),
+    [lastId, already, pickedSet, toggle],
+  );
 
   const submit = () => {
     if (!ready || busy) return;
@@ -128,27 +146,20 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
         </ScrollView>
       ) : null}
       <View className="h-2 bg-muted" />
-      <FlatList
+      <FlashList
         data={people}
-        // The rows read the selection; each reads its own presence.
-        extraData={[picked, already]}
-        keyExtractor={(m) => m.user_id}
+        // The rows read the selection (a Set: one lookup per row); each reads its own presence.
+        extraData={pickedSet}
+        keyExtractor={personKey}
         keyboardShouldPersistTaps="handled"
+        maintainVisibleContentPosition={{ disabled: true }}
         ListHeaderComponent={
           <Text accessibilityRole="header" className="px-4 pb-1.5 pt-3.5 text-footnote font-semibold text-muted-foreground">
             {t("chat.group_members_label")}
           </Text>
         }
         ListEmptyComponent={members.isPending ? <ActivityIndicator className="py-8" accessibilityLabel={t("chat.loading_members")} /> : null}
-        renderItem={({ item, index }) => (
-          <GroupPickRow
-            person={item}
-            last={index === people.length - 1}
-            isIn={already.has(userKey(item.user_id))}
-            selected={picked.includes(item.user_id)}
-            onToggle={toggle}
-          />
-        )}
+        renderItem={renderPerson}
       />
       <SafeAreaView edges={["bottom"]} className="border-t border-border bg-background px-4 pt-2.5">
         <Text className="pb-2 text-center text-footnote text-muted-foreground">

@@ -14,6 +14,8 @@ export const chatRoutes = {
   thread: (ws: WorkspaceSlugs, roomId: string, rootId: string) =>
     `${base(ws)}/room/${encodeURIComponent(roomId)}/thread/${encodeURIComponent(rootId)}`,
   info: (ws: WorkspaceSlugs, roomId: string) => `${base(ws)}/room/${encodeURIComponent(roomId)}/info`,
+  /** Every member of a conversation, from its details' "Xem tất cả". */
+  members: (ws: WorkspaceSlugs, roomId: string) => `${base(ws)}/room/${encodeURIComponent(roomId)}/members`,
   newChat: (ws: WorkspaceSlugs) => `${base(ws)}/new-chat`,
   channels: (ws: WorkspaceSlugs) => `${base(ws)}/channels`,
   /** A new group, or (with a room) more members for that group. */

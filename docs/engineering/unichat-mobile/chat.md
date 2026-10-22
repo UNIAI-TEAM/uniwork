@@ -26,7 +26,7 @@ Ba lớp của tab Chat, key, cache, màn hình và luật của file route. Đ�
   `stores/chat-send-store.ts`, mục Offline-first), `realtime/chat-realtime.ts` (bảng §8
   spec cha, thuần) và `realtime/use-chat-realtime.ts` (hook mỏng, gắn ở
   `[org]/[ws]/_layout.tsx`, ≤ 25 scope qua `selectLazyChatScopeRoomIds`);
-  màn hình ở `app/(app)/[org]/[ws]/{(tabs)/chat,room/[roomId]/{index,info,thread/[rootId]},new-chat,new-group,channels}.tsx`
+  màn hình ở `app/(app)/[org]/[ws]/{(tabs)/chat,room/[roomId]/{index,info,members,thread/[rootId]},new-chat,new-group,channels}.tsx`
   + `components/chat/*`. Route tab `/{org}/{ws}/chat` nhận `room`/`message`/`dm`
   của `lib/deep-link.ts › deepLinkHref` (hợp đồng với push và tab khác): `lib/deep-link-target.ts` (thuần) quyết
   định, `components/chat/use-deep-link-target.ts` (jest) làm. `dm=` từ ngoài app hỏi trước khi mở; "Nhắn tin" trong
