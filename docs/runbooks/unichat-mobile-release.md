@@ -538,6 +538,10 @@ lại — nhạc chuông, màn toàn màn hình, push khi app bị kill, OEM. Ch
   ngoài hay Bluetooth thì che cảm biến không tắt màn; gọi video không bao giờ tắt màn; gác máy thì màn không còn tắt khi che.
   Thu nhỏ cuộc gọi rồi gõ tin, hoặc bấm Home sang app khác: che cảm biến không tắt màn; mở lại màn cuộc gọi
   thì áp tai lại tắt màn.
+- [ ] Đang gọi UniChat (Android 12+), có cuộc gọi điện thoại tới: khi chỉ đổ chuông, cuộc gọi UniChat vẫn nghe/nói; nghe
+  cuộc gọi điện thoại thì màn UniChat hiện "Đang tạm giữ", bên kia không nghe thấy cuộc điện thoại và mình không nghe bên
+  kia; gác cuộc điện thoại thì hai bên nghe lại nhau, micro đang tắt từ trước vẫn tắt. (Android 11 trở xuống: không giữ,
+  ghi nhận là giới hạn đã biết.)
 - [ ] A gọi rồi đưa app xuống nền (Home) trước khi B nghe; B nghe: tiếng hai chiều vẫn còn ở A sau 2 phút, thông báo
   "đang diễn ra" của A chuyển sang đồng hồ; A mở lại app: không lỗi, cuộc gọi vẫn chạy.
 - [ ] Bản 0.2.x còn cài trên một máy Android khi server đã deploy: A gọi, máy đó vẫn hiện push "A đang gọi" (không

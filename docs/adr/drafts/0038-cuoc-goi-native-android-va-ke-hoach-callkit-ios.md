@@ -66,11 +66,19 @@ iOS nhận VoIP push qua PushKit và báo ngay cho CallKit.
    `X-Client-OS: ios` (`featureflags.MobileFlagsFor`) và không gửi push đổ chuông tới đăng ký `expo/ios`, vì một
    iPhone khoá máy chỉ kêu một tiếng và giữ banner "X đang gọi" sau khi cuộc gọi kết thúc. Bật công tắc đó là bước
    cuối của việc làm CallKit.
-5. **Telecom trên Android (chưa làm).** Đăng ký cuộc gọi với Telecom (`androidx.core:core-telecom` `CallsManager`,
-   self-managed) để Android giữ/kết thúc cuộc gọi VoIP khi có cuộc gọi di động, nút tai nghe Bluetooth/xe hơi
-   nghe-gác, đồng hồ và Android Auto thấy cuộc gọi. Đợi tới khi có máy thật để kiểm: API coroutine, đổi luồng âm
-   thanh sang `CallControlScope.requestEndpointChange`, và một module không biên dịch được trên máy dev là rủi ro
-   lớn hơn lợi ích trước khi checklist thiết bị chạy lần đầu.
+5. **Cuộc gọi di động chen vào (đã làm, 2026-10-22) và Telecom trên Android (chưa làm).** Phần cấp thiết nhất của
+   Telecom — Android không giữ cuộc gọi VoIP khi người dùng nghe một cuộc điện thoại, hai luồng âm thanh tranh nhau —
+   được xử lý không cần Telecom: `CallInterruptions.kt` nghe chế độ âm thanh của máy
+   (`AudioManager.OnModeChangedListener`, Android 12+, không cần quyền) trong lúc `CallService` chạy; `MODE_IN_CALL`
+   là cuộc điện thoại đang giữ đường dây, JavaScript tắt micro, đưa âm lượng người khác về 0 và hiện "Đang tạm giữ",
+   rồi trả lại khi cuộc điện thoại kết thúc. Không dùng `TelephonyCallback`: trạng thái cuộc gọi cần
+   `READ_PHONE_STATE`, một quyền nguy hiểm nữa để xin. Android 11 trở xuống không được giữ (giới hạn đã biết).
+   Đăng ký với Telecom (`androidx.core:core-telecom` `CallsManager`, self-managed) — nút tai nghe Bluetooth/xe hơi
+   nghe-gác, đồng hồ và Android Auto thấy cuộc gọi, Android tự giữ cuộc gọi — vẫn chưa làm, và lý do không phải việc
+   biên dịch: Telecom nhận quyền định tuyến âm thanh (`CallControlScope.requestEndpointChange`, `CallEndpointCompat`)
+   từ AudioSwitch của LiveKit, đang chọn loa trong/loa ngoài/Bluetooth cho nút Âm thanh (`audio-output-button.tsx`).
+   Hai chủ cùng định tuyến một cuộc gọi là lỗi chỉ thấy trên máy thật (Bluetooth SCO, tai nghe có dây, xe hơi), nên
+   việc này chờ checklist thiết bị chạy lần đầu, cùng một thay đổi đưa định tuyến về hẳn một phía.
 
 ## Hệ quả
 

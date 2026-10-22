@@ -21,8 +21,16 @@ function fakeModule(): UniChatCallsModule {
     setProximityScreenOff: vi.fn(),
     takePendingActions: vi.fn(() => [{ action: "decline", callId: "c", roomId: "r", workspaceId: "w", callKind: "dm", at: 1 }]),
     takeAnsweredCall: vi.fn((callId: string) => callId === "c"),
+    isCallHeld: vi.fn(() => true),
+    addListener: vi.fn((_event: "onCallHeld", listener: (event: { held: boolean }) => void) => {
+      held.push(listener);
+      return { remove: removeHeld };
+    }),
   };
 }
+
+const held: ((event: { held: boolean }) => void)[] = [];
+const removeHeld = vi.fn();
 
 const INCOMING = { callId: "c", roomId: "r", workspaceId: "w", callerName: "Minh", callKind: "dm", text: "", video: false, openUrl: "x://", timeoutMs: 1, answerLabel: "", declineLabel: "" };
 const ONGOING = { callId: "c", roomId: "r", workspaceId: "w", peerName: "Minh", text: "", video: false, startedAt: 0 };
@@ -44,6 +52,25 @@ describe("nativeCalls", () => {
     nativeCalls.setProximityScreenOff(true);
     expect(nativeCalls.takePendingActions()).toEqual([]);
     expect(nativeCalls.takeAnsweredCall("c")).toBe(false);
+    expect(nativeCalls.isCallHeld()).toBe(false);
+    nativeCalls.onCallHeld(() => undefined)();
+  });
+
+  it("hands the phone's own call taking and giving back the line to its listener, until unsubscribed", () => {
+    const module = fakeModule();
+    const calls = nativeCallsFrom(module);
+    expect(calls.isCallHeld()).toBe(true);
+    expect(vi.mocked(module.isCallHeld).mock.contexts[0]).toBe(module);
+    const seen: boolean[] = [];
+    const off = calls.onCallHeld((on) => seen.push(on));
+    expect(module.addListener).toHaveBeenCalledWith("onCallHeld", expect.any(Function));
+    held.at(-1)?.({ held: true });
+    held.at(-1)?.({ held: false });
+    // A malformed event reads as not held.
+    held.at(-1)?.({} as { held: boolean });
+    expect(seen).toEqual([true, false, false]);
+    off();
+    expect(removeHeld).toHaveBeenCalledTimes(1);
   });
 
   it("hands every call to the module itself, as its `this`", async () => {

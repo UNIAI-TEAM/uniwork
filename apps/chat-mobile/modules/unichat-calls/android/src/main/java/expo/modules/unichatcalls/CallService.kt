@@ -39,10 +39,13 @@ class CallService : Service() {
   override fun onCreate() {
     super.onCreate()
     running = this
+    // A cellular call answered meanwhile holds this one (CallInterruptions).
+    CallInterruptions.start(this)
   }
 
   override fun onDestroy() {
     if (running === this) running = null
+    CallInterruptions.stop(this)
     super.onDestroy()
   }
 

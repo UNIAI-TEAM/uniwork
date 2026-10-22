@@ -457,7 +457,11 @@ một dòng thì ghi lý do ở dòng trên.
   và âm thanh ở loa trong: `lib/audio-outputs.ts › proximityScreenOff`, gắn ở `audio-output-button.tsx`; nhả khi ra loa
   ngoài/tai nghe, khi cuộc gọi đang thu nhỏ (`minimized` từ `call-overlay.tsx`), khi app xuống nền (wake lock
   này tác động cả máy), khi màn cuộc gọi đóng và trong `CallService.stop`; nhả bằng `RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY`; iOS
-  chưa có — gọi trên iPhone còn tắt), Từ chối/Gác máy → `CallActionReceiver` → headless task `UniChatCallAction` (không khởi động được thì
+  chưa có — gọi trên iPhone còn tắt), `CallInterruptions` (cuộc gọi di động trong lúc gọi UniChat, Android 12+: khi
+  `CallService` chạy thì nghe `AudioManager.OnModeChangedListener` — không cần quyền, trạng thái cuộc gọi của telephony thì
+  cần `READ_PHONE_STATE` —; `MODE_IN_CALL`/`MODE_CALL_SCREENING` là đang giữ máy, event `onCallHeld` + `isCallHeld()`
+  tới `components/calls/use-cellular-hold.ts`: tắt micro, đưa âm lượng người khác về 0 — cả người vào sau —, màn cuộc gọi
+  hiện "Đang tạm giữ"; trả máy thì bật lại, micro chỉ khi trước đó đang bật; Telecom vẫn chưa làm, ADR 0038 §5), Từ chối/Gác máy → `CallActionReceiver` → headless task `UniChatCallAction` (không khởi động được thì
   `PendingActions` giữ tới lần mở sau), activity hiện trên màn khoá chỉ khi được mở bởi cuộc gọi
   (`CallLockScreen`, nhả khi cuộc gọi xong, và khi lần đổ chuông mở app không thành màn cuộc gọi — cuộc gọi đã kết thúc
   lúc app mở lạnh, công tắc gọi tắt — trước khi tab Chat mở phòng, `use-deep-link-target.ts`; thêm một watchdog native:

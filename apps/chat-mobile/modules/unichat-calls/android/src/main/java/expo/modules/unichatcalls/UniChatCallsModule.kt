@@ -24,6 +24,21 @@ class UniChatCallsModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("UniChatCalls")
 
+    // { held: Boolean } when the phone's own call takes the line or gives it back (CallInterruptions).
+    Events("onCallHeld")
+
+    OnCreate {
+      CallInterruptions.onHeld = { held -> sendEvent("onCallHeld", mapOf("held" to held)) }
+    }
+
+    OnDestroy {
+      CallInterruptions.onHeld = null
+    }
+
+    Function("isCallHeld") {
+      CallInterruptions.isHeld()
+    }
+
     Function("ensureChannels") { names: ChannelNames ->
       CallNotifications.ensureChannels(context, names)
     }

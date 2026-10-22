@@ -7,9 +7,12 @@ import { UniChatCalls, type NativeCallAction, type UniChatCallsModule } from "@/
 
 export type { CallChannelNames, NativeCallAction, NativeIncomingCall, NativeOngoingCall } from "@/modules/unichat-calls";
 
-export type NativeCalls = UniChatCallsModule & { available: boolean };
+/** The module's calls, its event as a subscription: `onCallHeld` returns the unsubscribe. */
+type Calls = Omit<UniChatCallsModule, "addListener"> & { onCallHeld(listener: (held: boolean) => void): () => void };
 
-const NONE: UniChatCallsModule = {
+export type NativeCalls = Calls & { available: boolean };
+
+const NONE: Calls = {
   ensureChannels: () => undefined,
   showIncomingCall: () => false,
   cancelIncomingCall: () => undefined,
@@ -25,6 +28,9 @@ const NONE: UniChatCallsModule = {
   setProximityScreenOff: () => undefined,
   takePendingActions: (): NativeCallAction[] => [],
   takeAnsweredCall: () => false,
+  // Without the module nothing watches the phone's own calls: a call is never held.
+  isCallHeld: () => false,
+  onCallHeld: () => () => undefined,
 };
 
 /** Each call goes to the module itself: a native module's functions expect it as `this`. */
@@ -46,6 +52,11 @@ export function nativeCallsFrom(module: UniChatCallsModule | null): NativeCalls 
     setProximityScreenOff: (on) => module.setProximityScreenOff(on),
     takePendingActions: () => module.takePendingActions(),
     takeAnsweredCall: (callId) => module.takeAnsweredCall(callId),
+    isCallHeld: () => module.isCallHeld(),
+    onCallHeld: (listener) => {
+      const sub = module.addListener("onCallHeld", (event) => listener(event.held === true));
+      return () => sub.remove();
+    },
   };
 }
 

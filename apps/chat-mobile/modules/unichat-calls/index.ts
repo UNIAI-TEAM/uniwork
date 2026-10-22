@@ -80,6 +80,10 @@ export interface UniChatCallsModule {
    * so no link or other app can forge it), false otherwise. Taking it clears it.
    */
   takeAnsweredCall(callId: string): boolean;
+  /** The phone's own (cellular) call has the line now, so the call is held (CallInterruptions.kt; Android 12+). */
+  isCallHeld(): boolean;
+  /** `onCallHeld` fires when the phone's own call takes the line (`held: true`) or gives it back. */
+  addListener(eventName: "onCallHeld", listener: (event: { held: boolean }) => void): { remove(): void };
 }
 
 export const UniChatCalls = requireOptionalNativeModule<UniChatCallsModule>("UniChatCalls");

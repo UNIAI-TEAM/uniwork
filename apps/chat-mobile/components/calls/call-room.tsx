@@ -6,7 +6,8 @@
 // (DUPLICATE_IDENTITY) leaves the call alone there, anything else ends it here.
 // A voice call starts on the earpiece, a video call on the speaker
 // (lib/audio-outputs.ts); once connected, the call's foreground service is
-// started again so it carries the microphone LiveKit now holds.
+// started again so it carries the microphone LiveKit now holds. The phone's own
+// call answered meanwhile holds this one (use-cellular-hold.ts).
 import { Ionicons } from "@expo/vector-icons";
 import {
   AndroidAudioTypePresets,
@@ -32,6 +33,7 @@ import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration"
 import { AudioOutputButton } from "./audio-output-button";
 import { CALL, CallButton, CallerHero, SHADOW } from "./call-surface";
 import { toggleCamera } from "./toggle-camera";
+import { useCellularHold } from "./use-cellular-hold";
 
 // WebRTC globals for LiveKit, once, when the call UI first loads (call-overlay.tsx loads this
 // module when a call shows), not at app start: a launch that never calls never pays for them.
@@ -48,7 +50,7 @@ function useElapsed(running: boolean) {
   return seconds;
 }
 
-function RoomStage({ peerName, connected, recording, onMinimize, minimized, seed, room, video }: { peerName: string; connected: boolean; recording: boolean; onMinimize?: () => void; minimized: boolean; seed?: string; room?: boolean; video: boolean }) {
+function RoomStage({ peerName, connected, recording, held, onMinimize, minimized, seed, room, video }: { peerName: string; connected: boolean; recording: boolean; held: boolean; onMinimize?: () => void; minimized: boolean; seed?: string; room?: boolean; video: boolean }) {
   const { t } = useTranslation();
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
   const tracks = useTracks([Track.Source.Camera]);
@@ -88,7 +90,16 @@ function RoomStage({ peerName, connected, recording, onMinimize, minimized, seed
         ) : (
           <View className="w-11" />
         )}
-        <View className="flex-1 items-center">
+        <View className="flex-1 items-center gap-1">
+          {held ? (
+            // The phone's own call has the line (use-cellular-hold.ts): our microphone and the other side are off.
+            <View className="min-h-7 flex-row items-center gap-1.5 rounded-full px-2.5" style={{ backgroundColor: CALL.fill }} accessibilityRole="text" accessibilityLiveRegion="polite">
+              <Ionicons name="pause" size={12} color={CALL.text} />
+              <Text className="text-footnote font-semibold" style={{ color: CALL.text }} numberOfLines={1}>
+                {t("mobile.call_audio.held")}
+              </Text>
+            </View>
+          ) : null}
           {recording ? (
             <View className="min-h-7 flex-row items-center gap-1.5 rounded-full px-2.5" style={{ backgroundColor: CALL.fill }} accessibilityRole="text">
               <View className="h-2 w-2 rounded-full bg-destructive-solid" />
@@ -187,6 +198,7 @@ export function CallRoom({
 }) {
   const room = useMemo(() => new Room({ adaptiveStream: true, dynacast: true }), []);
   const [connected, setConnected] = useState(false);
+  const held = useCellularHold(room, connected);
 
   useEffect(() => {
     // Phone audio routing for the length of the call; LiveKit's AudioSession owns it until then.
@@ -222,7 +234,7 @@ export function CallRoom({
         nativeCallSync.refresh(callEngine.store.getState().call);
       }}
     >
-      <RoomStage peerName={peerName} connected={connected} recording={recording} onMinimize={onMinimize} minimized={minimized} seed={seed} room={roomFace} video={withCamera} />
+      <RoomStage peerName={peerName} connected={connected} recording={recording} held={held} onMinimize={onMinimize} minimized={minimized} seed={seed} room={roomFace} video={withCamera} />
     </LiveKitRoom>
   );
 }

@@ -70,6 +70,14 @@ jest.mock("livekit-client", () => ({
   },
 }));
 jest.mock("@/data/calls/call-wiring", () => ({ nativeCallSync: { refresh: jest.fn() } }));
+// The hold itself is use-cellular-hold.test.tsx; here only what the screen says about it.
+const mockHold = { held: false, args: [] as unknown[] };
+jest.mock("./use-cellular-hold", () => ({
+  useCellularHold: (...args: unknown[]) => {
+    mockHold.args = args;
+    return mockHold.held;
+  },
+}));
 // The output picker reads the phone's routes; its own test is audio-output-button.test.tsx. The stand-in says
 // whether the room told it its screen is in front (the proximity wake lock hangs on that).
 jest.mock("./audio-output-button", () => ({
@@ -98,6 +106,7 @@ beforeEach(() => {
   mockLive.tracks = [];
   mockLive.local.isMicrophoneEnabled = true;
   mockLive.local.isCameraEnabled = false;
+  mockHold.held = false;
   jest.spyOn(callEngine, "markConnected").mockImplementation(() => undefined);
   jest.spyOn(callEngine, "hangUp").mockResolvedValue(undefined as never);
   jest.spyOn(callEngine, "finalizeCallOnDisconnect").mockImplementation(() => undefined as never);
@@ -187,6 +196,16 @@ describe("CallRoom", () => {
     await view.rerender(<CallRoom url="wss://lk" token="t" peerName="Nhóm" withCamera={false} recording={false} />);
     expect(screen.queryByTestId("call-minimize")).toBeNull();
     expect(screen.queryByText(viText("chat.mobile.call_recording"))).toBeNull();
+  });
+
+  it("says the call is on hold while the phone's own call has the line", async () => {
+    await render(<CallRoom url="wss://lk" token="t" peerName="Bình" withCamera={false} recording={false} />);
+    expect(screen.queryByText(viText("mobile.call_audio.held"))).toBeNull();
+    expect(mockHold.args).toEqual([room(), false]);
+    mockHold.held = true;
+    await act(async () => mockLive.onConnected?.());
+    expect(mockHold.args).toEqual([room(), true]);
+    expect(screen.getByText(viText("mobile.call_audio.held"))).toBeOnTheScreen();
   });
 
   it("tells the audio button its screen is no longer in front while the call is shrunk to a pill", async () => {

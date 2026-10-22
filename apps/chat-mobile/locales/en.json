@@ -1652,7 +1652,8 @@
       "headset": "Wired headset",
       "earpiece": "Phone",
       "in_use": "{{output}} · in use",
-      "failed": "Could not switch the audio. Try again."
+      "failed": "Could not switch the audio. Try again.",
+      "held": "On hold · you're on a phone call"
     },
     "conversation": {
       "load_failed": "Couldn't load messages",

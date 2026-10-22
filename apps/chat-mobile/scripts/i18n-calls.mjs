@@ -37,6 +37,7 @@ export const CALLS_NATIVE_ONLY = {
       earpiece: "Loa trong",
       in_use: "{{output}} · đang dùng",
       failed: "Không chuyển được âm thanh. Thử lại.",
+      held: "Đang tạm giữ · bạn đang nghe cuộc gọi điện thoại",
     },
   },
   en: {
@@ -72,6 +73,7 @@ export const CALLS_NATIVE_ONLY = {
       earpiece: "Phone",
       in_use: "{{output}} · in use",
       failed: "Could not switch the audio. Try again.",
+      held: "On hold · you're on a phone call",
     },
   },
 };
