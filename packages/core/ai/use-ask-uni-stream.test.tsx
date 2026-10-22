@@ -91,6 +91,27 @@ describe("useAskUniStream", () => {
     expect(qc.getQueryData<{ id: string }[]>(aiKeys.messages("c1"))?.map((m) => m.id)).toEqual(["u1", "new"]);
   });
 
+  it("a regenerate that ends in error keeps the old answer in the cache", () => {
+    const { result, qc } = setup();
+    qc.setQueryData(aiKeys.messages("c1"), [msg({ id: "u1", role: "user", content: "q" }), msg({ id: "old", content: "cũ" })]);
+    act(() => result.current.ask({ question: "q", conversation_id: "c1", regenerate_message_id: "old" }));
+    emit({ type: "run", runId: "r", conversationId: "c1" });
+    emit({ type: "error", code: "ai_provider_error" });
+    expect(result.current.state).toMatchObject({ status: "error", errorCode: "ai_provider_error", regenerateOf: "old" });
+    expect(qc.getQueryData<{ id: string; content: string }[]>(aiKeys.messages("c1"))?.map((m) => [m.id, m.content])).toEqual([["u1", "q"], ["old", "cũ"]]);
+  });
+
+  it("a network error after done keeps the finished turn and its follow-ups", async () => {
+    const { result } = setup();
+    act(() => result.current.ask({ question: "q", conversation_id: "c1" }));
+    emit({ type: "followups", followups: ["Tiếp?"] });
+    emit({ type: "done", message: msg(), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
+    // The stream stays open for the title frame; the connection drops instead.
+    act(() => fail(new TypeError("network error")));
+    await act(async () => {});
+    expect(result.current.state).toMatchObject({ status: "done", errorCode: null, followups: ["Tiếp?"] });
+  });
+
   it("a title after done invalidates every conversation list and the turn stays finished", () => {
     const { result, qc } = setup();
     act(() => result.current.ask({ question: "q", conversation_id: "c1" }));

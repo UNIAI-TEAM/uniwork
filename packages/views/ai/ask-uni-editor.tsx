@@ -95,6 +95,8 @@ function askUniMention(hooks: () => Hooks) {
         Suggestion<unknown, AskUniMentionCard>({
           editor: this.editor,
           char: "@",
+          // Titles have spaces: the query runs on past one ("@Việc nhắc") until it finds nothing.
+          allowSpaces: true,
           allow: ({ state }) => hooks().allow(state.doc.toJSON()),
           command: ({ editor, range, props }) => {
             const next = editor.state.doc.resolve(range.to).nodeAfter;
@@ -281,6 +283,10 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
             kinds={KINDS}
             listboxId={listboxId}
             onActiveChange={setActiveId}
+            // A phrase with a space that matches nothing is the reader writing on, not naming an object.
+            onSettledEmpty={() => {
+              if (editor && /\s/.test(query)) exitSuggestion(editor.view);
+            }}
             onPick={(item) => suggestion.current?.command({ kind: item.kind, id: item.id, label: item.title })}
             // The suggestion plugin closes itself after Escape.
             onDismiss={() => undefined}

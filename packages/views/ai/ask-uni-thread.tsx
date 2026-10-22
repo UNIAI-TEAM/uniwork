@@ -8,6 +8,7 @@ import type { AskStreamState, useAskUniStream } from "@uniwork/core/ai/stream";
 import type { AiCitation, AiMessage, AskUniInput } from "@uniwork/core/types";
 import { AskUniFollowups } from "./ask-uni-followups";
 import { AskUniMessageTurn, type AskUniTurnMessage } from "./ask-uni-answer";
+import { useEffectiveFocus } from "./ask-uni-page-context";
 
 /** What AskUniPanel owns and hands down: the live turn's state and its controls. */
 export type AskUniStream = ReturnType<typeof useAskUniStream>;
@@ -102,6 +103,7 @@ export function AskUniThread({
   askDefaults?: Pick<AskUniInput, "model" | "effort" | "locale">;
 }) {
   const { state, ask } = stream;
+  const focus = useEffectiveFocus();
   const cached = useAiMessages(conversationId).data;
   const stored: AiMessage[] = cached ?? [];
   const [anchor, setAnchor] = useState<Anchor | null>(null);
@@ -135,7 +137,9 @@ export function AskUniThread({
       ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question: lastQuestion, regenerate_message_id: lastAssistant.id });
     }
   };
-  const askFollowup = (question: string) => ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question });
+  // A follow-up is sent as the composer would send it: the open page or picked object as focus.
+  const askFollowup = (question: string) =>
+    ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question, focus: focus ? { kind: focus.kind, id: focus.id } : undefined, mentions: [] });
   // The answer being regenerated keeps its place: the live cell replaces it while it streams.
   const regen = sameConversation && state.regenerateOf ? state.regenerateOf : null;
   const followups =
@@ -154,16 +158,19 @@ export function AskUniThread({
     citations: state.message?.citations ?? state.citations,
     notice: state.message?.notice ?? (state.status === "stopped" ? "stopped" : ""),
   };
-  // `[S#]` numbers are conversation-wide (the server seeds the book from earlier answers), so one map serves every answer.
+  // `[S#]` numbers carry across this conversation's answers (the server seeds the book from them), so this map resolves a
+  // marker an answer does not cite itself; each answer's own citations still win. Only this conversation's stream adds to it.
   const sources = useMemo(() => {
     const out = new Map<string, AiCitation>();
     const add = (c: AiCitation) => out.set(c.source_id, c);
     for (const m of cached ?? []) m.citations.forEach(add);
-    Object.values(state.sources).forEach(add);
-    state.citations.forEach(add);
-    state.message?.citations.forEach(add);
+    if (sameConversation) {
+      Object.values(state.sources).forEach(add);
+      state.citations.forEach(add);
+      state.message?.citations.forEach(add);
+    }
     return out;
-  }, [cached, state.sources, state.citations, state.message]);
+  }, [cached, sameConversation, state.sources, state.citations, state.message]);
 
   // Follow the answer as it grows, but only while the reader is at the bottom.
   const onScroll = () => {
@@ -177,7 +184,7 @@ export function AskUniThread({
 
   return (
     <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-      <ul className="flex flex-col gap-4" aria-live="polite" aria-busy={streaming}>
+      <ul className="flex flex-col gap-4" aria-live="polite" aria-busy={streaming && sameConversation}>
         {stored.map((m) => (
           <StoredTurn
             key={m.id}

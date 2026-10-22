@@ -1,6 +1,7 @@
+import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { useAiPanelStore } from "@uniwork/core/ai";
+import { aiKeys, useAiPanelStore } from "@uniwork/core/ai";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -31,12 +32,14 @@ beforeEach(() => {
   useAiPanelStore.setState({ open: true, conversationId: "c1", workspaceId: "ws1" });
 });
 
-function mount() {
+function mount(client?: QueryClient) {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
         <AskUniHeader />
       </WorkspaceProvider>,
+      undefined,
+      client,
     ),
   );
 }
@@ -81,6 +84,14 @@ describe("AskUniHeader", () => {
     expect(screen.getByRole("dialog", { name: "Lịch sử hội thoại" })).toBeInTheDocument();
     fireEvent.click(item);
     expect(useAiPanelStore.getState().conversationId).toBe("c2");
+  });
+
+  it("names a conversation opened from search results, which the recent list does not hold", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(aiKeys.conversations("ws1", "cũ"), [{ id: "c9", title: "Hội thoại cũ", created_at: "", updated_at: "" }]);
+    useAiPanelStore.setState({ conversationId: "c9" });
+    mount(client);
+    expect(await screen.findByRole("button", { name: "Lịch sử hội thoại: Hội thoại cũ" })).toBeInTheDocument();
   });
 
   it("starts a new conversation, and closes", async () => {

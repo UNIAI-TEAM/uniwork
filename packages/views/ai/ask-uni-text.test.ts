@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AiCitation } from "@uniwork/core/types";
-import { answerPlainText, foldText, matchRange } from "./ask-uni-text";
+import { answerPlainText, dropEchoedNames, foldText, matchRange } from "./ask-uni-text";
 
 const src = (id: string, title: string): AiCitation => ({ source_id: id, kind: "project", title, quote: "", href: "/a/b/projects/1" });
 const map = new Map([["S3", src("S3", "Ra mắt Q4")]]);
@@ -21,6 +21,30 @@ describe("answerPlainText", () => {
   ])("joins an adjacent run of names: %s", (input, out) => expect(answerPlainText(input, two)).toBe(out));
   it("keeps text without markers as is", () => {
     expect(answerPlainText("Không có nguồn.", map)).toBe("Không có nguồn.");
+  });
+});
+
+describe("dropEchoedNames", () => {
+  const page = new Map([["S4", { ...src("S4", "Thiết kế trang chủ"), kind: "task" }]]);
+  const site = new Map([["S1", src("S1", "Website mới")]]);
+  it.each([
+    ["the name after the marker, keeping the stop", page, "- [S4] Thiết kế trang chủ.", "- [S4]."],
+    ["the name before it, in bold", site, "**Website mới** [S1] đang chậm", "[S1] đang chậm"],
+    ["the name before it, after other words", site, "Dự án **Website mới** [S1] đang chậm", "Dự án [S1] đang chậm"],
+    ["the name at a line start", site, "Website mới [S1]: 3 việc", "[S1]: 3 việc"],
+    ["another case and a comma", page, "[S4] thiết kế trang chủ, rồi", "[S4], rồi"],
+    ["a bold name after the marker", page, "[S4] **Thiết kế trang chủ** đang làm", "[S4] đang làm"],
+    ["a dash after the name", page, "- [S4] Thiết kế trang chủ — Cần làm", "- [S4] — Cần làm"],
+  ])("drops %s", (_n, byId, input, out) => expect(dropEchoedNames(input, byId)).toBe(out));
+  it.each([
+    ["a partial name", page, "[S4] Thiết kế mới"],
+    ["the name with more words after it", page, "[S4] Thiết kế trang chủ đang chậm"],
+    ["the name inside a sentence before it", site, "Dự án Website mới [S1] đang"],
+    ["an unknown marker", page, "[S9] Thiết kế trang chủ."],
+  ])("keeps %s", (_n, byId, input) => expect(dropEchoedNames(input, byId)).toBe(input));
+  it("copies the name once", () => {
+    expect(answerPlainText("- [S4] Thiết kế trang chủ.", page)).toBe("- Thiết kế trang chủ.");
+    expect(answerPlainText("**Website mới** [S1] đang", site)).toBe("Website mới đang");
   });
 });
 

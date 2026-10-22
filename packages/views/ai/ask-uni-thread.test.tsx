@@ -50,7 +50,7 @@ beforeEach(() => {
   requestMock.mockImplementation((path: string) =>
     Promise.resolve(path === "/api/v1/ai/conversations/c1/messages" ? { messages: history } : {}),
   );
-  useAiPanelStore.setState({ conversationId: "c1", workspaceId: "ws1" });
+  useAiPanelStore.setState({ conversationId: "c1", workspaceId: "ws1", page: null, focus: null, pageDismissed: null });
   resetAuthStoreForTests();
   setSessionUser(user);
 });
@@ -257,7 +257,7 @@ describe("AskUniThread follow-ups", () => {
     mount(s, "c1", { model: "opus", effort: "high", locale: "vi" });
     fireEvent.click(await screen.findByRole("button", { name: "A?" }));
     expect(screen.getByRole("button", { name: "B?" })).toBeInTheDocument();
-    expect(s.ask).toHaveBeenCalledWith({ conversation_id: "c1", question: "A?", model: "opus", effort: "high", locale: "vi" });
+    expect(s.ask).toHaveBeenCalledWith({ conversation_id: "c1", question: "A?", mentions: [], model: "opus", effort: "high", locale: "vi" });
   });
 
   it("takes the live turn's follow-ups for an answer the stream just finished", async () => {
@@ -319,5 +319,55 @@ describe("AskUniThread meta and context", () => {
     expect(screen.getByRole("link", { name: /Bình/ })).toHaveAttribute("href", "/acme/team/people/m1");
     expect(screen.getByText("Lạ")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Lạ/ })).toBeNull();
+  });
+});
+
+describe("AskUniThread own citations", () => {
+  const task = { source_id: "S1", kind: "task", title: "Thiết kế trang chủ", quote: "", href: "/acme/team/tasks/T1" };
+  const project = { source_id: "S1", kind: "project", title: "Website mới", quote: "", href: "/acme/team/projects/P1" };
+
+  it("renders and copies each turn's own S1 when two turns number different objects S1", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    serve([
+      msg({ id: "u1", role: "user", content: "Một" }),
+      msg({ id: "a1", content: "Việc [S1]", citations: [task] }),
+      msg({ id: "u2", role: "user", content: "Hai" }),
+      msg({ id: "a2", content: "Dự án [S1]", citations: [project] }),
+    ]);
+    mount(stream());
+    expect(await screen.findByRole("link", { name: /Thiết kế trang chủ/ })).toHaveAttribute("href", task.href);
+    expect(screen.getByRole("link", { name: "Dự án: Website mới" })).toHaveAttribute("href", project.href);
+    const copies = screen.getAllByRole("button", { name: "Sao chép" });
+    fireEvent.click(copies[0]!);
+    fireEvent.click(copies[1]!);
+    expect(writeText.mock.calls.map((c) => c[0])).toEqual(["Việc Thiết kế trang chủ", "Dự án Website mới"]);
+  });
+
+  it("does not let another conversation's finished stream rename this one's sources or show its turn", async () => {
+    serve([
+      msg({ id: "u1", role: "user", content: "Tiến độ dự án?" }),
+      msg({ id: "a1", content: "Có [S1].", citations: [project] }),
+      msg({ id: "u2", role: "user", content: "Các task?" }),
+      msg({ id: "a2", content: "Các task của [S1]:", citations: [] }),
+    ]);
+    const other = msg({ id: "aA", content: "Ở A: [S1]", citations: [task] });
+    mount(stream({ status: "done", conversationId: "cA", question: "Câu của A", message: other as never, citations: [task], sources: { S1: task }, followups: ["A tiếp?"] }));
+    expect(await screen.findAllByRole("link", { name: "Dự án: Website mới" })).toHaveLength(2);
+    expect(screen.queryByRole("link", { name: /Thiết kế trang chủ/ })).toBeNull();
+    for (const text of ["Câu của A", "Ở A:", "A tiếp?"]) expect(screen.queryByText(new RegExp(text))).toBeNull();
+  });
+});
+
+describe("AskUniThread follow-up focus", () => {
+  it("a follow-up carries the page chip as its focus, as the composer would", async () => {
+    serve([history[0], { ...history[1], followups: ["A?"] }]);
+    useAiPanelStore.setState({ page: { kind: "task", id: "t9", label: "Sửa lỗi" }, pageDismissed: null, focus: null });
+    const s = stream();
+    mount(s, "c1", { model: "opus", effort: "high", locale: "vi" });
+    fireEvent.click(await screen.findByRole("button", { name: "A?" }));
+    expect(s.ask).toHaveBeenCalledWith({
+      conversation_id: "c1", question: "A?", focus: { kind: "task", id: "t9" }, mentions: [], model: "opus", effort: "high", locale: "vi",
+    });
   });
 });

@@ -263,6 +263,30 @@ describe("AskUniComposer", () => {
     expect(box().editor.getText()).toBe("X sau");
   });
 
+  it("an @ search runs on past a space, so a title with spaces is found", async () => {
+    const { onSend } = mount();
+    type("Hỏi @Việc nh");
+    fireEvent.click(await option("Việc nhắc khách"));
+    expect(cards()).toEqual([{ type: "askUniMention", attrs: { kind: "task", id: "t4", label: "Việc nhắc khách" } }]);
+    key("Enter");
+    expect(onSend.mock.calls[0]![0]).toMatchObject({ question: "Hỏi Việc nhắc khách", mentions: [{ kind: "task", id: "t4" }] });
+  });
+
+  it("an @ phrase that finds nothing closes the picker at the next space and keeps the text", async () => {
+    mount();
+    type("@zzabc");
+    expect(await screen.findByText("Không có kết quả")).toBeInTheDocument();
+    type(" xyz");
+    await waitFor(() => expect(screen.queryByRole("tablist")).toBeNull());
+    type(" nữa");
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 300));
+    });
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(box()).toHaveAttribute("role", "textbox");
+    expect(box().editor.getText()).toBe("@zzabc xyz nữa");
+  });
+
   it("an @ inside a word does not open the picker", () => {
     mount();
     type("a@b");

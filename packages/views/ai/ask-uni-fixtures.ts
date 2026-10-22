@@ -53,7 +53,9 @@ export function composerRoutes(path: string, init?: { body?: { query?: { search?
         ? [{ task: task("t2", "Origami kế hoạch"), direct_child_count: 0, labels: [] }]
         : q.startsWith("hoan")
           ? [{ task: task("t3", "Hoàn thiện báo cáo"), direct_child_count: 0, labels: [] }]
-          : [];
+          : q.startsWith("việc nh")
+            ? [{ task: task("t4", "Việc nhắc khách"), direct_child_count: 0, labels: [] }]
+            : [];
     return Promise.resolve({ query_fingerprint: "f", group_key: null, parent_id: null, total: rows.length, rows, next_cursor: null });
   }
   const one = /^\/api\/v1\/tasks\/([^/]+)$/.exec(path);

@@ -47,6 +47,19 @@ describe("AskUniMessageTurn", () => {
     err.mockRestore();
   });
 
+  it("shows a name the answer wrote next to its marker once, beside the chip", () => {
+    const page = { ...cite, source_id: "S4" };
+    const site = { ...cite, kind: "project", title: "Website mới", href: "/acme/team/projects/P1" };
+    const { unmount } = mount(msg({ content: "- [S4] Thiết kế trang chủ.", citations: [page] }));
+    expect(screen.getByRole("link", { name: "Task: Thiết kế trang chủ" }).closest("li")).toHaveTextContent(/^Thiết kế trang chủ\.$/);
+    unmount();
+    const bold = mount(msg({ content: "**Website mới** [S1] đang", citations: [site] }));
+    expect(screen.getByRole("link", { name: "Dự án: Website mới" }).closest("p")).toHaveTextContent(/^Website mới đang$/);
+    bold.unmount();
+    mount(msg({ content: "[S1] Thiết kế mới", citations: [cite] }));
+    expect(screen.getByRole("link", { name: "Task: Thiết kế trang chủ" }).closest("p")).toHaveTextContent(/^Thiết kế trang chủ Thiết kế mới$/);
+  });
+
   it("drops an unknown source marker", () => {
     mount(msg({ content: "Không rõ [S9].", citations: [cite] }));
     expect(screen.queryByText(/S9/)).toBeNull();

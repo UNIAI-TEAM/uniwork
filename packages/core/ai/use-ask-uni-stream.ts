@@ -116,7 +116,7 @@ export function useAskUniStream(wsId: string) {
             setState((s) => ({ ...s, followups: e.followups }));
             break;
           case "title":
-            // The title lands after done; the list and an open detail refetch rather than take the frame's payload.
+            // The title lands after done; the conversation lists refetch rather than take the frame's payload.
             void qc.invalidateQueries({ queryKey: aiKeys.conversations(wsId) });
             break;
           case "delta":
@@ -170,7 +170,8 @@ export function useAskUniStream(wsId: string) {
           if (current() && !finished) setState((s) => ({ ...s, status: "error", errorCode: "stream_ended" }));
         },
         (err: unknown) => {
-          if (!current()) return;
+          // After done the stream stays open only for the title frame; losing it loses nothing.
+          if (!current() || finished) return;
           refreshAfterEnd();
           setState((s) => ({ ...s, status: "error", errorCode: errorCode(err) ?? "internal" }));
         },

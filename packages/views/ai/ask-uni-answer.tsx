@@ -8,6 +8,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
 import { AskUniActions } from "./ask-uni-actions";
 import { isInAppHref } from "./ask-uni-links";
+import { dropEchoedNames } from "./ask-uni-text";
 import { AskUniEntityChip, AskUniSources, InLinkContext } from "./ask-uni-entity";
 import { AskUniContextChips } from "./ask-uni-context-chips";
 import { AskUniMessageMeta } from "./ask-uni-meta";
@@ -24,6 +25,8 @@ export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "cit
 function AnswerBody({ content, byId, wsId }: { content: string; byId: Map<string, AiCitation>; wsId: string }) {
   // A cited href is held to the same rule as any other: only in-app paths become links.
   const isLinkAllowed = isInAppHref;
+  // Copy (answerPlainText) drops the same echoes, so both read the name once.
+  const text = useMemo(() => dropEchoedNames(content, byId), [content, byId]);
   return (
     <SafeMarkdown
       isLinkAllowed={isLinkAllowed}
@@ -41,7 +44,7 @@ function AnswerBody({ content, byId, wsId }: { content: string; byId: Map<string
         },
       }}
     >
-      {content}
+      {text}
     </SafeMarkdown>
   );
 }
@@ -69,14 +72,18 @@ export function AskUniMessageTurn({
   steps?: AiStep[];
   /** True once the live answer's first text has arrived. */
   writing?: boolean;
-  /** The conversation's source book by `S#`: markers are numbered across every answer in it. Defaults to this message's own citations. */
+  /** The conversation's source book by `S#`, for markers this message does not cite itself; its own citations win. */
   sources?: Map<string, AiCitation>;
   wsId?: string;
   onRegenerate?: () => void;
   regenerateDisabled?: boolean;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
-  const byId = useMemo(() => sources ?? new Map(message.citations.map((c) => [c.source_id, c])), [sources, message.citations]);
+  // An earlier P0 turn numbered from S1 again, so a number the conversation shares may name another object here.
+  const byId = useMemo(
+    () => new Map([...(sources ?? []), ...message.citations.map((c): [string, AiCitation] => [c.source_id, c])]),
+    [sources, message.citations],
+  );
   if (message.role === "user") {
     return (
       <li className="flex flex-col items-end gap-1">

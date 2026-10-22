@@ -2,13 +2,79 @@ import type { AiCitation } from "@uniwork/core/types";
 
 /** The answer as plain text: a run of adjacent `[S#]` becomes its known names joined by ", "; unknown ones are dropped with their leading space. */
 export function answerPlainText(content: string, byId: Map<string, AiCitation>): string {
-  return content.replace(/( ?)(\[S\d+\](?: ?\[S\d+\])*)/g, (_m, space: string, run: string) => {
+  return dropEchoedNames(content, byId).replace(/( ?)(\[S\d+\](?: ?\[S\d+\])*)/g, (_m, space: string, run: string) => {
     const names = [...run.matchAll(/\[S(\d+)\]/g)].flatMap((m) => {
       const c = byId.get(`S${m[1]}`);
       return c ? [c.title || c.kind] : [];
     });
     return names.length ? `${space}${names.join(", ")}` : "";
   });
+}
+
+const MARKER = /\[S(\d+)\]/g;
+const OPEN = /^(\*\*|__|\*|_)/;
+const CLOSE = /(\*\*|__|\*|_)$/;
+// A plain name ends the phrase: then the line ends, a stop or bracket follows, or a dash starts an aside.
+const NAME_END = /^(?:$|\n|[.,:;!?)]|[ \t]+[-–—][ \t])/;
+// A plain name starts its phrase: at a line start (after any list mark) or after a bracket, colon, comma or semicolon.
+const NAME_START = /(?:^|\n)[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?$|[(:,;][ \t]*$/;
+
+const same = (a: string, b: string) => foldText(a) === foldText(b);
+
+/** Where an echo of `title` right after `at` ends (wrapping marks included), or -1. */
+function echoAfter(text: string, at: number, title: string): number {
+  const start = at + (/^[ \t]*/.exec(text.slice(at))?.[0].length ?? 0);
+  const mark = OPEN.exec(text.slice(start))?.[0] ?? "";
+  const from = start + mark.length;
+  const to = from + title.length;
+  if (!same(text.slice(from, to), title)) return -1;
+  if (mark) return text.startsWith(mark, to) ? to + mark.length : -1;
+  return NAME_END.test(text.slice(to)) ? to : -1;
+}
+
+/** Where an echo of `title` right before `at` starts (wrapping marks included), or -1. */
+function echoBefore(text: string, at: number, title: string): number {
+  const head = text.slice(0, at).replace(/[ \t]+$/, "");
+  const mark = CLOSE.exec(head)?.[0] ?? "";
+  const to = head.length - mark.length;
+  const from = to - title.length;
+  if (from < 0 || !same(text.slice(from, to), title)) return -1;
+  if (mark) return text.slice(0, from).endsWith(mark) ? from - mark.length : -1;
+  return NAME_START.test(text.slice(0, from)) ? from : -1;
+}
+
+/**
+ * The answer without the object names the model wrote right next to their own `[S#]` ("[S4] Thiết kế trang chủ."),
+ * since the marker already shows that name. Only the whole title goes (case- and accent-blind, bold or italic marks
+ * around it included); a stop after it and every other word stay, and a marker the map does not know is left alone.
+ */
+export function dropEchoedNames(content: string, byId: Map<string, AiCitation>): string {
+  const cuts: [number, number][] = [];
+  let floor = 0;
+  for (const m of content.matchAll(MARKER)) {
+    const start = m.index;
+    const end = start + m[0].length;
+    const title = byId.get(`S${m[1]}`)?.title.trim() ?? "";
+    if (!title || start < floor) continue;
+    const after = echoAfter(content, end, title);
+    if (after >= 0) {
+      cuts.push([end, after]);
+      floor = after;
+      continue;
+    }
+    const before = echoBefore(content, start, title);
+    if (before >= floor) {
+      cuts.push([before, start]);
+      floor = end;
+    }
+  }
+  let out = "";
+  let at = 0;
+  for (const [from, to] of cuts) {
+    out += content.slice(at, from);
+    at = to;
+  }
+  return out + content.slice(at);
 }
 
 const foldChar = (c: string) => c.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replaceAll("đ", "d");

@@ -50,6 +50,8 @@ interface Props {
   listboxId?: string;
   /** The active option's id (undefined when there are no rows), for the host's aria-activedescendant. */
   onActiveChange?(id: string | undefined): void;
+  /** A search for this query settled with no row in the current tab. */
+  onSettledEmpty?(): void;
 }
 
 type Tab = "all" | AskUniObjectKind;
@@ -123,7 +125,7 @@ function Row({ item, query, id, active, onPick, onHover }: {
  * (tasks) status and assignee. It never takes focus; the host feeds it keys through the handle.
  */
 export const AskUniObjectPicker = forwardRef<AskUniObjectPickerHandle, Props>(function AskUniObjectPicker(
-  { wsId, query, kinds: allKinds, onPick, onDismiss, listboxId, onActiveChange },
+  { wsId, query, kinds: allKinds, onPick, onDismiss, listboxId, onActiveChange, onSettledEmpty },
   ref,
 ) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.picker" });
@@ -164,6 +166,12 @@ export const AskUniObjectPicker = forwardRef<AskUniObjectPickerHandle, Props>(fu
   }, [activeId]);
   // A new query or tab is a new list; the highlight returns to the top.
   useEffect(() => setActive(0), [query, tab]);
+  const settledEmpty = !loading && shown.length === 0;
+  useEffect(() => {
+    if (settledEmpty) onSettledEmpty?.();
+    // Once per query that settles empty; the callback is the host's.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settledEmpty, query]);
   // The live region mounts empty and only then gets its text, so the first count is announced too.
   const [announced, setAnnounced] = useState("");
   useEffect(() => setAnnounced(loading ? "" : t("count", { count: shown.length })), [loading, shown.length, t]);
@@ -185,6 +193,8 @@ export const AskUniObjectPicker = forwardRef<AskUniObjectPickerHandle, Props>(fu
           return true;
         case "ArrowRight":
         case "ArrowLeft": {
+          // A held modifier selects or jumps by word or line: that is the text's, never a tab switch.
+          if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return false;
           // In a text field the arrows move the caret unless it is empty or already at that edge.
           const el = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement ? e.target : null;
           if (el && el.value !== "") {

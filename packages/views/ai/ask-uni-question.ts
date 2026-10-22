@@ -7,7 +7,7 @@ export interface AskUniMentionCard {
   label: string;
 }
 
-/** The composer's document as the question text (each card reads as its label) and the cards it names, each once. */
+/** The composer's document as the question text (each card reads as its label, spaces collapsed) and the cards it names, each once. */
 export function serializeQuestion(doc: JSONContent): { text: string; mentions: AskUniMentionCard[] } {
   const mentions = new Map<string, AskUniMentionCard>();
   const read = (node: JSONContent): string => {
@@ -21,6 +21,7 @@ export function serializeQuestion(doc: JSONContent): { text: string; mentions: A
     }
     return (node.content ?? []).map(read).join("");
   };
-  const text = (doc.content ?? []).map(read).join("\n").trim();
+  // A pick adds its own space, so the one typed after it would double: runs of spaces read as one, line breaks stay.
+  const text = (doc.content ?? []).map(read).join("\n").replace(/[ \t]+/g, " ").trim();
   return { text, mentions: [...mentions.values()] };
 }

@@ -23,6 +23,13 @@ describe("serializeQuestion", () => {
     ]);
   });
 
+  it("reads the pick's own space and the one typed after it as one space", () => {
+    expect(serializeQuestion(doc(text("So sánh task này với "), card("document", "D", "Nội dung giới thiệu"), text(" "), text(" về mức\t\t độ")))).toEqual({
+      text: "So sánh task này với Nội dung giới thiệu về mức độ",
+      mentions: [{ kind: "document", id: "D", label: "Nội dung giới thiệu" }],
+    });
+  });
+
   it("turns a line break into a newline and trims the ends", () => {
     expect(serializeQuestion(doc(text("  Một"), { type: "hardBreak" }, text("Hai "), { type: "hardBreak" }))).toEqual({ text: "Một\nHai", mentions: [] });
   });

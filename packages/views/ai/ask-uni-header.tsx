@@ -1,8 +1,10 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { MessageSquarePlus, Sparkles, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useAiConversations, useAiPanelStore } from "@uniwork/core/ai";
+import { aiKeys, useAiConversations, useAiPanelStore } from "@uniwork/core/ai";
+import type { AiConversation } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { useWorkspace } from "../layout/workspace-context";
@@ -27,9 +29,16 @@ function HeaderAction({ label, onClick, children }: { label: string; onClick: ()
 export function AskUniHeader() {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
   const { workspace } = useWorkspace();
+  const qc = useQueryClient();
   const conversations = useAiConversations(workspace.id);
   const { conversationId, select, setOpen } = useAiPanelStore();
-  const current = conversations.data?.find((c) => c.id === conversationId);
+  // A conversation opened from search results may be in no recent list: every cached list of this workspace counts.
+  const current =
+    conversations.data?.find((c) => c.id === conversationId) ??
+    qc
+      .getQueriesData<AiConversation[]>({ queryKey: aiKeys.conversations(workspace.id) })
+      .flatMap(([, list]) => list ?? [])
+      .find((c) => c.id === conversationId);
   return (
     <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-3">
       <Sparkles aria-hidden className="size-4 shrink-0 text-muted-foreground" />

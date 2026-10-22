@@ -106,6 +106,14 @@ describe("AskUniObjectPicker", () => {
     expect(screen.getByRole("tab", { name: "Tất cả" })).toHaveAttribute("aria-selected", "true");
   });
 
+  it.each(["shiftKey", "altKey", "ctrlKey", "metaKey"])("left and right with %s held are left to the host", async (mod) => {
+    const { key } = mount();
+    await screen.findByRole("option", { name: /Hoàn thiện báo cáo/ });
+    expect(key("ArrowLeft", { [mod]: true })).toBe(false);
+    expect(key("ArrowRight", { [mod]: true })).toBe(false);
+    expect(screen.getByRole("tab", { name: "Tất cả" })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("enter on an empty list does nothing and is not handled", async () => {
     requestMock.mockImplementation(() => Promise.resolve({ members: [], rows: [], total: 0 }));
     const { onPick, key } = mount(["task"], "zzz");
