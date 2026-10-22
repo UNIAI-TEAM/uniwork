@@ -35,6 +35,8 @@ import { viText } from "@/test/render";
 
 jest.unmock("expo-router");
 jest.mock("@/data/realtime/ws-client", () => ({ WSClient: jest.requireActual("@/test/fake-ws-client").FakeWSClient }));
+// jest-expo's native token emitter hands back no subscription: the layout's token-rotation watch needs one to remove.
+jest.mock("expo-notifications", () => ({ ...jest.requireActual("expo-notifications"), addPushTokenListener: jest.fn(() => ({ remove: jest.fn() })) }));
 jest.mock("@react-native-community/netinfo", () => {
   const netInfo = { addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
   return { __esModule: true, default: netInfo, ...netInfo, useNetInfo: () => ({ isConnected: true }) };

@@ -45,6 +45,8 @@ const log = createLogger("push");
 
 let registeredToken: string | null = null;
 let skipLogged = false;
+/** The FCM or APNs token last seen by watchPushTokenRotation, as a string. */
+let lastDeviceToken: string | null = null;
 
 /** The person's choice for this device: on until they turn it off; an unreadable store reads as on. */
 export async function isPushEnabled(): Promise<boolean> {
@@ -94,6 +96,34 @@ export async function setPushEnabled(enabled: boolean, options: RegisterPushOpti
   registeredToken = null;
   await SecureStore.setItemAsync(PUSH_PREF_KEY, "off");
   return null;
+}
+
+/**
+ * FCM or APNs may replace this device's token while the app runs (audit "Calls, push & background",
+ * push-lifecycle-polish): pushes to the old one then fail as DeviceNotRegistered and the server revokes it, so
+ * nothing reaches the phone until its next launch. A new device token registers again — Expo maps the Expo token
+ * to the new device token, the server gets the (possibly new) Expo token, and an Expo token that changed is
+ * dropped. Fetching the token emits the same event, so only a token different from the last one seen counts, and
+ * only in a process that registered one; the permission is only read, never asked. Returns the unsubscribe.
+ */
+export function watchPushTokenRotation(options: RegisterPushOptions): () => void {
+  const subscription = Notifications.addPushTokenListener((device) => {
+    const next = typeof device.data === "string" ? device.data : JSON.stringify(device.data);
+    const previous = lastDeviceToken;
+    lastDeviceToken = next;
+    if (previous === null || previous === next || registeredToken === null) return;
+    void registerAgain(options, registeredToken);
+  });
+  return () => subscription.remove();
+}
+
+async function registerAgain(options: RegisterPushOptions, previous: string): Promise<void> {
+  try {
+    const token = await registerPushToken({ ...options, ask: async () => (await Notifications.getPermissionsAsync()).granted });
+    if (token && token !== previous) await options.api.unsubscribePush({ endpoint: previous });
+  } catch (err) {
+    log.warn("re-registration after a token change failed", { error: err instanceof Error ? err.name : typeof err });
+  }
 }
 
 /** Logout: drop the device's subscription while the session can still authorize the call. */

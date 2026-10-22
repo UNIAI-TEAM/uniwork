@@ -361,7 +361,11 @@ một dòng thì ghi lý do ở dòng trên.
 - `app/+native-intent.ts` — expo-router tự route mọi URL từ OS; file này map
   `<scheme>://open?url=` và callback PKCE qua `lib/deep-link.ts ›
   systemPathToRoute` (thuần, có test). `openUrl` ở `app/_layout.tsx` chỉ
-  `router.push` cho chạm thông báo; URL Linking không push lần hai.
+  `router.push` cho chạm thông báo; URL Linking không push lần hai. Phản hồi thông báo đi qua
+  `lib/notification-response.ts` (thuần): listener của app đang chạy và, cho lần chạm mở app đã bị kill,
+  `Notifications.getLastNotificationResponse()` đọc một lần lúc boot (không trông vào listener đăng ký kịp); mỗi
+  (thông báo, hành động) chạy một lần, đã xử lý thì `clearLastNotificationResponse` (reload JS không chạy lại); trên
+  Android chỉ lấy lần chạm từ đó — Trả lời/Đánh dấu đã đọc đã chạy ở task nền.
 - Tab Chat (M2a, UNI-1832; spec `2026-10-16-unichat-mobile-chat-design.md`,
   plan `2026-10-17-unichat-mobile-chat.md`). Ba lớp:
   `lib/*` thuần, copy từ web có ghi nguồn và test parity chạy đúng case của
@@ -488,7 +492,9 @@ một dòng thì ghi lý do ở dòng trên.
   Expo là chuỗi JSON ở `content.dataString`, không có `data` (`NotificationSerializer.toBundle`); test dùng cả hai dạng.
   Badge app = mọi tin chưa đọc (`appBadgeCount`, `data/badge.ts`). Android 14+ bị thu hồi full-screen intent thì Cài
   đặt › Thông báo hiện `components/settings/full-screen-calls-row.tsx`. Server: push đổ chuông tới Android là data-only chỉ khi bản đó
-  đăng ký token với `call_ui: true` (`registerPushToken({ callUI: nativeCalls.available })`, mỗi lần mở app; server lưu
+  đăng ký token với `call_ui: true` (`registerPushToken({ callUI: nativeCalls.available })`, mỗi lần mở app, và lại khi
+  FCM/APNs đổi token lúc app đang chạy — `watchPushTokenRotation`, chỉ khi token máy khác lần trước vì tự lấy token cũng
+  phát sự kiện, không hỏi quyền, token Expo đổi thì gỡ cái cũ; server lưu
   user agent `expo/android; call-ui`), iOS và bản Android cũ giữ push hiển thị; `chat.voice.ring_closed` (outbox, cùng transaction đóng hàng ring) → push data-only "kết thúc"
   tới máy Android; cuộc gọi 1-1 nhỡ là "Cuộc gọi nhỡ từ X" trên `missed_calls`.
   Kotlin có test JVM trên Robolectric (`modules/unichat-calls/android/src/test`, SDK 34 vì CI chạy JDK 17): token khởi

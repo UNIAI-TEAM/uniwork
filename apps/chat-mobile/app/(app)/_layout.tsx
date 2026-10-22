@@ -17,7 +17,7 @@ import { setAppBadge } from "@/data/badge";
 import { nativeCalls } from "@/data/calls/native-calls";
 import { createLogger } from "@/data/logger";
 import { ensureNotificationChannels } from "@/data/notification-channels";
-import { registerPushToken } from "@/data/push";
+import { registerPushToken, watchPushTokenRotation } from "@/data/push";
 import { unreadSummaryOptions } from "@/data/queries/chat";
 import { useAccountSync } from "@/data/use-account-sync";
 import { easProjectId } from "@/lib/runtime-extra";
@@ -39,10 +39,13 @@ export default function AppLayout() {
     const channels = () => ensureNotificationChannels((key) => i18n.t(key), { platform: Platform.OS, native: nativeCalls });
     // The notifications primer explains first and asks unprompted once per phone (data/permissions.ts).
     const ask = () => permissionGate.ensure("notifications", "notifications", { once: true });
-    registerPushToken({ api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS, channels, callUI: nativeCalls.available, ask }).catch(
+    const options = { api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS, channels, callUI: nativeCalls.available };
+    registerPushToken({ ...options, ask }).catch(
       // A simulator has no push token; the app works without one.
       (err: unknown) => log.warn("registration failed", { error: err instanceof Error ? err.name : typeof err }),
     );
+    // FCM or APNs replacing the token while the app runs registers again (never asking for the permission).
+    return watchPushTokenRotation(options);
   }, [userId, i18n]);
 
   // The app icon counts what is unread (audit P2 Calls); nothing once signed out.

@@ -6,7 +6,16 @@ const notifications = vi.hoisted(() => ({
   requestPermissionsAsync: vi.fn(async () => ({ granted: true })),
   getExpoPushTokenAsync: vi.fn(async () => ({ data: "ExponentPushToken[abc]" })),
   getPermissionsAsync: vi.fn(async () => ({ granted: true })),
+  addPushTokenListener: vi.fn((listener: (token: { type: string; data: unknown }) => void) => {
+    tokenListeners.add(listener);
+    return { remove: () => tokenListeners.delete(listener) };
+  }),
 }));
+const tokenListeners = vi.hoisted(() => new Set<(token: { type: string; data: unknown }) => void>());
+/** FCM or APNs hands the app a device token (a fetch of the token emits it too). */
+function emitDeviceToken(data: unknown) {
+  for (const listener of [...tokenListeners]) listener({ type: "android", data });
+}
 vi.mock("expo-notifications", () => notifications);
 
 // the push preference's one SecureStore key, in memory
@@ -192,5 +201,71 @@ describe("push preference", () => {
     expect(await setPushEnabled(true, options)).toBe("ExponentPushToken[abc]");
     expect(store.values.get("push_enabled")).toBe("on");
     expect(api.subscribePush).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("watchPushTokenRotation", () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("registers again when FCM or APNs replaces the device token, and drops the old Expo token", async () => {
+    const { registerPushToken, watchPushTokenRotation } = await load();
+    const stop = watchPushTokenRotation({ api, projectId: "p1", platform: "android", callUI: true });
+    await registerPushToken({ api, projectId: "p1", platform: "android", callUI: true });
+    // Fetching the token at launch emits it: the first one seen is this registration's, not a rotation.
+    emitDeviceToken("fcm-1");
+    emitDeviceToken("fcm-1");
+    await flush();
+    expect(api.subscribePush).toHaveBeenCalledTimes(1);
+
+    notifications.getExpoPushTokenAsync.mockResolvedValueOnce({ data: "ExponentPushToken[new]" });
+    emitDeviceToken("fcm-2");
+    await flush();
+    expect(api.subscribePush).toHaveBeenCalledTimes(2);
+    expect(api.subscribePush).toHaveBeenLastCalledWith({ endpoint: "ExponentPushToken[new]", keys: { p256dh: "", auth: "" }, platform: "android", call_ui: true });
+    // Never a prompt: only a permission already granted counts.
+    expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(api.unsubscribePush).toHaveBeenCalledWith({ endpoint: "ExponentPushToken[abc]" });
+
+    stop();
+    emitDeviceToken("fcm-3");
+    await flush();
+    expect(api.subscribePush).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps an unchanged Expo token's subscription and does nothing for a process that registered none", async () => {
+    const { registerPushToken, watchPushTokenRotation } = await load();
+    const stop = watchPushTokenRotation({ api, projectId: "p1", platform: "ios" });
+    emitDeviceToken({ endpoint: "apns-1" });
+    emitDeviceToken({ endpoint: "apns-2" });
+    await flush();
+    expect(api.subscribePush).not.toHaveBeenCalled();
+
+    await registerPushToken({ api, projectId: "p1", platform: "ios" });
+    emitDeviceToken("apns-3");
+    await flush();
+    expect(api.subscribePush).toHaveBeenCalledTimes(2);
+    expect(api.unsubscribePush).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it("logs a failed registration and leaves the permission alone when it was taken back", async () => {
+    const { registerPushToken, watchPushTokenRotation } = await load();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const stop = watchPushTokenRotation({ api, projectId: "p1", platform: "android" });
+    await registerPushToken({ api, projectId: "p1", platform: "android" });
+    emitDeviceToken("fcm-1");
+    api.subscribePush.mockRejectedValueOnce(new Error("offline"));
+    emitDeviceToken("fcm-2");
+    await flush();
+    expect(warn).toHaveBeenCalledTimes(1);
+    api.subscribePush.mockRejectedValueOnce("offline");
+    emitDeviceToken("fcm-3");
+    await flush();
+    expect(warn).toHaveBeenCalledTimes(2);
+    notifications.getPermissionsAsync.mockResolvedValueOnce({ granted: false });
+    emitDeviceToken("fcm-4");
+    await flush();
+    expect(api.subscribePush).toHaveBeenCalledTimes(3);
+    stop();
   });
 });

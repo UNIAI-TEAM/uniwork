@@ -48,8 +48,8 @@ import { bestEffort } from "@/data/report";
 import { sentryNavigation } from "@/data/sentry";
 import { installDeviceStore, openDeviceStore } from "@/data/storage/device-store";
 import { openNativeDeviceStore } from "@/data/storage/native-device-store";
-import { chatNotificationAction } from "@/lib/chat-notification";
 import { incomingUrlAction, setPendingDeepLink } from "@/lib/deep-link";
+import { createNotificationResponseHandler, handleLaunchResponse } from "@/lib/notification-response";
 import { I18nProvider } from "@/components/app/i18n-provider";
 import { NAV_THEME } from "@/components/ui/nav-theme";
 import { loadThemePreference, useColorScheme } from "@/components/ui/use-color-scheme";
@@ -129,18 +129,17 @@ function AuthInitializer({ children }: { children: ReactNode }) {
       if (url) openUrl(url);
     });
     const urlSub = Linking.addEventListener("url", ({ url }) => openUrl(url));
-    // The server's push payload carries the web URL of the message in `data.url`.
-    const pushSub = Notifications.addNotificationResponseReceivedListener((response) => {
-      // Reply or Mark as read on a chat notification acts where it was tapped; it opens nothing.
-      const chatAction = chatNotificationAction(response);
-      if (chatAction) {
-        void runChatNotificationAction(chatAction);
-        return;
-      }
-      trackPushOpen(response.notification.request.content.data);
-      const url: unknown = response.notification.request.content.data?.url;
-      if (typeof url === "string") openUrl(url, true);
+    // The server's push payload carries the web URL of the message in `data.url`; Reply or Mark as read on a chat
+    // notification acts where it was tapped and opens nothing (lib/notification-response.ts).
+    const handleResponse = createNotificationResponseHandler({
+      openUrl: (url) => openUrl(url, true),
+      runChatAction: (action) => void runChatNotificationAction(action),
+      trackPushOpen,
+      clearLast: () => Notifications.clearLastNotificationResponse(),
     });
+    const pushSub = Notifications.addNotificationResponseReceivedListener(handleResponse);
+    // The tap that launched a killed app, read now rather than trusted to reach a listener registered this late.
+    handleLaunchResponse(handleResponse, Notifications.getLastNotificationResponse(), Platform.OS);
     return () => {
       unsubscribe();
       urlSub.remove();
