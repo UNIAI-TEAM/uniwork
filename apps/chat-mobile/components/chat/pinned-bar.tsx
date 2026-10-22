@@ -21,14 +21,9 @@ export function PinnedBar({ messages, onJump }: { messages: readonly TimelineMes
   const pinned = useMemo(
     () =>
       messages
-        .filter((m) => m.record?.pinned)
-        .sort((a, b) =>
-          comparePinnedMessages(
-            { pinned_at: a.record?.pinned_at, created_at: a.record?.created_at ?? "" },
-            { pinned_at: b.record?.pinned_at, created_at: b.record?.created_at ?? "" },
-          ),
-        )
-        .map((m) => ({ id: m.id, preview: m.record ? messagePreviewText(m.record, t) : m.body })),
+        .flatMap((m) => (m.record?.pinned ? [{ id: m.id, record: m.record }] : []))
+        .sort((a, b) => comparePinnedMessages(a.record, b.record))
+        .map(({ id, record }) => ({ id, preview: messagePreviewText(record, t) })),
     [messages, t],
   );
   const pinnedKey = pinned.map((row) => row.id).join(",");

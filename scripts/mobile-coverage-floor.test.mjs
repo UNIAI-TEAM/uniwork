@@ -38,25 +38,12 @@ test("a recorded file that still exists but was not measured stops --write", () 
 // debt written down, not a class a file can join. The list only shrinks — a file brought up to the
 // global floor leaves it — and nothing outside it sits below the global floor.
 const BELOW_GLOBAL = new Set([
-  "components/brand/unichat-logo.tsx",
-  "components/chat/album-grid.tsx",
   "components/chat/conversation.tsx",
-  "components/chat/emoji-sheet.tsx",
-  "components/chat/expression-sheet.tsx",
-  "components/chat/forward-sheet.tsx",
   "components/chat/image-viewer.tsx",
-  "components/chat/message-cards.tsx",
-  "components/chat/pinned-bar.tsx",
-  "components/chat/reminder-sheet.tsx",
   "components/chat/room-list-parts.tsx",
-  "components/chat/room-preview.tsx",
-  "components/chat/task-card.tsx",
-  "components/ui/card.tsx",
   "components/ui/separator.tsx",
   "components/ui/text.tsx",
   "components/ui/use-color-scheme.ts",
-  "components/workspace/workspace-avatar.tsx",
-  "data/calls/call-store.ts",
   "data/realtime/use-ws-subscriptions.ts",
 ]);
 
@@ -66,6 +53,15 @@ test("only the recorded debt sits below the global floor, and it only shrinks", 
     .map(([file]) => file);
   for (const file of below) assert.ok(BELOW_GLOBAL.has(file), `${file} is recorded below the global floor: test it (a new file is admitted only at the global floor)`);
   for (const file of BELOW_GLOBAL) assert.ok(below.includes(file), `${file} now meets the global floor: remove it from BELOW_GLOBAL`);
+});
+
+// The route files as one group (test/routes/*): 66/66/53/67 when the route layer had two test files for twenty
+// route files (audit "thin-coverage-core-chat"); every screen group has a route test since 2026-10-22. --write never
+// lowers a floor; this keeps a hand edit from doing it either.
+const ROUTES_EARNED = { statements: 89, branches: 81, functions: 80, lines: 90 };
+
+test("the route files stay at the floor their route tests earned", () => {
+  for (const m of MEASURES) assert.ok(floor.routes[m] >= ROUTES_EARNED[m], `routes ${m} fell to ${floor.routes[m]} (earned ${ROUTES_EARNED[m]})`);
 });
 
 test("every recorded file exists, with a floor for each measure, and new files meet the global floor", () => {

@@ -48,16 +48,25 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
   pnpm có chữ `react-native-worklets`, làm mất mock native của Expo). Coverage đo **cả cây** `components/**`, các
   hook React của `data/` mà vitest bỏ ra và file route `app/**` (mỗi file đúng một lớp đo). File route chỉ ghép, không
   định nghĩa component con (`lib/route-files.test.ts`), nên được giữ như **một nhóm** ở sàn `routes` của
-  `coverage-floor.json` (khoá thư mục của jest, cộng dồn), không theo từng file. `app/_layout.tsx` không có test route
-  nào render: dịch vụ mới khởi lúc boot vào `data/app-startup.ts` (vitest, 100 %), layout chỉ gọi một dòng — nối dây
-  ngay trong file route kéo sàn `routes` xuống đỏ. `test/routes/*.test.tsx` render chúng
-  qua expo-router thật (`test/route-render.tsx › renderRoutes`: `jest.unmock("expo-router")` trong file test, mock
-  NetInfo, route con chưa test thì thay bằng stand-in) — cổng vào/đăng nhập/chọn workspace ở `test/routes/entry.test.tsx`;
-  mọi màn trong workspace (layout với socket, thanh tab, Chat/Cuộc gọi/Danh bạ/Cài đặt, phòng, chi tiết, chủ đề, tin
-  mới, nhóm mới, kênh, giấy phép, công tắc gọi của server) ở `test/routes/workspace.test.tsx`, trên một server giả sau
-  `api.request` (theo đường dẫn; mọi thứ khác trả `{}`) và socket giả `test/fake-ws-client.ts` (test đóng vai server:
-  trạng thái, frame, reconnect, phiên bị kết thúc). Server giả chỉ trả lời sau khi router đã mount: `renderRouter` mount
-  dưới fake timer, và một lô cập nhật TanStack hẹn trên fake timer mà `renderRoutes` không chạy sẽ giữ mọi cập nhật sau.
+  `coverage-floor.json` (khoá thư mục của jest, cộng dồn), không theo từng file; sàn đó không xuống dưới mức các test
+  route đã đạt ngày 2026-10-22 (89/81/80/90, `ROUTES_EARNED` trong `scripts/mobile-coverage-floor.test.mjs`). Dịch vụ
+  mới khởi lúc boot vẫn vào `data/app-startup.ts` (vitest, 100 %), layout gốc chỉ gọi một dòng. `test/routes/*.test.tsx`
+  render file route qua expo-router thật (`test/route-render.tsx › renderRoutes`: `jest.unmock("expo-router")` trong
+  file test, mock NetInfo, route con chưa test thì thay bằng stand-in):
+  - `test/routes/root.test.tsx` — `app/_layout.tsx`: splash chờ màn đầu, callback PKCE, link chat lúc chưa đăng nhập được
+    giữ, chạm thông báo mở phòng, 401 nhiều request chỉ đăng xuất một lần, phiên bị server kết thúc. Dịch vụ native khởi
+    lúc import là stub; `expo-status-bar` bị mock (component của nó để lại một handle giữ Jest không kết thúc file).
+  - `test/routes/entry.test.tsx` — cổng vào, đăng nhập, chọn workspace, Cài đặt khi chưa có workspace.
+  - `test/routes/workspace.test.tsx` — nối dây giữa các màn trong workspace (layout với socket, thanh tab, phòng, chi
+    tiết, chủ đề, công tắc gọi của server); `test/routes/screens.test.tsx` — việc người dùng làm ở từng màn phụ (kênh:
+    tham gia/mở/lỗi/rỗng; nhóm mới và thêm người; tin nhắn mới; chi tiết phòng: tắt thông báo, tìm trong phòng, nhắn
+    thành viên, rời phòng); `test/routes/tabs.test.tsx` — tab Chat (menu nhấn giữ có xem trước, đổi phạm vi, rỗng, lỗi,
+    tìm không thấy) và tab Cài đặt.
+  Ba file sau dùng chung `test/workspace-server.tsx`: mọi route của `app/(app)`, một server giả sau `api.request` (theo
+  đường dẫn; mọi thứ khác trả `{}`; `world.override` cho câu trả lời riêng của một test) và socket giả
+  `test/fake-ws-client.ts` (test đóng vai server: trạng thái, frame, reconnect, phiên bị kết thúc). Server giả chỉ trả
+  lời sau khi router đã mount: `renderRouter` mount dưới fake timer, và một lô cập nhật TanStack hẹn trên fake timer mà
+  `renderRoutes` không chạy sẽ giữ mọi cập nhật sau.
   Sàn theo từng file ở `coverage-floor.json` (`scripts/mobile-coverage-floor.mjs --write` sau một lần
   `test:components`: lấy số cao hơn giữa sàn cũ và hôm nay, không bao giờ hạ; file đã xoá thì rời); file chưa ghi
   (component mới) gộp vào sàn `global` 90/80/90/90 — component mới không test thì đỏ
