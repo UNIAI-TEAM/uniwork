@@ -134,10 +134,12 @@ SELECT * FROM (
 ) m ORDER BY created_at ASC, id ASC;
 
 -- name: AiListConversationCitations :many
--- Every citation set a conversation's answers stored, oldest first and with
--- no limit: the Ask UNI agent rebuilds its stable [S#] numbers from them (R2).
+-- Every citation set a conversation's live answers stored, oldest first and
+-- with no limit: the Ask UNI agent rebuilds its stable [S#] numbers from them
+-- (R2). An answer a regenerate replaced is not shown, so its sources are not
+-- known to the client and number anew.
 SELECT citations FROM ai_messages
-WHERE organization_id = $1 AND conversation_id = $2 AND role = 'assistant'
+WHERE organization_id = $1 AND conversation_id = $2 AND role = 'assistant' AND superseded_at IS NULL
 ORDER BY created_at ASC, id ASC;
 
 -- name: AiRenameConversation :one

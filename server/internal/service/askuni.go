@@ -215,9 +215,11 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 }
 
 // AskStream is one turn: membership → rate limit → conversation → permitted
-// sources → gateway → validated citations → two message rows. Every refusal
-// comes before emit is first called; the events then run, delta, citations,
-// done (R5).
+// sources → gateway → validated citations → the question and answer rows (a
+// regenerate writes only the answer). Every refusal comes before emit is first
+// called; the events then run, step, sources, delta, citations, followups,
+// done and title (R5). An error after run is returned for the handler to send
+// as an error event.
 func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID string, in AskInput, emit AskSink) (AskResult, error) {
 	regen := in.Regenerate != ""
 	question := strings.TrimSpace(in.Question)
@@ -335,7 +337,7 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 				"question": ai.EscapeUntrusted(question), "locale": in.Locale, "today": s.now().Format("2006-01-02"),
 				"sources": ai.RenderSources(pack),
 			},
-			History: history(rows), Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
+			History: history(rows, false), Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
 		})
 		stopped := ""
 		if err != nil {
@@ -667,8 +669,9 @@ func citedID(c AskCitation) (string, bool) {
 	return id, id != "" && !strings.ContainsAny(id, "/?#")
 }
 
-// history replays the conversation's last turns, wrapped as untrusted.
-func history(rows []db.AiMessage) []provider.Message {
+// history replays the conversation's last turns, wrapped as untrusted; with
+// cited (the agent), each answer is followed by the sources it cited.
+func history(rows []db.AiMessage, cited bool) []provider.Message {
 	// Drop notice replies (no sources, empty answer, or the fixed text older
 	// rows stored) before windowing, so they neither mislead the model nor eat a turn.
 	var kept []db.AiMessage
@@ -687,7 +690,11 @@ func history(rows []db.AiMessage) []provider.Message {
 		if r.Role == "assistant" {
 			src = "prior_answer"
 		}
-		out = append(out, provider.Message{Role: r.Role, Content: ai.WrapUntrusted(src, r.Content) + priorSources(r)})
+		content := ai.WrapUntrusted(src, r.Content)
+		if cited {
+			content += priorSources(r)
+		}
+		out = append(out, provider.Message{Role: r.Role, Content: content})
 	}
 	return out
 }
@@ -705,7 +712,7 @@ func priorSources(r db.AiMessage) string {
 	}
 	lines := make([]string, len(cites))
 	for i, c := range cites {
-		lines[i] = c.SourceID + " " + c.Kind + " " + c.Title
+		lines[i] = c.SourceID + " " + c.Kind + " " + oneLine(c.Title)
 	}
 	return "\nSources cited in that answer, read with tools in that turn:\n" + ai.WrapUntrusted("prior_sources", strings.Join(lines, "\n"))
 }

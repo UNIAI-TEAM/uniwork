@@ -284,3 +284,58 @@ func TestNoticeOnlyFirstTurnLeavesTheNamingToTheNextAnswer(t *testing.T) {
 		t.Fatalf("conversation %q / %q", conv.Title, conv.TitleSource)
 	}
 }
+
+// The title call reads the answer with each [S#] replaced by its object's
+// title, so the name it gives can name the object; unknown markers go.
+func TestTitleCallReadsTheCitedObjectsNames(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	scriptAgent(fake, "banner", "Tóm tắt [S1] và [S9].")
+	inner := fake.Reply
+	var seen string
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		fake.Err = nil
+		if strings.Contains(req.System, "Name this conversation") {
+			seen = req.System
+			for _, m := range req.Messages {
+				seen += "\n" + m.Content
+			}
+			return provider.CompletionResponse{Text: "Tên", UsagePresent: true, InputTokens: 3, OutputTokens: 2, StopReason: "end_turn"}
+		}
+		return inner(req)
+	}
+	if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner tới đâu?", Locale: "vi", Dock: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(seen, "Tóm tắt Banner Tết và.") || strings.Contains(seen, "[S1]") || strings.Contains(seen, "[S9]") {
+		t.Fatalf("title call read:\n%s", seen)
+	}
+}
+
+// The asker leaving right after done does not cancel the title call: it is
+// billed either way (ruling over T7), so its title is stored; only the frame
+// is not sent to a closed stream.
+func TestTitleCallOutlivesTheAsker(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	titleScript(fake, "Có 1 việc [S1]", "Tên sau khi rời", nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var events []AskEvent
+	sink := func(e AskEvent) {
+		events = append(events, e)
+		if e.Name == "done" {
+			cancel()
+		}
+	}
+	res, err := s.AskStream(ctx, ua.ID, w.ID, AskInput{Question: "Banner tới đâu rồi?", Locale: "vi", Dock: true}, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if conv := convRow(t, s, res.ConversationID); conv.Title != "Tên sau khi rời" || conv.TitleSource != "generated" {
+		t.Fatalf("conversation %q / %q", conv.Title, conv.TitleSource)
+	}
+	if slices.Contains(eventNames(events), "title") {
+		t.Fatalf("events %v: a title frame after the asker left", eventNames(events))
+	}
+}

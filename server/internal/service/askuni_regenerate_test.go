@@ -197,3 +197,131 @@ func TestRegenerateLostRaceEndsWithoutDone(t *testing.T) {
 		t.Fatalf("rows %+v", rows)
 	}
 }
+
+// A regenerate that ends with no answer keeps the answer it was to replace:
+// nothing is stored or superseded, the stream ends with the error and no
+// done, and the calls it made stay billed.
+func TestFailedRegenerateKeepsTheOldAnswer(t *testing.T) {
+	for name, c := range map[string]struct {
+		// fail answers the regenerate's second call (the one after the
+		// search) without an answer; it may cancel the request through stop.
+		fail func(f *provider.Fake, stop func(), search provider.CompletionResponse) provider.CompletionResponse
+		want error
+	}{
+		"model call fails": {func(f *provider.Fake, _ func(), _ provider.CompletionResponse) provider.CompletionResponse {
+			f.Err = errors.New("vendor 503")
+			return provider.CompletionResponse{}
+		}, ai.ErrProviderError},
+		"refused": {func(f *provider.Fake, _ func(), _ provider.CompletionResponse) provider.CompletionResponse {
+			f.Err = provider.ErrRefused // billed, like Anthropic's stop_reason refusal
+			return provider.CompletionResponse{UsagePresent: true, InputTokens: 9, OutputTokens: 1, StopReason: "refusal"}
+		}, ai.ErrRefused},
+		"stopped before any text": {func(_ *provider.Fake, stop func(), answer provider.CompletionResponse) provider.CompletionResponse {
+			stop() // the stream sees the cancel before its first delta
+			return answer
+		}, nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := newCtxWorld(t)
+			ctx := context.Background()
+			scriptAgent(w.fake, "x", "Câu trả lời cũ")
+			first, err := dockAsk(w, AskInput{Question: "Câu hỏi gốc"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			runCtx, stop := context.WithCancel(ctx)
+			defer stop()
+			scriptAgent(w.fake, "x", "Câu trả lời mới")
+			search, calls := w.fake.Reply, 0
+			w.fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+				if calls++; calls == 2 {
+					return c.fail(w.fake, stop, search(req))
+				}
+				return search(req)
+			}
+			before := usageRows(t, w.s, w.x.w.OrganizationID)
+			var events []AskEvent
+			in := AskInput{ConversationID: first.ConversationID, Regenerate: first.Message.ID, Dock: true, Locale: "vi"}
+			_, err = w.s.AskStream(runCtx, w.x.ua.ID, w.x.w.ID, in, collectEvents(&events))
+			if err == nil || (c.want != nil && !errors.Is(err, c.want)) || slices.Contains(eventNames(events), "done") {
+				t.Fatalf("err %v, events %v", err, eventNames(events))
+			}
+			assertOnlyAnswer(t, w.s, first.ConversationID, first.Message.ID)
+			if after := usageRows(t, w.s, w.x.w.OrganizationID); after <= before {
+				t.Fatalf("usage rows %d -> %d, want the regenerate's calls kept", before, after)
+			}
+		})
+	}
+}
+
+// An answer round that stays malformed after its retry keeps the old answer too.
+func TestMalformedRegenerateKeepsTheOldAnswer(t *testing.T) {
+	w := newCtxWorld(t)
+	scriptAgent(w.fake, "x", "Câu trả lời cũ")
+	first, err := dockAsk(w, AskInput{Question: "Câu hỏi gốc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scriptAgent(w.fake, "x", "") // empty, and the retry asks for a tool again
+	var events []AskEvent
+	in := AskInput{ConversationID: first.ConversationID, Regenerate: first.Message.ID, Dock: true, Locale: "vi"}
+	if _, err = w.s.AskStream(context.Background(), w.x.ua.ID, w.x.w.ID, in, collectEvents(&events)); !errors.Is(err, ai.ErrOutputInvalid) || slices.Contains(eventNames(events), "done") {
+		t.Fatalf("err %v, events %v", err, eventNames(events))
+	}
+	assertOnlyAnswer(t, w.s, first.ConversationID, first.Message.ID)
+}
+
+// assertOnlyAnswer holds that the conversation's one assistant row, superseded
+// or not, is id and still live.
+func assertOnlyAnswer(t *testing.T, s *AskUNIService, convID, id string) {
+	t.Helper()
+	var n, live int
+	if err := s.pool.QueryRow(context.Background(),
+		`SELECT count(*), count(*) FILTER (WHERE id = $2 AND superseded_at IS NULL) FROM ai_messages WHERE conversation_id = $1 AND role = 'assistant'`,
+		convID, id).Scan(&n, &live); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 || live != 1 {
+		t.Fatalf("assistant rows %d, old answer live %d; want only the old answer, live", n, live)
+	}
+}
+
+func usageRows(t *testing.T, s *AskUNIService, orgID string) int {
+	t.Helper()
+	var n int
+	if err := s.pool.QueryRow(context.Background(), `SELECT count(*) FROM ai_usage_events WHERE organization_id = $1`, orgID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// A source only the replaced answer cited is new again to the next turn, so
+// its sources frame announces it for the live answer's chips.
+func TestRegenerateForgetsTheReplacedAnswersSources(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	ask := func(in AskInput) ([]AskEvent, AskResult) {
+		t.Helper()
+		var events []AskEvent
+		in.Dock, in.Locale = true, "vi"
+		res, err := s.AskStream(context.Background(), ua.ID, w.ID, in, collectEvents(&events))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return events, res
+	}
+	scriptAgent(fake, "banner", "Có [S1]")
+	_, first := ask(AskInput{Question: "Banner tới đâu?"})
+	scriptAgent(fake, "banner", "Không nói tới việc nào")
+	ask(AskInput{ConversationID: first.ConversationID, Regenerate: first.Message.ID})
+	scriptAgent(fake, "banner", "Vẫn là [S1]")
+	events, _ := ask(AskInput{ConversationID: first.ConversationID, Question: "Còn banner?"})
+	for _, e := range events {
+		for _, c := range e.Sources {
+			if c.Title == "Banner Tết" {
+				return
+			}
+		}
+	}
+	t.Fatalf("no sources frame named the task: %v", eventNames(events))
+}

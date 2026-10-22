@@ -304,7 +304,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		switch {
 		case p != nil:
 			outcome = ai.NoticeAgentFailed
-		case outcome != "": // a gate refused the run, or failed stored it
+		case outcome != "": // a gate refused the run, failed stored it, or a regenerate kept the old answer
 		case err == nil && out.Message.Notice.String != "":
 			outcome = out.Message.Notice.String
 		case err == nil:
@@ -331,10 +331,13 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	var nameWith string
 	defer func() {
 		ranFor = s.now().Sub(started)
-		if nameWith == "" || err != nil || ctx.Err() != nil {
+		if nameWith == "" || err != nil {
 			return
 		}
-		if title, ok := s.generateTitle(ctx, Human(userID), w.OrganizationID, w.ID, conv.ID, question, nameWith); ok {
+		// The call is billed even when cancelled, so it outlives an asker who
+		// left (askTitleTimeout bounds it); only the frame needs them.
+		title, ok := s.generateTitle(context.WithoutCancel(ctx), Human(userID), w.OrganizationID, w.ID, conv.ID, question, nameWith)
+		if ok && ctx.Err() == nil {
 			emit.emit(AskEvent{Name: "title", Title: &AskTitleEvent{ConversationID: conv.ID, Title: title}})
 		}
 	}()
@@ -410,7 +413,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		promptID = ai.PromptCopilotAnswerV4
 	}
 	prompt, _ := ai.LookupPrompt(promptID)
-	hist := history(rows)
+	hist := history(rows, true)
 	// The rendered question as the gateway sends it on the first call; later
 	// calls replay it byte for byte, so the cached prefix holds.
 	msgs := append(slices.Clip(hist), provider.Message{Role: "user", Content: prompt.Render(vars)})
@@ -453,17 +456,31 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			res.Usage.add(int(row.InputTokens), int(row.OutputTokens), 0, 0)
 		}
 	}
+	// A regenerate that ends with no answer stores nothing and supersedes
+	// nothing: the answer it was to replace stays, and the error ends the
+	// stream with no done. Its calls stay billed.
+	regen := base.Regenerates != ""
+	keepOld := func(o string, err error) (AskResult, error) {
+		outcome = o
+		return AskResult{}, err
+	}
 	// A refusal on any call stores the notice.
 	refused := func(err error) (AskResult, error) {
 		var e *ai.Error
 		errors.As(err, &e)
 		rowUsage(ctx, e.UsageEventID)
+		if regen {
+			return keepOld(ai.NoticeRefused, err)
+		}
 		return s.finishAgent(ctx, emit, res, w, conv, base, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID, steps, nil)
 	}
 	// A stop (askStopNotice) stores the text the asker saw streamed for the
 	// last call, with what it cites, on a context that outlives the request,
 	// and ends with done (the asker may be gone; the next read shows the turn).
 	stop := func(notice string, err error) (AskResult, error) {
+		if regen && draft.sent == "" {
+			return keepOld(notice, err)
+		}
 		sctx, cancel := outliving(ctx)
 		defer cancel()
 		usage := billed
@@ -496,6 +513,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			usage = e.UsageEventID
 		}
 		slog.Warn("ask uni: agent run failed", "run_id", res.RunID, "organization_id", w.OrganizationID, "err", err)
+		if regen {
+			return AskResult{}, err
+		}
 		sctx, cancel := outliving(ctx)
 		defer cancel()
 		return s.finishAgent(sctx, emit, res, w, conv, base, "", ai.NoticeAgentFailed, []AskCitation{}, usage, steps, nil)
@@ -580,6 +600,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	sctx, cancelStore := outliving(ctx)
 	defer cancelStore()
 	if agentMalformed(resp) {
+		if regen {
+			return keepOld(ai.NoticeAgentFailed, ai.ErrOutputInvalid)
+		}
 		return s.finishAgent(sctx, emit, res, w, conv, base, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID, steps, nil)
 	}
 	answer := strings.TrimSpace(ai.StripUntrustedTags(resp.Text))
@@ -589,9 +612,25 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	}
 	res, err = s.finishAgent(sctx, emit, res, w, conv, base, answer, "", agentCitations(answer, book), resp.UsageEventID, steps, followups)
 	if first && in.Dock {
-		nameWith = answer
+		nameWith = namedSources(answer, book)
 	}
 	return res, err
+}
+
+// spacedSourceRef is a citation with the space before it, if any.
+var spacedSourceRef = regexp.MustCompile(`( ?)\[(S\d+)\]`)
+
+// namedSources is the answer with each [S#] replaced by its source's title,
+// one the book does not know dropped with its space: the title call names
+// objects, not numbers.
+func namedSources(answer string, b *sourceBook) string {
+	return spacedSourceRef.ReplaceAllStringFunc(answer, func(m string) string {
+		g := spacedSourceRef.FindStringSubmatch(m)
+		if c, ok := b.byID[g[2]]; ok {
+			return g[1] + oneLine(c.Title)
+		}
+		return ""
+	})
 }
 
 // finishAgent stores the turn with the last call's usage row. Its text
@@ -652,18 +691,20 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 // stepLabelMax is the longest step label, in runes.
 const stepLabelMax = 60
 
-// stepLabel names what a step looked at: the search's query, or the one
-// object a get_* tool opened; "" for any other step. It is object or query
-// text, one line, never a UI string.
+// stepLabel names what a step looked at: the object a get_* tool or
+// read_chat_room opened (get_project lists its tasks after it), else the
+// query a tool was given; "" for any other step. It is object or query text,
+// one line, never a UI string.
 func stepLabel(tool string, args json.RawMessage, items []agentItem) string {
 	var label string
-	switch {
-	case tool == "search":
+	if strings.HasPrefix(tool, "get_") || tool == "read_chat_room" {
+		if len(items) > 0 && items[0].Key != "" {
+			label = strings.TrimPrefix(items[0].Title, "Chat: ")
+		}
+	} else {
 		var a struct{ Query string }
 		_ = json.Unmarshal(args, &a)
 		label = a.Query
-	case strings.HasPrefix(tool, "get_") && len(items) == 1:
-		label = items[0].Title
 	}
 	label = oneLine(label)
 	if r := []rune(label); len(r) > stepLabelMax {

@@ -456,7 +456,7 @@ func (q *Queries) AiLatestRate(ctx context.Context, arg AiLatestRateParams) (AiM
 
 const aiListConversationCitations = `-- name: AiListConversationCitations :many
 SELECT citations FROM ai_messages
-WHERE organization_id = $1 AND conversation_id = $2 AND role = 'assistant'
+WHERE organization_id = $1 AND conversation_id = $2 AND role = 'assistant' AND superseded_at IS NULL
 ORDER BY created_at ASC, id ASC
 `
 
@@ -465,8 +465,10 @@ type AiListConversationCitationsParams struct {
 	ConversationID string `json:"conversation_id"`
 }
 
-// Every citation set a conversation's answers stored, oldest first and with
-// no limit: the Ask UNI agent rebuilds its stable [S#] numbers from them (R2).
+// Every citation set a conversation's live answers stored, oldest first and
+// with no limit: the Ask UNI agent rebuilds its stable [S#] numbers from them
+// (R2). An answer a regenerate replaced is not shown, so its sources are not
+// known to the client and number anew.
 func (q *Queries) AiListConversationCitations(ctx context.Context, arg AiListConversationCitationsParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, aiListConversationCitations, arg.OrganizationID, arg.ConversationID)
 	if err != nil {
