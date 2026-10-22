@@ -18,7 +18,7 @@ const { t } = initI18n();
 
 const workspace = { id: "ws1", slug: "team", organization_id: "o1", organization_slug: "acme" } as Workspace;
 const notification = (params: Record<string, string> = {}): Notification => ({
-  id: "n1", kind: KIND, workspace_id: null, organization_id: "o1", resource_type: "organization_member", resource_id: "u9",
+  id: "n1", kind: KIND, workspace_id: "", organization_id: "o1", resource_type: "organization_member", resource_id: "u9",
   resource_deleted: false, resource_access_lost: false, comment_deleted: false, actor_kind: "human", actor_id: "u2",
   title_key: `notifications.kind.${KIND}`, params, count: 1, created_at: "",
 });
