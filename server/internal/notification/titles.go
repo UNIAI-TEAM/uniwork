@@ -49,6 +49,7 @@ var titles = map[string]map[string]string{
 		KindDocumentShared:              "{{actor}} đã chia sẻ tài liệu “{{document}}” với bạn. Quyền: {{level}}.",
 		KindDocumentTrashedByOther:      "{{actor}} đã chuyển tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
 		KindDocumentChanged:             "{{actor}} đã thay đổi {{document_count}} tài liệu",
+		KindDocumentOwnerTransferred:    "{{actor}} đã chuyển cho bạn quyền sở hữu tài liệu “{{document}}”.",
 	},
 	"en": {
 		KindTaskAssigned:                "{{actor}} assigned you “{{task}}”",
@@ -86,6 +87,7 @@ var titles = map[string]map[string]string{
 		KindDocumentShared:              "{{actor}} shared “{{document}}” with you ({{level}}).",
 		KindDocumentTrashedByOther:      "{{actor}} moved your document to trash. Restore it before {{date}}",
 		KindDocumentChanged:             "{{actor}} changed {{document_count}} documents",
+		KindDocumentOwnerTransferred:    "{{actor}} transferred ownership of “{{document}}” to you.",
 	},
 }
 
@@ -128,6 +130,7 @@ var kindTitles = map[string]map[string]string{
 		KindDocumentShared:              "Tài liệu được chia sẻ",
 		KindDocumentTrashedByOther:      "Tài liệu của bạn đã vào thùng rác",
 		KindDocumentChanged:             "Tài liệu đã thay đổi",
+		KindDocumentOwnerTransferred:    "Bạn là chủ sở hữu tài liệu",
 	},
 	"en": {
 		KindDocumentMentioned:           "You were mentioned in a comment",
@@ -143,6 +146,7 @@ var kindTitles = map[string]map[string]string{
 		KindDocumentShared:              "Document shared",
 		KindDocumentTrashedByOther:      "Your document was moved to trash",
 		KindDocumentChanged:             "Documents changed",
+		KindDocumentOwnerTransferred:    "You now own a document",
 	},
 }
 

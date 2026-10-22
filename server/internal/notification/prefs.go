@@ -24,7 +24,8 @@ type Prefs struct {
 // An access request pushes to the manager, who is the one who can answer it,
 // and an approval pushes to the requester, who is waiting to get in; a
 // decline does not (§4.4). A document change notice (UNI-2056) is in-app
-// only by default: no push, no digest line.
+// only by default: no push, no digest line. An owner transfer (DOC-06
+// §4.2) is not urgent: no push, digest on.
 func DefaultPrefs(kind string) Prefs {
 	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentBodyMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
 		kind == KindDocumentShared ||

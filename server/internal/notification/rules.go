@@ -157,6 +157,8 @@ var rules = map[string]rule{
 	// the answer that reaches the requester wherever they are.
 	"document.access_requested":       ruleDocumentAccessRequested,
 	"document.access_request_decided": ruleDocumentAccessRequestDecided,
+	// DOC-06 (UNI-2084): the new owner of a single-document transfer.
+	"document.owner_transferred": ruleDocumentOwnerTransferred,
 	// TRASH-NOTIFY-01 (UNI-1844): somebody else archived a person's
 	// document; the ACL owner hears once per archive batch.
 	"document.archived": both(ruleDocumentTrashed, ruleDocumentTrashedChange),
@@ -1141,6 +1143,48 @@ func ruleDocumentAccessRequestDecided(ctx context.Context, e env, ev outbox.Row,
 		Kind: kind, GroupKey: groupKey,
 		ResourceType: "document", ResourceID: doc.ID,
 		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+	}}, nil
+}
+
+// ruleDocumentOwnerTransferred tells the new owner of a single-document
+// transfer that the document is theirs (DOC-06 §4.2, §4.4). The frame carries
+// ids only, so the recipient is the document's ACL owner at delivery time,
+// re-checked through the read port (R1-6): an owner who left the workspace
+// since hears nothing. A frame with bulk_id was written by the bulk route,
+// whose own grouped notice covers it, and the caller never hears their own
+// transfer.
+func ruleDocumentOwnerTransferred(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if e.docs == nil || p["document_id"] == "" || p["bulk_id"] != "" {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	if !doc.AclOwnerID.Valid || doc.OwnerKind.Valid {
+		return nil, nil
+	}
+	uid := doc.AclOwnerID.String
+	if isActorOfEvent(ev, uid) {
+		return nil, nil
+	}
+	canRead, err := e.docs.CanReadDocument(ctx, uid, doc.ID)
+	if err != nil || !canRead {
+		return nil, err
+	}
+	return []Draft{{
+		UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		Kind: KindDocumentOwnerTransferred, GroupKey: "document:" + doc.ID + ":owner",
+		ResourceType: "document", ResourceID: doc.ID,
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String,
+		Params: map[string]string{"actor": actorName(ctx, e.q, ev), "document": doc.Title, "document_id": doc.ID},
 	}}, nil
 }
 
