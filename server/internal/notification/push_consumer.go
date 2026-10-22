@@ -31,15 +31,22 @@ type PushConsumer struct {
 	now         func() time.Time
 }
 
-// PresenceChecker says when a user last had a chat presence heartbeat
-// (ChatService in production).
+// PresenceChecker says when a user last had a visible chat presence heartbeat
+// in a workspace, unless a page of theirs left it since (ChatService in
+// production).
 type PresenceChecker interface {
-	LastPresenceBeat(ctx context.Context, userID string) (time.Time, bool, error)
+	LastPresenceBeat(ctx context.Context, userID, workspaceID string) (time.Time, bool, error)
 }
 
-// pushActiveWindow: a recipient who beat this recently is at a keyboard and
-// sees the message in the app, so the chat push is dropped (spec N2 §3.5).
-const pushActiveWindow = 120 * time.Second
+// pushActiveWindow: a recipient who beat this recently in the push's
+// workspace is reading it and sees the message in the app, so the chat push
+// is dropped (spec N2 §3.5). A visible page beats every 15s, so three beats'
+// worth outlasts a late or lost one. A page that leaves (a tab closing, the
+// phone going to the background) clears its beat at once; the window only
+// bounds what a crash or a lost network costs. It was two minutes, and every
+// message in the first two minutes after a phone was put away went
+// unnotified (audit "Calls, push & background", chat-push-swallowed).
+const pushActiveWindow = 45 * time.Second
 
 // NewPushConsumer wires the consumer; a nil sender means push is off and
 // rows are acknowledged without sending.
@@ -116,11 +123,11 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if len(subs) == 0 {
 		return c.q.MarkNotificationPushed(ctx, n.ID)
 	}
-	if c.presence != nil && isChatPushKind(n.Kind) {
+	if c.presence != nil && isChatPushKind(n.Kind) && n.WorkspaceID.Valid {
 		// Same bound as the rate limiter's best-effort Redis call: a stalled
 		// Redis fails open instead of holding the push lane.
 		pctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-		t, ok, err := c.presence.LastPresenceBeat(pctx, n.UserID)
+		t, ok, err := c.presence.LastPresenceBeat(pctx, n.UserID, n.WorkspaceID.String)
 		cancel()
 		if err == nil && ok && c.now().Sub(t) <= pushActiveWindow {
 			if m := c.metrics; m != nil {

@@ -409,8 +409,18 @@ type fakePresence struct {
 	err error
 }
 
-func (p fakePresence) LastPresenceBeat(context.Context, string) (time.Time, bool, error) {
+func (p fakePresence) LastPresenceBeat(context.Context, string, string) (time.Time, bool, error) {
 	return p.at, p.ok, p.err
+}
+
+// workspacePresence beat (visibly) in one workspace only.
+type workspacePresence struct {
+	workspaceID string
+	at          time.Time
+}
+
+func (p workspacePresence) LastPresenceBeat(_ context.Context, _, workspaceID string) (time.Time, bool, error) {
+	return p.at, workspaceID == p.workspaceID, nil
 }
 
 type countingMetrics struct{ suppressed, sent map[string]int }
@@ -421,8 +431,10 @@ func (m *countingMetrics) IncPushSent(r string)          { m.sent[r]++ }
 func (m *countingMetrics) IncDigestSent()                {}
 func (m *countingMetrics) IncPushSuppressed(k string)    { m.suppressed[k]++ }
 
-// Spec N2 §3.5: a recipient with a presence beat inside two minutes is at a
-// keyboard already; the push is dropped and counted, the row marked pushed.
+// Spec N2 §3.5: a recipient with a presence beat in the push's workspace
+// inside pushActiveWindow (45s) is reading it already; the push is dropped and
+// counted, the row marked pushed. A beat older than the window, as soon as one
+// minute (it was two), no longer holds a push back.
 func TestChatPushIsSuppressedWhileTheRecipientIsActive(t *testing.T) {
 	f := newFixture(t)
 	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
@@ -466,11 +478,18 @@ func TestChatPushIsSuppressedWhileTheRecipientIsActive(t *testing.T) {
 	if n, err := f.q.GetNotification(f.ctx, p["notification_id"]); err != nil || !n.PushedAt.Valid {
 		t.Fatalf("suppressed row not marked pushed: %+v err=%v", n, err)
 	}
-	if spy, m, _ := run(fakePresence{at: now.Add(-5 * time.Minute), ok: true}); len(spy.sent) != 1 || len(m.suppressed) != 0 {
-		t.Fatal("active 5 minutes ago must still be pushed")
+	if spy, m, _ := run(fakePresence{at: now.Add(-time.Minute), ok: true}); len(spy.sent) != 1 || len(m.suppressed) != 0 {
+		t.Fatal("active a minute ago must be pushed: the phone was put away")
 	}
 	if spy, _, _ := run(fakePresence{ok: false}); len(spy.sent) != 1 {
 		t.Fatal("never online must be pushed")
+	}
+	// Reading another workspace is not reading this one: the beat is asked for the push's workspace.
+	if spy, m, _ := run(workspacePresence{workspaceID: "another-workspace", at: now.Add(-10 * time.Second)}); len(spy.sent) != 1 || len(m.suppressed) != 0 {
+		t.Fatal("a beat in another workspace must not hold the push back")
+	}
+	if spy, m, _ := run(workspacePresence{workspaceID: f.wsID, at: now.Add(-10 * time.Second)}); len(spy.sent) != 0 || m.suppressed[KindChatDM] != 1 {
+		t.Fatal("a beat in the push's own workspace holds it back")
 	}
 	if spy, _, _ := run(fakePresence{err: errors.New("redis down")}); len(spy.sent) != 1 {
 		t.Fatal("presence error must fail open")
@@ -520,7 +539,7 @@ func TestChatPushIsSuppressedWhileTheRecipientIsActive(t *testing.T) {
 // context is done.
 type blockingPresence struct{}
 
-func (blockingPresence) LastPresenceBeat(ctx context.Context, _ string) (time.Time, bool, error) {
+func (blockingPresence) LastPresenceBeat(ctx context.Context, _, _ string) (time.Time, bool, error) {
 	<-ctx.Done()
 	return time.Time{}, false, ctx.Err()
 }

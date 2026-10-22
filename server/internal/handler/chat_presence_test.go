@@ -37,10 +37,10 @@ func TestChatPresenceBeatAnswersWithTheOnlineMembers(t *testing.T) {
 		t.Fatalf("beat b: %d %v, want %v", res.StatusCode, out, want)
 	}
 	// Only a visible beat leaves the last-beat mark the push consumer reads.
-	if _, ok, err := f.chat.LastPresenceBeat(context.Background(), f.ids["a"]); err != nil || !ok {
+	if _, ok, err := f.chat.LastPresenceBeat(context.Background(), f.ids["a"], f.wsID); err != nil || !ok {
 		t.Fatalf("last beat of a (visible) = ok %v err %v, want recorded", ok, err)
 	}
-	if _, ok, err := f.chat.LastPresenceBeat(context.Background(), f.ids["b"]); err != nil || ok {
+	if _, ok, err := f.chat.LastPresenceBeat(context.Background(), f.ids["b"], f.wsID); err != nil || ok {
 		t.Fatalf("last beat of b (not visible) = ok %v err %v, want none", ok, err)
 	}
 
