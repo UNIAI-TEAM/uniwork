@@ -100,6 +100,29 @@ describe("AI consent notice", () => {
     await act(async () => finish({ ...user, ai_consent_version: null }));
   });
 
+  // Apple 5.1.2(i): saying no is an answer too, and the server then keeps what this person writes out of every AI
+  // request, whoever makes it; the sheet says so instead of offering it again.
+  it("lets the reader say no, and then says what that means", async () => {
+    const onClose = jest.fn();
+    jest.mocked(accountApi.withdrawAiConsent).mockRejectedValueOnce(new Error("offline"));
+    const { rerender } = await render(<AiConsentSheet visible onClose={onClose} />);
+    expect(screen.queryByText(viText("mobile.ai_consent.refused_note"))).toBeNull();
+    await fireEvent.press(screen.getByTestId("ai-consent-refuse"));
+    expect(screen.getByRole("alert")).toHaveTextContent(viText("mobile.ai_consent.failed"));
+    expect(onClose).not.toHaveBeenCalled();
+
+    const declined = { ...user, ai_consent_version: null, ai_consent_at: null, ai_opt_out_at: "2026-10-22T08:00:00Z" };
+    jest.mocked(accountApi.withdrawAiConsent).mockResolvedValueOnce(declined);
+    await fireEvent.press(screen.getByTestId("ai-consent-refuse"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual([viText("mobile.ai_consent.refused")]);
+
+    await rerender(<AiConsentSheet visible onClose={onClose} />);
+    expect(screen.getByText(viText("mobile.ai_consent.refused_note"))).toBeOnTheScreen();
+    expect(screen.queryByTestId("ai-consent-refuse")).toBeNull();
+    expect(screen.getByTestId("ai-consent-agree")).toBeOnTheScreen();
+  });
+
   it("reads the notice in English with an English date", async () => {
     useAuthStore.setState({ user: agreed });
     await act(() => i18n.changeLanguage("en"));

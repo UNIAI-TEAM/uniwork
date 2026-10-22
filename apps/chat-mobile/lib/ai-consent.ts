@@ -15,3 +15,11 @@ export const AI_PROVIDER = "Anthropic";
 export function hasAiConsent(user: Pick<User, "ai_consent_version"> | null | undefined): boolean {
   return user?.ai_consent_version === AI_CONSENT_VERSION;
 }
+
+/**
+ * The person said no (or withdrew): the server keeps their chat messages out of every AI request, whoever makes it
+ * (server/internal/service/ai_opt_out.go), and Settings says so. Agreeing again lifts it.
+ */
+export function hasDeclinedAi(user: Pick<User, "ai_consent_version" | "ai_opt_out_at"> | null | undefined): boolean {
+  return !hasAiConsent(user) && typeof user?.ai_opt_out_at === "string" && user.ai_opt_out_at !== "";
+}

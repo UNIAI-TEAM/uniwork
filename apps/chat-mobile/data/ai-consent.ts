@@ -10,5 +10,8 @@ export async function answerAiConsent(agree: boolean, now: () => Date = () => ne
   const next = agree ? await accountApi.setAiConsent(AI_CONSENT_VERSION) : await accountApi.withdrawAiConsent();
   const { user, setUser } = useAuthStore.getState();
   if (next) setUser(next);
-  else if (user) setUser({ ...user, ai_consent_version: agree ? AI_CONSENT_VERSION : null, ai_consent_at: agree ? now().toISOString() : null });
+  else if (user) {
+    const at = now().toISOString();
+    setUser({ ...user, ai_consent_version: agree ? AI_CONSENT_VERSION : null, ai_consent_at: agree ? at : null, ai_opt_out_at: agree ? null : at });
+  }
 }

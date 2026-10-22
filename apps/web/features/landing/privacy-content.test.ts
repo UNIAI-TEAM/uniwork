@@ -45,16 +45,18 @@ describe("privacy policy", () => {
     }
   });
 
-  // No AI route reads the consent the phone records (PUT /me/ai-consent), and
-  // web and desktop never ask: the notice covers the phone's own requests, and
-  // a member's messages in a shared conversation reach the provider whenever
-  // any member uses AI on it.
+  // Web and desktop never ask: the notice's agreement covers the phone's own
+  // requests, and a member's messages in a shared conversation reach the
+  // provider whenever any member uses AI on it, unless that member said no
+  // (DELETE /me/ai-consent sets users.ai_opt_out_at, and every AI path that reads
+  // chat leaves their messages out: server/internal/service/ai_opt_out.go).
   it("scopes the AI consent notice to the phone apps and says shared content goes out on any member's request", () => {
     for (const locale of ["en", "vi"] as const) {
       const ai = paragraphs(locale).find(paragraph => paragraph.includes("Anthropic"))!;
       expect(ai).toContain(locale === "vi" ? "ứng dụng UniChat cho Android và iPhone" : "UniChat apps for Android and iPhone");
       expect(ai).toContain(locale === "vi" ? "khi bất kỳ thành viên nào dùng AI" : "whenever any member uses AI");
       expect(ai).toContain(locale === "vi" ? "chỉ áp dụng cho yêu cầu AI của chính bạn" : "covers only your own AI requests");
+      expect(ai).toContain(locale === "vi" ? "tin nhắn chat bạn viết không được gửi tới AI nữa" : "the chat messages you write are left out of every AI request");
       expect(ai).not.toMatch(locale === "vi" ? /Trong ứng dụng UniChat, trước lần đầu/ : /In the UniChat app you are asked/);
     }
   });

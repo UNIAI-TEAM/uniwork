@@ -499,7 +499,7 @@ từng mục khi đã nộp:
 
 - [ ] **Privacy policy**: `https://app.uniworkos.com/privacy` (tiếng Việt `/vi/privacy`). Trang phải nói đúng những gì
   app làm: AI (Anthropic, khi bất kỳ thành viên nào dùng AI trên nội dung chung; màn đồng ý trên điện thoại chỉ cho yêu
-  cầu của chính người dùng), báo cáo vi phạm (chủ sở hữu/quản trị viên thấy cả người báo cáo; báo thẳng nhà vận hành qua
+  cầu của chính người dùng; người từ chối hay rút lại thì tin họ viết không vào yêu cầu AI nào, dù ai yêu cầu), báo cáo vi phạm (chủ sở hữu/quản trị viên thấy cả người báo cáo; báo thẳng nhà vận hành qua
   `contact@unicomhub.com`), xoá tài khoản trong app, 18+. `apps/web/features/landing/privacy-content.test.ts` giữ hai
   câu đó.
 - [ ] **Data safety** (Play) / **App Privacy** (Apple): điền theo bảng "Quyền riêng tư" của `store/listing.md`, gồm

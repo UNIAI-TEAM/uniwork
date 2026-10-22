@@ -28,11 +28,12 @@ describe("answerAiConsent", () => {
     accountApi.withdrawAiConsent.mockResolvedValueOnce(null);
     auth.user = { ...user, ai_consent_version: AI_CONSENT_VERSION, ai_consent_at: "x" };
     await answerAiConsent(false, at);
-    expect(auth.user).toMatchObject({ ai_consent_version: null, ai_consent_at: null });
+    // Saying no keeps the person's messages out of AI requests until they agree again (server ai_opt_out_at).
+    expect(auth.user).toMatchObject({ ai_consent_version: null, ai_consent_at: null, ai_opt_out_at: "2026-10-21T08:00:00.000Z" });
 
     accountApi.setAiConsent.mockResolvedValueOnce(null);
     await answerAiConsent(true, at);
-    expect(auth.user).toMatchObject({ ai_consent_version: AI_CONSENT_VERSION, ai_consent_at: "2026-10-21T08:00:00.000Z" });
+    expect(auth.user).toMatchObject({ ai_consent_version: AI_CONSENT_VERSION, ai_consent_at: "2026-10-21T08:00:00.000Z", ai_opt_out_at: null });
   });
 
   it("stamps a drifted agreement with the time it was given", async () => {

@@ -26,9 +26,13 @@ Xoá tài khoản, pháp lý, giấy phép, đồng ý AI, báo cáo và chặn,
   version để hỏi lại mọi người, và sửa mục AI của `privacy-content.ts` cùng PR), câu trả lời lưu ở server
   (`PUT/DELETE /me/ai-consent`, `user.ai_consent_version`) qua `data/ai-consent.ts`; `catch-up-sheet.tsx` không gọi AI
   khi chưa đồng ý mà vẽ `components/chat/ai-consent-notice.tsx`; tính năng AI mới trên điện thoại dùng cùng
-  `useAiConsent()`. Đồng ý chỉ do client giữ: không route AI nào của server đọc nó, và tin của người dùng vẫn tới
-  Anthropic khi thành viên khác dùng AI trên web — chính sách và dòng "Xử lý AI" của listing nói đúng vậy
-  (`privacy-content.test.ts`), đừng viết lại thành "chỉ khi người dùng đồng ý". **Báo cáo và chặn**: `data/safety-api.ts` (route chặn qua factory `chat-users-api` của core + `POST …/chat/reports`), key
+  `useAiConsent()`. Đồng ý mở AI cho chính người dùng trên điện thoại; **từ chối** (nút "Không cho phép" của
+  Cài đặt, hay rút lại) là `DELETE /me/ai-consent`, server ghi `users.ai_opt_out_at` (lộ ra ở `user.ai_opt_out_at`,
+  `lib/ai-consent.ts › hasDeclinedAi`) và mọi đường AI đọc chat — Bắt kịp, nguồn chat và công cụ đọc phòng của Hỏi UNI
+  (cả qua MCP), tóm tắt cuộc gọi — bỏ tin của người đó (`server/internal/service/ai_opt_out.go`), dù ai yêu cầu. Người
+  chưa trả lời thì tin vẫn tới Anthropic khi thành viên khác dùng AI trên web — chính sách và dòng "Xử lý AI" của listing
+  nói đúng vậy (`privacy-content.test.ts`), đừng viết lại thành "chỉ khi người dùng đồng ý". Biên bản cuộc họp
+  (meetings) chưa lọc theo người từ chối. **Báo cáo và chặn**: `data/safety-api.ts` (route chặn qua factory `chat-users-api` của core + `POST …/chat/reports`), key
   `chatKeys.blockStatus`, `data/queries/safety.ts`, lệnh chặn `data/safety-actions.ts` qua `data/mutations/safety.ts`; `components/chat/report-sheet.tsx` (lý do đóng theo
   `lib/report.ts` = CHECK của server, mô tả, "chặn luôn"; tin vừa báo cáo ẩn ngay với người báo cáo —
   `data/stores/reported-messages-store.ts`, giữ trong kho máy và xoá khi đăng xuất, `components/chat/reported-message-row.tsx`

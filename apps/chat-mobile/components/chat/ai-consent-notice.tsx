@@ -1,8 +1,10 @@
 // The AI processing notice (Apple 5.1.2(i)): before UniChat sends anything to
 // the AI provider for the first time, it names the provider and what is sent,
 // and asks. The catch-up sheet shows it in place of the summary until the
-// person agrees; Settings › Privacy & legal shows it with the answer on file
-// and a way to withdraw (AiConsentSheet). The answer lives on the server
+// person agrees; Settings › Privacy & legal shows it with the answer on file,
+// a way to withdraw, and a way to say no (AiConsentSheet). Withdrawing or saying
+// no keeps what the person writes out of every AI request on the server, whoever
+// makes it (users.ai_opt_out_at). The answer lives on the server
 // (data/ai-consent.ts, through useAnswerAiConsent), so a second phone does not
 // ask again.
 import { Ionicons } from "@expo/vector-icons";
@@ -17,7 +19,7 @@ import { TintTile } from "@/components/ui/tint-tile";
 import { useAuthStore } from "@/data/auth/store";
 import { useAnswerAiConsent } from "@/data/mutations/account";
 import { toast } from "@/data/stores/toast-store";
-import { AI_PROVIDER, hasAiConsent } from "@/lib/ai-consent";
+import { AI_PROVIDER, hasAiConsent, hasDeclinedAi } from "@/lib/ai-consent";
 import { legalLinks, legalLocale } from "@/lib/legal-links";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
@@ -114,14 +116,16 @@ export function AiConsentActions({ onDecline, onAgreed }: { onDecline: () => voi
   );
 }
 
-/** Settings › Privacy & legal › AI processing: the notice, the answer on file, agree or withdraw. */
+/** Settings › Privacy & legal › AI processing: the notice, the answer on file, agree, withdraw or say no. */
 export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { t, i18n } = useTranslation();
   const granted = useAiConsent();
+  const declined = useAuthStore((s) => hasDeclinedAi(s.user));
   const agreedAt = useAuthStore((s) => s.user?.ai_consent_at ?? null);
   const answer = useAnswerAiConsent();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Withdrawing and saying no are one answer to the server (DELETE /me/ai-consent); only the words differ.
   const withdraw = async () => {
     if (busy) return;
     setBusy(true);
@@ -129,7 +133,7 @@ export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose
     try {
       await answer.mutateAsync(false);
       onClose();
-      toast.success(t("mobile.ai_consent.withdrawn"));
+      toast.success(t(granted ? "mobile.ai_consent.withdrawn" : "mobile.ai_consent.refused"));
     } catch {
       setFailed(true);
       AccessibilityInfo.announceForAccessibility(t("mobile.ai_consent.failed"));
@@ -168,7 +172,26 @@ export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose
             </Pressable>
           </View>
         ) : (
-          <AiConsentActions onDecline={onClose} onAgreed={onClose} />
+          <View className="gap-2.5">
+            {declined ? <Text className="text-subhead leading-[21px] text-muted-foreground">{t("mobile.ai_consent.refused_note")}</Text> : null}
+            {failed ? (
+              <Text accessibilityRole="alert" className="text-subhead text-destructive">
+                {t("mobile.ai_consent.failed")}
+              </Text>
+            ) : null}
+            <AiConsentActions onDecline={onClose} onAgreed={onClose} />
+            {declined ? null : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ busy, disabled: busy }}
+                testID="ai-consent-refuse"
+                onPress={() => void withdraw()}
+                className="min-h-12 items-center justify-center rounded-full px-4 py-3 active:opacity-70"
+              >
+                <Text className="text-body font-semibold text-destructive">{t("mobile.ai_consent.refuse")}</Text>
+              </Pressable>
+            )}
+          </View>
         )}
       </ScrollView>
     </BottomSheet>
