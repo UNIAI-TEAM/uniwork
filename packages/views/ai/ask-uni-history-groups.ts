@@ -40,7 +40,7 @@ export function formatConversationTime(iso: string, now: Date, locale: string): 
   const days = daysAgo(iso, now);
   if (days === null) return "";
   const at = new Date(iso);
-  if (days <= 0) return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hour12: false }).format(at);
+  if (days <= 0) return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
   if (days < 7) return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(at);
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit" }).format(at);
 }

@@ -103,6 +103,48 @@ describe("AskUniHistory", () => {
     expect(screen.queryByText("Không có hội thoại nào khớp")).toBeNull();
   });
 
+  it("returns to the plain list when the box is cleared", async () => {
+    await open();
+    const box = screen.getByRole("searchbox", { name: "Tìm hội thoại" });
+    await userEvent.type(box, "zzzz");
+    await screen.findByText("Không có hội thoại nào khớp");
+    await userEvent.clear(box);
+    expect(await screen.findByText("Họp tuần")).toBeTruthy();
+    expect(screen.queryByText("Không có hội thoại nào khớp")).toBeNull();
+  });
+
+  it("shows an error with retry and no stale rows when a search fails", async () => {
+    await open();
+    requestMock.mockImplementation((path: string) =>
+      path.includes("?q=") ? Promise.reject(new Error("boom")) : Promise.resolve({ conversations }),
+    );
+    await userEvent.type(screen.getByRole("searchbox", { name: "Tìm hội thoại" }), "ab");
+    expect(await screen.findByText("Không tải được lịch sử hội thoại")).toBeTruthy();
+    expect(screen.queryByText("Họp tuần")).toBeNull();
+    expect(screen.queryByText("Không có hội thoại nào khớp")).toBeNull();
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeTruthy();
+  });
+
+  it("does not show the previous workspace's rows after a switch", async () => {
+    const ws2 = { ...workspace, id: "ws2", slug: "other" };
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/workspaces/ws2/ai/conversations"
+        ? new Promise(() => {})
+        : Promise.resolve({ conversations }),
+    );
+    const tree = (w: Workspace) =>
+      wrapWithNav(
+        <WorkspaceProvider workspace={w} user={user}>
+          <AskUniHistory title="Task quá hạn" />
+        </WorkspaceProvider>,
+      );
+    const { rerender } = render(tree(workspace));
+    fireEvent.click(await screen.findByRole("button", { name: "Lịch sử hội thoại: Task quá hạn" }));
+    await screen.findByText("Họp tuần");
+    rerender(tree(ws2));
+    await waitFor(() => expect(screen.queryByText("Họp tuần")).toBeNull());
+  });
+
   it("still renames and deletes", async () => {
     await open();
     fireEvent.click(firstButton("Đổi tên hội thoại"));

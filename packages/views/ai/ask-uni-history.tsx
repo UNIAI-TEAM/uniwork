@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { ChevronDown, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -85,18 +85,16 @@ export function AskUniHistory({ title }: { title: string }) {
     const id = setTimeout(() => setDebounced(search), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(id);
   }, [search]);
-  const q = searchQuery(debounced);
+  // Under the minimum the plain list shows at once; only a real query waits for the debounce.
+  const q = searchQuery(search) === undefined ? undefined : searchQuery(debounced);
   const conversations = useAiConversations(workspace.id, true, q);
-  // Keep the last answer on screen while the next search loads.
-  const lastItems = useRef<AiConversation[]>([]);
-  if (conversations.data) lastItems.current = conversations.data;
   const remove = useDeleteAiConversation(workspace.id);
   const activeId = useAiPanelStore((s) => s.conversationId);
   const select = useAiPanelStore((s) => s.select);
   const [open, setOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<AiConversation | null>(null);
-  const items = conversations.data ?? lastItems.current;
+  const items = conversations.data ?? [];
   const now = new Date();
   const groups = groupConversations(items, now);
   const loadingSearch = q !== undefined && conversations.isPending && items.length === 0;
@@ -106,7 +104,11 @@ export function AskUniHistory({ title }: { title: string }) {
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
-          if (!next) setRenamingId(null);
+          if (!next) {
+            setRenamingId(null);
+            setSearch("");
+            setDebounced("");
+          }
         }}
       >
         <PopoverTrigger
@@ -132,7 +134,14 @@ export function AskUniHistory({ title }: { title: string }) {
             aria-label={t("history_search")}
             className="h-8"
           />
-          {loadingSearch ? (
+          {conversations.isError ? (
+            <div role="alert" className="flex items-center justify-between gap-2 px-2 py-3 text-caption text-muted-foreground">
+              <span>{t("history_error")}</span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => void conversations.refetch()}>
+                {t("history_retry")}
+              </Button>
+            </div>
+          ) : loadingSearch ? (
             <div className="flex justify-center py-3">
               <Spinner />
             </div>
@@ -159,7 +168,7 @@ export function AskUniHistory({ title }: { title: string }) {
                               aria-current={c.id === activeId ? "true" : undefined}
                               className={cn(
                                 "flex min-w-0 flex-1 items-center gap-2 rounded-control px-2 py-2 text-left text-body hover:bg-surface-hover pointer-coarse:min-h-11",
-                                c.id === activeId && "bg-surface-selected text-surface-selected-foreground",
+                                c.id === activeId && "border-l-2 border-primary bg-surface-selected text-surface-selected-foreground",
                               )}
                               onClick={() => {
                                 select(c.id);
@@ -167,6 +176,7 @@ export function AskUniHistory({ title }: { title: string }) {
                               }}
                             >
                               <span className="min-w-0 flex-1 truncate">{c.title || t("untitled")}</span>
+                              {c.id === activeId ? <span className="sr-only">{t("history_current")}</span> : null}
                               <span className="shrink-0 text-caption text-muted-foreground">
                                 {formatConversationTime(c.updated_at, now, i18n.language)}
                               </span>

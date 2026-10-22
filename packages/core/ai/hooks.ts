@@ -33,6 +33,8 @@ export function useAiConversations(wsId: string, enabled = true, q?: string) {
   return useQuery({
     queryKey: aiKeys.conversations(wsId, q),
     queryFn: () => api.listAiConversations(wsId, q),
+    // Keep rows through a search, but never another workspace's (key slot 2 is wsId).
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[2] === wsId ? prev : undefined),
     enabled,
   });
 }

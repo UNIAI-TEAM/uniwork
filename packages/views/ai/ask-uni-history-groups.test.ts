@@ -24,7 +24,13 @@ describe("groupConversations", () => {
       ["week", ["c"]],
       ["older", ["d"]],
     ]);
-    expect(groupConversations([conv("a", new Date(2026, 9, 21, 9, 0))], now)).toHaveLength(1);
+    expect(groupConversations([conv("a", new Date(2026, 9, 21, 9, 0))], now).map((g) => g.key)).toEqual(["today"]);
+  });
+  it("puts day 6 in week, day 7 in older and a future date in today", () => {
+    const keys = (d: Date) => groupConversations([conv("x", d)], now)[0]?.key;
+    expect(keys(new Date(2026, 9, 15, 23, 0))).toBe("week");
+    expect(keys(new Date(2026, 9, 14, 12, 0))).toBe("older");
+    expect(keys(new Date(2026, 9, 22, 12, 0))).toBe("today");
   });
 });
 
