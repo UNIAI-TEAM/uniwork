@@ -26,6 +26,7 @@ const APP = path.join(ROOT, "apps", "web", "app");
 const PUBLIC = path.join(ROOT, "apps", "web", "public");
 const MOBILE = path.join(ROOT, "apps", "chat-mobile", "assets");
 const DESKTOP = path.join(ROOT, "apps", "chat-desktop", "resources");
+const PLAY = path.join(ROOT, "apps", "chat-mobile", "store", "play");
 
 const pwt = require.resolve("@playwright/test", { paths: [path.join(ROOT, "e2e")] });
 const { chromium } = require(require.resolve("playwright-core", { paths: [path.dirname(pwt)] }));
@@ -83,6 +84,8 @@ const PNGS = [
     size: 96,
     transparent: true,
   },
+  // Play's main store listing: the feature graphic, 1024 x 500, no alpha (squeeze.py).
+  { out: path.join(PLAY, "feature-graphic.png"), source: "unichat-feature-graphic.svg", width: 1024, height: 500 },
   // electron-builder makes .icns and .ico from it; the shell also sets it as
   // the window icon (Windows, Linux) and the dock icon of an unpackaged run.
   {

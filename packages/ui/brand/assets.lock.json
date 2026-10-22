@@ -11,6 +11,7 @@
     "mark-flat.svg": "62f229eef39c3ee7",
     "mark-mono.svg": "120377f077f3935f",
     "mark.svg": "608373b157f0a237",
+    "unichat-feature-graphic.svg": "dbd07585fba388c6",
     "unichat-icon-background.svg": "e4782fe897f70c20",
     "unichat-icon-desktop.svg": "2cb4e549b630aee2",
     "unichat-icon-foreground.svg": "25a82540e4a75b4f",
@@ -69,6 +70,11 @@
       "source": "unichat-notification-icon.svg",
       "size": 96,
       "sha": "a97283c2c4ca59af"
+    },
+    "apps/chat-mobile/store/play/feature-graphic.png": {
+      "source": "unichat-feature-graphic.svg",
+      "size": "1024x500",
+      "sha": "dbd07585fba388c6"
     },
     "apps/chat-desktop/resources/icon.png": {
       "source": "unichat-icon-desktop.svg",

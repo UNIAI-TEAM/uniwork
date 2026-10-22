@@ -3,6 +3,7 @@
 // quoted for review are the ones the app shows, and the iOS privacy manifest declares exactly the
 // data types the App Privacy column of the privacy table lists. The Android side of the permission
 // table is held against the release manifest in android-manifest.test.ts.
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -93,5 +94,31 @@ describe("the iOS privacy manifest", () => {
       ]),
     );
     expect(Object.fromEntries(declared)).toEqual(Object.fromEntries(expected));
+  });
+});
+
+// Store metadata as code (scripts/store-metadata.mjs): generated from listing.md, never edited by hand.
+describe("the generated store metadata", () => {
+  it("is what scripts/store-metadata.mjs makes of listing.md", () => {
+    expect(() => execFileSync(process.execPath, [path.join(__dirname, "scripts/store-metadata.mjs"), "--check"], { stdio: "pipe" })).not.toThrow();
+  });
+
+  it("is what EAS submits for the App Store, and says nothing of calls while iPhone has none", () => {
+    const eas = JSON.parse(fs.readFileSync(path.join(__dirname, "eas.json"), "utf8")) as { submit: Record<string, { ios?: { metadataPath?: string } }> };
+    const metadataPath = eas.submit.production?.ios?.metadataPath ?? "";
+    const apple = JSON.parse(fs.readFileSync(path.join(__dirname, metadataPath), "utf8")) as { apple: { info: Record<string, { subtitle: string; description: string; keywords: string[] }>; review: { notes: string } } };
+    expect(Object.keys(apple.apple.info)).toEqual(["vi", "en-US"]);
+    for (const info of Object.values(apple.apple.info)) {
+      expect(`${info.subtitle}\n${info.description}\n${info.keywords.join(",")}`).not.toMatch(/gọi|call/i);
+    }
+    expect(apple.apple.review.notes).toContain("terms#acceptable-use");
+    expect(apple.apple.review.notes).not.toMatch(/password: /i);
+  });
+
+  it("refuses copy over a store's limit", async () => {
+    const { storeMetadata } = (await import("./scripts/store-metadata.mjs")) as { storeMetadata: (listing: string) => unknown };
+    const long = listing.replace(/(\*\*en — subtitle:\*\*) .*/, "$1 A subtitle far longer than thirty characters");
+    expect(() => storeMetadata(long)).toThrow(/en subtitle is \d+ characters, the store takes 30/);
+    expect(() => storeMetadata(listing.replace("**en — description:**", "**en — nothing:**"))).toThrow(/no "\*\*en — description/);
   });
 });

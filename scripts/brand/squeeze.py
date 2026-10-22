@@ -24,6 +24,7 @@ APP = os.path.join(ROOT, "apps", "web", "app")
 PUBLIC = os.path.join(ROOT, "apps", "web", "public")
 MOBILE = os.path.join(ROOT, "apps", "chat-mobile", "assets")
 DESKTOP = os.path.join(ROOT, "apps", "chat-desktop", "resources")
+PLAY = os.path.join(ROOT, "apps", "chat-mobile", "store", "play")
 
 PNGS = [
     os.path.join(PUBLIC, "brand", "email-lockup.png"),
@@ -40,6 +41,7 @@ PNGS = [
 OPAQUE = [
     os.path.join(MOBILE, "icon.png"),
     os.path.join(MOBILE, "adaptive-icon-background.png"),
+    os.path.join(PLAY, "feature-graphic.png"),
 ]
 ICO = os.path.join(APP, "favicon.ico")
 

@@ -432,6 +432,11 @@ từng mục khi đã nộp:
   Privacy Report, đối chiếu với `store/listing.md` › "iOS privacy manifest" (dữ liệu thu thập, không tracking, lý do API).
   Email ITMS-91053/91061 sau khi upload nghĩa là một lý do hay một SDK thiếu manifest: thêm vào
   `app.config.ts › IOS_PRIVACY_MANIFEST` (và bảng của listing, `store-listing.test.ts` giữ hai bên khớp).
+- [ ] **Store listing**: chữ của Play (main store listing, vi và en) dán từ `apps/chat-mobile/store/play/<locale>/*.txt`,
+  feature graphic `store/play/feature-graphic.png`; App Store: `eas metadata:push` (đường dẫn ở `eas.json ›
+  submit.production.ios.metadataPath`, sinh bởi `node apps/chat-mobile/scripts/store-metadata.mjs` từ `listing.md`).
+  Ảnh chụp: mục "Ảnh chụp và đồ hoạ" của `listing.md`. Support URL hiện là trang chính sách (có địa chỉ liên hệ);
+  có trang hỗ trợ riêng thì đổi trong script.
 - [ ] **App access**: tài khoản demo (mục "Tài khoản demo cho review" của `store/listing.md`).
 - [ ] **Government apps / Financial features / Health**: không.
 

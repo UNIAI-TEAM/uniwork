@@ -1,6 +1,8 @@
 # UniChat mobile — hồ sơ store (bản nháp, UNI-1836)
 
-Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-1838). Tên hiển thị "UniChat", định danh
+Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-1838); `scripts/store-metadata.mjs` sinh từ
+đây `store/apple/store.config.json` (EAS Metadata, `eas metadata:push`) và `store/play/<ngôn ngữ>/*.txt` (main store
+listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự của từng store; `store-listing.test.ts` đỏ khi chúng cũ. Tên hiển thị "UniChat", định danh
 `com.uniworkos.chat` (bản `internal` dùng `com.uniworkos.chat.staging`, tên "UniChat (Staging)"). Lý do và luật: spec
 `docs/superpowers/specs/2026-10-16-chat-native-apps-design.md` §3.1, §3.4, §11; quy trình nộp:
 `docs/runbooks/unichat-mobile-release.md`. Chữ ở đây là bản nháp; chủ sở hữu duyệt trước lần nộp production (Q1).
@@ -8,6 +10,8 @@ Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-
 ## Mô tả
 
 **vi — phụ đề (≤ 30 ký tự):** Nhắn tin và gọi cho cả đội
+
+**vi — phụ đề iPhone (khi gọi còn tắt trên iPhone):** Nhắn tin cho cả đội
 
 **vi — mô tả:**
 
@@ -25,7 +29,9 @@ Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-
 >
 > Cần một tài khoản UniWork. Đăng nhập an toàn qua trình duyệt, ứng dụng không lưu mật khẩu.
 
-**en — subtitle:** Messages and calls for your team
+**en — subtitle:** Team messaging and calls
+
+**en — iPhone subtitle (while calls are off on iPhone):** Messaging for your team
 
 **en — description:**
 
@@ -112,14 +118,7 @@ chứa chữ tự do); chủ sở hữu đọc nó trong bản xuất dữ liệ
 vận hành UniWork không tự thấy báo cáo nào: người dùng và reviewer báo cáo thẳng với nhà vận hành qua
 `contact@unicomhub.com` (chính sách riêng tư nói vậy). Chặn: chi tiết cuộc trò chuyện riêng hoặc thành
 viên nhóm › Chặn nhắn tin (hai bên không nhắn riêng được; cuộc trò chuyện biến khỏi danh sách người chặn); cuộc trò
-chuyện hiện người nào đã chặn. Ghi chú cho reviewer (en):
-
-> Our terms of use (https://app.uniworkos.com/terms#acceptable-use), which every user agrees to when they sign up and
-> sign in, forbid objectionable content and abusive users with no tolerance. Long-press any message from another person and choose "Report". In a direct conversation, open its details (tap the
-> name at the top) for "Block" and "Report". The organization's owners and admins see each report (reason, the
-> person or message reported, and who reported it) in the web app's Settings › Activity log. Anyone can also report
-> content or a user directly to the operator at contact@unicomhub.com, which we review within 24 hours, removing the
-> content and suspending or terminating the offending account.
+chuyện hiện người nào đã chặn. Ghi chú cho reviewer: **Review notes (en)** ở mục "Tài khoản demo cho review".
 
 ## Quyền và chuỗi xin quyền
 
@@ -193,15 +192,35 @@ báo báo cho server). Danh sách quyền và dịch vụ cuối cùng của b�
    (`review@…` cho Apple/Google và một tài khoản thứ hai để có người trò chuyện), vài phòng có sẵn tin, một cuộc gọi
    mẫu trong lịch sử.
 2. Tài khoản review đăng nhập bằng email + mật khẩu (reviewer không dùng được Google SSO), không MFA.
-3. App Store Connect → App Review Information → Sign-in required: email, mật khẩu, và ghi chú (en):
-   > Tap "Sign in". The app opens a secure browser sheet on uniworkos.com; enter the email and password above, then tap
-   > "Allow" and "Open UniChat" to return to the app. To test a call, open the room "Review" and tap the call button;
-   > the second account can be reached the same way from another device or from https://app.uniworkos.com.
+3. App Store Connect → App Review Information → Sign-in required: email, mật khẩu, và **Review notes (en)** dưới đây
+   (`store/apple/store.config.json › review.notes` mang đúng chữ này, trừ đoạn gọi điện khi iPhone còn tắt gọi; mật
+   khẩu chỉ nằm ở App Store Connect và Play Console, không trong repo).
 4. Play Console → App content → App access: cùng thông tin.
 5. Đổi mật khẩu sau mỗi đợt review; không để tài khoản này là thành viên org nào khác.
 
-## Ảnh chụp
+**Review notes (en):**
 
-Chụp ở phase 2, khi màn M2a/M3 xong (có thể lấy từ ảnh của Maestro trên simulator): iPhone 6,9" (1320 × 2868) và
-6,5" (1242 × 2688), Android phone (1080 × 1920 trở lên), tối thiểu 3 ảnh mỗi ngôn ngữ: danh sách hội thoại, một cuộc
-trò chuyện, cuộc gọi. Dữ liệu trong ảnh lấy từ org "UniChat Review", không dữ liệu khách hàng.
+> Tap "Sign in". The app opens a secure browser sheet on uniworkos.com; enter the email and password above, then tap
+> "Allow" and "Open UniChat" to return to the app.
+>
+> To test a call, open the room "Review" and tap the call button; the second account can be reached the same way from
+> another device or from https://app.uniworkos.com.
+>
+> Our terms of use (https://app.uniworkos.com/terms#acceptable-use), which every user agrees to when they sign up and
+> sign in, forbid objectionable content and abusive users with no tolerance. Long-press any message from another
+> person and choose "Report". In a direct conversation, open its details (tap the name at the top) for "Block" and
+> "Report". The organization's owners and admins see each report (reason, the person or message reported, and who
+> reported it) in the web app's Settings › Activity log. Anyone can also report content or a user directly to the
+> operator at contact@unicomhub.com, which we review within 24 hours, removing the content and suspending or
+> terminating the offending account.
+
+## Ảnh chụp và đồ hoạ
+
+**Feature graphic của Play** (1024 × 500, không chữ, không kênh alpha): `store/play/feature-graphic.png`, sinh bởi
+`pnpm brand:build` từ `packages/ui/brand/svg/unichat-feature-graphic.svg` (khoá trong `assets.lock.json`); không sửa tay.
+
+**Ảnh chụp màn hình** (chưa có — cần máy hoặc simulator chạy bản staging với org "UniChat Review"; owner action): iPhone
+6,9" (1320 × 2868) và 6,5" (1242 × 2688), Android phone (1080 × 1920 trở lên), tối thiểu 3 ảnh mỗi ngôn ngữ (vi và en):
+danh sách hội thoại, một cuộc trò chuyện, cuộc gọi (ảnh cuộc gọi chỉ cho Play khi iPhone còn tắt gọi). Chụp bằng flow
+Maestro trên simulator/emulator, lưu vào `store/apple/screenshots/<locale>/` và `store/play/<locale>/images/`
+(bố cục EAS Metadata và fastlane supply). Dữ liệu trong ảnh lấy từ org "UniChat Review", không dữ liệu khách hàng.

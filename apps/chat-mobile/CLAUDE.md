@@ -891,5 +891,9 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   `IOS_PRIVACY_MANIFEST` — `ios.privacyManifests` — khai đúng các loại dữ liệu và mức linked/purpose của cột Apple App
   Privacy, không tracking, lý do API cần khai báo), `android-manifest.test.ts` (mọi quyền của manifest bản release có
   tên trong mục Quyền của listing và ngược lại; `maxSdkVersion` của từng quyền), `privacy-content.test.ts` của web
-  (chính sách nói từng dòng của bảng Quyền riêng tư). Apple 4.8 (Sign in with Apple) chờ tài khoản Apple:
+  (chính sách nói từng dòng của bảng Quyền riêng tư). Metadata cho store là code sinh từ listing:
+  `scripts/store-metadata.mjs` viết `store/apple/store.config.json` (EAS Metadata; iPhone bỏ dòng, từ khoá và ghi chú về
+  gọi khi gọi còn tắt trên iPhone) và `store/play/<locale>/*.txt`, kiểm giới hạn ký tự của store;
+  `store-listing.test.ts` chạy `--check`. Sửa chữ ở `listing.md` rồi chạy script, không sửa tệp sinh ra. Feature
+  graphic của Play: `store/play/feature-graphic.png` từ `pnpm brand:build`. Apple 4.8 (Sign in with Apple) chờ tài khoản Apple:
   `docs/adr/drafts/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md`.

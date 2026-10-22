@@ -52,7 +52,8 @@
       "android": { "track": "internal" }
     },
     "production": {
-      "android": { "track": "production", "releaseStatus": "draft" }
+      "android": { "track": "production", "releaseStatus": "draft" },
+      "ios": { "metadataPath": "./store/apple/store.config.json" }
     }
   }
 }

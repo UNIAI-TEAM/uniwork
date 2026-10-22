@@ -263,6 +263,22 @@ def unichat_notification_icon(m: Mark, uid="n") -> str:
                w=1024, h=1024)
 
 
+def unichat_feature_graphic(m: Mark, uid="p") -> str:
+    """Google Play's feature graphic (1024 x 500): the icon's ramp across the
+    banner and the white bubble with the mark, centred, no text - Play overlays
+    the app name and crops the edges on some surfaces, so nothing sits near them."""
+    defs, glyph = unichat_glyph(m, uid)
+    x0, y0 = BUBBLE_X - 6, BUBBLE_Y
+    x1, y1 = BUBBLE_X + BUBBLE_W, BUBBLE_Y + BUBBLE_H + 118
+    k = 300 / (y1 - y0)
+    tx = 512 - k * (x0 + x1) / 2
+    ty = 250 - k * (y0 + y1) / 2
+    body = (f'<defs>{gradient(uid + "g", 0, 500, 1024, 0)}{defs}</defs>'
+            f'<rect width="1024" height="500" fill="url(#{uid}g)"/>'
+            f'<g transform="translate({_n(tx)} {_n(ty)}) scale({_n(k)})">{glyph}</g>')
+    return svg(body, w=1024, h=500)
+
+
 def unichat_adaptive_background(uid="k") -> str:
     return svg(f'<defs>{gradient(uid + "g", 0, 1024, 1024, 0)}</defs>'
                f'<rect width="1024" height="1024" fill="url(#{uid}g)"/>', w=1024, h=1024)
@@ -382,6 +398,7 @@ def main():
         "unichat-icon-background.svg": unichat_adaptive_background(),
         "unichat-icon-monochrome.svg": unichat_adaptive_monochrome(full),
         "unichat-notification-icon.svg": unichat_notification_icon(full),
+        "unichat-feature-graphic.svg": unichat_feature_graphic(full),
     }
     for m, label in ((full, "mark"), (compact, "compact")):
         margin = m.cusp_margin()
