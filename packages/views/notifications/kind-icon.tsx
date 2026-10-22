@@ -5,6 +5,7 @@ import {
   Bookmark,
   CircleCheck,
   CircleX,
+  Crown,
   FileDown,
   KeyRound,
   Lock,
@@ -59,6 +60,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   document_shared: Share2,
   document_trashed_by_other: Trash2,
   document_changed: MODULE_ICONS.documents,
+  document_owner_transferred: Crown,
 };
 
 /**

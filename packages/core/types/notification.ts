@@ -36,6 +36,7 @@ export const NOTIFICATION_KINDS = [
   "document_shared",
   "document_trashed_by_other",
   "document_changed",
+  "document_owner_transferred",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

@@ -71,6 +71,7 @@ export const WS_EVENT_TYPES = [
   "document.link_created",
   "document.link_revoked",
   "document.moved",
+  "document.owner_transferred",
   "document.archived",
   "document.restored",
   "document.shelved",
