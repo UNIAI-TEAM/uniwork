@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../test/api-mock";
+import { formatMeetingDayTime } from "./meeting-detail-format";
 import { formatOffset, MeetingEvidenceChip, recordingOffset } from "./meeting-evidence-chip";
 
 beforeAll(() => {
@@ -85,6 +86,32 @@ describe("MeetingEvidenceChip", () => {
     // Only the spoken line has a moment in the recording.
     expect(await screen.findByRole("button", { name: "Mở bản ghi tại 1:15" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Mở bản ghi/ })).toHaveLength(1);
+  });
+
+  it("names the day of a cited line spoken past the meeting's own day", async () => {
+    const late = "2026-10-21T01:00:00Z";
+    requestMock.mockReset();
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.includes("/evidence?")) return Promise.resolve({ items: [{ kind: "note", id: "n1", author: "Minh", text: "Chốt sau nửa đêm", at: late }] });
+      if (p.endsWith("/recordings")) return Promise.resolve({ recordings: [] });
+      if (p.endsWith("/meetings/m1")) {
+        return Promise.resolve({
+          meeting: {
+            id: "m1", workspace_id: "w1", title: "Họp muộn", description: "", room_name: "r", created_by: "u1", host_user_id: "u1",
+            status: "ENDED", starts_at: "2026-10-20T16:30:00Z", ends_at: "2026-10-20T17:30:00Z",
+          },
+        });
+      }
+      return Promise.resolve({});
+    });
+    const u = userEvent.setup();
+    render(wrap(<MeetingEvidenceChip meetingId="m1" evidence={[{ kind: "note", id: "n1" }]} />));
+    await u.click(screen.getByRole("button", { name: "Căn cứ 1 nguồn" }));
+    expect(await screen.findByText("Chốt sau nửa đêm")).toBeInTheDocument();
+    // In any zone the line falls on the day after the meeting began: its day is said, not the clock alone.
+    const when = await screen.findByText(formatMeetingDayTime(late, "vi-VN"));
+    expect(when.tagName).toBe("TIME");
   });
 
   it("offers no recording when none covers the line, and says when the sources are gone", async () => {

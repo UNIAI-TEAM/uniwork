@@ -369,20 +369,16 @@ describe("AskUniPanel", () => {
       expect(await screen.findByText("UNI couldn't answer this one.")).toBeInTheDocument();
     });
 
-    it("words a transcript source in the reader's language, old prefixed titles included", async () => {
+    it("words a transcript source in the reader's language", async () => {
       await i18n.changeLanguage("en");
       openWith({
-        content: "Chốt demo [S1] [S2].",
-        citations: [
-          { source_id: "S1", kind: "transcript", title: "Giao ban", href: "/acme/team/meetings/m1?section=transcript" },
-          { source_id: "S2", kind: "transcript", title: "Lời thoại: Giao ban", href: "/acme/team/meetings/m1#transcript" },
-        ],
+        content: "Chốt demo [S1].",
+        citations: [{ source_id: "S1", kind: "transcript", title: "Giao ban", href: "/acme/team/meetings/m1?section=transcript" }],
       });
       expect(await screen.findByRole("link", { name: /\[S1\]\s*Transcript: Giao ban$/ })).toHaveAttribute(
         "href",
         "/acme/team/meetings/m1?section=transcript",
       );
-      expect(screen.getByRole("link", { name: /\[S2\]\s*Transcript: Giao ban$/ })).toBeInTheDocument();
     });
 
     it("renders old answers without notice as plain text", async () => {

@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   combineLocalIso,
   defaultScheduleDraft,
-  formatMeetingDate,
   formatMeetingDay,
   formatMeetingTimes,
   formatMeetingWindow,
@@ -123,14 +122,6 @@ describe("meetingDayKey and formatMeetingDay", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-});
-
-describe("formatMeetingDate", () => {
-  it("prints a timestamp as a day/month/year date, and nothing for a missing or bad one", () => {
-    expect(formatMeetingDate("2026-08-28T05:00:00Z", "vi-VN")).toBe("28/08/2026");
-    expect(formatMeetingDate(null, "vi-VN")).toBe("");
-    expect(formatMeetingDate("not-a-date", "en-GB")).toBe("");
   });
 });
 

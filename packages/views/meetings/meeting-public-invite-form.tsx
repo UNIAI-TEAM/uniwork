@@ -10,7 +10,8 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CameraPreviewFrame, CameraPreviewPlaceholder } from "./meeting-camera-placeholder";
 import type { CameraPreviewStatus } from "./meeting-camera-preview";
-import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
+import { meetingLocale } from "./meeting-datetime";
+import { formatMeetingDayTime } from "./meeting-detail-format";
 import { MeetingInviteShell } from "./meeting-invite-shell";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
 import type { PreJoinChoice } from "./meeting-prejoin";
@@ -103,7 +104,7 @@ export function MeetingPublicInviteForm({
       videoDeviceId: video && videoDeviceId ? videoDeviceId : undefined,
     });
   };
-  const formattedStart = formatMeetingStart(startsAt, meetingLocale(i18n.language));
+  const formattedStart = formatMeetingDayTime(startsAt, meetingLocale(i18n.language));
 
   return (
     <MeetingInviteShell>

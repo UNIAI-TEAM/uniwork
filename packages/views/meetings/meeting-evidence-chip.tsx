@@ -2,13 +2,14 @@
 import { useState } from "react";
 import { Play, Quote } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useRecordings } from "@uniwork/core/meetings";
+import { useMeeting, useRecordings } from "@uniwork/core/meetings";
 import { useMeetingEvidence } from "@uniwork/core/meetings/summary";
 import type { MeetingEvidenceRef, MeetingRecording } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { meetingLocale } from "./meeting-datetime";
+import { meetingDayKey, meetingLocale } from "./meeting-datetime";
+import { formatMeetingMoment } from "./meeting-detail-format";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 
@@ -124,6 +125,7 @@ function EvidenceSources({
   const { t, i18n } = useTranslation();
   const query = useMeetingEvidence(meetingId, evidence, true);
   const { data: recordings } = useRecordings(meetingId);
+  const { data: meeting } = useMeeting(meetingId);
   if (query.isPending) {
     return (
       <MeetingSectionLoading label={t("meetings.evidence.loading")}>
@@ -137,8 +139,9 @@ function EvidenceSources({
   if (query.data.length === 0) {
     return <p className="text-caption text-muted-foreground">{t("meetings.evidence.gone")}</p>;
   }
-  // The viewer's clock, as every meeting screen reads times (meeting-datetime.ts).
-  const time = new Intl.DateTimeFormat(meetingLocale(i18n.language), { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  // The viewer's clock, as every meeting screen reads times; a line past the meeting's own day names its day.
+  const locale = meetingLocale(i18n.language);
+  const meetingDay = meeting ? meetingDayKey(meeting.actual_start_at ?? meeting.starts_at) : undefined;
   return (
     <ul className="max-h-80 space-y-3 overflow-y-auto">
       {query.data.map((src) => {
@@ -154,7 +157,7 @@ function EvidenceSources({
                 <>
                   <span aria-hidden>·</span>
                   <time dateTime={src.at ?? undefined} className="tabular-nums">
-                    {time.format(at)}
+                    {formatMeetingMoment(src.at, locale, meetingDay)}
                   </time>
                 </>
               ) : null}

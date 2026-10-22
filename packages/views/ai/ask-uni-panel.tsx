@@ -88,12 +88,9 @@ function noticeText(t: Translate, code: string): string {
   }
 }
 
-// Answers saved before the server stopped prefixing the title carry the label in it already.
-const LEGACY_TRANSCRIPT_PREFIX = /^(Lời thoại|Transcript): /;
-
 /** A transcript source is the meeting's title, worded in the reader's language. */
 function citationLabel(t: Translate, c: AiCitation): string {
-  if (c.kind === "transcript") return t("source_transcript", { title: c.title.replace(LEGACY_TRANSCRIPT_PREFIX, "") });
+  if (c.kind === "transcript") return t("source_transcript", { title: c.title });
   return c.title || c.kind;
 }
 
