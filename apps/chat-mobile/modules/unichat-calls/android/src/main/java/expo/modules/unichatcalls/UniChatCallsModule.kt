@@ -5,14 +5,17 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import expo.modules.kotlin.Promise
+import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 /**
  * UniChat's native calls on Android (docs/adr/drafts/0038), as JavaScript
  * sees them through modules/unichat-calls/index.ts. Every function is cheap
- * and synchronous; the policy (when to ring, when the service runs) lives in
- * data/calls/, which tests it with this module mocked.
+ * and synchronous but leaveLockScreen, which waits for the person to unlock;
+ * the policy (when to ring, when the service runs) lives in data/calls/, which
+ * tests it with this module mocked.
  */
 class UniChatCallsModule : Module() {
   private val context: Context
@@ -65,6 +68,15 @@ class UniChatCallsModule : Module() {
     Function("releaseLockScreen") {
       (appContext.currentActivity ?: CallLockScreen.current())?.let { CallLockScreen.release(it) }
     }
+
+    AsyncFunction("leaveLockScreen") { promise: Promise ->
+      val activity = appContext.currentActivity ?: CallLockScreen.current()
+      if (activity == null) {
+        promise.resolve(true)
+      } else {
+        CallLockScreen.leave(activity) { left -> promise.resolve(left) }
+      }
+    }.runOnQueue(Queues.MAIN)
 
     Function("setProximityScreenOff") { on: Boolean ->
       CallProximity.set(context, on)

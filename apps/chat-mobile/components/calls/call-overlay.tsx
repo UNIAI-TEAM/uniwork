@@ -9,6 +9,8 @@
 // call lifts the app lock's screen (components/app/privacy-guard.tsx), so
 // while the lock is engaged the call cannot shrink: shrunk, it would leave
 // every chat usable past the lock; already shrunk, it takes the screen again.
+// The phone's own lock likewise: a call answered over it shrinks only after
+// Android's unlock (nativeCalls.leaveLockScreen); cancelled, it stays whole.
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
@@ -21,6 +23,7 @@ import { haptics } from "@/components/ui/haptics";
 import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { Text } from "@/components/ui/text";
 import { callEngine, useVoiceCall } from "@/data/calls/call-store";
+import { nativeCalls } from "@/data/calls/native-calls";
 import { callRecordingOptions, roomsOptions } from "@/data/queries/chat";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import type { CallRoom as CallRoomComponent } from "./call-room";
@@ -177,6 +180,8 @@ export function CallOverlay() {
 
   if (call.status === "idle") return null;
   const small = minimized && live && !lockEngaged;
+  // Over a locked phone the rest of the app shows only once the person unlocked it (Android asks for the PIN).
+  const minimize = () => void nativeCalls.leaveLockScreen().then((left) => left && setMinimized(true));
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       {/* Shrunk, the room stays mounted (unmounting would hang up) but takes no room and no touches. */}
@@ -190,7 +195,7 @@ export function CallOverlay() {
       >
         {/* Light status-bar glyphs over the dark call, whatever the app theme; unmounting hands back the root's. */}
         {small ? null : <StatusBar style="light" />}
-        <CallBody call={call} recording={recording} onMinimize={lockEngaged ? undefined : () => setMinimized(true)} minimized={small} seed={faceSeed} />
+        <CallBody call={call} recording={recording} onMinimize={lockEngaged ? undefined : minimize} minimized={small} seed={faceSeed} />
       </SafeAreaView>
       {small ? (
         // Just under a screen's 48 pt header, so its back button and title stay reachable; the status bar takes no touches.

@@ -20,6 +20,8 @@ const NONE: UniChatCallsModule = {
   canUseFullScreenIntent: () => true,
   openFullScreenIntentSettings: () => undefined,
   releaseLockScreen: () => undefined,
+  // No module, no lock-screen hold (iOS, Expo Go): nothing to unlock first.
+  leaveLockScreen: () => Promise.resolve(true),
   setProximityScreenOff: () => undefined,
   takePendingActions: (): NativeCallAction[] => [],
   takeAnsweredCall: () => false,
@@ -40,6 +42,7 @@ export function nativeCallsFrom(module: UniChatCallsModule | null): NativeCalls 
     canUseFullScreenIntent: () => module.canUseFullScreenIntent(),
     openFullScreenIntentSettings: () => module.openFullScreenIntentSettings(),
     releaseLockScreen: () => module.releaseLockScreen(),
+    leaveLockScreen: () => module.leaveLockScreen(),
     setProximityScreenOff: (on) => module.setProximityScreenOff(on),
     takePendingActions: () => module.takePendingActions(),
     takeAnsweredCall: (callId) => module.takeAnsweredCall(callId),

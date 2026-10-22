@@ -530,6 +530,10 @@ lại — nhạc chuông, màn toàn màn hình, push khi app bị kill, OEM. Ch
 - [ ] B kill app, khoá máy; A gọi, B không chạm gì tới khi hết chuông: chậm nhất 75 s sau lần màn sáng, máy B về màn
   khoá của máy (watchdog `CallLockScreen.HOLD_MS`), không để app mở trên màn khoá. Nghe rồi nói chuyện quá 75 s: màn cuộc
   gọi vẫn ở trên màn khoá tới khi gác máy.
+- [ ] Như trên nhưng để màn tự tắt trước 75 s và máy nằm yên (ngủ sâu) vài phút rồi bấm nút nguồn: màn khoá của máy hiện,
+  không phải UniChat (`CallLockScreen.recheck` ở `onResume`, theo `elapsedRealtime`).
+- [ ] Nghe từ màn khoá rồi bấm thu nhỏ cuộc gọi: Android hỏi PIN/vân tay trước; huỷ thì màn cuộc gọi ở nguyên, không thấy
+  chat nào; mở khoá thì cuộc gọi thu thành nút "Quay lại cuộc gọi", và khoá máy lại thì màn khoá che app như thường.
 - [ ] Cuộc gọi thoại ở loa trong: áp máy vào tai thì màn tắt (máy có cảm biến tiệm cận), bỏ ra thì sáng lại; chuyển loa
   ngoài hay Bluetooth thì che cảm biến không tắt màn; gọi video không bao giờ tắt màn; gác máy thì màn không còn tắt khi che.
   Thu nhỏ cuộc gọi rồi gõ tin, hoặc bấm Home sang app khác: che cảm biến không tắt màn; mở lại màn cuộc gọi

@@ -31,6 +31,8 @@ class CallActivityListener : ReactActivityLifecycleListener {
 
   override fun onResume(activity: Activity?) {
     activity?.let { CallLockScreen.track(it) }
+    // Waking the phone resumes an activity shown over the lock: a launch past its hold goes back behind it now.
+    CallLockScreen.recheck()
   }
 
   override fun onNewIntent(intent: Intent?): Boolean {

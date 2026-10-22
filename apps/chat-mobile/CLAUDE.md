@@ -462,7 +462,12 @@ một dòng thì ghi lý do ở dòng trên.
   (`CallLockScreen`, nhả khi cuộc gọi xong, và khi lần đổ chuông mở app không thành màn cuộc gọi — cuộc gọi đã kết thúc
   lúc app mở lạnh, công tắc gọi tắt — trước khi tab Chat mở phòng, `use-deep-link-target.ts`; thêm một watchdog native:
   `HOLD_MS` (75 s: cửa sổ chuông 60 s + mở lạnh) sau lần mở cuối mà không có dịch vụ cuộc gọi nào chạy thì tự nhả, dù JS
-  có làm gì, cuộc gọi đang diễn ra thì giữ và kiểm lại mỗi `HOLD_MS`; listener đăng ký qua `UniChatCallsPackage.kt` — autolinking chỉ nhận
+  có làm gì, cuộc gọi đang diễn ra thì giữ và kiểm lại mỗi `HOLD_MS`. Đồng hồ của `Handler` là uptime, dừng khi máy ngủ
+  sâu, nên lần mở còn được tính theo `elapsedRealtime` và `onResume` (bấm nút nguồn đánh thức máy) nhả ngay khi đã quá
+  `HOLD_MS` mà không có cuộc gọi — watchdog một mình có thể để app trên màn khoá hàng giờ. Thu nhỏ cuộc gọi đang hiện
+  trên màn khoá đòi mở khoá trước: `nativeCalls.leaveLockScreen()` → `CallLockScreen.leave` (`requestDismissKeyguard`,
+  Android hỏi PIN/vân tay; huỷ thì màn cuộc gọi ở nguyên, mở được thì nhả giữ để khoá máy lại sẽ che app như thường;
+  dưới Android 8 không thu nhỏ được khi máy khoá), `call-overlay.tsx` chỉ thu nhỏ khi nó trả `true`; listener đăng ký qua `UniChatCallsPackage.kt` — autolinking chỉ nhận
   `Package` từ file tên `*Package.kt`). Mã Kotlin nằm trong git: `.gitignore` của app chỉ bỏ `/android/` và `/ios/` ở
   gốc; `native-modules.test.ts` đỏ khi git thiếu project native của module, khi có gì dưới đó bị ignore, khi một
   `Package` nằm sai file, hay khi autolinking không liệt kê `UniChatCallsPackage`. Khai báo ở `plugins/with-unichat-calls.js` (quyền, service, receiver; gỡ

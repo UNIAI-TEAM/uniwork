@@ -3,6 +3,7 @@ package expo.modules.unichatcalls
 import android.Manifest
 import android.app.Activity
 import android.app.Application
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -14,6 +15,7 @@ import java.time.Duration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -22,12 +24,15 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSystemClock
 
 /**
  * The app's activity over the lock screen (review P2: CallLockScreen and the activity listener of
  * UniChatCallsPackage had no test): only a launch carrying its ring's token shows the app over the
  * lock screen and records Answer, a recreated activity does not answer twice, an intent another app
- * crafted does neither, and the end of the call gives the lock screen back.
+ * crafted does neither, and the end of the call gives the lock screen back. Review P2: the watchdog's clock
+ * (uptime) stops while the phone sleeps, so waking it gives back a launch held past HOLD_MS of real time.
+ * Review P1: leaving the call screen over a locked phone asks for the unlock first.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -154,6 +159,85 @@ class CallLockScreenTest {
     service.destroy()
     advance(CallLockScreen.HOLD_MS)
     assertFalse(shadowOf(activity).showWhenLocked)
+  }
+
+  @Test
+  fun aLaunchLeftOverTheLockWhileThePhoneSleptGoesBehindItWhenThePhoneWakes() {
+    CallService.stop(app) // no call's service left from another test
+    val (open, _) = ring()
+    val activity = activity(open)
+    val listener = CallActivityListener()
+    listener.onCreate(activity, null)
+    listener.onResume(activity)
+    assertTrue("just launched", shownOverLock(activity))
+    // The screen timed out and the phone slept for hours: uptime, the watchdog's clock, stood still.
+    ShadowSystemClock.simulateDeepSleep(Duration.ofMillis(CallLockScreen.HOLD_MS * 100))
+    assertTrue("nothing ran while it slept", shownOverLock(activity))
+    // The power button wakes it and resumes the activity: the app goes back behind the lock before anyone browses.
+    listener.onResume(activity)
+    assertFalse(shadowOf(activity).showWhenLocked)
+    assertFalse(shadowOf(activity).turnScreenOn)
+  }
+
+  @Test
+  fun wakingThePhoneWithinTheHoldOrDuringACallKeepsTheCallScreenOverTheLock() {
+    CallService.stop(app)
+    val (_, answer) = ring()
+    val activity = activity(answer)
+    val listener = CallActivityListener()
+    listener.onCreate(activity, null)
+    ShadowSystemClock.simulateDeepSleep(Duration.ofMillis(CallLockScreen.HOLD_MS - 1_000))
+    listener.onResume(activity)
+    assertTrue("still within the ring window", shownOverLock(activity))
+    val service = Robolectric.buildService(CallService::class.java).create()
+    ShadowSystemClock.simulateDeepSleep(Duration.ofMillis(CallLockScreen.HOLD_MS * 10))
+    listener.onResume(activity)
+    assertTrue("the call is under way", shownOverLock(activity))
+    service.destroy()
+    listener.onResume(activity)
+    assertFalse("the call is over and the hold long past", shadowOf(activity).showWhenLocked)
+  }
+
+  private val keyguard get() = shadowOf(app.getSystemService(KeyguardManager::class.java))
+
+  @Test
+  fun leavingTheCallScreenOverALockedPhoneAsksForTheUnlockFirst() {
+    val (_, answer) = ring()
+    val activity = activity(answer)
+    CallActivityListener().onCreate(activity, null)
+    keyguard.setKeyguardLocked(true)
+
+    var left: Boolean? = null
+    CallLockScreen.leave(activity) { left = it }
+    assertNull("Android asks for the PIN, the call screen waits", left)
+    // The person cancels the PIN: the call screen stays over the lock, nothing else of the app shows.
+    keyguard.setKeyguardLocked(true)
+    assertEquals(false, left)
+    assertTrue(shownOverLock(activity))
+
+    left = null
+    CallLockScreen.leave(activity) { left = it }
+    keyguard.setKeyguardLocked(false)
+    assertEquals("unlocked: the app may show", true, left)
+    assertFalse("and locking the phone later hides it as usual", shadowOf(activity).showWhenLocked)
+  }
+
+  @Test
+  fun leavingIsFreeWhenTheAppIsNotHeldOverALock() {
+    val (_, answer) = ring()
+    val activity = activity(answer)
+    CallActivityListener().onCreate(activity, null)
+    // Shown for the call, but the person had unlocked the phone already: the hold goes, no PIN asked.
+    keyguard.setKeyguardLocked(false)
+    var left: Boolean? = null
+    CallLockScreen.leave(activity) { left = it }
+    assertEquals(true, left)
+    assertFalse(shadowOf(activity).showWhenLocked)
+    // Not shown over the lock at all (an ordinary launch): nothing to ask.
+    keyguard.setKeyguardLocked(true)
+    left = null
+    CallLockScreen.leave(activity) { left = it }
+    assertEquals(true, left)
   }
 
   @Test

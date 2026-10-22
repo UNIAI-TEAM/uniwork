@@ -6,6 +6,7 @@ import { setAppLockEngaged } from "@/components/app/app-lock-state";
 import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { callEngine } from "@/data/calls/call-store";
 import { chatApi } from "@/data/chat-api";
+import { nativeCalls } from "@/data/calls/native-calls";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import { render, viText } from "@/test/render";
@@ -33,10 +34,15 @@ jest.mock("./call-room", () => ({
   },
 }));
 
+// The lock-screen hold of an Android call launch (modules/unichat-calls › CallLockScreen.leave): not held unless a test says.
+jest.mock("@/data/calls/native-calls", () => ({ nativeCalls: { leaveLockScreen: jest.fn(async () => true) } }));
+const leaveLockScreen = jest.mocked(nativeCalls.leaveLockScreen);
+
 const setCall = (call: VoiceCallOverlayState) => act(() => callEngine.store.setState({ call }));
 const base = { callId: "call-1", roomId: "dm1", peerName: "Bình", callKind: "dm" as const };
 
 beforeEach(() => {
+  leaveLockScreen.mockClear();
   useWorkspaceStore.setState({ current: { orgSlug: "acme", wsSlug: "hq", wsId: "w1" } as never });
   jest.spyOn(chatApi, "listRooms").mockResolvedValue([]);
   jest.spyOn(chatApi, "callRecordingActive").mockResolvedValue(false);
@@ -113,6 +119,24 @@ describe("CallOverlay", () => {
     await fireEvent.press(pill);
     expect(screen.queryByRole("button", { name: `${viText("chat.mobile.call_back_to")}, Bình` })).toBeNull();
     expect(screen.getByText("room:Bình:recording")).toBeOnTheScreen();
+  });
+
+  it("shrinks a call shown over the phone's lock screen only once the person unlocks it", async () => {
+    let unlock: (left: boolean) => void = () => undefined;
+    leaveLockScreen.mockReturnValueOnce(new Promise((resolve) => (unlock = resolve)));
+    await render(<CallOverlay />);
+    await setCall({ status: "active", ...base, outgoing: true, token: "t", url: "wss://lk" });
+    await fireEvent.press(await screen.findByRole("button", { name: "minimize" }));
+    const pill = () => screen.queryByRole("button", { name: `${viText("chat.mobile.call_back_to")}, Bình` });
+    // Android shows its PIN prompt; the call screen waits, and cancelling it keeps the call whole.
+    expect(pill()).toBeNull();
+    await act(async () => unlock(false));
+    expect(pill()).toBeNull();
+    expect(screen.getByText("room:Bình:quiet")).toBeOnTheScreen();
+    // Unlocked: the call shrinks and the app shows.
+    await fireEvent.press(screen.getByRole("button", { name: "minimize" }));
+    expect(leaveLockScreen).toHaveBeenCalledTimes(2);
+    expect(pill()).toBeOnTheScreen();
   });
 
   it("cannot shrink while the app lock is engaged, and a shrunk call takes the screen again when it engages", async () => {

@@ -17,6 +17,7 @@ function fakeModule(): UniChatCallsModule {
     canUseFullScreenIntent: vi.fn(() => false),
     openFullScreenIntentSettings: vi.fn(),
     releaseLockScreen: vi.fn(),
+    leaveLockScreen: vi.fn(async () => false),
     setProximityScreenOff: vi.fn(),
     takePendingActions: vi.fn(() => [{ action: "decline", callId: "c", roomId: "r", workspaceId: "w", callKind: "dm", at: 1 }]),
     takeAnsweredCall: vi.fn((callId: string) => callId === "c"),
@@ -27,7 +28,7 @@ const INCOMING = { callId: "c", roomId: "r", workspaceId: "w", callerName: "Minh
 const ONGOING = { callId: "c", roomId: "r", workspaceId: "w", peerName: "Minh", text: "", video: false, startedAt: 0 };
 
 describe("nativeCalls", () => {
-  it("is a set of no-ops without the module (iOS, Expo Go, tests)", () => {
+  it("is a set of no-ops without the module (iOS, Expo Go, tests)", async () => {
     expect(nativeCalls.available).toBe(false);
     nativeCalls.ensureChannels({ calls: "", callsDescription: "", ongoing: "", ongoingDescription: "" });
     expect(nativeCalls.showIncomingCall(INCOMING)).toBe(false);
@@ -39,12 +40,13 @@ describe("nativeCalls", () => {
     expect(nativeCalls.canUseFullScreenIntent()).toBe(true);
     nativeCalls.openFullScreenIntentSettings();
     nativeCalls.releaseLockScreen();
+    await expect(nativeCalls.leaveLockScreen()).resolves.toBe(true);
     nativeCalls.setProximityScreenOff(true);
     expect(nativeCalls.takePendingActions()).toEqual([]);
     expect(nativeCalls.takeAnsweredCall("c")).toBe(false);
   });
 
-  it("hands every call to the module itself, as its `this`", () => {
+  it("hands every call to the module itself, as its `this`", async () => {
     const module = fakeModule();
     const calls = nativeCallsFrom(module);
     const names = { calls: "a", callsDescription: "b", ongoing: "c", ongoingDescription: "d" };
@@ -59,6 +61,8 @@ describe("nativeCalls", () => {
     expect(calls.canUseFullScreenIntent()).toBe(false);
     calls.openFullScreenIntentSettings();
     calls.releaseLockScreen();
+    await expect(calls.leaveLockScreen()).resolves.toBe(false);
+    expect(vi.mocked(module.leaveLockScreen).mock.contexts[0]).toBe(module);
     calls.setProximityScreenOff(true);
     expect(calls.takePendingActions()).toHaveLength(1);
     expect(calls.takeAnsweredCall("c")).toBe(true);

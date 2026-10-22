@@ -66,6 +66,12 @@ export interface UniChatCallsModule {
   canUseFullScreenIntent(): boolean;
   openFullScreenIntentSettings(): void;
   releaseLockScreen(): void;
+  /**
+   * Before the call screen gives way to the rest of the app (shrinking a call): true when the app is not held over a
+   * locked phone (never was, or already unlocked), or once the person unlocks it now (Android asks for the PIN); false
+   * when they cancel, and the call screen stays (CallLockScreen.leave).
+   */
+  leaveLockScreen(): Promise<boolean>;
   /** Holds (true) or releases (false) the proximity wake lock: the screen goes off at the ear (CallProximity.kt). */
   setProximityScreenOff(on: boolean): void;
   takePendingActions(): NativeCallAction[];
