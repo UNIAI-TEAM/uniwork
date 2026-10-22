@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -444,19 +445,58 @@ func TestAskUniStreamWritesFollowupsBeforeDone(t *testing.T) {
 	}
 }
 
-// A regenerate that names no live last answer is a JSON 400 before any stream;
-// on the JSON route, which is not the dock, it is a 400 whatever the id.
+// A regenerate that names no live last answer is a JSON 400 before any stream
+// (the question is sent, so the id is what is refused); on the JSON route,
+// which is not the dock, it is the dock-only 400.
 func TestAskUniStreamRegenerateRefusals(t *testing.T) {
 	srv, owner, _, wsID := askWorld(t, &provider.Fake{Reply: ai.FakeReply})
 	_, first := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", owner, map[string]any{"question": "hỏi"})
 	conv := first["conversation_id"].(string)
-	body := map[string]any{"conversation_id": conv, "regenerate_message_id": "01NOSUCHMESSAGE0000000000000"}
+	body := map[string]any{"question": "hỏi lại", "conversation_id": conv, "regenerate_message_id": "01NOSUCHMESSAGE0000000000000"}
 	res := postStream(t, srv, wsID, owner, body)
-	if res.StatusCode != 400 || strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") {
-		t.Fatalf("stream: %d %q", res.StatusCode, res.Header.Get("Content-Type"))
+	var out map[string]any
+	_ = json.NewDecoder(res.Body).Decode(&out)
+	if res.StatusCode != 400 || strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") || !strings.Contains(fmt.Sprint(out), "regenerate: not the last answer") {
+		t.Fatalf("stream: %d %v", res.StatusCode, out)
 	}
 	body["regenerate_message_id"] = first["message"].(map[string]any)["id"]
-	if r, _ := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", owner, body); r.StatusCode != 400 {
-		t.Fatalf("json route: %d", r.StatusCode)
+	r, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", owner, body)
+	if r.StatusCode != 400 || !strings.Contains(fmt.Sprint(out), "regenerate: dock only") {
+		t.Fatalf("json route: %d %v", r.StatusCode, out)
+	}
+}
+
+// A regenerate through the stream route answers in place: a done frame, and
+// the conversation still lists one question and one answer, the answer new.
+func TestAskUniStreamRegenerateReplacesTheAnswer(t *testing.T) {
+	srv, owner, _, wsID := askWorld(t, &provider.Fake{Reply: ai.FakeReply})
+	first := collectFrames(readSSE(postStream(t, srv, wsID, owner, map[string]any{"question": "task nào quá hạn?", "locale": "vi"}).Body))
+	var run struct {
+		ConversationID string `json:"conversation_id"`
+	}
+	var done struct{ Message struct{ ID string } }
+	for _, f := range first {
+		switch f.event {
+		case "run":
+			_ = json.Unmarshal([]byte(f.data), &run)
+		case "done":
+			_ = json.Unmarshal([]byte(f.data), &done)
+		}
+	}
+	res := postStream(t, srv, wsID, owner, map[string]any{"question": "x", "locale": "vi", "conversation_id": run.ConversationID, "regenerate_message_id": done.Message.ID})
+	frames := collectFrames(readSSE(res.Body))
+	var again struct{ Message struct{ ID string } }
+	for _, f := range frames {
+		if f.event == "done" {
+			_ = json.Unmarshal([]byte(f.data), &again)
+		}
+	}
+	if res.StatusCode != 200 || again.Message.ID == "" || again.Message.ID == done.Message.ID {
+		t.Fatalf("status %d events %v done %+v", res.StatusCode, eventsOf(frames), again)
+	}
+	_, list := doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+run.ConversationID+"/messages", owner, nil)
+	msgs, _ := list["messages"].([]any)
+	if len(msgs) != 2 || msgs[1].(map[string]any)["id"] != again.Message.ID {
+		t.Fatalf("messages %v", list)
 	}
 }

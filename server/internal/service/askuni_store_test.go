@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -97,5 +98,25 @@ func TestStoreRegenerateKeepsTheTitle(t *testing.T) {
 	got, err := s.q.AiGetConversation(ctx, conv)
 	if err != nil || got.Title != "original question" {
 		t.Fatalf("title=%q err=%v", got.Title, err)
+	}
+}
+
+func TestStoreRegenerateTwiceKeepsOneLiveAnswer(t *testing.T) {
+	s, org, conv, _ := storeFixture(t)
+	ctx := context.Background()
+	first, err := s.store(ctx, org, conv, askTurn{Question: "q", Answer: "old"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store(ctx, org, conv, askTurn{Answer: "one", Regenerates: first.ID}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.store(ctx, org, conv, askTurn{Answer: "two", Regenerates: first.ID})
+	if !errors.Is(err, Invalid(errRegenerateTarget)) && (err == nil || err.Error() != errRegenerateTarget) {
+		t.Fatalf("second regenerate: %v", err)
+	}
+	rows, err := s.q.AiListMessages(ctx, conv)
+	if err != nil || len(rows) != 2 || rows[0].Content != "q" || rows[1].Content != "one" {
+		t.Fatalf("rows=%+v err=%v", rows, err)
 	}
 }

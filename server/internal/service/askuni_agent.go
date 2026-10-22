@@ -346,6 +346,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		// answers again: neither that question nor the old answer.
 		i := slices.IndexFunc(rows, func(r db.AiMessage) bool { return r.ID == base.Regenerates })
 		if i < 1 {
+			outcome = "rejected" // a refusal, not a failed run
 			return AskResult{}, Invalid(errRegenerateTarget)
 		}
 		rows = rows[:i-1]

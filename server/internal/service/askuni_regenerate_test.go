@@ -129,3 +129,33 @@ func TestRegenerateNeedsTheDock(t *testing.T) {
 		t.Fatalf("err %v", err)
 	}
 }
+
+func TestRegenerateKeepsEarlierTurnsInHistory(t *testing.T) {
+	c := newCtxWorld(t)
+	scriptAgent(c.fake, "x", "Trả lời một")
+	first, err := dockAsk(c, AskInput{Question: "Hỏi một"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scriptAgent(c.fake, "x", "Trả lời hai cũ")
+	second, err := dockAsk(c, AskInput{ConversationID: first.ConversationID, Question: "Hỏi hai"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqs := scriptAgent(c.fake, "x", "Trả lời hai mới")
+	if _, err := dockAsk(c, AskInput{ConversationID: first.ConversationID, Regenerate: second.Message.ID}); err != nil {
+		t.Fatal(err)
+	}
+	msgs := (*reqs)[0].Messages
+	var hist strings.Builder
+	for _, m := range msgs[:len(msgs)-1] {
+		hist.WriteString(m.Content)
+	}
+	h := hist.String()
+	if !strings.Contains(h, "Hỏi một") || !strings.Contains(h, "Trả lời một") || strings.Contains(h, "Trả lời hai cũ") || strings.Contains(h, "Hỏi hai") {
+		t.Fatalf("history:\n%s", h)
+	}
+	if last := msgs[len(msgs)-1].Content; !strings.Contains(last, "Hỏi hai") {
+		t.Fatalf("question missing:\n%s", last)
+	}
+}

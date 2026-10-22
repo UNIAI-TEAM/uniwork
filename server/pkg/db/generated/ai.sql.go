@@ -703,8 +703,13 @@ func (q *Queries) AiSumRunUsage(ctx context.Context, arg AiSumRunUsageParams) (A
 	return i, err
 }
 
-const aiSupersedeMessage = `-- name: AiSupersedeMessage :exec
-UPDATE ai_messages SET superseded_at = now() WHERE id = $1 AND conversation_id = $2
+const aiSupersedeMessage = `-- name: AiSupersedeMessage :execrows
+UPDATE ai_messages m SET superseded_at = now()
+WHERE m.id = $1 AND m.conversation_id = $2 AND m.superseded_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM ai_messages n
+    WHERE n.conversation_id = m.conversation_id AND n.superseded_at IS NULL AND n.id <> m.id
+      AND (n.created_at, n.id) > (m.created_at, m.id))
 `
 
 type AiSupersedeMessageParams struct {
@@ -713,9 +718,14 @@ type AiSupersedeMessageParams struct {
 }
 
 // tenant: parent conversation_id
-func (q *Queries) AiSupersedeMessage(ctx context.Context, arg AiSupersedeMessageParams) error {
-	_, err := q.db.Exec(ctx, aiSupersedeMessage, arg.ID, arg.ConversationID)
-	return err
+// Only a live message with no later live one: of two regenerates racing for
+// the same answer, one changes a row and the other changes none.
+func (q *Queries) AiSupersedeMessage(ctx context.Context, arg AiSupersedeMessageParams) (int64, error) {
+	result, err := q.db.Exec(ctx, aiSupersedeMessage, arg.ID, arg.ConversationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const aiTouchConversation = `-- name: AiTouchConversation :exec

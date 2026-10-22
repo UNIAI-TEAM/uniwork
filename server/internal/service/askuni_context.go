@@ -71,7 +71,7 @@ func (s *AskUNIService) askContext(ctx context.Context, tc ai.ToolContext, focus
 		if len(got) == 0 {
 			continue
 		}
-		ref := AskContextRef{Kind: f.Kind, ID: f.ID, Title: got[0].Title}
+		ref := AskContextRef{Kind: f.Kind, ID: f.ID, Title: strings.TrimPrefix(got[0].Title, "Chat: ")}
 		if i == 0 {
 			refs.Focus = &ref
 		} else {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -285,7 +286,8 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	// The focus and mentions must be readable by the asker on both paths,
 	// before anything streams (R9); a regenerate reads the stored ones again.
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}
-	if regen && !s.agentOn(ctx, tc) {
+	agent := s.agentOn(ctx, tc) // read once: a flag flip between reads would send a regenerate down P0
+	if regen && !agent {
 		return AskResult{}, Invalid("regenerate: needs the agent")
 	}
 	ctxItems, refs, err := s.askContext(ctx, tc, in.Focus, mentions)
@@ -297,7 +299,7 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	}
 	// Behind ask_uni_agent the model looks its sources up itself; P0's
 	// lookup below does not run.
-	if s.agentOn(ctx, tc) {
+	if agent {
 		return s.askAgent(ctx, userID, w, conv, base, in, ctxItems, emit)
 	}
 	sources, err := s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, Question: question, Focus: in.Focus})
@@ -397,11 +399,17 @@ func regenerateQuestion(rows []db.AiMessage, id string) (db.AiMessage, bool) {
 func storedContext(q db.AiMessage) (*ai.Focus, []ai.Focus) {
 	var focus *ai.Focus
 	var ref AskContextRef
-	if q.Focus.Valid && json.Unmarshal([]byte(q.Focus.String), &ref) == nil && ref.ID != "" {
-		focus = &ai.Focus{Kind: ref.Kind, ID: ref.ID}
+	if q.Focus.Valid {
+		if json.Unmarshal([]byte(q.Focus.String), &ref) != nil {
+			slog.Warn("ask uni: stored focus does not decode", "message_id", q.ID)
+		} else if ref.ID != "" {
+			focus = &ai.Focus{Kind: ref.Kind, ID: ref.ID}
+		}
 	}
 	var refs []AskContextRef
-	_ = json.Unmarshal([]byte(q.Mentions), &refs)
+	if json.Unmarshal([]byte(q.Mentions), &refs) != nil {
+		slog.Warn("ask uni: stored mentions do not decode", "message_id", q.ID)
+	}
 	mentions := make([]ai.Focus, 0, len(refs))
 	for _, r := range refs {
 		mentions = append(mentions, ai.Focus{Kind: r.Kind, ID: r.ID})
@@ -757,8 +765,11 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTu
 		}); err != nil {
 			return db.AiMessage{}, err
 		}
-	} else if err := q.AiSupersedeMessage(ctx, db.AiSupersedeMessageParams{ID: t.Regenerates, ConversationID: convID}); err != nil {
+	} else if n, err := q.AiSupersedeMessage(ctx, db.AiSupersedeMessageParams{ID: t.Regenerates, ConversationID: convID}); err != nil {
 		return db.AiMessage{}, err
+	} else if n == 0 {
+		// Another regenerate got there first; the rollback keeps one live answer.
+		return db.AiMessage{}, Invalid(errRegenerateTarget)
 	}
 	msg, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
 		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: t.Answer,

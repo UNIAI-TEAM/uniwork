@@ -96,9 +96,16 @@ LIMIT 50;
 UPDATE ai_conversations SET title = $2, title_source = 'generated'
 WHERE id = $1 AND title_source = 'question';
 
--- name: AiSupersedeMessage :exec
+-- name: AiSupersedeMessage :execrows
 -- tenant: parent conversation_id
-UPDATE ai_messages SET superseded_at = now() WHERE id = $1 AND conversation_id = $2;
+-- Only a live message with no later live one: of two regenerates racing for
+-- the same answer, one changes a row and the other changes none.
+UPDATE ai_messages m SET superseded_at = now()
+WHERE m.id = $1 AND m.conversation_id = $2 AND m.superseded_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM ai_messages n
+    WHERE n.conversation_id = m.conversation_id AND n.superseded_at IS NULL AND n.id <> m.id
+      AND (n.created_at, n.id) > (m.created_at, m.id));
 
 -- name: AiTouchConversation :exec
 -- tenant: by-id
