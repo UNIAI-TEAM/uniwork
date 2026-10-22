@@ -1,0 +1,34 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/service -count=1 -timeout 40m -v -run '^(TestPageRootTrash\w*|TestLegacyPrivateFolderRootTrash\w*|TestMyFolderSubFolderTrash\w*|TestAdminScopeCanAdministerRestrictedWithoutRead|TestDocumentArchive|TestDocumentArchiveImpact|TestDocumentRestorePerItem|TestDocumentDepthBound|TestFolderTrash\w*|TestEveryAuditedCommandWritesItsRow|TestShelvedTrash|TestDocumentManualPurge|TestDocumentTitleWritePathsUseTheNormalizer)$' > /tmp/named.log 2>&1); rc=$?; grep -E "^--- (PASS|FAIL|SKIP): " /tmp/named.log; grep -E "^\s*--- (FAIL|SKIP)|^(ok|FAIL)\s" /tmp/named.log | tail -10; echo; echo "TEST_GO_NAMED_SVC_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- PASS: TestEveryAuditedCommandWritesItsRow (34.38s)
+--- PASS: TestAdminScopeCanAdministerRestrictedWithoutRead (0.29s)
+--- PASS: TestDocumentArchiveImpact (0.55s)
+--- PASS: TestDocumentDepthBound (0.45s)
+--- PASS: TestDocumentTitleWritePathsUseTheNormalizer (0.01s)
+--- PASS: TestFolderTrashRelocatesWhatTheActorCannotSee (0.30s)
+--- PASS: TestFolderTrashRelocatesWhatTheActorSeesButCannotManage (0.34s)
+--- PASS: TestFolderTrashRestoreBringsBackOnlyTheTrashedPart (0.33s)
+--- PASS: TestFolderTrashGate (0.32s)
+--- PASS: TestFolderTrashImpactCountsRelocationWithoutLeaking (0.26s)
+--- PASS: TestFolderTrashRelocationAuditHook (0.27s)
+--- PASS: TestFolderTrashRefusesAForeignRestrictedFolder (0.25s)
+--- PASS: TestFolderTrashRefusesAForeignRestrictedFolderForAnAdmin (0.26s)
+--- PASS: TestFolderTrashGateHidesTheFolderFromNonMembers (0.27s)
+--- PASS: TestFolderTrashBoundBeatsRelocation (0.28s)
+--- PASS: TestFolderTrashRelocatesWhatAnAdminCannotRead (0.26s)
+--- PASS: TestFolderTrashRelocationKeepsTheStoredTitle (0.28s)
+--- PASS: TestDocumentArchive (0.27s)
+--- PASS: TestDocumentRestorePerItem (0.25s)
+--- PASS: TestDocumentManualPurge (0.31s)
+--- PASS: TestShelvedTrash (0.29s)
+--- PASS: TestPageRootTrashRelocatesWhatAnAdminCannotRead (0.29s)
+--- PASS: TestPageRootTrashByAMemberRelocatesInsteadOfRefusing (0.33s)
+--- PASS: TestPageRootTrashRelocatesADeepHiddenPageWithItsSubtree (0.25s)
+--- PASS: TestLegacyPrivateFolderRootTrashRelocatesAHiddenPage (0.29s)
+--- PASS: TestLegacyPrivateFolderRootTrashRefusesAForeignSubFolder (0.25s)
+--- PASS: TestMyFolderSubFolderTrashRelocatesToTheWorkspaceRoot (0.30s)
+--- PASS: TestPageRootTrashByAnAgentIsRefusedAtTheRoot (0.32s)
+ok  	github.com/unicomhub/uniwork/server/internal/service	42.254s
+
+TEST_GO_NAMED_SVC_EXIT=0

@@ -1,0 +1,35 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/notification ./internal/handler -count=1 -timeout 40m -v -run '^(TestDocumentChanged\w*|TestDocumentArchiveImpactHTTP|TestDocumentArchiveRestore|TestDocuments05bOpenAPI)$' > /tmp/named2.log 2>&1); rc=$?; grep -E "^--- (PASS|FAIL|SKIP): " /tmp/named2.log; grep -E "^\s*--- (FAIL|SKIP)|^(ok|FAIL)\s" /tmp/named2.log | tail -10; echo; echo "TEST_GO_NAMED_NOTIFY_HANDLER_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- PASS: TestDocumentChangedEventOfAnotherTenantDraftsNothing (0.29s)
+--- PASS: TestDocumentChangedKeepsTheFrameTopicsOffTheNotifyLane (0.00s)
+--- PASS: TestDocumentChangedFoldStaysInItsWorkspace (0.41s)
+--- PASS: TestDocumentChangedPurgeOfAPrivateDocumentKeepsNoTitle (0.28s)
+--- PASS: TestDocumentChangedWideCommandSignalsEveryDeliveredEvent (0.40s)
+--- PASS: TestDocumentChangedMixedAudienceCommand (0.25s)
+--- PASS: TestDocumentChangedShareLostBeforeDeliverySendsNothing (0.23s)
+--- PASS: TestDocumentChangedVerbsThroughTheirCommands (3.32s)
+--- PASS: TestDocumentChangedContentOrIconAloneIsNoChange (0.29s)
+--- PASS: TestDocumentChangedSameCommandFoldsPastTheWindow (0.32s)
+--- PASS: TestDocumentChangedCommandKeyFallsBack (0.00s)
+--- PASS: TestDocumentChangedRedeliveryOfAFoldedEvent (0.32s)
+--- PASS: TestDocumentChangedGroupClaimUnderConcurrency (0.29s)
+--- PASS: TestDocumentChangedRenameNotifiesTheAudience (0.30s)
+--- PASS: TestDocumentChangedPrivateDocumentSendsNothing (0.32s)
+--- PASS: TestDocumentChangedOneCommandManyDocumentsIsOneNotice (0.47s)
+--- PASS: TestDocumentChangedFoldWindow (1.31s)
+--- PASS: TestDocumentChangedWorkspaceShareDoesNotReachTheWorkspace (0.26s)
+--- PASS: TestDocumentChangedNoDoubleNotice (0.44s)
+--- PASS: TestDocumentChangedRelocationTellsThePrivateOwner (0.21s)
+--- PASS: TestDocumentChangedRelocationWordingFollowsTheRootKind (0.99s)
+--- PASS: TestDocumentChangedPurgeKeepsTheTitle (0.25s)
+--- PASS: TestDocumentChangedRedeliveryIsIdempotent (0.23s)
+--- PASS: TestDocumentChangedKindOffWritesNothing (0.23s)
+--- PASS: TestDocumentChangedActors (0.47s)
+--- PASS: TestDocumentArchiveImpactHTTP (1.20s)
+--- PASS: TestDocumentArchiveRestore (0.25s)
+--- PASS: TestDocuments05bOpenAPI (0.87s)
+ok  	github.com/unicomhub/uniwork/server/internal/notification	11.892s
+ok  	github.com/unicomhub/uniwork/server/internal/handler	2.341s
+
+TEST_GO_NAMED_NOTIFY_HANDLER_EXIT=0
