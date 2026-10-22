@@ -210,10 +210,20 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    `com.uniworkos.chat` khi tới production). `eas credentials -p ios` để EAS tạo chứng chỉ phân phối và profile. Tạo
    App Store Connect API key (vai trò App Manager), tải lên EAS qua `eas credentials -p ios`. Ghi Apple ID số của app
    vào `submit.internal.ios.ascAppId` trong `eas.json`. TestFlight: nhóm thử nội bộ, thêm người thử.
+   **Đã làm 2026-10-22** (thẳng với `com.uniworkos.chat`, không qua `.staging`): Team ID `XJAM488A6D`
+   (`EXPO_APPLE_TEAM_ID` trên EAS, `UNICHAT_IOS_TEAM_ID` ở `deploy/app/env/uniwork-fe.env`), app App Store Connect
+   "UniWork Chat" (tên "UniChat" đã có người giữ) Apple ID `6825689656` → `submit.production.ios.ascAppId`. EAS giữ
+   chứng chỉ phân phối, profile, khoá APNs (`.p8` tự tạo ở Keys để server dùng cho push VoIP sau này) và khoá
+   App Store Connect API.
 4. Google: Play Console, tạo app `com.uniworkos.chat.staging`. Bản AAB đầu tiên phải tải tay (API của Google không tạo
    được bản đầu): `eas build -p android --profile internal`, tải `.aab` lên Internal testing. Service account Google
    Cloud có quyền phát hành trên app → khoá JSON tải lên EAS (`eas credentials -p android`, mục khoá cho submit). Khoá
-   FCM V1 cho push cũng tải lên EAS ở cùng màn đó (khoá khác). Push Android còn cần `google-services.json` của dự án
+   FCM V1 cho push cũng tải lên EAS ở cùng màn đó (khoá khác). **Đã làm 2026-10-21/22** thẳng với `com.uniworkos.chat`:
+   bản `0.2.0 (7)` tải tay lên Internal testing (link `UNICHAT_PLAY_INTERNAL_URL`), Firebase `uniwork-unichat`, service
+   account `eas-play-submit@uniwork-unichat.iam.gserviceaccount.com` (cần bật *Google Play Android Developer API*
+   trong dự án Cloud), SHA-256 khoá ký Play ở `UNICHAT_ANDROID_SHA256`. Chạy `eas submit` từ máy nhớ đặt
+   `UNICHAT_ENV=production` trước lệnh: thiếu nó `app.config.ts` đọc ra gói `.dev` và EAS hỏi khoá cho app dev.
+   Push Android còn cần `google-services.json` của dự án
    Firebase (app `com.uniworkos.chat`, `.staging`, `.dev`) làm biến EAS kiểu file:
    `eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment <env>` cho
    `development`, `preview`, `production` — `app.config.ts` chuyển nó vào `android.googleServicesFile`. Danh sách đầy
@@ -877,7 +887,8 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
 1. Tag sai hoặc commit ngoài `main`/`develop`: `git push origin :refs/tags/<tag>`, `git tag -d <tag>`, tag lại.
 2. Tag không khớp version: sửa `version` qua PR rồi tag lại, hoặc tag đúng version đang có.
 3. `UNICHAT_API_URL is required`: thêm biến vào môi trường EAS (Thiết lập lần đầu, bước 2), "Re-run failed jobs".
-4. Lỗi submit: sửa khoá/`ascAppId` theo bước 3–4 rồi `eas submit -p <ios|android> --profile internal --latest`
+4. Lỗi submit: sửa khoá/`ascAppId` theo bước 3–4 rồi `UNICHAT_ENV=<staging|production> eas submit -p <ios|android>
+   --profile <internal|production-internal> --latest`
    (không build lại). Play báo app nháp: hoàn tất thiết lập app trên Play Console, hoặc tạm đặt
    `"releaseStatus": "draft"` cho `submit.internal.android` và phát hành tay trên Console.
 5. **Rollback OTA** (nhanh nhất, cho lỗi chỉ ở JS), từ CI, không cần khoá trên máy ai: Actions →

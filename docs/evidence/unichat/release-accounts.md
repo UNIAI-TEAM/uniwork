@@ -1,12 +1,31 @@
 # UniChat — tài khoản phát hành và nơi đặt từng khóa
 
 > **Trạng thái:** in-progress — danh sách việc cho chủ sở hữu sản phẩm (người đứng tên mọi tài khoản), lập 2026-10-17
-> trong Q1 (UNI-1838, spec `docs/superpowers/specs/2026-10-16-unichat-maturity-pilot-design.md` §4). Đã có (theo
-> repo, 2026-10-22): tài khoản Expo tổ chức `uniai-team` với dự án EAS `uniwork-chat` (#18, commit `ff84056a7`; một bản
-> build production EAS đã chạy 2026-10-21), Firebase/FCM cho push Android (#13–#14) và chứng chỉ ký OTA đã commit (#26,
-> khoá chờ chuyển vào GitHub). Chưa có: Apple Developer (#1–#9, iOS không phát hành được), Sentry (#25), Environment
-> `chat-mobile-production` (#27). Google Play: xác nhận trong Play Console (repo không chứng minh được). Tick từng ô khi
+> trong Q1 (UNI-1838, spec `docs/superpowers/specs/2026-10-16-unichat-maturity-pilot-design.md` §4). Tick từng ô khi
 > xong và dán bằng chứng (ảnh, ngày duyệt) vào bình luận UNI-1838.
+
+**Đã có (2026-10-22, UNI-2053):**
+
+- Expo `uniai-team` / dự án `uniwork-chat` (#18); robot `github-ci` (Release Manager) → secret repo `EXPO_TOKEN` (#19).
+  Biến EAS `production`/`preview`: `UNICHAT_API_URL`, `UNICHAT_APP_URL`, `SENTRY_*`, `EXPO_APPLE_TEAM_ID`;
+  `GOOGLE_SERVICES_JSON` (file) cho cả ba môi trường.
+- Firebase `uniwork-unichat` với ba app Android (#13), khoá FCM V1 trên EAS (#14).
+- Google Play: app `com.uniworkos.chat` (#11), bản `0.2.0 (7)` ở Internal testing (#16, `UNICHAT_PLAY_INTERNAL_URL`),
+  service account `eas-play-submit@uniwork-unichat.iam.gserviceaccount.com` có quyền phát hành và Android Publisher
+  API bật (#12, khoá submit trên EAS), SHA-256 khoá ký Play ở `UNICHAT_ANDROID_SHA256` (#15).
+- Apple Developer, Team ID `XJAM488A6D` (#1–#3); Bundle ID `com.uniworkos.chat` (Push, Associated Domains, #6);
+  app App Store Connect **"UniWork Chat"** (tên "UniChat" đã có người giữ), Apple ID `6825689656` →
+  `eas.json` `submit.production.ios.ascAppId` (#7); khoá API App Manager và chứng chỉ, profile, khoá APNs trên EAS
+  (#8–#9). Khoá APNs `.p8` được giữ ở kho bí mật cho push VoIP của server.
+- Sentry tổ chức `unicom-technology-solutions-co`, project `unichat-mobile` (#25); secret repo `SENTRY_AUTH_TOKEN`,
+  variables `SENTRY_ORG`, `SENTRY_PROJECT`.
+- Khoá ký OTA (#26): `EAS_UPDATE_PRIVATE_KEY` trong Environment `chat-mobile-update`.
+- Environments: `chat-mobile-release` (tag `chat-mobile-v*`), `chat-mobile-production` (reviewer, tag + `main`),
+  `chat-mobile-update` (reviewer, `main`/`develop`), `chat-mobile-release-health` (`main`, không reviewer).
+
+**Còn thiếu:** `PLAY_SERVICE_ACCOUNT_JSON` (#27, #28; thêm quyền "View app quality information"), `ASC_KEY_ID` /
+`ASC_ISSUER_ID` / `ASC_PRIVATE_KEY` và variable `ASC_APP_ID=6825689656` (#29), variable `SENTRY_ALERT_TEAM` (#28),
+TestFlight nhóm thử (#10), Windows signing (#17), Maestro staging (#22).
 
 Không dán khóa, mật khẩu hay tệp chứng chỉ vào issue, PR, chat hay tệp trong repo. Giá trị bí mật chỉ đi vào ba nơi:
 GitHub Environment (`Settings → Environments`), EAS credentials (`eas credentials`) và Kubernetes Secret của server.
