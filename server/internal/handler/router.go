@@ -139,6 +139,8 @@ type Deps struct {
 	Readiness *service.Readiness
 	// WebVitals is nil unless METRICS_ADDR is set; /rum then only answers 204.
 	WebVitals *metrics.WebVitals
+	// MobileEvents is nil unless METRICS_ADDR is set; /mobile/events then only answers 204.
+	MobileEvents *metrics.MobileEvents
 	// Admin is the platform console (F-11); nil leaves /api/v1/admin unmounted.
 	Admin *service.AdminService
 	// Version and Commit are the build stamps main.go carries into /admin/system.
@@ -244,6 +246,7 @@ func New(d Deps) http.Handler {
 		Config:                     h.config,
 		OfficeDesktopDownload:      h.officeDesktopDownload,
 		RUM:                        h.rum,
+		MobileEvents:               h.mobileEvents,
 		CreateDemoRequest:          h.createDemoRequest,
 		AdminListDemoRequests:      h.adminListDemoRequests,
 		AdminUpdateDemoRequest:     h.adminUpdateDemoRequest,

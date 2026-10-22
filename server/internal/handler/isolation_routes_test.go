@@ -368,13 +368,14 @@ const (
 // isoRoutes holds every route that is not plain isoScoped-with-no-body.
 var isoRoutes = map[string]isoSpec{
 	// Sign-in and probes.
-	"GET /healthz":                    {class: isoPublic, reason: reasonProbe},
-	"GET /readyz":                     {class: isoPublic, reason: reasonProbe},
-	"GET /api/v1/config":              {class: isoPublic, reason: reasonProbe},
-	"GET /api/v1/plans":               {class: isoPublic, reason: reasonProbe},
-	"POST /api/v1/rum":                {class: isoPublic, reason: reasonProbe},
-	"POST /api/v1/demo-requests":      {class: isoPublic, reason: "Anonymous pre-account intake returns only its receipt; personal fields are platform-only."},
-	"GET /api/v1/admin/demo-requests": {class: isoPlatform, reason: reasonPlatform},
+	"GET /healthz":                                      {class: isoPublic, reason: reasonProbe},
+	"GET /readyz":                                       {class: isoPublic, reason: reasonProbe},
+	"GET /api/v1/config":                                {class: isoPublic, reason: reasonProbe},
+	"GET /api/v1/plans":                                 {class: isoPublic, reason: reasonProbe},
+	"POST /api/v1/rum":                                  {class: isoPublic, reason: reasonProbe},
+	"POST /api/v1/mobile/events":                        {class: isoSelf, reason: "anonymous product counters by OS and app version: nothing is stored or returned, no tenant is named"},
+	"POST /api/v1/demo-requests":                        {class: isoPublic, reason: "Anonymous pre-account intake returns only its receipt; personal fields are platform-only."},
+	"GET /api/v1/admin/demo-requests":                   {class: isoPlatform, reason: reasonPlatform},
 	"PATCH /api/v1/admin/demo-requests/{demoRequestID}": {class: isoPlatform, reason: reasonPlatform},
 	"GET /api/v1/notifications/push/config":             {class: isoPublic, reason: reasonProbe},
 	"GET /api/v1/auth/google/callback":                  {class: isoPublic, reason: reasonAuth},

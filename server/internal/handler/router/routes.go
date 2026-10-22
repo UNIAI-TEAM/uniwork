@@ -12,6 +12,7 @@ type Routes struct {
 	Config                     http.HandlerFunc
 	OfficeDesktopDownload      http.HandlerFunc
 	RUM                        http.HandlerFunc
+	MobileEvents               http.HandlerFunc
 	CreateDemoRequest          http.HandlerFunc
 	AdminListDemoRequests      http.HandlerFunc
 	AdminUpdateDemoRequest     http.HandlerFunc

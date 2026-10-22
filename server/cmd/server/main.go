@@ -800,6 +800,7 @@ func main() {
 		MembershipCache: membershipCache,
 		HTTPMetrics:     httpMetrics,
 		WebVitals:       webVitals(reg),
+		MobileEvents:    mobileEvents(reg),
 		Readiness:       readiness,
 		Admin:           adminSvc,
 		DemoRequests:    service.NewDemoRequestService(pool, q),
@@ -982,6 +983,14 @@ func webVitals(reg *metrics.Registry) *metrics.WebVitals {
 		return nil
 	}
 	return reg.WebVitals
+}
+
+// mobileEvents keeps a nil registry from becoming a non-nil metric.
+func mobileEvents(reg *metrics.Registry) *metrics.MobileEvents {
+	if reg == nil {
+		return nil
+	}
+	return reg.MobileEvents
 }
 
 // uniworkAIKillSwitchFlag is the registry key (internal/featureflags) whose

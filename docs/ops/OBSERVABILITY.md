@@ -89,5 +89,7 @@ metric `uniwork_*`: `http_*` (`method,route,status` — route là pattern Chi,
 không phải path thật; `http_client_requests_total{platform,client_version,client_update,status_class}` cho bản
 app mobile/desktop, nhãn giới hạn và `other` cho phần dư; access log còn có `client_update_id`), `db_pool_*`, `db_query_duration_seconds{query_name}`,
 `outbox_*`, `realtime_*`, `meeting_*`, `ai_*`, `web_vitals_seconds{metric,route_pattern}`,
+`mobile_events_total{event,result,os,client_version}` và `mobile_event_duration_seconds{event,os}` (sự kiện sản phẩm
+ẩn danh của UniChat mobile, `POST /api/v1/mobile/events`),
 `audit_events_*`, `notifications_*`, `build_info{version,commit}`. Không đổi
 tên metric cũ; alert và dashboard tham chiếu tên trong `server/internal/metrics/*.go`.
