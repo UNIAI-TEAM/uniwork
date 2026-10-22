@@ -3,13 +3,15 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/http";
-import { meetingCatchUpKey, summaryQueryRetry, useMeetingCatchUp } from "./summary-hooks";
+import { meetingCatchUpKey, summaryQueryRetry, useMeetingCatchUp, useMeetingEvidenceOf } from "./summary-hooks";
 
 const catchUp = vi.hoisted(() => vi.fn());
 vi.mock("../api/endpoints/meeting-summary", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   createMeetingCatchUp: catchUp,
 }));
+const evidence = vi.hoisted(() => vi.fn());
+vi.mock("../api/endpoints/meeting-evidence", () => ({ getMeetingEvidence: evidence }));
 
 describe("summaryQueryRetry", () => {
   it("gives up at once on a 4xx and retries a 5xx or a dropped connection a few times", () => {
@@ -49,5 +51,27 @@ describe("useMeetingCatchUp", () => {
     act(() => result.current.mutate("vi"));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(qc.getQueryData(meetingCatchUpKey("m1"))).toBeUndefined();
+  });
+});
+
+describe("useMeetingEvidenceOf", () => {
+  it("reads each item's lines, settles once all answered, and reads a failure as no lines", async () => {
+    const line = { kind: "segment", id: "g1", author: "Minh", text: "Gửi báo giá trước thứ Sáu", at: "2026-10-22T03:00:00Z" };
+    evidence.mockImplementation((_m: string, refs: { id: string }[]) =>
+      refs[0]?.id === "g1" ? Promise.resolve([line]) : Promise.reject(new ApiError("no", "forbidden", 403)),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client: qc }, children);
+    const items = [
+      { evidence: [{ kind: "segment", id: "g1" }] },
+      { evidence: [] },
+      { evidence: [{ kind: "note", id: "n9" }] },
+    ];
+    const { result } = renderHook(() => useMeetingEvidenceOf("m1", items, true), { wrapper });
+    expect(result.current.settled).toBe(false);
+    await waitFor(() => expect(result.current.settled).toBe(true));
+    expect(result.current.lines).toEqual([[line], [], []]);
+    // No call for an item that cites nothing.
+    expect(evidence).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { MeetingActionItem } from "../api/endpoints/meeting-action-items";
 import {
-  buildConvertActionItemsBody,
+  actionItemTaskDefaults,
   buildSummaryTaskItems,
+  convertActionItemInput,
   previewAssigneeId,
-  summaryItemDraft,
 } from "./summary-task-items";
 
 const item = (over: Partial<MeetingActionItem> & { id: string }): MeetingActionItem => ({
@@ -14,64 +14,90 @@ const item = (over: Partial<MeetingActionItem> & { id: string }): MeetingActionI
   ...over,
 });
 
-describe("summaryItemDraft", () => {
-  it("starts from the server's suggestion, and from none where it has none", () => {
-    expect(summaryItemDraft(item({ id: "a0", suggested_assignee_id: "u1", suggested_due_date: "2026-09-05" }))).toEqual({
-      assigneeId: "u1",
-      dueDate: "2026-09-05",
-      priority: "none",
+describe("actionItemTaskDefaults", () => {
+  it("carries the AI's prose and suggested priority, the description the screen built from them", () => {
+    expect(
+      actionItemTaskDefaults(
+        item({ id: "a2", description: "Gửi báo giá trước thứ Sáu.", suggested_priority: "high" }),
+        "p1",
+        "Gửi báo giá trước thứ Sáu.\n\n**Căn cứ**",
+      ),
+    ).toEqual({
+      title: "Việc a2",
+      description: "Gửi báo giá trước thứ Sáu.\n\n**Căn cứ**",
+      priority: "high",
+      assignee_id: null,
+      due_date: null,
+      project_id: "p1",
     });
-    expect(summaryItemDraft(item({ id: "a1", owner_text: "Minh", due_text: "thứ Sáu" }))).toEqual({
-      assigneeId: null,
-      dueDate: null,
-      priority: "none",
+    // A priority a newer server or a confused model sends is not applied.
+    expect(actionItemTaskDefaults(item({ id: "a3", suggested_priority: "critical" }), undefined)).not.toHaveProperty("priority");
+    expect(actionItemTaskDefaults(item({ id: "a4", suggested_priority: "none" }), undefined)).not.toHaveProperty("priority");
+  });
+
+  it("opens the composer on the item's title and the server's suggestion, none where it has none", () => {
+    expect(
+      actionItemTaskDefaults(item({ id: "a0", suggested_assignee_id: "u1", suggested_due_date: "2026-09-05" }), "p1"),
+    ).toEqual({ title: "Việc a0", assignee_id: "u1", due_date: "2026-09-05", project_id: "p1" });
+    // The spoken words stay suggestions: never read into who or when.
+    expect(actionItemTaskDefaults(item({ id: "a1", owner_text: "Minh", due_text: "thứ Sáu" }), undefined)).toEqual({
+      title: "Việc a1",
+      assignee_id: null,
+      due_date: null,
+      project_id: null,
     });
   });
 });
 
-describe("buildConvertActionItemsBody", () => {
-  const items = [
-    item({ id: "a0", owner_text: "Minh", due_text: "thứ Sáu", suggested_assignee_id: "u-minh", suggested_due_date: "2026-09-05" }),
-    item({ id: "a1", status: "CONVERTED", task: { id: "t-old" } }),
-    item({ id: "a2" }),
-    item({ id: "a3", status: "DISMISSED" }),
-  ];
-
-  it("names each item and always says who and when, null for none", () => {
-    const body = buildConvertActionItemsBody(items, new Set(["a0", "a2"]), {}, "p1");
-    expect(body).toEqual({
-      items: [
-        { action_item_id: "a0", assignee_id: "u-minh", due_date: "2026-09-05", project_id: "p1" },
-        { action_item_id: "a2", assignee_id: null, due_date: null, project_id: "p1" },
-      ],
-    });
-    // The spoken words are never sent for the server to re-read.
-    for (const sent of body!.items) {
-      expect(sent).not.toHaveProperty("owner_text");
-      expect(sent).not.toHaveProperty("due_text");
-    }
-  });
-
-  it("keeps the clerk's explicit none and an edited title over the suggestion", () => {
-    const body = buildConvertActionItemsBody(
-      items,
-      new Set(["a0"]),
-      { a0: { assigneeId: null, dueDate: null, priority: "high", title: " Gửi báo cáo quý " } },
-      undefined,
-    );
-    expect(body?.items[0]).toEqual({
+describe("convertActionItemInput", () => {
+  it("sends what the composer submitted, with who, when and the project always explicit", () => {
+    expect(
+      convertActionItemInput("a0", {
+        title: "Gửi báo cáo quý",
+        description: "Kèm số liệu",
+        status: "in_progress",
+        priority: "high",
+        assignee_id: "agent-1",
+        assignee_kind: "agent",
+        project_id: null,
+        parent_task_id: "t-parent",
+        stage: 2,
+        start_date: "2026-09-01",
+        due_date: null,
+        start_at: "2026-09-01T02:00:00Z",
+        due_at: "2026-09-01T03:00:00Z",
+        label_ids: ["l1"],
+        attachment_ids: ["f1"],
+        properties: { p1: "x" },
+      }),
+    ).toEqual({
       action_item_id: "a0",
       title: "Gửi báo cáo quý",
+      description: "Kèm số liệu",
+      status: "in_progress",
+      priority: "high",
+      assignee_id: "agent-1",
+      assignee_kind: "agent",
+      // "" is no project: null would let the server apply the meeting's.
+      project_id: "",
+      parent_task_id: "t-parent",
+      stage: 2,
+      start_date: "2026-09-01",
+      due_date: null,
+      label_ids: ["l1"],
+      attachment_ids: ["f1"],
+      properties: { p1: "x" },
+    });
+  });
+
+  it("reads a field the composer left out as none", () => {
+    expect(convertActionItemInput("a1", { title: "Đặt phòng" })).toEqual({
+      action_item_id: "a1",
+      title: "Đặt phòng",
       assignee_id: null,
       due_date: null,
       project_id: "",
-      priority: "high",
     });
-  });
-
-  it("skips items that are not pending and returns null when nothing is left", () => {
-    expect(buildConvertActionItemsBody(items, new Set(["a1", "a3"]), {}, "p1")).toBeNull();
-    expect(buildConvertActionItemsBody(items, new Set(), {}, "p1")).toBeNull();
   });
 });
 

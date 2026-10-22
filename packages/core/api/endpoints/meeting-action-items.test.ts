@@ -74,6 +74,18 @@ describe("meeting action item endpoints", () => {
     expect(got.items[1]?.evidence).toEqual([]);
   });
 
+  it("getMeetingActionItems reads the AI's prose and suggested priority, and a wrong type as none", async () => {
+    const items = [
+      { ...pending, description: "Gửi biên bản cho cả nhóm.", suggested_priority: "high" },
+      { ...converted, description: 4, suggested_priority: ["x"] },
+    ];
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items, counts }));
+    const got = await getMeetingActionItems("m1");
+    expect(got.items[0]).toEqual(expect.objectContaining({ description: "Gửi biên bản cho cả nhóm.", suggested_priority: "high" }));
+    // A drifted field costs the field, not the item.
+    expect(got.items[1]).toEqual(expect.objectContaining({ id: "a2", description: null, suggested_priority: null }));
+  });
+
   it("getMeetingActionItems drops a malformed item, zeroes bad counts, and degrades to empty", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: [{ id: 7 }, pending], counts: { pending: "x" } }));
     const got = await getMeetingActionItems("m1");

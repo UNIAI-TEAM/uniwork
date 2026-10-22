@@ -2,6 +2,7 @@ import { z } from "zod";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
 import { EvidenceListSchema } from "../../types/meeting";
+import type { CreateTaskBody } from "./tasks";
 
 const enc = encodeURIComponent;
 
@@ -26,6 +27,10 @@ const ActionItemSchema = z.object({
   title: z.string(),
   owner_text: z.string().nullish(),
   due_text: z.string().nullish(),
+  /** The AI's prose restating the item from the meeting; empty for a hand-added one. */
+  description: z.string().nullish().catch(null),
+  /** The AI's low | medium | high | urgent when the meeting signals one; empty otherwise. */
+  suggested_priority: z.string().nullish().catch(null),
   /** Pending items only: the one member the owner phrase names. */
   suggested_assignee_id: z.string().nullish(),
   /** Pending items only: the due phrase read against the meeting's day (YYYY-MM-DD). */
@@ -131,19 +136,18 @@ export async function restoreMeetingActionItem(meetingId: string, itemId: string
 }
 
 /**
- * One pending item the clerk turns into a task, with the values the clerk
- * confirmed. `assignee_id` and `due_date` are always sent: null is "nobody" /
+ * One pending item the clerk turns into a task, with what the task composer
+ * submitted. `assignee_id` and `due_date` are always sent: null is "nobody" /
  * "no due date", and the server never re-reads the spoken words into them.
  * `project_id` omitted takes the meeting's project; "" is no project.
  */
-export interface ConvertActionItemInput {
+export interface ConvertActionItemInput
+  extends Omit<CreateTaskBody, "title" | "assignee_id" | "due_date" | "project_id" | "start_at" | "due_at" | "allow_duplicate"> {
   action_item_id: string;
   title?: string;
-  description?: string;
   assignee_id: string | null;
   due_date: string | null;
   project_id?: string;
-  priority?: string;
 }
 
 export interface ConvertActionItemsBody {

@@ -55,7 +55,7 @@ export interface SummaryErrorContext {
 }
 
 /** Item ids a refusal names in `fields.action_item_ids`, in the order the server sent them. */
-export function errorItemIds(err: unknown): string[] {
+function errorItemIds(err: unknown): string[] {
   const raw = errorFields(err)?.action_item_ids;
   return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === "string") : [];
 }

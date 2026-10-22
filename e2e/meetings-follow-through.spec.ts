@@ -11,8 +11,8 @@ import {
 
 // The program spec of "after the meeting" (UNI-1995, spec meeting
 // follow-through §13.3): end a meeting that has notes → summarise → assign
-// two items, dismiss one, add one by hand → the assignee gets one
-// notification and the task says which meeting it came from → regenerate
+// two items, dismiss one, add one by hand → the assignee gets a
+// notification per task and the task says which meeting it came from → regenerate
 // the summary, the handled items stay → the next meeting of the project
 // shows the tasks still open.
 //
@@ -72,8 +72,9 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   );
   test.skip(firstItems.items.length !== notes.length, "the server's AI provider is not the fake one (AI_PROVIDER=fake)");
 
-  // Host: assign two items (the owner phrase names the peer, so the review
-  // starts with them), dismiss one with a reason, add one the summary missed.
+  // Host: assign two items in the task screen's composer, one after the other
+  // (the owner phrase names the peer, so each opens with them), dismiss one
+  // with a reason, add one the summary missed.
   await loginViaUi(page, host.email);
   const meetingURL = `/${host.orgSlug}/${host.wsSlug}/meetings/${first.id}`;
   await page.goto(meetingURL);
@@ -81,9 +82,12 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   await section.getByRole("checkbox", { name: "Gửi báo giá" }).check({ timeout: 20_000 });
   await section.getByRole("checkbox", { name: "Đặt phòng hội thảo" }).check();
   await section.getByRole("button", { name: "Giao 2 việc" }).click();
-  const review = page.getByRole("dialog", { name: "Giao việc sau họp" });
-  await review.getByRole("button", { name: "Giao 2 việc" }).click();
-  await expect(review).toBeHidden({ timeout: 15_000 });
+  const composer = page.getByRole("dialog", { name: /Việc sau họp/ });
+  await expect(composer.getByText("Việc sau họp 1/2")).toBeVisible();
+  await composer.getByRole("button", { name: /^Tạo/ }).click();
+  await expect(composer.getByText("Việc sau họp 2/2")).toBeVisible({ timeout: 15_000 });
+  await composer.getByRole("button", { name: /^Tạo/ }).click();
+  await expect(composer).toBeHidden({ timeout: 15_000 });
   await expect(section.getByRole("heading", { name: "Đã giao (2)" })).toBeVisible();
 
   await section.getByRole("button", { name: 'Bỏ qua "In tài liệu"' }).click();
@@ -105,14 +109,15 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   expect(assigned.every((i) => i.task?.assignee_id === peerUser.id)).toBeTruthy();
   const taskId = assigned.find((i) => i.title === "Gửi báo giá")!.task!.id;
 
-  // Peer: one notification for the two tasks, and the task names its meeting.
+  // Peer: a notification per task (each was its own convert), and the task names its meeting.
   const peerContext = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
   const peerPage = await peerContext.newPage();
   await loginViaUi(peerPage, peer.email);
   await peerPage.goto(`/${host.orgSlug}/${host.wsSlug}/inbox`);
-  await expect(peerPage.getByRole("link", { name: /ft-host đã giao bạn 2 việc/ })).toBeVisible({ timeout: 20_000 });
+  await expect(peerPage.getByRole("link", { name: /ft-host đã giao bạn việc "Gửi báo giá"/ })).toBeVisible({ timeout: 20_000 });
+  await expect(peerPage.getByRole("link", { name: /ft-host đã giao bạn việc "Đặt phòng hội thảo"/ })).toBeVisible();
   await peerPage.goto(`/${host.orgSlug}/${host.wsSlug}/tasks/${taskId}`);
-  await expect(peerPage.getByText(new RegExp(`Từ cuộc họp: ${title} · `))).toBeVisible({ timeout: 20_000 });
+  await expect(peerPage.getByRole("link", { name: new RegExp(`^Từ cuộc họp ${title} · `) })).toBeVisible({ timeout: 20_000 });
   await peerContext.close();
 
   // Host: a new summary replaces only what nobody handled.

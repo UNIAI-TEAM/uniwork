@@ -681,9 +681,13 @@ Trang là các mục xếp chồng, không có tab. Thêm, theo thứ tự sau `
    `IN_PROGRESS`/`ENDED` hoặc đã có việc.
    - Đầu mục: chip đếm "Chờ xử lý n · Đã giao n · Đã bỏ qua n"; dòng tiến độ "Đã xong
      x/y · z quá hạn".
-   - Nhóm **Chờ xử lý**: mỗi dòng có ô chọn, tiêu đề sửa được, người (gợi ý sẵn), hạn,
-     dự án, độ ưu tiên, nút Bỏ qua (popover lý do không bắt buộc); thanh hành động "Giao
-     n việc" và "+ Thêm việc". Dùng lại phần sửa từng dòng của `SummaryActionItems`.
+   - Nhóm **Chờ xử lý**: mỗi dòng có ô chọn, người gợi ý, nút Bỏ qua (popover lý do không
+     bắt buộc); thanh hành động "Giao n việc" và "+ Thêm việc". Sửa 2026-10-22: mọi chức
+     năng sinh task dùng chung giao diện màn Task, nên "Giao n việc" mở ô soạn task
+     (`CreateTaskDialog`) lần lượt từng việc đã chọn ("Việc sau họp k/n"), điền sẵn tiêu đề,
+     người và hạn gợi ý, dự án của cuộc họp; bấm Tạo thì convert riêng việc đó rồi mở việc
+     kế, đóng là dừng (các việc còn lại giữ dấu chọn). Mỗi việc là một transaction riêng,
+     nên người được giao nhận một thông báo cho mỗi việc.
    - Nhóm **Đã giao**: tiêu đề (mở task), người, hạn, trạng thái, quá hạn tô cảnh báo,
      chip căn cứ (đợt 6).
    - Nhóm **Đã bỏ qua**: thu gọn mặc định, hiện lý do, nút Khôi phục.

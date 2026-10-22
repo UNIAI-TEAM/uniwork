@@ -187,8 +187,7 @@ describe("MeetingActionItemsSection", () => {
     expect(screen.getByRole("button", { name: "Thêm việc" })).toHaveFocus();
   });
 
-  it("assigns several items with the clerk's title, choice of nobody, and the meeting's project", async () => {
-    const u = userEvent.setup();
+  it("assigns the ticked items one after the other in the task screen's composer", async () => {
     renderSection({ projectId: "p1" });
     fireEvent.click(await screen.findByRole("checkbox", { name: "Gửi biên bản" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Đặt phòng" }));
@@ -198,22 +197,35 @@ describe("MeetingActionItemsSection", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Giao 2 việc" }));
     const dialog = await screen.findByRole("dialog");
-    // The owner said in the room is the one already picked: named once, in the select.
-    expect(within(dialog).queryByText(/Trong họp nói: Mai Anh/)).not.toBeInTheDocument();
+    expect(within(dialog).getByText("Việc sau họp 1/2")).toBeInTheDocument();
+    // The owner said in the room is the one already picked: only the spoken due is worth a line.
+    expect(within(dialog).getByText("Hạn đã nói: thứ Sáu")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Trong họp nói/)).not.toBeInTheDocument();
+    // The composer's own controls, not a meeting-only form.
+    expect(within(dialog).getByTestId("create-task-property-toolbar")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Chuyển sang agent" })).not.toBeInTheDocument();
 
-    const [firstTitle] = within(dialog).getAllByRole("textbox", { name: "Tiêu đề việc" });
-    fireEvent.change(firstTitle!, { target: { value: "Gửi biên bản họp" } });
-    const [assignee] = within(dialog).getAllByRole("combobox", { name: "Người phụ trách" });
-    await waitFor(() => expect(assignee).toHaveTextContent("Mai Anh"));
-    await u.click(assignee!);
-    await u.click(await screen.findByRole("option", { name: "Chưa giao" }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Giao 2 việc" }));
+    const title = within(dialog).getByRole("textbox", { name: "Tiêu đề issue" });
+    expect(title).toHaveValue("Gửi biên bản");
+    fireEvent.change(title, { target: { value: "Gửi biên bản họp" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Tạo/ }));
 
     await waitFor(() => expect(posts("/action-items/convert")).toHaveLength(1));
     expect(posts("/action-items/convert")[0]!.body).toEqual({
       items: [
-        { action_item_id: "a0", title: "Gửi biên bản họp", assignee_id: null, due_date: "2026-09-25", project_id: "p1" },
-        { action_item_id: "a1", assignee_id: null, due_date: null, project_id: "p1" },
+        {
+          action_item_id: "a0",
+          title: "Gửi biên bản họp",
+          status: "todo",
+          priority: "none",
+          assignee_id: "u-mai",
+          assignee_kind: "human",
+          project_id: "p1",
+          parent_task_id: null,
+          stage: null,
+          start_date: null,
+          due_date: "2026-09-25",
+        },
       ],
       // The descriptions label the AI's phrases in the language the clerk reads.
       locale: "vi",
@@ -221,34 +233,80 @@ describe("MeetingActionItemsSection", () => {
     // One channel for the outcome, in the same words as the button.
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã giao 1 việc.", expect.anything()));
     expect(screen.getByTestId("summary-live-region")).not.toHaveTextContent("Đã giao");
+
+    // The next item opens on its own values: nobody suggested, no due date.
+    await waitFor(() => expect(within(screen.getByRole("dialog")).getByText("Việc sau họp 2/2")).toBeInTheDocument());
+    const next = within(screen.getByRole("dialog")).getByRole("textbox", { name: "Tiêu đề issue" });
+    await waitFor(() => expect(next).toHaveValue("Đặt phòng"));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^Tạo/ }));
+    await waitFor(() => expect(posts("/action-items/convert")).toHaveLength(2));
+    expect(posts("/action-items/convert")[1]!.body).toMatchObject({
+      items: [{ action_item_id: "a1", title: "Đặt phòng", assignee_id: null, due_date: null, project_id: "p1" }],
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("names the items that duplicate an open task, keeping the review open with them marked", async () => {
-    vi.mocked(toast.error).mockClear();
-    respond({ convert: () => Promise.reject(new ApiError("x", "active_duplicate_task", 409, undefined, { action_item_ids: ["a0"] })) });
+  it("opens on the AI's prose, its cited lines and its suggested priority", async () => {
+    const described = { ...pendingAI, description: "Gửi biên bản cho cả nhóm trước thứ Sáu.", suggested_priority: "high" };
+    respond({ items: () => ({ ...list, items: [described, pendingManual] }) });
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      String(path).includes("/evidence?refs=")
+        ? Promise.resolve({ items: [{ kind: "segment", id: "g1", author: "Mai Anh", text: "Em gửi biên bản nhé", at: "2026-09-22T03:05:00Z" }] })
+        : base(path, init),
+    );
     renderSection();
     fireEvent.click(await screen.findByRole("checkbox", { name: "Gửi biên bản" }));
     fireEvent.click(screen.getByRole("button", { name: "Giao 1 việc" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Giao 1 việc" }));
+    expect(await within(dialog).findByText("Gửi biên bản cho cả nhóm trước thứ Sáu.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Căn cứ trong cuộc họp")).toBeInTheDocument();
+    expect(within(dialog).getByText("Em gửi biên bản nhé")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Độ ưu tiên: Cao" })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Tạo/ }));
+
+    await waitFor(() => expect(posts("/action-items/convert")).toHaveLength(1));
+    const [sent] = (posts("/action-items/convert")[0]!.body as { items: { description?: string; priority?: string }[] }).items;
+    expect(sent!.priority).toBe("high");
+    expect(sent!.description).toContain("Gửi biên bản cho cả nhóm trước thứ Sáu.");
+    expect(sent!.description).toContain("Em gửi biên bản nhé");
+  });
+
+  it("says a duplicate title as the task screen does, keeping the composer and its edits", async () => {
+    vi.mocked(toast.error).mockClear();
+    respond({
+      convert: () =>
+        Promise.reject(
+          new ApiError("x", "active_duplicate_task", 409, undefined, {
+            action_item_ids: ["a0"], task_id: "t7", identifier: "TEAM-7", title: "Gửi biên bản",
+          }),
+        ),
+    });
+    renderSection();
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Gửi biên bản" }));
+    fireEvent.click(screen.getByRole("button", { name: "Giao 1 việc" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Tiêu đề issue" }), { target: { value: "Gửi biên bản " } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Tạo/ }));
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
-        'Đã có việc đang mở trùng tên với: "Gửi biên bản". Bỏ chọn các mục này hoặc chọn dự án khác rồi thử lại.',
+        "Đã có task đang mở với tiêu đề này",
+        expect.objectContaining({ description: "TEAM-7 – Gửi biên bản" }),
       ),
     );
     expect(screen.getByRole("dialog")).toBe(dialog);
-    expect(within(dialog).getByText("Trùng tên với một việc đang mở")).toBeInTheDocument();
+    expect(within(dialog).getByRole("textbox", { name: "Tiêu đề issue" })).toHaveValue("Gửi biên bản ");
   });
 
-  it("closes the review and drops the ticks when an item was handled elsewhere meanwhile", async () => {
+  it("moves past an item handled elsewhere meanwhile and drops its tick", async () => {
     vi.mocked(toast.error).mockClear();
     respond({ convert: () => Promise.reject(new ApiError("x", "action_item_not_pending", 409, undefined, { action_item_ids: ["a0"] })) });
     renderSection();
     fireEvent.click(await screen.findByRole("checkbox", { name: "Gửi biên bản" }));
     fireEvent.click(screen.getByRole("button", { name: "Giao 1 việc" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Giao 1 việc" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Tạo/ }));
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
@@ -375,7 +433,7 @@ describe("MeetingActionItemsSection focus", () => {
     await u.click(await screen.findByRole("checkbox", { name: "Gửi biên bản" }));
     await u.click(screen.getByRole("button", { name: "Giao 1 việc" }));
     const dialog = await screen.findByRole("dialog");
-    await u.click(within(dialog).getByRole("button", { name: "Giao 1 việc" }));
+    await u.click(within(dialog).getByRole("button", { name: /^Tạo/ }));
     await waitFor(() => expect(screen.getByRole("heading", { name: "Đã giao (1)" })).toBeInTheDocument());
     const cta = screen.getByRole("button", { name: "Giao việc" });
     await waitFor(() => expect(cta).toHaveFocus());

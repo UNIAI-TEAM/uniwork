@@ -22,7 +22,7 @@ import { PanelCard } from "../../common/panel-card";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { MODULE_ICONS } from "../../layout/module-icons";
 import { moduleTone } from "../../layout/module-tones";
-import { AiSummaryTasksDialog } from "../../tasks/ai-summary-tasks-dialog";
+import { CreateTaskDialog } from "../../tasks/create-task-dialog";
 import { apiErrorCopy } from "../../api-error-copy";
 import { MeetingSectionError, MeetingSectionLoading } from "../meeting-section-state";
 import { SummaryLiveRegion, useAnnouncement } from "../meeting-summary/summary-generate-controls";
@@ -102,9 +102,9 @@ function RowsSkeleton() {
 }
 
 /**
- * The clerk's pending list: tick, review in the shared dialog (title, who,
- * when, priority, project; the server's suggestions are the starting point
- * and the clerk's choices are final), assign; dismiss one with an optional
+ * The clerk's pending list: tick, then assign each in the task screen's
+ * composer (the server's suggestions are the starting point and the clerk's
+ * choices are final), one after the other; dismiss one with an optional
  * reason; add one the summary missed. The call to action stays rendered
  * once there is any item, even with none left pending (aria-disabled, with
  * the reason beside it), so the focus the dialog hands back on close has
@@ -133,9 +133,17 @@ function ClerkPendingList({
 }) {
   const { t } = useTranslation();
   const reasonId = useId();
-  const flow = useActionItemConversion({ workspaceId, meetingId, items, announce, selection });
-  const dismiss = useDismissMeetingActionItem(meetingId);
   const { memberOf } = useMemberIndex(workspaceId);
+  const flow = useActionItemConversion({
+    workspaceId,
+    meetingId,
+    projectId,
+    items,
+    announce,
+    selection,
+    nameOf: (id) => memberOf(id)?.display_name,
+  });
+  const dismiss = useDismissMeetingActionItem(meetingId);
   const [adding, setAdding] = useState(false);
   const [dismissError, setDismissError] = useState<{ id: string; text: string } | null>(null);
   const addRef = useRef<HTMLButtonElement>(null);
@@ -258,28 +266,17 @@ function ClerkPendingList({
           </p>
         ) : null}
       </div>
-      <AiSummaryTasksDialog
+      {/* The task screen's own composer, one ticked item at a time. */}
+      <CreateTaskDialog
+        workspaceId={workspaceId}
         open={flow.dialogOpen}
         onOpenChange={flow.setDialogOpen}
-        wsId={workspaceId}
-        idPrefix={`meeting-action-${meetingId}`}
-        seeds={flow.seeds}
-        itemNotes={flow.itemNotes}
-        initialProjectId={projectId}
-        pending={flow.pending}
-        copy={{
-          title: t("meetings.actionItemsSection.dialogTitle"),
-          description: t("meetings.actionItemsSection.dialogDescription", { count: flow.seeds.length }),
-          projectLabel: t("meetings.summaryAi.projectLabel"),
-          projectNone: t("meetings.summaryAi.projectNone"),
-          unassignedLabel: t("meetings.summaryAi.unassigned"),
-          suggestedOwner: (name) => t("meetings.actionItemsSection.suggestedOwner", { name }),
-          spokenDue: (due) => t("meetings.actionItemsSection.spokenDue", { due }),
-          submit: t("meetings.actionItemsSection.submit", { count: flow.seeds.length }),
-          submitting: t("meetings.actionItemsSection.submitting"),
-          titleLabel: t("meetings.actionItemsSection.titleLabel"),
-        }}
-        onConfirm={flow.submit}
+        showTrigger={false}
+        defaults={flow.defaults}
+        submitter={flow.submitter}
+        heading={flow.heading}
+        hint={flow.hint}
+        finalFocus={assignRef}
       />
     </div>
   );

@@ -346,10 +346,10 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
     });
     fireEvent.click(screen.getByRole("button", { name: "Giao 1 việc" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Giao 1 việc" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Tạo/ }));
 
     await waitFor(() => expect(posted().items).toHaveLength(1));
-    expect(posted()).toEqual({
+    expect(posted()).toMatchObject({
       items: [{ action_item_id: "a0", assignee_id: null, due_date: null, project_id: "p1" }],
       locale: "vi",
     });

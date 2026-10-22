@@ -1,5 +1,5 @@
 "use client";
-import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
 import * as api from "../api/endpoints/meeting-summary";
 import { getMeetingEvidence } from "../api/endpoints/meeting-evidence";
@@ -66,12 +66,44 @@ export function useMeetingCatchUp(meetingId: string) {
 }
 
 
+const refsKey = (refs: readonly MeetingEvidenceRef[]) => refs.map((r) => `${r.kind}:${r.id}`).join(",");
+
 /** The lines a decision or an action item cites, read when the reader opens them. */
 export function useMeetingEvidence(meetingId: string, refs: readonly MeetingEvidenceRef[], enabled: boolean) {
   return useQuery({
-    queryKey: meetingKeys.evidence(meetingId, refs.map((r) => `${r.kind}:${r.id}`).join(",")),
+    queryKey: meetingKeys.evidence(meetingId, refsKey(refs)),
     queryFn: () => getMeetingEvidence(meetingId, refs),
     enabled: enabled && !!meetingId && refs.length > 0,
     retry: summaryQueryRetry,
   });
+}
+
+// The evidence endpoint answers at most 20 refs per call.
+const MAX_EVIDENCE_REFS = 20;
+
+/**
+ * The lines each of these items cites, read together (and shared with the
+ * evidence chip's cache), with `settled` once every read answered: a failed
+ * or empty one reads as no lines, never as a wait that does not end.
+ */
+export function useMeetingEvidenceOf(
+  meetingId: string,
+  items: readonly { evidence: readonly MeetingEvidenceRef[] }[],
+  enabled: boolean,
+) {
+  const results = useQueries({
+    queries: items.map((item) => {
+      const refs = item.evidence.slice(0, MAX_EVIDENCE_REFS);
+      return {
+        queryKey: meetingKeys.evidence(meetingId, refsKey(refs)),
+        queryFn: () => getMeetingEvidence(meetingId, refs),
+        enabled: enabled && !!meetingId && refs.length > 0,
+        retry: summaryQueryRetry,
+      };
+    }),
+  });
+  return {
+    lines: results.map((r) => r.data ?? []),
+    settled: results.every((r, i) => items[i]!.evidence.length === 0 || r.status !== "pending"),
+  };
 }

@@ -4,14 +4,19 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { errorCode } from "@uniwork/core/api/http";
 import { useConvertMeetingActionItems, type MeetingActionItem } from "@uniwork/core/meetings/action-items";
-import { buildConvertActionItemsBody, summaryItemDraft } from "@uniwork/core/meetings/summary-task-items";
+import { useMeetingEvidenceOf } from "@uniwork/core/meetings/summary";
+import { actionItemTaskDefaults, convertActionItemInput } from "@uniwork/core/meetings/summary-task-items";
 import { paths } from "@uniwork/core/paths";
+import type { CreateTaskBody } from "@uniwork/core/tasks";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { useOptionalNavigation } from "../../navigation";
-import type { AiSummaryTaskDraft, AiSummaryTaskSeed } from "../../tasks/ai-summary-tasks-dialog";
-import { errorItemIds, summaryErrorText } from "../meeting-summary/summary-error-copy";
+import { sameName } from "../../tasks/ai-summary-tasks-dialog";
+import type { CreateTaskSubmitter } from "../../tasks/use-create-task-manual";
+import { meetingLocale } from "../meeting-datetime";
+import { summaryErrorText } from "../meeting-summary/summary-error-copy";
+import { actionItemTaskDescription } from "./action-item-task-description";
 
-/** Refusals after which the ticks no longer describe the list on screen. */
+/** Refusals after which the item is no longer the clerk's to convert: the composer moves past it. */
 const STALE_SELECTION = new Set(["action_item_not_pending", "action_item_not_found"]);
 
 const NONE: ReadonlySet<string> = new Set();
@@ -20,24 +25,33 @@ const NONE: ReadonlySet<string> = new Set();
 export type ActionItemSelection = [ReadonlySet<string>, Dispatch<SetStateAction<ReadonlySet<string>>>];
 
 /**
- * Selection, review dialog and the convert call over a meeting's pending
- * action items. Ticks are item ids, so a list that changes under the clerk (a
- * regenerated summary, another clerk) keeps the ticks of items still pending
- * and silently drops the rest. It only mounts with a real workspace id:
- * every key the mutation refreshes is workspace-scoped.
+ * Selection over a meeting's pending action items, and the task screen's
+ * composer going through the ticked ones in turn: each opens prefilled, and
+ * creating it converts that item alone (its task, link and audit in one
+ * transaction) before the next one opens. Ticks are item ids, so a list that
+ * changes under the clerk (a regenerated summary, another clerk) keeps the
+ * ticks of items still pending, and an item handled elsewhere is skipped. It
+ * only mounts with a real workspace id: every key the mutation refreshes is
+ * workspace-scoped.
  */
 export function useActionItemConversion({
   workspaceId,
   meetingId,
+  projectId,
   items,
   announce,
   selection,
+  nameOf,
 }: {
   workspaceId: string;
   meetingId: string;
+  /** The meeting's project, while it still exists: each task starts there. */
+  projectId?: string;
   items: readonly MeetingActionItem[];
   announce: (message: string) => void;
   selection?: ActionItemSelection;
+  /** A member's display name, to say the spoken owner only when it is someone else. */
+  nameOf: (userId: string | null | undefined) => string | undefined;
 }) {
   const { t, i18n } = useTranslation();
   const convert = useConvertMeetingActionItems(workspaceId, meetingId);
@@ -46,35 +60,33 @@ export function useActionItemConversion({
   const own = useState<ReadonlySet<string>>(NONE);
   const [picked, setPicked] = selection ?? own;
   const [dialogOpen, setDialogOpen] = useState(false);
-  // The ids under review, fixed when the review opens: a seed's index is its
-  // place here, so an item leaving the list cannot shift the drafts.
+  // The ids the composer goes through, fixed when it opens, and those it is past.
   const [review, setReview] = useState<readonly string[]>([]);
-  // Items the last attempt refused as duplicates of an open task.
-  const [duplicates, setDuplicates] = useState<ReadonlySet<string>>(NONE);
+  const [past, setPast] = useState<ReadonlySet<string>>(NONE);
 
   const pickedPending = useMemo(
     () => items.filter((item) => item.status === "PENDING" && picked.has(item.id)),
     [items, picked],
   );
-  const seeds = useMemo<AiSummaryTaskSeed[]>(
-    () =>
-      review.flatMap((id, index) => {
-        const item = items.find((it) => it.id === id && it.status === "PENDING");
-        return item
-          ? [{ index, title: item.title, owner: item.owner_text, due: item.due_text, draft: summaryItemDraft(item) }]
-          : [];
-      }),
+  const queued = useMemo(
+    () => review.flatMap((id) => items.find((it) => it.id === id && it.status === "PENDING") ?? []),
     [review, items],
   );
-  const duplicateNote = t("meetings.summaryErrors.duplicateItemNote");
-  const itemNotes = useMemo<Record<number, string> | undefined>(() => {
-    if (duplicates.size === 0) return undefined;
-    const notes: Record<number, string> = {};
-    review.forEach((id, index) => {
-      if (duplicates.has(id)) notes[index] = duplicateNote;
-    });
-    return notes;
-  }, [duplicates, review, duplicateNote]);
+  const current = queued.find((item) => !past.has(item.id));
+  // Every queued item's cited lines are read before the composer opens, so
+  // each one opens whole and the next never waits.
+  const evidence = useMeetingEvidenceOf(meetingId, queued, dialogOpen);
+  const ready = evidence.settled;
+  // The composer resets whenever its defaults change: they change with the
+  // item, never with a refetch of the same one.
+  const [shown, setShown] = useState<{ id: string; defaults: Partial<CreateTaskBody> } | null>(null);
+  if (current && ready && shown?.id !== current.id) {
+    const lines = evidence.lines[queued.indexOf(current)] ?? [];
+    const description = actionItemTaskDescription(current.description, lines, t, meetingLocale(i18n.language));
+    setShown({ id: current.id, defaults: actionItemTaskDefaults(current, projectId, description) });
+  }
+  // Everything is done or was handled elsewhere: the composer has nothing left to show.
+  if (dialogOpen && !current) setDialogOpen(false);
   const wsPaths = workspace ? paths.workspace(workspace.organization_slug, workspace.slug) : null;
 
   function toggle(id: string, on: boolean) {
@@ -88,67 +100,82 @@ export function useActionItemConversion({
 
   function openReview() {
     if (pickedPending.length === 0 || convert.isPending) return;
-    setDuplicates(NONE);
+    setPast(NONE);
     setReview(pickedPending.map((item) => item.id));
     setDialogOpen(true);
   }
 
-  function submit(input: { projectId?: string; drafts: Record<number, AiSummaryTaskDraft> }) {
-    const drafts = Object.fromEntries(
-      review.flatMap((id, index) => (input.drafts[index] ? [[id, input.drafts[index]]] : [])),
-    );
-    const body = buildConvertActionItemsBody(items, new Set(review), drafts, input.projectId);
-    if (!body || convert.isPending) return;
-    announce(t("meetings.actionItemsSection.assigning"));
-    setDuplicates(NONE);
-    convert.mutate({ ...body, locale: i18n.language.startsWith("en") ? "en" : "vi" }, {
-      onSuccess: (result) => {
-        setDialogOpen(false);
-        setPicked(NONE);
-        // The outcome is said once, by the toast (sonner's live region); the
-        // section's region only carried "assigning…".
-        if (!result) {
-          // The tasks may exist; the refetched list shows which. Never
-          // report "0 tasks" for an answer that could not be read.
-          toast.warning(t("meetings.summaryAi.createdUnknown"));
-          return;
-        }
-        const count = result.links.length;
-        const only = count === 1 ? result.links[0]?.task_id : undefined;
-        toast.success(t("meetings.actionItemsSection.assignedStatus", { count }), {
-          action:
-            wsPaths && nav
-              ? {
-                  label: t("meetings.summaryAi.viewTasks", { count }),
-                  onClick: () => nav.push(only ? wsPaths.task(only) : wsPaths.tasks()),
-                }
-              : undefined,
-        });
-      },
-      onError: (err) => {
-        const code = errorCode(err) ?? "";
-        toast.error(summaryErrorText(err, t, "tasks", { items }));
-        // A duplicate leaves the review open with the clashing items marked,
-        // so the clerk chooses what to drop or move.
-        if (code === "active_duplicate_task") setDuplicates(new Set(errorItemIds(err)));
-        if (STALE_SELECTION.has(code)) {
-          setDialogOpen(false);
-          setPicked(NONE);
-        }
-      },
+  function moveOn(id: string) {
+    setPast((prev) => new Set(prev).add(id));
+    setPicked((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
     });
   }
+
+  async function submit(body: CreateTaskBody): Promise<void> {
+    const item = current;
+    if (!item || convert.isPending) return;
+    announce(t("meetings.actionItemsSection.assigning"));
+    try {
+      const result = await convert.mutateAsync({
+        items: [convertActionItemInput(item.id, body)],
+        locale: i18n.language.startsWith("en") ? "en" : "vi",
+      });
+      moveOn(item.id);
+      // The outcome is said once, by the toast (sonner's live region); the
+      // section's region only carried "assigning…".
+      if (!result) {
+        // The task may exist; the refetched list shows whether it does.
+        toast.warning(t("meetings.summaryAi.createdUnknown"));
+        return;
+      }
+      const taskId = result.links[0]?.task_id;
+      toast.success(t("meetings.actionItemsSection.assignedStatus", { count: 1 }), {
+        action:
+          wsPaths && nav && taskId
+            ? { label: t("meetings.summaryAi.viewTasks", { count: 1 }), onClick: () => nav.push(wsPaths.task(taskId)) }
+            : undefined,
+      });
+    } catch (err) {
+      if (STALE_SELECTION.has(errorCode(err) ?? "")) moveOn(item.id);
+      throw err;
+    }
+  }
+
+  const submitter: CreateTaskSubmitter = {
+    submit,
+    pending: convert.isPending,
+    // A duplicate title gets the task screen's own toast, which opens the open task.
+    errorText: (err) =>
+      errorCode(err) === "active_duplicate_task" ? undefined : summaryErrorText(err, t, "tasks", { items }),
+  };
+
+  const at = current ? review.indexOf(current.id) + 1 : 0;
+  const owner = current?.owner_text?.trim();
+  const due = current?.due_text?.trim();
+  const hint = [
+    owner && !sameName(owner, nameOf(current?.suggested_assignee_id))
+      ? t("meetings.actionItemsSection.suggestedOwner", { name: owner })
+      : null,
+    due ? t("meetings.actionItemsSection.spokenDue", { due }) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return {
     picked,
     pickedPending,
     toggle,
-    seeds,
-    itemNotes,
-    dialogOpen,
+    dialogOpen: dialogOpen && Boolean(current) && shown?.id === current?.id,
     setDialogOpen,
     openReview,
-    submit,
-    pending: convert.isPending,
+    submitter,
+    defaults: shown?.defaults,
+    heading: t("meetings.actionItemsSection.composerStep", { at, total: review.length }),
+    hint: hint || undefined,
+    // Also while the cited lines are read: the assign button says it is busy.
+    pending: convert.isPending || (dialogOpen && !ready),
   };
 }
