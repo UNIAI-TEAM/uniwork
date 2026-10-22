@@ -1,8 +1,7 @@
 // The phone's use-call-ringtone: the web's tones (lib/call-ringtone.ts, as WAV
 // loops) while a call rings, and a buzz on the same beat for an incoming one.
 // On Android an incoming call rings with the phone's own ringtone on the
-// ringtone stream instead (modules/unichat-calls › CallRinger; audit P2
-// Calls): the ringer switch and Do Not Disturb decide, not the media volume.
+// ringtone stream instead (modules/unichat-calls › CallRinger): the ringer switch and Do Not Disturb decide, not the media volume.
 // The caller's own ringback stays a WAV: it is part of the call's audio.
 import { createAudioPlayer } from "expo-audio";
 import { useEffect } from "react";

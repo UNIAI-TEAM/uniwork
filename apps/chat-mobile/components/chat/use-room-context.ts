@@ -4,7 +4,7 @@
 // Shared by the room and the thread screens. Who is typing is not here: the
 // bubble and the header line read it themselves (room-typing.tsx), so a typing
 // frame does not redraw the conversation. What names a sender stays the same
-// object while the people and nicknames do (audit P2 Perf): a new message
+// object while the people and nicknames do: a new message
 // changes the room's record, not its DM peer, so the rows keep their names
 // without being read again (lib/message-row-model.ts).
 import { useQuery } from "@tanstack/react-query";

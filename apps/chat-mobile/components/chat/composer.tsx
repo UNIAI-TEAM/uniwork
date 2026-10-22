@@ -1,7 +1,7 @@
 // The composer (spec §2.2): text with @mention autocomplete, a photo or a
 // file, the quoted reply, editing one's own message, and the typing signal
 // (600 ms after the draft stops changing, as packages/views/chat/use-native-typing.ts).
-// M3: an empty draft's send button records a voice message, and the attach
+// an empty draft's send button records a voice message, and the attach
 // sheet opens the sticker/GIF picker and the reminder sheet.
 // R4 (canvas MobileChat / MobStates): a round "+" outside the field opens the
 // attach sheet, a pill field holds the input and the sticker button, a round

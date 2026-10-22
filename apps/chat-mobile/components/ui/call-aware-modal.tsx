@@ -1,6 +1,6 @@
 // Every sheet and dialog of the app is this Modal (eslint.config.mjs forbids
-// react-native's own elsewhere). An incoming call closes whatever is open
-// (audit C2): the call screen is a full-screen layer, not a Modal, because
+// react-native's own elsewhere). An incoming call closes whatever is open:
+// the call screen is a full-screen layer, not a Modal, because
 // iOS will not present a modal over one already open, so a sheet left open
 // would sit over the ringing call and its Answer button. Closing goes through
 // the sheet's own onRequestClose, as Android's back button does. A sheet that

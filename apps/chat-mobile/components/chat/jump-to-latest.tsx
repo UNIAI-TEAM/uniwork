@@ -1,5 +1,5 @@
 // The round button over the bottom of a conversation that is scrolled up
-// (audit P2 UX; the web's ChatJumpToLatestButton): a chevron down and, when
+// (the web's ChatJumpToLatestButton): a chevron down and, when
 // others wrote since the reader left the bottom, how many ("99+" past 99).
 // The count is a badge, so its text stops growing with the system text size at the badge cap
 // (lib/type-scale.ts); the button's label carries the full count either way.

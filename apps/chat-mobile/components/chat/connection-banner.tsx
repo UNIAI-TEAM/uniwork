@@ -1,4 +1,4 @@
-// The one line that says the conversation is not live (audit R3): "Waiting
+// The one line that says the conversation is not live: "Waiting
 // for a connection…" while the phone has no network (NetInfo), "Connecting…"
 // while the network is there but the workspace socket is dialing or waiting
 // to redial. A blip shorter than RECONNECT_GRACE_MS shows nothing, so a
@@ -38,7 +38,7 @@ export function ConnectionBanner() {
   const connection = useConnectionState();
   const reconnecting = useHeldFor(!offline && (connection === "connecting" || connection === "waiting"), RECONNECT_GRACE_MS);
   const line = offline ? t("chat.mobile.offline_banner") : reconnecting ? t("chat.mobile.connecting_banner") : null;
-  // VoiceOver has no live regions (audit U1): it hears the line when it appears or changes.
+  // VoiceOver has no live regions: it hears the line when it appears or changes.
   useAnnounce(line);
   if (!line) return null;
   return (

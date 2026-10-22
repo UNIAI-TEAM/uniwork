@@ -1,5 +1,5 @@
 // The backoff the phone waits between attempts at something that failed for a
-// reason the network may fix (audit R3): the unsent messages, the queued reads
+// reason the network may fix: the unsent messages, the queued reads
 // and reactions, a socket whose session refresh hit a dead spot. 2 s, 5 s,
 // 15 s, then every 60 s, each spread ±20 % so a thousand phones coming back
 // from the same outage do not knock together. A network edge or a socket

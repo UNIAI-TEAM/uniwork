@@ -78,7 +78,7 @@ export async function joinChannel(qc: QueryClient, wsId: string, roomId: string)
   return room;
 }
 
-// M3: the rich kinds. A voice clip and a reminder are sends (chat-send.ts); a
+// the rich kinds. A voice clip and a reminder are sends (chat-send.ts); a
 // read, a reaction and a poll vote work offline too (pending-ops.ts).
 
 const FOLLOW_UP_COMMANDS = {

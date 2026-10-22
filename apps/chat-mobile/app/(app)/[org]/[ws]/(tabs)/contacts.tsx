@@ -1,7 +1,7 @@
 // The contacts tab: the workspace's people as the web's member picker lists
 // them (minus the deactivated, whom a DM would refuse), with their nicknames
 // and who is online — a strip of the online ones above the list — A–Z. A tap
-// opens the DM through the deep-link contract the chat tab (M2a) honours;
+// opens the DM through the deep-link contract the chat tab honours;
 // the DM says when either side blocked (room-safety.tsx › DmBlockBanner), and
 // its details block, unblock and report, as on the web. The list recycles its
 // cells (components/contacts/contact-list.tsx) and a search filters behind the

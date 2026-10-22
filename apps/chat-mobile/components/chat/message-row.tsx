@@ -4,8 +4,8 @@
 // sender's name inside the first bubble of a run in a group, the quoted
 // message it answers, its content by kind, time / "Đã sửa" / the seen ticks or
 // a local message's send state at the bubble's foot, reaction pills, the tasks
-// made from it (M3) and the thread link. A screen reader hears one element per
-// bubble (audit U2/U3): sender, time, the quote, the text, its state and its
+// made from it and the thread link. A screen reader hears one element per
+// bubble: sender, time, the quote, the text, its state and its
 // receipt, with actions for the menu and the quoted message, and a hint on a
 // local message that its tap opens retry / delete.
 import { Ionicons } from "@expo/vector-icons";
@@ -34,7 +34,7 @@ import { TaskCards } from "./task-card";
 /** A screen reader's actions name at most this many of a message's links (the menu would bury the rest). */
 const MAX_LINK_ACTIONS = 5;
 
-/** bảng Ngôn ngữ: a sent message appears in 180 ms; a reaction pops on a spring. */
+/** The design language board: a sent message appears in 180 ms; a reaction pops on a spring. */
 const SEND_IN = FadeIn.duration(180);
 const REACTION_IN = ZoomIn.springify().damping(14);
 
@@ -147,7 +147,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   const longPress = () => props.onLongPress(message);
   // The links of a text message, each a screen-reader action that opens its open / copy / share sheet (link-sheet.tsx).
   const links = record && messageView(record) === "text" ? messageLinks(record.body).slice(0, MAX_LINK_ACTIONS) : [];
-  // Every long-press action reachable without a long press: the menu, the quoted message (audit U3) and each link.
+  // Every long-press action reachable without a long press: the menu, the quoted message and each link.
   const actions = [
     { name: "longpress", label: t("chat.message_actions_aria") },
     ...(quote ? [{ name: "open_quote", label: t("chat.reply_quote_jump", { preview: quote.text }) }] : []),
@@ -245,7 +245,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
                       .filter(Boolean)
                       .join(" · ")}
                   </Text>
-                  {/* Seen is a filled badge in the bubble's ink, not only a lighter tint of delivered's two ticks (audit UX P2). */}
+                  {/* Seen is a filled badge in the bubble's ink, not only a lighter tint of delivered's two ticks. */}
                   {receipt === "seen" ? (
                     <Ionicons name="checkmark-done-circle" size={16} color={theme.chatBubbleOwnForeground} testID="receipt-seen" />
                   ) : null}

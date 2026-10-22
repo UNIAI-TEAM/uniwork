@@ -1,5 +1,5 @@
 // The app's logger: one scope per module ("auth", "realtime", "push"…),
-// replacing the scattered console.warn calls (audit T4). A line goes to
+// replacing the scattered console.warn calls. A line goes to
 // the console only in a development build, and always to crash reporting as
 // a breadcrumb, so a report carries the steps that led to it. `error` with an
 // Error also reports it (data/report.ts decides whether it is worth a report).

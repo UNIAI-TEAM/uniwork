@@ -1,6 +1,6 @@
 // The contacts tab's strip of the people online, above the A–Z list; each face
 // opens the DM. The only part of the tab that reads the whole presence set.
-// A horizontal FlashList (audit P2 Perf): a workspace with hundreds online
+// A horizontal FlashList: a workspace with hundreds online
 // mounts the faces in view, not one 52 pt avatar per person.
 // Moved out of the route file, which only composes.
 import { FlashList, type ListRenderItem } from "@shopify/flash-list";

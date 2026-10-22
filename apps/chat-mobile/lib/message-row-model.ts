@@ -1,5 +1,5 @@
 // What one message row of a conversation draws, worked out once per change of
-// the timeline instead of inside every cell's render (audit H1). A model that
+// the timeline instead of inside every cell's render. A model that
 // comes out the same as last time is the same object as last time, so the
 // memoized cell (components/chat/message-cell.tsx) skips it: a new message
 // re-renders the new row and the one whose run it continues, a typing frame or
@@ -117,8 +117,8 @@ const sameReaders = (a: Readers, b: Readers): boolean =>
 /**
  * One model per message row that draws something (a photo folded into its
  * album draws nothing), keyed by row key. A model equal to the one `previous`
- * holds for its key is returned as that very object. Incremental (audit P2
- * Perf, 2,000 loaded messages): a row whose message, quoted message and
+ * holds for its key is returned as that very object. Incremental (2,000 loaded
+ * messages): a row whose message, quoted message and
  * readers (the name and preview functions, viewer, thread) are those of last
  * time keeps its name and quote without calling the readers, and is handed
  * back without building a new object when nothing else it draws moved.

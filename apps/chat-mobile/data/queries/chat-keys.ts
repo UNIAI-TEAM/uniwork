@@ -39,7 +39,7 @@ export const chatKeys = {
   callLogs: (wsId: string) => ["chat", wsId, "call-logs"] as const,
   /** Whether a live call is being recorded, polled while it is on screen. */
   callRecording: (wsId: string, roomId: string, callId: string) => ["chat", wsId, "call-recording", roomId, callId] as const,
-  // M3 rich kinds.
+  // Rich kinds.
   /** This person's follow-ups in the workspace, done ones included. */
   followUps: (wsId: string) => ["chat", wsId, "follow-ups"] as const,
   /** The task links of one window of the messages a room shows (lib/link-windows.ts). */

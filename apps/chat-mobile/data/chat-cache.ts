@@ -38,7 +38,7 @@ export interface ChatViewer {
 
 /**
  * Patch a loaded room timeline. A patch that cannot keep it contiguous
- * returns null, and so does a timeline not loaded: both refetch (UNI-950).
+ * returns null, and so does a timeline not loaded: both refetch.
  * While the timeline fetches, the patch waits for it (patches are idempotent).
  */
 function patchRoomTimelineIfLoaded(qc: QueryClient, wsId: string, roomId: string, patch: (existing: RoomTimeline) => RoomTimeline | null): void {
@@ -96,7 +96,7 @@ function patchMessageCaches(qc: QueryClient, wsId: string, roomId: string, messa
 /**
  * A chat mutation's answer: the server's copy of the message it sent or
  * changed goes into the caches, so the room is not refetched page by page
- * (UNI-1077). Without one, the room refetches. A send also moves the room's
+ *. Without one, the room refetches. A send also moves the room's
  * preview in the list.
  */
 export function applyChatMessageResponse(qc: QueryClient, wsId: string, roomId: string, message: ChatMessageRecord | null, created: boolean): void {
@@ -112,7 +112,7 @@ export function applyChatMessageResponse(qc: QueryClient, wsId: string, roomId: 
 
 /**
  * A shown timeline of this room, or of one of its threads: the only reason to
- * GET a message. One loaded but not shown is marked stale instead (UNI-1078).
+ * GET a message. One loaded but not shown is marked stale instead.
  */
 function isRoomTimelineShown(qc: QueryClient, wsId: string, roomId: string): boolean {
   const keys: QueryKey[] = [

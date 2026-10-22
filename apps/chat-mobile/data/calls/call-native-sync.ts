@@ -1,5 +1,5 @@
 // Keeps the native side of a call in step with the call engine
-// (call-engine.ts), so no screen has to (audit P0-5, docs/adr/drafts/0038):
+// (call-engine.ts), so no screen has to (docs/adr/drafts/0038):
 //
 // - connecting or active: the call's foreground service runs, with its
 //   ongoing notification (who, how long, Hang up), so a locked phone keeps

@@ -3,7 +3,7 @@
 // and native-chat-message-timeline.ts (same cases in arrivals.test.ts): only
 // what someone else sent below the old bottom is new — never history loading
 // above, a room's first page, my own sends, or a window a jump replaced.
-// createArrivalAnnouncer is the phone's addition (audit U2): a screen reader
+// createArrivalAnnouncer is the phone's addition: a screen reader
 // hears the first arrival at once, then at most one line per quiet window, so a
 // busy group reads "5 new messages" instead of five interruptions.
 import type { TimelineMessage } from "./timeline-display";

@@ -2,7 +2,7 @@
 // (user + loading) over the native session. The token lifecycle, the epoch
 // and the Keychain are the session's; the store only asks it and loads /me.
 //
-// A cold start is offline-first (audit P0-3): the stored credential, the last
+// A cold start is offline-first: the stored credential, the last
 // signed-in person, the workspace and the unsent messages are read together;
 // with a credential and a stored person the inbox opens at once, on the cached
 // rooms, and /me revalidates behind it. Only a server verdict signs out (the
@@ -57,7 +57,7 @@ export const PUSH_UNREGISTER_BUDGET_MS = 3_000;
 
 /**
  * Every sign-out drops this phone's push subscription first, while a live
- * session can still authorize the call (audit P2: push kept arriving after a
+ * session can still authorize the call (otherwise push kept arriving after a
  * sign-out). A sign-out the server made (the session is already over) cannot
  * call; the server skips an ended device session's subscription itself.
  */

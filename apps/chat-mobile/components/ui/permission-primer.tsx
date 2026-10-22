@@ -1,7 +1,7 @@
-// The sheet that explains a permission before the system asks (data/permissions.ts,
-// audit P2): what UniChat needs, why, and when it is used; "Continue" lets the
-// system show its prompt, "Not now" keeps it for later. When the system will
-// not ask again it says the permission is off and offers the phone's Settings.
+// The sheet that explains a permission before the system asks (data/permissions.ts):
+// what UniChat needs, why, and when it is used; "Continue" lets the system show its
+// prompt, "Not now" keeps it for later. When the system will not ask again it says the
+// permission is off and offers the phone's Settings.
 // Mounted once at the root; iOS will not present the system prompt over a
 // sheet still closing, so the answer goes out once the sheet is gone.
 import type { Ionicons } from "@expo/vector-icons";

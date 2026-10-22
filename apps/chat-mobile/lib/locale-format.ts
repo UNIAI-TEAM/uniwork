@@ -1,4 +1,4 @@
-// The one place that decides how the app writes a date or a time (audit "locale-formatting-consistency"):
+// The one place that decides how the app writes a date or a time:
 // the app's own language, never the device's region (a phone set to English shows English dates, written
 // day first — en-GB, as people in Vietnam read them), and the device's 12- or 24-hour clock, which the
 // person chose in the system settings. lib/ stays free of native modules, so the clock arrives through

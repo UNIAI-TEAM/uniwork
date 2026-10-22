@@ -2,7 +2,7 @@
 // allowlist), without the selector the phone does not use;
 // chat-presence-store.test.ts runs the core cases. selectIsOnline is the
 // phone's own: one person's presence, so a row redraws when that person comes
-// or goes, not on every change of the whole set (audit P2 Perf).
+// or goes, not on every change of the whole set.
 import { create } from "zustand";
 import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
 

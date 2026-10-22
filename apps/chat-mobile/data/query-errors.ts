@@ -1,4 +1,4 @@
-// QueryCache / MutationCache onError (audit P0-2): a failed query or mutation
+// QueryCache / MutationCache onError: a failed query or mutation
 // anywhere in the app reaches crash reporting once, named by the first
 // segment of its key (never the ids after it). data/report.ts drops what is
 // expected — offline, timeouts, 401/403/404/429, a code the command handles

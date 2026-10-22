@@ -1,5 +1,5 @@
-// A swipe to the right on a bubble quotes it in the composer (bảng Ngôn ngữ:
-// past 56 pt), the way WhatsApp and Telegram answer. The reply arrow grows in
+// A swipe to the right on a bubble quotes it in the composer (the design
+// language board: past 56 pt), the way WhatsApp and Telegram answer. The reply arrow grows in
 // with the drag and a tick is felt the moment the drag crosses the threshold
 // (and again if it comes back and crosses once more), so the hand knows that
 // letting go will reply. The long-press menu keeps "Trả lời" for anyone who

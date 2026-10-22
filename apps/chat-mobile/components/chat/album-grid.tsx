@@ -2,8 +2,7 @@
 // frame; with an odd count the first photo spans the row, the rest go in
 // pairs; past four the last tile says how many more. A tap opens that photo in
 // the viewer, which pages through the conversation's photos. Each tile is a
-// button a screen reader reaches, with the message menu as an action (audit
-// U3); the first one says it starts an album of N photos, the last one how
+// button a screen reader reaches, with the message menu as an action; the first one says it starts an album of N photos, the last one how
 // many more it hides.
 import { Image } from "expo-image";
 import { useTranslation } from "react-i18next";

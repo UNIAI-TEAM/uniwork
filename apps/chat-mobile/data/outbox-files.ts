@@ -1,4 +1,4 @@
-// The files of unsent messages (audit R1): a picked photo, document or a
+// The files of unsent messages: a picked photo, document or a
 // recorded voice clip lives in a cache directory the OS may empty, so before
 // the message is queued its file is copied to documentDirectory/outbox/
 // <clientMsgId>/ and the queued entry points there. The copy is deleted once

@@ -1,4 +1,4 @@
-// Reply and Mark as read from a chat message notification (audit UX P2; the
+// Reply and Mark as read from a chat message notification (the
 // push's side is lib/chat-notification.ts and server notification/
 // push_expo.go). The category is registered in the app's language at launch
 // and on every change of language (app/_layout.tsx). An action runs from the

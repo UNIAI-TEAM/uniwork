@@ -3,7 +3,7 @@
 // screen stays quiet: its socket already updated the list, and a call there
 // already rings in the app's own call screen. A push about another workspace
 // (a call or a message there: the socket of this one never hears it) shows a
-// banner with its sound, and a tap opens it there (audit C3).
+// banner with its sound, and a tap opens it there.
 import { parseDeepLink } from "./deep-link";
 import { pathOf } from "./unknown-shape";
 

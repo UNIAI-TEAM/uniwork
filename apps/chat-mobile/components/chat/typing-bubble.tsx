@@ -33,7 +33,7 @@ function Dot({ delay, reduced, color }: { delay: number; reduced: boolean; color
 export function TypingBubble({ label, avatar }: { label: string; avatar?: ReactNode }) {
   const reduced = useReduceMotion();
   const { colorScheme } = useColorScheme();
-  // TalkBack reads the live region; VoiceOver hears who started typing (audit U1).
+  // TalkBack reads the live region; VoiceOver hears who started typing.
   useAnnounce(label);
   return (
     <View className="flex-row items-end gap-1.5 px-2.5 pt-2" accessible accessibilityLabel={label} accessibilityLiveRegion="polite">

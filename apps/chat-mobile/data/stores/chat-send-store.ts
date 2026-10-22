@@ -1,4 +1,4 @@
-// The messages this device is sending (audit R1): one list whose entries carry
+// The messages this device is sending: one list whose entries carry
 // their status, persisted in the encrypted device store (data/storage/
 // device-store.ts), so a message the person sent survives the app being
 // killed, the phone restarting or the OS reclaiming it. The web keeps a

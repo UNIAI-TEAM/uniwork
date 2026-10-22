@@ -1,4 +1,4 @@
-// The app icon's badge (audit P2 Calls): everything unread, set whenever the
+// The app icon's badge: everything unread, set whenever the
 // unread summary changes and cleared (0) without a signed-in person. iOS shows
 // the number; Android launchers show a dot or the number as they choose.
 import * as Notifications from "expo-notifications";

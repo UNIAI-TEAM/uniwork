@@ -1,4 +1,4 @@
-// Settings › About (audit R3): which UniChat this is — the store version, the
+// Settings › About: which UniChat this is — the store version, the
 // native build, the EAS Update channel and the update it runs — so a person
 // reporting a problem and support reading a crash report name the same
 // build. One tap copies the full line (with the whole update id) for support.

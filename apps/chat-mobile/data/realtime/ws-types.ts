@@ -13,7 +13,7 @@ export interface WSMessage<T = unknown> {
 }
 
 /**
- * What the person is told about the socket (audit R3):
+ * What the person is told about the socket:
  *   connecting — dialing, or open and waiting for auth_ack
  *   online     — authenticated
  *   waiting    — down, a redial or the host's session refresh is pending

@@ -1,14 +1,14 @@
 // Ported from usf apps/mobile/app/_layout.tsx without Keyboard / Lightbox /
 // session-activity: the root providers, the 401 teardown, deep links and the
-// notification tap, all above the Stack. UNI-2053 adds crash reporting (the
-// SDK first, the boundary below), the build's identity on every request, the
-// "Update required" gate above everything, and the toasts; S3 the encrypted
-// device store (unsent messages, cached rooms) and the splash held until the
-// first screen knows where it is going; S4 the native calls (the in-call
-// service, a Decline that waited, the push handler while open) and the
-// localized notification channels; S5 the theme read once at boot (LiveKit's
-// WebRTC globals moved to the call UI, which loads on the first call); S6 the
-// app's language sent to the server; then the app lock and the app switcher cover.
+// notification tap, all above the Stack; then crash reporting (the SDK first,
+// the boundary below), the build's identity on every request, the "Update
+// required" gate above everything, the toasts, the encrypted device store
+// (unsent messages, cached rooms) and the splash held until the first screen
+// knows where it is going, the native calls (the in-call service, a Decline
+// that waited, the push handler while open) and the localized notification
+// channels, the theme read once at boot (LiveKit's WebRTC globals load with the
+// call UI, on the first call), the app's language sent to the server, and the
+// app lock and the app switcher cover.
 import "../global.css";
 
 import { PortalHost } from "@rn-primitives/portal";
@@ -72,7 +72,7 @@ installAccountCache({ queryClient, persister: createDevicePersister(openDeviceSt
 // Critical OTAs, the anonymous product counters, the kept remote config and the app's language sent to the server
 // (data/app-startup.ts).
 startAppServices({ queryClient, usageStatsEnabled });
-// The splash stays until the session, the workspace and the cache are read (audit P0-3): no spinner, no flash of /login.
+// The splash stays until the session, the workspace and the cache are read: no spinner, no flash of /login.
 void SplashScreen.preventAutoHideAsync().catch(bestEffort("boot", "splash not held", "breadcrumb"));
 /** A boot that hangs (a Keychain that never answers) must not hold the splash for ever. */
 const SPLASH_CAP_MS = 8_000;

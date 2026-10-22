@@ -1,4 +1,4 @@
-// Where a call's audio goes (audit P2 Calls: the speaker button only toggled
+// Where a call's audio goes (the speaker button used to only toggle
 // speaker/earpiece; a Bluetooth headset could not be picked). Android lists
 // the outputs LiveKit can route to (AudioSession.getAudioOutputs); iOS shows
 // its own route picker instead. A voice call starts on the earpiece, a video

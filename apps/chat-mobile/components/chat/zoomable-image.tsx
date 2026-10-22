@@ -1,4 +1,4 @@
-// One photo of the viewer that zooms (audit P2 UX): pinch to zoom around the
+// One photo of the viewer that zooms: pinch to zoom around the
 // fingers (1–4x), drag a zoomed photo within its edges, double-tap to zoom in
 // towards the tap or back out, and, at 1x, drag up or down to close the
 // viewer, the page fading with the drag. Horizontal swipes at 1x stay with

@@ -1,4 +1,4 @@
-// Non-blocking messages (audit T4): an action that failed says so in a toast
+// Non-blocking messages: an action that failed says so in a toast
 // at the top of the screen, which goes away on its own, instead of an
 // Alert.alert that stops the person until they tap OK. Alert stays for real
 // confirmations (delete, leave, revoke). components/ui/toast-host.tsx draws

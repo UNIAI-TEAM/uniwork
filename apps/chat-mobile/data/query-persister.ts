@@ -1,4 +1,4 @@
-// The cache a cold start opens on (audit R5): the workspaces, the rooms list,
+// The cache a cold start opens on: the workspaces, the rooms list,
 // the unread counts, nicknames and members, and the newest page of the rooms
 // most recently active, written to the encrypted device store
 // (storage/device-store.ts) and read back before the first screen, so the
@@ -25,7 +25,7 @@
 // the rest: nothing re-reads the disk on a memory miss, so an offline open an
 // hour after a cold start would find nothing.
 //
-// Cost (audit P2 Perf). Every kept query is its own key (a timeline under
+// Cost. Every kept query is its own key (a timeline under
 // `query-cache/timeline/`, the rest under `query-cache/query/`), written only
 // when its data changed: a query whose data is the same object with the same
 // update time as last written (TanStack's structural sharing keeps it so) is

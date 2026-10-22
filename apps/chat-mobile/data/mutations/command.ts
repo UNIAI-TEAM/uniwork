@@ -1,4 +1,4 @@
-// The mutation layer (audit T4, P2 Kiến trúc). Screens and components change
+// The mutation layer. Screens and components change
 // server state only through the hooks in data/mutations/*; the lint rule in
 // eslint.config.mjs keeps app/ and components/ from importing an endpoint or
 // command module. Each hook is one useMutation over a command that knows what

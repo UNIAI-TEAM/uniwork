@@ -1,7 +1,7 @@
 // The messages on screen split into windows for their task links (the web's
 // chat-message-links-context asks once per window too). One key that joined
 // every id changed with each new message and refetched everything shown, up
-// to five GETs a message (audit P2 Perf). A window here ends after a message
+// to five GETs a message. A window here ends after a message
 // whose id hashes to 0 mod WINDOW_MEAN, so where windows split depends on the
 // ids alone: a new message changes the newest window only, an older page adds
 // windows in front and leaves the rest as they were, and each window keeps its

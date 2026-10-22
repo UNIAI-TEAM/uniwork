@@ -1,6 +1,6 @@
 // The long-press menu of a message (spec §2.2, canvas MobileActions): over a
 // dimmed screen, the quick reactions, the message itself lifted out, and a
-// menu card — reply, reply in a thread, copy; "make a task" (M3, the web's ⋯
+// menu card — reply, reply in a thread, copy; "make a task" (the web's ⋯
 // menu) and the message's follow-up (follow it later, or done / to a task /
 // drop it); edit / delete for one's own message, report for someone else's
 // (store UGC policy). A local message that did not go gets retry / delete

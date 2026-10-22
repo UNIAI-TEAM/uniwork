@@ -1,5 +1,5 @@
 // Signed media URLs for a message, mirroring packages/views/chat/use-chat-media-url.ts:
-// storage URLs are presigned per viewer (UNI-1633), so no bearer is needed,
+// storage URLs are presigned per viewer, so no bearer is needed,
 // but they expire. A URL past its expiry asks the server once for the
 // message again; the fresh copy flows back through the room cache. A photo
 // (useChatImageSrc) keeps drawing while it waits: its disk cache is keyed by

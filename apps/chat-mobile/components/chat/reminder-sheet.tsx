@@ -1,4 +1,4 @@
-// Creating a reminder (M3), the phone's chat-create-reminder-dialog.tsx: what
+// Creating a reminder, the phone's chat-create-reminder-dialog.tsx: what
 // to be reminded of, when (the web's quick presets; picking any other moment
 // stays on the web, the phone has no date picker yet), and how often. The time
 // is worked out at the send, as on the web: "in 15 minutes" means from then.

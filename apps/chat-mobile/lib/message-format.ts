@@ -1,7 +1,7 @@
 // Ported from packages/views/chat/chat-message-body.tsx (URL_PATTERN, linkify,
 // BOLD_PATTERN, formatText, renderMessageText): a message body as runs of
 // text, links, **bold** and mentions, so a bubble draws its web addresses as
-// links and its bold in bold, as the web does (audit UX P1 "no-linkify-markdown").
+// links and its bold in bold, as the web does.
 // Same patterns, same order (mentions first, then bold, then links inside
 // both); the web returns React nodes, the phone a list a renderer and a screen
 // reader's actions both read. message-format.test.ts runs the web's cases.

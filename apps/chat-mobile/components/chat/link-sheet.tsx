@@ -1,4 +1,4 @@
-// A link in a message (audit UX P1 "no-linkify-markdown"): a tap opens it in
+// A link in a message: a tap opens it in
 // the in-app browser, a long press — or a screen reader's "link" action on the
 // bubble — opens this sheet: open it, copy it, or share it, as Slack and
 // Telegram offer. The address heads the sheet so the reader sees where it goes.

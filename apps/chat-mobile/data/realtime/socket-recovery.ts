@@ -2,7 +2,7 @@
 // (ws-client.ts › onSessionEnded). Pure, so the policy is tested in node:
 //   close 4001 / pre-auth "invalid token" → refresh the session: a token
 //     redials now, null (signed out) disconnects, a transient failure (a dead
-//     spot, a 5xx) retries on the 2/5/15/60 s backoff (audit R3) instead of
+//     spot, a 5xx) retries on the 2/5/15/60 s backoff instead of
 //     leaving the socket down until the next foreground return;
 //   "too many connections" → the server is shedding: redial on the backoff;
 //   any other refusal (not a member) → down until the next foreground return

@@ -1,4 +1,4 @@
-// The call's audio button (audit P2 Calls). Android: the phone alone toggles
+// The call's audio button. Android: the phone alone toggles
 // speaker and earpiece as before; with a wired or Bluetooth headset there a
 // tap lists every output (LiveKit's AudioSession) and marks the one in use.
 // iOS: the system's own route picker (speaker, receiver, AirPods, CarPlay).

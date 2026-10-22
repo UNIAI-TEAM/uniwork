@@ -1,4 +1,4 @@
-// What each platform expects of a control (audit UX P2 "android-platform-conventions"):
+// What each platform expects of a control:
 // Android's back is an arrow, iOS's a chevron; a touch target is at least
 // 44 pt on iOS (Human Interface Guidelines) and 48 dp on Android (Material);
 // Android answers a touch with a ripple in the content's ink. Pure: the

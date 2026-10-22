@@ -119,7 +119,7 @@ export async function handleCallPush(push: CallPush, env: CallPushEnv): Promise<
   if (env.appActive() && env.engine.contextWorkspaceId()) {
     // On screen in a workspace: its socket rings a call there, and the pending
     // list picks one up the socket missed. A call it does not know (another
-    // workspace) rings as the notification, heads-up over the app (audit C3).
+    // workspace) rings as the notification, heads-up over the app.
     await env.engine.syncPendingInvites().catch(bestEffort("call-push", "pending calls not read", "report"));
     if (liveCallId(env.engine.current()) === push.callId) return "in_app";
   }

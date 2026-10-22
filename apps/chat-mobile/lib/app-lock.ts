@@ -1,5 +1,4 @@
-// The phone's privacy choices (Settings › Privacy & security; audit "Security &
-// privacy", no-app-switcher-privacy-or-lock) and the rules that follow from
+// The phone's privacy choices (Settings › Privacy & security) and the rules that follow from
 // them. Pure: data/privacy-settings.ts keeps the choices, components/app/
 // privacy-guard.tsx draws the cover and the lock screen.
 //

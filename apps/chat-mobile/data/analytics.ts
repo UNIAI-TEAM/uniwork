@@ -1,4 +1,4 @@
-// UniChat's product events (audit "no-product-analytics"): how often the app
+// UniChat's product events: how often the app
 // is opened, messages go out or fail for good, pushes are opened, calls
 // connect and call pushes ring, and how long the first screen, a send and a call connect take. A
 // first-party sink, no SDK: the events wait in memory and go in batches to

@@ -36,7 +36,7 @@ export default function Login() {
   const login = useAuthStore((s) => s.login);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  // The error line's live region is TalkBack's; VoiceOver hears it through an announcement (audit U1).
+  // The error line's live region is TalkBack's; VoiceOver hears it through an announcement.
   useAnnounce(failed ? t("auth.desktop.unichat_login_failed") : null);
 
   if (user) return <Redirect href="/" />;

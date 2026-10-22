@@ -1,6 +1,5 @@
-// The offline copy kept current between opens (audit "push-does-not-hydrate-
-// cache" and the frames-for-unshown-rooms miss). A frame for a room nobody
-// shows only marks its timeline stale (UNI-1078: one GET per frame for every
+// The offline copy kept current between opens. A frame for a room nobody
+// shows only marks its timeline stale (one GET per frame for every
 // loaded room was too many), and a push never touched the cache, so a room
 // the phone was told about could open offline on an older page than the
 // inbox's own preview. Two moments now read the newest page once, batched:

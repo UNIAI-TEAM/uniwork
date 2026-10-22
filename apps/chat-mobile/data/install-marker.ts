@@ -1,5 +1,4 @@
-// Whether this launch is the first of a fresh install (audit "Security &
-// privacy", keychain-survives-reinstall). iOS keeps Keychain items after the
+// Whether this launch is the first of a fresh install. iOS keeps Keychain items after the
 // app is deleted, so without this a reinstall finds the previous install's
 // session and signs that account straight back in. The marker lives in the
 // device store (MMKV, a file of the app's container), which an uninstall does

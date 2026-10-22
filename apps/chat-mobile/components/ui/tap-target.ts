@@ -1,4 +1,4 @@
-// A hand-built control's touch answer (audit UX P2 "android-platform-conventions"):
+// A hand-built control's touch answer:
 // the hit slop that grows it to the platform's minimum target (44 pt on iOS,
 // 48 dp on Android: lib/platform-ui.ts) from the size it is drawn at, and
 // Android's ripple (ripple.ts). Spread it on a Pressable before its own props,

@@ -1,10 +1,10 @@
-// The Chat tab's list of conversations (audit P2 Perf). Rows come built
+// The Chat tab's list of conversations. Rows come built
 // without typing or presence (lib/room-list.ts); the typing lines are laid over
 // them here (with the drafts left in rooms) and each DM row reads its peer's presence itself, so a typing frame
 // redraws the row that types and a presence change the row of that person.
 // Every cell gets the same handlers object and is skipped while its row draws
 // the same, so a new message redraws the rows it moved or changed only. The
-// list recycles its cells (FlashList, audit P2 Perf): a cell keeps no state of
+// list recycles its cells (FlashList): a cell keeps no state of
 // its own (presence is read per row, by the row's person), so a reused one
 // draws its new room, and avatars clear on reuse (PersonAvatar's recyclingKey).
 // Unlike FlashList 2's default, it never holds a row in place across a change

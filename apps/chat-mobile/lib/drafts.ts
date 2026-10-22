@@ -1,5 +1,4 @@
-// What someone was writing in a conversation and did not send (audit UX P2
-// "no-draft-persistence"): the composer's text and the message it quotes, per
+// What someone was writing in a conversation and did not send: the composer's text and the message it quotes, per
 // person, workspace, room and thread, kept across leaving the room and across
 // a restart, as WhatsApp, Telegram and Slack keep them; the inbox shows it as
 // "Nháp: …" on the room's row. Pure: the store (data/stores/draft-store.ts)

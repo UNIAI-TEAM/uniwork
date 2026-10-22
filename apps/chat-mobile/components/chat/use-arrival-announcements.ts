@@ -1,4 +1,4 @@
-// New messages read out to VoiceOver and TalkBack (audit U2): what someone
+// New messages read out to VoiceOver and TalkBack: what someone
 // else sent below the bottom of the open conversation (lib/arrivals.ts),
 // "Bình: Mai họp nhé" for one, "3 tin nhắn mới" for a burst, at most one line
 // per ARRIVAL_QUIET_MS so a busy group does not talk over the person. Nothing

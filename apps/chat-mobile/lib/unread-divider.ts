@@ -1,7 +1,6 @@
 // Ported from packages/views/chat/use-chat-catch-up-ui.ts (unreadSinceOf) and
 // packages/views/chat/native-chat-message-item.tsx (firstUnreadIndex, sentAtMs).
-// Where a conversation's unread messages begin when it opens (audit UX P2
-// "no unread divider"): the room's own read pointer and unread count, taken
+// Where a conversation's unread messages begin when it opens: the room's own read pointer and unread count, taken
 // from the inbox before opening marks the room read, and the first message
 // from someone else sent after it. The conversation draws
 // "N tin chưa đọc" above that message and opens on it, as WhatsApp, Telegram

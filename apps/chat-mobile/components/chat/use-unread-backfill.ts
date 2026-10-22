@@ -1,5 +1,5 @@
 // A busy room opened with more unread messages than its newest page holds
-// (audit UX P2 "no unread divider", the review's "busy room" case): the
+// (the "busy room" case): the
 // reader's pointer is further up than what is loaded, so the unread line has
 // nowhere to go. Older pages load by cursor, UNREAD_BACKFILL_PAGES at most,
 // until the pointer is on screen (lib/unread-divider.ts › unreadLineNeedsOlder);

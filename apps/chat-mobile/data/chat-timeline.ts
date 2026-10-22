@@ -16,7 +16,7 @@ export const { refreshRoomTimelineOnOpen, catchUpRoomTimeline, catchUpOnChatSubs
 /**
  * After a reconnect: a shown timeline refetches, one nobody shows is marked
  * stale. A read `after` the newest message would miss the edits, deletes and
- * reactions made to loaded ones while the socket was down (UNI-1662). Unlike
+ * reactions made to loaded ones while the socket was down. Unlike
  * reopening a room, the pages the person scrolled back through are kept
  * (every return from the background reconnects, and dropping them lost the
  * reader's place): the infinite query refetches each loaded page in turn,

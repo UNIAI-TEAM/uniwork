@@ -31,7 +31,7 @@ export const ROOM_ACTIVITY_DEBOUNCE_MS = 300;
 
 /**
  * A busy room sends a frame per message and the phone used to GET each one
- * (audit P2: no sequence events). One GET per room runs at a time; the frames
+ * (there are no sequence events). One GET per room runs at a time; the frames
  * that pile up behind it are read together: this many new messages or more,
  * on a timeline someone shows, is one catch-up read instead of a GET each.
  */
@@ -66,7 +66,7 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
     (qc.getQueryCache().find({ queryKey: chatKeys.roomMessages(wsId, roomId), exact: true })?.getObserversCount() ?? 0) > 0;
 
   /**
-   * A frame whose GET failed is not dropped (audit R4): a new message is read
+   * A frame whose GET failed is not dropped: a new message is read
    * by a catch-up, anything else refetches the room (and its thread), and the
    * list follows, so the message shows without reopening the room.
    */
@@ -198,7 +198,7 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
   /**
    * Frames sent while the socket was down are gone: each cache refreshes its own keys (ADR 0011 §5).
    * A change log with GET /chat/sync?since=<seq> would make this one request; it waits on its ADR
-   * (docs/adr/drafts/0039-dong-bo-chat-theo-nhat-ky-thay-doi.md, UNI-2071) and is effort L.
+   * (docs/adr/drafts/0039-dong-bo-chat-theo-nhat-ky-thay-doi.md) and is effort L.
    */
   function reconnect(): void {
     schedule(chatKeys.rooms(wsId), chatKeys.nicknames(wsId), chatKeys.members(wsId), chatKeys.callLogs(wsId), chatKeys.unreadSummary());

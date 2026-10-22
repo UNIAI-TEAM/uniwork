@@ -1,5 +1,5 @@
-// Signed media URLs past their expiry, renewed per room rather than per photo
-// (audit P2 Perf). The server signs chat media for an hour, and the offline
+// Signed media URLs past their expiry, renewed per room rather than per photo.
+// The server signs chat media for an hour, and the offline
 // cache keeps timelines for a week, so a room opened after a cold start can
 // hold dozens of expired photos at once. Each used to ask for its own message
 // (N requests, N timeline rewrites, N cache saves). Now the asks of one room

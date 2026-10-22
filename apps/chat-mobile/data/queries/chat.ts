@@ -75,12 +75,12 @@ export const roomMembersOptions = (wsId: string, roomId: string) =>
 export const nicknamesOptions = (wsId: string) =>
   queryOptions({ queryKey: chatKeys.nicknames(wsId), queryFn: () => chatApi.listNicknames(wsId), staleTime: 5 * 60_000 });
 
-/** M3: the follow-ups a message's sheet looks itself up in (the web's follow-ups sheet lists the same). */
+/** the follow-ups a message's sheet looks itself up in (the web's follow-ups sheet lists the same). */
 export const followUpsOptions = (wsId: string) =>
   queryOptions({ queryKey: chatKeys.followUps(wsId), queryFn: () => chatApi.listFollowUps(wsId, true), staleTime: 30_000 });
 
 /**
- * M3: which messages of one window carry a task (chat-message-links-context). The screen asks once per
+ * which messages of one window carry a task (chat-message-links-context). The screen asks once per
  * window of lib/link-windows.ts, so a new message refetches the newest window only.
  */
 export const roomLinksOptions = (wsId: string, roomId: string, messageIds: readonly string[]) =>

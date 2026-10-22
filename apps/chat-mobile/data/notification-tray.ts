@@ -1,5 +1,4 @@
-// The notification tray follows what was read (audit "Calls, push & background",
-// badge-and-clear-on-read): once a room is read — here or on another of the
+// The notification tray follows what was read: once a room is read — here or on another of the
 // person's devices while this one holds its socket (data/room-read-signal.ts) —
 // its message notifications come down, as Slack, WhatsApp and Telegram do. A
 // thread reply's notification stays (the thread is read in the thread, and the

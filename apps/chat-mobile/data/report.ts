@@ -1,4 +1,4 @@
-// The one door to crash reporting (audit P0-2). Everything that wants Sentry
+// The one door to crash reporting. Everything that wants Sentry
 // to know about an error or a step goes through here; data/sentry.ts installs
 // the SDK as the sink at boot, and only when a DSN is configured. Without a
 // sink every call is a no-op, so the app, the tests and a build without

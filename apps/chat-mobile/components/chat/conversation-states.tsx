@@ -1,5 +1,5 @@
 // What a conversation shows before it has messages to draw, and when its
-// history cannot be read (audit UX P1 "timeline-error-shows-empty"): bubble
+// history cannot be read: bubble
 // shapes on the wall while the first page loads (the room's own outline, not a
 // spinner), and "Couldn't load messages · Retry" when that page failed, never
 // the "start chatting" copy of a room that really is empty, which would tell

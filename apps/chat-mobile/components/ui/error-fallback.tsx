@@ -1,4 +1,4 @@
-// What a render crash shows instead of a white screen (audit P0-2). Exported
+// What a render crash shows instead of a white screen. Exported
 // as expo-router's ErrorBoundary by app/_layout.tsx (the whole app) and by
 // [org]/[ws]/_layout.tsx (one workspace, so the tabs' crash keeps the call
 // overlay and the rest of the shell). It reports the error once, forced: a

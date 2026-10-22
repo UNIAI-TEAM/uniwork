@@ -1,4 +1,4 @@
-// Crash reporting (audit P0-2): @sentry/react-native, started only when the
+// Crash reporting: @sentry/react-native, started only when the
 // build carries a DSN (app.config.ts › extra.sentryDsn from SENTRY_DSN). A
 // build without one runs exactly as before: no SDK call, no network, and
 // data/report.ts stays a no-op. Every event leaves through lib/redact.ts:
@@ -20,7 +20,7 @@ export const sentryNavigation = Sentry.reactNavigationIntegration({ enableTimeTo
 
 /**
  * Ends a screen load's "full display" once its data is drawn (`record`): the Chat tab with its rooms, a
- * conversation with its newest page (audit H3). A no-op without a DSN, outside a screen load, and in a
+ * conversation with its newest page. A no-op without a DSN, outside a screen load, and in a
  * build without Sentry's native view.
  */
 export const ScreenFullyDrawn = Sentry.TimeToFullDisplay;

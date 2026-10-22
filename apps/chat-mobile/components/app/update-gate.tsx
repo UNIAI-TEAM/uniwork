@@ -1,4 +1,4 @@
-// The "Update required" gate (audit R1): when the server's minimum
+// The "Update required" gate: when the server's minimum
 // (min_supported_mobile_version, data/remote-config.ts) is above the running
 // version, the whole app is this one screen with a way to the store. It sits
 // above the sign-in screen too: an old build must not even start a session.

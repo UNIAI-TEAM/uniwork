@@ -77,7 +77,7 @@ export function createApiClient(deps: ApiClientDeps) {
   let onUnauthorized = deps.onUnauthorized;
   let unauthorizedReported = false;
   // X-Client-Version / -OS / -Update-Id (lib/build-info.ts › clientHeaders),
-  // set once at boot: the server logs and gates by them (audit R1).
+  // set once at boot: the server logs and gates by them.
   let identity: Record<string, string> = {};
 
   async function send(path: string, init: RequestInit, token: string | null): Promise<Response> {

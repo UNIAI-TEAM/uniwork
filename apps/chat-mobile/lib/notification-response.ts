@@ -1,5 +1,4 @@
-// What a notification response does (audit "Calls, push & background",
-// cold-start-tap): a tap opens the push's link, Reply or Mark as read run where
+// What a notification response does: a tap opens the push's link, Reply or Mark as read run where
 // they were tapped (data/chat-notification-actions.ts). Two sources hand a
 // response over: the running app's listener, and — for the tap that launched a
 // killed app — Notifications.getLastNotificationResponse(), read once at boot,

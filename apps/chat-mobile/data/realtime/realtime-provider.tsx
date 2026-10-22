@@ -16,7 +16,7 @@
  *                            iOS kills it avoids a kernel-level reset on
  *                            resume), unless `holdOpen` (a call rings,
  *                            connects or is on: its accept and hang-up frames
- *                            must arrive, audit C1); the pause happens when
+ *                            must arrive); the pause happens when
  *                            the call ends
  *   AppState 'active'      → back within the grace: probe the socket now;
  *                            after a pause, past the grace, or over a socket
@@ -110,7 +110,7 @@ export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSessi
       getToken: () => sessionRef.current.getToken(),
       workspaceSlug,
       clientOs: Platform.OS,
-      // The same version the REST headers carry (audit R1): the hub logs and gates by it.
+      // The same version the REST headers carry: the hub logs and gates by it.
       clientVersion: buildInfo().version,
       logger: argsLogger("ws"),
       onSessionEnded: (error) => recovery.sessionEnded(error),

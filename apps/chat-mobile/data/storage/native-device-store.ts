@@ -2,7 +2,7 @@
 // AES-256 under a random key kept in the Keychain / Keystore (after first
 // unlock, this device only), so the file alone, a backup or another phone
 // reads nothing. Opening never fails, but it never loses data in silence
-// either (audit "device-store-key-fallback"):
+// either:
 //   - a Keychain read that throws (the phone not unlocked since boot, a
 //     Keystore hiccup) is tried again before anything else happens;
 //   - a key that is gone while the store's file is still there (a restore

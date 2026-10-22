@@ -1,5 +1,5 @@
-// Reads, reactions, poll votes, edits and deletes that work offline (audit P2
-// "Realtime"; the read errors were swallowed; "edit-delete-online-only"). The
+// Reads, reactions, poll votes, edits and deletes that work offline
+// (a read failure used to be swallowed, and edits and deletes needed the network). The
 // cache shows the person's choice at once (lib/optimistic-message.ts; a
 // delete takes the message off the timeline); the wish is queued
 // (stores/pending-ops-store.ts)

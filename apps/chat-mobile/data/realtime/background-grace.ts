@@ -1,5 +1,5 @@
-// What the socket does when the app leaves the front and comes back (audit
-// "background-teardown-no-grace"). Closing it the instant the app went to the
+// What the socket does when the app leaves the front and comes back.
+// Closing it the instant the app went to the
 // background cost a full reconnect on every app switch — copying an OTP and
 // coming back meant a new socket, its scope replay and a refetch of every
 // shown timeline. Like Slack and WhatsApp, the socket now stays for a short

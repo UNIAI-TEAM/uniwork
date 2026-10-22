@@ -1,4 +1,4 @@
-// The phone's text roles (audit P2 UX, dynamic type): one size per role, in
+// The phone's text roles (dynamic type): one size per role, in
 // type-scale.json, which tailwind.config.js turns into `text-<role>` classes
 // and cn() (lib/utils.ts) teaches tailwind-merge to treat as font sizes. Each
 // size is the base the system text-size setting scales (React Native scales

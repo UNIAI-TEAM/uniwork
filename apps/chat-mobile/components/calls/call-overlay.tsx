@@ -1,4 +1,4 @@
-// The call screen (spec M3 §2): one full-screen layer over the app, drawn
+// The call screen (calls spec §2): one full-screen layer over the app, drawn
 // from the call engine's state, so a call outlives any screen under it. Dark
 // in both app themes (canvas MobileCall / MobCallStates, call-surface.tsx).
 // Incoming: answer or decline. Ringing and connecting: hang up. Active: the
@@ -36,7 +36,7 @@ import { useCallRingtone } from "./use-call-ringtone";
 
 /**
  * The LiveKit room, WebRTC and their globals (call-room.tsx sets them when it loads) load the first time a
- * call shows, not at app start (audit P2 Perf): a launch that never calls never evaluates them. Metro runs
+ * call shows, not at app start: a launch that never calls never evaluates them. Metro runs
  * a module when it is first required; a ringing or connecting call requires it, so going live does not wait.
  */
 function loadCallRoom(): typeof CallRoomComponent {

@@ -6,8 +6,8 @@
 // and none are asked for; a call already under way keeps its workspace
 // context and still hears its accept and hang-up, so turning the switch off
 // never ends or strands one (use-call-realtime.test.tsx). A return to the
-// foreground and every reconnect reconcile the call with the server (audit
-// C1): a ring the server no longer lists stops, a call ringing now is picked up.
+// foreground and every reconnect reconcile the call with the server:
+// a ring the server no longer lists stops, a call ringing now is picked up.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { AppState, type AppStateStatus } from "react-native";

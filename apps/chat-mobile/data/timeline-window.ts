@@ -1,4 +1,4 @@
-// The sliding window of a room's timeline (audit P2 Perf). Scrolling up loads
+// The sliding window of a room's timeline. Scrolling up loads
 // older pages until the memory cap (CHAT_MESSAGE_CACHE_MAX, a thousand
 // messages), and every frame, receipt or reaction then lays all of them out
 // again. Back at the newest message, the reader no longer needs the pages far

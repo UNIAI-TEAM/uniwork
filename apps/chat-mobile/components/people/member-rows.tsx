@@ -1,7 +1,7 @@
 // The people rows of the new-message picker, the group picker and a room's
 // details. Each row reads its own person's presence (useIsOnline) and is
 // memoized, so a presence change redraws the row of the person who came or
-// went, not the screen and every row on it (audit P2 Perf, S5 review). Pass
+// went, not the screen and every row on it. Pass
 // stable callbacks: a new closure per render would redraw every row again.
 import { Ionicons } from "@expo/vector-icons";
 import { memo, type ReactNode } from "react";

@@ -1,7 +1,6 @@
 // Settings › Privacy & security: lock UniChat behind Face ID, a fingerprint or
 // the phone's passcode (and how long it may stay away before it locks again),
-// and block screenshots and screen recording (audit "Security & privacy",
-// no-app-switcher-privacy-or-lock); and the anonymous usage counters, which
+// and block screenshots and screen recording; and the anonymous usage counters, which
 // the person may turn off (data/analytics.ts). Turning the lock on asks for the owner's
 // proof first, so nobody turns on a lock they cannot open; a phone with no
 // screen lock at all says so instead. Turning it off asks too: whoever holds
@@ -44,7 +43,7 @@ export function PrivacySection({ children }: { children?: ReactNode }) {
     }
   };
 
-  // The notice's live region is TalkBack's; VoiceOver hears it through an announcement (audit U1).
+  // The notice's live region is TalkBack's; VoiceOver hears it through an announcement.
   useAnnounce(notice ? t(notice) : null);
 
   return (

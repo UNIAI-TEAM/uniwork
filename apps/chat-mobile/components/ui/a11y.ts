@@ -1,4 +1,4 @@
-// Screen-reader and motion helpers (audit U1, UX P3). React Native's live
+// Screen-reader and motion helpers. React Native's live
 // regions are Android only: TalkBack reads a `polite` region when its text
 // changes, VoiceOver never hears it. useAnnounce gives iOS the same moment
 // through announceForAccessibility; on Android the view's live region speaks,

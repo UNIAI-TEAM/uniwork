@@ -1,5 +1,5 @@
 // The conversation lifted above a list row's long-press menu (canvas MobStates,
-// "menu phòng"): the row itself, then its latest messages on the chat wall, so
+// the room menu): the row itself, then its latest messages on the chat wall, so
 // the reader sees what they are about to pin or mute. Read-only: it never
 // marks the room read.
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";

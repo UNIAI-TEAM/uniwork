@@ -4,7 +4,7 @@
 // auth session that returns the callback URL; results that land after logout
 // are dropped by the shared session epoch instead of a private generation
 // counter, so the Keychain's conditional write and this class agree; no
-// proactive refresh timer (M2a), a token is refreshed when asked for.
+// proactive refresh timer, a token is refreshed when asked for.
 import { createLogger } from "../logger";
 import { currentSessionEpoch, invalidateSessionEpoch, sessionEpochChanged } from "../session-epoch";
 import { validateCallback } from "./callback";

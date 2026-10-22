@@ -1,5 +1,5 @@
-// The realtime frames the phone acts on, one zod decoder each (audit P2
-// Kiến trúc: payloads were cast, never checked). ws-client.ts decodes every
+// The realtime frames the phone acts on, one zod decoder each
+// (payloads used to be cast, never checked). ws-client.ts decodes every
 // frame before any handler sees it: a frame of a type listed here whose
 // payload does not match is dropped with a breadcrumb, so a drifted server
 // can make the phone miss an update (the next reconnect refetches) but never

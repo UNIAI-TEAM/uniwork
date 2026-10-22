@@ -1,5 +1,5 @@
 // The language the person chose in Settings, read from the device once per launch and held in one store, as the
-// theme is (data/theme-preference.ts). Two rules beyond the theme's (audit "locale-formatting-consistency"):
+// theme is (data/theme-preference.ts). Two rules beyond the theme's:
 //
 // - The choice is saved with the system language of that moment ("en|vi"). The system's per-app language (iOS
 //   Settings › UniChat › Language, Android 13+ app languages) can change after it; when the system language

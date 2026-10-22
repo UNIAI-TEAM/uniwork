@@ -107,7 +107,7 @@ export function Conversation(props: Props) {
   const { t } = useTranslation();
   const [sheet, sheets] = useReducer(conversationSheetReducer, NO_SHEET);
   const actionMessage = sheet.kind === "actions" ? sheet.message : null;
-  // The composer's draft and the message it quotes outlive the screen (lib/drafts.ts, audit UX P2).
+  // The composer's draft and the message it quotes outlive the screen (lib/drafts.ts).
   const composerDraftKey = draftKey(chat.userId, chat.wsId, roomId, threadRootId);
   const [reply, setReply] = useState<ComposerReply | null>(() => readDraft(composerDraftKey)?.reply ?? null);
   useEffect(() => useDraftStore.getState().setReply(composerDraftKey, reply), [composerDraftKey, reply]);
@@ -132,7 +132,7 @@ export function Conversation(props: Props) {
         : NO_PHOTOS,
     [viewerOpen, messages, senderName],
   );
-  // Receipts per sent message (bảng Ngôn ngữ): a DM reads its peer's two cursors off the room,
+  // Receipts per sent message (the design language board): a DM reads its peer's two cursors off the room,
   // a group or channel the furthest read and the earliest delivered among the others (chat-seen-by.tsx).
   const receiptsOn = room.room?.kind === "group" || (room.room?.kind === "channel" && !isDefaultWorkspaceChannel(room.room));
   const cursors = useMemo(() => {
@@ -265,7 +265,7 @@ export function Conversation(props: Props) {
   // A send of mine that fails while the room is open is felt and said.
   useSendFailureFeedback(messages);
 
-  // Each row worked out once per change and kept as the same object while it draws the same (audit H1).
+  // Each row worked out once per change and kept as the same object while it draws the same.
   const previousModels = useRef<ReadonlyMap<string, MessageRowModel>>(new Map());
   const models = useMemo(() => {
     const next = buildMessageRowModels(

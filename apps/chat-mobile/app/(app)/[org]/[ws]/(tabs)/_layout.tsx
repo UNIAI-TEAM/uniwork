@@ -1,5 +1,5 @@
 // Ported from usf apps/mobile/app/(app)/[workspace]/(tabs)/_layout.tsx with
-// Ionicons instead of SF symbols (Android has none). Four tabs of M1; the
+// Ionicons instead of SF symbols (Android has none). Four tabs; the
 // MobileList board's bar: brand when active, the filled glyph on the active tab.
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";

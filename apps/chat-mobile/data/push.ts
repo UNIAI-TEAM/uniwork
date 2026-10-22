@@ -104,12 +104,12 @@ export async function setPushEnabled(enabled: boolean, options: RegisterPushOpti
 }
 
 /**
- * FCM or APNs may replace this device's token while the app runs (audit "Calls, push & background",
- * push-lifecycle-polish): pushes to the old one then fail as DeviceNotRegistered and the server revokes it, so
- * nothing reaches the phone until its next launch. A new device token registers again — Expo maps the Expo token
- * to the new device token, the server gets the (possibly new) Expo token, and an Expo token that changed is
- * dropped. Fetching the token emits the same event, so only a token different from the last one seen counts, and
- * only in a process that registered one; the permission is only read, never asked. Returns the unsubscribe.
+ * FCM or APNs may replace this device's token while the app runs: pushes to the old one then fail as
+ * DeviceNotRegistered and the server revokes it, so nothing reaches the phone until its next launch. A new device
+ * token registers again — Expo maps the Expo token to the new device token, the server gets the (possibly new) Expo
+ * token, and an Expo token that changed is dropped. Fetching the token emits the same event, so only a token
+ * different from the last one seen counts, and only in a process that registered one; the permission is only read,
+ * never asked. Returns the unsubscribe.
  */
 export function watchPushTokenRotation(options: RegisterPushOptions): () => void {
   const subscription = Notifications.addPushTokenListener((device) => {

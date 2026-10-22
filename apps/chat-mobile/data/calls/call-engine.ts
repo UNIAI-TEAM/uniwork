@@ -281,7 +281,7 @@ export function createCallEngine(deps: CallEngineDeps) {
     },
     syncPendingInvites,
     /**
-     * Back in front, or a socket that reconnected (audit C1): frames sent
+     * Back in front, or a socket that reconnected: frames sent
      * while this phone was not listening are gone. A call still ringing here
      * that the server no longer lists (the caller hung up, another device of
      * ours answered) stops ringing; with no call live, one that rings now is
@@ -394,7 +394,7 @@ export function createCallEngine(deps: CallEngineDeps) {
     /**
      * A tap on a ringing push or notification (or its full-screen intent on
      * a locked phone): the call's ringing screen, Answer and Decline, if it
-     * still rings for this person (audit P2 Calls: a tap answered at once).
+     * still rings for this person (a tap answered at once).
      * False when it does not, and the caller opens the room.
      */
     ringFromPush,

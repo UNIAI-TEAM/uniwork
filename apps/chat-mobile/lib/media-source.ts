@@ -1,4 +1,4 @@
-// How the app asks expo-image for a picture (audit H2). A chat photo's URL is
+// How the app asks expo-image for a picture. A chat photo's URL is
 // presigned and changes every signing window (server: chatMediaSigningWindow),
 // so the cache is keyed by what the picture is, not by its URL: the message
 // and the variant for chat media, the URL without its query (the signature)

@@ -1,4 +1,4 @@
-// A voice message's player controls (audit UX P3 "voice-player-basic"): the
+// A voice message's player controls: the
 // speeds it cycles through (1×, 1.5×, 2×, as WhatsApp and Telegram), a seek
 // by a step that stays inside the clip (a screen reader's increment and
 // decrement), a seek to where a tap landed on the bars, and how many bars the

@@ -1,5 +1,4 @@
-// A chat message push's actions (audit UX P2 "no reply or mark-as-read on
-// message notifications"): the server files every DM, mention and thread
+// A chat message push's actions: the server files every DM, mention and thread
 // reply push under the "chat_message" category (server
 // notification/push_expo.go › ChatMessageCategory) with the ids those
 // actions need; the app registers the category with Reply (a text field) and

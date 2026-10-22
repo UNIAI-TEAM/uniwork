@@ -58,7 +58,7 @@ export function PushSection() {
     }
   };
 
-  // The notice's live region is TalkBack's; VoiceOver hears it through an announcement (audit U1).
+  // The notice's live region is TalkBack's; VoiceOver hears it through an announcement.
   useAnnounce(notice ? t(notice) : null);
 
   return (

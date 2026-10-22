@@ -4,7 +4,7 @@
 // (maintainVisibleContentPosition), with day separators as chips on the chat
 // wall, the typing line at the bottom, and a scroll to the message a deep link
 // or a quote points at. The cell callback keeps its identity while the rows'
-// renderer does (audit H1): the list re-renders cells only when a row changed.
+// renderer does: the list re-renders cells only when a row changed.
 // A new `latestSignal` scrolls to the newest message (the jump-to-latest
 // button, and every send of one's own: it lands at the bottom, in view).
 //
@@ -13,7 +13,7 @@
 // read, new messages arrive below the keyboard-tracking composer), and only a
 // device can tell whether a new list keeps it; FlashList 2 lays chat out
 // bottom-up a different way (startRenderingFromBottom, onStartReached). Until
-// that is measured on hardware, the FlatList is tuned instead (audit P2 Perf):
+// that is measured on hardware, the FlatList is tuned instead:
 // one screenful first, ten cells a batch and a window of 11 screens rather
 // than 21, so a 2,000-message history keeps a few dozen bubbles mounted.
 //

@@ -1,5 +1,5 @@
 // Whether this person's chat pushes show the message's words (Settings ›
-// Privacy & security; audit "Security & privacy", push-preview-plaintext). The
+// Privacy & security). The
 // choice is the server's (users.push_previews_hidden_at, read through /me),
 // mirrored into the signed-in user like the AI consent (data/ai-consent.ts): a
 // drifted 2xx still recorded it, so the user is updated locally instead.

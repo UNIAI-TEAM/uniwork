@@ -14,8 +14,8 @@ export const DEFAULT_LOCALE: SupportedLocale = "vi";
 
 /**
  * The first device language tag that is vi or en. A phone that lists only other languages reads English: a
- * Japanese or Korean manager at a Vietnamese company reads English sooner than Vietnamese (audit
- * "i18n-guard-scope-rtl"). No language at all (a headless runtime that cannot tell) keeps the default, Vietnamese.
+ * Japanese or Korean manager at a Vietnamese company reads English sooner than Vietnamese. No language at
+ * all (a headless runtime that cannot tell) keeps the default, Vietnamese.
  */
 export function matchSupportedLocale(languageTags: readonly string[]): SupportedLocale {
   for (const tag of languageTags) {

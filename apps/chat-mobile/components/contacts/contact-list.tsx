@@ -1,4 +1,4 @@
-// The contacts tab's A–Z list (audit P1 Perf): a recycling FlashList over the
+// The contacts tab's A–Z list: a recycling FlashList over the
 // sections flattened into header and person cells (lib/contacts-display.ts ›
 // contactListItems), letter headers sticky, and the letters down the right
 // edge (MobContacts board) jumping by index. A SectionList's scrollToLocation

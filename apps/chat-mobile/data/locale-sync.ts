@@ -1,4 +1,4 @@
-// The app's language on the server (audit P2 i18n). users.locale picks the
+// The app's language on the server. users.locale picks the
 // language of pushes, emails and the web, and defaults to English (migration
 // 214), while the phone speaks the person's Settings choice or the phone's
 // own language: a Vietnamese team got English pushes. The phone tells the

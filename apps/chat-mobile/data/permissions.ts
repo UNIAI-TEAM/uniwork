@@ -1,4 +1,4 @@
-// Asking for a permission the way people trust (audit P2): UniChat first says
+// Asking for a permission the way people trust: UniChat first says
 // what it needs and why (a primer, components/ui/permission-primer.tsx), and
 // only on "Continue" lets the system show its one-time prompt; "Not now" keeps
 // that prompt for later. Once the system will not ask again (refused for good,

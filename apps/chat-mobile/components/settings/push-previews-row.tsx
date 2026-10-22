@@ -1,5 +1,5 @@
 // Settings › Privacy & security: whether this person's chat pushes show the
-// message's words (audit "Security & privacy", push-preview-plaintext). The
+// message's words. The
 // choice is the server's (PUT /me/push-previews, data/push-previews.ts); when
 // the organization hides the words for everyone (GET /orgs/{org}/
 // push-preview-policy) the switch reads off, cannot be moved, and says why.
@@ -30,7 +30,7 @@ export function PushPreviewsRow({ orgSlug }: { orgSlug: string }) {
     }
   };
 
-  // The notice's live region is TalkBack's; VoiceOver hears it through an announcement (audit U1).
+  // The notice's live region is TalkBack's; VoiceOver hears it through an announcement.
   useAnnounce(failed ? t("mobile.security.previews_failed") : null);
 
   return (

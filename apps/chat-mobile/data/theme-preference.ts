@@ -1,5 +1,5 @@
 // The Settings theme choice (light | dark | system), read from the device once
-// per launch and held in one store (audit P2 UX): before, every component that
+// per launch and held in one store: before, every component that
 // drew a colour (each bubble, row and icon, 50-odd call sites) read
 // SecureStore and set the scheme again on mount. Boot calls load(); the hook in
 // lib/use-color-scheme.ts reads the store and NativeWind's scheme, nothing else.

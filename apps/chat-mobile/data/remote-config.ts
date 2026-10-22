@@ -1,4 +1,4 @@
-// UniChat's remote config (audit R1): the slice of GET /api/v1/config the phone
+// UniChat's remote config: the slice of GET /api/v1/config the phone
 // acts on — the oldest version the server still serves, the kill switches
 // (mobile_flags) and the store pages the "Update required" screen opens. A
 // store binary cannot be recalled, so this is how a broken release is stopped
@@ -10,8 +10,8 @@
 // targets the flags (`?organization_id=`); opening another workspace refetches.
 // The last answer is kept on the device (REMOTE_CONFIG_STORE_KEY) and seeded
 // into the query at the next launch, before the server is asked again: a kill
-// switch and the minimum version hold through a cold start with no network
-// (audit "missed: kill switch and min-version gate fail open offline"). With
+// switch and the minimum version hold through a cold start with no network.
+// With
 // no answer ever kept, or when the server is unreachable on a first launch,
 // every flag reads its default and nothing is gated: the switches are for
 // turning a feature off, never a reason to lock someone out of a working app.

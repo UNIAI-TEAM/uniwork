@@ -1,5 +1,5 @@
 // Ported from usf apps/mobile/components/ui/button.tsx (React Native Reusables).
-// Sized for touch (audit UX P2): every size reaches 44 pt on iOS and 48 dp on
+// Sized for touch: every size reaches 44 pt on iOS and 48 dp on
 // Android, the small one through hit slop so it keeps its look; Android
 // answers a press with a ripple (components/ui/ripple.ts).
 import { cva, type VariantProps } from "class-variance-authority";

@@ -1,4 +1,4 @@
-// The small commands the phone owes the server (audit P2 "Realtime"): a room
+// The small commands the phone owes the server: a room
 // read, a reaction, a poll vote, an edit or a delete, made offline or lost to
 // a dead spot. Each carries the state the person wants, not the tap, so
 // replaying it is idempotent (data/pending-ops.ts checks the server before it

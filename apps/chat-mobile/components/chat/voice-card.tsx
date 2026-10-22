@@ -1,4 +1,4 @@
-// A voice message in its bubble (audit UX P3 "voice-player-basic"): play and
+// A voice message in its bubble: play and
 // pause, a tap on the bars seeks there, and a speed chip cycles 1× / 1.5× /
 // 2× (lib/voice-player.ts), as WhatsApp and Telegram offer. To a screen
 // reader the player is one adjustable control: its value is where it is in

@@ -1,4 +1,4 @@
-// Android's touch answer (audit UX P2 "android-platform-conventions"): a ripple
+// Android's touch answer: a ripple
 // in the content's ink, light on a light screen and dark on a dark one, as
 // Material components draw it; iOS ignores android_ripple and keeps its
 // highlight (the `active:` classes). Borderless for a round icon button, so

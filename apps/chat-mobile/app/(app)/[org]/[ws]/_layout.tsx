@@ -36,7 +36,7 @@ export default function WorkspaceLayout() {
   const { data: workspaces, isError } = useQuery(workspaceListOptions());
   const setCurrent = useWorkspaceStore((s) => s.setCurrent);
   const tokens = useMemo(() => socketTokenReaders(session), []);
-  // A call that rings, connects or is on keeps the socket open in the background (audit C1).
+  // A call that rings, connects or is on keeps the socket open in the background.
   const holdOpen = callHoldsSocket(useVoiceCall());
 
   const matched = workspaces?.find((w) => w.organization_slug === org && w.slug === ws);

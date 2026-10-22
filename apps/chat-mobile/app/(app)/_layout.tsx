@@ -1,7 +1,7 @@
 // Ported from usf apps/mobile/app/(app)/_layout.tsx: the auth gate, plus push
 // registration once a user is signed in. Workspace membership is decided one
 // level deeper, in [org]/[ws]/_layout — select-workspace is workspace-less.
-// The call screen (M3) sits here, once, above every workspace screen: a push
+// The call screen sits here, once, above every workspace screen: a push
 // can stack a second workspace over the first, and a call outlives both.
 import { useQuery } from "@tanstack/react-query";
 import Constants from "expo-constants";
@@ -48,7 +48,7 @@ export default function AppLayout() {
     return watchPushTokenRotation(options);
   }, [userId, i18n]);
 
-  // The app icon counts what is unread (audit P2 Calls); nothing once signed out.
+  // The app icon counts what is unread; nothing once signed out.
   useEffect(() => {
     void setAppBadge(badge);
   }, [badge]);

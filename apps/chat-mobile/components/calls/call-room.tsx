@@ -1,4 +1,4 @@
-// The media half of a call (spec M3 §2): LiveKit React Native in the room the
+// The media half of a call (calls spec §2): LiveKit React Native in the room the
 // engine minted a token for, the phone's version of the web's
 // use-voice-call-room-connection.ts. Mic, camera, audio output and hang-up;
 // the other side's video fills the screen and ours sits in a corner. The room

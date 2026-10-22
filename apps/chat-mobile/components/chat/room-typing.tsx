@@ -1,5 +1,5 @@
-// Who is typing in one room, read by the two places that show it on their own
-// (audit H1): the typing bubble under the newest message and the status line of
+// Who is typing in one room, read by the two places that show it on their own:
+// the typing bubble under the newest message and the status line of
 // the conversation's header. Each subscribes to its room's typists only, so a
 // typing frame redraws the bubble and the header line, never the message list.
 import { useMemo, type ComponentProps } from "react";

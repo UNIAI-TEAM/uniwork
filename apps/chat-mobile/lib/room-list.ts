@@ -3,7 +3,7 @@
 // chat-sidebar-rows.tsx): the core room helpers split and count the rooms,
 // lib/rooms-display.ts orders and words them. Counts come straight from the
 // room records, so web and phone show the same numbers. The Chat tab builds the
-// rows without typing or presence (audit P2 Perf): those change by the second,
+// rows without typing or presence: those change by the second,
 // so it lays the typing lines over them (roomListTypingLines) and each row reads
 // its peer's presence itself; sameRoomListRow lets an unchanged row skip a redraw.
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";

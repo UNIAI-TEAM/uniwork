@@ -1,4 +1,4 @@
-// Touch feedback for the moments that change something (audit P2 UX): a
+// Touch feedback for the moments that change something: a
 // message sent, a long press that opens a message's or a room's actions, a
 // reaction, a call answered or ended; a swipe that crosses the reply
 // threshold, a voice recording that starts, and a send that failed (UX P3). iOS gets its impact/selection/notification feels;

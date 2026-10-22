@@ -1,4 +1,4 @@
-// The sticker and GIF picker (M3), the phone's chat-expression-picker.tsx:
+// The sticker and GIF picker, the phone's chat-expression-picker.tsx:
 // two tabs, the trending set or a search, a tap sends. The items come from the
 // server (Tenor); without TENOR_API_KEY it answers none and the empty line
 // says so. A pick is sent as the same text body the web sends. The canvas

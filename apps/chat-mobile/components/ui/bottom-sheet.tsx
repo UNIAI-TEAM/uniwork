@@ -1,4 +1,4 @@
-// Every bottom sheet of the app (audit UX P2 "sheets-not-draggable"): a
+// Every bottom sheet of the app: a
 // CallAwareModal (an incoming call still closes it) over a dimmed screen,
 // with a panel that follows a downward drag and closes when let go far enough
 // or flicked (lib/sheet-drag.ts), springing back otherwise — what the grabber

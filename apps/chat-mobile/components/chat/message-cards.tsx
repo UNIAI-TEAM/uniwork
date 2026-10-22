@@ -1,6 +1,6 @@
 // What a message shows inside its row, by kind (spec §4): text with its
 // mentions, stickers and GIFs, images and files (open with the OS), voice
-// (listen), a poll to vote in (M3), note, post, reminder and call cards
+// (listen), a poll to vote in, note, post, reminder and call cards
 // (read-only), and an "Open on the web" row for a kind this build does not know.
 // The look is the canvas's (MobileChat, WebCardKinds): a tinted tile and an
 // overline head each card, inked for the bubble it sits in (`own`).
@@ -38,7 +38,7 @@ export interface MessageCardContext {
   userId: string;
   /** `messageId` lets the viewer page through the conversation's photos from this one. */
   onOpenImage: (url: string, name: string, messageId?: string) => void;
-  /** A tap on a poll option (M3); the cache takes the answer. */
+  /** A tap on a poll option; the cache takes the answer. */
   onVotePoll: (messageId: string, optionId: string) => void;
   /** A tap on a link in a message: the in-app browser. */
   onOpenLink: (url: string) => void;

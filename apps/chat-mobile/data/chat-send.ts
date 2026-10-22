@@ -3,7 +3,7 @@
 // use-chat-send-outbox-flush.ts): every send carries a client_msg_id the
 // server deduplicates on, so a retry after a lost answer cannot post twice.
 //
-// Every send goes through the outbox (audit R1–R3): text, a photo or a
+// Every send goes through the outbox: text, a photo or a
 // document, a voice clip and a reminder are written to the persisted queue
 // (stores/chat-send-store.ts) first, with their file copied out of the cache
 // (outbox-files.ts), and leave it only once the server answered. A room has

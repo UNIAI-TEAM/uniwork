@@ -1,7 +1,7 @@
 // What this running copy of UniChat is: the store version, the native build,
 // the EAS Update channel and the update it runs (none for the embedded
 // bundle). One derivation for the four places that say it — the API headers
-// and the socket (audit R1), crash reports (P0-2) and Settings › About (R3).
+// and the socket, crash reports (P0-2) and Settings › About (R3).
 // Pure: data/build-info.ts reads the native modules and hands them here.
 
 export interface BuildInputs {

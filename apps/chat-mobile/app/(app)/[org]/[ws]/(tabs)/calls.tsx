@@ -1,8 +1,8 @@
 // The calls tab: the call logs of the rooms the person sees in this workspace's
 // chat (GET …/chat/call-logs), newest first under day headers, each row the
 // web's call-log label; "missed" filters the loaded logs on the client. A tap
-// opens the room at that log through the deep-link contract the chat tab (M2a)
-// honours; the phone button on the row calls back (M3), voice or video as the
+// opens the room at that log through the deep-link contract the chat tab
+// honours; the phone button on the row calls back, voice or video as the
 // logged call was.
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { router, useFocusEffect } from "expo-router";

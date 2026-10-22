@@ -1,5 +1,4 @@
-// The last signed-in person, kept in the Keychain beside the session (audit
-// P0-3): a cold start with a stored credential routes on this copy at once and
+// The last signed-in person, kept in the Keychain beside the session: a cold start with a stored credential routes on this copy at once and
 // revalidates /me in the background, so a phone offline or a server answering
 // 5xx opens the inbox instead of the sign-in screen. Written after every /me
 // and PATCH /me, removed with the session. Writes go through one queue and are

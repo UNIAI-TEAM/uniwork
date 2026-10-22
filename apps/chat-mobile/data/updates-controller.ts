@@ -1,4 +1,4 @@
-// Applying an urgent OTA sooner (audit "ota-apply-latency"). expo-updates
+// Applying an urgent OTA sooner. expo-updates
 // checks once at launch and applies what it downloads at the next cold start,
 // so a phone UniChat stays open on for days keeps a broken bundle for days.
 // This controller checks again when UniChat comes back to the foreground (a

@@ -1,6 +1,5 @@
 // What a reaction, a poll vote or an edit does to a message before the server
-// confirms it (audit P2 "Realtime": reactions and votes offline; edits since
-// "edit-delete-online-only"). The server's rules,
+// confirms it (reactions, votes and edits work offline). The server's rules,
 // copied so the bubble shows the person's choice at once, online or not:
 // a reaction toggles one emoji of the viewer's (ChatService.
 // ToggleChatMessageReaction), a vote toggles one option, or with a

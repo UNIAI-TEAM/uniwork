@@ -1,5 +1,5 @@
-// A conversation's timeline laid out for the screen in one pass (audit P2
-// Perf: a reader scrolled back holds up to a thousand messages, and every
+// A conversation's timeline laid out for the screen in one pass (a reader
+// scrolled back holds up to a thousand messages, and every
 // frame, receipt or reaction lays them out again). What it builds is what the
 // plain definitions build — buildTimelineRows (day separators, grouping),
 // continuedRunKeys (bubbles the next one continues) and albumsOf (photo
