@@ -25,6 +25,7 @@ const OPERATOR_RUNBOOKS = new Set([
   "unichat-pilot.md", // UniChat Q1 (UNI-1838): daily triage and stop rules of the internal pilot
   "folders-unshare.md", // UNI-1974: one-off clean-up command run once after the folder-share-off deploy
   "folders-into-my-folder.md", // UNI-2055: one-off admin command run once after the workspace-folder (ADR 0037) deploy
+  "livekit-sip.md", // UNI-2029/UNI-2030: setting up and operating the SIP service for dial-in by phone
   "browser-notifications.md", // UNI-1965: deploy and manual acceptance of browser permission + Web Push (no pager)
 ]);
 
@@ -49,8 +50,8 @@ test("every alert has a runbook_url whose file exists and is named after the ale
   const all = rules();
   assert.equal(
     all.length,
-    28,
-    "spec §6.5 + UNI-936 alerts; billing adds BILLING_VNPAY_WEBHOOK + C-11 graph lag; UNI-1087 RedisUnreachable; G7-07 adds 12 Office / UniWork AI alerts",
+    29,
+    "spec §6.5 + UNI-936 alerts; billing adds BILLING_VNPAY_WEBHOOK + C-11 graph lag; UNI-1087 RedisUnreachable; G7-07 adds 12 Office / UniWork AI alerts; UNI-2023 MeetingScribeCannotJoin",
   );
   for (const r of all) {
     assert.ok(r.runbook_url, `${r.alert} has no runbook_url`);
