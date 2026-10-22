@@ -25,6 +25,7 @@ vi.mock("./faq", async () => {
 });
 
 import { OfficePage } from "./office-page";
+import { AptInstall } from "./apps/apt-install";
 import viMessages from "@uniwork/core/i18n/locales/vi.json";
 import enMessages from "@uniwork/core/i18n/locales/en.json";
 
@@ -220,13 +221,21 @@ describe("the Office page", () => {
     const commands = () => [...container.querySelectorAll("#office-download .apt-code")].map((pre) => pre.textContent);
     afterEach(() => { Reflect.deleteProperty(navigator, "clipboard"); });
 
-    it("stays hidden while the catalogue points at the release host, and while the deb is not published", async () => {
+    it("is always shown, with the suite of the channel the page selects and dev when none is published", async () => {
       await render({ flags: {}, office_installers: installers });
-      expect(container.querySelector(".apt-install")).toBeNull();
+      expect(container.querySelector("#office-download .apt-install")).not.toBeNull();
+      expect(commands()[0]).toContain("Suites: stable\n");
       act(() => root.unmount());
       root = createRoot(container);
-      await render({ flags: {}, office_installers: { dev: [onDownloads.dev[0]] } });
-      expect(container.querySelector(".apt-install")).toBeNull();
+      await render({ unexpected: true });
+      expect(container.querySelector("#office-download .apt-install")).not.toBeNull();
+      expect(commands()[0]).toContain("Suites: dev\n");
+    });
+
+    it("takes the suite from its prop, so another page can reuse the block", async () => {
+      request.mockResolvedValue({ flags: {}, office_installers: installers });
+      await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, { suite: "beta" }))); });
+      expect(container.querySelector(".apt-code")?.textContent).toContain("Suites: beta\n");
     });
 
     it.each(["vi", "en"] as const)("shows the key, the source with the catalogue's channel, the install line and the fingerprint in %s", async (language) => {
@@ -256,7 +265,7 @@ describe("the Office page", () => {
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
       await render({ flags: {}, office_installers: onDownloads });
       const buttons = container.querySelectorAll<HTMLButtonElement>(".apt-block button");
-      const statuses = container.querySelectorAll(".apt-block [role=status]");
+      const statuses = container.querySelectorAll(".apt-block [aria-live]");
       await act(async () => { buttons[1]?.click(); });
       expect(writeText).toHaveBeenCalledWith("sudo apt update && sudo apt install uniwork-office");
       expect(statuses[1]?.textContent).toBe(viMessages.landing.office.apt.copied);
