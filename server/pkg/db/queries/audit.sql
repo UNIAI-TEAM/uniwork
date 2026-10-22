@@ -142,14 +142,22 @@ LIMIT 1;
 -- MCP call) and one transaction several commands, and a client can reuse one
 -- correlation id for every request, so the outer read goes by xact_id first
 -- through idx_audit_events_task_created_xact; the action is a literal so the
--- partial index matches the prepared (generic) plan.
-SELECT t.* FROM audit_events t
-WHERE t.action = 'task.created' AND t.correlation_id = sqlc.arg(correlation_id)
-  AND t.xact_id = (SELECT a.xact_id FROM audit_events a
-                   WHERE a.correlation_id = sqlc.arg(correlation_id) AND a.action = 'task.created'
-                     AND a.resource_id = sqlc.arg(resource_id)
-                   ORDER BY a.occurred_at LIMIT 1)
-ORDER BY t.resource_id;
+-- partial index matches the prepared (generic) plan. The transaction's rows are
+-- read in a MATERIALIZED CTE that names no correlation id: a generic plan
+-- cannot tell a reused correlation id from a fresh one, and with the filter
+-- beside xact_id it could take idx_audit_events_correlation_action_resource
+-- (its resource_id order spares a sort) and read every row under that id.
+WITH in_transaction AS MATERIALIZED (
+  SELECT t.* FROM audit_events t
+  WHERE t.action = 'task.created'
+    AND t.xact_id = (SELECT a.xact_id FROM audit_events a
+                     WHERE a.correlation_id = sqlc.arg(correlation_id) AND a.action = 'task.created'
+                       AND a.resource_id = sqlc.arg(resource_id)
+                     ORDER BY a.occurred_at LIMIT 1)
+)
+SELECT * FROM in_transaction
+WHERE in_transaction.correlation_id = sqlc.arg(correlation_id)::text
+ORDER BY in_transaction.resource_id;
 
 -- name: InsertAuditEventsBatch :exec
 -- tenant: system

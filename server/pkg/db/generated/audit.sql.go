@@ -678,18 +678,41 @@ func (q *Queries) ListResourceAuditEvents(ctx context.Context, arg ListResourceA
 }
 
 const listTaskCreatedEventsInTransaction = `-- name: ListTaskCreatedEventsInTransaction :many
-SELECT t.id, t.organization_id, t.workspace_id, t.actor_kind, t.actor_id, t.action, t.resource_type, t.resource_id, t.changes, t.metadata, t.correlation_id, t.request_id, t.ip_address, t.user_agent, t.occurred_at, t.xact_id FROM audit_events t
-WHERE t.action = 'task.created' AND t.correlation_id = $1
-  AND t.xact_id = (SELECT a.xact_id FROM audit_events a
-                   WHERE a.correlation_id = $1 AND a.action = 'task.created'
-                     AND a.resource_id = $2
-                   ORDER BY a.occurred_at LIMIT 1)
-ORDER BY t.resource_id
+WITH in_transaction AS MATERIALIZED (
+  SELECT t.id, t.organization_id, t.workspace_id, t.actor_kind, t.actor_id, t.action, t.resource_type, t.resource_id, t.changes, t.metadata, t.correlation_id, t.request_id, t.ip_address, t.user_agent, t.occurred_at, t.xact_id FROM audit_events t
+  WHERE t.action = 'task.created'
+    AND t.xact_id = (SELECT a.xact_id FROM audit_events a
+                     WHERE a.correlation_id = $1 AND a.action = 'task.created'
+                       AND a.resource_id = $2
+                     ORDER BY a.occurred_at LIMIT 1)
+)
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM in_transaction
+WHERE in_transaction.correlation_id = $1::text
+ORDER BY in_transaction.resource_id
 `
 
 type ListTaskCreatedEventsInTransactionParams struct {
 	CorrelationID string `json:"correlation_id"`
 	ResourceID    string `json:"resource_id"`
+}
+
+type ListTaskCreatedEventsInTransactionRow struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	ActorKind      string             `json:"actor_kind"`
+	ActorID        string             `json:"actor_id"`
+	Action         string             `json:"action"`
+	ResourceType   string             `json:"resource_type"`
+	ResourceID     string             `json:"resource_id"`
+	Changes        string             `json:"changes"`
+	Metadata       string             `json:"metadata"`
+	CorrelationID  string             `json:"correlation_id"`
+	RequestID      pgtype.Text        `json:"request_id"`
+	IpAddress      pgtype.Text        `json:"ip_address"`
+	UserAgent      pgtype.Text        `json:"user_agent"`
+	OccurredAt     pgtype.Timestamptz `json:"occurred_at"`
+	XactID         pgtype.Uint64      `json:"xact_id"`
 }
 
 // tenant: system
@@ -699,16 +722,20 @@ type ListTaskCreatedEventsInTransactionParams struct {
 // MCP call) and one transaction several commands, and a client can reuse one
 // correlation id for every request, so the outer read goes by xact_id first
 // through idx_audit_events_task_created_xact; the action is a literal so the
-// partial index matches the prepared (generic) plan.
-func (q *Queries) ListTaskCreatedEventsInTransaction(ctx context.Context, arg ListTaskCreatedEventsInTransactionParams) ([]AuditEvent, error) {
+// partial index matches the prepared (generic) plan. The transaction's rows are
+// read in a MATERIALIZED CTE that names no correlation id: a generic plan
+// cannot tell a reused correlation id from a fresh one, and with the filter
+// beside xact_id it could take idx_audit_events_correlation_action_resource
+// (its resource_id order spares a sort) and read every row under that id.
+func (q *Queries) ListTaskCreatedEventsInTransaction(ctx context.Context, arg ListTaskCreatedEventsInTransactionParams) ([]ListTaskCreatedEventsInTransactionRow, error) {
 	rows, err := q.db.Query(ctx, listTaskCreatedEventsInTransaction, arg.CorrelationID, arg.ResourceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []AuditEvent{}
+	items := []ListTaskCreatedEventsInTransactionRow{}
 	for rows.Next() {
-		var i AuditEvent
+		var i ListTaskCreatedEventsInTransactionRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
