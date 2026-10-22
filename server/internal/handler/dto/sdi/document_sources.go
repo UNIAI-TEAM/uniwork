@@ -6,7 +6,7 @@ package sdi
 // read permission inside the query.
 type ListDocumentSourcesSDI struct {
 	Source *string  `query:"source" description:"Lọc một nguồn: chat, task, meeting hoặc email; bỏ trống = tất cả" example:"chat"`
-	Type   []string `query:"type" description:"Lọc theo loại tệp, lặp tham số để chọn nhiều loại (?type=docx&type=pdf); mỗi giá trị là page, docx, xlsx, pptx, pdf, md, html hoặc txt, các giá trị cộng nhau (OR) và mỗi định dạng khớp cả phần mở rộng cũ (docx gồm doc). page không có tệp nguồn nên không thêm gì: chọn riêng page trả trang rỗng. Bỏ trống = mọi tệp tài liệu; giá trị lạ hoặc rỗng -> 400 invalid_request" example:"[\"docx\",\"pdf\"]"`
+	Type   []string `query:"type" description:"Lọc theo loại tệp, lặp tham số để chọn nhiều loại (?type=docx&type=pdf); mỗi giá trị là page, docx, xlsx, pptx, pdf, md, html hoặc txt, các giá trị cộng nhau (OR) và mỗi định dạng khớp cả phần mở rộng cũ (docx gồm doc). page không có tệp nguồn nên không thêm gì: chọn riêng page trả trang rỗng. Bỏ trống = mọi tệp tài liệu; giá trị lạ hoặc rỗng -> 400 invalid_type" example:"[\"docx\",\"pdf\"]"`
 	Query  *string  `query:"q" description:"Tên tệp chứa chuỗi này (không phân biệt hoa thường), tối đa 200 ký tự" example:"hợp đồng"`
 	Cursor *string  `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"MjAyNi0xMC0xMlQwODowMDowMFp8Y2hhdDowMUo4WDRNU0cwTjFQMlEzUjRTNVQ2VTdWOA"`
 	Limit  *int32   `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"50"`

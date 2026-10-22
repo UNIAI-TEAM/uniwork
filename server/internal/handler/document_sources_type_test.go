@@ -71,8 +71,7 @@ func TestDocumentSourcesRepeatedTypeParam(t *testing.T) {
 	want("type=page&type=pdf", pdf)
 	want("type=page")
 	for _, bad := range []string{"type=pdf&type=bogus", "type=", "type=pdf&type=", "type=image", "type=PDF"} {
-		if status, got := list(bad); status != http.StatusBadRequest {
-			t.Errorf("?%s = %d %v, want 400", bad, status, got)
-		}
+		res, out := doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/documents/sources?"+bad, member, nil)
+		wantErr(t, res, out, http.StatusBadRequest, "invalid_type", "")
 	}
 }

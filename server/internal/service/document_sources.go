@@ -631,7 +631,7 @@ func documentSourceTypeFilter(types []string) (string, []string, error) {
 		}
 		add, ok := documentSourceTypeExts[t]
 		if !ok {
-			return "", nil, Invalid("type phải là page, docx, xlsx, pptx, pdf, md, html hoặc txt")
+			return "", nil, coded(http.StatusBadRequest, "invalid_type", "type phải là page, docx, xlsx, pptx, pdf, md, html hoặc txt")
 		}
 		for _, e := range add {
 			if !slices.Contains(exts, e) {

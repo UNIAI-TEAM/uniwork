@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"reflect"
 	"sort"
 	"testing"
@@ -50,9 +49,8 @@ func TestDocumentSourceTypeFilterRefusesWhatNoListAccepts(t *testing.T) {
 		{"image"}, {"other"}, {"PDF"}, {""}, {"pdf", "bogus"}, {"page", ""},
 	} {
 		_, _, err := documentSourceTypeFilter(types)
-		var ve ValidationError
-		if !errors.As(err, &ve) {
-			t.Errorf("types %q: err = %v, want a validation error (400)", types, err)
+		if !codedIs(err, "invalid_type") {
+			t.Errorf("types %q: err = %v, want 400 invalid_type", types, err)
 		}
 	}
 }
@@ -129,9 +127,8 @@ func TestDocumentSourceListsRepeatedTypes(t *testing.T) {
 
 	for _, types := range [][]string{{"pdf", "bogus"}, {""}, {"image"}} {
 		_, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Types: types})
-		var ve ValidationError
-		if !errors.As(err, &ve) {
-			t.Errorf("types %q: err = %v, want a validation error (400)", types, err)
+		if !codedIs(err, "invalid_type") {
+			t.Errorf("types %q: err = %v, want 400 invalid_type", types, err)
 		}
 	}
 }
