@@ -356,6 +356,12 @@ var catalogue = []EventDef{
 	// Ids only; bulk_id is present only when the bulk route (S-DOC06b) wrote
 	// the row, so the per-document notice can leave it to the grouped one.
 	{Topic: "document.owner_transferred", Version: 1, Payload: []string{"document_id", "workspace_id", "bulk_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Bulk owner transfer (DOC-06b, UNI-2092): one frame per bulk call that
+	// moved documents, to the recipient's own connections (user_id). Ids only:
+	// from_user_id is the source member, bulk_id groups the calls of one run,
+	// workspace_id is the workspace of the first document the call moved (id
+	// order) so the grouped notice lands in a workspace Inbox (FE-R1-3).
+	{Topic: "document.owners_bulk_transferred", Version: 1, Payload: []string{"organization_id", "user_id", "bulk_id", "from_user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 
 	// Office offline leases (G5-08s, decision G5-D1 row 16): ids only, to the
 	// holder's own connections. revoked makes an online device lock its copy

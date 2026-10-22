@@ -196,3 +196,42 @@ describe("documentFrameKeys - owner transferred frame", () => {
     expect(documentFrameKeys(ws, "document.owner_transferred", { workspace_id: ws })).toEqual([]);
   });
 });
+
+// S-DOC06b (UNI-2092, access addendum §4.2): `document.owners_bulk_transferred`
+// is user-scoped (the recipient's own connections) and ids-only. The frame
+// names the workspace of the first moved document, but documents of every
+// workspace changed owner, so the whole documents prefix refreshes whichever
+// workspace the frame names; nothing from the frame is cached.
+describe("documentFrameKeys - bulk owners transferred frame", () => {
+  const bulk = { organization_id: "o1", workspace_id: "ws2", user_id: "u1", bulk_id: "b1", from_user_id: "u2" };
+  const prefixOf = (root: readonly unknown[], key: readonly unknown[]) =>
+    JSON.stringify(key).startsWith(JSON.stringify(root).slice(0, -1));
+
+  it("refreshes the documents of every workspace", () => {
+    const keys = documentFrameKeys(ws, "document.owners_bulk_transferred", bulk);
+    expect(keys).toEqual([documentKeys.all]);
+    const [root] = keys ?? [];
+    for (const key of [
+      documentKeys.workspace(ws),
+      documentKeys.workspace("ws2"),
+      documentKeys.listRoot("ws2"),
+      documentKeys.detail(ws, "d1"),
+      documentKeys.favoritesRoot,
+    ]) {
+      expect(prefixOf(root ?? [], key)).toBe(true);
+    }
+  });
+
+  it("refreshes the same whatever workspace the recipient is watching", () => {
+    expect(documentFrameKeys("ws2", "document.owners_bulk_transferred", bulk)).toEqual([documentKeys.all]);
+  });
+
+  it("refreshes the whole prefix for a frame stamped with the watched workspace or another one", () => {
+    expect(documentFrameKeys(ws, "document.owners_bulk_transferred", { ...bulk, workspace_id: ws })).toEqual([
+      documentKeys.all,
+    ]);
+    expect(documentFrameKeys(ws, "document.owners_bulk_transferred", { ...bulk, workspace_id: "ws2" })).toEqual([
+      documentKeys.all,
+    ]);
+  });
+});

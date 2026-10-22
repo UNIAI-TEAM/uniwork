@@ -878,13 +878,19 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/open":                               {mixedFirst: "liveMeeting"},
 	"POST /api/v1/meetings/{meetingID}/participants/{participantID}/publish":                  {mixedFirst: "liveMeeting"},
 	"PATCH /api/v1/orgs/{org}/members/{userID}":                                               {body: isoJSON(map[string]any{"role": "admin"})},
-	"PATCH /api/v1/workspaces/{workspaceID}/members/{userID}":                                 {body: isoJSON(map[string]any{"role": "admin"})},
-	"DELETE /api/v1/workspaces/{workspaceID}/chat/users/{userID}/block":                       {mixedOK: "unblocking deletes the caller's own block row in their own organization; any id answers ok, known or not"},
-	"GET /api/v1/workspaces/{workspaceID}/resources/{resourceType}/{resourceID}/history":      {mixedOK: "the history is read by workspace and resource; a foreign id returns the empty page an unknown id returns"},
-	"POST /api/v1/meetings/{meetingID}/join-requests":                                         {body: isoJSON(map[string]any{"display_name": "Khách"})},
-	"POST /api/v1/meeting-join-requests/{requestId}/cancel":                                   {controlAs: "third"},
-	"POST /api/v1/tasks/{taskID}/labels":                                                      {body: isoWith(map[string]string{"label_id": "label"}, nil)},
-	"POST /api/v1/workspaces/{workspaceID}/agents":                                            {body: isoWith(map[string]string{"agent_id": "agent"}, nil)},
+	// DOC-06b: B's owner counts and moves the documents of B's peer to B's owner.
+	// The peer's restrictedDocument is self_restricted for B's owner, who holds
+	// only AdminScope on it, so it stays with the peer; peerOwnedDocument is
+	// unrestricted and moves, so the control writes under the matrix.
+	"GET /api/v1/orgs/{org}/members/{userID}/document-ownership":                         {},
+	"POST /api/v1/orgs/{org}/members/{userID}/document-ownership":                        {body: isoWith(map[string]string{"to_user_id": "owner"}, nil)},
+	"PATCH /api/v1/workspaces/{workspaceID}/members/{userID}":                            {body: isoJSON(map[string]any{"role": "admin"})},
+	"DELETE /api/v1/workspaces/{workspaceID}/chat/users/{userID}/block":                  {mixedOK: "unblocking deletes the caller's own block row in their own organization; any id answers ok, known or not"},
+	"GET /api/v1/workspaces/{workspaceID}/resources/{resourceType}/{resourceID}/history": {mixedOK: "the history is read by workspace and resource; a foreign id returns the empty page an unknown id returns"},
+	"POST /api/v1/meetings/{meetingID}/join-requests":                                    {body: isoJSON(map[string]any{"display_name": "Khách"})},
+	"POST /api/v1/meeting-join-requests/{requestId}/cancel":                              {controlAs: "third"},
+	"POST /api/v1/tasks/{taskID}/labels":                                                 {body: isoWith(map[string]string{"label_id": "label"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/agents":                                       {body: isoWith(map[string]string{"agent_id": "agent"}, nil)},
 	"POST /api/v1/orgs/{orgID}/billing/checkout": {body: isoJSON(map[string]any{
 		"plan_code": "starter", "success_path": "/billing/ok", "cancel_path": "/billing/cancel",
 	})},

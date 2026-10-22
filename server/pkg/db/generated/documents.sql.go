@@ -40,6 +40,52 @@ func (q *Queries) ClearDocumentAssetsOrphaned(ctx context.Context, arg ClearDocu
 	return err
 }
 
+const countMemberOwnedDocumentsByWorkspace = `-- name: CountMemberOwnedDocumentsByWorkspace :many
+SELECT d.workspace_id, w.name AS workspace_name, count(*)::bigint AS document_count
+FROM documents d
+JOIN workspaces w ON w.id = d.workspace_id AND w.organization_id = d.organization_id
+WHERE d.organization_id = $1
+  AND d.acl_owner_id = $2
+  AND d.owner_kind IS NULL
+  AND d.system_kind IS DISTINCT FROM 'my_folder'
+GROUP BY d.workspace_id, w.name
+ORDER BY w.name, d.workspace_id
+`
+
+type CountMemberOwnedDocumentsByWorkspaceParams struct {
+	OrganizationID string      `json:"organization_id"`
+	Owner          pgtype.Text `json:"owner"`
+}
+
+type CountMemberOwnedDocumentsByWorkspaceRow struct {
+	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceName string `json:"workspace_name"`
+	DocumentCount int64  `json:"document_count"`
+}
+
+// GET .../document-ownership: how many listable documents the member owns in
+// each workspace of the organization, with the workspace's name. Counts
+// only, never a title.
+func (q *Queries) CountMemberOwnedDocumentsByWorkspace(ctx context.Context, arg CountMemberOwnedDocumentsByWorkspaceParams) ([]CountMemberOwnedDocumentsByWorkspaceRow, error) {
+	rows, err := q.db.Query(ctx, countMemberOwnedDocumentsByWorkspace, arg.OrganizationID, arg.Owner)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountMemberOwnedDocumentsByWorkspaceRow{}
+	for rows.Next() {
+		var i CountMemberOwnedDocumentsByWorkspaceRow
+		if err := rows.Scan(&i.WorkspaceID, &i.WorkspaceName, &i.DocumentCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDocument = `-- name: GetDocument :one
 SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
 FROM documents
@@ -530,6 +576,82 @@ func (q *Queries) ListDocumentsByParent(ctx context.Context, arg ListDocumentsBy
 	return items, nil
 }
 
+const listMemberOwnedDocumentsForTransfer = `-- name: ListMemberOwnedDocumentsForTransfer :many
+SELECT id, organization_id, workspace_id, visibility, workspace_level,
+       acl_owner_id, owner_kind, owner_id
+FROM documents
+WHERE organization_id = $1
+  AND acl_owner_id = $2
+  AND owner_kind IS NULL
+  AND system_kind IS DISTINCT FROM 'my_folder'
+  AND id > $3
+ORDER BY id
+LIMIT $4
+FOR UPDATE
+`
+
+type ListMemberOwnedDocumentsForTransferParams struct {
+	OrganizationID string      `json:"organization_id"`
+	Owner          pgtype.Text `json:"owner"`
+	After          string      `json:"after"`
+	Page           int32       `json:"page"`
+}
+
+type ListMemberOwnedDocumentsForTransferRow struct {
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	Visibility     string      `json:"visibility"`
+	WorkspaceLevel string      `json:"workspace_level"`
+	AclOwnerID     pgtype.Text `json:"acl_owner_id"`
+	OwnerKind      pgtype.Text `json:"owner_kind"`
+	OwnerID        pgtype.Text `json:"owner_id"`
+}
+
+// One batch of the bulk transfer (§2.2, R1-10): the member's documents in
+// the organization after the cursor, in id order, locked. Plain FOR UPDATE,
+// no SKIP LOCKED: a concurrent transfer makes the batch wait instead of
+// skipping a row, and id order means two batches never lock crosswise.
+// Work Product documents (owner_kind) and the member's My Folder roots are
+// never listed; the documents inside a My Folder are. Archived documents
+// not yet purged are, so a successor can restore them.
+// Only the columns the loop and the level resolver read: never content,
+// content_text or search_text, so a 500-row batch stays metadata (BE-R1-1).
+// FOR UPDATE locks the whole row whatever the column list.
+func (q *Queries) ListMemberOwnedDocumentsForTransfer(ctx context.Context, arg ListMemberOwnedDocumentsForTransferParams) ([]ListMemberOwnedDocumentsForTransferRow, error) {
+	rows, err := q.db.Query(ctx, listMemberOwnedDocumentsForTransfer,
+		arg.OrganizationID,
+		arg.Owner,
+		arg.After,
+		arg.Page,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMemberOwnedDocumentsForTransferRow{}
+	for rows.Next() {
+		var i ListMemberOwnedDocumentsForTransferRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.Visibility,
+			&i.WorkspaceLevel,
+			&i.AclOwnerID,
+			&i.OwnerKind,
+			&i.OwnerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockDocumentTree = `-- name: LockDocumentTree :exec
 SELECT pg_advisory_xact_lock(hashtextextended('documents.tree:' || $1::text, 0))
 `
@@ -542,6 +664,34 @@ SELECT pg_advisory_xact_lock(hashtextextended('documents.tree:' || $1::text, 0))
 func (q *Queries) LockDocumentTree(ctx context.Context, workspaceID string) error {
 	_, err := q.db.Exec(ctx, lockDocumentTree, workspaceID)
 	return err
+}
+
+const memberOwnsDocumentsAfter = `-- name: MemberOwnsDocumentsAfter :one
+SELECT EXISTS (
+  SELECT 1
+  FROM documents
+  WHERE organization_id = $1
+    AND acl_owner_id = $2
+    AND owner_kind IS NULL
+    AND system_kind IS DISTINCT FROM 'my_folder'
+    AND id > $3
+) AS has_more
+`
+
+type MemberOwnsDocumentsAfterParams struct {
+	OrganizationID string      `json:"organization_id"`
+	Owner          pgtype.Text `json:"owner"`
+	After          string      `json:"after"`
+}
+
+// has_more of the bulk transfer: whether a listable document of the member
+// is left after the batch's last id. Never inferred from a full page, which
+// LIMIT ... FOR UPDATE can return short (R1-10).
+func (q *Queries) MemberOwnsDocumentsAfter(ctx context.Context, arg MemberOwnsDocumentsAfterParams) (bool, error) {
+	row := q.db.QueryRow(ctx, memberOwnsDocumentsAfter, arg.OrganizationID, arg.Owner, arg.After)
+	var has_more bool
+	err := row.Scan(&has_more)
+	return has_more, err
 }
 
 const nextDocumentPosition = `-- name: NextDocumentPosition :one
@@ -655,6 +805,66 @@ func (q *Queries) TransferDocumentACLOwner(ctx context.Context, arg TransferDocu
 		&i.ShelveBatchID,
 	)
 	return i, err
+}
+
+const transferDocumentsACLOwnerFrom = `-- name: TransferDocumentsACLOwnerFrom :many
+UPDATE documents
+SET acl_owner_id = $1,
+    updated_by = $2,
+    updated_by_kind = $3,
+    updated_at = now()
+WHERE id = ANY($4::text[])
+  AND organization_id = $5
+  AND owner_kind IS NULL
+  AND acl_owner_id = $6
+RETURNING id, workspace_id
+`
+
+type TransferDocumentsACLOwnerFromParams struct {
+	NewOwner       pgtype.Text `json:"new_owner"`
+	UpdatedBy      string      `json:"updated_by"`
+	UpdatedByKind  string      `json:"updated_by_kind"`
+	Ids            []string    `json:"ids"`
+	OrganizationID string      `json:"organization_id"`
+	FromOwner      pgtype.Text `json:"from_owner"`
+}
+
+type TransferDocumentsACLOwnerFromRow struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+// DOC-06b (UNI-2092, addendum §2.2, §5): TransferDocumentACLOwner for a batch
+// of the bulk route, in one statement, guarded by the owner the batch listed.
+// A row whose owner changed while the batch waited for its lock matches
+// nothing and is not returned, so the caller never counts it. Same updated_by
+// pair, same untouched revision. Returns what moved: the caller writes one
+// audit row and one outbox row for each.
+func (q *Queries) TransferDocumentsACLOwnerFrom(ctx context.Context, arg TransferDocumentsACLOwnerFromParams) ([]TransferDocumentsACLOwnerFromRow, error) {
+	rows, err := q.db.Query(ctx, transferDocumentsACLOwnerFrom,
+		arg.NewOwner,
+		arg.UpdatedBy,
+		arg.UpdatedByKind,
+		arg.Ids,
+		arg.OrganizationID,
+		arg.FromOwner,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TransferDocumentsACLOwnerFromRow{}
+	for rows.Next() {
+		var i TransferDocumentsACLOwnerFromRow
+		if err := rows.Scan(&i.ID, &i.WorkspaceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateDocumentContent = `-- name: UpdateDocumentContent :one
