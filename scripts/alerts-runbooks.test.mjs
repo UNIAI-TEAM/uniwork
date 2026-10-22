@@ -25,6 +25,7 @@ const OPERATOR_RUNBOOKS = new Set([
   "unichat-pilot.md", // UniChat Q1 (UNI-1838): daily triage and stop rules of the internal pilot
   "folders-unshare.md", // UNI-1974: one-off clean-up command run once after the folder-share-off deploy
   "folders-into-my-folder.md", // UNI-2055: one-off admin command run once after the workspace-folder (ADR 0037) deploy
+  "browser-notifications.md", // UNI-1965: deploy and manual acceptance of browser permission + Web Push (no pager)
 ]);
 
 /** `{alert, runbook_url}` pairs from deploy/alerts.yml. */
