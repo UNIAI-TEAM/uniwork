@@ -257,7 +257,7 @@ export function ChatPageView({ workspaceId, currentUserId, desktopOpen }: { work
     [rooms, activeRoomId, target.kind],
   );
   useChatRoomScopes(chatScopeRoomIds);
-  useChatPageSignals(workspaceId, currentUserId, authReady);
+  useChatPageSignals(workspaceId, currentUserId);
 
   const showLoading =
     !authReady ||
@@ -413,11 +413,6 @@ export function ChatPageView({ workspaceId, currentUserId, desktopOpen }: { work
   const leaveRoomAnd = (cleanup: () => void) => {
     if (activeRoomId) void handleLeaveConversation(activeRoomId, cleanup);
   };
-  const messageRefreshKey = Math.max(
-    sendRoomMessage.isSuccess ? sendRoomMessage.submittedAt : 0,
-    sendVoiceMessage.isSuccess ? sendVoiceMessage.submittedAt : 0,
-  );
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ChatSeenByProvider value={seenBy.value} deliveredAt={deliveredAt}>
@@ -435,7 +430,6 @@ export function ChatPageView({ workspaceId, currentUserId, desktopOpen }: { work
           activeGroup={activeGroup}
           activeChannel={activeChannel}
           workspaceId={workspaceId}
-          messageRefreshKey={messageRefreshKey}
           activeRoomId={activeRoomId}
           showLoading={showLoading}
           connectError={connectError}

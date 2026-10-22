@@ -9,7 +9,6 @@ export const chatKeys = {
     ["chat", "channels", wsId, scope, projectId] as const,
   projectChannels: (wsId: string, projectId: string) =>
     ["chat", "project-channels", wsId, projectId] as const,
-  messages: (wsId: string) => ["chat", "messages", wsId] as const,
   roomMessages: (wsId: string, roomId: string) => ["chat", "room-messages", wsId, roomId] as const,
   /** Prefix — invalidate all open room timelines for a workspace (reconnect). */
   roomMessagesRoot: (wsId: string) => ["chat", "room-messages", wsId] as const,

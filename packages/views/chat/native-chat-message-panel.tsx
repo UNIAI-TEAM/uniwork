@@ -30,7 +30,7 @@ import { ChatMessageLinksProvider } from "./chat-message-links-context";
 import { ChatLinkPreviewsProvider } from "./chat-link-preview-card";
 import { ChatForwardContext } from "./chat-forward-context";
 import { ChatPeerReadAtContext } from "./chat-message-parts";
-import { CHAT_WALL } from "./chat-wall";
+import { CHAT_CONVERSATION_GUTTER, CHAT_WALL } from "./chat-wall";
 import { toastChatError } from "./chat-error-message";
 import { VirtualChatMessageList, updateStickToBottomFromScroll, useReaderScrollAt } from "./virtual-chat-message-list";
 import type { NameContextEntry } from "./native-chat-message-mapping";
@@ -91,7 +91,6 @@ export function NativeChatMessagePanel({
   youLabel: string;
   replyTo: ChatMessage | null;
   onReplyToChange: (message: ChatMessage | null) => void;
-  refreshKey?: number;
   showSenderName?: boolean;
   embedded?: boolean;
   anchorMessageId?: string | null;
@@ -488,8 +487,12 @@ export function NativeChatMessagePanel({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must be reachable by keyboard to scroll it (axe scrollable-region-focusable)
           tabIndex={0}
         >
-          {/* One readable column however wide the window is; the side thread is narrower (canvas). */}
-          <div className={sideThreadPanel ? "w-full p-4" : "mx-auto w-full max-w-195 px-3 pt-5 pb-3 sm:px-7"}>
+          {/* Full width of the conversation column; side thread stays tighter (canvas). */}
+          <div
+            className={
+              sideThreadPanel ? "w-full p-4" : `w-full pt-5 pb-3 ${CHAT_CONVERSATION_GUTTER}`
+            }
+          >
             <ChatLinkPreviewsProvider workspaceId={workspaceId} roomId={roomId} messages={messages}>
               <ChatMessageLinksProvider value={linksValue}>
                 <ChatPeerReadAtContext.Provider value={receiptReadAt}>

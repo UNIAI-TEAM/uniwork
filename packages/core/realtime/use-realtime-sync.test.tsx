@@ -702,7 +702,7 @@ describe("useRealtimeSync", () => {
     vi.useRealTimers();
   });
 
-  it("patches workspace messages when the event targets the workspace room", async () => {
+  it("patches the workspace room timeline when that room is open", async () => {
     vi.useFakeTimers();
     vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue({
       id: "m1",
@@ -720,8 +720,7 @@ describe("useRealtimeSync", () => {
       thread_unread: false,
     });
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.room("ws1"), { workspace_id: "ws1", room_id: "ws-room" });
-    shown(qc, chatKeys.messages("ws1"), []);
+    shown(qc, chatKeys.roomMessages("ws1", "ws-room"), { pages: [[]], pageParams: [null] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -732,14 +731,11 @@ describe("useRealtimeSync", () => {
       vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
-    // The room's own timeline is not loaded here, so it is marked stale for the
-    // next open (UNI-950) while the loaded workspace list is patched in place.
-    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(invalidate).toHaveBeenCalledTimes(1);
     expect(keysCalled(invalidate)).toEqual([
       JSON.stringify(chatKeys.voiceRecordings("ws1", "ws-room")),
-      JSON.stringify(chatKeys.roomMessages("ws1", "ws-room")),
     ]);
-    expect(qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.messages("ws1"))).toHaveLength(1);
+    expect(timelineRows(qc, "ws-room")).toHaveLength(1);
     vi.useRealTimers();
   });
 
@@ -1217,7 +1213,6 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["projects", "ws1"]),
         JSON.stringify(["chat", "rooms", "ws1"]),
         JSON.stringify(["chat", "room", "ws1"]),
-        JSON.stringify(["chat", "messages", "ws1"]),
         JSON.stringify(["chat", "thread-messages", "ws1"]),
         JSON.stringify(["meetings", "ws1"]),
         JSON.stringify(["meeting-stats", "ws1"]),

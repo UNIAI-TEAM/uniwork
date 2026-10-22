@@ -258,22 +258,6 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
-	r.Get("/workspaces/{workspaceID}/chat/messages", h.ListWorkspaceChatMessages, apiOp{
-		summary:     "List workspace chat messages",
-		description: "Danh sách tin nhắn phòng workspace (phân trang bằng cursor).",
-		tags:        []string{"chat"},
-		sdi:         sdi.ListChatMessagesSDI{},
-		sdo:         sdo.ChatMessageDTO{},
-		auth:        true,
-	})
-	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/messages", h.SendWorkspaceChatMessage, apiOp{
-		summary:     "Send workspace chat message",
-		description: "Gửi tin nhắn vào phòng workspace.",
-		tags:        []string{"chat"},
-		sdi:         sdi.SendChatMessageSDI{},
-		sdo:         sdo.ChatMessageDTO{},
-		auth:        true,
-	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search", h.SearchChatRoomMessages, apiOp{
 		summary:     "Search chat room messages",
 		description: "Tìm tin nhắn văn bản trong phòng chat (không đánh dấu đã đọc).",

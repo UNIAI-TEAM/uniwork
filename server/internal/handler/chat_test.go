@@ -161,40 +161,27 @@ func TestChatWorkspaceRoom(t *testing.T) {
 		t.Fatalf("ensure room: %d %v", res.StatusCode, out)
 	}
 
-	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/messages", tok, nil)
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("list ws messages: %d %v", res.StatusCode, out)
-	}
-	if _, ok := out["messages"]; !ok {
-		t.Fatalf("missing messages: %v", out)
-	}
-
-	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/messages?limit=10", tok, nil)
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("list ws messages limit: %d %v", res.StatusCode, out)
-	}
-
-	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/messages?before=not-a-time", tok, nil)
-	if res.StatusCode != http.StatusBadRequest {
-		t.Fatalf("bad before: %d %v", res.StatusCode, out)
-	}
-
-	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+f.wsID+"/chat/messages", tok, map[string]string{"body": "xin chao workspace"})
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("send ws message: %d %v", res.StatusCode, out)
-	}
-	if out["message"].(map[string]any)["body"] != "xin chao workspace" {
-		t.Fatalf("message body = %v", out["message"])
-	}
-
-	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+f.wsID+"/chat/messages", tok, map[string]string{"body": "   "})
-	if res.StatusCode != http.StatusBadRequest {
-		t.Fatalf("empty ws message: %d %v", res.StatusCode, out)
-	}
-
 	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/00000000000000000000000000/chat/room", tok, nil)
 	if res.StatusCode != http.StatusNotFound && res.StatusCode != http.StatusForbidden {
 		t.Fatalf("unknown ws room: %d %v", res.StatusCode, out)
+	}
+}
+
+func TestWorkspaceChatMessagesRoutesAreGone(t *testing.T) {
+	f := setupChatFixture(t, "wsmsgsgone")
+	srv, tok := f.srv, f.tokens["a"]
+	base := "/api/v1/workspaces/" + f.wsID + "/chat/messages"
+
+	res, _ := doJSON(t, srv, "GET", base, tok, nil)
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET workspace chat messages: status %d want 404", res.StatusCode)
+	}
+
+	res, _ = doJSON(t, srv, "POST", base, tok, map[string]any{
+		"body": "hello", "priority": "urgent",
+	})
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("POST workspace chat messages: status %d want 404", res.StatusCode)
 	}
 }
 

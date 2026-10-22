@@ -14,17 +14,6 @@ import {
 } from "./room-timeline";
 import { chatUnreadBadge } from "./chat-room-helpers";
 
-export function useWorkspaceChatRoom(workspaceId: string) {
-  const authReady = useAuthStore((s) => s.status === "authed");
-  return useQuery({
-    queryKey: chatKeys.room(workspaceId),
-    queryFn: () => chat.getWorkspaceChatRoom(workspaceId),
-    enabled: !!workspaceId && authReady,
-    retry: 2,
-    retryDelay: 400,
-  });
-}
-
 export function useEnsureWorkspaceChatRoom(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -36,29 +25,6 @@ export function useEnsureWorkspaceChatRoom(workspaceId: string) {
     onSuccess: (room) => {
       qc.setQueryData(chatKeys.room(workspaceId), room);
       // Membership sync may land after the first listRooms; refresh the sidebar.
-      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
-    },
-  });
-}
-
-export function useWorkspaceChatMessages(workspaceId: string, enabled: boolean) {
-  const authReady = useAuthStore((s) => s.status === "authed");
-  return useQuery({
-    queryKey: chatKeys.messages(workspaceId),
-    queryFn: () => chat.listWorkspaceChatMessages(workspaceId),
-    enabled: !!workspaceId && authReady && enabled,
-    refetchInterval: false,
-  });
-}
-
-export function useSendWorkspaceChatMessage(workspaceId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { body: string; reply_to_message_id?: string }) =>
-      chat.sendWorkspaceChatMessage(workspaceId, input),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
-      void qc.invalidateQueries({ queryKey: chatKeys.room(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
   });
@@ -188,10 +154,6 @@ export function useLeaveChatRoom(workspaceId: string) {
       void qc.removeQueries({ queryKey: chatKeys.roomDetail(workspaceId, roomId) });
     },
   });
-}
-
-export function useRemoveWorkspaceChatRoomMember(workspaceId: string) {
-  return useRemoveChatRoomMember(workspaceId);
 }
 
 export function useRemoveChatRoomMember(workspaceId: string) {

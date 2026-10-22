@@ -101,7 +101,6 @@
     "./chat/room-preferences-store": "./chat/room-preferences-store.ts",
     "./chat/device-notification-store": "./chat/device-notification-store.ts",
     "./chat/room-permissions-utils": "./chat/room-permissions-utils.ts",
-    "./chat/room-bulletin-store": "./chat/room-bulletin-store.ts",
     "./chat/poll-utils": "./chat/poll-utils.ts",
     "./chat/reminder-utils": "./chat/reminder-utils.ts",
     "./chat/note-utils": "./chat/note-utils.ts",

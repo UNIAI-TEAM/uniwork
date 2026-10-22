@@ -4,9 +4,10 @@
 // accessibility label, as the old text line read them out.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AccessibilityInfo, Animated, Easing, View } from "react-native";
-import { bubbleCorners } from "@/lib/conversation-display";
+import { bubbleCorners, CHAT_CONVERSATION_ROW_INSET } from "@/lib/conversation-display";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
+import { cn } from "@/lib/utils";
 
 function useReduceMotion() {
   const [reduced, setReduced] = useState(true);
@@ -47,7 +48,7 @@ export function TypingBubble({ label, avatar }: { label: string; avatar?: ReactN
   const reduced = useReduceMotion();
   const { colorScheme } = useColorScheme();
   return (
-    <View className="flex-row items-end gap-1.5 px-2.5 pt-2" accessible accessibilityLabel={label} accessibilityLiveRegion="polite">
+    <View className={cn("flex-row items-end gap-1.5 pt-2", CHAT_CONVERSATION_ROW_INSET)} accessible accessibilityLabel={label} accessibilityLiveRegion="polite">
       {avatar}
       <View className="h-9 flex-row items-center gap-1 bg-chat-bubble-other px-3.5" style={bubbleCorners(false, true, true)}>
         {[0, 150, 300].map((delay) => (

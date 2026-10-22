@@ -27,7 +27,6 @@ export type ChatPageContentProps = {
   activeGroup: GroupChat | null;
   activeChannel: ChatRoomRecord | null;
   workspaceId: string;
-  messageRefreshKey?: number;
   activeRoomId: string | null;
   showLoading: boolean;
   connectError: string | null;

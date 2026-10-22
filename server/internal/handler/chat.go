@@ -333,47 +333,6 @@ func (h *handlers) ensureWorkspaceChatRoom(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (h *handlers) listWorkspaceChatMessages(w http.ResponseWriter, r *http.Request) {
-	wsID := chi.URLParam(r, "workspaceID")
-	in, err := parseChatMessageListQuery(r)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid_request", "before must be RFC3339")
-		return
-	}
-	msgs, err := h.Chat.ListWorkspaceMessages(r.Context(), middleware.UserID(r.Context()), wsID, in)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	out := make([]sdo.ChatMessageDTO, 0, len(msgs))
-	for _, m := range msgs {
-		out = append(out, toChatMessageDTO(m))
-	}
-	respondJSON(w, http.StatusOK, map[string]any{"messages": out})
-}
-
-func (h *handlers) sendWorkspaceChatMessage(w http.ResponseWriter, r *http.Request) {
-	var in sdi.SendChatMessageSDI
-	if !decode(w, r, &in, maxJSONBody) {
-		return
-	}
-	msg, err := h.Chat.SendWorkspaceMessage(
-		r.Context(),
-		middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"),
-		service.SendChatMessageInput{
-			Body:             in.Body,
-			ReplyToMessageID: in.ReplyToMessageID,
-			ClientMsgID:      in.ClientMsgID,
-		},
-	)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	respondJSON(w, http.StatusOK, map[string]any{"message": toChatMessageDTO(msg)})
-}
-
 func (h *handlers) listChatRooms(w http.ResponseWriter, r *http.Request) {
 	wsID := chi.URLParam(r, "workspaceID")
 	rooms, err := h.Chat.ListChatRooms(r.Context(), middleware.UserID(r.Context()), wsID)

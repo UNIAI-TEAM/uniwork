@@ -472,8 +472,6 @@ type Routes struct {
 	AckChatDelivered                 http.HandlerFunc
 	MuteChatRoom                     http.HandlerFunc
 	UnmuteChatRoom                   http.HandlerFunc
-	ListWorkspaceChatMessages        http.HandlerFunc
-	SendWorkspaceChatMessage         http.HandlerFunc
 	ListChatRoomMessages             http.HandlerFunc
 	GetChatRoomMessage               http.HandlerFunc
 	SearchChatRoomMessages           http.HandlerFunc
