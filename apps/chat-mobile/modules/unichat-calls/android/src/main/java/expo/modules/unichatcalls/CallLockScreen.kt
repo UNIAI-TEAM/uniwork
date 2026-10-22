@@ -42,6 +42,7 @@ internal object CallLockScreen {
   private var activity: WeakReference<Activity>? = null
   private val handler by lazy { Handler(Looper.getMainLooper()) }
   private var shown: WeakReference<Activity>? = null
+
   /** SystemClock.elapsedRealtime of the last launch shown over the lock: it runs on while the phone sleeps. */
   private var shownAt = 0L
   private val watchdog = object : Runnable {

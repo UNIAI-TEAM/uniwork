@@ -182,7 +182,13 @@ class NativeCallPushTest {
 
   @Test
   fun aRingConfigMissingAWordIsNotUsed() {
-    RingConfig.write(app, RingConfig().apply { enabled = true; scheme = "uniworkchat" })
+    RingConfig.write(
+      app,
+      RingConfig().apply {
+        enabled = true
+        scheme = "uniworkchat"
+      }
+    )
     assertEquals(NativeCallPush.Outcome.DEFER, handle(invite()))
     assertTrue(posted().isEmpty())
   }

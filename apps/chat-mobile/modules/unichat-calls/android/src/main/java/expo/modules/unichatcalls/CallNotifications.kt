@@ -141,7 +141,12 @@ internal object CallNotifications {
       .setTimeoutAfter(call.timeoutMs.toLong().coerceAtLeast(1_000L))
       .addPerson(person)
     return try {
-      post(context, requestCode, builder.setStyle(NotificationCompat.CallStyle.forIncomingCall(person, decline, answer).setIsVideo(call.video)).build(), waiting)
+      post(
+        context,
+        requestCode,
+        builder.setStyle(NotificationCompat.CallStyle.forIncomingCall(person, decline, answer).setIsVideo(call.video)).build(),
+        waiting
+      )
       true
     } catch (e: IllegalArgumentException) {
       // A CallStyle the system refuses (no usable full-screen intent on some
