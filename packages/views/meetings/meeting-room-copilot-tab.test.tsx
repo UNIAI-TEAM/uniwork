@@ -349,7 +349,10 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
     fireEvent.click(within(dialog).getByRole("button", { name: "Giao 1 việc" }));
 
     await waitFor(() => expect(posted().items).toHaveLength(1));
-    expect(posted()).toEqual({ items: [{ action_item_id: "a0", assignee_id: null, due_date: null, project_id: "p1" }] });
+    expect(posted()).toEqual({
+      items: [{ action_item_id: "a0", assignee_id: null, due_date: null, project_id: "p1" }],
+      locale: "vi",
+    });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Giao việc" })).toHaveAttribute("aria-disabled", "true");
   });
