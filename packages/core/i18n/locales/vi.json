@@ -5592,6 +5592,7 @@
       "prompt": "Bật thông báo để không bỏ lỡ tin nhắn mới.",
       "enable": "Bật thông báo",
       "check": "Khi macOS hỏi, chọn Cho phép. Không thấy thông báo thử thì bật UniChat trong cài đặt thông báo của máy.",
+      "check_windows": "Không thấy thông báo thử? Mở Cài đặt Windows › Hệ thống › Thông báo và bật UniChat; tắt Trung tâm tập trung nếu đang bật.",
       "open_settings": "Mở cài đặt thông báo",
       "test_title": "Thông báo đã bật",
       "test_body": "Tin nhắn mới sẽ hiện ở đây."
