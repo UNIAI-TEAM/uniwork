@@ -39,9 +39,7 @@ test("a recorded file that still exists but was not measured stops --write", () 
 // global floor leaves it — and nothing outside it sits below the global floor.
 const BELOW_GLOBAL = new Set([
   "components/brand/unichat-logo.tsx",
-  "components/calls/call-room.tsx",
   "components/chat/album-grid.tsx",
-  "components/chat/chat-header.tsx",
   "components/chat/conversation.tsx",
   "components/chat/emoji-sheet.tsx",
   "components/chat/expression-sheet.tsx",
@@ -55,10 +53,6 @@ const BELOW_GLOBAL = new Set([
   "components/chat/room-preview.tsx",
   "components/chat/swipe-to-reply.tsx",
   "components/chat/task-card.tsx",
-  "components/chat/use-read-marking.ts",
-  "components/chat/use-voice-recorder.ts",
-  "components/settings/devices-section.tsx",
-  "components/settings/push-section.tsx",
   "components/ui/card.tsx",
   "components/ui/separator.tsx",
   "components/ui/text.tsx",
@@ -67,8 +61,6 @@ const BELOW_GLOBAL = new Set([
   "components/workspace/workspace-switch-sheet.tsx",
   "data/calls/call-store.ts",
   "data/query-client.ts",
-  "data/realtime/realtime-provider.tsx",
-  "data/realtime/use-chat-realtime.ts",
   "data/realtime/use-ws-subscriptions.ts",
 ]);
 
