@@ -24,10 +24,11 @@ func TestSearchMessagesAcrossMyRooms(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID); err != nil {
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
 		t.Fatal(err)
 	}
-	inRoom, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "Lịch ra mắt đã lên"})
+	inRoom, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "Lịch ra mắt đã lên"})
 	if err != nil {
 		t.Fatal(err)
 	}

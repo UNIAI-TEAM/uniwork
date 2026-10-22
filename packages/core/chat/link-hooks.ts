@@ -5,7 +5,6 @@ import * as chat from "../api/endpoints/chat";
 import type {
   CreateChatMessageLinkInput,
   CreateTaskFromMessageInput,
-  SyncThreadTaskInput,
 } from "../api/endpoints/chat-links";
 import { useAuthStore } from "../auth/store";
 import { taskKeys } from "../tasks/keys";
@@ -140,29 +139,6 @@ export function useUnlinkChatMessage(workspaceId: string) {
       chat.deleteChatMessageLink(workspaceId, input.messageId, input.linkId),
     onSuccess: (_ok, vars) => {
       invalidateMessageLinks(qc, workspaceId, vars.messageId);
-    },
-  });
-}
-
-export function useSyncChatThreadTask(workspaceId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { threadRootId: string } & SyncThreadTaskInput) => {
-      const { threadRootId, ...body } = input;
-      return chat.syncChatThreadTask(workspaceId, threadRootId, body);
-    },
-    onSuccess: (_ok, vars) => {
-      invalidateMessageLinks(qc, workspaceId, vars.threadRootId);
-    },
-  });
-}
-
-export function useUnsyncChatThreadTask(workspaceId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (threadRootId: string) => chat.unsyncChatThreadTask(workspaceId, threadRootId),
-    onSuccess: (_ok, threadRootId) => {
-      invalidateMessageLinks(qc, workspaceId, threadRootId);
     },
   });
 }

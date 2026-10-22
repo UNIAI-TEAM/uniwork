@@ -31,7 +31,6 @@ export function allWorkspaceKeys(wsId: string) {
     ["chat", "followed-threads", wsId],
     ["chat", "channels", wsId],
     ["chat", "project-channels", wsId],
-    chatKeys.messages(wsId),
     chatKeys.threadMessagesRoot(wsId),
     meetingKeys.list(wsId),
     meetingKeys.stats(wsId),

@@ -19,9 +19,9 @@ import (
 
 // Bước 0 regression for UNI-745 (chat file + voice messages, plan §6.1).
 //
-// Every case here describes what develop does today, on the legacy handler
-// path, so the same spec stays meaningful after T7 moves the uploads onto the
-// shared FileService. Cases whose names carry "PinsForFileServiceMigration"
+// Every case here runs on the FileService handler path (filesfake), matching
+// production wiring after chat file/voice uploads moved off legacy storage.
+// Cases whose names carry "PinsForFileServiceMigration"
 // assert behavior that migration deliberately changes (the 25 MiB/4 MiB caps
 // and the MIME allowlists become purpose policy) and are expected to be edited
 // by the migration PR, not deleted.
@@ -113,7 +113,7 @@ func registerOtherOrgUser(t *testing.T, srv *httptest.Server, tag string) (token
 func TestChatFileMessageSecondMemberSeesAndDownloads(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
-	f := setupChatFixture(t, "fileshare")
+	f := setupChatFixtureFiles(t, "fileshare")
 
 	res, out := uploadChatFile(
 		t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
@@ -160,7 +160,7 @@ func TestChatFileMessageSecondMemberSeesAndDownloads(t *testing.T) {
 func TestChatFileMessageIdempotentResendKeepsOneMessage(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
-	f := setupChatFixture(t, "fileidem")
+	f := setupChatFixtureFiles(t, "fileidem")
 
 	_, first := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
 		"anh.png", "image/png", "idem-file-1", tinyPNG)
@@ -177,15 +177,10 @@ func TestChatFileMessageIdempotentResendKeepsOneMessage(t *testing.T) {
 		t.Fatalf("retry created a second message: %v want %s", got, firstID)
 	}
 
-	// Even a different payload under the same id returns the earlier message
-	// today (no conflict). T7 replaces this with idempotency_conflict.
 	res, third := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
 		"khac.png", "image/png", "idem-file-1", tinyPNG)
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("different payload under the same id should return the earlier message today: %d %v", res.StatusCode, third)
-	}
-	if got := chatMessageDTO(t, third)["id"]; got != firstID {
-		t.Fatalf("different payload under the same id created a new message: %v want %s", got, firstID)
+	if res.StatusCode != http.StatusConflict || errorCodeOf(third) != "idempotency_conflict" {
+		t.Fatalf("different payload under the same id = %d %v, want 409 idempotency_conflict", res.StatusCode, third)
 	}
 
 	res, out := doJSON(t, f.srv, "GET", roomMessagesPath(f, f.groupRoomID), f.tokens["a"], nil)
@@ -209,7 +204,7 @@ func TestChatFileMessageIdempotentResendKeepsOneMessage(t *testing.T) {
 func TestChatFileMessageSizeAndTypeRejectionPinsForFileServiceMigration(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
-	f := setupChatFixture(t, "filebad")
+	f := setupChatFixtureFiles(t, "filebad")
 
 	if service.MaxChatFileMessageBytes != 25<<20 {
 		t.Fatalf("MaxChatFileMessageBytes = %d, want 25 MiB", service.MaxChatFileMessageBytes)
@@ -246,7 +241,7 @@ func TestChatFileMessageSizeAndTypeRejectionPinsForFileServiceMigration(t *testi
 func TestChatVoiceMessageSecondMemberPlaysWithDurationMetadata(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
-	f := setupChatFixture(t, "voiceshare")
+	f := setupChatFixtureFiles(t, "voiceshare")
 
 	res, out := uploadChatVoice(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID, 12_500, "voice-share-1", tinyWebM)
 	if res.StatusCode != http.StatusOK {
@@ -299,7 +294,7 @@ func TestChatVoiceMessageSecondMemberPlaysWithDurationMetadata(t *testing.T) {
 func TestChatVoiceMessageRejectsBadDurationSizeAndTypePinsForFileServiceMigration(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
-	f := setupChatFixture(t, "voicebad")
+	f := setupChatFixtureFiles(t, "voicebad")
 
 	if service.MaxChatVoiceMessageBytes != 4<<20 {
 		t.Fatalf("MaxChatVoiceMessageBytes = %d, want 4 MiB", service.MaxChatVoiceMessageBytes)
@@ -337,7 +332,7 @@ func TestChatVoiceMessageRejectsBadDurationSizeAndTypePinsForFileServiceMigratio
 func TestChatFileMessageOutsideRoomCannotDownload(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
-	f := setupChatFixture(t, "fileacl")
+	f := setupChatFixtureFiles(t, "fileacl")
 
 	_, out := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
 		"noi-bo.pdf", "application/pdf", "acl-file-1", tinyPDF)
@@ -385,7 +380,7 @@ func TestChatFileMessageOutsideRoomCannotDownload(t *testing.T) {
 func TestChatFileMessageCrossOrganizationGuessedIDsBlocked(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
-	f := setupChatFixture(t, "fileorg")
+	f := setupChatFixtureFiles(t, "fileorg")
 
 	_, out := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
 		"bi-mat.pdf", "application/pdf", "org-file-1", tinyPDF)
@@ -425,7 +420,7 @@ func TestChatFileMessageCrossOrganizationGuessedIDsBlocked(t *testing.T) {
 func TestChatFileAndVoiceUploadRespectsDMBlockAndSendRestriction(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
-	f := setupChatFixture(t, "filemod")
+	f := setupChatFixtureFiles(t, "filemod")
 
 	// A sends into the DM before the block.
 	res, out := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.dmRoomID,
@@ -513,56 +508,32 @@ func listStoredObjects(t *testing.T, dir string) []string {
 	return keys
 }
 
-// The object key layout and the fact that a deleted message keeps its bytes
-// are pinned for the FileService migration: T7 stores files/<purpose>/<org>/â€¦
-// and hands the bytes to the service, and message delete becomes a release
-// that only GC acts on.
+// FileService owns chat bytes: nothing lands under LOCAL_UPLOAD_DIR, idempotent
+// retry replays the same message, and delete soft-deletes the file row while
+// the voice message stays in the live timeline.
 func TestChatFileMessageStorageKeyAndDeletePinsForFileServiceMigration(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LOCAL_UPLOAD_DIR", dir)
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
-	f := setupChatFixture(t, "filestore")
+	f := setupChatFixtureFiles(t, "filestore")
 
 	_, out := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
 		"luu-tru.pdf", "application/pdf", "store-file-01", tinyPDF)
 	messageID := chatMessageDTO(t, out)["id"].(string)
 
-	objects := listStoredObjects(t, dir)
-	if len(objects) != 1 {
-		t.Fatalf("objects after upload = %v, want exactly one", objects)
-	}
-	wantPrefix := "chat/files/" + f.orgID + "/" + f.groupRoomID + "/"
-	if !strings.HasPrefix(objects[0], wantPrefix) || !strings.HasSuffix(objects[0], ".pdf") {
-		t.Fatalf("file object key = %q, want %s<ulid>.pdf", objects[0], wantPrefix)
+	if objects := listStoredObjects(t, dir); len(objects) != 0 {
+		t.Fatalf("objects after FS upload = %v, want none", objects)
 	}
 
-	// The retry uploads its own copy first and deletes it after the insert
-	// reports the earlier message: the room still holds one object.
 	res, retry := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
 		"luu-tru.pdf", "application/pdf", "store-file-01", tinyPDF)
 	if res.StatusCode != http.StatusOK || chatMessageDTO(t, retry)["id"] != messageID {
 		t.Fatalf("retry = %d %v", res.StatusCode, retry)
 	}
-	if objects := listStoredObjects(t, dir); len(objects) != 1 {
-		t.Fatalf("objects after retry = %v, want the retry copy removed", objects)
-	}
 
 	_, voiceOut := uploadChatVoice(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID, 2_000, "store-voice-01", tinyWebM)
 	voiceID := chatMessageDTO(t, voiceOut)["id"].(string)
-	voicePrefix := "chat/voice/" + f.orgID + "/" + f.groupRoomID + "/"
-	voiceObjects := 0
-	for _, key := range listStoredObjects(t, dir) {
-		if strings.HasPrefix(key, voicePrefix) && strings.HasSuffix(key, ".webm") {
-			voiceObjects++
-		}
-	}
-	if voiceObjects != 1 {
-		t.Fatalf("voice objects = %d, want 1 under %s", voiceObjects, voicePrefix)
-	}
 
-	// Deleting the message soft-deletes the row and leaves the bytes in
-	// place â€” today nothing removes the object (pinned; reported as a
-	// finding for the migration to decide on).
 	res, out = doJSON(t, f.srv, "DELETE", roomMessagesPath(f, f.groupRoomID)+"/"+messageID, f.tokens["a"], nil)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("delete message = %d %v", res.StatusCode, out)
@@ -571,10 +542,27 @@ func TestChatFileMessageStorageKeyAndDeletePinsForFileServiceMigration(t *testin
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("deleted message read = %d %v", res.StatusCode, out)
 	}
-	if objects := listStoredObjects(t, dir); len(objects) != 2 {
-		t.Fatalf("objects after message delete = %v, want both bytes kept", objects)
+
+	res, out = doJSON(t, f.srv, "GET", roomMessagesPath(f, f.groupRoomID), f.tokens["b"], nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list after delete = %d %v", res.StatusCode, out)
 	}
-	_ = voiceID
+	fileLeft, voiceLeft := false, false
+	for _, raw := range out["messages"].([]any) {
+		msg := raw.(map[string]any)
+		switch msg["id"].(string) {
+		case messageID:
+			fileLeft = true
+		case voiceID:
+			voiceLeft = true
+		}
+	}
+	if fileLeft {
+		t.Fatalf("deleted file message still in live list: %v", out)
+	}
+	if !voiceLeft {
+		t.Fatalf("voice message missing after file delete: %v", out)
+	}
 }
 
 // uploadChatVoiceWithoutDuration omits the duration_ms field entirely: the
