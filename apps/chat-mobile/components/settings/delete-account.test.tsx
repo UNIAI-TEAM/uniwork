@@ -189,6 +189,64 @@ describe("DeleteAccountSection", () => {
       expect(screen.queryByTestId("delete-account-close-slug")).toBeNull();
     });
 
+    // Review finding: the first request already used the code (a recovery code is burned there, a TOTP code
+    // expires while the address is typed), so the second asks for a fresh one beside the address.
+    it("asks a two-factor account for a fresh code beside the address, and again after a refused one", async () => {
+      signedIn({ has_password: false, mfa_enabled_at: "2026-10-01T00:00:00Z" });
+      deleteAccount.mockRejectedValueOnce(soleOwner());
+      await open();
+      await fireEvent.changeText(proofInput("code"), "abcd-efgh");
+      await confirm();
+      expect(screen.getByRole("header", { name: viText("mobile.account.close_title") })).toBeOnTheScreen();
+      expect(proofInput("code").props.value).toBe("");
+      expect(screen.getByText(viText("mobile.account.close_code_again"))).toBeOnTheScreen();
+
+      await fireEvent.changeText(slugInput(), "mot-minh");
+      await confirm();
+      expect(screen.getByRole("alert")).toHaveTextContent(viText("settings.security.delete.required.code"));
+      expect(deleteAccount).toHaveBeenCalledTimes(1);
+
+      deleteAccount.mockRejectedValueOnce(refusal("mfa_code_incorrect", 403));
+      await fireEvent.changeText(proofInput("code"), "111111");
+      await confirm();
+      expect(deleteAccount).toHaveBeenLastCalledWith({ code: "111111", close_organization: "mot-minh" });
+      expect(screen.getByRole("alert")).toHaveTextContent(viText("settings.security.delete.incorrect.code"));
+      expect(proofInput("code").props.value).toBe("");
+      // The address stays typed; only the code is asked again.
+      expect(slugInput().props.value).toBe("mot-minh");
+
+      deleteAccount.mockResolvedValueOnce(undefined);
+      await fireEvent.changeText(proofInput("code"), "222222");
+      expect(screen.queryByRole("alert")).toBeNull();
+      await fireEvent(proofInput("code"), "submitEditing");
+      expect(deleteAccount).toHaveBeenLastCalledWith({ code: "222222", close_organization: "mot-minh" });
+      expect(useAuthStore.getState().accountDeleted).toHaveBeenCalledTimes(1);
+    });
+
+    it("says a failure that is about neither field under the address", async () => {
+      await reachClose();
+      deleteAccount.mockRejectedValueOnce(refusal("rate_limited", 429));
+      await fireEvent.changeText(slugInput(), "mot-minh");
+      await confirm();
+      expect(screen.getByRole("alert")).toHaveTextContent(viText("mobile.account.rate_limited"));
+      expect(screen.queryByTestId("delete-account-proof")).toBeNull();
+      expect(slugInput().props.value).toBe("mot-minh");
+    });
+
+    it("puts the password back on screen when it is refused while closing", async () => {
+      await reachClose();
+      expect(screen.queryByTestId("delete-account-proof")).toBeNull();
+      deleteAccount.mockRejectedValueOnce(refusal("password_incorrect", 403));
+      await fireEvent.changeText(slugInput(), "mot-minh");
+      await confirm();
+      expect(screen.getByRole("alert")).toHaveTextContent(viText("settings.security.delete.incorrect.password"));
+      expect(proofInput("password").props.value).toBe("");
+      deleteAccount.mockResolvedValueOnce(undefined);
+      await fireEvent.changeText(proofInput("password"), "new pw");
+      await confirm();
+      expect(deleteAccount).toHaveBeenLastCalledWith({ password: "new pw", close_organization: "mot-minh" });
+    });
+
     it("forgets the organization when the sheet is cancelled", async () => {
       await reachClose();
       await fireEvent.press(screen.getByRole("button", { name: viText("settings.security.delete.cancel") }));

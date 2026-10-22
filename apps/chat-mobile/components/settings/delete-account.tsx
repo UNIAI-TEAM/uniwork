@@ -5,7 +5,9 @@
 // that wipes everything the account left on this phone
 // (useAuthStore.accountDeleted). An owner who is the organization's only active
 // member closes it in the same request, typing its address again; one with
-// members is told to hand it over on the web first (delete-account-owner.tsx).
+// members is told to hand it over on the web first (delete-account-owner.tsx). A two-factor code is spent by the
+// first request (a recovery code is burned, a TOTP code expires while the address is typed), so closing asks for a
+// fresh one beside the address; any proof the server refuses comes back on screen.
 // Mounted in the workspace's Settings tab and, with no
 // workspace, in the account's own Settings (app/(app)/account.tsx): deletion is
 // reachable from every signed-in state. Every refusal is said under the field and read out;
@@ -58,6 +60,9 @@ const CONSEQUENCES = [
 ] as const;
 
 /** An owner's state once the server said so: the organization it named (null from an older server), and whether to close it. */
+/** The field a refusal is said under: the proof, or the organization's address typed to close it. */
+type Field = "proof" | "slug";
+
 interface OwnerState {
   organization: OwnedOrganization | null;
   /** Why closing is no longer offered, when it stopped being (someone joined meanwhile). */
@@ -80,40 +85,46 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
   const openWebPage = useOpenWebPage();
   const mode = deleteProofMode(user);
   const [proof, setProof] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; field: Field } | null>(null);
+  /** Set when the server refused the proof while closing: the proof field is back on screen whatever the mode. */
+  const [proofAgain, setProofAgain] = useState(false);
   const [owner, setOwner] = useState<OwnerState | null>(null);
   const [closeSlug, setCloseSlug] = useState("");
   const [busy, setBusy] = useState(false);
   const deleteAccount = useDeleteAccount().mutateAsync;
-  const input = useRef<TextInput>(null);
+  const proofInput = useRef<TextInput>(null);
+  const slugInput = useRef<TextInput>(null);
   const appUrl = runtimeConfig().appUrl;
 
   const close = () => {
     if (busy) return;
     setProof("");
     setError(null);
+    setProofAgain(false);
     setOwner(null);
     setCloseSlug("");
     onClose();
   };
 
-  const fail = (message: string) => {
-    setError(message);
-    AccessibilityInfo.announceForAccessibility(message);
-    input.current?.focus();
-  };
-
   // Set once the server named an organization this account alone can close: the next submit closes it too.
   const closing = owner?.organization?.canClose ? owner.organization : null;
+  const proofShown = !closing || mode === "code" || proofAgain;
+
+  /** Says a refusal under the field it is about (the address while closing, unless it is the proof) and focuses it. */
+  const fail = (message: string, field: Field = closing ? "slug" : "proof") => {
+    setError({ message, field });
+    AccessibilityInfo.announceForAccessibility(message);
+    (field === "proof" ? proofInput : slugInput).current?.focus();
+  };
 
   const submit = async () => {
     if (busy) return;
     if (!proof.trim()) {
-      fail(t(`settings.security.delete.required.${mode}`));
+      fail(t(`settings.security.delete.required.${mode}`), "proof");
       return;
     }
     if (closing && !closeConfirmed(closeSlug, closing)) {
-      fail(t(closeSlug.trim() ? "mobile.account.close_mismatch" : "mobile.account.close_required"));
+      fail(t(closeSlug.trim() ? "mobile.account.close_mismatch" : "mobile.account.close_required"), "slug");
       return;
     }
     setError(null);
@@ -126,7 +137,14 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
       if (failure === "owner_must_transfer") {
         const organization = ownedOrganization(err);
         setOwner({ organization, notice: null });
-        AccessibilityInfo.announceForAccessibility(t(organization?.canClose ? "mobile.account.close_title" : "mobile.account.owner_title"));
+        // The code this request carried is spent: the closing request needs a new one.
+        const freshCode = organization?.canClose && mode === "code";
+        if (freshCode) setProof("");
+        AccessibilityInfo.announceForAccessibility(
+          organization?.canClose
+            ? `${t("mobile.account.close_title")}${freshCode ? `. ${t("mobile.account.close_code_again")}` : ""}`
+            : t("mobile.account.owner_title"),
+        );
         return;
       }
       if (failure === "organization_has_members") {
@@ -137,15 +155,18 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
         return;
       }
       if (failure === "close_mismatch") {
-        fail(t("mobile.account.close_mismatch"));
+        fail(t("mobile.account.close_mismatch"), "slug");
         return;
       }
-      // A password or a one-time code is never kept past a refusal; a typed address stays to be corrected.
-      if (failure === "proof_refused" && mode !== "email") setProof("");
+      if (failure === "proof_refused") {
+        // A password or a one-time code is never kept past a refusal; a typed address stays to be corrected.
+        if (mode !== "email") setProof("");
+        setProofAgain(true);
+        fail(t(`settings.security.delete.incorrect.${mode}`), "proof");
+        return;
+      }
       fail(
-        failure === "proof_refused"
-          ? t(`settings.security.delete.incorrect.${mode}`)
-          : failure === "rate_limited"
+        failure === "rate_limited"
             ? t("mobile.account.rate_limited")
             : failure === "offline"
               ? t("mobile.account.offline")
@@ -200,24 +221,25 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
               setCloseSlug(next);
               setError(null);
             }}
-            error={error}
+            error={error?.field === "slug" ? error.message : null}
             busy={busy}
             placeholderColor={theme.mutedForeground}
             onSubmit={() => void submit()}
-            inputRef={input}
+            inputRef={slugInput}
           />
-        ) : owner ? (
+        ) : null}
+        {owner && !closing ? (
           <OwnerTransferPanel
             organization={owner.organization}
             notice={owner.notice}
             foreground={theme.foreground}
             onOpenWeb={() => openWebPage(`${appUrl}${workspace ? paths.workspace(workspace.orgSlug, workspace.wsSlug).settings() : paths.root()}`)}
           />
-        ) : (
+        ) : proofShown ? (
           <View className="gap-1.5">
             <Text className="text-subhead font-semibold text-foreground">{t(`settings.security.delete.proof.${mode}`)}</Text>
             <TextInput
-              ref={input}
+              ref={proofInput}
               value={proof}
               onChangeText={(next) => {
                 setProof(next);
@@ -236,17 +258,19 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
               testID="delete-account-proof"
               className={cn(
                 "min-h-12 rounded-xl border bg-muted px-3.5 py-3 text-body text-foreground",
-                error ? "border-destructive" : "border-border",
+                error?.field === "proof" ? "border-destructive" : "border-border",
               )}
             />
-            {error ? (
+            {error?.field === "proof" ? (
               <Text accessibilityRole="alert" className="text-subhead text-destructive">
-                {error}
+                {error.message}
               </Text>
             ) : null}
-            <Text className="text-footnote leading-[18px] text-muted-foreground">{t("settings.security.delete.ownerHint")}</Text>
+            <Text className="text-footnote leading-[18px] text-muted-foreground">
+              {closing && mode === "code" ? t("mobile.account.close_code_again") : t("settings.security.delete.ownerHint")}
+            </Text>
           </View>
-        )}
+        ) : null}
 
         <View className="gap-2.5 pt-1">
           {owner && !closing ? null : (

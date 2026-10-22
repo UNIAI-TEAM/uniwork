@@ -1561,6 +1561,7 @@
       "close_required": "Type the organization's address to confirm.",
       "close_mismatch": "That doesn't match your organization's address.",
       "close_has_members": "Someone just joined the organization, so it can't be closed. Hand ownership over on the web instead.",
+      "close_code_again": "Enter a new code: the one you just used has already confirmed it's you.",
       "rate_limited": "Too many attempts. Wait a few minutes, then try again.",
       "offline": "Couldn't reach the server. Check your connection, then try again.",
       "deleting": "Deleting…",

@@ -1505,6 +1505,7 @@
       "close_required": "Gõ địa chỉ tổ chức để xác nhận.",
       "close_mismatch": "Địa chỉ không khớp với tổ chức của bạn.",
       "close_has_members": "Tổ chức vừa có thêm thành viên nên không đóng được. Hãy chuyển quyền sở hữu trên web.",
+      "close_code_again": "Nhập một mã mới: mã vừa rồi đã được dùng để xác minh bạn.",
       "rate_limited": "Bạn đã thử quá nhiều lần. Đợi vài phút rồi thử lại.",
       "offline": "Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.",
       "deleting": "Đang xóa…",
