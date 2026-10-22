@@ -129,8 +129,12 @@ export function CreateTaskManualPanel({
             </span>
             <span className="text-foreground">{heading ?? t("tasks.create.manual_breadcrumb")}</span>
           </DialogTitle>
-          <DialogDescription className="sr-only">{t("tasks.create.sr_manual")}</DialogDescription>
-          {hint ? <p className="truncate text-caption text-muted-foreground">{hint}</p> : null}
+          {/* The meeting's context is the description when there is one: seen, read, never cut. */}
+          {hint ? (
+            <DialogDescription className="text-caption text-pretty text-muted-foreground">{hint}</DialogDescription>
+          ) : (
+            <DialogDescription className="sr-only">{t("tasks.create.sr_manual")}</DialogDescription>
+          )}
         </div>
         <TooltipProvider delay={300}>
           <div className="flex shrink-0 items-center gap-1">
@@ -196,6 +200,8 @@ export function CreateTaskManualPanel({
 
       <div className="shrink-0 px-5 pb-2">
         <Input
+          // A new draft (the next meeting item, "create another") remounts it: autoFocus puts the caret back.
+          key={draft.idempotencyKey}
           aria-label={t("tasks.create.title_placeholder")}
           value={draft.title}
           onChange={(event) => updateDraft({ title: event.target.value })}
@@ -337,7 +343,7 @@ export function CreateTaskManualPanel({
               aria-disabled={busy || undefined}
               aria-busy={busy || undefined}
               title={t("tasks.create.switch_to_agent")}
-              className="border-beam group flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm border border-primary/15 bg-primary/5 px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+              className="border-beam group flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm border border-primary/15 bg-primary/5 px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50 pointer-coarse:min-h-11"
               onClick={() => {
                 if (busy || uploadGate.isBlocked()) return;
                 updateDraft({

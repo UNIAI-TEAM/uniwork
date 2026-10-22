@@ -50,6 +50,7 @@ describe("CreateTaskDialog", () => {
     expect(status.querySelector('[data-slot="status-icon"]')).not.toBeNull();
     expect(priority.querySelector('[data-slot="priority-icon"]')).not.toBeNull();
     expect(screen.getByRole("button", { name: "Không có dự án" })).toHaveTextContent("📁");
+    expect(screen.getByRole("button", { name: "Chuyển sang agent" })).toHaveClass("pointer-coarse:min-h-11");
     expect(screen.getByTestId("create-task-composer-body")).toHaveClass("flex-1");
     expect(screen.getByTestId("create-task-property-toolbar")).toHaveClass("shrink-0");
     expect(screen.getByTestId("create-task-footer")).toHaveClass("sm:flex");
@@ -65,7 +66,7 @@ describe("CreateTaskDialog", () => {
     useCreateTaskDraftStore.setState({ drafts: { ws1: { mine } }, activeDraftIds: { ws1: "mine" }, ownerId: "u1" });
     const submit = vi.fn(async () => {});
     const onOpenChange = vi.fn();
-    render(
+    const { rerender } = render(
       wrap(
         <CreateTaskDialog
           workspaceId="ws1"
@@ -89,6 +90,26 @@ describe("CreateTaskDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Tạo/ }));
 
     await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({ title: "Gửi biên bản họp" })));
+    // The next item: the composer starts over on it, with the caret in its title.
+    screen.getByRole("button", { name: /^Tạo/ }).focus();
+    rerender(
+      wrap(
+        <CreateTaskDialog
+          workspaceId="ws1"
+          open
+          showTrigger={false}
+          onOpenChange={onOpenChange}
+          defaults={{ title: "Đặt phòng", assignee_id: null, project_id: null }}
+          submitter={{ submit, pending: false }}
+          heading="Việc sau họp 2/2"
+          hint="Trong họp nói: anh Hùng"
+        />,
+      ),
+    );
+    const next = await screen.findByDisplayValue("Đặt phòng");
+    await waitFor(() => expect(next).toHaveFocus());
+    // The meeting's context is the dialog's description, read with its name.
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription("Trong họp nói: anh Hùng");
     expect(requestMock).not.toHaveBeenCalledWith(expect.stringMatching(/\/tasks$/), expect.objectContaining({ method: "POST" }));
     fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
