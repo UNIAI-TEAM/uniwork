@@ -275,7 +275,7 @@ một dòng thì ghi lý do ở dòng trên.
   (`remote-config/v1` trong device store, `persistRemoteConfig`, ≤ 30 ngày, ngoài mọi tài khoản) và gieo lại vào query
   lúc mở (`restoreRemoteConfig`, đề ngày lúc nhận nên query hỏi lại ngay): kill switch và mức tối thiểu giữ qua một lần
   mở lạnh không mạng. Chưa từng có câu trả lời và server không tới được thì không chặn gì và mọi công tắc ở mặc định.
-  Thống kê sản phẩm (audit "no-product-analytics"): `data/analytics.ts` (khởi ở `app/_layout.tsx`) xếp hàng sự kiện
+  Thống kê sản phẩm (audit "no-product-analytics"): `data/analytics.ts` (khởi ở `data/app-startup.ts › startAppServices`, mà `app/_layout.tsx` gọi lúc boot) xếp hàng sự kiện
   ẩn danh — `app_open` cold/warm, `first_screen` (ms từ lúc JS chạy), `message_send` sent/failed (`observeChatSends` của
   `data/chat-send.ts`, ms từ lúc viết), `push_open` chat/call/other, `call_connect` connected (ms từ `connecting` tới lúc phòng media nối, `callEngine.onMediaConnected`; `active` chỉ là đã có token) / failed (`connect_failed`, `start_failed`, hay phòng media buông trước khi nối; tự cúp máy thì không tính)
   — gửi theo lô ≤ 20 mỗi phút và khi vào nền tới `POST /api/v1/mobile/events` (server chỉ cộng bộ đếm
@@ -679,7 +679,9 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
   pnpm có chữ `react-native-worklets`, làm mất mock native của Expo). Coverage đo **cả cây** `components/**`, các
   hook React của `data/` mà vitest bỏ ra và file route `app/**` (mỗi file đúng một lớp đo). File route chỉ ghép, không
   định nghĩa component con (`lib/route-files.test.ts`), nên được giữ như **một nhóm** ở sàn `routes` của
-  `coverage-floor.json` (khoá thư mục của jest, cộng dồn), không theo từng file; `test/routes/*.test.tsx` render chúng
+  `coverage-floor.json` (khoá thư mục của jest, cộng dồn), không theo từng file. `app/_layout.tsx` không có test route
+  nào render: dịch vụ mới khởi lúc boot vào `data/app-startup.ts` (vitest, 100 %), layout chỉ gọi một dòng — nối dây
+  ngay trong file route kéo sàn `routes` xuống đỏ. `test/routes/*.test.tsx` render chúng
   qua expo-router thật (`test/route-render.tsx › renderRoutes`: `jest.unmock("expo-router")` trong file test, mock
   NetInfo, route con chưa test thì thay bằng stand-in) — cổng vào/đăng nhập/chọn workspace ở `test/routes/entry.test.tsx`;
   mọi màn trong workspace (layout với socket, thanh tab, Chat/Cuộc gọi/Danh bạ/Cài đặt, phòng, chi tiết, chủ đề, tin
@@ -797,7 +799,7 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   `EAS_UPDATE_PRIVATE_KEY` khi app có chứng chỉ, rồi tải source map lên Sentry;
   thiếu `EXPO_TOKEN` thì **đỏ** (người bấm cần biết); kênh `production` thiếu DSN hay thiết lập tải source map cũng
   **đỏ** trừ khi tick `allow_missing_crash_reporting`. Input `critical` đặt `UNICHAT_CRITICAL_UPDATE=1` →
-  `extra.criticalUpdate` trong manifest (ngoài fingerprint): `data/updates-controller.ts` (khởi ở `app/_layout.tsx`)
+  `extra.criticalUpdate` trong manifest (ngoài fingerprint): `data/updates-controller.ts` (khởi ở `data/app-startup.ts`)
   hỏi lại EAS khi quay lại foreground (một phút sau lúc mở, rồi ≥ 30 phút một lần), tải, và chỉ bản critical hay lệnh
   roll-back-to-embedded mới được áp dụng — khi app đã ở nền liên tục `APPLY_AFTER_AWAY_MS` (1 phút; Android cho JS chạy
   ở nền), hay lúc quay lại sau ≥ `APPLY_ON_RETURN_MS` (10 phút; iOS đóng băng JS nên hẹn giờ không chạy), không có

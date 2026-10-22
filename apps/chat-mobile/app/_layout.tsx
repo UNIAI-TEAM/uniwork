@@ -32,22 +32,18 @@ import { UpdateGate } from "@/components/app/update-gate";
 import { ErrorFallback } from "@/components/ui/error-fallback";
 import { PermissionPrimerHost } from "@/components/ui/permission-primer";
 import { ToastHost } from "@/components/ui/toast-host";
-import { accountApi } from "@/data/account-api";
 import { api } from "@/data/api";
 import { authConfig, session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { bootRuntime } from "@/data/boot";
 import { perfMark } from "@/data/logger";
 import { startNativeCalls } from "@/data/calls/call-wiring";
-import { startUpdatesController } from "@/data/updates-controller";
-import { pushOpenResult, startAnalytics, track } from "@/data/analytics";
+import { startAppServices, trackFirstScreen, trackPushOpen } from "@/data/app-startup";
 import { nativeCalls } from "@/data/calls/native-calls";
 import { runChatNotificationAction, registerChatMessageCategory } from "@/data/chat-notification-actions";
 import { ensureNotificationChannels } from "@/data/notification-channels";
 import { queryClient } from "@/data/query-client";
-import { startLocaleSync } from "@/data/locale-sync";
 import { createDevicePersister, installAccountCache } from "@/data/query-persister";
-import { persistRemoteConfig, restoreRemoteConfig } from "@/data/remote-config";
 import { bestEffort } from "@/data/report";
 import { sentryNavigation } from "@/data/sentry";
 import { installDeviceStore, openDeviceStore } from "@/data/storage/device-store";
@@ -55,7 +51,6 @@ import { openNativeDeviceStore } from "@/data/storage/native-device-store";
 import { chatNotificationAction } from "@/lib/chat-notification";
 import { incomingUrlAction, setPendingDeepLink } from "@/lib/deep-link";
 import { I18nProvider } from "@/components/app/i18n-provider";
-import { i18n } from "@/lib/i18n/singleton";
 import { NAV_THEME } from "@/components/ui/nav-theme";
 import { loadThemePreference, useColorScheme } from "@/components/ui/use-color-scheme";
 
@@ -69,32 +64,12 @@ void loadThemePreference();
 void loadPrivacySettings();
 // The call's foreground service follows the call engine; Decline / Hang up taps that waited run now.
 startNativeCalls();
-// An update marked critical is applied on the next trip to the background, not the next cold start (data/updates-controller.ts).
-startUpdatesController();
-// Anonymous product counters (opens, sends, push opens, call connects), off when the person says so (data/analytics.ts).
-startAnalytics({ enabled: usageStatsEnabled, signedIn: () => useAuthStore.getState().user !== null });
-/** When this JavaScript started: the first screen's time is measured from here. */
-const BOOTED_AT = Date.now();
-let firstScreenTracked = false;
 // The encrypted store the outbox and the cached rooms live in, before the session is restored.
 installDeviceStore(openNativeDeviceStore);
 installAccountCache({ queryClient, persister: createDevicePersister(openDeviceStore) });
-// The server's last kill switches and minimum version, kept on the device: they hold through an offline cold start.
-persistRemoteConfig(queryClient, openDeviceStore);
-void restoreRemoteConfig(queryClient, openDeviceStore).catch(bestEffort("remote-config", "kept answer not read", "breadcrumb"));
-// The app's language reaches the server, which writes pushes and emails in it (data/locale-sync.ts).
-startLocaleSync({
-  getUser: () => useAuthStore.getState().user,
-  subscribeUser: (listener) => useAuthStore.subscribe((state, previous) => state.user !== previous.user && listener()),
-  getLocale: () => (i18n.language === "en" ? "en" : "vi"),
-  subscribeLocale: (listener) => {
-    i18n.on("languageChanged", listener);
-    return () => i18n.off("languageChanged", listener);
-  },
-  patchLocale: (locale) => accountApi.setLocale(locale),
-  setUser: (user) => useAuthStore.getState().setUser(user),
-  openStore: openDeviceStore,
-});
+// Critical OTAs, the anonymous product counters, the kept remote config and the app's language sent to the server
+// (data/app-startup.ts).
+startAppServices({ queryClient, usageStatsEnabled });
 // The splash stays until the session, the workspace and the cache are read (audit P0-3): no spinner, no flash of /login.
 void SplashScreen.preventAutoHideAsync().catch(bestEffort("boot", "splash not held", "breadcrumb"));
 /** A boot that hangs (a Keychain that never answers) must not hold the splash for ever. */
@@ -162,7 +137,7 @@ function AuthInitializer({ children }: { children: ReactNode }) {
         void runChatNotificationAction(chatAction);
         return;
       }
-      track({ name: "push_open", result: pushOpenResult(response.notification.request.content.data) });
+      trackPushOpen(response.notification.request.content.data);
       const url: unknown = response.notification.request.content.data?.url;
       if (typeof url === "string") openUrl(url, true);
     });
@@ -189,10 +164,7 @@ function useSplashUntilReady() {
     const frame = requestAnimationFrame(() => {
       SplashScreen.hide();
       perfMark("first-screen");
-      if (!firstScreenTracked) {
-        firstScreenTracked = true;
-        track({ name: "first_screen", result: "ok", duration_ms: Date.now() - BOOTED_AT });
-      }
+      trackFirstScreen();
     });
     return () => cancelAnimationFrame(frame);
   }, [isLoading]);

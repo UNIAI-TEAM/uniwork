@@ -139,7 +139,8 @@ describe("createUpdatesController", () => {
 
   it("never reloads on a quick trip out: the sign-in tab, a picker or a permission prompt the app opened", async () => {
     vi.useFakeTimers();
-    const { deps, controller, advance } = harness();
+    const systemUiOpen = vi.fn(() => false);
+    const { deps, controller, advance } = harness({ systemUiOpen });
     advance(FIRST_CHECK_DELAY_MS);
     await controller.onActive();
     // Back from the Custom Tab or the picker within the minute: nothing happens.
@@ -151,11 +152,11 @@ describe("createUpdatesController", () => {
     await vi.advanceTimersByTimeAsync(APPLY_AFTER_AWAY_MS);
     expect(deps.reload).not.toHaveBeenCalled();
     // A system screen the app waits on is still up after the minute (a long sign-in): it waits for the next trip.
-    deps.systemUiOpen.mockReturnValue(true);
+    systemUiOpen.mockReturnValue(true);
     await away(controller);
     expect(deps.reload).not.toHaveBeenCalled();
     expect(crumbs.at(-1)?.message).toBe("critical update waits for the system screen");
-    deps.systemUiOpen.mockReturnValue(false);
+    systemUiOpen.mockReturnValue(false);
     await controller.onActive();
     await away(controller);
     expect(deps.reload).toHaveBeenCalledTimes(1);

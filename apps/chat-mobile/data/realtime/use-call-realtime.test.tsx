@@ -12,8 +12,9 @@ const mockFlag = { calls: true };
 jest.mock("@/data/remote-config", () => ({ useMobileFlag: () => mockFlag.calls }));
 const mockAuth: { user: { id: string } | null } = { user: { id: "me" } };
 jest.mock("@/data/auth/store", () => ({ useAuthStore: (select: (s: typeof mockAuth) => unknown) => select(mockAuth) }));
+const mockRooms = { load: async (): Promise<{ id: string }[]> => [{ id: "room-1" }] };
 jest.mock("@/data/queries/chat", () => ({
-  roomsOptions: (wsId: string) => ({ queryKey: ["rooms", wsId], queryFn: async () => [{ id: "room-1" }] }),
+  roomsOptions: (wsId: string) => ({ queryKey: ["rooms", wsId], queryFn: () => mockRooms.load() }),
 }));
 
 type Handler = (payload: unknown) => void;
@@ -137,6 +138,18 @@ describe("useCallRealtime and the calls kill switch", () => {
       await callEngine.hangUp();
     });
     expect(callEngine.store.getState().call.status).toBe("idle");
+  });
+
+  it("a group call rings nothing before the workspace's rooms have loaded (no room is known to be this person's yet)", async () => {
+    const load = mockRooms.load;
+    mockRooms.load = () => new Promise(() => undefined);
+    try {
+      await render(<Probe wsId="ws-1" />);
+      await act(async () => mockSocket.handlers.get("chat.voice.invite")?.({ room_id: "room-1", call_id: "call-5", caller_id: "peer", caller_name: "Lan", call_kind: "group" }));
+      expect(callEngine.store.getState().call.status).toBe("idle");
+    } finally {
+      mockRooms.load = load;
+    }
   });
 
   it("signed out, the workspace attaches nothing and asks for nothing", async () => {
