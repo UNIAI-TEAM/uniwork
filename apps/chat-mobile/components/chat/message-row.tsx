@@ -44,7 +44,8 @@ const firstSend = createFirstSight(200);
 /**
  * The canvas lifts the incoming bubble off the light wall; the dark wall needs no lift. Android draws it as an
  * elevation on the render thread; on iOS a shadow without a shadowPath is an offscreen pass per bubble, every frame of
- * a scroll, so a hairline of the border colour draws the edge instead. Static objects, not one per render.
+ * a scroll, so a hairline of the border colour draws the edge instead (a thread root's ring replaces it). Static
+ * objects, not one per render.
  */
 const LIFT_IOS = { borderWidth: StyleSheet.hairlineWidth, borderColor: THEME.light.border };
 const LIFT_ANDROID = { shadowColor: THEME.light.foreground, elevation: 1 };
@@ -185,7 +186,9 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   const reactions = Object.entries(record?.reactions ?? {}).filter(([, count]) => count > 0);
   const mine = new Set(record?.my_reactions ?? []);
   const meta = own ? "text-chat-bubble-own-meta" : "text-muted-foreground";
-  const lift = own || scheme === "dark" ? null : Platform.OS === "ios" ? LIFT_IOS : LIFT_ANDROID;
+  // Inline styles win over className, so the iOS hairline would replace a thread root's 2 pt ring: a ringed bubble's
+  // ring is its edge.
+  const lift = own || scheme === "dark" ? null : Platform.OS === "ios" ? (ringed ? null : LIFT_IOS) : LIFT_ANDROID;
 
   const body = (
     <View className={cn("px-2.5", compactTop ? "pt-0.5" : "pt-2.5", own ? "items-end" : "items-start", highlighted && "bg-primary/10")}>

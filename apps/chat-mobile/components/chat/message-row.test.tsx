@@ -3,6 +3,7 @@ import { fireEvent, screen } from "@testing-library/react-native";
 import { Platform, StyleSheet } from "react-native";
 import { formatMessageTime, type TimelineMessage } from "@/lib/timeline-display";
 import type { PendingSend } from "@/lib/send-pipeline";
+import { THEME } from "@/lib/theme";
 import { render, viText } from "@/test/render";
 import { MessageRow, type MessageRowProps } from "./message-row";
 
@@ -289,6 +290,25 @@ describe("links and bold in a message", () => {
       await rerender(<MessageRow {...props(sent())} />);
       expect(bubbleStyle()).toMatchObject({ elevation: 1 });
       expect(bubbleStyle()).not.toHaveProperty("borderWidth");
+    } finally {
+      jest.restoreAllMocks();
+    }
+  });
+
+  it("keeps a thread root's brand ring on someone else's light bubble on iOS: the hairline lift does not draw over it", async () => {
+    // css-interop applies className rules first and inline styles after them, so an inline border would replace the
+    // ring's: the ring is in the className (Jest leaves it unresolved), and the inline style must carry no border.
+    const bubble = () => screen.getByLabelText(bubbleLabel("Bình", "Mai họp lúc 9 giờ nhé"));
+    const bubbleStyle = () => StyleSheet.flatten(bubble().props.style);
+    jest.replaceProperty(Platform, "OS", "ios");
+    try {
+      const { rerender } = await render(<MessageRow {...props(sent(), { ringed: true })} />);
+      expect(bubble().props.className).toContain("border-2 border-primary/25");
+      expect(bubbleStyle()).not.toHaveProperty("borderWidth");
+      expect(bubbleStyle()).not.toHaveProperty("borderColor");
+      // Not ringed, the hairline is back.
+      await rerender(<MessageRow {...props(sent())} />);
+      expect(bubbleStyle()).toMatchObject({ borderWidth: StyleSheet.hairlineWidth, borderColor: THEME.light.border });
     } finally {
       jest.restoreAllMocks();
     }
