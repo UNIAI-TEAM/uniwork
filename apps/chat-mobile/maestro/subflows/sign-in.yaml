@@ -22,15 +22,17 @@ appId: com.uniworkos.chat.staging
             visible: "Continue|Tiếp tục"
           commands:
             - tapOn: "Continue|Tiếp tục"
-      # A browser that still holds a web session goes straight to consent.
+      # A browser that still holds a web session goes straight to consent. The field labels, not the email
+      # field's placeholder: Chrome hands a placeholder to UI Automator as a hint, which Maestro does not match,
+      # and a tap on a label focuses its field.
       - extendedWaitUntil:
-          visible: "you@company.com|ban@congty.com|Allow desktop app|Cho phép ứng dụng desktop"
+          visible: "Email|Allow desktop app|Cho phép ứng dụng desktop"
           timeout: 30000
       - runFlow:
           when:
-            visible: "you@company.com|ban@congty.com"
+            visible: "Email"
           commands:
-            - tapOn: "you@company.com|ban@congty.com"
+            - tapOn: "Email"
             - inputText: ${MAESTRO_TEST_EMAIL}
             - tapOn: "Password|Mật khẩu"
             - inputText: ${MAESTRO_TEST_PASSWORD}
