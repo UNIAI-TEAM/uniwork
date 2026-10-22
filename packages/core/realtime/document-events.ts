@@ -94,6 +94,14 @@ export function documentFrameKeys(
       if (!ownWorkspace || !payload.document_id) return [];
       return [documentKeys.workspace(wsId)];
     }
+    case "document.owners_bulk_transferred": {
+      // S-DOC06b (UNI-2092): a bulk run moved a member's documents to this
+      // person. The frame is user-scoped and names no workspace, while the
+      // documents changed owner in every workspace the recipient shares with
+      // the source, so the whole documents prefix refreshes whichever
+      // workspace is open. Ids only; nothing from the frame is cached.
+      return [documentKeys.all];
+    }
     case "document.lock_changed": {
       // UNI-1645: who holds the document changed (acquire, release, expiry,
       // take-over, handover, hold). The R1 state and every row that shows the
