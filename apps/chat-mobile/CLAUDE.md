@@ -372,7 +372,7 @@ và regex) — trần 500 dòng mỗi file vô nghĩa khi một dòng gói ba c�
   (một lần mỗi lần khoá hiện ở foreground; huỷ thì nút Mở khoá hỏi lại); chỉ khi có người đăng nhập; cuộc gọi đang đổ
   chuông hay đang diễn ra không bao giờ bị giữ sau màn khoá (nghe từ màn khoá của máy phải nối được), hết cuộc gọi thì
   khoá lại; chưa biết lựa chọn thì phủ (app có khoá không hiện inbox một khung hình). Trong lúc đó chỉ cuộc gọi hiện:
-  `components/app/app-lock-state.ts` (`engaged`, guard ghi) làm màn cuộc gọi không thu nhỏ được (đang thu nhỏ thì phóng
+  `data/stores/app-lock-store.ts` (`engaged`, guard ghi) làm màn cuộc gọi không thu nhỏ được (đang thu nhỏ thì phóng
   to lại) và đóng mọi `CallAwareModal` đang mở khi khoá bật (Modal là cửa sổ native riêng, nằm trên màn khoá; sheet của
   chính cuộc gọi đang diễn ra — `keepOpenForCall` — thì giữ). Màn Face ID/mã khoá của chính app (`authenticateOwner`,
   đếm ở `ownerPrompts`) không tính là rời app: trên Android màn mã khoá là activity khác, app thành `background`, nếu

@@ -1,50 +1,35 @@
 // The body of a conversation, shared by a room and a thread: the message list
-// on the chat wall with day separators, bubbles shaped by run, quotes, "Đã xem"
+// on the chat wall with day separators, bubbles shaped by run, quotes, "seen"
 // on a DM, the typing line and the task cards under messages; in a thread the
-// root stands out above an "N trả lời" divider; the composer with its voice, sticker/GIF and reminder
-// sends; and the long-press sheet with what each action does to the server
-// and the cache (send queue, reactions, edit, delete, copy, thread, poll vote,
-// follow-up, task). S6 (audit U2, P2 UX): the composer rides the keyboard
-// frame by frame (react-native-keyboard-controller), a send, a long press and a
-// reaction are felt (data/haptics.ts), new messages are read to a screen
-// reader, and a conversation scrolled up shows "N new" to jump back down —
-// where one's own send always lands too.
+// root stands out above an "N replies" divider; the composer with its voice,
+// sticker/GIF and reminder sends; and the sheets over it, one at a time
+// (lib/conversation-sheets.ts). What each message action does to the server is
+// use-message-actions.ts. The composer rides the keyboard frame by frame
+// (react-native-keyboard-controller), a send, a long press and a reaction are
+// felt (data/haptics.ts), new messages are read to a screen reader, and a
+// conversation scrolled up shows "N new" to jump back down, where one's own
+// send always lands too.
 import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import wallDotsDark from "@/assets/chat-wall-dots-dark.png";
 import wallDotsLight from "@/assets/chat-wall-dots-light.png";
-import { titleFromMessageBody } from "@uniwork/core/chat/message-links";
 import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers";
 import { deliveredToAllAt, furthestReadAt, isMessageSeenByPeer, seenByMembers } from "@uniwork/core/chat/read-receipt-utils";
-import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, ImageBackground, View } from "react-native";
+import { ImageBackground, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { haptics } from "@/components/ui/haptics";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import type { ChatApi } from "@/data/chat-api";
-import {
-  useCreateTask,
-  useDeleteMessage,
-  useDiscardSend,
-  useEditMessage,
-  useFollowUp,
-  useReact,
-  useRetrySend,
-  useSendMessage,
-  useSignalTyping,
-  useTogglePin,
-  useVotePoll,
-  type SendInput,
-} from "@/data/mutations/messages";
+import type { SendInput } from "@/data/mutations/messages";
 import { followUpsOptions, roomLinksOptions } from "@/data/queries/chat";
 import { readDraft, useDraftStore } from "@/data/stores/draft-store";
 import { draftKey } from "@/lib/drafts";
 import { countNewSince } from "@/lib/arrivals";
 import { chatRoutes } from "@/lib/chat-routes";
 import { linkWindows, taskIdsByMessage as readTaskIds } from "@/lib/link-windows";
-import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
+import { conversationSheetReducer, NO_SHEET } from "@/lib/conversation-sheets";
 import { messagePreviewText } from "@/lib/message-display";
 import { buildMessageRowModels, type MessageRowModel, type Receipt } from "@/lib/message-row-model";
 import type { PendingFile } from "@/lib/send-pipeline";
@@ -72,10 +57,10 @@ import { ReminderSheet } from "./reminder-sheet";
 import { ConversationTyping } from "./room-typing";
 import { useArrivalAnnouncements } from "./use-arrival-announcements";
 import { useSendFailureFeedback } from "./use-send-failure-feedback";
+import { useMessageActions } from "./use-message-actions";
 import { useStableHandlers } from "./use-stable-handlers";
 import type { ChatWorkspace } from "./use-chat-workspace";
 import type { useRoomContext } from "./use-room-context";
-import { toast } from "@/data/stores/toast-store";
 
 // The MobileChat wall: a dot every 22 pt, one tile per scheme, repeated.
 const WALL_DOTS = { light: wallDotsLight, dark: wallDotsDark };
@@ -104,6 +89,8 @@ interface Props {
   onRetryOlder?: () => void;
   jumpTo: { id: string; seq: number } | null;
   onQuoteJump: (messageId: string) => void;
+  /** The list shows its newest message. The screen owns it (a room marks read and trims its pages by it). */
+  atLatest: boolean;
   onAtLatestChange: (atLatest: boolean) => void;
   /** Before a send: the room leaves a jumped-to page for the latest, where the message lands. */
   onSend?: () => void;
@@ -118,39 +105,23 @@ interface Props {
 export function Conversation(props: Props) {
   const { chat, roomId, threadRootId, room, messages } = props;
   const { t } = useTranslation();
-  const [actionMessage, setActionMessage] = useState<TimelineMessage | null>(null);
+  const [sheet, sheets] = useReducer(conversationSheetReducer, NO_SHEET);
+  const actionMessage = sheet.kind === "actions" ? sheet.message : null;
   // The composer's draft and the message it quotes outlive the screen (lib/drafts.ts, audit UX P2).
   const composerDraftKey = draftKey(chat.userId, chat.wsId, roomId, threadRootId);
   const [reply, setReply] = useState<ComposerReply | null>(() => readDraft(composerDraftKey)?.reply ?? null);
   useEffect(() => useDraftStore.getState().setReply(composerDraftKey, reply), [composerDraftKey, reply]);
   const [edit, setEdit] = useState<ComposerEdit | null>(null);
-  const [image, setImage] = useState<{ id: string; url: string; name: string } | null>(null);
-  const [sheet, setSheet] = useState<"expressions" | "reminder" | null>(null);
-  const [emojiFor, setEmojiFor] = useState<TimelineMessage | null>(null);
-  const [forwardId, setForwardId] = useState<string | null>(null);
-  const [reported, setReported] = useState<{ messageId: string; senderId: string; name: string } | null>(null);
-  const [linkMenu, setLinkMenu] = useState<string | null>(null);
   const openLink = useOpenLink();
   const { wsId, userId } = chat;
   const { colorScheme } = useColorScheme();
-  // Every change to the server goes through the mutation layer (data/mutations/*).
-  const sendMessage = useSendMessage(wsId, roomId, userId).mutate;
-  const retrySend = useRetrySend().mutate;
-  const discardSend = useDiscardSend();
-  const editMessage = useEditMessage(wsId, roomId, userId).mutateAsync;
-  const deleteMessage = useDeleteMessage(wsId, roomId, userId).mutateAsync;
-  const togglePin = useTogglePin(wsId, roomId).mutateAsync;
-  const toggleReaction = useReact(wsId, roomId, userId).mutateAsync;
-  const votePoll = useVotePoll(wsId, roomId, userId).mutateAsync;
-  const followUpCommand = useFollowUp(wsId).mutateAsync;
-  const createTask = useCreateTask(wsId, roomId).mutateAsync;
-  const signalTyping = useSignalTyping(wsId, roomId);
 
   // One pass over the messages per change: rows newest first (the inverted list's order), runs, albums and the
   // index quotes read from, an unchanged message's rows kept from last time (lib/timeline-layout.ts).
   const { rows, continued, albums, byId } = useMemo(() => layoutTimeline(messages), [messages]);
   // The viewer pages through every photo on screen, oldest first: gathered while it is open, not on every change.
   const { senderName } = room;
+  const image = sheet.kind === "image" ? sheet.photo : null;
   const viewerOpen = image !== null;
   const photos: ViewerPhoto[] = useMemo(
     () =>
@@ -187,10 +158,8 @@ export function Conversation(props: Props) {
   const seenByOf = (message: TimelineMessage | null) =>
     message?.record && receiptsOn ? seenByMembers(message.record, room.members, message.sender) : [];
 
-  const failed = useCallback(() => toast.error(t("common.error")), [t]);
-
   // Scrolled up: the newest message when the reader left, so the jump button counts what came after (the web's awaySinceId).
-  const [atLatest, setAtLatest] = useState(true);
+  const { atLatest } = props;
   const [awaySinceId, setAwaySinceId] = useState<string | null>(null);
   const [latestSignal, setLatestSignal] = useState(0);
   const newestId = useRef<string | null>(null);
@@ -198,7 +167,6 @@ export function Conversation(props: Props) {
   const { onAtLatestChange } = props;
   const atLatestChange = useCallback(
     (next: boolean) => {
-      setAtLatest(next);
       setAwaySinceId(next ? null : newestId.current);
       onAtLatestChange(next);
     },
@@ -224,6 +192,29 @@ export function Conversation(props: Props) {
     [firstUnreadId, unreadCount, t],
   );
 
+  const followUps = useQuery(followUpsOptions(wsId)).data;
+  const followUpOf = (messageId: string) => followUps?.find((f) => f.message_id === messageId && !f.completed_at) ?? null;
+  const quoteText = useCallback((message: TimelineMessage) => (message.record ? messagePreviewText(message.record, t) : message.body), [t]);
+  // The composer quotes a message or edits one, never both.
+  const replyTo = (message: TimelineMessage) => {
+    setEdit(null);
+    setReply({ id: message.id, sender: room.senderName(message), text: quoteText(message) });
+  };
+  const editOf = (message: TimelineMessage) => {
+    setReply(null);
+    setEdit({ id: message.id, body: message.body });
+  };
+  // Every change to the server goes through the mutation layer, by way of use-message-actions.ts.
+  const actions = useMessageActions({
+    chat,
+    roomId,
+    followUpOf,
+    senderName: room.senderName,
+    sheets,
+    composer: { reply: replyTo, edit: editOf },
+  });
+  const { votePoll, react } = actions;
+
   const ctx: MessageCardContext = useMemo(
     () => ({
       wsId,
@@ -231,15 +222,15 @@ export function Conversation(props: Props) {
       wsSlug: chat.wsSlug,
       roomId,
       userId,
-      onOpenImage: (url, name, messageId) => setImage({ id: messageId ?? url, url, name }),
-      onVotePoll: (messageId, optionId) => void votePoll({ messageId, optionId }).catch(() => toast.error(t("chat.message_list.poll_vote_failed"))),
+      onOpenImage: (url, name, messageId) => sheets({ type: "open", sheet: { kind: "image", photo: { id: messageId ?? url, url, name } } }),
+      onVotePoll: votePoll,
       onOpenLink: openLink,
       onLinkMenu: (url) => {
         haptics.longPress();
-        setLinkMenu(url);
+        sheets({ type: "open", sheet: { kind: "link", url } });
       },
     }),
-    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, votePoll, t, openLink],
+    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, votePoll, openLink],
   );
 
   // The tasks made from the messages on screen, one request per window of lib/link-windows.ts (the web's
@@ -253,8 +244,6 @@ export function Conversation(props: Props) {
     previousTaskIds.current = next;
     return next;
   }, [windows, answers]);
-  const followUps = useQuery(followUpsOptions(wsId)).data;
-  const openFollowUp = (messageId: string) => followUps?.find((f) => f.message_id === messageId && !f.completed_at) ?? null;
   // The quote goes with this message only: cleared now, not when a slow delivery ends.
   const takeReply = () => {
     const replyToMessageId = reply?.id;
@@ -267,19 +256,13 @@ export function Conversation(props: Props) {
     haptics.send();
     props.onSend?.();
     setLatestSignal((n) => n + 1);
-    sendMessage(input);
+    actions.send(input);
   };
   const send = (body: string) => enqueue({ body, replyToMessageId: takeReply(), threadRootId });
   const sendFile = (file: PendingFile) => enqueue({ body: "", file, replyToMessageId: takeReply() });
-  const quoteText = useCallback((message: TimelineMessage) => (message.record ? messagePreviewText(message.record, t) : message.body), [t]);
-  const quoteOf = (message: TimelineMessage) => ({ id: message.id, sender: room.senderName(message), text: quoteText(message) });
-  const react = (messageId: string, emoji: string) => {
-    haptics.reaction();
-    void toggleReaction({ messageId, emoji }).catch(() => toast.error(t("chat.message_list.react_failed")));
-  };
-  // What VoiceOver / TalkBack hear when someone else's message arrives at the bottom (audit U2).
+  // What VoiceOver / TalkBack hear when someone else's message arrives at the bottom.
   useArrivalAnnouncements(roomId, messages, userId, (message) => ({ sender: room.senderName(message), preview: quoteText(message) }));
-  // A send of mine that fails while the room is open is felt and said (audit UX P3).
+  // A send of mine that fails while the room is open is felt and said.
   useSendFailureFeedback(messages);
 
   // Each row worked out once per change and kept as the same object while it draws the same (audit H1).
@@ -325,16 +308,13 @@ export function Conversation(props: Props) {
   const handlers: MessageHandlers = useStableHandlers({
     onLongPress: (message: TimelineMessage) => {
       haptics.longPress();
-      setActionMessage(message);
+      sheets({ type: "open", sheet: { kind: "actions", message } });
     },
     onPressQuote: (messageId: string) => props.onQuoteJump(messageId),
     onPressThread: (message: TimelineMessage) => router.push(chatRoutes.thread(chat, roomId, message.id)),
-    onPressPending: (message: TimelineMessage) => setActionMessage(message),
+    onPressPending: (message: TimelineMessage) => sheets({ type: "open", sheet: { kind: "actions", message } }),
     onToggleReaction: (message: TimelineMessage, emoji: string) => react(message.id, emoji),
-    onReply: (message: TimelineMessage) => {
-      setEdit(null);
-      setReply(quoteOf(message));
-    },
+    onReply: replyTo,
   });
 
   const renderMessage = useCallback(
@@ -390,9 +370,9 @@ export function Conversation(props: Props) {
         onSendFile={sendFile}
         onEdit={(messageId, body) => {
           setEdit(null);
-          void editMessage({ messageId, body }).catch(() => toast.error(t("chat.message_list.edit_failed")));
+          actions.saveEdit(messageId, body);
         }}
-        onTyping={signalTyping}
+        onTyping={actions.signalTyping}
         onSendVoice={(clip) =>
           enqueue({
             body: "",
@@ -401,13 +381,18 @@ export function Conversation(props: Props) {
             replyToMessageId: takeReply(),
           })
         }
-        onOpenExpressions={() => setSheet("expressions")}
-        onOpenReminder={() => setSheet("reminder")}
+        onOpenExpressions={() => sheets({ type: "open", sheet: { kind: "expressions" } })}
+        onOpenReminder={() => sheets({ type: "open", sheet: { kind: "reminder" } })}
       />
-      <ExpressionSheet wsId={wsId} visible={sheet === "expressions"} onClose={() => setSheet(null)} onPick={send} />
+      <ExpressionSheet
+        wsId={wsId}
+        visible={sheet.kind === "expressions"}
+        onClose={() => sheets({ type: "close", kind: "expressions" })}
+        onPick={send}
+      />
       <ReminderSheet
-        visible={sheet === "reminder"}
-        onClose={() => setSheet(null)}
+        visible={sheet.kind === "reminder"}
+        onClose={() => sheets({ type: "close", kind: "reminder" })}
         onCreate={(input) =>
           enqueue({ body: "", reminder: { body: input.body.trim(), remindAt: input.remindAt.toISOString(), repeat: input.repeat } })
         }
@@ -423,73 +408,32 @@ export function Conversation(props: Props) {
           ) : undefined
         }
         inThread={Boolean(threadRootId)}
-        followUp={actionMessage ? openFollowUp(actionMessage.id) : null}
-        onClose={() => setActionMessage(null)}
-        onReact={(m, emoji) => react(m.id, emoji)}
-        onReply={(m) => {
-          setEdit(null);
-          setReply(quoteOf(m));
-        }}
-        onThread={(m) => router.push(chatRoutes.thread(chat, roomId, m.id))}
-        onCopy={(m) => void Clipboard.setStringAsync(deserializeMessageBodyToComposerDraft(m.body)).catch(failed)}
-        onEdit={(m) => {
-          setReply(null);
-          setEdit({ id: m.id, body: m.body });
-        }}
-        onDelete={(m) =>
-          Alert.alert(t("chat.message_list.delete_confirm_title"), t("chat.message_list.delete_confirm_description"), [
-            { text: t("common.cancel"), style: "cancel" },
-            {
-              text: t("chat.action_delete"),
-              style: "destructive",
-              onPress: () => void deleteMessage(m.id).catch(() => toast.error(t("chat.message_list.delete_failed"))),
-            },
-          ])
-        }
-        onFollowUp={(m, command) => {
-          const followUp = openFollowUp(m.id);
-          const run =
-            command === "create"
-              ? followUpCommand({ command: "create", id: m.id })
-              : !followUp
-                ? Promise.resolve()
-                : command === "convert"
-                  ? createTask({ followUpId: followUp.id })
-                  : followUpCommand({ command, id: followUp.id });
-          void run.catch(() => toast.error(t(command === "convert" ? "chat.follow_up.convert_failed" : "chat.follow_up.update_failed")));
-        }}
-        onCreateTask={(m) =>
-          void createTask({ messageId: m.id, title: titleFromMessageBody(deserializeMessageBodyToComposerDraft(m.body)) }).catch(() =>
-            toast.error(t("chat.link.create_error")),
-          )
-        }
-        onRetry={(m) => m.pending && retrySend(m.pending)}
-        onDiscard={(m) => m.pending && discardSend(m.pending.clientMsgId)}
-        onMoreReactions={setEmojiFor}
-        onPin={(m) => void togglePin(m.id).catch(failed)}
-        onForward={(m) => setForwardId(m.id)}
-        onReport={(m) => setReported({ messageId: m.id, senderId: m.sender, name: room.senderName(m) })}
+        followUp={actionMessage ? followUpOf(actionMessage.id) : null}
+        {...actions.sheet}
       />
       <ReportSheet
         wsId={wsId}
-        target={reported ? { kind: "message", messageId: reported.messageId, name: reported.name } : null}
-        blockUserId={reported?.senderId}
-        onClose={() => setReported(null)}
+        target={sheet.kind === "report" ? { kind: "message", messageId: sheet.messageId, name: sheet.name } : null}
+        blockUserId={sheet.kind === "report" ? sheet.senderId : undefined}
+        onClose={() => sheets({ type: "close", kind: "report" })}
         // A block hides the DM from the one who blocked (ChatService.hideDMWithPeer): back to the list.
         onReported={(blocked) => blocked && room.room?.kind === "dm" && router.dismissAll()}
       />
       <EmojiSheet
-        visible={emojiFor !== null}
-        onClose={() => setEmojiFor(null)}
+        visible={sheet.kind === "emoji"}
+        onClose={() => sheets({ type: "close", kind: "emoji" })}
         onPick={(emoji) => {
-          const target = emojiFor;
-          setEmojiFor(null);
-          if (target) react(target.id, emoji);
+          if (sheet.kind === "emoji") react(sheet.message.id, emoji);
+          sheets({ type: "close", kind: "emoji" });
         }}
       />
-      <ForwardSheet chat={chat} messageId={forwardId} onClose={() => setForwardId(null)} />
-      <LinkSheet url={linkMenu} onClose={() => setLinkMenu(null)} />
-      <ImageViewer wsId={wsId} roomId={roomId} photos={photos} opened={image} onClose={() => setImage(null)} />
+      <ForwardSheet
+        chat={chat}
+        messageId={sheet.kind === "forward" ? sheet.messageId : null}
+        onClose={() => sheets({ type: "close", kind: "forward" })}
+      />
+      <LinkSheet url={sheet.kind === "link" ? sheet.url : null} onClose={() => sheets({ type: "close", kind: "link" })} />
+      <ImageViewer wsId={wsId} roomId={roomId} photos={photos} opened={image} onClose={() => sheets({ type: "close", kind: "image" })} />
     </KeyboardAvoidingView>
   );
 }

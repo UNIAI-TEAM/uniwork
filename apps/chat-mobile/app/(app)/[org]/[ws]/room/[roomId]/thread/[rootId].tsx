@@ -4,7 +4,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams } from "expo-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
@@ -26,6 +26,7 @@ function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roo
   const { colorScheme } = useColorScheme();
   const markThreadRead = useMarkThreadRead(chat.wsId).mutateAsync;
   const room = useRoomContext(chat, roomId);
+  const [atLatest, setAtLatest] = useState(true);
   const thread = useInfiniteQuery(threadTimelineOptions(chat.wsId, roomId, rootId));
   const sends = useChatSendStore(useShallow((s) => selectRoomSends(s.entries, chat.wsId, roomId, chat.userId)));
   const rows = useMemo(() => thread.data ?? [], [thread.data]);
@@ -70,7 +71,8 @@ function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roo
       onRetryOlder={thread.isFetchNextPageError ? () => void thread.fetchNextPage() : undefined}
       jumpTo={null}
       onQuoteJump={() => undefined}
-      onAtLatestChange={() => undefined}
+      atLatest={atLatest}
+      onAtLatestChange={setAtLatest}
     />
   );
 }

@@ -7,7 +7,7 @@
 // belongs to the call (the microphone primer of an answer from the
 // notification) names it in keepOpenForCall and stays while that call rings.
 // The app lock engaging closes whatever is open too (components/app/
-// app-lock-state.ts): a Modal is a native window of its own, above the lock
+// data/stores/app-lock-store.ts): a Modal is a native window of its own, above the lock
 // screen the privacy guard draws, so a photo or a list left open would stay
 // readable and usable over the lock. A sheet that belongs to the call that is
 // on stays (the call is the one thing that shows past the lock).
@@ -17,7 +17,7 @@ import { useEffect, useRef } from "react";
 // The one place react-native's Modal is used: everything else renders this wrapper.
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports
 import { Modal, type ModalProps, type NativeSyntheticEvent } from "react-native";
-import { appLockState } from "@/components/app/app-lock-state";
+import { appLockState } from "@/data/stores/app-lock-store";
 import { callEngine } from "@/data/calls/call-store";
 import { useReduceMotion } from "./a11y";
 

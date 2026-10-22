@@ -3,12 +3,10 @@
 // search result) or a tap on a quote outside the loaded window shows the page
 // around that message instead (listChatRoomMessagesAround), with a way back
 // to the latest. Local sends join the timeline until the server echoes them.
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
-import { useShallow } from "zustand/react/shallow";
 import { HeaderIconButton } from "@/components/chat/chat-header";
 import { Conversation } from "@/components/chat/conversation";
 import { RoomAvatar } from "@/components/chat/room-avatar";
@@ -24,28 +22,24 @@ import { Text } from "@/components/ui/text";
 import { useMobileFlag } from "@/data/remote-config";
 import { ScreenFullyDrawn } from "@/data/sentry";
 import { callEngine } from "@/data/calls/call-store";
-import { refreshRoomTimelineOnOpen } from "@/data/chat-timeline";
-import { roomAroundOptions, roomTimelineOptions, roomsOptions } from "@/data/queries/chat";
-import { selectRoomSends, useChatSendStore } from "@/data/stores/chat-send-store";
+import { useRoomTimeline } from "@/data/queries/use-room-timeline";
 import { chatRoutes } from "@/lib/chat-routes";
 import { canCallRoom, roomHeaderMark } from "@/lib/conversation-display";
-import { buildMainTimelineMessages } from "@/lib/timeline-display";
-import { unreadSnapshot } from "@/lib/unread-divider";
 import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
 
 function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspace; roomId: string; linkedMessageId: string | null }) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
   const room = useRoomContext(chat, roomId);
-  const timeline = useInfiniteQuery(roomTimelineOptions(chat.wsId, roomId));
   const [anchorId, setAnchorId] = useState<string | null>(linkedMessageId);
   const [jump, setJump] = useState<{ id: string; seq: number } | null>(linkedMessageId ? { id: linkedMessageId, seq: 0 } : null);
+  // The list shows its newest message: the read pointer follows it, and the older pages drop when it comes back.
   const [atLatest, setAtLatest] = useState(true);
-  // Where this room's unread messages began, read from the inbox before opening marks it read (lib/unread-divider.ts).
-  const [unread] = useState(() => unreadSnapshot(qc.getQueryData(roomsOptions(chat.wsId).queryKey)?.find((entry) => entry.id === roomId)));
-  // Unread in the other conversations, on the back button (MobileChat board).
-  const otherUnread =
-    useQuery(roomsOptions(chat.wsId)).data?.reduce((sum, entry) => (entry.id === roomId ? sum : sum + (entry.unread_count ?? 0)), 0) ?? 0;
+  const { timeline, messages, anchorRows, anchorPending, newestId, unread, otherUnread, historyComplete } = useRoomTimeline({
+    wsId: chat.wsId,
+    roomId,
+    userId: chat.userId,
+    anchorId,
+  });
 
   // A new link while the room is open moves the anchor.
   useEffect(() => {
@@ -53,22 +47,6 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
     setJump(linkedMessageId ? { id: linkedMessageId, seq: Date.now() } : null);
   }, [linkedMessageId]);
 
-  // Reopening a room: drop the older pages scrolled in last time and refresh the newest.
-  useEffect(() => {
-    if (qc.getQueryData(roomTimelineOptions(chat.wsId, roomId).queryKey)) refreshRoomTimelineOnOpen(qc, chat.wsId, roomId);
-  }, [qc, chat.wsId, roomId]);
-
-  const latestRows = useMemo(() => timeline.data ?? [], [timeline.data]);
-  const anchorLoaded = anchorId ? latestRows.some((m) => m.id === anchorId) : true;
-  const around = useQuery({ ...roomAroundOptions(chat.wsId, roomId, anchorId ?? ""), enabled: !anchorLoaded && timeline.isSuccess });
-  const anchorRows = anchorLoaded ? null : (around.data ?? null);
-  const sends = useChatSendStore(useShallow((s) => selectRoomSends(s.entries, chat.wsId, roomId, chat.userId)));
-  const messages = useMemo(
-    () => buildMainTimelineMessages({ anchorRows, latestRows, pending: sends, currentUserId: chat.userId }),
-    [anchorRows, latestRows, sends, chat.userId],
-  );
-
-  const historyComplete = timeline.isSuccess && !timeline.hasNextPage;
   // More unread than the newest page holds: a few older pages load until the unread line has its place.
   useUnreadBackfill({
     messages,
@@ -79,7 +57,7 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
     loadOlder: () => void timeline.fetchNextPage(),
   });
 
-  useRoomReadMarking(chat.wsId, roomId, latestRows.at(-1)?.id ?? null, atLatest && anchorRows === null);
+  useRoomReadMarking(chat.wsId, roomId, newestId, atLatest && anchorRows === null);
   // Back at the newest message: the older pages scrolled in on the way up are dropped (a sliding window).
   useTimelineWindow(chat.wsId, roomId, atLatest && anchorRows === null);
 
@@ -146,7 +124,7 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
           ) : null
         }
         messages={messages}
-        loading={timeline.isPending || (!anchorLoaded && around.isPending)}
+        loading={timeline.isPending || anchorPending}
         // Nothing cached and the newest page failed: an error with a retry, not an empty room.
         onRetryLoad={timeline.isError && !timeline.data ? () => void timeline.refetch() : undefined}
         loadingOlder={timeline.isFetchingNextPage}
@@ -157,6 +135,7 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
           if (!messages.some((m) => m.id === messageId)) setAnchorId(messageId);
           setJump({ id: messageId, seq: Date.now() });
         }}
+        atLatest={atLatest}
         onAtLatestChange={setAtLatest}
         onSend={anchorRows ? backToLatest : undefined}
         onJumpToLatest={anchorRows ? backToLatest : undefined}

@@ -13,13 +13,13 @@
 //   A ringing or live call is never held behind the lock (a call answered
 //   from the lock screen must connect); the lock comes back once it ends.
 //   Only the call shows meanwhile: the guard says the lock is engaged
-//   (app-lock-state.ts), the call screen will not shrink then, and every open
+//   (data/stores/app-lock-store.ts), the call screen will not shrink then, and every open
 //   sheet closes (a Modal is a window of its own, above this view).
 // Until the saved choices are known the app is covered, so a locked app never
 // shows the inbox for a frame first. The read is capped (data/privacy-settings.ts);
 // choices that arrive after the cap count as the cold start, so a slow Keychain
 // still locks. Face ID's or the passcode's own screen is not time away
-// (app-lock-state.ts › ownerPromptOpen): on Android it pauses the app.
+// (data/stores/app-lock-store.ts › ownerPromptOpen): on Android it pauses the app.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppState, StyleSheet, View, type AppStateStatus } from "react-native";
@@ -30,7 +30,7 @@ import { useAuthStore } from "@/data/auth/store";
 import { callEngine } from "@/data/calls/call-store";
 import { coversWhenAway, shouldLock } from "@/lib/app-lock";
 import { callHoldsSocket } from "@/lib/call-socket";
-import { ownerPromptOpen, setAppLockEngaged } from "./app-lock-state";
+import { ownerPromptOpen, setAppLockEngaged } from "@/data/stores/app-lock-store";
 import { authenticateOwner, usePrivacySettings } from "./privacy";
 
 export function PrivacyGuard({ now = Date.now }: { now?: () => number }) {

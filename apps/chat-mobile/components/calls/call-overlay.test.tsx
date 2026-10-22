@@ -2,7 +2,7 @@ import { act, fireEvent, screen } from "@testing-library/react-native";
 import { createAudioPlayer } from "expo-audio";
 import type { ReactNode } from "react";
 import { BackHandler, Vibration } from "react-native";
-import { setAppLockEngaged } from "@/components/app/app-lock-state";
+import { setAppLockEngaged } from "@/data/stores/app-lock-store";
 import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { callEngine } from "@/data/calls/call-store";
 import { chatApi } from "@/data/chat-api";

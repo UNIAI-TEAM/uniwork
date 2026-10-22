@@ -8,14 +8,14 @@ import { callEngine } from "@/data/calls/call-store";
 import type { PrivacyState } from "@/data/privacy-settings";
 import { DEFAULT_PRIVACY_SETTINGS } from "@/lib/app-lock";
 import { render, viText } from "@/test/render";
-import { appLockState, whileOwnerPrompt } from "./app-lock-state";
+import { appLockState, whileOwnerPrompt } from "@/data/stores/app-lock-store";
 import { PrivacyGuard } from "./privacy-guard";
 
 const mockPrivacy = createStore<PrivacyState>(() => ({ settings: DEFAULT_PRIVACY_SETTINGS, loaded: true, restored: true }));
 const mockAuthenticate = jest.fn(async (_prompt: string, _cancel: string) => true);
 jest.mock("./privacy", () => {
   const { useStore } = jest.requireActual<typeof import("zustand")>("zustand");
-  const { whileOwnerPrompt } = jest.requireActual<typeof import("./app-lock-state")>("./app-lock-state");
+  const { whileOwnerPrompt } = jest.requireActual<typeof import("@/data/stores/app-lock-store")>("@/data/stores/app-lock-store");
   return {
     usePrivacySettings: () => useStore(mockPrivacy),
     // As the real one: the prompt is marked open while it runs.

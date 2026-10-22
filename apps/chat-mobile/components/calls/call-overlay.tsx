@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BackHandler, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppLockEngaged } from "@/components/app/app-lock-state";
+import { useAppLockEngaged } from "@/data/stores/app-lock-store";
 import { haptics } from "@/components/ui/haptics";
 import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { Text } from "@/components/ui/text";

@@ -3,6 +3,7 @@
 // drawing its content is counted through MessageContent, which only a row that
 // renders reaches. A regression that makes rows redraw shows up here as a count,
 // in the component job of mobile-verify.yml, before anyone feels it on a phone.
+import { useState } from "react";
 import { ChatMessageSchema, ChatRoomSchema, type ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { act, screen } from "@testing-library/react-native";
 import type { ReactNode } from "react";
@@ -56,6 +57,8 @@ const history = Array.from({ length: 12 }, (_, i) => record(`m${String(i).padSta
 
 function Screen({ records }: { records: ChatMessageRecord[] }) {
   const room = useRoomContext(chat, "r1");
+  // The screen owns whether the list shows its newest message, as the room and thread screens do.
+  const [atLatest, setAtLatest] = useState(true);
   const messages: TimelineMessage[] = records.map(toTimelineMessage);
   return (
     <Conversation
@@ -68,7 +71,8 @@ function Screen({ records }: { records: ChatMessageRecord[] }) {
       loadingOlder={false}
       jumpTo={null}
       onQuoteJump={jest.fn()}
-      onAtLatestChange={jest.fn()}
+      atLatest={atLatest}
+      onAtLatestChange={setAtLatest}
     />
   );
 }

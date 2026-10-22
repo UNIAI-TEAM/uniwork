@@ -1,6 +1,6 @@
 import { act, screen } from "@testing-library/react-native";
 import { AccessibilityInfo, Text } from "react-native";
-import { setAppLockEngaged } from "@/components/app/app-lock-state";
+import { setAppLockEngaged } from "@/data/stores/app-lock-store";
 import { callEngine } from "@/data/calls/call-store";
 import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import { render } from "@/test/render";

@@ -52,6 +52,7 @@ module.exports = {
     "data/mutations/*.ts",
     "data/calls/call-store.ts",
     "data/query-client.ts",
+    "data/queries/use-room-timeline.ts",
     "data/realtime/realtime-provider.tsx",
     "data/realtime/use-call-realtime.ts",
     "data/realtime/use-chat-realtime.ts",

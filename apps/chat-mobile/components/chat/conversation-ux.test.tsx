@@ -3,6 +3,7 @@
 // reader scrolled up gets "N new" to jump back down, and a screen reader hears
 // what someone else just sent.
 // The photo viewer's pager and zoom run on the gesture runtime.
+import { useState } from "react";
 import "react-native-gesture-handler/jestSetup";
 import { ChatMessageSchema, ChatRoomSchema, type ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { act, fireEvent, screen } from "@testing-library/react-native";
@@ -38,6 +39,8 @@ const history = Array.from({ length: 6 }, (_, i) => record(`m0${i}`, i % 2 ? "ME
 
 function Screen({ records, onJumpToLatest, unread }: { records: ChatMessageRecord[]; onJumpToLatest?: () => void; unread?: { since: string; count: number } }) {
   const room = useRoomContext(chat, "r1");
+  // The screen owns whether the list shows its newest message, as the room and thread screens do.
+  const [atLatest, setAtLatest] = useState(true);
   const messages: TimelineMessage[] = records.map(toTimelineMessage);
   return (
     <Conversation
@@ -50,7 +53,8 @@ function Screen({ records, onJumpToLatest, unread }: { records: ChatMessageRecor
       loadingOlder={false}
       jumpTo={null}
       onQuoteJump={jest.fn()}
-      onAtLatestChange={jest.fn()}
+      atLatest={atLatest}
+      onAtLatestChange={setAtLatest}
       onJumpToLatest={onJumpToLatest}
       unread={unread}
       historyComplete

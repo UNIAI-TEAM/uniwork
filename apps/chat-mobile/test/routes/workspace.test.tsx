@@ -102,6 +102,7 @@ const message = (id: string, sender: string, body: string, minute: number, extra
 const root = message("m1", "U2", "Ai xem bản nháp chưa?", 1, { reply_count: 1, last_reply_at: at(2) });
 const reply = message("m3", "ME", "Mình xem rồi", 2, { thread_root_id: "m1" });
 const latest = message("m2", "U2", "Hẹn 3 giờ nhé", 3);
+const older = message("m0", "U2", "Tuần trước đã chốt bản này", -10_000);
 const channel = { id: "c1", kind: "channel", name: "thong-bao", workspace_id: "w1", member_count: 12, member_user_ids: [], topic: "Tin chung" };
 const callLog = {
   message_id: "cl1",
@@ -131,6 +132,7 @@ function server(path: string, init?: RequestInit): unknown {
   if (url === "/api/v1/workspaces/w1/chat/rooms") return { rooms: [dm, group] };
   if (url === "/api/v1/workspaces/w1/chat/rooms/r1") return { room: dm };
   if (url === "/api/v1/workspaces/w1/chat/rooms/r1/messages") return { messages: [latest, root] };
+  if (url === "/api/v1/workspaces/w1/chat/rooms/r1/messages/around/m0") return { messages: [older] };
   if (url === "/api/v1/workspaces/w1/chat/rooms/r1/threads/m1/messages") return { messages: [root, reply] };
   if (url === "/api/v1/workspaces/w1/chat/rooms/r1/members") return { members: [member("ME", "Tôi"), member("U2", "Bình Trần")] };
   if (url === "/api/v1/workspaces/w1/members") return { members: [member("ME", "Tôi"), member("U2", "Bình Trần"), member("U3", "Chi Lê")] };
@@ -300,6 +302,35 @@ describe("the workspace's other screens", () => {
   });
 });
 
+describe("a room opened on an older message", () => {
+  it("shows the page around the linked message, then goes back to the latest", async () => {
+    const routes = await mount("/acme/hq/room/r1?message=m0");
+    expect(await screen.findByText("Tuần trước đã chốt bản này")).toBeOnTheScreen();
+    expect(screen.getByText(viText("chat.search_jump_banner"))).toBeOnTheScreen();
+    // The banner's own button (the jump-to-latest button below the list goes back too).
+    await fireEvent.press(screen.getByText(viText("chat.search_back_to_latest")));
+    expect(await screen.findByText("Hẹn 3 giờ nhé")).toBeOnTheScreen();
+    expect(screen.queryByText(viText("chat.search_jump_banner"))).toBeNull();
+    expect(routes.pathname()).toBe("/acme/hq/room/r1");
+  });
+});
+
+describe("a room whose first page fails", () => {
+  it("says so instead of an empty room, and retries", async () => {
+    let failing = true;
+    const answer = jest.mocked(api.request).getMockImplementation();
+    jest.mocked(api.request).mockImplementation(async (path: string, init?: RequestInit) => {
+      if (failing && path === "/api/v1/workspaces/w1/chat/rooms/r1/messages?limit=50&mark_read=0") throw new Error("down");
+      return answer?.(path, init);
+    });
+    await mount("/acme/hq/room/r1");
+    expect(await screen.findByTestId("conversation-load-error")).toBeOnTheScreen();
+    failing = false;
+    await fireEvent.press(screen.getByTestId("conversation-retry"));
+    expect(await screen.findByText("Hẹn 3 giờ nhé")).toBeOnTheScreen();
+  });
+});
+
 describe("calling from a room", () => {
   it("starts a voice call from the room's header after the microphone is granted", async () => {
     jest.spyOn(permissionGate, "ensure").mockResolvedValue(true);
@@ -308,6 +339,14 @@ describe("calling from a room", () => {
     await fireEvent.press(await screen.findByTestId("room-call-voice"));
     await waitFor(() => expect(start).toHaveBeenCalledWith("r1", "Bình Trần", "dm", { withCamera: false }));
     expect(permissionGate.ensure).toHaveBeenCalledWith("microphone", "call", { callId: undefined });
+  });
+
+  it("starts a video call from the room's header with the camera", async () => {
+    jest.spyOn(permissionGate, "ensure").mockResolvedValue(true);
+    const start = jest.spyOn(callEngine, "startCall").mockResolvedValue(undefined as never);
+    await mount("/acme/hq/room/r1");
+    await fireEvent.press(await screen.findByTestId("room-call-video"));
+    await waitFor(() => expect(start).toHaveBeenCalledWith("r1", "Bình Trần", "dm", { withCamera: true }));
   });
 
   it("hides calling in the room and its details while the server's kill switch is off", async () => {

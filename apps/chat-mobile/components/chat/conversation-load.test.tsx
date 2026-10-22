@@ -3,6 +3,7 @@
 // never shows the empty room's "start chatting" copy (a reader would think the
 // history is gone), a failed thread does the same, and a failed older page
 // offers its own retry at the top of the list.
+import { useState } from "react";
 import "react-native-gesture-handler/jestSetup";
 import { ChatMessageSchema, ChatRoomSchema } from "@uniwork/core/api/endpoints/chat-schemas";
 import { act, fireEvent, screen } from "@testing-library/react-native";
@@ -34,6 +35,8 @@ interface Props {
 
 function Screen({ messages = [], loading = false, thread = false, onRetryLoad, loadingOlder = false, onRetryOlder }: Props) {
   const room = useRoomContext(chat, "r1");
+  // The screen owns whether the list shows its newest message, as the room and thread screens do.
+  const [atLatest, setAtLatest] = useState(true);
   return (
     <Conversation
       chat={chat}
@@ -48,7 +51,8 @@ function Screen({ messages = [], loading = false, thread = false, onRetryLoad, l
       onRetryOlder={onRetryOlder}
       jumpTo={null}
       onQuoteJump={jest.fn()}
-      onAtLatestChange={jest.fn()}
+      atLatest={atLatest}
+      onAtLatestChange={setAtLatest}
     />
   );
 }

@@ -9,15 +9,9 @@
     "statements": 68,
     "branches": 66,
     "functions": 56,
-    "lines": 68
+    "lines": 69
   },
   "files": {
-    "components/app/app-lock-state.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
     "components/app/i18n-provider.tsx": {
       "statements": 100,
       "branches": 100,
@@ -145,10 +139,10 @@
       "lines": 100
     },
     "components/chat/conversation.tsx": {
-      "statements": 70,
-      "branches": 73,
-      "functions": 46,
-      "lines": 73
+      "statements": 80,
+      "branches": 82,
+      "functions": 63,
+      "lines": 81
     },
     "components/chat/emoji-sheet.tsx": {
       "statements": 80,
@@ -363,6 +357,12 @@
     "components/chat/use-drafts.ts": {
       "statements": 100,
       "branches": 95,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/use-message-actions.ts": {
+      "statements": 100,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },
@@ -729,6 +729,12 @@
     "data/mutations/safety.ts": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "data/queries/use-room-timeline.ts": {
+      "statements": 100,
+      "branches": 96,
       "functions": 100,
       "lines": 100
     },

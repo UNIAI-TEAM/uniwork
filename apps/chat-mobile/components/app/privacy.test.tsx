@@ -5,7 +5,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import * as ScreenCapture from "expo-screen-capture";
 import { Platform } from "react-native";
 import { readDevicePreference, writeDevicePreference } from "@/data/device-preferences";
-import { ownerPromptOpen } from "./app-lock-state";
+import { ownerPromptOpen } from "@/data/stores/app-lock-store";
 import { authenticateOwner, deviceCanLock, loadPrivacySettings, updatePrivacySettings, usageStatsEnabled, usePrivacySettings } from "./privacy";
 
 jest.mock("@/data/device-preferences", () => ({

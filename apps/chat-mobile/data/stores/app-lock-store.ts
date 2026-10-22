@@ -1,5 +1,6 @@
 // What the app lock is doing right now, for the parts of the app that must
-// follow it without importing the guard (components/app/privacy-guard.tsx).
+// follow it without importing the guard (components/app/privacy-guard.tsx). A
+// client-state store like the others in data/stores; the guard writes it.
 //
 // - `engaged`: the lock is on and not yet opened for the person signed in
 //   (the guard writes it). A live call lifts the lock screen so the call can
