@@ -78,6 +78,9 @@ jest.mock("./use-cellular-hold", () => ({
     return mockHold.held;
   },
 }));
+// The link itself is use-call-link.test.tsx; here only what the screen says about it.
+const mockLink: { reconnecting: boolean; weak: "self" | "peer" | null } = { reconnecting: false, weak: null };
+jest.mock("./use-call-link", () => ({ useCallLink: () => mockLink }));
 // The output picker reads the phone's routes; its own test is audio-output-button.test.tsx. The stand-in says
 // whether the room told it its screen is in front (the proximity wake lock hangs on that).
 jest.mock("./audio-output-button", () => ({
@@ -107,6 +110,8 @@ beforeEach(() => {
   mockLive.local.isMicrophoneEnabled = true;
   mockLive.local.isCameraEnabled = false;
   mockHold.held = false;
+  mockLink.reconnecting = false;
+  mockLink.weak = null;
   jest.spyOn(callEngine, "markConnected").mockImplementation(() => undefined);
   jest.spyOn(callEngine, "hangUp").mockResolvedValue(undefined as never);
   jest.spyOn(callEngine, "finalizeCallOnDisconnect").mockImplementation(() => undefined as never);
@@ -206,6 +211,23 @@ describe("CallRoom", () => {
     await act(async () => mockLive.onConnected?.());
     expect(mockHold.args).toEqual([room(), true]);
     expect(screen.getByText(viText("mobile.call_audio.held"))).toBeOnTheScreen();
+  });
+
+  it("says when the link dropped and is coming back, and whose connection is weak otherwise", async () => {
+    const view = await render(<CallRoom url="wss://lk" token="t" peerName="Bình" withCamera={false} recording={false} />);
+    expect(screen.queryByTestId("call-reconnecting")).toBeNull();
+    expect(screen.queryByTestId("call-weak-link")).toBeNull();
+    mockLink.weak = "peer";
+    await view.rerender(<CallRoom url="wss://lk" token="t" peerName="Bình" withCamera={false} recording />);
+    expect(screen.getByText(viText("mobile.call_audio.weak_peer"))).toBeOnTheScreen();
+    mockLink.weak = "self";
+    await view.rerender(<CallRoom url="wss://lk" token="t" peerName="Bình" withCamera={false} recording={false} />);
+    expect(screen.getByText(viText("mobile.call_audio.weak_self"))).toBeOnTheScreen();
+    // A drop says so first: the weak badge waits until the link is back.
+    mockLink.reconnecting = true;
+    await view.rerender(<CallRoom url="wss://lk" token="t" peerName="Bình" withCamera={false} recording />);
+    expect(screen.getByText(viText("chat.voice_call_reconnecting"))).toBeOnTheScreen();
+    expect(screen.queryByTestId("call-weak-link")).toBeNull();
   });
 
   it("tells the audio button its screen is no longer in front while the call is shrunk to a pill", async () => {

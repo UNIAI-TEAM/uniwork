@@ -7,7 +7,9 @@
 // A voice call starts on the earpiece, a video call on the speaker
 // (lib/audio-outputs.ts); once connected, the call's foreground service is
 // started again so it carries the microphone LiveKit now holds. The phone's own
-// call answered meanwhile holds this one (use-cellular-hold.ts).
+// call answered meanwhile holds this one (use-cellular-hold.ts). A dropped media
+// link says "Reconnecting…" until LiveKit has it back, and a weak one (ours or
+// theirs) is a badge (use-call-link.ts).
 import { Ionicons } from "@expo/vector-icons";
 import {
   AndroidAudioTypePresets,
@@ -33,6 +35,7 @@ import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration"
 import { AudioOutputButton } from "./audio-output-button";
 import { CALL, CallButton, CallerHero, SHADOW } from "./call-surface";
 import { toggleCamera } from "./toggle-camera";
+import { useCallLink, type CallLink } from "./use-call-link";
 import { useCellularHold } from "./use-cellular-hold";
 
 // WebRTC globals for LiveKit, once, when the call UI first loads (call-overlay.tsx loads this
@@ -50,11 +53,30 @@ function useElapsed(running: boolean) {
   return seconds;
 }
 
+/** A line in the top bar that a screen reader reads out when it appears (held, reconnecting, a weak link). */
+function StatusPill({ icon, text, testID }: { icon: keyof typeof Ionicons.glyphMap; text: string; testID: string }) {
+  return (
+    <View
+      className="min-h-7 flex-row items-center gap-1.5 rounded-full px-2.5"
+      style={{ backgroundColor: CALL.fill }}
+      accessibilityRole="text"
+      accessibilityLiveRegion="polite"
+      testID={testID}
+    >
+      <Ionicons name={icon} size={12} color={CALL.text} />
+      <Text className="text-footnote font-semibold" style={{ color: CALL.text }} numberOfLines={1}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
 function RoomStage({
   peerName,
   connected,
   recording,
   held,
+  link,
   onMinimize,
   minimized,
   seed,
@@ -65,6 +87,7 @@ function RoomStage({
   connected: boolean;
   recording: boolean;
   held: boolean;
+  link: CallLink;
   onMinimize?: () => void;
   minimized: boolean;
   seed?: string;
@@ -113,17 +136,16 @@ function RoomStage({
         <View className="flex-1 items-center gap-1">
           {held ? (
             // The phone's own call has the line (use-cellular-hold.ts): our microphone and the other side are off.
-            <View
-              className="min-h-7 flex-row items-center gap-1.5 rounded-full px-2.5"
-              style={{ backgroundColor: CALL.fill }}
-              accessibilityRole="text"
-              accessibilityLiveRegion="polite"
-            >
-              <Ionicons name="pause" size={12} color={CALL.text} />
-              <Text className="text-footnote font-semibold" style={{ color: CALL.text }} numberOfLines={1}>
-                {t("mobile.call_audio.held")}
-              </Text>
-            </View>
+            <StatusPill icon="pause" text={t("mobile.call_audio.held")} testID="call-held" />
+          ) : null}
+          {link.reconnecting ? (
+            <StatusPill icon="sync" text={t("chat.voice_call_reconnecting")} testID="call-reconnecting" />
+          ) : link.weak ? (
+            <StatusPill
+              icon="cellular-outline"
+              text={t(link.weak === "self" ? "mobile.call_audio.weak_self" : "mobile.call_audio.weak_peer")}
+              testID="call-weak-link"
+            />
           ) : null}
           {recording ? (
             <View
@@ -243,6 +265,7 @@ export function CallRoom({
   const room = useMemo(() => new Room({ adaptiveStream: true, dynacast: true }), []);
   const [connected, setConnected] = useState(false);
   const held = useCellularHold(room, connected);
+  const link = useCallLink(room);
 
   useEffect(() => {
     // Phone audio routing for the length of the call; LiveKit's AudioSession owns it until then.
@@ -283,6 +306,7 @@ export function CallRoom({
         connected={connected}
         recording={recording}
         held={held}
+        link={link}
         onMinimize={onMinimize}
         minimized={minimized}
         seed={seed}

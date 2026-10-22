@@ -30,6 +30,9 @@ func TestMobileEventsKeepTheirLabelsClosed(t *testing.T) {
 	if m.Observe("call_ring", "slow", "android", "0.3.0", "embedded", ms(900)) {
 		t.Fatal("call_ring's results are closed")
 	}
+	if !m.Observe("call_reconnect", "dropped", "android", "0.3.0", "embedded", nil) || m.Observe("call_reconnect", "slow", "android", "0.3.0", "embedded", nil) {
+		t.Fatal("a dropped media link is an event, with a closed result set")
+	}
 	m.Observe("app_open", "warm", "windows", "0.3.0-beta", "not-an-update", ms(5))
 	if got := testutil.ToFloat64(m.Events.WithLabelValues("app_open", "warm", "other", "other", "other")); got != 1 {
 		t.Fatalf("an unknown OS, a malformed version and a malformed update are other: %v", got)

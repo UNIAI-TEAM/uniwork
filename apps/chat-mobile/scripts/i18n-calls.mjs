@@ -55,6 +55,8 @@ export const CALLS_NATIVE_ONLY = {
       in_use: "{{output}} · đang dùng",
       failed: "Không chuyển được âm thanh. Thử lại.",
       held: "Đang tạm giữ · bạn đang nghe cuộc gọi điện thoại",
+      weak_self: "Mạng của bạn yếu",
+      weak_peer: "Mạng của người kia yếu",
     },
   },
   en: {
@@ -107,6 +109,8 @@ export const CALLS_NATIVE_ONLY = {
       in_use: "{{output}} · in use",
       failed: "Could not switch the audio. Try again.",
       held: "On hold · you're on a phone call",
+      weak_self: "Your connection is weak",
+      weak_peer: "Their connection is weak",
     },
   },
 };

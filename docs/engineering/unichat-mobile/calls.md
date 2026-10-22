@@ -34,6 +34,12 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   (`CallRinger` native), WAV chỉ còn cho iOS và nhạc chờ của người gọi. Nút âm thanh
   (`components/calls/audio-output-button.tsx`, `lib/audio-outputs.ts`): Android liệt kê Bluetooth/tai nghe/loa
   trong/loa ngoài khi có tai nghe, iOS mở route picker; gọi thoại bắt đầu ở loa trong, video ở loa ngoài.
+  Mạng trong cuộc gọi (review "no-in-call-reconnecting-ui"): `components/calls/use-call-link.ts` nghe
+  `Reconnecting`/`SignalReconnecting`/`Reconnected` và `ConnectionQualityChanged` của phòng LiveKit; rớt thì màn cuộc gọi
+  hiện "Mất kết nối, đang kết nối lại…" (vùng live, đọc cho trình đọc màn hình) và thông báo cuộc gọi đang diễn ra cũng
+  vậy (`nativeCallSync.setReconnecting`), tới khi nối lại; mạng yếu (poor/lost) thì hiện "Mạng của bạn yếu" trước, rồi
+  "Mạng của người kia yếu". Mỗi lần rớt được đếm (`data/calls/call-link.ts`, sự kiện `call_reconnect`: recovered kèm
+  thời gian, hay dropped khi phòng buông lúc đang nối lại).
   Push "X đang gọi" mang `?call=`; tab Chat gọi `callEngine.ringFromPush` (màn đổ chuông, không tự trả lời);
   không URL nào nhận cuộc gọi: `answer=` bị bỏ qua (`lib/deep-link.test.ts`), vì link từ trang web, tin nhắn hay app khác
   trên máy (intent VIEW ngầm) đều mở được app. Nút Nghe của thông báo native mở cùng link đổ chuông, kèm token ngẫu

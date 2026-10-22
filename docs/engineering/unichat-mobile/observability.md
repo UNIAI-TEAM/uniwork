@@ -66,7 +66,8 @@
   `native` là thông báo do dịch vụ FCM đăng trước khi có JavaScript, `data/calls/native-ring.ts › reportNativeRings`
   đếm khi app chạy lại; ring lỗi ném ra cũng là lost; trong runtime không giao diện sự kiện chờ tới khi app mở; alert
   `UniChatCallRingsDegraded` khi > 10 % push đổ chuông của một bản thành fallback/lost), `call_ring` native/app (ms từ
-  lúc server gọi tới lúc máy reo; alert `UniChatCallRingSlow` khi p95 > 5 s), `ota_launch` emergency/failed_update và `app_crash` last_run
+  lúc server gọi tới lúc máy reo; alert `UniChatCallRingSlow` khi p95 > 5 s), `call_reconnect` recovered (ms từ lúc
+  đường media rớt tới lúc LiveKit nối lại) / dropped, `ota_launch` emergency/failed_update và `app_crash` last_run
   (`data/release/launch-health.ts`, mỗi lần mở lạnh từ `startAppServices`: expo-updates quay về bundle nhúng hay bỏ qua
   một bản OTA crash trước màn đầu — `lib/ota-launch.ts` đọc `isEmergencyLaunch`, so bản đang chạy với bản lần mở trước
   chạy và bản expo-updates báo đã tải cho lần mở này (`latestContext`/`addUpdatesStateChangeListener`, giữ trong device

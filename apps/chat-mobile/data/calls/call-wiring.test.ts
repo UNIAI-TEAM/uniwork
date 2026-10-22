@@ -431,7 +431,8 @@ describe("the native ring path", () => {
   it("is written again on a return to the app and when the language changes, and counts rings on the way back", () => {
     const listener = vi.fn();
     const stop = wiring.ringSyncEnv.subscribe(listener);
-    const onState = rn.AppState.addEventListener.mock.calls.at(-1)![1] as (status: string) => void;
+    const calls = rn.AppState.addEventListener.mock.calls as unknown as [string, (status: string) => void][];
+    const onState = calls.at(-1)![1];
     onState("background");
     expect(listener).not.toHaveBeenCalled();
     onState("active");

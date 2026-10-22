@@ -36,6 +36,9 @@ var mobileEventResults = map[string]map[string]bool{
 	// Expo and FCM hops and the phone's clock skew are in it): natively, or by the JavaScript task ("app").
 	// deploy/alerts.yml › UniChatCallRingSlow pages on its p95.
 	"call_ring": {"native": true, "app": true},
+	// A call's media link dropping (apps/chat-mobile/data/calls/call-link.ts): recovered, timed from the drop to
+	// LiveKit having it back, or dropped for good (the room let go while reconnecting).
+	"call_reconnect": {"recovered": true, "dropped": true},
 	// How a launch went (apps/chat-mobile/data/release/launch-health.ts): an OTA update that could not launch (the
 	// phone fell back to the binary's bundle, or skipped an update that failed to load), and a run that ended in a
 	// crash, told by the next one. Counted against the build that tells it; the alerts page on them without waiting
@@ -45,7 +48,7 @@ var mobileEventResults = map[string]map[string]bool{
 }
 
 // mobileEventTimed are the events whose duration is observed.
-var mobileEventTimed = map[string]bool{"first_screen": true, "message_send": true, "call_connect": true, "call_ring": true}
+var mobileEventTimed = map[string]bool{"first_screen": true, "message_send": true, "call_connect": true, "call_ring": true, "call_reconnect": true}
 
 // maxMobileEventSeconds drops a duration no real step takes (a clock jump, a
 // phone asleep mid-send) instead of stretching the histogram.

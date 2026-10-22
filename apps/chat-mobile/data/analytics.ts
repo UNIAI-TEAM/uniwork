@@ -28,6 +28,9 @@ export type ProductEvent =
   | { name: "call_push"; result: "shown" | "native" | "fallback" | "in_app" | "ignored" | "cleared" | "lost" }
   // How long after the server rang a call the phone rang it: natively, or by the JavaScript task (`app`).
   | { name: "call_ring"; result: "native" | "app"; duration_ms: number }
+  // A call's media link dropping (data/calls/call-link.ts): recovered, with how long it took, or never back.
+  | { name: "call_reconnect"; result: "recovered"; duration_ms: number }
+  | { name: "call_reconnect"; result: "dropped" }
   // How a launch went (data/release/launch-health.ts): an OTA update that failed to launch, and a run that crashed.
   | { name: "ota_launch"; result: "emergency" | "failed_update" }
   | { name: "app_crash"; result: "last_run" };

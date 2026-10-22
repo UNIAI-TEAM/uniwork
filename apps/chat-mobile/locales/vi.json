@@ -1613,7 +1613,9 @@
       "earpiece": "Loa trong",
       "in_use": "{{output}} · đang dùng",
       "failed": "Không chuyển được âm thanh. Thử lại.",
-      "held": "Đang tạm giữ · bạn đang nghe cuộc gọi điện thoại"
+      "held": "Đang tạm giữ · bạn đang nghe cuộc gọi điện thoại",
+      "weak_self": "Mạng của bạn yếu",
+      "weak_peer": "Mạng của người kia yếu"
     },
     "conversation": {
       "load_failed": "Không tải được tin nhắn",

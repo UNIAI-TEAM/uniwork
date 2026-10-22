@@ -11,6 +11,8 @@
 //   goes (the screen and its own ringtone take over).
 // - the call over: the service stops, any ringing notification goes, and the
 //   activity no longer shows over the lock screen.
+// - the media link dropped and LiveKit reconnecting (components/calls/
+//   use-call-link.ts): the ongoing notification says so until it is back.
 //
 // Nothing here ends a call or reads the calls switch: a call already under
 // way keeps its service when the switch is turned off.
@@ -43,6 +45,13 @@ function callIdOf(state: VoiceCallOverlayState): string | undefined {
 export function createNativeCallSync(env: NativeCallSyncEnv) {
   let callId: string | null = null;
   let connectedAt = 0;
+  let reconnecting = false;
+
+  function line(state: InCall, video: boolean): string {
+    if (reconnecting) return env.t("chat.voice_call_reconnecting");
+    if (state.status === "connecting") return env.t("chat.voice_call_connecting");
+    return env.t(video ? "mobile.call_notify.ongoing_video" : "mobile.call_notify.ongoing_voice");
+  }
 
   function ongoing(state: InCall): NativeOngoingCall {
     const video = state.withCamera ?? false;
@@ -51,10 +60,7 @@ export function createNativeCallSync(env: NativeCallSyncEnv) {
       roomId: state.roomId,
       workspaceId: env.workspaceId(),
       peerName: state.peerName,
-      text:
-        state.status === "connecting"
-          ? env.t("chat.voice_call_connecting")
-          : env.t(video ? "mobile.call_notify.ongoing_video" : "mobile.call_notify.ongoing_voice"),
+      text: line(state, video),
       video,
       startedAt: connectedAt,
     };
@@ -66,6 +72,7 @@ export function createNativeCallSync(env: NativeCallSyncEnv) {
       if (callId !== next.callId) {
         callId = next.callId;
         connectedAt = 0;
+        reconnecting = false;
         void env.requestBluetooth().catch(bestEffort("calls", "bluetooth permission not asked", "breadcrumb"));
       }
       if (next.status === "active" && !connectedAt) connectedAt = env.now();
@@ -78,6 +85,7 @@ export function createNativeCallSync(env: NativeCallSyncEnv) {
     if (callId !== null) {
       callId = null;
       connectedAt = 0;
+      reconnecting = false;
       env.native.stopOngoingCall();
     }
     if (next.status === "idle" || next.status === "ended") env.native.releaseLockScreen();
@@ -87,6 +95,12 @@ export function createNativeCallSync(env: NativeCallSyncEnv) {
     apply,
     /** The call's service again: LiveKit now holds the microphone (the service's microphone type needs it granted). */
     refresh(state: VoiceCallOverlayState): void {
+      if (inCall(state) && state.callId === callId) env.native.startOngoingCall(ongoing(state));
+    },
+    /** The media link dropped (true) or came back (false): the ongoing notification follows. */
+    setReconnecting(on: boolean, state: VoiceCallOverlayState): void {
+      if (on === reconnecting) return;
+      reconnecting = on;
       if (inCall(state) && state.callId === callId) env.native.startOngoingCall(ongoing(state));
     },
   };

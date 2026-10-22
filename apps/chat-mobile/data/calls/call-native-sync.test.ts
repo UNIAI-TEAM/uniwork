@@ -32,6 +32,25 @@ function setup(over: Partial<NativeCallSyncEnv> = {}) {
 }
 
 describe("native call sync", () => {
+  it("says on the ongoing notification while the media link reconnects, and forgets it with the call", () => {
+    const { env, sync, set } = setup();
+    set(connecting);
+    set(active);
+    sync.setReconnecting(true, active);
+    expect(env.native.startOngoingCall).toHaveBeenLastCalledWith(expect.objectContaining({ text: "chat.voice_call_reconnecting" }));
+    // The same news twice posts once.
+    sync.setReconnecting(true, active);
+    expect(env.native.startOngoingCall).toHaveBeenCalledTimes(3);
+    sync.setReconnecting(false, active);
+    expect(env.native.startOngoingCall).toHaveBeenLastCalledWith(expect.objectContaining({ text: "mobile.call_notify.ongoing_voice" }));
+    // A drop with no call under way (or another call's) only remembers it; the call ending forgets it.
+    sync.setReconnecting(true, idle);
+    expect(env.native.startOngoingCall).toHaveBeenCalledTimes(4);
+    set(ended);
+    set({ ...connecting, callId: "c-2" });
+    expect(env.native.startOngoingCall).toHaveBeenLastCalledWith(expect.objectContaining({ callId: "c-2", text: "chat.voice_call_connecting" }));
+  });
+
   it("runs the foreground service from connecting to the end of the call", () => {
     const { env, set, tick } = setup();
     set(incoming);
