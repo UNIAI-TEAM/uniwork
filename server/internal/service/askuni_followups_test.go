@@ -22,6 +22,9 @@ func TestSplitFollowups(t *testing.T) {
 		{"no block is verbatim", "Xong [S1].\n", "Xong [S1].\n", nil},
 		{"a block cut off by a stop", "Xong.\n<followups>\n- Việc nào", "Xong.", nil},
 		{"an empty block", "Xong.\n<followups>\n</followups>", "Xong.", nil},
+		{"a question citing a source is dropped", "Xong.\n<followups>\n- Ai làm [S2]?\n- Việc nào trễ?\n</followups>", "Xong.", []string{"Việc nào trễ?"}},
+		{"CRLF line endings", "Xong.\r\n<followups>\r\n- Việc nào trễ?\r\n- Ai đang làm?\r\n</followups>", "Xong.", []string{"Việc nào trễ?", "Ai đang làm?"}},
+		{"a line without a bullet", "Xong.\n<followups>\nViệc nào trễ?\n</followups>", "Xong.", []string{"Việc nào trễ?"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			body, items := splitFollowups(tc.answer)
@@ -29,7 +32,7 @@ func TestSplitFollowups(t *testing.T) {
 				t.Fatalf("body %q items %q, want %q %q", body, items, tc.body, tc.items)
 			}
 			for _, q := range items {
-				if utf8.RuneCountInString(q) > followupRunesMax || strings.Contains(q, "\n") {
+				if utf8.RuneCountInString(q) > followupRunesMax || strings.ContainsAny(q, "\r\n") {
 					t.Fatalf("follow-up %q is not one line of at most %d runes", q, followupRunesMax)
 				}
 			}

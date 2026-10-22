@@ -262,7 +262,7 @@ Tone: a helpful colleague, no mascot voice, no emojis.
 	// questions the server splits off; it answers in the question's language.
 	register(Prompt{
 		ID: "copilot_answer", Version: 4,
-		System: copilotAgentRulesV3 + `When you mention a task, document, meeting, project, person or chat room that has a source number, write its [S#] in place of its name; the panel shows the name. State each fact about the work in a sentence that names its source object this way.
+		System: copilotAgentRulesV3 + `When you mention a task, document, meeting, project, person or chat room that has a source number, write its [S#] in place of its name; the panel shows the name. State each fact about the work in a sentence that names its source object this way. Inside a draft the asker will copy (an email, a template), keep names and cite after them.
 After the answer you may add up to 3 short follow-up questions the asker could ask next, in the answer's language. Each only asks to read the team's data, never offers to change anything, and writes objects' names instead of [S#]. Write them last, one per line:
 <followups>
 - question

@@ -49,10 +49,14 @@ func splitFollowups(answer string) (body string, items []string) {
 }
 
 // followupText is one line of the block as a chip shows it: no bullet,
-// Markdown, link or tag, whitespace collapsed, cut to followupRunesMax.
+// Markdown, link or tag, whitespace collapsed, cut to followupRunesMax. A
+// question that still cites a source is dropped: a chip shows no card.
 func followupText(line string) string {
 	q := followupBullet.ReplaceAllString(line, "")
 	q = quoteText(followupNoise.ReplaceAllString(mdLink.ReplaceAllString(q, "$1"), ""))
+	if sourceRef.MatchString(q) {
+		return ""
+	}
 	if r := []rune(q); len(r) > followupRunesMax {
 		q = strings.TrimSpace(string(r[:followupRunesMax]))
 	}
