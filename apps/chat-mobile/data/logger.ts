@@ -82,23 +82,60 @@ let perfSink: ((text: string) => void) | null = null;
 const marked = new Set<string>();
 const markLines: string[] = [];
 
-function logMark(name: string, at: number): void {
-  if (marked.has(name)) return;
+/** Adds a mark not logged yet; false when this process already logged it. */
+function addMark(name: string, at: number): boolean {
+  if (marked.has(name)) return false;
   marked.add(name);
   const line = `UniChatPerf mark=${name} at=${at}`;
   markLines.push(line);
   console.info(line);
-  perfSink?.(markLines.join("\n"));
+  return true;
+}
+
+function logMark(name: string, at: number): void {
+  if (addMark(name, at)) perfSink?.(markLines.join("\n"));
+}
+
+// React Native's own startup timing (performance.rnStartupTiming): the app's start as the platform reports it, the
+// runtime's initialisation and the bundle's evaluation. Its times are monotonic ms on performance.now()'s clock (iOS:
+// CACurrentMediaTime, the same mach clock as RN's steady clock), turned into epoch ms like every other mark.
+const RN_STARTUP_MARKS = [
+  ["rn-startup", "startTime"],
+  ["rn-runtime-init", "initializeRuntimeStart"],
+  ["rn-bundle-entry", "executeJavaScriptBundleEntryPointStart"],
+] as const;
+
+type StartupTiming = Partial<Record<(typeof RN_STARTUP_MARKS)[number][1], number | null>>;
+
+/** Adds React Native's startup marks; a runtime without the API (or one whose getter throws) adds none. */
+function addRnStartupMarks(): boolean {
+  let added = false;
+  try {
+    const perf = (globalThis as { performance?: { now?: () => number; rnStartupTiming?: StartupTiming } }).performance;
+    const timing = perf?.rnStartupTiming;
+    if (!timing || typeof perf?.now !== "function") return false;
+    const toEpoch = Date.now() - perf.now();
+    for (const [name, field] of RN_STARTUP_MARKS) {
+      const value = timing[field];
+      if (typeof value === "number" && Number.isFinite(value) && value > 0) added = addMark(name, Math.round(value + toEpoch)) || added;
+    }
+  } catch {
+    // Attribution only: a measured build without it still logs its own marks.
+  }
+  return added;
 }
 
 /**
  * Boot (data/boot.ts): whether this build logs its startup marks, and where else they go. Turning them on
- * logs "js-boot", the moment the bundle started (data/perf/boot-clock.ts).
+ * logs "js-boot", the moment the bundle started (data/perf/boot-clock.ts), and React Native's own startup marks
+ * when the runtime has them, in one write of the sink.
  */
 export function enablePerfMarks(on: boolean, sink?: (text: string) => void): void {
   perfMarks = on;
   perfSink = on ? (sink ?? null) : null;
-  if (on) logMark("js-boot", JS_BOOT_AT);
+  if (!on) return;
+  const boot = addMark("js-boot", JS_BOOT_AT);
+  if (addRnStartupMarks() || boot) perfSink?.(markLines.join("\n"));
 }
 
 /** The first time this process reaches `name` ("first-screen", "inbox"), in a build that measures itself. */

@@ -121,3 +121,51 @@ describe("perfMark", () => {
     enablePerfMarks(false);
   });
 });
+
+describe("React Native's startup marks", () => {
+  it("logs them at epoch times beside js-boot, in one write, and never breaks a runtime without them", async () => {
+    // A fresh module: each mark is logged once per process, and the test above already logged js-boot.
+    vi.resetModules();
+    const fresh = await import("./logger");
+    const { JS_BOOT_AT: bootAt } = await import("./perf/boot-clock");
+    const marksSink = vi.fn();
+    vi.spyOn(Date, "now").mockReturnValue(1_729_584_001_900);
+    try {
+      // No performance object at all: js-boot alone.
+      vi.stubGlobal("performance", undefined);
+      fresh.enablePerfMarks(true, marksSink);
+      expect(marksSink).toHaveBeenLastCalledWith(`UniChatPerf mark=js-boot at=${bootAt}`);
+      // A getter that throws, or a runtime without performance.now: no mark, no write, no throw.
+      vi.stubGlobal("performance", {
+        now: () => 5_000,
+        get rnStartupTiming(): never {
+          throw new Error("not supported");
+        },
+      });
+      fresh.enablePerfMarks(true, marksSink);
+      vi.stubGlobal("performance", { rnStartupTiming: { startTime: 1_000 } });
+      fresh.enablePerfMarks(true, marksSink);
+      expect(marksSink).toHaveBeenCalledTimes(1);
+      // Monotonic ms on performance.now()'s clock become epoch ms; a field the platform did not set is no mark.
+      vi.stubGlobal("performance", {
+        now: () => 5_000,
+        rnStartupTiming: { startTime: 1_000.4, initializeRuntimeStart: null, executeJavaScriptBundleEntryPointStart: 4_000 },
+      });
+      fresh.enablePerfMarks(true, marksSink);
+      expect(marksSink).toHaveBeenCalledTimes(2);
+      expect(marksSink).toHaveBeenLastCalledWith(
+        [`UniChatPerf mark=js-boot at=${bootAt}`, "UniChatPerf mark=rn-startup at=1729583997900", "UniChatPerf mark=rn-bundle-entry at=1729584000900"].join("\n"),
+      );
+      // Once per process, and only a real moment: a repeat, an infinite or a zero time adds nothing.
+      vi.stubGlobal("performance", {
+        now: () => 5_000,
+        rnStartupTiming: { startTime: 2_000, initializeRuntimeStart: Number.POSITIVE_INFINITY, executeJavaScriptBundleEntryPointStart: 0 },
+      });
+      fresh.enablePerfMarks(true, marksSink);
+      expect(marksSink).toHaveBeenCalledTimes(2);
+    } finally {
+      fresh.enablePerfMarks(false);
+      vi.unstubAllGlobals();
+    }
+  });
+});
