@@ -362,6 +362,12 @@ máy mở lạnh không có mạng vẫn theo công tắc và mức tối thiể
   tổ chức của cuộc gọi, như máy đọc nó; dòng inbox vẫn còn, `uniwork_push_suppressed_total{kind="chat_call_incoming"}`
   đếm) và không gửi push "kết thúc" (`chat.voice.ring_closed`), nên máy không reo kể cả khi app chưa đọc cấu hình.
   Bật lại: xoá biến/override.
+- Gọi trên iPhone: tắt mặc định bằng flag riêng `unichat_mobile_calls_ios` (chưa có CallKit/PushKit: iPhone khoá máy chỉ
+  kêu một tiếng ngắn và banner "X đang gọi" nằm lại sau khi cuộc gọi kết thúc). Server gộp nó vào
+  `mobile_flags.unichat_mobile_calls` của máy gửi `X-Client-OS: ios` (`featureflags.MobileFlagsFor`) nên iPhone ẩn nút
+  gọi, và push đổ chuông bỏ qua đăng ký `expo/ios` (`PushConsumer.SetMobileCallsIOS`, đếm `skipped`); Android vẫn reo.
+  Chỉ bật (`FF_UNICHAT_MOBILE_CALLS_IOS=true` hoặc override) khi bản iOS có CallKit/PushKit; `unichat_mobile_calls=false`
+  vẫn tắt gọi trên mọi nền tảng.
 - Tắt một phần khác của app (mặc định bật, cùng cách đặt: `FF_<KEY>=false` hoặc override ở console):
   `unichat_mobile_media_upload` (ẩn gửi ảnh/tệp trong menu đính kèm; tin đã xếp hàng vẫn đi),
   `unichat_mobile_voice_messages` (ẩn nút ghi tin thoại), `unichat_mobile_ai_catch_up` (ẩn banner "Bắt kịp nhanh"),

@@ -205,3 +205,33 @@ func TestForPersonReadsTheMobileCallsSwitch(t *testing.T) {
 		t.Fatal("FF_UNICHAT_MOBILE_CALLS=true: want on")
 	}
 }
+
+// Calls on an iPhone wait for CallKit (UNI-2053 audit "ios-no-callkit-pushkit"):
+// unichat_mobile_calls_ios is a mobile flag, off by default, and an iPhone's
+// unichat_mobile_calls reads off while it is off, whatever the calls switch
+// says. Android and a caller that names no OS keep the calls switch alone;
+// turning the iOS switch on gives an iPhone the calls switch's own answer.
+func TestMobileCallsAreOffOnAnIPhoneUntilTheIOSSwitchIsOn(t *testing.T) {
+	f, ok := Lookup("unichat_mobile_calls_ios")
+	if !ok || !f.Mobile || f.Default || f.Public || f.ReviewAt.IsZero() {
+		t.Fatalf("unichat_mobile_calls_ios = %+v, want a mobile flag off by default with a review date", f)
+	}
+	ctx := context.Background()
+	if MobileFlagsFor(ctx, nil, "ios")["unichat_mobile_calls"] {
+		t.Fatal("an iPhone must not call by default")
+	}
+	for _, os := range []string{"android", "", "web"} {
+		if !MobileFlagsFor(ctx, nil, os)["unichat_mobile_calls"] {
+			t.Fatalf("os %q: the calls switch alone decides, want on", os)
+		}
+	}
+	t.Setenv("FF_UNICHAT_MOBILE_CALLS_IOS", "true")
+	svc := featureflag.NewService(featureflag.NewEnvProvider("FF_"))
+	if !MobileFlagsFor(ctx, svc, "ios")["unichat_mobile_calls"] {
+		t.Fatal("iOS switch on: an iPhone calls")
+	}
+	t.Setenv("FF_UNICHAT_MOBILE_CALLS", "false")
+	if MobileFlagsFor(ctx, svc, "ios")["unichat_mobile_calls"] || MobileFlagsFor(ctx, svc, "android")["unichat_mobile_calls"] {
+		t.Fatal("the calls kill switch still turns calls off on every platform")
+	}
+}

@@ -284,3 +284,23 @@ func TestMissedCallTitleNamesTheCaller(t *testing.T) {
 		}
 	}
 }
+
+// The OS a subscription registered from, read from the user agent the mobile
+// app records (expoUserAgent); a browser's agent is no platform.
+func TestExpoPlatformReadsTheMobileUserAgent(t *testing.T) {
+	for agent, want := range map[string]string{
+		"expo/ios":                        "ios",
+		"expo/android":                    "android",
+		"expo/android; call-ui":           "android",
+		"Mozilla/5.0 (X11; Linux x86_64)": "",
+		"":                                "",
+	} {
+		sub := db.PushSubscription{UserAgent: pgtype.Text{String: agent, Valid: agent != ""}}
+		if got := expoPlatform(sub); got != want {
+			t.Fatalf("expoPlatform(%q) = %q, want %q", agent, got, want)
+		}
+	}
+	if got := expoPlatform(db.PushSubscription{UserAgent: pgtype.Text{String: expoUserAgent("ios", true)}}); got != "" {
+		t.Fatalf("an invalid (NULL) agent is no platform, got %q", got)
+	}
+}

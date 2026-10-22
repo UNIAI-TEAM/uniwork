@@ -28,7 +28,10 @@ type PushConsumer struct {
 	// mobileCalls is the unichat_mobile_calls kill switch for a recipient;
 	// nil means calls ring.
 	mobileCalls func(ctx context.Context, userID, organizationID string) bool
-	now         func() time.Time
+	// mobileCallsIOS is the unichat_mobile_calls_ios switch: off, an iPhone
+	// gets no ring; nil means iPhones ring like the rest.
+	mobileCallsIOS func(ctx context.Context, userID, organizationID string) bool
+	now            func() time.Time
 }
 
 // PresenceChecker says when a user last had a visible chat presence heartbeat
@@ -70,6 +73,16 @@ func (c *PushConsumer) SetCallRinging(r CallRingChecker) { c.calls = r }
 // phones only, so nothing else loses it. The inbox row stays.
 func (c *PushConsumer) SetMobileCalls(on func(ctx context.Context, userID, organizationID string) bool) {
 	c.mobileCalls = on
+}
+
+// SetMobileCallsIOS wires the iPhone calls switch (featureflags
+// unichat_mobile_calls_ios, off by default). Without CallKit and PushKit an
+// iPhone cannot ring: a ring would be one short sound and a "X đang gọi"
+// banner that stays after the call ends, since no end reaches it. Off, a call
+// skips the person's iPhones and still rings their Android phones; the phone
+// itself hides calling (featureflags.MobileFlagsFor).
+func (c *PushConsumer) SetMobileCallsIOS(on func(ctx context.Context, userID, organizationID string) bool) {
+	c.mobileCallsIOS = on
 }
 
 // SetMetrics attaches counters.
@@ -199,11 +212,16 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 			ExpiresAt: n.CreatedAt.Time.Add(callRingWindow).UnixMilli(),
 		}
 	}
+	iPhonesRing := n.Kind == KindChatCallIncoming && (c.mobileCallsIOS == nil || c.mobileCallsIOS(ctx, n.UserID, n.OrganizationID))
 	var failed error
 	for _, sub := range subs {
 		// A call rings web and desktop in the page (realtime); its push is for
 		// the backgrounded phone only (spec M3 §2), never a browser banner on top.
 		if n.Kind == KindChatCallIncoming && !isExpoPushToken(sub.Endpoint) {
+			continue
+		}
+		if n.Kind == KindChatCallIncoming && !iPhonesRing && expoPlatform(sub) == "ios" {
+			c.count("skipped")
 			continue
 		}
 		err := c.sender.Send(ctx, sub, msg)

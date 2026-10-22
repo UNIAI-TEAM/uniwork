@@ -24,6 +24,8 @@ import (
 func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 	ec := featureflag.EvalContext{UserID: middleware.UserID(r.Context()), OrganizationID: r.URL.Query().Get("organization_id")}
 	ctx := featureflag.WithEvalContext(r.Context(), ec)
+	// The phone's OS gates calls on an iPhone (featureflags.MobileFlagsFor).
+	_, _, clientOS := middleware.ClientMetadataFromContext(r.Context())
 	deploymentID := "default"
 	for _, candidate := range h.Cfg.DesktopAuthDeploymentIDs {
 		if trimmed := strings.TrimSpace(candidate); trimmed != "" {
@@ -42,7 +44,7 @@ func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 		UniChatInstallers:          installerChannels(h.Cfg.UniChatInstallers),
 		UniChatStores:              h.Cfg.UniChatStores(),
 		MinSupportedMobileVersion:  h.Cfg.UniChatMobileMinVersion,
-		MobileFlags:                featureflags.EvaluateMobileFlags(ctx, h.FeatureFlags),
+		MobileFlags:                featureflags.MobileFlagsFor(ctx, h.FeatureFlags, clientOS),
 		Documents: sdo.DocumentsConfigSDO{
 			Limits: sdo.DocumentLimitsSDO{
 				UploadMaxBytes: h.Cfg.EffectiveDocumentMaxBytes(),

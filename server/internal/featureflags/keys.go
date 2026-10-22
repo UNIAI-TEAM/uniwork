@@ -79,6 +79,11 @@ var catalogue = []Flag{
 	// (or an organization/user override) hides calling on every installed
 	// phone at its next config read, incoming calls included.
 	{Key: "unichat_mobile_calls", Description: "UniChat mobile: gọi thoại/video, cả màn cuộc gọi đến native trên Android; tắt là kill switch ẩn và ngừng nhận cuộc gọi trên mọi bản đã cài (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	// Calls on an iPhone wait for CallKit and PushKit (docs/adr/drafts/0038): without them a locked
+	// iPhone plays one short sound and keeps "X đang gọi" after the call ends. Off by default; an
+	// iPhone's unichat_mobile_calls reads off while this is off (MobileFlagsFor), and the push
+	// consumer sends no ring to an iPhone (PushConsumer.SetMobileCallsIOS).
+	{Key: "unichat_mobile_calls_ios", Description: "UniChat mobile: gọi điện trên iPhone; tắt (mặc định) thì iPhone không hiện nút gọi và không nhận push đổ chuông, vì chưa có CallKit/PushKit (UNI-2053)", Default: false, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	// The phone's other risky subsystems (UNI-2053 audit "remote-config-thin"): each is on by default and
 	// read by the app through useMobileFlag / readMobileFlag; FF_<KEY>=false, FF_<KEY>=N% (by user id) or a
 	// console override turns one off for everyone, a share of people, an organization or one person.
@@ -97,6 +102,28 @@ func EvaluateMobileFlags(ctx context.Context, flags *featureflag.Service) map[st
 	for _, f := range catalogue {
 		if f.Mobile {
 			out[f.Key] = flags.IsEnabled(ctx, f.Key, f.Default)
+		}
+	}
+	return out
+}
+
+// mobilePlatformGates: a mobile switch that on one platform also needs a
+// platform switch on. The phone reads only the first key, so the platform's
+// answer is folded into it here and no installed build needs to know.
+var mobilePlatformGates = map[string]map[string]string{
+	"unichat_mobile_calls": {"ios": "unichat_mobile_calls_ios"},
+}
+
+// MobileFlagsFor is EvaluateMobileFlags for a phone on os (X-Client-OS:
+// "ios", "android"; anything else, including none, gets no platform gate):
+// a switch with a platform gate reads on only when its gate is on too. The
+// header is the client's word, which is enough to hide a capability; a flag
+// never grants a permission.
+func MobileFlagsFor(ctx context.Context, flags *featureflag.Service, os string) map[string]bool {
+	out := EvaluateMobileFlags(ctx, flags)
+	for key, gates := range mobilePlatformGates {
+		if gate, ok := gates[os]; ok {
+			out[key] = out[key] && out[gate]
 		}
 	}
 	return out

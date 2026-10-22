@@ -532,6 +532,7 @@ func main() {
 	// The UniChat mobile calls kill switch stops the incoming-call push too,
 	// not just the ring inside the app (UNI-2053).
 	pushConsumer.SetMobileCalls(featureflags.ForPerson(flags, "unichat_mobile_calls"))
+	pushConsumer.SetMobileCallsIOS(featureflags.ForPerson(flags, "unichat_mobile_calls_ios"))
 	digest := notification.NewDigestScheduler(q, wsSvc, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
 	// The inbox list marks a document row's resource_access_lost /

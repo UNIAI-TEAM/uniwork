@@ -112,6 +112,17 @@ func expoUserAgent(platform string, callUI bool) string {
 	return "expo/" + platform
 }
 
+// expoPlatform is the OS a mobile subscription registered from ("ios",
+// "android"), "" for a browser or a row with no user agent.
+func expoPlatform(sub db.PushSubscription) string {
+	rest, ok := strings.CutPrefix(sub.UserAgent.String, "expo/")
+	if !sub.UserAgent.Valid || !ok {
+		return ""
+	}
+	platform, _, _ := strings.Cut(rest, ";")
+	return platform
+}
+
 // expoCallUI reports a subscription that gets call pushes as data-only
 // messages. An Android build from before the call UI ("expo/android") has
 // no task to turn one into a ring, so it keeps the visible push.

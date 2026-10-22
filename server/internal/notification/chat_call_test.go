@@ -315,6 +315,55 @@ func TestCallPushStopsWhenTheMobileCallsSwitchIsOff(t *testing.T) {
 	}
 }
 
+// Calls on an iPhone wait for CallKit (unichat_mobile_calls_ios, off by
+// default): with that switch off a call rings the person's Android phones and
+// skips their iPhones, which could only play one short sound and keep a stale
+// "X đang gọi" banner; on, the iPhone gets its visible push again.
+func TestCallPushSkipsIPhonesWhileTheIOSSwitchIsOff(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribeAs(t, f.member.ID, "ExponentPushToken[android]", "expo/android; call-ui")
+	f.subscribeAs(t, f.member.ID, "ExponentPushToken[iphone]", "expo/ios")
+	iosOn := false
+	var asked [][2]string
+	spy := &spySender{}
+	pc := NewPushConsumer(f.q, spy, "http://app.test")
+	pc.SetCallRinging(chat)
+	pc.SetMobileCallsIOS(func(_ context.Context, userID, organizationID string) bool {
+		asked = append(asked, [2]string{userID, organizationID})
+		return iosOn
+	})
+	ring := func(callID string) []string {
+		spy.sent, spy.endpoints = nil, nil
+		if err := chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.wsID, dm.ID, callID, false); err != nil {
+			t.Fatal(err)
+		}
+		f.handleLast(t, "chat.voice.invite_received")
+		if err := pc.Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
+			t.Fatal(err)
+		}
+		if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, callID); err != nil {
+			t.Fatal(err)
+		}
+		return spy.endpoints
+	}
+
+	if got := ring("call-ios-off"); len(got) != 1 || got[0] != "ExponentPushToken[android]" {
+		t.Fatalf("iOS switch off: rang %v, want the Android phone only", got)
+	}
+	if len(asked) != 1 || asked[0] != [2]string{f.member.ID, f.orgID} {
+		t.Fatalf("iOS switch evaluated for %v, want the callee in the call's organization", asked)
+	}
+	iosOn = true
+	if got := ring("call-ios-on"); len(got) != 2 {
+		t.Fatalf("iOS switch on: rang %v, want both phones", got)
+	}
+}
+
 // Only a call skips the browser: a chat message still reaches every subscription.
 func TestChatMessagePushStillReachesBrowserAndPhone(t *testing.T) {
 	f := newFixture(t)
