@@ -1,0 +1,16 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18520 FRONTEND_ORIGIN=http://localhost:13440 API_PUBLIC_URL=http://localhost:18520 PREVIEW_ORIGIN=http://localhost:13441 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18520 NEXT_PUBLIC_WS_URL=ws://localhost:18520 NEXT_PUBLIC_APP_URL=http://localhost:13440 E2E_BASE_URL=http://localhost:13440 E2E_API_URL=http://localhost:18520 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-home.spec.ts --reporter=list > /tmp/u2074r3-documents-home.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/u2074r3-documents-home.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/u2074r3-documents-home.log && echo "skipped: documents-home has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/u2074r3-documents-home.log || { echo "no passing test in documents-home"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_DOCUMENTS_HOME_EXIT=$rc"
+
+Running 6 tests using 1 worker
+
+(node:18769) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents-home.spec.ts:54:1 › quick create, folder, move and the other-modules section on the owner's home (9.5s)
+  ✓  2 documents-home.spec.ts:129:1 › My Folder sub-nav row, personal folder view, localized tree label, Home create into My Folder, and system folder guards (3.9s)
+  ✓  3 documents-home.spec.ts:180:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.7s)
+  ✓  4 documents-home.spec.ts:297:3 › a view-only member › sees create controls at the root, and a shared page without its owner's folder (2.5s)
+  ✓  5 documents-home.spec.ts:312:3 › a view-only member › gets no Move, Archive or Move to trash on a row shared at view level (2.1s)
+  ✓  6 documents-home.spec.ts:326:3 › a view-only member › lists shared documents under the owner's Tôi đã chia sẻ, excludes private ones, and keeps them out of the recipient's Tôi đã chia sẻ (5.4s)
+
+  6 passed (31.2s)
+
+E2E_DOCUMENTS_HOME_EXIT=0
