@@ -210,7 +210,10 @@ func TestMemberDocumentsTransferMovesWhatTheRecipientCanOwn(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("bulk outbox rows = %d, want 1", len(events))
 	}
-	if e := events[0]; len(e) != 4 || e["organization_id"] != tn.orgID || e["user_id"] != tn.member.ID || e["from_user_id"] != src {
+	// workspace_id is the workspace of the first moved document in id order
+	// (FE-R1-3); dA1 and dA2 both live in workspace A.
+	if e := events[0]; len(e) != 5 || e["organization_id"] != tn.orgID || e["user_id"] != tn.member.ID || e["from_user_id"] != src ||
+		e["workspace_id"] != tn.wsA {
 		t.Fatalf("bulk outbox payload = %v", e)
 	}
 }

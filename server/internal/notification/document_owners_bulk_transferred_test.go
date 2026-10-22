@@ -37,6 +37,14 @@ func (f *documentFixture) bulkPayload(recipientID, fromID, bulkID string) map[st
 	return map[string]string{"organization_id": f.orgID, "user_id": recipientID, "bulk_id": bulkID, "from_user_id": fromID}
 }
 
+// bulkPayloadIn is the frame the service writes: the same four ids plus the
+// workspace of the first document the call moved (FE-R1-3).
+func (f *documentFixture) bulkPayloadIn(wsID, recipientID, fromID, bulkID string) map[string]string {
+	p := f.bulkPayload(recipientID, fromID, bulkID)
+	p["workspace_id"] = wsID
+	return p
+}
+
 func TestDocumentOwnersBulkTransferredGroupsTheBatchesOfOneRun(t *testing.T) {
 	f := newDocumentFixture(t)
 	source := f.addMember(t, "bulk-src@example.com", "Nguyễn Cũ")
@@ -77,6 +85,35 @@ func TestDocumentOwnersBulkTransferredGroupsTheBatchesOfOneRun(t *testing.T) {
 	}
 }
 
+// TestDocumentOwnersBulkTransferredStampsTheWorkspaceOfTheFrame is FE-R1-3: the
+// Inbox and the bell list by workspace, so a grouped notice stored with a NULL
+// workspace never shows there. The frame names the workspace of the first
+// moved document and the row carries it while the recipient is still a member
+// of that workspace; a missing, foreign or lost workspace leaves the row
+// organization-level, as before.
+func TestDocumentOwnersBulkTransferredStampsTheWorkspaceOfTheFrame(t *testing.T) {
+	f := newDocumentFixture(t)
+	source := f.addMember(t, "bulk-src4@example.com", "Nguyễn Cũ")
+	recipient := f.addMember(t, "bulk-ws@example.com", "Chủ Mới")
+
+	f.handleEvent(t, f.bulkEvent(t, f.owner.ID, f.bulkPayloadIn(f.wsID, recipient.ID, source.ID, util.NewID())))
+	got := f.bulkTransferredNotifications(t, recipient.ID)
+	if len(got) != 1 || !got[0].WorkspaceID.Valid || got[0].WorkspaceID.String != f.wsID {
+		t.Fatalf("stored row = %+v, want one row carrying workspace %s", got, f.wsID)
+	}
+
+	// No workspace in the frame, or one the recipient is not a member of: the
+	// notice is still delivered, organization-level.
+	for name, ws := range map[string]string{"absent": "", "foreign": util.NewID()} {
+		other := f.addMember(t, "bulk-ws-"+name+"@example.com", "Người "+name)
+		f.handleEvent(t, f.bulkEvent(t, f.owner.ID, f.bulkPayloadIn(ws, other.ID, source.ID, util.NewID())))
+		rows := f.bulkTransferredNotifications(t, other.ID)
+		if len(rows) != 1 || rows[0].WorkspaceID.Valid {
+			t.Fatalf("%s workspace: rows = %+v, want one organization-level row", name, rows)
+		}
+	}
+}
+
 func TestDocumentOwnersBulkTransferredRechecksTheRecipient(t *testing.T) {
 	f := newDocumentFixture(t)
 	source := f.addMember(t, "bulk-src2@example.com", "Nguyễn Cũ")
@@ -107,6 +144,21 @@ func TestDocumentOwnersBulkTransferredSkipsTheCallerAndMalformedFrames(t *testin
 	for _, uid := range []string{f.owner.ID, f.member.ID} {
 		if got := f.bulkTransferredNotifications(t, uid); len(got) != 0 {
 			t.Fatalf("user %s notified: %v", uid, got)
+		}
+	}
+}
+
+// TestDocumentOwnersBulkTransferredTitleWithoutAName is FE-R1-6: a source
+// member who no longer resolves leaves name empty, and the digest/email text
+// must not read "…các tài liệu của .". The wording equals the client's
+// document_owners_bulk_transferred_untitled key.
+func TestDocumentOwnersBulkTransferredTitleWithoutAName(t *testing.T) {
+	for _, params := range []map[string]string{{"actor": "An", "name": ""}, {"actor": "An", "name": "  "}, {"actor": "An"}} {
+		if got := Title("vi", KindDocumentOwnersBulkTransferred, params); got != "An đã chuyển cho bạn quyền sở hữu các tài liệu của một thành viên." {
+			t.Fatalf("vi title %v = %q", params, got)
+		}
+		if got := Title("en", KindDocumentOwnersBulkTransferred, params); got != "An transferred a member's documents to you." {
+			t.Fatalf("en title %v = %q", params, got)
 		}
 	}
 }
