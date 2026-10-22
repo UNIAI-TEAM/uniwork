@@ -56,24 +56,6 @@ func (h *handlers) createChatMessageLink(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusOK, map[string]any{"link": toChatMessageLinkDTO(link)})
 }
 
-func (h *handlers) listChatMessageLinks(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.Chat.ListChatMessageLinks(
-		r.Context(),
-		middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"),
-		chi.URLParam(r, "messageID"),
-	)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	out := make([]sdo.ChatMessageLinkDTO, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, toChatMessageLinkDTO(row))
-	}
-	respondJSON(w, http.StatusOK, sdo.ChatMessageLinkListSDO{Links: out})
-}
-
 func (h *handlers) listChatRoomMessageLinks(w http.ResponseWriter, r *http.Request) {
 	var ids []string
 	if raw := r.URL.Query().Get("message_ids"); raw != "" {
