@@ -1,6 +1,6 @@
 # UniWork — Hỏi UNI: gắn file vào câu hỏi
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-22 (sau một vòng đọc thử, §8); issue UNI-2119; kế hoạch: `docs/superpowers/plans/2026-10-22-ask-uni-attachments.md` (chờ duyệt).
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-22 (sau một vòng đọc thử, §8); issue UNI-2119; kế hoạch: `docs/superpowers/plans/2026-10-22-ask-uni-attachments.md` (chủ sản phẩm duyệt 2026-10-22).
 
 **Ngày:** 2026-10-22
 **Bổ sung cho:** `docs/superpowers/specs/2026-10-16-ask-uni-agent-design.md` (spec gốc) và `docs/superpowers/specs/2026-10-21-ask-uni-ui-parity-design.md` (P2b). Không đổi quyết định nào của hai spec đó.
