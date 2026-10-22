@@ -24,6 +24,8 @@ var tenantExportExcluded = map[string]string{
 	"graph_edges":                    "Chiếu Work Graph, dựng lại được từ nguồn.",
 	"graph_node_facts":               "Chiếu Work Graph, dựng lại được từ nguồn.",
 	"graph_nodes":                    "Chiếu Work Graph, dựng lại được từ nguồn.",
+	"chat_changes":                   "Sổ thay đổi tin nhắn để đồng bộ bù (chỉ id, tự cắt bớt); tin nhắn đã có trong bản xuất.",
+	"chat_change_heads":              "Số thứ tự cuối của sổ thay đổi tin nhắn, bộ đếm kỹ thuật.",
 	"idempotency_keys":               "Sổ kỹ thuật chống ghi trùng.",
 	"file_upload_sessions":           "Phiên tải kỹ thuật.",
 	"file_multipart_uploads":         "Phiên tải nhiều phần kỹ thuật (tệp lớn), đi cùng phiên tải; không phải nội dung.",
