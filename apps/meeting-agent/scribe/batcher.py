@@ -16,13 +16,26 @@ log = logging.getLogger("scribe.batcher")
 # big): sending it again cannot succeed, so it is dropped. Everything else
 # (429, 5xx, network) is kept for the next round.
 FINAL_REFUSALS = frozenset({400, 404, 409, 413})
+# 404 mid-meeting: the token or the run is no longer valid (run closed past
+# its drain window, JWT_SECRET rotated, 24 h cap). The agent leaves, so the
+# server's sweep dispatches a fresh run with a new token (benchmark #25).
+RUN_GONE = 404
 
 Send = Callable[[list[dict]], Awaitable[object]]
 
 
 class SegmentBatcher:
-    def __init__(self, send: Send, *, max_segments: int = 20, max_wait_s: float = 2.0, max_queue: int = 2000) -> None:
+    def __init__(
+        self,
+        send: Send,
+        *,
+        max_segments: int = 20,
+        max_wait_s: float = 2.0,
+        max_queue: int = 2000,
+        on_gone: Callable[[], None] | None = None,
+    ) -> None:
         self._send = send
+        self._on_gone = on_gone
         self._max = max_segments
         self._wait = max_wait_s
         self._cap = max_queue
@@ -60,6 +73,9 @@ class SegmentBatcher:
                 ids = ",".join(str(s.get("segment_id")) for s in batch)
                 log.warning("server refused batch status=%d dropped segments=%s", e.status, ids)
                 del self._queue[: len(batch)]
+                if e.status == RUN_GONE and self._on_gone is not None:
+                    gone, self._on_gone = self._on_gone, None
+                    gone()
                 continue
             except Exception as e:  # noqa: BLE001 - network and the like keep the batch for the next round
                 log.warning("send failed segments=%d err=%s", len(batch), type(e).__name__)

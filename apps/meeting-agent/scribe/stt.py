@@ -71,21 +71,32 @@ class _FakeStream(stt.RecognizeStream):
         )
 
 
-def make_stt(provider: str, keyterms: list[str], diarize: bool = False) -> stt.STT:
+# A conference room's mic hears a table of people; the vendor's diarization
+# is told to expect at most this many (S0 results §2.3: max_speakers with
+# speaker_labels). shortcut: a fixed cap, not the in-person count; pass that
+# when the meeting knows who sits in the room.
+SHARED_MIC_MAX_SPEAKERS = 10
+
+
+def make_stt(provider: str, keyterms: list[str], diarize: bool = False, base_url: str = "") -> stt.STT:
     """diarize: the shared microphone's track (spec §4.3), and only that one -
-    diarization thins out the vendor's interim captions."""
+    diarization thins out the vendor's interim captions. base_url: the
+    vendor's streaming host (config.stt_base_url, benchmark #15)."""
     if provider == "fake":
         return FakeSTT(diarize=diarize)
     if provider == "assemblyai":
         from livekit.plugins import assemblyai
 
         # S0 results §2.3: only Universal-3.6 Pro lists Vietnamese for streaming.
+        # A room mic is far from its speakers: far-field (S0 §2.3, A3).
         return assemblyai.STT(
             model="universal-3-6-pro",
             language_codes=["vi", "en"],
             keyterms_prompt=keyterms[:100],
             mode="max_accuracy",
-            voice_focus="near-field",
+            voice_focus="far-field" if diarize else "near-field",
             speaker_labels=True if diarize else NOT_GIVEN,
+            max_speakers=SHARED_MIC_MAX_SPEAKERS if diarize else NOT_GIVEN,
+            **({"base_url": base_url} if base_url else {}),
         )
     raise ValueError(f"unknown SCRIBE_STT_PROVIDER {provider!r}")

@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import time
+from collections import deque
 from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -17,6 +19,7 @@ from livekit import rtc
 from livekit.agents import stt
 
 from scribe import metrics
+from scribe.health import SttHealth
 
 log = logging.getLogger("scribe.track")
 T = TypeVar("T")
@@ -31,6 +34,52 @@ RETRY_MAX_S = 30.0
 # new set of speakers a clerk has to name. Cost: about 5.6 US cents per extra
 # 5-minute pause per room mic (plan for UNI-2024).
 SHARED_MIC_IDLE_S = 300.0
+# Audio not yet covered by a final, kept so a failed or refused session loses
+# no words: replayed into the next session after the backoff (benchmark #13).
+BUFFER_MAX_S = 30.0
+# The vendor refused a new session: AssemblyAI closes with 1008 past its
+# new-sessions-per-minute limit, an HTTP handshake answers 429 (S0 row 5b).
+SESSION_LIMIT_CODES = frozenset({1008, 429})
+
+
+def failure_reason(e: BaseException) -> str:
+    """session_limit when any exception in the chain carries a session-limit
+    code (the plugin wraps the vendor's close after its own retries), else stream."""
+    seen: set[int] = set()
+    x: BaseException | None = e
+    while x is not None and id(x) not in seen:
+        seen.add(id(x))
+        code = getattr(x, "status_code", None) or getattr(x, "status", None)
+        if code in SESSION_LIMIT_CODES:
+            return "session_limit"
+        x = x.__cause__ or x.__context__
+    return "stream"
+
+
+class AudioBuffer:
+    """The newest max_s seconds of frames."""
+
+    def __init__(self, frames: list[rtc.AudioFrame] | None = None, max_s: float = BUFFER_MAX_S) -> None:
+        self._frames: deque[rtc.AudioFrame] = deque()
+        self._max = max_s
+        self.seconds = 0.0
+        for f in frames or []:
+            self.add(f)
+
+    def add(self, f: rtc.AudioFrame) -> None:
+        self._frames.append(f)
+        self.seconds += f.duration
+        while self.seconds > self._max and len(self._frames) > 1:
+            self.seconds -= self._frames.popleft().duration
+
+    def take(self) -> list[rtc.AudioFrame]:
+        out = list(self._frames)
+        self._frames.clear()
+        self.seconds = 0.0
+        return out
+
+    def __len__(self) -> int:
+        return len(self._frames)
 
 
 @dataclass(frozen=True)
@@ -89,6 +138,8 @@ class TrackTranscriber:
         diarize: bool = False,
         clock: Callable[[], float] = time.monotonic,
         wall: Callable[[], datetime] = lambda: datetime.now(UTC),
+        health: SttHealth | None = None,
+        rand: Callable[[], float] = random.random,
     ) -> None:
         self._sid = segment_prefix
         self._identity = identity
@@ -100,11 +151,16 @@ class TrackTranscriber:
         self._diarize = diarize
         self._clock = clock
         self._wall = wall
+        self._health = health
+        self._rand = rand
         self._session: stt.RecognizeStream | None = None
         self._drain: asyncio.Task | None = None
         self._speaking = False
         self._last_end = 0.0
-        self._preroll: list[rtc.AudioFrame] | None = None
+        # Audio waiting for a session: the VAD's preroll, then (during a
+        # backoff) everything heard since. None: nothing to open a session for.
+        self._preroll: AudioBuffer | None = None
+        self._unfinal = AudioBuffer()  # sent to the open session, no final for it yet
         self._seg = 0  # per track, not per session: ids stay unique across reopenings
         self._speech_ms = 0  # VAD speech since the last final
         self._seg_started: datetime | None = None
@@ -121,8 +177,9 @@ class TrackTranscriber:
     # VAD side: only marks state.
     def on_vad_start(self, preroll: list[rtc.AudioFrame]) -> None:
         self._speaking = True
-        if self._session is None:
-            self._preroll = list(preroll)
+        if self._session is None and not (self._preroll is not None and self._backing_off()):
+            self._preroll = AudioBuffer(preroll)
+        # In a backoff the buffer already holds what the preroll repeats.
 
     def on_vad_end(self, speech_s: float) -> None:
         self._speaking, self._last_end = False, self._clock()
@@ -154,7 +211,7 @@ class TrackTranscriber:
             await self._close("shared mic changed")
             self._stt, self._diarize = stt_impl, diarize
             if self._speaking:
-                self._preroll = []  # mid-sentence: the next frame reopens, not the next sentence
+                self._preroll = AudioBuffer()  # mid-sentence: the next frame reopens, not the next sentence
 
     @property
     def open(self) -> bool:
@@ -165,9 +222,10 @@ class TrackTranscriber:
             if self._session is not None and self._failed:
                 await self._drop()
             if self._session is None and self._preroll is not None:
-                if self._clock() < self._retry_at:
-                    return  # backing off after a failure; speech resumes the session later
-                self._open(self._preroll)
+                if self._backing_off():
+                    self._preroll.add(frame)  # replayed into the next session
+                    return
+                self._open(self._preroll.take())
                 self._preroll = None
             if self._session is None:
                 return
@@ -178,7 +236,9 @@ class TrackTranscriber:
                 self._session.push_frame(frame)
             except Exception as e:  # noqa: BLE001 - a dead session must not end the track
                 log.warning("stt push failed track=%s err=%s", self._sid, type(e).__name__)
-                self._failed = True
+                self._fail("push")
+                return
+            self._unfinal.add(frame)
 
     async def tick(self) -> None:
         """Called once a second: a muted track sends no frames, and its session
@@ -193,15 +253,27 @@ class TrackTranscriber:
         async with self._lock:
             await self._close("track ended")
 
+    def _backing_off(self) -> bool:
+        return self._clock() < self._retry_at
+
+    def _fail(self, reason: str) -> None:
+        self.failures += 1
+        metrics.STT_ERRORS.labels(reason=reason).inc()
+        if self._health is not None:
+            self._health.failed()
+        self._failed = True
+
     def _idle_due(self) -> bool:
         idle = max(self._idle_base, SHARED_MIC_IDLE_S) if self._diarize else self._idle_base
         return not self._speaking and self._clock() - self._last_end >= idle
 
     def _open(self, preroll: list[rtc.AudioFrame]) -> None:
         self.sessions += 1
+        metrics.STT_SESSIONS.inc()
         s = self._stt.stream()
         for f in preroll:
             s.push_frame(f)
+        self._unfinal = AudioBuffer(preroll)
         self._failed = False
         self._session, self._drain = s, asyncio.create_task(self._read(s))
         self._opened_at = self._clock()
@@ -216,12 +288,15 @@ class TrackTranscriber:
         if drain is not None:
             await drain  # every final of this session is out before the next opens
         await s.aclose()
+        self._unfinal.take()  # every final of the session is out
         self.session_ms += int((self._clock() - self._opened_at) * 1000)
         log.info("stt close track=%s reason=%s", self._sid, reason)
 
     async def _drop(self) -> None:
-        """Discards a failed session and schedules the retry: the next speech
-        after retry_at opens a new one."""
+        """Discards a failed session and schedules the retry, jittered so the
+        tracks of a fleet that failed together do not reopen together. The audio
+        it had no final for waits in the buffer with what is heard during the
+        backoff, and opens the next session once retry_at passes."""
         s, self._session = self._session, None
         if s is not None:
             try:
@@ -230,8 +305,9 @@ class TrackTranscriber:
                 pass
             self.session_ms += int((self._clock() - self._opened_at) * 1000)
         self._failed = False
-        self._preroll = None
-        self._retry_at = self._clock() + self._retry_s
+        pending = self._unfinal.take()
+        self._preroll = AudioBuffer(pending) if pending or self._speaking else None
+        self._retry_at = self._clock() + self._retry_s * (0.5 + self._rand() / 2)
         log.warning("stt dropped track=%s retry_in_s=%.0f", self._sid, self._retry_s)
         self._retry_s = min(RETRY_MAX_S, self._retry_s * 2)
 
@@ -240,10 +316,9 @@ class TrackTranscriber:
             async for ev in s:
                 await self._event(ev)
         except Exception as e:  # noqa: BLE001 - the track lives on; push/tick drop the session
-            self.failures += 1
-            metrics.STT_ERRORS.inc()
-            log.warning("stt failed track=%s err=%s", self._sid, type(e).__name__)
-            self._failed = True
+            reason = failure_reason(e)
+            log.warning("stt failed track=%s reason=%s err=%s", self._sid, reason, type(e).__name__)
+            self._fail(reason)
 
     async def _event(self, ev: stt.SpeechEvent) -> None:
         if ev.type not in (stt.SpeechEventType.INTERIM_TRANSCRIPT, stt.SpeechEventType.FINAL_TRANSCRIPT):
@@ -251,6 +326,8 @@ class TrackTranscriber:
         alt = ev.alternatives[0]
         if not alt.text.strip():
             return
+        if self._health is not None:
+            self._health.ok()
         final = ev.type == stt.SpeechEventType.FINAL_TRANSCRIPT
         seg_id = f"{self._sid}-{self._seg + 1}"
         language = alt.language or self._language
@@ -263,6 +340,7 @@ class TrackTranscriber:
         if not final:
             return
         self._seg += 1
+        self._unfinal.take()  # the vendor finalised what it was sent
         self._retry_s = RETRY_MIN_S  # a session that delivers is healthy again
         if self._end_at is not None:
             metrics.STT_LATENCY.observe(max(0.0, self._clock() - self._end_at))
