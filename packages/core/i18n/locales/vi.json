@@ -9447,6 +9447,19 @@
         "unsigned": "Bản này chưa ký số nên hệ điều hành có thể cảnh báo khi mở lần đầu.",
         "unavailable": "Chưa có bản cài đặt nào được phát hành."
       },
+      "apt": {
+        "title": "Cài qua apt",
+        "intro": "Trên Ubuntu và Debian (amd64), cài bằng một lệnh; các phiên bản sau đó đến qua sudo apt update && sudo apt upgrade.",
+        "quick": "Cài bằng một lệnh",
+        "manual": "Cài thủ công",
+        "setup": "1. Thêm kho",
+        "install": "2. Cài đặt",
+        "copy": "Sao chép lệnh: {{step}}",
+        "copied": "Đã sao chép",
+        "copyFailed": "Không sao chép được. Hãy chọn đoạn lệnh và tự sao chép.",
+        "deb": "Nếu bạn đã cài tệp .deb, tệp này đã có sẵn và bạn có thể bỏ qua bước 1.",
+        "fingerprint": "Dấu vân tay của khóa"
+      },
       "works": {
         "title": "Làm việc cùng UniWork",
         "sub": "Ứng dụng không tách khỏi workspace: file đi từ UniWork sang ứng dụng và quay về.",
@@ -11395,6 +11408,8 @@
         "go_to_source_named": "Xem nơi đính kèm: {{title}}",
         "preview_failed": "Không xem được file. Thử lại.",
         "preview_close": "Đóng",
+        "preview_expand": "Mở rộng hết chiều ngang",
+        "preview_restore": "Thu về kích thước cũ",
         "view_only_notice": "Chỉ xem · thay đổi sẽ không được lưu",
         "download": "Tải xuống",
         "save_to_folder": "Lưu vào thư mục",

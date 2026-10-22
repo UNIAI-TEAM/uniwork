@@ -38,6 +38,41 @@ spec:
           - /.well-known/oauth-authorization-server
       upstreams:
         - name: uniwork-be
+    # Office installers, the signed apt repository and the update feed are
+    # served from a dedicated public-read bucket, not by Next.js. Ops replaces
+    # OFFICE_DOWNLOADS_BUCKET here and OFFICE_DOWNLOADS_S3_HOST in
+    # upstreams.yaml at apply time. The bucket is GET-only and refuses
+    # listing; this route must never reach the user-data bucket. Plain HTTP,
+    # no websocket.
+    - name: uniwork-office-downloads
+      priority: 220
+      match:
+        hosts: [uniworkos.com]
+        paths: [/downloads/office/*]
+        methods: [GET, HEAD]
+      upstreams:
+        - name: office-downloads
+      plugins:
+        - name: proxy-rewrite
+          enable: true
+          config:
+            regex_uri:
+              - "^/downloads/office/(.*)"
+              - "/OFFICE_DOWNLOADS_BUCKET/$1"
+        # The provider's x-amz-* headers say nothing a visitor needs. The
+        # plugin removes exact names only (no wildcard), so the usual ones are
+        # listed; ops adds any other x-amz-* header the provider sends.
+        - name: response-rewrite
+          enable: true
+          config:
+            headers:
+              remove:
+                - x-amz-request-id
+                - x-amz-id-2
+                - x-amz-version-id
+                - x-amz-delete-marker
+                - x-amz-storage-class
+                - x-amz-server-side-encryption
     - name: uniwork-web
       priority: 100
       websocket: true
