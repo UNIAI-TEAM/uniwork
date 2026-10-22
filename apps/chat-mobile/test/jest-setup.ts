@@ -95,14 +95,9 @@ jest.mock("expo-screen-capture", () => ({
   disableAppSwitcherProtectionAsync: jest.fn(async () => undefined),
 }));
 
-// The permission gate (data/permissions.ts on expo-audio / expo-image-picker /
-// expo-notifications) grants everything: a component test is about the
-// component. The primer's own sheet is tested through its store
-// (components/ui/permission-primer.test.tsx).
-jest.mock("@/components/ui/permission-gate", () => ({
-  permissionGate: { ensure: jest.fn(async () => true) },
-  ensureCallPermissions: jest.fn(async () => undefined),
-}));
+// The permission gate (components/ui/permission-gate.ts) is not mocked here: a component that asks for a
+// permission goes through the real gate on the expo modules' Jest mocks (expo-audio's above grants the
+// microphone). A test that asserts on the asks mocks the gate itself, in its own file.
 
 // A component test that logs an error (an update outside act, a failed prop
 // type, a key warning) fails: the log is the only place those bugs show.

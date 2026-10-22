@@ -10,6 +10,13 @@ import { render, viText } from "@/test/render";
 import { CallLogFilters } from "./call-log-filters";
 import { CallLogRow, CallLogSeparator } from "./call-log-row";
 
+// The permission gate grants everything here: this test is about its caller. The gate itself, on the
+// expo permission modules, is components/ui/permission-gate.test.tsx.
+jest.mock("@/components/ui/permission-gate", () => ({
+  permissionGate: { ensure: jest.fn(async () => true) },
+  ensureCallPermissions: jest.fn(async () => undefined),
+}));
+
 jest.mock("@/data/calls/call-store", () => ({ callEngine: { startCall: jest.fn(async () => undefined) } }));
 
 const log = (extra: Partial<CallLog> = {}): CallLog => ({

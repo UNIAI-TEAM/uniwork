@@ -11,6 +11,13 @@ import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types"
 import { render, viText } from "@/test/render";
 import { CallOverlay } from "./call-overlay";
 
+// The permission gate grants everything here: this test is about its caller. The gate itself, on the
+// expo permission modules, is components/ui/permission-gate.test.tsx.
+jest.mock("@/components/ui/permission-gate", () => ({
+  permissionGate: { ensure: jest.fn(async () => true) },
+  ensureCallPermissions: jest.fn(async () => undefined),
+}));
+
 // The LiveKit room needs WebRTC; a stand-in exposes what the overlay hands it.
 jest.mock("./call-room", () => ({
   CallRoom: (props: { peerName: string; recording: boolean; onMinimize?: () => void }): ReactNode => {

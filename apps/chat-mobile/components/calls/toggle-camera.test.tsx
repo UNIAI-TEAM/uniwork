@@ -5,6 +5,13 @@
 import { permissionGate } from "@/components/ui/permission-gate";
 import { toggleCamera } from "./toggle-camera";
 
+// The permission gate grants everything here: this test is about its caller. The gate itself, on the
+// expo permission modules, is components/ui/permission-gate.test.tsx.
+jest.mock("@/components/ui/permission-gate", () => ({
+  permissionGate: { ensure: jest.fn(async () => true) },
+  ensureCallPermissions: jest.fn(async () => undefined),
+}));
+
 describe("toggleCamera", () => {
   beforeEach(() => jest.mocked(permissionGate.ensure).mockClear());
 

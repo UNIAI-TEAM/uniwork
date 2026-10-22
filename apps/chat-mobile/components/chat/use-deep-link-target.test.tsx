@@ -13,6 +13,13 @@ import { render, viText } from "@/test/render";
 import type { ChatWorkspace } from "./use-chat-workspace";
 import { useDeepLinkTarget } from "./use-deep-link-target";
 
+// The permission gate grants everything here: this test is about its caller. The gate itself, on the
+// expo permission modules, is components/ui/permission-gate.test.tsx.
+jest.mock("@/components/ui/permission-gate", () => ({
+  permissionGate: { ensure: jest.fn(async () => true) },
+  ensureCallPermissions: jest.fn(async () => undefined),
+}));
+
 // jest.mock factories run before this file's consts (the imports above are hoisted): each fake is
 // made inside its factory, or read through a function at call time, and reached with jest.requireMock.
 const mockParams: { current: Record<string, string | undefined> } = { current: {} };

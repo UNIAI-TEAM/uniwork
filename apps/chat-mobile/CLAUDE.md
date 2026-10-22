@@ -642,8 +642,10 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
   `test/render.tsx` (i18n tiếng Việt, `QueryClient` mới với `gcTime: Infinity` — query
   đã unmount không để lại timer giữ Jest không thoát), `viText(key)` là chuỗi
   người nghe. `Switch` của Android không truy được theo role trong renderer: truy theo label. `test/jest-setup.ts` mock `expo-router`, `expo-audio`, safe area,
-  Reanimated, `react-native-keyboard-controller` (mock của chính nó), `expo-haptics` và cổng quyền
-  (`components/ui/permission-gate`, cấp mọi quyền; màn giải thích test qua store) và làm đỏ test nào log
+  Reanimated, `react-native-keyboard-controller` (mock của chính nó), `expo-haptics` — **không** mock cổng quyền: component
+  hỏi quyền đi qua cổng thật trên mock của module expo (`components/ui/permission-gate.test.tsx` giữ cổng đó: primer
+  trước, prompt hệ thống sau Tiếp tục, Cài đặt khi hệ thống không hỏi nữa); test nào khẳng định lượt hỏi thì tự mock
+  `@/components/ui/permission-gate` trong file của nó — và làm đỏ test nào log
   `console.error` (update ngoài `act`…). Cử chỉ test bằng `react-native-gesture-handler/jest-utils` (`withTestId` +
   `fireGestureHandler`; `react-native-gesture-handler/jestSetup` nạp sẵn ở `test/jest-setup.ts` vì mọi sheet có
   `GestureHandlerRootView`); `onUpdate` chỉ chạy từ sự kiện ACTIVE thứ hai. Test đếm render chờ hàng xuất hiện (`waitFor`), không chờ một khoảng cố định.
