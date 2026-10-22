@@ -31,9 +31,14 @@ name: Mobile Verify
 #                   cold-starts to its sign-in screen and stays up; then times
 #                   five cold starts and weighs the APK against
 #                   apps/chat-mobile/perf-budget.json (scripts/mobile-perf.mjs).
-#   ios-release     the same scope as android-release: `expo prebuild -p ios`,
-#                   CocoaPods, an ad-hoc signed Release build for the simulator
-#                   (no Apple account), then smoke-launch.yaml on a simulator
+#   ios-release     `expo prebuild -p ios`, CocoaPods, an ad-hoc signed Release
+#                   build for the simulator (no Apple account) on the Xcode
+#                   XCODE_VERSION names (scripts/select-xcode.sh), then
+#                   smoke-launch.yaml on a simulator. The scope's `ios` output:
+#                   a PR, a push or a dispatch that needs the native build gets
+#                   it; a caller gets it only when it passes `ios: true`, so the
+#                   Android-only store release and OTA update neither wait for
+#                   a macOS runner nor fail when only iOS breaks
 #   gate            always runs last and fails unless every job the change
 #                   needed succeeded (scripts/mobile-verify-gate.mjs): the one
 #                   required status check (scripts/branch-protection.json), so
@@ -89,6 +94,13 @@ on:
         description: Run android-release and android-smoke whatever the diff says
         type: boolean
         default: true
+      # The callers ship Android only (the store release, the OTA update) until the
+      # Apple account exists (UNI-1838): the iOS simulator build is then a PR and
+      # nightly check, not a release blocker. The iOS release passes true.
+      ios:
+        description: Also run ios-release (only callers that ship an iOS binary)
+        type: boolean
+        default: false
   workflow_dispatch:
 
 permissions:
@@ -105,6 +117,8 @@ env:
   EXPO_DOCTOR_VERSION: "1.21.4"
   # The same Maestro the nightly pins (chat-mobile-verify.yml).
   MAESTRO_VERSION: "2.11.0"
+  # The Xcode the iOS simulator build uses, the same as the nightly's (chat-mobile-verify.yml).
+  XCODE_VERSION: "27.0"
   # ktlint over the local Expo modules' Kotlin, with the release binary's checksum.
   KTLINT_VERSION: "1.5.0"
   KTLINT_SHA256: a16be01dcc480aab2f55f444b620142152f66e31564b3b9376506d624c28a2ad
@@ -117,6 +131,7 @@ jobs:
     outputs:
       mobile: ${{ steps.decide.outputs.mobile }}
       native: ${{ steps.decide.outputs.native }}
+      ios: ${{ steps.decide.outputs.ios }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -131,21 +146,26 @@ jobs:
           EVENT: ${{ github.event_name }}
           # Empty outside workflow_call.
           FORCE_NATIVE: ${{ inputs.force_native }}
+          WANT_IOS: ${{ inputs.ios }}
           REF: ${{ github.ref }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
           if [ "$FORCE_NATIVE" = "true" ] || [[ "$REF" == refs/tags/* ]]; then
-            # Called by the release (or any tag push): the shipped SHA is always built.
-            printf 'mobile=true\nnative=true\n' | tee -a "$GITHUB_OUTPUT"
+            # Called by the release (or any tag push): the shipped SHA is always built,
+            # for iOS only when the caller ships iOS.
+            ios=false
+            if [ "$WANT_IOS" = "true" ]; then ios=true; fi
+            printf 'mobile=true\nnative=true\nios=%s\n' "$ios" | tee -a "$GITHUB_OUTPUT"
           elif [ "$EVENT" = "pull_request" ]; then
-            node scripts/mobile-native-scope.mjs --base "$PR_BASE" --head "$GITHUB_SHA"
+            # iOS builds whenever Android does.
+            node scripts/mobile-native-scope.mjs --base "$PR_BASE" --head "$GITHUB_SHA" | sed -n 's/^native=/ios=/p' | tee -a "$GITHUB_OUTPUT"
           elif [ "$EVENT" = "push" ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]] && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
-            node scripts/mobile-native-scope.mjs --base "$PUSH_BEFORE" --head "$GITHUB_SHA"
+            node scripts/mobile-native-scope.mjs --base "$PUSH_BEFORE" --head "$GITHUB_SHA" | sed -n 's/^native=/ios=/p' | tee -a "$GITHUB_OUTPUT"
           else
-            # Dispatched, or a push with no known base: build.
-            printf 'mobile=true\nnative=true\n' | tee -a "$GITHUB_OUTPUT"
+            # Dispatched, or a push with no known base: build both.
+            printf 'mobile=true\nnative=true\nios=true\n' | tee -a "$GITHUB_OUTPUT"
           fi
 
   checks:
@@ -362,7 +382,7 @@ jobs:
     # the cold-start smoke proves the binary boots to its sign-in screen.
     name: iOS simulator release build
     needs: scope
-    if: needs.scope.outputs.native == 'true'
+    if: needs.scope.outputs.ios == 'true'
     runs-on: macos-26
     timeout-minutes: 90
     env:
@@ -386,11 +406,10 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
       - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
-      # SDK 57 needs Xcode 27; take the newest the image has (as the nightly does).
+      # SDK 57 needs Xcode 27. Pinned (XCODE_VERSION), never "the newest on the
+      # image": a runner image update must not swap in another Xcode or a beta.
       - name: Select Xcode
-        run: |
-          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
-          xcodebuild -version
+        run: scripts/select-xcode.sh "$XCODE_VERSION"
       - name: Prebuild and install the pods
         working-directory: apps/chat-mobile
         run: pnpm exec expo prebuild -p ios --clean

@@ -49,14 +49,20 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   `android-release` (`expo prebuild` + `./gradlew :app:assembleRelease`, x86_64) rồi `android-smoke` (APK đó trên
   emulator, `maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập) và `ios-release` (macOS: `expo prebuild -p
   ios`, CocoaPods, `xcodebuild -configuration Release -sdk iphonesimulator` ký ad-hoc — không cần tài khoản Apple — rồi
-  cùng `smoke-launch.yaml` trên simulator) chỉ khi thay đổi chạm binary
+  cùng `smoke-launch.yaml` trên simulator; Xcode ghim ở `XCODE_VERSION`, chọn bằng `scripts/select-xcode.sh`: đúng bản
+  đó hoặc bản vá mới nhất của nó, không bao giờ beta hay bản mới hơn image vừa thêm — image thiếu thì job đỏ và liệt kê
+  các bản đang có, đổi `XCODE_VERSION` ở cả `mobile-verify.yml` lẫn `chat-mobile-verify.yml` trong một PR) chỉ khi thay
+  đổi chạm binary
   (`scripts/mobile-native-scope.mjs`: code/cấu hình/asset của app, đồ thị cài đặt, file `packages/core` app import
   lúc chạy). Không đọc secret: URL máy chủ là placeholder, `SENTRY_DISABLE_AUTO_UPLOAD=true`. Đỏ ở `ios-release` mà
   Android xanh: thường là một plugin cấu hình hay gói native chỉ hỏng phía iOS (Podfile, entitlement, `Info.plist`);
   tái hiện trên máy Mac bằng đúng hai lệnh của job.
 - `chat-mobile-release.yml` gọi đúng workflow đó trên SHA của tag (job `verify`, `force_native: true`) trước khi đụng
   EAS: `android-release` và `android-smoke` luôn chạy cho bản phát hành, kể cả tag bị đẩy lại (`git push -f`) mà diff
-  không chạm binary. Sửa một trong bốn workflow (cả `chat-mobile-update.yml`) cũng chạy `mobile-verify.yml`, để
+  không chạm binary. `ios-release` thì không: hai nơi gọi (bản phát hành và `chat-mobile-update.yml`) chỉ giao
+  Android, nên không truyền input `ios` và gate không đòi job đó — bản Android hay OTA khẩn không chờ runner macOS và
+  không đỏ vì một lỗi chỉ riêng iOS (CocoaPods sập, simulator không boot). iOS vẫn được build ở mọi PR chạm binary và
+  hằng đêm. Khi có tài khoản Apple (UNI-1838) và bản phát hành giao iOS, nơi gọi đó thêm `ios: true`. Sửa một trong bốn workflow (cả `chat-mobile-update.yml`) cũng chạy `mobile-verify.yml`, để
   `scripts/mobile-workflows.test.mjs` kiểm lời hứa của chúng.
 - `chat-mobile-verify.yml` hằng đêm: job `android-production` build AAB release mọi ABI từ profile production
   (không cần tài khoản), job `ios` build bản Release simulator kể cả khi thiếu biến `MAESTRO_*` (chỉ simulator và các

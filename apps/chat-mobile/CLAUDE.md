@@ -689,7 +689,8 @@ mở comment lồng), chỉ khi `scripts/mobile-native-scope.mjs`
 nói thay đổi chạm binary) rồi `android-smoke` (cài APK đó lên emulator, chạy
 `maestro/flows/smoke-launch.yaml` qua `scripts/maestro-retry.sh` (chạy lại một lần, lần hai qua thì cảnh báo "flaky"
 chứ không im; mọi lượt Maestro trong CI đi qua nó): mở lạnh tới màn đăng nhập, không cần server — `ios-release` làm cùng việc đó trên
-simulator iOS với bản Release ký ad-hoc, cùng điều kiện native; cuối job, ở font_scale 2.0 và dark mode,
+simulator iOS với bản Release ký ad-hoc, cùng điều kiện native ở PR (nơi gọi chỉ Android thì bỏ qua), Xcode ghim ở
+`XCODE_VERSION` qua `scripts/select-xcode.sh`; cuối job, ở font_scale 2.0 và dark mode,
 `flows/a11y-large-text-dark.yaml` (màn đăng nhập cuộn được, vẫn tới nút) rồi `scripts/mobile-a11y-audit.mjs` (dump
 uiautomator: mọi điều khiển của app có tên và ≥ 48 dp; hitSlop không thấy được trong dump nên nightly audit phòng ở
 44 dp, chỉ cảnh báo); rồi `scripts/mobile-perf.mjs` đo kích
@@ -736,7 +737,9 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   có mặt trong file này.
 - Tag `chat-mobile-v<version>` → `.github/workflows/chat-mobile-release.yml`:
   job `verify` gọi `mobile-verify.yml` trên SHA của tag với `force_native: true`
-  (luôn build Android native và chạy smoke, kể cả tag đẩy lại), rồi EAS build +
+  (luôn build Android native và chạy smoke, kể cả tag đẩy lại; không có `ios: true` nên
+  `ios-release` không chặn một bản chỉ Android — output `ios` của job scope,
+  `scripts/mobile-verify-gate.mjs`), rồi EAS build +
   auto-submit **chỉ Android** (Play internal) tới khi có tài khoản Apple
   (UNI-1838), `eas-cli` ghim ở `EAS_CLI_VERSION`. Environment
   `chat-mobile-release`, chỉ `EXPO_TOKEN`; thiếu thì notice và xanh.

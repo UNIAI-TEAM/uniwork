@@ -69,6 +69,8 @@ env:
   JAVA_VERSION: "17"
   # Pinned: a new Maestro changes how flows run; bump it in its own PR.
   MAESTRO_VERSION: "2.11.0"
+  # The iOS job's Xcode (scripts/select-xcode.sh), the same as mobile-verify.yml's.
+  XCODE_VERSION: "27.0"
   # The store release's eas-cli (chat-mobile-release.yml), for the eas-local job.
   EAS_CLI_VERSION: "24.12.0"
   EXPO_NO_TELEMETRY: "1"
@@ -143,11 +145,9 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
       - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
-      # SDK 57 needs Xcode 27; take the newest the image has.
+      # SDK 57 needs Xcode 27: the pinned one, as mobile-verify.yml › ios-release.
       - name: Select Xcode
-        run: |
-          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
-          xcodebuild -version
+        run: scripts/select-xcode.sh "$XCODE_VERSION"
       - name: Build for the simulator
         working-directory: apps/chat-mobile
         run: |

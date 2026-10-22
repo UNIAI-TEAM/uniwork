@@ -165,6 +165,26 @@ test("mobile-verify declares the force_native input the release passes", () => {
   assert.match(wf, /^ {2}workflow_call:\n {4}inputs:\n(?: {6}#.*\n)* {6}force_native:\n(?: {8}\S.*\n)*? {8}type: boolean\n/m);
 });
 
+// Review P2: the Android-only callers neither wait for nor fail on the macOS build,
+// and no iOS build takes whatever Xcode the runner image happens to have.
+test("the Android-only callers leave iOS out, and every iOS build uses the pinned Xcode", () => {
+  const wf = read("mobile-verify.yml");
+  assert.match(wf, /^ {6}ios:\n {8}description: [^\n]+\n {8}type: boolean\n {8}default: false$/m, "an ios input, off by default");
+  assert.match(wf, /^ {6}ios: \$\{\{ steps\.decide\.outputs\.ios \}\}$/m, "the scope job outputs ios");
+  assert.match(wf, /WANT_IOS: \$\{\{ inputs\.ios \}\}/);
+  for (const caller of ["chat-mobile-release.yml", "chat-mobile-update.yml"]) {
+    const verify = jobsOf(read(caller)).jobs.get("verify") ?? "";
+    assert.doesNotMatch(verify, /^ {6}ios: true$/m, `${caller} ships Android only (UNI-1838): no iOS build in its way`);
+  }
+  for (const [file, job] of [["mobile-verify.yml", "ios-release"], ["chat-mobile-verify.yml", "ios"]]) {
+    const text = read(file);
+    assert.match(envPin(text, "XCODE_VERSION") ?? "", /^"\d+\.\d+"$/, `${file} pins XCODE_VERSION to MAJOR.MINOR`);
+    assert.match(jobsOf(text).jobs.get(job) ?? "", /run: scripts\/select-xcode\.sh "\$XCODE_VERSION"$/m, `${file} › ${job} selects the pinned Xcode`);
+    assert.doesNotMatch(text, /Xcode_\*\.app \| sort -V \| tail -1/, `${file} never takes the newest Xcode on the image`);
+  }
+  assert.equal(envPin(wf, "XCODE_VERSION"), envPin(read("chat-mobile-verify.yml"), "XCODE_VERSION"), "one Xcode for the PR and the nightly");
+});
+
 // Runs the scope job's decide step as written in the workflow, with `node` stubbed
 // to say what the diff would say (native=false), so only the forcing rules decide.
 function decide(env) {
@@ -180,7 +200,7 @@ function decide(env) {
     const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
     execFileSync("bash", ["-c", script], {
       cwd: root,
-      env: { PATH: `${dir}:${process.env.PATH}`, GITHUB_OUTPUT: out, GITHUB_SHA: head, PUSH_BEFORE: head, PR_BASE: "", FORCE_NATIVE: "", REF: "refs/heads/main", ...env },
+      env: { PATH: `${dir}:${process.env.PATH}`, GITHUB_OUTPUT: out, GITHUB_SHA: head, PUSH_BEFORE: head, PR_BASE: "", FORCE_NATIVE: "", WANT_IOS: "", REF: "refs/heads/main", ...env },
       stdio: ["ignore", "pipe", "pipe"],
     });
     return fs.readFileSync(out, "utf8").trim();
@@ -190,12 +210,16 @@ function decide(env) {
 }
 
 test("the scope job builds natively when the release calls it, even for a re-pushed tag with a known base", () => {
-  // A plain push with a known base defers to the diff.
-  assert.equal(decide({ EVENT: "push" }), "");
-  const all = "mobile=true\nnative=true";
-  assert.equal(decide({ EVENT: "push", FORCE_NATIVE: "true" }), all);
-  assert.equal(decide({ EVENT: "push", REF: "refs/tags/chat-mobile-v1.2.3" }), all);
-  assert.equal(decide({ EVENT: "push", FORCE_NATIVE: "false" }), "");
+  // A plain push with a known base defers to the diff, and iOS follows the native answer.
+  assert.equal(decide({ EVENT: "push" }), "ios=false");
+  // Review P2: the callers ship Android only, so a forced build leaves iOS out unless asked.
+  const android = "mobile=true\nnative=true\nios=false";
+  const all = "mobile=true\nnative=true\nios=true";
+  assert.equal(decide({ EVENT: "push", FORCE_NATIVE: "true" }), android);
+  assert.equal(decide({ EVENT: "push", FORCE_NATIVE: "true", WANT_IOS: "true" }), all);
+  assert.equal(decide({ EVENT: "push", REF: "refs/tags/chat-mobile-v1.2.3" }), android);
+  assert.equal(decide({ EVENT: "push", FORCE_NATIVE: "false" }), "ios=false");
+  assert.equal(decide({ EVENT: "pull_request", PR_BASE: "HEAD" }), "ios=false");
   assert.equal(decide({ EVENT: "workflow_dispatch" }), all);
 });
 
@@ -418,4 +442,33 @@ test("the nightly runs the cold-start smoke on an Android matrix and keeps scree
   assert.match(matrix, /maestro-retry\.sh test flows\/smoke-launch\.yaml\n\s+adb exec-out screencap -p > /);
   assert.match(matrix, /name: unichat-screens-\$\{\{ matrix\.label \}\}/);
   assert.match(jobs.get("android-matrix-build") ?? "", /:app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64/);
+});
+
+// scripts/select-xcode.sh, on a fake /Applications: the pinned release or its newest patch, never a beta,
+// a release candidate or another minor, and red when the image lacks it.
+test("select-xcode picks the pinned Xcode release and nothing else", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "select-xcode-"));
+  const select = (apps, version) => {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.mkdirSync(dir);
+    for (const app of apps) fs.mkdirSync(path.join(dir, `Xcode_${app}.app`));
+    try {
+      const out = execFileSync("bash", [path.join(root, "scripts/select-xcode.sh"), version], {
+        env: { ...process.env, XCODE_APPS_DIR: dir, XCODE_SELECT_DRY_RUN: "1" },
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      return path.basename(out.trim());
+    } catch (error) {
+      return `exit ${error.status}: ${String(error.stdout).trim()}`;
+    }
+  };
+  try {
+    assert.equal(select(["26.4", "27.0", "27.1", "28.0_beta"], "27.0"), "Xcode_27.0.app", "not the newest on the image");
+    assert.equal(select(["27.0", "27.0.1", "27.0.10", "27.01"], "27.0"), "Xcode_27.0.10.app", "the newest patch of the pinned release");
+    assert.match(select(["27.0_beta", "27.0_RC", "27.1"], "27.0"), /^exit 1: ::error::Xcode 27\.0 is not on this runner image\. It has: .*Xcode_27\.1\.app/);
+    assert.match(select(["27.0"], "latest"), /^exit 2: /, "a version, not a word");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
