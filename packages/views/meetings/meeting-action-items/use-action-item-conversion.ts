@@ -82,7 +82,7 @@ export function useActionItemConversion({
   const [shown, setShown] = useState<{ id: string; defaults: Partial<CreateTaskBody> } | null>(null);
   if (current && ready && shown?.id !== current.id) {
     const lines = evidence.lines[queued.indexOf(current)] ?? [];
-    const description = actionItemTaskDescription(current.description, lines, t, meetingLocale(i18n.language));
+    const description = actionItemTaskDescription(current, lines, t, meetingLocale(i18n.language));
     setShown({ id: current.id, defaults: actionItemTaskDefaults(current, projectId, description) });
   }
   // Everything is done or was handled elsewhere: the composer has nothing left to show.
