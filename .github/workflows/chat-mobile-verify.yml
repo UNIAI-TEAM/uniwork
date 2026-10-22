@@ -19,6 +19,12 @@ name: UniChat mobile verify
 # `android-production` builds the store artifact (an AAB, every ABI) from the
 # production profile each night, and `ios` builds its Release binary even when
 # the Maestro settings are missing: no account or secret needed for either.
+# `android-matrix` runs the cold-start smoke on the oldest Android the app
+# supports, two middle releases and a 2 GB device, and keeps a screenshot of
+# each for review. `eas-local` builds the preview APK with `eas build --local`:
+# EAS's own archive (.easignore), package-manager detection and install, the
+# path only a release tag exercised before (PR #387 broke on it twice); it
+# needs EXPO_TOKEN in the `chat-mobile-nightly` environment (runbook).
 #
 # Repository settings it reads (names only; Maestro picks up every MAESTRO_*
 # variable of its environment):
@@ -46,6 +52,10 @@ on:
         description: Run the Maestro flows (needs the MAESTRO_* settings)
         type: boolean
         default: true
+      eas_local:
+        description: Build the preview APK with `eas build --local` (needs EXPO_TOKEN in chat-mobile-nightly)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -59,6 +69,8 @@ env:
   JAVA_VERSION: "17"
   # Pinned: a new Maestro changes how flows run; bump it in its own PR.
   MAESTRO_VERSION: "2.11.0"
+  # The store release's eas-cli (chat-mobile-release.yml), for the eas-local job.
+  EAS_CLI_VERSION: "24.12.0"
   EXPO_NO_TELEMETRY: "1"
   UNICHAT_ENV: staging
   UNICHAT_API_URL: ${{ vars.MAESTRO_API_URL }}
@@ -336,3 +348,168 @@ jobs:
         run: |
           set -euo pipefail
           { echo "### UniChat Android production AAB"; echo; ls -l *.aab | awk '{printf "- `%s`: %.1f MB\n", $9, $5/1048576}'; } | tee -a "$GITHUB_STEP_SUMMARY"
+
+  android-matrix-build:
+    # The production config with placeholder servers, x86_64 (the emulators' ABI), as the PR's
+    # android-release builds it: the smoke needs no server.
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      UNICHAT_ENV: production
+      UNICHAT_API_URL: https://api.example.invalid
+      UNICHAT_APP_URL: https://app.example.invalid
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - name: Prebuild and assemble the release APK
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          pnpm exec expo prebuild -p android --no-install --clean
+          (cd android && ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unichat-matrix-apk
+          path: apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 3
+
+  android-matrix:
+    # Audit "no-visual-or-matrix": the PR smoke runs on one API 35 emulator only. Here the same
+    # cold start runs on the oldest Android the app installs on (React Native's minSdk 24), two
+    # middle releases, and API 35 with 2 GB of RAM (a low-end phone); each leg keeps a
+    # screenshot of the sign-in screen in light and dark mode for a person to compare. OEM skins
+    # (Samsung, Xiaomi) need a device farm (runbook).
+    needs: android-matrix-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { api: 24, target: default, ram: 3072, label: api24 }
+          - { api: 29, target: default, ram: 3072, label: api29 }
+          - { api: 33, target: google_apis, ram: 3072, label: api33 }
+          - { api: 35, target: google_apis, ram: 2048, label: api35-2gb }
+    name: android-matrix (${{ matrix.label }})
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: unichat-matrix-apk
+          path: ${{ runner.temp }}/apk
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Cold start on API ${{ matrix.api }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
+          arch: x86_64
+          ram-size: ${{ matrix.ram }}M
+          disable-animations: true
+          script: |
+            mkdir -p "${{ runner.temp }}/screens"
+            adb install "${{ runner.temp }}/apk/app-release.apk"
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
+            adb exec-out screencap -p > "${{ runner.temp }}/screens/${{ matrix.label }}-light.png"
+            adb shell cmd uimode night yes
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
+            adb exec-out screencap -p > "${{ runner.temp }}/screens/${{ matrix.label }}-dark.png"
+            adb shell cmd uimode night no
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unichat-screens-${{ matrix.label }}
+          path: ${{ runner.temp }}/screens/*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+  eas-local:
+    # Audit P1 "eas-path-unexercised": the PR builds run Gradle on a pnpm checkout, which
+    # reproduces neither EAS's upload archive nor its package-manager detection. This builds the
+    # preview APK (no autoIncrement: the store's version code does not move) with EAS's own
+    # local build. Its own environment, limited to main and with no reviewers, so a scheduled
+    # run does not wait for an approval; without the token a scheduled run is red.
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: chat-mobile-nightly
+    env:
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+    steps:
+      - id: token
+        name: Need an EAS token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          WANTED: ${{ github.event_name == 'schedule' || inputs.eas_local }}
+        run: |
+          if [ "$WANTED" != "true" ]; then
+            echo "::notice::eas build --local not requested for this run."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not set in the chat-mobile-nightly environment, so EAS's archive and install path was not exercised. Setup: docs/runbooks/unichat-mobile-release.md"
+            exit 1
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.ready == 'true'
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        if: steps.token.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.token.outputs.ready == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        if: steps.token.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - if: steps.token.outputs.ready == 'true'
+        run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - uses: expo/expo-github-action@v8
+        if: steps.token.outputs.ready == 'true'
+        with:
+          eas-version: ${{ env.EAS_CLI_VERSION }}
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: eas build --local (preview APK)
+        if: steps.token.outputs.ready == 'true'
+        working-directory: apps/chat-mobile
+        run: eas build --local --platform android --profile preview --non-interactive --output "$RUNNER_TEMP/unichat-preview.apk"
+      - name: APK size
+        if: steps.token.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          { echo "### UniChat preview APK from eas build --local"; echo; ls -l "$RUNNER_TEMP/unichat-preview.apk" | awk '{printf "- %.1f MB\n", $5/1048576}'; } | tee -a "$GITHUB_STEP_SUMMARY"

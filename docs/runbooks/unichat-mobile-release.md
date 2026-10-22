@@ -60,7 +60,12 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   `scripts/mobile-workflows.test.mjs` kiểm lời hứa của chúng.
 - `chat-mobile-verify.yml` hằng đêm: job `android-production` build AAB release mọi ABI từ profile production
   (không cần tài khoản), job `ios` build bản Release simulator kể cả khi thiếu biến `MAESTRO_*` (chỉ simulator và các
-  luồng chờ cổng), và các luồng Maestro — ba luồng vàng trên cả hai nền tảng, thêm
+  luồng chờ cổng), job `eas-local` (`eas build --local --platform android --profile preview`: đúng đường archive theo
+  `.easignore`, nhận diện pnpm và cài đặt của EAS mà PR #387 vấp hai lần; profile `preview` không `autoIncrement` nên
+  version code trên store không nhảy; cần environment `chat-mobile-nightly`, mục Thiết lập lần đầu), job
+  `android-matrix` (APK release x86_64 cấu hình production, `smoke-launch.yaml` trên API 24 — minSdk —, 29, 33 và API 35
+  RAM 2 GB, ảnh màn đăng nhập sáng/tối của từng máy trong artifact `unichat-screens-*` để người xem so; máy OEM như
+  Samsung/Xiaomi cần device farm, chưa có), và các luồng Maestro — ba luồng vàng trên cả hai nền tảng, thêm
   `offline-send-relaunch.yaml` trên Android (chế độ máy bay: ba tin viết offline sống qua kill, mở lạnh offline vào
   inbox và phòng từ cache, bật mạng thì tới đúng thứ tự, mỗi tin một lần); thiếu biến `MAESTRO_*` thì run theo lịch
   **đỏ**, không xanh. `background-resume.yaml` (người khác viết lúc app ở nền, trong và quá cửa sổ ân hạn 25 s của
@@ -133,6 +138,9 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    - `chat-mobile-update` (`chat-mobile-update.yml`): Deployment branches → Selected → nhánh `main` và `develop`;
      secret `EXPO_TOKEN` (cùng token), `EAS_UPDATE_PRIVATE_KEY` (bước 9), `SENTRY_AUTH_TOKEN` và variables
      `SENTRY_ORG`, `SENTRY_PROJECT` (bước 8). Nên thêm Required reviewers.
+   - `chat-mobile-nightly` (`chat-mobile-verify.yml` › `eas-local`): Deployment branches → Selected → nhánh `main` (lịch
+     chạy đọc từ nhánh mặc định); secret `EXPO_TOKEN` (cùng robot token). **Không** đặt Required reviewers: run theo lịch
+     sẽ đứng chờ duyệt. Thiếu token thì run theo lịch đỏ ở job đó.
    Không thêm khoá Apple/Google vào GitHub.
 6. Server staging và production: `DESKTOP_AUTH_CLIENTS` có
    `uniwork-chat-mobile=uniworkchat://auth/callback|uniworkchat-dev://auth/callback` (`.env.example`). Universal link

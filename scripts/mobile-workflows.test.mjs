@@ -390,3 +390,32 @@ test("the mobile contract step runs every mobile contract test in scripts/", () 
     .map((f) => `scripts/${f}`);
   assert.deepEqual(tests.filter((t) => !step.includes(t)), [], "add these to the Mobile repo contracts step");
 });
+
+// Audit P1 "eas-path-unexercised": EAS's own archive and install path runs each night, not
+// only on a release tag, without moving the store's version code.
+test("the nightly builds with eas build --local, fails a scheduled run without its token, and never bumps a store build", () => {
+  const wf = read("chat-mobile-verify.yml");
+  assert.equal(envPin(wf, "EAS_CLI_VERSION"), envPin(read("chat-mobile-release.yml"), "EAS_CLI_VERSION"), "the same eas-cli as the store release");
+  const job = jobsOf(wf).jobs.get("eas-local") ?? "";
+  assert.match(job, /^ {4}environment: chat-mobile-nightly$/m, "its own environment: the OTA one wants reviewers");
+  assert.match(job, /eas build --local --platform android --profile preview --non-interactive/);
+  assert.match(job, /::error::EXPO_TOKEN is not set[^\n]*\n\s+exit 1/, "a night without the token is red");
+  assert.match(job, /WANTED: \$\{\{ github\.event_name == 'schedule' \|\| inputs\.eas_local \}\}/);
+  const eas = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/eas.json"), "utf8"));
+  assert.notEqual(eas.build.preview.autoIncrement, true, "the preview profile does not move the remote version code");
+  assert.equal(eas.build.preview.distribution, "internal");
+});
+
+// Audit "no-visual-or-matrix": the oldest supported Android, middle releases and a low-RAM device.
+test("the nightly runs the cold-start smoke on an Android matrix and keeps screenshots of each leg", () => {
+  const { jobs } = jobsOf(read("chat-mobile-verify.yml"));
+  const matrix = jobs.get("android-matrix") ?? "";
+  const legs = [...matrix.matchAll(/- \{ api: (\d+), target: \w+, ram: (\d+), label: [\w-]+ \}/g)].map((m) => ({ api: Number(m[1]), ram: Number(m[2]) }));
+  assert.ok(legs.some((l) => l.api === 24), "React Native's minSdk 24");
+  assert.ok(legs.some((l) => l.api >= 35 && l.ram <= 2048), "a 2 GB device on the newest API");
+  assert.ok(legs.length >= 4);
+  assert.match(matrix, /fail-fast: false/, "one red leg does not hide the others");
+  assert.match(matrix, /maestro-retry\.sh test flows\/smoke-launch\.yaml\n\s+adb exec-out screencap -p > /);
+  assert.match(matrix, /name: unichat-screens-\$\{\{ matrix\.label \}\}/);
+  assert.match(jobs.get("android-matrix-build") ?? "", /:app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64/);
+});
