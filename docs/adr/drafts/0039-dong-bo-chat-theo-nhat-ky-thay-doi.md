@@ -1,7 +1,7 @@
 # 0039 — Đồng bộ chat theo nhật ký thay đổi: `GET /chat/sync?since=`
 
-**Trạng thái:** proposed (UNI-2053, theo dõi ở UNI-2071, 2026-10-22). Số 0039 là tạm, đổi nếu ADR khác land trước. Chưa có
-code: bản nháp này mở việc mà bản audit mobile 2026-10-21 xếp ở Giai đoạn 3 ("Sequence event của server
+**Trạng thái:** proposed (UNI-2053, theo dõi ở UNI-2071, 2026-10-22). Số 0039 là tạm, đổi nếu ADR khác land trước. Giai đoạn 1
+có code (mục cuối): bản nháp này mở việc mà bản audit mobile 2026-10-21 xếp ở Giai đoạn 3 ("Sequence event của server
 cùng `/sync?since=seq`", effort L) để nó có chỗ được theo dõi thay vì để ngỏ. Chấp nhận thì chuyển ra
 `docs/adr/`, thêm vào bảng của `README.md`, đưa luật vào `CLAUDE.md` kèm test giữ luật.
 **Liên quan:** [0009](../0009-audit-va-outbox-cung-transaction.md) (audit + outbox cùng transaction),
@@ -60,7 +60,25 @@ mọi thay đổi sau N, hoặc nói "quá xa, tải lại".
 - Hoãn vì effort L và vì cần chấp nhận ADR này (mở rộng 0009 cho chat, thêm khoá thứ tự vào catalogue như
   0015) — không phải vì hạ tầng test: test DB của server chạy ở CI.
 
+## Giai đoạn 1 đã có code (2026-10-22)
+
+Phần không đổi luật nào đã land, để reconnect của điện thoại thôi refetch mọi trang và frame mất lúc socket còn sống
+được tìm lại; phần cần chấp nhận ADR (seq trên frame, ghi trong transaction của lệnh) vẫn chờ:
+
+- `chat_changes` + `chat_change_heads` (migration `9991792654508195_chat_changes`): thứ tự theo **tổ chức**, không
+  theo workspace — DM và nhóm thuộc tổ chức, không thuộc workspace nào. Ghi bởi `ChatService.recordChatChange`
+  (`server/internal/service/chat_changes.go`) ngay sau commit, cạnh frame (ba helper publish), trong một transaction
+  ngắn riêng: khoá dòng head xếp thứ tự người ghi nên thứ tự seq là thứ tự commit. Ghi lỗi thì log và thiếu một
+  dòng — cùng mất mát như frame rơi hôm nay; không phải exactly-once của 0009 (đó là phần cần chấp nhận). Giữ
+  50.000 thay đổi mới nhất mỗi tổ chức (cắt mỗi 1.000 lần ghi).
+- `GET /api/v1/workspaces/{ws}/chat/sync?since=` (`ChatService.SyncChatChanges`): mỗi tin một dòng (thay đổi cuối),
+  kèm bản người gọi đọc được lúc này hoặc `null` khi đã xoá, chỉ trong phòng đọc được từ workspace đó; không có
+  `since` thì chỉ trả `head`; `reset: true` khi `since` cũ hơn phần còn giữ, mới hơn head, hay quá 200 thay đổi.
+- Điện thoại (`apps/chat-mobile/data/chat-sync/`, sau công tắc `unichat_mobile_chat_sync`): giữ `head` theo
+  người + workspace trên máy; reconnect và mỗi 60 s yên lặng lúc app ở trước gọi sync và vá cache, chỉ khi `reset`
+  hay lỗi mới đi đường cũ (invalidate và refetch mọi trang đã cuộn).
+
 ## Trạng thái
 
-proposed — chờ chủ sản phẩm và người giữ `server/internal/realtime` duyệt; việc theo dõi là UNI-2071
-(sub-issue của UNI-2053).
+proposed — giai đoạn 1 ở trên đã có code; phần còn lại (seq trên frame, ghi trong transaction của lệnh, web) chờ
+chủ sản phẩm và người giữ `server/internal/realtime` duyệt; việc theo dõi là UNI-2071 (sub-issue của UNI-2053).

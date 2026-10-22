@@ -19,6 +19,11 @@ type ListChatThreadMessagesSDI struct {
 	Limit  int    `query:"limit" description:"Số câu trả lời mỗi trang (trang đầu thêm tin gốc)" example:"50"`
 }
 
+// ChatSyncSDI documents GET .../chat/sync query params.
+type ChatSyncSDI struct {
+	Since string `query:"since" description:"head của lần đồng bộ trước; bỏ trống để chỉ lấy vị trí hiện tại của nhật ký (sau khi vừa tải xong những gì đang hiện)" example:"1042"`
+}
+
 // ListChatCallLogsSDI documents GET .../chat/call-logs query params.
 type ListChatCallLogsSDI struct {
 	Cursor string `query:"cursor" description:"next_cursor của trang trước, gửi lại nguyên văn; bỏ trống để lấy trang mới nhất" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`

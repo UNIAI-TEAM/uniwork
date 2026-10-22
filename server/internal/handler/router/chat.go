@@ -13,6 +13,7 @@ import (
 //	POST /api/v1/workspaces/{workspaceID}/chat/reports
 //	POST /api/v1/chat/voice/token
 //	GET  /api/v1/workspaces/{workspaceID}/chat/call-logs
+//	GET  /api/v1/workspaces/{workspaceID}/chat/sync
 //	GET  /api/v1/workspaces/{workspaceID}/chat/room
 //	POST /api/v1/workspaces/{workspaceID}/chat/room
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms
@@ -141,6 +142,14 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		tags:        []string{"chat"},
 		sdi:         sdi.ListChatCallLogsSDI{},
 		sdo:         sdo.ChatCallLogListSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/sync", h.GetChatSync, apiOp{
+		summary:     "Sync chat changes",
+		description: "Nhật ký thay đổi chat của tổ chức (ADR 0039 nháp): mọi tin được tạo, sửa (cả biểu cảm, phiếu, ghim) hay xoá sau since, mỗi tin một dòng kèm bản người gọi đọc được lúc này, chỉ trong phòng đọc được từ workspace này. reset=true khi since quá cũ: tải lại rồi đồng bộ tiếp từ head. Chỉ đọc.",
+		tags:        []string{"chat"},
+		sdi:         sdi.ChatSyncSDI{},
+		sdo:         sdo.ChatSyncSDO{},
 		auth:        true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/room", h.GetWorkspaceChatRoom, apiOp{

@@ -660,6 +660,7 @@ func New(d Deps) http.Handler {
 		MintChatVoiceToken:               h.mintChatVoiceToken,
 		ListPendingChatVoiceInvites:      h.listPendingChatVoiceInvites,
 		ListChatCallLogs:                 h.listChatCallLogs,
+		GetChatSync:                      h.getChatSync,
 		GetWorkspaceChatRoom:             h.getWorkspaceChatRoom,
 		EnsureWorkspaceChatRoom:          h.ensureWorkspaceChatRoom,
 		ListChatRooms:                    h.listChatRooms,

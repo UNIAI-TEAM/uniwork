@@ -284,6 +284,21 @@ type ChatBlock struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type ChatChange struct {
+	OrganizationID string             `json:"organization_id"`
+	Seq            int64              `json:"seq"`
+	RoomID         string             `json:"room_id"`
+	MessageID      string             `json:"message_id"`
+	Kind           string             `json:"kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type ChatChangeHead struct {
+	OrganizationID string             `json:"organization_id"`
+	Seq            int64              `json:"seq"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type ChatLinkPreview struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`

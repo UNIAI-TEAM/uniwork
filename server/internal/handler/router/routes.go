@@ -434,6 +434,7 @@ type Routes struct {
 	MintChatVoiceToken               http.HandlerFunc
 	ListPendingChatVoiceInvites      http.HandlerFunc
 	ListChatCallLogs                 http.HandlerFunc
+	GetChatSync                      http.HandlerFunc
 	GetWorkspaceChatRoom             http.HandlerFunc
 	EnsureWorkspaceChatRoom          http.HandlerFunc
 	ListChatRooms                    http.HandlerFunc
