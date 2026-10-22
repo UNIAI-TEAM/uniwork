@@ -32,7 +32,7 @@ một dòng sai đi thì sửa dòng đó cùng PR; dòng "chưa có" là nợ �
 | Trang đăng nhập đúng nguồn | `authorization_url` phải cùng origin với `appUrl` (https ở bản phát hành) | `data/auth/transport.test.ts` |
 | Refresh xoay vòng, phát hiện dùng lại | Server thu hồi cả họ token; app kết thúc phiên ngay khi server nói | `server/internal/service/desktop_auth_test.go`, `data/auth/session-refresh.test.ts` |
 | Thu hồi thiết bị có hiệu lực ngay | Mọi request kiểm `device_revoked`; push của thiết bị bị gỡ | `server/internal/middleware/auth_device_test.go`, `server/internal/service/desktop_auth_test.go` |
-| Khoá ứng dụng (tuỳ chọn) | Face ID / vân tay / mã máy khi mở lạnh và sau thời gian ở nền | `lib/app-lock.test.ts`, `components/app/privacy-guard.test.tsx`, `components/settings/privacy-section.test.tsx` |
+| Khoá ứng dụng (tuỳ chọn, tổ chức bắt buộc được) | Face ID / vân tay / mã máy khi mở lạnh và sau thời gian ở nền; owner/admin bắt buộc khoá và chặn chụp màn hình cho mọi máy của tổ chức (`/orgs/{org}/mobile-security-policy`), app coi là mức tối thiểu, lưu trong Keychain để áp từ lần mở lạnh | `lib/app-lock.test.ts`, `data/privacy-settings.test.ts`, `components/app/privacy-floor-sync.test.tsx`, `components/app/privacy-guard.test.tsx`, `components/settings/privacy-section.test.tsx`, `server/internal/service/mobile_security_policy_test.go`, `server/internal/handler/mobile_security_policy_test.go` |
 
 ## MASVS-NETWORK
 
@@ -50,7 +50,7 @@ một dòng sai đi thì sửa dòng đó cùng PR; dòng "chưa có" là nợ �
 | Deep link không tự hành động | Chỉ hai dạng link, cùng origin; URL khác (kể cả `uniworkchat://account`, App Link tới màn trong) về `/`, không mở màn nó nêu; `answer=` bị bỏ qua (Nghe chỉ từ PendingIntent có token); `dm=` hỏi trước khi tạo phòng | `lib/deep-link.test.ts` (mỗi route trong một case), `lib/deep-link-target.test.ts`, `components/chat/use-deep-link-target.test.tsx` |
 | Màn khoá chỉ cho cuộc gọi thật | Activity hiện trên màn khoá chỉ khi launch mang token của lần đổ chuông | `CallLaunchTokens.kt` (runbook › kiểm bằng `adb am start` với extra giả) |
 | Quyền tối thiểu | Danh sách quyền và dịch vụ cuối cùng của bản release được ghim; quyền thừa của thư viện bị gỡ | `android-manifest.test.ts` |
-| Nội dung không lộ ngoài app | Thông báo tin riêng tư trên màn khoá Android; tuỳ chọn ẩn nội dung trong push (người dùng, tổ chức); chặn chụp màn hình và che trình chuyển app (tuỳ chọn) | `data/notification-channels.test.ts`, `server/internal/notification/push_preview_test.go`, `components/app/privacy-guard.test.tsx` |
+| Nội dung không lộ ngoài app | Thông báo tin riêng tư trên màn khoá Android; tuỳ chọn ẩn nội dung trong push (người dùng, tổ chức) — ẩn thì cả tiêu đề không còn tên người, phòng, việc hay tài liệu; chặn chụp màn hình và che trình chuyển app (tuỳ chọn, tổ chức bắt buộc được) | `data/notification-channels.test.ts`, `server/internal/notification/push_preview_test.go`, `components/app/privacy-guard.test.tsx` |
 | WebView | Không có WebView; trang web mở bằng trình duyệt hệ thống | — (không có gì để kiểm) |
 
 ## MASVS-CODE

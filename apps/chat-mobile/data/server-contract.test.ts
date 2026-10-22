@@ -31,7 +31,7 @@ import {
 } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { PushPreviewPolicySchema } from "./account-api";
+import { MobileSecurityPolicySchema, PushPreviewPolicySchema } from "./account-api";
 import { ChatSyncSchema } from "./chat-sync/api";
 import {
   ActiveRecordingSchema,
@@ -241,6 +241,12 @@ const CONTRACTS: Contract[] = [
   { endpoint: "GET /workspaces/{id}/members", schema: WorkspaceMembersSchema, sdo: "MemberListSDO", handlers: ["listMembers"], items: { members: WorkspaceMemberSchema } },
   { endpoint: "GET /config", schema: RemoteConfigSchema, sdo: "ConfigSDO", handlers: ["config"] },
   { endpoint: "GET /orgs/{org}/push-preview-policy", schema: PushPreviewPolicySchema, sdo: "PushPreviewPolicySDO", handlers: ["orgPushPreviewPolicy"] },
+  {
+    endpoint: "GET /orgs/{org}/mobile-security-policy",
+    schema: MobileSecurityPolicySchema,
+    sdo: "MobileSecurityPolicySDO",
+    handlers: ["orgMobileSecurityPolicy"],
+  },
   // Chat.
   {
     endpoint: "GET|POST …/chat/rooms/{id}/messages/{id}, reactions, edit, pin, thread reply",

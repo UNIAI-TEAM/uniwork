@@ -33,5 +33,17 @@
   đếm ở `ownerPrompts`) không tính là rời app: trên Android màn mã khoá là activity khác, app thành `background`, nếu
   tính thì "Ngay" khoá lại ngay sau khi mở. Trình chọn ảnh/tệp và hộp thoại quyền của hệ thống vẫn tính là rời app. Android: `USE_BIOMETRIC`/
   `USE_FINGERPRINT` là quyền thường; `READ_MEDIA_IMAGES`/`DETECT_SCREEN_CAPTURE` mà `expo-screen-capture` khai cho
-  listener chụp màn hình (app không dùng) bị chặn. Chính sách tổ chức bắt buộc (MAM) chưa có: cần route cấu hình theo
-  tổ chức, không dùng feature flag (flag chỉ ẩn năng lực).
+  listener chụp màn hình (app không dùng) bị chặn.
+- **Mức tối thiểu của tổ chức** (audit "Security & privacy", privacy-defaults-off). Owner/admin bật "Bắt buộc khoá
+  UniChat" và "Bắt buộc chặn chụp màn hình" ở web › Cài đặt › Tổ chức › UniChat trên điện thoại
+  (`GET/PUT /orgs/{org}/mobile-security-policy`, `OrganizationService.SetMobileSecurityPolicy`, audit
+  `organization.mobile_security_policy_changed`; route, không phải feature flag — flag chỉ ẩn năng lực). Trên máy,
+  `components/app/privacy-floor-sync.tsx` (gắn ở `app/_layout.tsx`) đọc chính sách của tổ chức của workspace hiện tại
+  (`data/queries/mobile-security-policy.ts`, schema chặt: câu trả lời lệch là `null`, giữ mức cũ chứ không gỡ) và đưa
+  vào `data/privacy-settings.ts › setFloor`; mức đó lưu cạnh lựa chọn trong Keychain (`floor` trong JSON `privacy`), nên
+  lần mở lạnh sau áp ngay trước khi mạng trả lời; nghe được trước khi đọc xong Keychain thì chỉ lưu sau khi đọc (không
+  ghi đè lựa chọn bằng mặc định). Cái được áp là `withFloor(lựa chọn, mức)` (`lib/app-lock.ts`): guard và nền tảng
+  dùng nó; Settings hiện công tắc bật, khoá và nói "Tổ chức của bạn yêu cầu…"; thời gian khoá lại vẫn là của người
+  dùng. Đăng xuất (auth đã khôi phục xong mà không còn ai) gỡ mức. Tổ chức bắt buộc khoá mà máy không có khoá màn hình:
+  màn khoá nói đặt mã/vân tay/khuôn mặt trong Cài đặt của máy (cũng đúng khi người dùng gỡ khoá màn hình sau khi bật).
+  Yêu cầu mới tới máy đang mở thì có hiệu lực từ lần mở lạnh hay lần quay lại sau thời gian khoá lại kế tiếp.

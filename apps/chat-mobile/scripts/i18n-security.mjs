@@ -1,7 +1,8 @@
 // Security and privacy (audit "Security & privacy"): a link that asks to open
 // a direct message, the privacy cover over the app switcher, the app lock, the
-// screen-capture block, whether a notification shows the message's words and
-// the anonymous usage counters (data/analytics.ts).
+// screen-capture block (and the organization requiring either), whether a
+// notification shows the message's words and the anonymous usage counters
+// (data/analytics.ts).
 // Merged into `mobile.security` by sync-i18n.mjs; keep vi and en aligned
 // (lib/i18n.test.ts compares the keys).
 export const SECURITY_ONLY = {
@@ -19,6 +20,7 @@ export const SECURITY_ONLY = {
       app_lock: "Khoá UniChat",
       app_lock_hint: "Mở UniChat bằng Face ID, vân tay hoặc mã khoá của máy.",
       app_lock_unavailable: "Đặt khoá màn hình cho máy trước để bật khoá UniChat.",
+      app_lock_org: "Tổ chức của bạn yêu cầu khoá UniChat trên điện thoại.",
       app_lock_after: "Khoá lại sau khi rời app",
       app_lock_after_now: "Ngay lập tức",
       app_lock_after_1m: "1 phút",
@@ -26,10 +28,12 @@ export const SECURITY_ONLY = {
       app_lock_after_15m: "15 phút",
       screen_security: "Chặn chụp màn hình",
       screen_security_hint: "Không cho chụp hay quay màn hình UniChat, và che nội dung trong trình chuyển ứng dụng.",
+      screen_security_org: "Tổ chức của bạn yêu cầu chặn chụp màn hình UniChat.",
       usage_stats: "Gửi thống kê sử dụng ẩn danh",
       usage_stats_hint: "Đếm số lần mở app, gửi tin và nối cuộc gọi để UniChat tốt hơn. Không gửi tên, tin nhắn hay cuộc trò chuyện của bạn.",
       locked_title: "UniChat đang khoá",
       locked_body: "Mở khoá để xem tin nhắn của bạn.",
+      locked_no_device_lock: "Máy này chưa đặt khoá màn hình. Đặt mã, vân tay hoặc khuôn mặt trong Cài đặt của máy, rồi quay lại để mở UniChat.",
       unlock: "Mở khoá",
       unlock_prompt: "Mở khoá UniChat",
       privacy_cover: "UniChat",
@@ -49,6 +53,7 @@ export const SECURITY_ONLY = {
       app_lock: "Lock UniChat",
       app_lock_hint: "Open UniChat with Face ID, your fingerprint or the phone's passcode.",
       app_lock_unavailable: "Set a screen lock on this phone first to lock UniChat.",
+      app_lock_org: "Your organization requires the UniChat lock on phones.",
       app_lock_after: "Lock again after leaving the app",
       app_lock_after_now: "Immediately",
       app_lock_after_1m: "1 minute",
@@ -56,10 +61,12 @@ export const SECURITY_ONLY = {
       app_lock_after_15m: "15 minutes",
       screen_security: "Block screenshots",
       screen_security_hint: "Stops screenshots and screen recording of UniChat, and hides its content in the app switcher.",
+      screen_security_org: "Your organization requires screenshot blocking in UniChat.",
       usage_stats: "Share anonymous usage statistics",
       usage_stats_hint: "Counts app opens, messages sent and calls connected to make UniChat better. Never your name, messages or conversations.",
       locked_title: "UniChat is locked",
       locked_body: "Unlock to see your messages.",
+      locked_no_device_lock: "This phone has no screen lock. Set a passcode, fingerprint or face in the phone's Settings, then come back to open UniChat.",
       unlock: "Unlock",
       unlock_prompt: "Unlock UniChat",
       privacy_cover: "UniChat",

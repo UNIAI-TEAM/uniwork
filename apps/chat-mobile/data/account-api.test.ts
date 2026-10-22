@@ -65,6 +65,18 @@ describe("account endpoints", () => {
     }
   });
 
+  // Audit "Security & privacy", privacy-defaults-off: the floor under the phone's privacy choices. A drifted answer
+  // is no answer (null): the phone keeps the floor it last heard rather than lifting it on a garbled reply.
+  it("mobileSecurityPolicy reads the organization's requirements, and a drifted answer reads as none heard", async () => {
+    request.mockResolvedValueOnce({ require_app_lock: true, block_screen_capture: false, can_manage: false });
+    await expect(account.mobileSecurityPolicy("acme corp")).resolves.toEqual({ require_app_lock: true, block_screen_capture: false });
+    expect(request).toHaveBeenCalledWith("/api/v1/orgs/acme%20corp/mobile-security-policy", { signal: undefined });
+    for (const raw of [null, "<html>", { require_app_lock: "yes", block_screen_capture: false }, { require_app_lock: true }]) {
+      request.mockResolvedValueOnce(raw);
+      await expect(account.mobileSecurityPolicy("acme")).resolves.toBeNull();
+    }
+  });
+
   it.each([null, [], { user: null }, { user: { id: 7 } }])("a malformed user answer (%j) degrades to null", async (raw) => {
     request.mockResolvedValue(raw);
     await expect(account.setPushPreviews(false)).resolves.toBeNull();

@@ -6,7 +6,7 @@ import * as ScreenCapture from "expo-screen-capture";
 import { Platform } from "react-native";
 import { readDevicePreference, writeDevicePreference } from "@/data/device-preferences";
 import { ownerPromptOpen } from "@/data/stores/app-lock-store";
-import { authenticateOwner, deviceCanLock, loadPrivacySettings, updatePrivacySettings, usageStatsEnabled, usePrivacySettings } from "./privacy";
+import { authenticateOwner, deviceCanLock, loadPrivacySettings, setPrivacyFloor, updatePrivacySettings, usageStatsEnabled, usePrivacySettings } from "./privacy";
 
 jest.mock("@/data/device-preferences", () => ({
   readDevicePreference: jest.fn(async () => JSON.stringify({ appLock: false, relockAfterMs: 0, screenSecurity: true })),
@@ -24,7 +24,12 @@ describe("privacy settings on the phone", () => {
     await act(() => loadPrivacySettings());
     expect(readDevicePreference).toHaveBeenCalledWith("privacy");
     const { result } = await renderHook(() => usePrivacySettings());
-    expect(result.current).toEqual({ settings: { appLock: false, relockAfterMs: 0, screenSecurity: true, usageStats: true }, loaded: true, restored: true });
+    expect(result.current).toEqual({
+      settings: { appLock: false, relockAfterMs: 0, screenSecurity: true, usageStats: true },
+      floor: { appLock: false, screenSecurity: false },
+      loaded: true,
+      restored: true,
+    });
     await act(async () => undefined);
     expect(capture.preventScreenCaptureAsync).toHaveBeenCalledWith("unichat-screen-security");
     expect(capture.enableAppSwitcherProtectionAsync).toHaveBeenCalledTimes(1);
@@ -34,7 +39,10 @@ describe("privacy settings on the phone", () => {
     jest.replaceProperty(Platform, "OS", "android");
     await act(() => updatePrivacySettings({ screenSecurity: false }));
     await act(async () => undefined);
-    expect(writeDevicePreference).toHaveBeenCalledWith("privacy", JSON.stringify({ appLock: false, relockAfterMs: 0, screenSecurity: false, usageStats: true }));
+    expect(writeDevicePreference).toHaveBeenCalledWith(
+      "privacy",
+      JSON.stringify({ appLock: false, relockAfterMs: 0, screenSecurity: false, usageStats: true, floor: { appLock: false, screenSecurity: false } }),
+    );
     expect(capture.allowScreenCaptureAsync).toHaveBeenCalledWith("unichat-screen-security");
     expect(capture.enableAppSwitcherProtectionAsync).not.toHaveBeenCalled();
     expect(capture.disableAppSwitcherProtectionAsync).not.toHaveBeenCalled();
@@ -83,5 +91,22 @@ describe("privacy settings on the phone", () => {
     auth.authenticateAsync.mockRejectedValueOnce(new Error("busy"));
     await authenticateOwner("p", "c");
     expect(ownerPromptOpen()).toBe(false);
+  });
+
+  // Audit "Security & privacy", privacy-defaults-off: what the guard and Settings read is the person's choices raised
+  // to the organization's floor, and the platform blocks capture while the organization requires it.
+  it("reads and applies the choices raised to the organization's floor, and the floor itself", async () => {
+    jest.replaceProperty(Platform, "OS", "android");
+    await act(() => updatePrivacySettings({ appLock: false, screenSecurity: false }));
+    const { result } = await renderHook(() => usePrivacySettings());
+    await act(() => setPrivacyFloor({ appLock: true, screenSecurity: true }));
+    await act(async () => undefined);
+    expect(result.current.settings).toMatchObject({ appLock: true, screenSecurity: true });
+    expect(result.current.floor).toEqual({ appLock: true, screenSecurity: true });
+    expect(capture.preventScreenCaptureAsync).toHaveBeenLastCalledWith("unichat-screen-security");
+    await act(() => setPrivacyFloor({ appLock: false, screenSecurity: false }));
+    await act(async () => undefined);
+    expect(result.current.settings).toMatchObject({ appLock: false, screenSecurity: false });
+    expect(capture.allowScreenCaptureAsync).toHaveBeenLastCalledWith("unichat-screen-security");
   });
 });

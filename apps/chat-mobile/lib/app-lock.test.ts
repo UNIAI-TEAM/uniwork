@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PRIVACY_SETTINGS, RELOCK_AFTER_MS, coversWhenAway, parsePrivacySettings, relockFromValue, relockLabel, serializePrivacySettings, shouldLock } from "./app-lock";
+import {
+  DEFAULT_PRIVACY_SETTINGS,
+  NO_PRIVACY_FLOOR,
+  RELOCK_AFTER_MS,
+  coversWhenAway,
+  floorFromPolicy,
+  parsePrivacyFloor,
+  parsePrivacySettings,
+  relockFromValue,
+  relockLabel,
+  sameFloor,
+  serializePrivacySettings,
+  shouldLock,
+  withFloor,
+} from "./app-lock";
 
 describe("parsePrivacySettings", () => {
   it("reads what was saved, and both protections off when nothing or nothing usable was", () => {
@@ -53,5 +67,37 @@ describe("coversWhenAway and relockLabel", () => {
       "mobile.security.app_lock_after_5m",
       "mobile.security.app_lock_after_15m",
     ]);
+  });
+});
+
+// Audit "Security & privacy", privacy-defaults-off: the organization's requirements are a floor under the person's
+// choices, saved with them so a cold start enforces the last one it heard before the network answers.
+describe("the organization's floor", () => {
+  it("raises a protection the person left off, and never lowers one they turned on", () => {
+    expect(withFloor(DEFAULT_PRIVACY_SETTINGS, NO_PRIVACY_FLOOR)).toEqual(DEFAULT_PRIVACY_SETTINGS);
+    expect(withFloor(DEFAULT_PRIVACY_SETTINGS, { appLock: true, screenSecurity: false })).toEqual({ ...DEFAULT_PRIVACY_SETTINGS, appLock: true });
+    expect(withFloor({ ...DEFAULT_PRIVACY_SETTINGS, screenSecurity: true, relockAfterMs: 0 }, { appLock: false, screenSecurity: false })).toEqual({
+      ...DEFAULT_PRIVACY_SETTINGS,
+      screenSecurity: true,
+      relockAfterMs: 0,
+    });
+    expect(withFloor(DEFAULT_PRIVACY_SETTINGS, { appLock: true, screenSecurity: true })).toMatchObject({ appLock: true, screenSecurity: true, usageStats: true });
+  });
+
+  it("is saved beside the choices and read back; anything unusable reads as no floor", () => {
+    const floor = { appLock: true, screenSecurity: false };
+    const raw = serializePrivacySettings(DEFAULT_PRIVACY_SETTINGS, floor);
+    expect(parsePrivacyFloor(raw)).toEqual(floor);
+    expect(parsePrivacySettings(raw)).toEqual(DEFAULT_PRIVACY_SETTINGS);
+    expect(parsePrivacyFloor(serializePrivacySettings(DEFAULT_PRIVACY_SETTINGS))).toEqual(NO_PRIVACY_FLOOR);
+    for (const bad of [null, "", "not json", "[]", JSON.stringify({ floor: "on" }), JSON.stringify({ floor: { appLock: "yes", screenSecurity: 1 } })]) {
+      expect(parsePrivacyFloor(bad)).toEqual(NO_PRIVACY_FLOOR);
+    }
+  });
+
+  it("comes from the server's policy, and compares by value", () => {
+    expect(floorFromPolicy({ require_app_lock: true, block_screen_capture: false })).toEqual({ appLock: true, screenSecurity: false });
+    expect(sameFloor({ appLock: true, screenSecurity: false }, { appLock: true, screenSecurity: false })).toBe(true);
+    expect(sameFloor(NO_PRIVACY_FLOOR, { appLock: false, screenSecurity: true })).toBe(false);
   });
 });

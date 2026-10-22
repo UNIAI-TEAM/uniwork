@@ -46,7 +46,44 @@ export function parsePrivacySettings(raw: string | null): PrivacySettings {
   };
 }
 
-export const serializePrivacySettings = (settings: PrivacySettings): string => JSON.stringify(settings);
+/**
+ * What the person's organization requires of every phone (GET /orgs/{org}/mobile-security-policy; audit "Security &
+ * privacy", privacy-defaults-off): a floor under the choices, which the person cannot lower. Saved with the choices,
+ * so a cold start enforces the last one the phone heard before the network answers.
+ */
+export interface PrivacyFloor {
+  appLock: boolean;
+  screenSecurity: boolean;
+}
+
+export const NO_PRIVACY_FLOOR: PrivacyFloor = { appLock: false, screenSecurity: false };
+
+export const serializePrivacySettings = (settings: PrivacySettings, floor: PrivacyFloor = NO_PRIVACY_FLOOR): string =>
+  JSON.stringify({ ...settings, floor });
+
+/** The floor saved with the choices; anything missing or unreadable is no floor. */
+export function parsePrivacyFloor(raw: string | null): PrivacyFloor {
+  let value: unknown = null;
+  try {
+    value = raw ? JSON.parse(raw) : null;
+  } catch {
+    value = null;
+  }
+  const floor = asRecord(asRecord(value)?.floor) ?? {};
+  return { appLock: floor.appLock === true, screenSecurity: floor.screenSecurity === true };
+}
+
+/** The server's policy as a floor. */
+export function floorFromPolicy(policy: { require_app_lock: boolean; block_screen_capture: boolean }): PrivacyFloor {
+  return { appLock: policy.require_app_lock, screenSecurity: policy.block_screen_capture };
+}
+
+export const sameFloor = (a: PrivacyFloor, b: PrivacyFloor): boolean => a.appLock === b.appLock && a.screenSecurity === b.screenSecurity;
+
+/** What the phone carries out: the person's choices, raised to the organization's floor. */
+export function withFloor(settings: PrivacySettings, floor: PrivacyFloor): PrivacySettings {
+  return { ...settings, appLock: settings.appLock || floor.appLock, screenSecurity: settings.screenSecurity || floor.screenSecurity };
+}
 
 /**
  * Whether UniChat locks as it comes to the front. `leftAt` is when it went to the background, null for a cold start

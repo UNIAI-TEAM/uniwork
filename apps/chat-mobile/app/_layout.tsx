@@ -27,6 +27,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { loadPrivacySettings, usageStatsEnabled } from "@/components/app/privacy";
+import { PrivacyFloorSync } from "@/components/app/privacy-floor-sync";
 import { PrivacyGuard } from "@/components/app/privacy-guard";
 import { UpdateGate } from "@/components/app/update-gate";
 import { ErrorFallback } from "@/components/ui/error-fallback";
@@ -213,7 +214,8 @@ function RootLayout() {
                 </UpdateGate>
                 <ToastHost />
                 <PermissionPrimerHost />
-                {/* Above everything the person could read: the app switcher cover and the app lock. */}
+                {/* Above everything the person could read: the app switcher cover and the app lock, with the organization's floor. */}
+                <PrivacyFloorSync />
                 <PrivacyGuard />
               </ThemeProvider>
             </QueryClientProvider>

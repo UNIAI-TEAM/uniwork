@@ -10,6 +10,10 @@
 //   background, show the lock screen until Face ID, a fingerprint or the
 //   phone's passcode succeeds (asked at once, and again from Unlock). Only
 //   while someone is signed in: the sign-in screen has nothing to hide.
+//   The organization may require the lock (privacy-floor-sync.tsx): the
+//   settings this guard reads are already raised to that floor. A phone with
+//   no screen lock cannot prove its owner, so the lock screen then says to
+//   set one instead of asking again in vain.
 //   A ringing or live call is never held behind the lock (a call answered
 //   from the lock screen must connect); the lock comes back once it ends.
 //   Only the call shows meanwhile: the guard says the lock is engaged
@@ -31,7 +35,7 @@ import { callEngine } from "@/data/calls/call-store";
 import { coversWhenAway, shouldLock } from "@/lib/app-lock";
 import { callHoldsSocket } from "@/lib/call-socket";
 import { ownerPromptOpen, setAppLockEngaged } from "@/data/stores/app-lock-store";
-import { authenticateOwner, usePrivacySettings } from "./privacy";
+import { authenticateOwner, deviceCanLock, usePrivacySettings } from "./privacy";
 
 export function PrivacyGuard({ now = Date.now }: { now?: () => number }) {
   const { t } = useTranslation();
@@ -40,6 +44,9 @@ export function PrivacyGuard({ now = Date.now }: { now?: () => number }) {
   const callLive = useStore(callEngine.store, (s) => callHoldsSocket(s.call));
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [locked, setLocked] = useState(false);
+  // A proof that failed on a phone with no screen lock at all (one removed after the lock was turned on, or an
+  // organization that requires the lock): the lock screen says how to get in instead of asking in vain.
+  const [noDeviceLock, setNoDeviceLock] = useState(false);
   const leftAt = useRef<number | null>(null);
   // "defaults" while the read is past its cap: its late answer is checked as the cold start once more.
   const coldStart = useRef<"pending" | "defaults" | "done">("pending");
@@ -90,7 +97,12 @@ export function PrivacyGuard({ now = Date.now }: { now?: () => number }) {
     if (prompting.current) return;
     prompting.current = true;
     try {
-      if (await authenticateOwner(t("mobile.security.unlock_prompt"), t("common.cancel"))) setLocked(false);
+      if (await authenticateOwner(t("mobile.security.unlock_prompt"), t("common.cancel"))) {
+        setLocked(false);
+        setNoDeviceLock(false);
+      } else {
+        setNoDeviceLock(!(await deviceCanLock()));
+      }
     } finally {
       prompting.current = false;
     }
@@ -118,7 +130,9 @@ export function PrivacyGuard({ now = Date.now }: { now?: () => number }) {
         <Text accessibilityRole="header" className="text-title2 font-display font-bold text-foreground">
           {t("mobile.security.locked_title")}
         </Text>
-        <Text className="text-center text-body text-muted-foreground">{t("mobile.security.locked_body")}</Text>
+        <Text accessibilityLiveRegion="polite" className="text-center text-body text-muted-foreground">
+          {t(noDeviceLock ? "mobile.security.locked_no_device_lock" : "mobile.security.locked_body")}
+        </Text>
         <Button className="min-h-12 rounded-full px-8" onPress={() => void unlock()}>
           <Text className="text-body font-semibold">{t("mobile.security.unlock")}</Text>
         </Button>

@@ -5,14 +5,16 @@
 // the recents thumbnail; iOS secure capture) and, on iOS, blurs the app
 // switcher's snapshot; expo-local-authentication asks for Face ID, a
 // fingerprint or the phone's passcode. Boot loads the choices once
-// (app/_layout.tsx); the privacy guard and Settings read the store.
+// (app/_layout.tsx); the privacy guard and Settings read the store, with the
+// choices raised to the organization's floor (privacy-floor-sync.tsx keeps it).
 import * as LocalAuthentication from "expo-local-authentication";
 import * as ScreenCapture from "expo-screen-capture";
+import { useMemo } from "react";
 import { Platform } from "react-native";
 import { useStore } from "zustand";
 import { readDevicePreference, writeDevicePreference } from "@/data/device-preferences";
 import { createPrivacySettings, type PrivacyState } from "@/data/privacy-settings";
-import { coversWhenAway, type PrivacySettings } from "@/lib/app-lock";
+import { coversWhenAway, withFloor, type PrivacyFloor, type PrivacySettings } from "@/lib/app-lock";
 import { whileOwnerPrompt } from "@/data/stores/app-lock-store";
 
 /** expo-screen-capture counts holders by key: this one is the setting's. */
@@ -38,11 +40,16 @@ export const loadPrivacySettings = privacy.load;
 /** Settings: a choice, applied and saved at once. */
 export const updatePrivacySettings = privacy.update;
 
+/** The organization's requirements as the server last said them (privacy-floor-sync.tsx). */
+export const setPrivacyFloor = (floor: PrivacyFloor): void => privacy.setFloor(floor);
+
 /** Whether the person lets UniChat send its anonymous usage counters (data/analytics.ts reads it at each event). */
 export const usageStatsEnabled = (): boolean => privacy.store.getState().settings.usageStats;
 
+/** The choices as the phone carries them out (raised to the organization's floor), the floor itself, and whether they are known. */
 export function usePrivacySettings(): PrivacyState {
-  return useStore(privacy.store);
+  const state = useStore(privacy.store);
+  return useMemo(() => ({ ...state, settings: withFloor(state.settings, state.floor) }), [state]);
 }
 
 /** Whether this phone can lock UniChat: a passcode, a fingerprint or a face is set up. */

@@ -4,7 +4,9 @@
 // /api/v1/me/ai-consent), the person's language (PATCH /api/v1/me, as
 // core's patchMe; data/locale-sync.ts), whether chat pushes show the message's
 // words (PUT /api/v1/me/push-previews) and the organization's rule for that
-// (GET /api/v1/orgs/{org}/push-preview-policy). account-api.test.ts holds a
+// (GET /api/v1/orgs/{org}/push-preview-policy), and the organization's floor
+// under the phone's app lock and screen-capture choices (GET
+// /api/v1/orgs/{org}/mobile-security-policy). account-api.test.ts holds a
 // malformed-response case for each (CLAUDE.md › API Compatibility).
 import { parseWithFallback } from "@uniwork/core/api/schema";
 import type { User } from "@uniwork/core/types/user";
@@ -24,6 +26,16 @@ export const PushPreviewPolicySchema = z.object({
 });
 export type PushPreviewPolicy = z.infer<typeof PushPreviewPolicySchema>;
 const NO_POLICY: PushPreviewPolicy = { hidden: false, can_manage: false };
+
+/**
+ * What the organization requires of every phone. Strict: a drifted answer is no answer (null), so the phone keeps the
+ * floor it last heard instead of lifting it on a garbled reply.
+ */
+export const MobileSecurityPolicySchema = z.object({
+  require_app_lock: z.boolean(),
+  block_screen_capture: z.boolean(),
+});
+export type MobileSecurityPolicy = z.infer<typeof MobileSecurityPolicySchema>;
 
 export function createAccountApi(request: Request) {
   async function userOf(raw: Promise<unknown>, endpoint: string): Promise<User | null> {
@@ -55,6 +67,13 @@ export function createAccountApi(request: Request) {
       const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/push-preview-policy`, { signal });
       return parseWithFallback<PushPreviewPolicy>(raw, PushPreviewPolicySchema, NO_POLICY, {
         endpoint: "GET /api/v1/orgs/{org}/push-preview-policy",
+      });
+    },
+    /** The organization's requirements for every phone, or null when the answer drifted. */
+    async mobileSecurityPolicy(orgSlug: string, signal?: AbortSignal): Promise<MobileSecurityPolicy | null> {
+      const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/mobile-security-policy`, { signal });
+      return parseWithFallback<MobileSecurityPolicy | null>(raw, MobileSecurityPolicySchema, null, {
+        endpoint: "GET /api/v1/orgs/{org}/mobile-security-policy",
       });
     },
     /** The language the server writes pushes and emails in (users.locale); null when the answer drifted. */

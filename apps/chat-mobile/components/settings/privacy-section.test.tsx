@@ -8,7 +8,8 @@ import { DEFAULT_PRIVACY_SETTINGS, type PrivacySettings } from "@/lib/app-lock";
 import { render, viText } from "@/test/render";
 import { PrivacySection } from "./privacy-section";
 
-const mockPrivacy = createStore<PrivacyState>(() => ({ settings: DEFAULT_PRIVACY_SETTINGS, loaded: true, restored: true }));
+const NO_FLOOR = { appLock: false, screenSecurity: false };
+const mockPrivacy = createStore<PrivacyState>(() => ({ settings: DEFAULT_PRIVACY_SETTINGS, floor: NO_FLOOR, loaded: true, restored: true }));
 const mockCanLock = jest.fn(async () => true);
 const mockAuthenticate = jest.fn(async (_prompt: string, _cancel: string) => true);
 const mockUpdate = jest.fn((patch: Partial<PrivacySettings>) => mockPrivacy.setState((s) => ({ settings: { ...s.settings, ...patch } })));
@@ -30,7 +31,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockCanLock.mockResolvedValue(true);
   mockAuthenticate.mockResolvedValue(true);
-  mockPrivacy.setState({ settings: DEFAULT_PRIVACY_SETTINGS, loaded: true, restored: true });
+  mockPrivacy.setState({ settings: DEFAULT_PRIVACY_SETTINGS, floor: NO_FLOOR, loaded: true, restored: true });
   jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
 });
 
@@ -65,7 +66,7 @@ describe("PrivacySection", () => {
   });
 
   it("turns the lock off only after the owner proves it, and screen security on and off at once", async () => {
-    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, appLock: true }, loaded: true, restored: true });
+    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, appLock: true }, floor: NO_FLOOR, loaded: true, restored: true });
     mockAuthenticate.mockResolvedValueOnce(false);
     await render(<PrivacySection />);
     // Someone holding the unlocked phone cannot switch the lock off for later.
@@ -82,7 +83,7 @@ describe("PrivacySection", () => {
   });
 
   it("holds both switches until the saved choices are known, and puts a row of the caller's above them", async () => {
-    mockPrivacy.setState({ settings: DEFAULT_PRIVACY_SETTINGS, loaded: false, restored: false });
+    mockPrivacy.setState({ settings: DEFAULT_PRIVACY_SETTINGS, floor: NO_FLOOR, loaded: false, restored: false });
     await render(
       <PrivacySection>
         <Text>row above</Text>
@@ -96,12 +97,29 @@ describe("PrivacySection", () => {
 
   // Audit "no-product-analytics": the counters are on by default and the person can turn them off, without a prompt.
   it("shows the anonymous usage counters on, and turns them off at once", async () => {
-    mockPrivacy.setState({ settings: DEFAULT_PRIVACY_SETTINGS, loaded: true, restored: true });
+    mockPrivacy.setState({ settings: DEFAULT_PRIVACY_SETTINGS, floor: NO_FLOOR, loaded: true, restored: true });
     await render(<PrivacySection />);
     expect(usageSwitch()).toHaveProp("value", true);
     expect(screen.getByText(viText("mobile.security.usage_stats_hint"))).toBeOnTheScreen();
     await act(() => fireEvent(usageSwitch(), "valueChange", false));
     expect(mockUpdate).toHaveBeenLastCalledWith({ usageStats: false });
     expect(mockAuthenticate).not.toHaveBeenCalled();
+  });
+
+  // Audit "Security & privacy", privacy-defaults-off: what the organization requires reads on, cannot be moved, and
+  // says why; the relock delay is still the person's to choose.
+  it("holds what the organization requires on, says so, and still offers when the lock comes back", async () => {
+    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, appLock: true, screenSecurity: true }, floor: { appLock: true, screenSecurity: true }, loaded: true, restored: true });
+    await render(<PrivacySection />);
+    expect(lockSwitch()).toHaveProp("value", true);
+    expect(lockSwitch()).toBeDisabled();
+    expect(securitySwitch()).toHaveProp("value", true);
+    expect(securitySwitch()).toBeDisabled();
+    expect(screen.getByText(viText("mobile.security.app_lock_org"))).toBeOnTheScreen();
+    expect(screen.getByText(viText("mobile.security.screen_security_org"))).toBeOnTheScreen();
+    expect(screen.queryByText(viText("mobile.security.app_lock_hint"))).toBeNull();
+    expect(usageSwitch()).not.toBeDisabled();
+    await fireEvent.press(screen.getByRole("radio", { name: viText("mobile.security.app_lock_after_15m") }));
+    expect(mockUpdate).toHaveBeenLastCalledWith({ relockAfterMs: 900_000 });
   });
 });

@@ -6,7 +6,8 @@
 // screen lock at all says so instead. Turning it off asks too: whoever holds
 // an unlocked phone must not switch the lock off for later. The choices are this phone's
 // (components/app/privacy.ts), applied at once; the guard
-// (components/app/privacy-guard.tsx) carries them out.
+// (components/app/privacy-guard.tsx) carries them out. What the person's
+// organization requires (the floor) reads on, cannot be moved, and says why.
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useAnnounce } from "@/components/ui/a11y";
@@ -21,7 +22,7 @@ const RELOCK_OPTIONS: Option<`${RelockAfterMs}`>[] = RELOCK_AFTER_MS.map((ms) =>
 
 export function PrivacySection({ children }: { children?: ReactNode }) {
   const { t } = useTranslation();
-  const { settings, loaded } = usePrivacySettings();
+  const { settings, floor, loaded } = usePrivacySettings();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -55,9 +56,9 @@ export function PrivacySection({ children }: { children?: ReactNode }) {
           icon="lock-closed-outline"
           tint="green"
           label={t("mobile.security.app_lock")}
-          hint={t("mobile.security.app_lock_hint")}
+          hint={floor.appLock ? t("mobile.security.app_lock_org") : t("mobile.security.app_lock_hint")}
           value={settings.appLock}
-          disabled={!loaded || busy}
+          disabled={!loaded || busy || floor.appLock}
           onChange={(next) => void onAppLock(next)}
         />
         {notice ? (
@@ -69,9 +70,9 @@ export function PrivacySection({ children }: { children?: ReactNode }) {
           icon="eye-off-outline"
           tint="teal"
           label={t("mobile.security.screen_security")}
-          hint={t("mobile.security.screen_security_hint")}
+          hint={floor.screenSecurity ? t("mobile.security.screen_security_org") : t("mobile.security.screen_security_hint")}
           value={settings.screenSecurity}
-          disabled={!loaded}
+          disabled={!loaded || floor.screenSecurity}
           onChange={(next) => updatePrivacySettings({ screenSecurity: next })}
         />
         <SwitchRow
