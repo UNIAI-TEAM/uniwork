@@ -80,7 +80,8 @@ describe("app.config per UNICHAT_ENV", () => {
           expect.objectContaining({ image: "./assets/adaptive-icon.png", backgroundColor: "#ffffff", dark: expect.objectContaining({ backgroundColor: "#111111" }) }),
         ],
         "expo-secure-store",
-        "expo-notifications",
+        // A one-colour status-bar glyph with the brand's accent; the call notifications use the same drawable.
+        ["expo-notifications", { icon: "./assets/notification-icon.png", color: "#0044E3" }],
         [
           "expo-build-properties",
           {
@@ -93,6 +94,20 @@ describe("app.config per UNICHAT_ENV", () => {
         ["@sentry/react-native/expo", { url: "https://sentry.io/" }],
       ]),
     );
+  });
+
+  // Audit "android-notification-icon": Android draws a notification's small icon and the themed (Material You)
+  // launcher icon from the alpha channel only; the full-colour icon turns into a blank tile there.
+  it("gives Android a one-colour notification glyph and a monochrome launcher layer", () => {
+    const config = build();
+    expect(config.android?.adaptiveIcon).toEqual({
+      foregroundImage: "./assets/adaptive-icon.png",
+      backgroundImage: "./assets/adaptive-icon-background.png",
+      monochromeImage: "./assets/adaptive-icon-monochrome.png",
+    });
+    for (const file of ["assets/notification-icon.png", "assets/adaptive-icon-monochrome.png"]) {
+      expect(fs.existsSync(path.join(__dirname, file)), file).toBe(true);
+    }
   });
 
   // Audit P2 i18n: the system knows UniChat speaks Vietnamese and English (the

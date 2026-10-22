@@ -32,6 +32,8 @@ PNGS = [
     os.path.join(PUBLIC, "icon-512.png"),
     os.path.join(PUBLIC, "icon-maskable-512.png"),
     os.path.join(MOBILE, "adaptive-icon.png"),
+    os.path.join(MOBILE, "adaptive-icon-monochrome.png"),
+    os.path.join(MOBILE, "notification-icon.png"),
     os.path.join(DESKTOP, "icon.png"),
 ]
 # Store icons that must carry no alpha channel at all (App Store, Play).

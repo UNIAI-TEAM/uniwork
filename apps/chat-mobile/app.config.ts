@@ -268,6 +268,8 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundImage: "./assets/adaptive-icon-background.png",
+        // Android 13+ themed icons (Material You) tint this one-colour layer instead of showing the full-colour icon.
+        monochromeImage: "./assets/adaptive-icon-monochrome.png",
       },
       intentFilters: [
         {
@@ -302,7 +304,10 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // locales_config.xml, so each system's per-app language setting offers exactly these.
       ["expo-localization", { supportedLocales: ["vi", "en"] }],
       "expo-web-browser",
-      "expo-notifications",
+      // Android draws a notification's small icon from its alpha channel only: a one-colour glyph (built by
+      // `pnpm brand:build`), tinted with the brand blue. The plugin writes it as the `notification_icon` drawable,
+      // which the call notifications look up too (modules/unichat-calls › CallNotifications.smallIcon).
+      ["expo-notifications", { icon: "./assets/notification-icon.png", color: "#0044E3" }],
       // R4b (UNI-1916): the canvas types in Inter (body) and Plus Jakarta Sans
       // (titles, names). Embedded natively so `fontFamily` + `fontWeight`
       // resolve on both platforms without a runtime load.

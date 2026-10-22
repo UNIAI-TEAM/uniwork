@@ -94,6 +94,8 @@ says whose.
 | --- | --- |
 | `svg/unichat-icon.svg` | Phone icon, full bleed: `apps/chat-mobile/assets/icon.png` (no alpha). |
 | `svg/unichat-icon-foreground.svg`, `-background.svg` | Android adaptive layers; the glyph clears the 66dp safe circle. |
+| `svg/unichat-icon-monochrome.svg` | Android 13 themed icon layer (`adaptiveIcon.monochromeImage`): the bubble with the mark cut out, one colour, where the foreground puts the glyph. |
+| `svg/unichat-notification-icon.svg` | The status-bar glyph, same silhouette in Material's 20dp live area: `apps/chat-mobile/assets/notification-icon.png` (96 px, alpha only), the `notification_icon` drawable. |
 | `svg/unichat-icon-desktop.svg` | Desktop icon on Apple's 1024 grid (824 body, 185.4 corner, shadow): `apps/chat-desktop/resources/icon.png`, which electron-builder turns into .icns and .ico. |
 | `unichat-icon.tsx` | `<UniChatIcon size={96} />`, the tile inside the product (the shell's sign-in screen). |
 

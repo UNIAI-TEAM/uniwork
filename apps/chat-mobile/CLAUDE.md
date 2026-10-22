@@ -685,8 +685,10 @@ một dòng thì ghi lý do ở dòng trên.
   chuỗi trong biểu thức JSX và các prop người dùng đọc hay nghe (`accessibilityLabel`, `accessibilityHint`,
   `placeholder`, `title`, `label`…; fixture `lib/lint-copy.test.ts`); `lib/i18n.test.ts` đỏ khi vi và en khác
   `{{placeholder}}`.
-- `assets/icon.png`, `assets/adaptive-icon*.png` — icon UniChat 1024², sinh
-  bởi `pnpm brand:build` từ `packages/ui/brand/svg/unichat-icon*.svg`; không
+- `assets/icon.png`, `assets/adaptive-icon*.png`, `assets/notification-icon.png` — icon UniChat 1024², lớp
+  monochrome cho icon theo theme của Android 13+ và glyph một màu trên thanh trạng thái (96 px, chỉ kênh alpha;
+  `expo-notifications` ghi thành drawable `notification_icon` mà thông báo cuộc gọi cũng dùng, tô màu `#0044E3`), sinh
+  bởi `pnpm brand:build` từ `packages/ui/brand/svg/unichat-*.svg`; không
   sửa tay (`assets.lock.json` khoá hash nguồn). `icon.png` không có kênh alpha.
 
 ## Chạy

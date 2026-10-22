@@ -223,6 +223,46 @@ def unichat_adaptive_foreground(m: Mark, uid="f") -> str:
                w=1024, h=1024)
 
 
+def unichat_silhouette(m: Mark, uid: str) -> tuple:
+    """(defs, body): one colour, the bubble with the mark cut out of it, for the
+    places Android draws only the alpha channel - the status-bar glyph and the
+    Android 13 themed launcher icon. Cut out rather than drawn: in one colour a
+    white mark on a white bubble is a blank bubble."""
+    tx, ty = unichat_mark_origin()
+    defs = (f'<mask id="{uid}c" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">'
+            f'<rect width="1024" height="1024" fill="#fff"/>'
+            f'<g transform="translate({_n(tx)} {_n(ty)}) scale({_n(UNICHAT_MARK_K)})" fill="#000">'
+            f'{figures(m)}<path d="{ribbon_path(m)}"/></g></mask>')
+    body = (f'<g fill="#fff" mask="url(#{uid}c)"><rect x="{_n(BUBBLE_X)}" y="{_n(BUBBLE_Y)}" '
+            f'width="{_n(BUBBLE_W)}" height="{_n(BUBBLE_H)}" rx="{_n(BUBBLE_R)}"/>'
+            f'<path d="{bubble_tail()}"/></g>')
+    return defs, body
+
+
+def unichat_adaptive_monochrome(m: Mark, uid="o") -> str:
+    """The themed icon's layer (adaptiveIcon.monochromeImage): the silhouette where
+    the foreground puts the glyph, so the two read as the same icon."""
+    defs, glyph = unichat_silhouette(m, uid)
+    k = UNICHAT_ADAPTIVE_K
+    o = 512 * (1 - k)
+    return svg(f'<defs>{defs}</defs><g transform="translate({_n(o)} {_n(o)}) scale({_n(k)})">{glyph}</g>',
+               w=1024, h=1024)
+
+
+def unichat_notification_icon(m: Mark, uid="n") -> str:
+    """The status-bar glyph (expo-notifications' icon, the call notifications'
+    notification_icon): the silhouette filling Material's 20dp live area of the
+    24dp icon, centred on the bubble with its tail."""
+    defs, glyph = unichat_silhouette(m, uid)
+    x0, y0 = BUBBLE_X - 6, BUBBLE_Y
+    x1, y1 = BUBBLE_X + BUBBLE_W, BUBBLE_Y + BUBBLE_H + 118
+    k = (1024 * 20 / 24) / max(x1 - x0, y1 - y0)
+    tx = 512 - k * (x0 + x1) / 2
+    ty = 512 - k * (y0 + y1) / 2
+    return svg(f'<defs>{defs}</defs><g transform="translate({_n(tx)} {_n(ty)}) scale({_n(k)})">{glyph}</g>',
+               w=1024, h=1024)
+
+
 def unichat_adaptive_background(uid="k") -> str:
     return svg(f'<defs>{gradient(uid + "g", 0, 1024, 1024, 0)}</defs>'
                f'<rect width="1024" height="1024" fill="url(#{uid}g)"/>', w=1024, h=1024)
@@ -340,6 +380,8 @@ def main():
         "unichat-icon-desktop.svg": unichat_icon_desktop(full),
         "unichat-icon-foreground.svg": unichat_adaptive_foreground(full),
         "unichat-icon-background.svg": unichat_adaptive_background(),
+        "unichat-icon-monochrome.svg": unichat_adaptive_monochrome(full),
+        "unichat-notification-icon.svg": unichat_notification_icon(full),
     }
     for m, label in ((full, "mark"), (compact, "compact")):
         margin = m.cusp_margin()

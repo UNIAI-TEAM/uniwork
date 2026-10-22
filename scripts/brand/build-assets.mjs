@@ -69,6 +69,20 @@ const PNGS = [
     transparent: true,
   },
   { out: path.join(MOBILE, "adaptive-icon-background.png"), source: "unichat-icon-background.svg", size: 1024 },
+  // One colour, alpha only: Android 13's themed launcher icon, and the status-bar glyph (96 px, the
+  // xxxhdpi size of a 24dp icon; expo-notifications scales it to the other densities).
+  {
+    out: path.join(MOBILE, "adaptive-icon-monochrome.png"),
+    source: "unichat-icon-monochrome.svg",
+    size: 1024,
+    transparent: true,
+  },
+  {
+    out: path.join(MOBILE, "notification-icon.png"),
+    source: "unichat-notification-icon.svg",
+    size: 96,
+    transparent: true,
+  },
   // electron-builder makes .icns and .ico from it; the shell also sets it as
   // the window icon (Windows, Linux) and the dock icon of an unpackaged run.
   {
