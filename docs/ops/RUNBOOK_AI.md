@@ -189,7 +189,7 @@ Hỏi UNI chạy như agent đọc (vòng model → tool → model) khi flag `as
 
 | Metric | Loại | Ý nghĩa |
 | --- | --- | --- |
-| `uniwork_ai_ask_runs_total{outcome}` | counter | Lượt agent theo `answered`, `agent_failed`, `refused`, `rate_limited`, `busy`, `timeout`, `stopped`, `interrupted`. `stopped` là người hỏi bấm Dừng (hoặc đóng kết nối); `interrupted` là lượt bị cắt vì server tắt (xem "Hỏi UNI stream"). `rate_limited` gồm giới hạn của nhà cung cấp, trần lời gọi của tổ chức và hết hạn mức token. `timeout` là hết hạn 120 giây của lượt, hoặc một lời gọi model quá hạn của gateway (mặc định 60 giây). `agent_failed` còn gồm: lỗi hạ tầng (provider 5xx, lỗi DB, lưu lượt thất bại, panic), focus người hỏi không được đọc (`ai_context_forbidden`), và lần thử lại định dạng vẫn hỏng |
+| `uniwork_ai_ask_runs_total{outcome}` | counter | Lượt agent theo `answered`, `agent_failed`, `refused`, `rate_limited`, `busy`, `timeout`, `stopped`, `interrupted`, `rejected`. `rejected` là lượt trả lời lại (regenerate) thua một câu trả lời mới hơn tại bước lưu: một lời từ chối, không phải lượt lỗi. `stopped` là người hỏi bấm Dừng (hoặc đóng kết nối); `interrupted` là lượt bị cắt vì server tắt (xem "Hỏi UNI stream"). `rate_limited` gồm giới hạn của nhà cung cấp, trần lời gọi của tổ chức và hết hạn mức token. `timeout` là hết hạn 120 giây của lượt, hoặc một lời gọi model quá hạn của gateway (mặc định 60 giây). `agent_failed` còn gồm: lỗi hạ tầng (provider 5xx, lỗi DB, lưu lượt thất bại, panic), focus người hỏi không được đọc (`ai_context_forbidden`), và lần thử lại định dạng vẫn hỏng |
 | `uniwork_ai_ask_run_rounds` | histogram (0–4) | Số vòng tool mỗi lượt, trần 4; dồn về 4 = agent chạm trần vòng tool (lời gọi sau vòng cuối là vòng trả lời) |
 | `uniwork_ai_ask_run_seconds` | histogram (tới 150s) | Thời gian một lượt; hạn chót 120s nên bucket 120–150 là lượt chạm hạn |
 | `uniwork_ai_ask_tool_calls_total{tool,status}` | counter | Call tool theo 12 tên trong registry (tên khác gom về `other`) và `ok`, `error`, `truncated` |
@@ -213,6 +213,12 @@ Dock mới của Hỏi UNI nhận câu trả lời qua SSE thay vì chờ cả l
 - **Tắt server**: `main.go` gọi `askUNI.Shutdown()` trước khi dừng HTTP; các lượt đang chạy bị hủy và lưu với notice `interrupted` (client hiện "Câu trả lời bị gián đoạn nên chưa đầy đủ."), metric outcome `interrupted`. Một đợt deploy làm `interrupted` tăng một nhịp là bình thường; tăng khi không deploy = pod bị kill.
 - **Flag `ask_uni_stream`** (Public, mặc định tắt): bật thì client dùng dock mới và route stream, tắt thì giữ panel cũ và `POST …/ai/ask`. Đặt override theo tổ chức ở `/admin/flags`. Rollback: tắt flag (override hoặc `FF_ASK_UNI_STREAM`); route cũ vẫn chạy nguyên, không mất hội thoại hay dữ liệu. Flag chỉ đổi giao diện, nên tắt flag không cắt một lượt đang stream.
 - **Phản hồi và đổi tên**: `PUT`/`DELETE …/ai/conversations/{conversationID}/messages/{messageID}/feedback` và `PATCH …/ai/conversations/{conversationID}` ghi bảng `ai_message_feedback` và tiêu đề hội thoại; không có hàng audit.
+
+### P2b: nguồn, gợi ý tiếp, tiêu đề, trả lời lại
+
+- **Sự kiện SSE mới**: `sources` (nguồn tìm được, đến trước chữ để dock hiện thẻ sớm), `followups` (câu hỏi gợi ý, đến trước `done`) và `title` (`conversation_id` + `title`). `step` giờ mang thêm `label` (tên đối tượng đang tra, không phải chuỗi giao diện).
+- **Tiêu đề**: `title` đến SAU `done`, chỉ ở câu trả lời đầu của hội thoại mới. Server gọi một lần capability `copilot_title` (tầng fast, tối đa 32 token, prompt `conversation_title@1`; đổi model bằng `AI_MODEL_COPILOT_TITLE` như các capability khác, phải nằm trong allowlist). Gọi hỏng, quá 10 giây, tiêu đề rỗng hoặc người dùng đã đổi tên trước đó: hội thoại giữ câu hỏi làm tiêu đề, không có sự kiện `title`, không phải lỗi (chỉ một dòng log warn theo id). Lời gọi này đi qua Gateway nên tính tiền và meter như mọi lời gọi khác.
+- **Trả lời lại**: body có `regenerate_message_id` (chỉ route stream; `question` bị bỏ qua, dùng câu hỏi và ngữ cảnh đã lưu). Chỉ câu trả lời cuối của hội thoại trong dock được trả lời lại; id khác trả 400. Câu trả lời cũ được đánh dấu `superseded_at` (không xóa), câu mới thay tại chỗ. Hai lượt trả lời lại cùng lúc: lượt thua bị từ chối ở bước lưu và tính vào `uniwork_ai_ask_runs_total{outcome="rejected"}`.
 
 ## Không bao giờ
 
