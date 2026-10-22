@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18520 13440; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18520/tcp 13440/tcp 2>/dev/null; sleep 1; for p in 18520 13440; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+864101a00f019dc6dd2f0d274e45b076dbfb448b
+864101a00 refactor(documents): reword the ArchiveDocument comment for relocation
+121acf80b test(documents): answer archive-impact in the row-menu trash test
+990dec4a5 chore: merge the G5-G7 root 7f225212a into the UNI-2074 lane
+7f225212a chore: merge develop f26deea16 into the G5-G7 root
