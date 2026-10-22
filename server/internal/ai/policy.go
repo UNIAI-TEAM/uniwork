@@ -67,8 +67,12 @@ var (
 )
 
 var policies = map[Capability]ModelPolicy{
-	CapMeetingSummarization: {Default: flagship, MaxTokens: 4096, Temperature: 0},
-	CapMeetingLiveItems:     {Default: fast, MaxTokens: 1024, Temperature: 0},
+	// A @7 record of a long meeting (topics, 20+ items with descriptions and
+	// evidence) runs past 4k tokens of Vietnamese; a cut answer is billed and
+	// then retried once in brief mode (benchmark #6). Live items: a burst of
+	// 5-6 items with descriptions.
+	CapMeetingSummarization: {Default: flagship, MaxTokens: 12000, Temperature: 0},
+	CapMeetingLiveItems:     {Default: fast, MaxTokens: 3000, Temperature: 0},
 	CapCaptionTranslate:     {Default: fast, MaxTokens: 2048, Temperature: 0},
 	CapCopilotAnswer:        {Default: flagship, MaxTokens: 1500, Temperature: 0},
 	CapCopilotAgent:         {Default: copilotAgent, MaxTokens: 4096, Temperature: 0},

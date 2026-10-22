@@ -88,6 +88,9 @@ type ActionItem struct {
 	// Priority is low|medium|high|urgent when the meeting signalled one, ""
 	// otherwise; cleanActionItems drops any other value.
 	Priority string `json:"priority,omitempty"`
+	// Draft (meeting_summary@7) is the label ("D2") of the live draft item
+	// this one refines in place; "" for a new item.
+	Draft string `json:"draft,omitempty"`
 }
 
 // Decision is one decision of a meeting summary. Before @5 a decision was a
@@ -108,9 +111,23 @@ func (d *Decision) UnmarshalJSON(b []byte) error {
 }
 
 type MeetingSummary struct {
-	Summary     string       `json:"summary"`
-	Decisions   []Decision   `json:"decisions"`
-	ActionItems []ActionItem `json:"action_items"`
+	// Summary is the record's paragraph: "summary" up to @6, "tldr" from @7
+	// (ParseSummaryJSON moves it here).
+	Summary string `json:"summary"`
+	TLDR    string `json:"tldr,omitempty"`
+	// Topics and OpenQuestions are @7's (benchmark #8); empty before it.
+	Topics        []SummaryTopic `json:"topics,omitempty"`
+	Decisions     []Decision     `json:"decisions"`
+	ActionItems   []ActionItem   `json:"action_items"`
+	OpenQuestions []Decision     `json:"open_questions,omitempty"`
+}
+
+// SummaryTopic is one subject of a @7 record: StartLabel is the transcript
+// line it starts at, each point cites its lines like a decision does.
+type SummaryTopic struct {
+	Title      string     `json:"title"`
+	StartLabel string     `json:"start_label"`
+	Points     []Decision `json:"points"`
 }
 
 type EmailThreadSummary struct {
@@ -253,6 +270,12 @@ const (
 	maxItemDescriptionRunes = 1000
 	maxEvidenceLabels       = 10
 	maxEvidenceRunes        = 16
+	// @7: topics and open questions, as far above the asked-for size.
+	maxSummaryTopics   = 20
+	maxTopicPoints     = 10
+	maxTopicTitleRunes = 200
+	maxPointRunes      = 500
+	maxOpenQuestions   = 20
 )
 
 // ParseSummaryJSON accepts the model text and tolerates a ```json fence or
@@ -270,19 +293,41 @@ func ParseSummaryJSON(s string) (MeetingSummary, error) {
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return MeetingSummary{}, ErrOutputInvalid.wrap(fmt.Errorf("parse summary: %w", err))
 	}
-	out.Summary = capRunes(strings.TrimSpace(out.Summary), maxSummaryRunes)
-	decisions := make([]Decision, 0, len(out.Decisions))
-	for _, d := range out.Decisions {
-		if d.Text = strings.TrimSpace(d.Text); d.Text != "" && len(decisions) < maxSummaryDecisions {
-			decisions = append(decisions, Decision{Text: capRunes(d.Text, maxDecisionRunes), Evidence: capEvidence(d.Evidence)})
-		}
+	if strings.TrimSpace(out.Summary) == "" {
+		out.Summary = out.TLDR
 	}
-	out.Decisions = decisions
+	out.TLDR = ""
+	out.Summary = capRunes(strings.TrimSpace(out.Summary), maxSummaryRunes)
+	out.Decisions = cleanPoints(out.Decisions, maxSummaryDecisions, maxDecisionRunes)
+	out.OpenQuestions = cleanPoints(out.OpenQuestions, maxOpenQuestions, maxDecisionRunes)
+	topics := make([]SummaryTopic, 0, len(out.Topics))
+	for _, t := range out.Topics {
+		t.Title = capRunes(strings.TrimSpace(t.Title), maxTopicTitleRunes)
+		t.Points = cleanPoints(t.Points, maxTopicPoints, maxPointRunes)
+		if t.Title == "" || len(topics) >= maxSummaryTopics {
+			continue
+		}
+		t.StartLabel = oneLabel(t.StartLabel)
+		topics = append(topics, t)
+	}
+	out.Topics = topics
 	out.ActionItems = cleanActionItems(out.ActionItems)
-	if out.Summary == "" && len(out.Decisions) == 0 && len(out.ActionItems) == 0 {
+	if out.Summary == "" && len(out.Decisions) == 0 && len(out.ActionItems) == 0 && len(out.Topics) == 0 {
 		return MeetingSummary{}, ErrOutputInvalid.wrap(errors.New("empty summary"))
 	}
 	return out, nil
+}
+
+// cleanPoints trims and caps decisions, topic points or open questions,
+// dropping the blank ones. Never nil.
+func cleanPoints(in []Decision, max, runes int) []Decision {
+	out := make([]Decision, 0, len(in))
+	for _, d := range in {
+		if d.Text = strings.TrimSpace(d.Text); d.Text != "" && len(out) < max {
+			out = append(out, Decision{Text: capRunes(d.Text, runes), Evidence: capEvidence(d.Evidence)})
+		}
+	}
+	return out
 }
 
 // actionItemPriorities are the task priorities a model may suggest.
@@ -301,6 +346,7 @@ func cleanActionItems(in []ActionItem) []ActionItem {
 		it.Due = capRunes(strings.TrimSpace(it.Due), maxItemDueRunes)
 		it.Evidence = capEvidence(it.Evidence)
 		it.Description = capRunes(strings.TrimSpace(it.Description), maxItemDescriptionRunes)
+		it.Draft = oneLabel(it.Draft)
 		it.Priority = strings.ToLower(strings.TrimSpace(it.Priority))
 		if !actionItemPriorities[it.Priority] {
 			it.Priority = ""
@@ -340,6 +386,14 @@ func capEvidence(labels []string) []string {
 		}
 	}
 	return out
+}
+
+// oneLabel is a single label of a plausible length, "" otherwise.
+func oneLabel(s string) string {
+	if l := capEvidence([]string{s}); len(l) == 1 {
+		return l[0]
+	}
+	return ""
 }
 
 // capRunes cuts s to at most n runes, marking the cut with an ellipsis.

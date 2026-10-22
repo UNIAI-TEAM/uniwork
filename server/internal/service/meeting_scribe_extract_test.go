@@ -142,7 +142,7 @@ func TestAgentExtractStoresLiveItems(t *testing.T) {
 	if n := countSummaryRows(t, s, `SELECT count(*) FROM outbox_events WHERE topic = 'action_item.created' AND payload::jsonb->>'action_item_id' = $1`, it.ID); n != 1 {
 		t.Fatalf("outbox rows = %d", n)
 	}
-	if n := countSummaryRows(t, s, `SELECT count(*) FROM ai_usage_events WHERE capability = 'meeting_live_items' AND prompt_id = 'meeting_live_items@2' AND actor_kind = 'system'`); n != 1 {
+	if n := countSummaryRows(t, s, `SELECT count(*) FROM ai_usage_events WHERE capability = 'meeting_live_items' AND prompt_id = 'meeting_live_items@3' AND actor_kind = 'system'`); n != 1 {
 		t.Fatalf("usage rows = %d", n)
 	}
 	r := latestRun(t, s, m.ID)
