@@ -86,6 +86,8 @@ const PNGS = [
   },
   // Play's main store listing: the feature graphic, 1024 x 500, no alpha (squeeze.py).
   { out: path.join(PLAY, "feature-graphic.png"), source: "unichat-feature-graphic.svg", width: 1024, height: 500 },
+  // Play's hi-res app icon: 512 x 512, a 32-bit PNG (squeeze.py keeps it RGBA), the full-bleed tile Play masks itself.
+  { out: path.join(PLAY, "icon-512.png"), source: "unichat-icon.svg", size: 512 },
   // electron-builder makes .icns and .ico from it; the shell also sets it as
   // the window icon (Windows, Linux) and the dock icon of an unpackaged run.
   {

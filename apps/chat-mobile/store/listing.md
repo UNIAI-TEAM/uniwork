@@ -246,8 +246,15 @@ bản release do `android-manifest.test.ts` giữ.
 **Feature graphic của Play** (1024 × 500, không chữ, không kênh alpha): `store/play/feature-graphic.png`, sinh bởi
 `pnpm brand:build` từ `packages/ui/brand/svg/unichat-feature-graphic.svg` (khoá trong `assets.lock.json`); không sửa tay.
 
-**Ảnh chụp màn hình** (chưa có — cần máy hoặc simulator chạy bản staging với org "UniChat Review"; owner action): iPhone
-6,9" (1320 × 2868) và 6,5" (1242 × 2688), Android phone (1080 × 1920 trở lên), tối thiểu 3 ảnh mỗi ngôn ngữ (vi và en):
-danh sách hội thoại, một cuộc trò chuyện, cuộc gọi (ảnh cuộc gọi chỉ cho Play khi iPhone còn tắt gọi). Chụp bằng flow
-Maestro trên simulator/emulator, lưu vào `store/apple/screenshots/<locale>/` và `store/play/<locale>/images/`
-(bố cục EAS Metadata và fastlane supply). Dữ liệu trong ảnh lấy từ org "UniChat Review", không dữ liệu khách hàng.
+**Icon hi-res của Play** (512 × 512, PNG 32-bit): `store/play/icon-512.png`, sinh bởi `pnpm brand:build` từ
+`packages/ui/brand/svg/unichat-icon.svg` (khoá trong `assets.lock.json`); không sửa tay.
+
+**Ảnh chụp màn hình** (chưa chụp — cần simulator/emulator chạy bản staging với org "UniChat Review"; owner action):
+`node apps/chat-mobile/scripts/store-screenshots.mjs capture --platform android|ios --locale vi|en` đặt ngôn ngữ của app,
+thanh trạng thái sạch (9:41, pin đầy), chạy `maestro/flows/store-screenshots.yaml` (danh sách hội thoại, một cuộc trò
+chuyện, danh bạ, và tab cuộc gọi cho Play khi iPhone còn tắt gọi) và lưu vào `store/play/<vi-VN|en-US>/images/phoneScreenshots/`
+(bố cục fastlane supply) và `store/apple/screenshots/<vi|en-US>/`. Máy: emulator 1080 × 1920 (Play từ chối cạnh dài hơn
+hai lần cạnh ngắn) và iPhone 16 Pro Max (1320 × 2868; 6,5" 1242 × 2688 cũng được). `store-screenshots.mjs check` đỏ khi
+một ngôn ngữ thiếu ảnh (tối thiểu 3), ảnh sai cỡ, hay thiếu icon 512; `chat-mobile-promote.yml` chạy nó trước khi một bản
+lên production (`scripts/mobile-store-screenshots.test.mjs` giữ luật). Dữ liệu trong ảnh lấy từ org "UniChat Review",
+không dữ liệu khách hàng.

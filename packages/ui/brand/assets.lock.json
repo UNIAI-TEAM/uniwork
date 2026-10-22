@@ -76,6 +76,11 @@
       "size": "1024x500",
       "sha": "dbd07585fba388c6"
     },
+    "apps/chat-mobile/store/play/icon-512.png": {
+      "source": "unichat-icon.svg",
+      "size": 512,
+      "sha": "057824edbbf129c6"
+    },
     "apps/chat-desktop/resources/icon.png": {
       "source": "unichat-icon-desktop.svg",
       "size": 1024,

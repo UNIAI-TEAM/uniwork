@@ -1,0 +1,41 @@
+# The store screenshots (store/listing.md › Ảnh chụp và đồ hoạ): the conversation list, a conversation, the
+# directory and, where calling ships, the calls tab, signed in to the "UniChat Review" organization on staging
+# (no customer data). Not in any workflow: scripts/store-screenshots.mjs runs it once per language on a phone-sized
+# simulator or emulator, after setting the app's language and a clean status bar, and files the PNGs where the
+# stores' upload tools read them. MAESTRO_SHOT_DIR is the absolute folder the shots go to; MAESTRO_CALLS=1 adds the
+# calls tab (Play only while calling is off on iPhone).
+appId: com.uniworkos.chat.staging
+name: Store screenshots
+tags:
+  - store
+---
+# No clearState: the language the script set for the app stays, and a kept session skips the sign-in.
+- launchApp
+- runFlow: ../subflows/sign-in.yaml
+- runScript: ../scripts/app-scheme.js
+- openLink: ${output.scheme}://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat')}
+- extendedWaitUntil:
+    visible:
+      id: room-row-${MAESTRO_ROOM_ID}
+    timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot: ${MAESTRO_SHOT_DIR}/1-chats
+- tapOn:
+    id: room-row-${MAESTRO_ROOM_ID}
+- extendedWaitUntil:
+    visible:
+      id: composer-input
+    timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot: ${MAESTRO_SHOT_DIR}/2-conversation
+- tapOn: "Back|Quay lại"
+- tapOn: "Contacts|Danh bạ"
+- waitForAnimationToEnd
+- takeScreenshot: ${MAESTRO_SHOT_DIR}/3-contacts
+- runFlow:
+    when:
+      true: ${MAESTRO_CALLS == '1'}
+    commands:
+      - tapOn: "Calls|Cuộc gọi"
+      - waitForAnimationToEnd
+      - takeScreenshot: ${MAESTRO_SHOT_DIR}/4-calls

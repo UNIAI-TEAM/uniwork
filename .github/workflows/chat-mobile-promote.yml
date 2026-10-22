@@ -96,6 +96,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+      # Audit "store-assets-missing": a store version never ships without its screenshots (every listed language) and,
+      # on Play, the 512 px icon (apps/chat-mobile/scripts/store-screenshots.mjs; runbook › Ảnh chụp).
+      - name: Store pictures are in place
+        if: ${{ inputs.action == 'promote' && (inputs.to_track == 'production' || inputs.platform == 'ios') }}
+        run: node apps/chat-mobile/scripts/store-screenshots.mjs check --platform "$PLATFORM"
       - name: Pace the phased release on the App Store
         if: ${{ inputs.platform == 'ios' }}
         env:

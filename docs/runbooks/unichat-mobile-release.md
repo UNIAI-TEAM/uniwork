@@ -555,7 +555,9 @@ từng mục khi đã nộp:
 - [ ] **Store listing**: chữ của Play (main store listing, vi và en) dán từ `apps/chat-mobile/store/play/<locale>/*.txt`,
   feature graphic `store/play/feature-graphic.png`; App Store: `eas metadata:push` (đường dẫn ở `eas.json ›
   submit.production.ios.metadataPath`, sinh bởi `node apps/chat-mobile/scripts/store-metadata.mjs` từ `listing.md`).
-  Ảnh chụp: mục "Ảnh chụp và đồ hoạ" của `listing.md`. Support URL hiện là trang chính sách (có địa chỉ liên hệ);
+  Icon hi-res của Play: `store/play/icon-512.png`. Ảnh chụp: mục "Ảnh chụp và đồ hoạ" của `listing.md` — chụp bằng
+  `node apps/chat-mobile/scripts/store-screenshots.mjs capture …` cho vi và en trên mỗi nền tảng, rồi `… check`;
+  `chat-mobile-promote.yml` từ chối lên production khi `check` đỏ. Support URL hiện là trang chính sách (có địa chỉ liên hệ);
   có trang hỗ trợ riêng thì đổi trong script.
 - [ ] **App access**: tài khoản demo (mục "Tài khoản demo cho review" của `store/listing.md`).
 - [ ] **Government apps / Financial features / Health**: không.
