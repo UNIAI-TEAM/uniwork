@@ -249,7 +249,7 @@ export function DocumentArchiveDialog({
       return (
         <div className="flex items-center justify-between gap-2">
           <p role="alert" className="text-caption text-destructive">
-            {t("documents.archive.delete_impact_error")}
+            {t("documents.archive.archive_impact_error")}
           </p>
           <Button type="button" variant="outline" size="sm" onClick={() => void impact.refetch()}>
             {t("documents.archive.retry")}
@@ -260,7 +260,7 @@ export function DocumentArchiveDialog({
     if (impact.data.too_large) {
       return (
         <p role="alert" className="text-body text-destructive">
-          {t("documents.archive.delete_too_large", { max: impact.data.max_nodes })}
+          {t("documents.archive.archive_too_large", { max: impact.data.max_nodes })}
         </p>
       );
     }

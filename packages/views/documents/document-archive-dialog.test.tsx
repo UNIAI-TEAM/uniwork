@@ -266,12 +266,13 @@ describe("DocumentArchiveDialog", () => {
       expect(screen.queryByText(t("documents.archive.archive_relocated"))).toBeNull();
     });
 
-    it("keeps the empty line when nothing but the root goes to trash and the rest relocates", async () => {
+    it("shows only the relocation sentence when nothing but the root goes to trash and the rest relocates", async () => {
       mockPage(() => Promise.resolve(pageImpact({ documents: 0, total: 1, relocated_count: 3 })));
       renderDialog();
 
       expect(await screen.findByText(t("documents.archive.archive_relocated"))).toBeInTheDocument();
       expect(screen.queryByText(t("documents.archive.impact_count", { count: 1 }))).toBeNull();
+      expect(screen.queryByText(t("documents.archive.impact_empty"))).toBeNull();
       expect(screen.queryByText("Con A")).toBeNull();
     });
 
@@ -298,7 +299,8 @@ describe("DocumentArchiveDialog", () => {
       mockPage(() => (fail ? Promise.reject(new Error("offline")) : Promise.resolve(pageImpact())));
       renderDialog();
 
-      expect(await screen.findByText(t("documents.archive.delete_impact_error"))).toBeInTheDocument();
+      expect(await screen.findByText(t("documents.archive.archive_impact_error"))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.archive.delete_impact_error"))).toBeNull();
       const confirm = screen.getByRole("button", { name: t("documents.archive.archive_confirm") });
       expect(confirm).toBeDisabled();
 
@@ -324,7 +326,8 @@ describe("DocumentArchiveDialog", () => {
       mockPage(() => Promise.resolve({ too_large: true, max_nodes: 1000 }));
       renderDialog();
 
-      expect(await screen.findByText(t("documents.archive.delete_too_large", { max: 1000 }))).toBeInTheDocument();
+      expect(await screen.findByText(t("documents.archive.archive_too_large", { max: 1000 }))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.archive.delete_too_large", { max: 1000 }))).toBeNull();
       expect(screen.queryByRole("button", { name: t("documents.archive.archive_confirm") })).toBeNull();
     });
 
