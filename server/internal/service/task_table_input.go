@@ -62,10 +62,14 @@ func (s *TaskService) resolveTableQuery(ctx context.Context, actor Actor, worksp
 	if err != nil {
 		return resolvedTableQuery{}, err
 	}
+	filter, err := scopeTableRelation(in.Filter, actor)
+	if err != nil {
+		return resolvedTableQuery{}, err
+	}
 	out.query = tablequery.Query{
 		OrganizationID: ws.OrganizationID,
 		WorkspaceID:    workspaceID,
-		Filter:         in.Filter,
+		Filter:         filter,
 		Search:         in.Search,
 		Sort:           sortSpec,
 		Group:          group,
@@ -73,6 +77,25 @@ func (s *TaskService) resolveTableQuery(ctx context.Context, actor Actor, worksp
 	}.Normalize()
 	out.fingerprint = tablequery.Fingerprint(out.query)
 	return out, nil
+}
+
+// scopeTableRelation validates Filter.Relation and binds it to the caller:
+// ActorID always comes from the session, so a request can neither name another
+// person nor leave a relation without a viewer. An unknown relation is refused
+// rather than dropped, which would widen "my tasks" to the whole workspace.
+func scopeTableRelation(f tablequery.Filter, actor Actor) (tablequery.Filter, error) {
+	f.Relation = strings.TrimSpace(f.Relation)
+	f.ActorID = ""
+	switch f.Relation {
+	case "":
+		return f, nil
+	case "all", "assigned", "created", "involved":
+		f.ActorID = actor.ID
+		return f, nil
+	default:
+		return f, coded(http.StatusBadRequest, "invalid_relation",
+			"relation must be all, assigned, created or involved")
+	}
 }
 
 func (s *TaskService) resolveTableGroup(ctx context.Context, orgID, workspaceID, groupBy string) (tablequery.Group, map[string]string, error) {
