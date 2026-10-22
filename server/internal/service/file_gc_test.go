@@ -775,3 +775,62 @@ func TestFileGCVersionedBucketDeletesOnlyTheRecordedVersion(t *testing.T) {
 	}
 	h.wantStatus(t, id, files.StatusDeleted)
 }
+
+// A room's wallpaper on the real collector (UNI-2134): a released wallpaper
+// that a room still names is held by chat_rooms.wallpaper, one that another
+// organization's room names is quarantined, and one no room names is
+// collected. The upload itself goes through the session CHECKs, which
+// chat_room_wallpaper was once missing from.
+func TestFileGCHoldsTheWallpaperARoomShows(t *testing.T) {
+	h := newGCHarness(t, FileGCDestructive)
+	ctx := context.Background()
+	upload := func(key string) files.FileID {
+		t.Helper()
+		up, err := t3Upload(t, h.fileHarness, files.ChatRoomWallpaper, t3Scope, key, "nen.png", t3PNG)
+		if err != nil {
+			t.Fatalf("wallpaper upload: %v", err)
+		}
+		if err := h.tx(t, func(tx pgx.Tx, q *db.Queries) error {
+			_, err := h.svc.ClaimInTx(ctx, q, files.ClaimInput{
+				Actor: t3Actor, Purpose: files.ChatRoomWallpaper, Scope: t3Scope, FileIDs: []files.FileID{up.File.ID},
+			})
+			return err
+		}); err != nil {
+			t.Fatalf("claim: %v", err)
+		}
+		return up.File.ID
+	}
+	room := func(id, org string, file files.FileID) {
+		t.Helper()
+		if _, err := h.pool.Exec(ctx, `
+			INSERT INTO chat_rooms (id, kind, workspace_id, organization_id, name, livekit_room_name, created_by, visibility, member_set_key, wallpaper_preset, wallpaper_file_id)
+			VALUES ($1, 'group', $2, $3, 'r', $4, 'seed', 'private', $5, 'custom', $6)`,
+			id, t3WS, org, "lk-"+id, "set-"+id, string(file)); err != nil {
+			t.Fatalf("seed room: %v", err)
+		}
+	}
+	shown := upload("wallpaper-shown")
+	room("01J8ZQ0K7V9W1Y2X3Z4A5B6R0A", t3Org, shown)
+	foreign := upload("wallpaper-foreign")
+	room("01J8ZQ0K7V9W1Y2X3Z4A5B6R0B", t3OrgB, foreign)
+	gone := upload("wallpaper-gone")
+	h.releaseT3(t, shown, foreign, gone)
+	h.clock.Advance(30 * time.Hour)
+
+	rep := h.sweep(t)
+	if rep.Coverage != "" {
+		t.Fatalf("coverage gap: %s", rep.Coverage)
+	}
+	if e := entry(t, rep, shown, fileJobCleanup); e.Action != FileGCHeld || !strings.Contains(e.Reason, "chat_rooms.wallpaper") {
+		t.Fatalf("shown wallpaper = %+v, want held by chat_rooms.wallpaper", e)
+	}
+	if !h.objectExists(t, h.wantStatus(t, shown, files.StatusReady)) {
+		t.Fatal("the wallpaper a room shows lost its object")
+	}
+	if e := entry(t, rep, foreign, fileJobCleanup); e.Action != FileGCQuarantined || e.Reason != "cross_tenant_reference" {
+		t.Fatalf("foreign-room wallpaper = %+v, want quarantined cross_tenant_reference", e)
+	}
+	if e := entry(t, rep, gone, fileJobCleanup); e.Action != FileGCDeleted {
+		t.Fatalf("unreferenced wallpaper = %+v, want deleted", e)
+	}
+}
