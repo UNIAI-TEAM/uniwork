@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useId, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useId, useRef, useImperativeHandle, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
 import type { TaskStatus } from "@uniwork/core/types";
@@ -42,6 +42,10 @@ interface Props {
   kinds: AskUniObjectKind[];
   onPick(item: AskUniObjectItem): void;
   onDismiss(): void;
+  /** The listbox id, so a host input can name it in aria-controls. */
+  listboxId?: string;
+  /** The active option's id (undefined when there are no rows), for the host's aria-activedescendant. */
+  onActiveChange?(id: string | undefined): void;
 }
 
 type Tab = "all" | AskUniObjectKind;
@@ -115,16 +119,18 @@ function Row({ item, query, id, active, onPick, onHover }: {
  * (tasks) status and assignee. It never takes focus; the host feeds it keys through the handle.
  */
 export const AskUniObjectPicker = forwardRef<AskUniObjectPickerHandle, Props>(function AskUniObjectPicker(
-  { wsId, query, kinds, onPick, onDismiss },
+  { wsId, query, kinds: allKinds, onPick, onDismiss, listboxId, onActiveChange },
   ref,
 ) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.picker" });
   const uid = useId();
   const documentsOn = useFlag("documents", false);
+  // Documents hide behind their flag; no flag, no tab and no rows.
+  const kinds = allKinds.filter((k) => k !== "document" || documentsOn);
   const on = (k: AskUniObjectKind) => kinds.includes(k);
   const members = useMemberMatches(wsId, query);
   const tasks = useTaskMatches(wsId, query, on("task"));
-  const documents = useDocumentMatches(wsId, query, on("document") && documentsOn);
+  const documents = useDocumentMatches(wsId, query, on("document"));
   const meetings = useMeetingMatches(wsId, query, on("meeting"));
   const projects = useProjectMatches(wsId, query, on("project"));
   const rooms = useRoomMatches(wsId, query, on("room"));
@@ -143,6 +149,15 @@ export const AskUniObjectPicker = forwardRef<AskUniObjectPickerHandle, Props>(fu
   const shown = (tab === "all" ? kinds : kinds.filter((k) => k === tab)).flatMap((k) => byKind[k].map((i): AskUniObjectItem => ({ ...i, kind: k })));
   const current = Math.min(active, Math.max(shown.length - 1, 0));
   const optionId = (i: number) => `${uid}-${i}`;
+  const activeId = shown.length > 0 ? optionId(current) : undefined;
+  const list = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    onActiveChange?.(activeId);
+    // jsdom has no scrollIntoView.
+    if (activeId) list.current?.querySelector(`[id="${activeId}"]`)?.scrollIntoView?.({ block: "nearest" });
+    // onActiveChange is the host's setter; the id is what matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
   // A new query or tab is a new list; the highlight returns to the top.
   useEffect(() => setActive(0), [query, tab]);
 
@@ -160,9 +175,16 @@ export const AskUniObjectPicker = forwardRef<AskUniObjectPickerHandle, Props>(fu
           setActive(step(current, e.key === "ArrowDown" ? 1 : -1, shown.length));
           return true;
         case "ArrowRight":
-        case "ArrowLeft":
+        case "ArrowLeft": {
+          // In a text field the arrows move the caret unless it is empty or already at that edge.
+          const el = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement ? e.target : null;
+          if (el && el.value !== "") {
+            const edge = e.key === "ArrowLeft" ? 0 : el.value.length;
+            if (el.selectionStart !== el.selectionEnd || el.selectionStart !== edge) return false;
+          }
           setTab(tabs[step(tabs.indexOf(tab), e.key === "ArrowRight" ? 1 : -1, tabs.length)]!);
           return true;
+        }
         case "Enter":
         case "Tab": {
           const pick = shown[current];
@@ -202,7 +224,9 @@ export const AskUniObjectPicker = forwardRef<AskUniObjectPickerHandle, Props>(fu
         role="listbox"
         tabIndex={-1}
         aria-label={t("list")}
-        aria-activedescendant={shown.length > 0 ? optionId(current) : undefined}
+        id={listboxId}
+        ref={list}
+        aria-activedescendant={activeId}
         hidden={shown.length === 0}
         className="max-h-64 overflow-y-auto text-body"
       >

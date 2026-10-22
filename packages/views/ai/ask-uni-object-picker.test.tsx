@@ -34,26 +34,28 @@ beforeEach(() => {
   });
 });
 
-function mount(kinds: AskUniObjectKind[] = ["task", "member"], query = "hoan") {
+function mount(kinds: AskUniObjectKind[] = ["task", "member"], query = "hoan", opts: { documents?: boolean; onActiveChange?: (id?: string) => void } = {}) {
   const ref = createRef<AskUniObjectPickerHandle>();
   const onPick = vi.fn();
   const onDismiss = vi.fn();
-  const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
-  render(
+  const service = new FeatureFlagService(new StaticProvider({ documents: { default: opts.documents ?? true } }));
+  const ui = (q: string) =>
     wrapWithNav(
       <FeatureFlagsProvider service={service}>
-        <AskUniObjectPicker ref={ref} wsId="ws1" query={query} kinds={kinds} onPick={onPick} onDismiss={onDismiss} />
+        <AskUniObjectPicker ref={ref} wsId="ws1" query={q} kinds={kinds} onPick={onPick} onDismiss={onDismiss} onActiveChange={opts.onActiveChange} />
       </FeatureFlagsProvider>,
-    ),
-  );
-  const key = (k: string) => {
+    );
+  const r = render(ui(query));
+  const key = (k: string, init: KeyboardEventInit = {}, target?: HTMLElement) => {
     let handled = false;
     act(() => {
-      handled = ref.current!.onKeyDown(new KeyboardEvent("keydown", { key: k }));
+      const e = new KeyboardEvent("keydown", { key: k, ...init });
+      if (target) Object.defineProperty(e, "target", { value: target });
+      handled = ref.current!.onKeyDown(e);
     });
     return handled;
   };
-  return { onPick, onDismiss, key };
+  return { onPick, onDismiss, key, rerender: (q: string) => r.rerender(ui(q)) };
 }
 
 describe("AskUniObjectPicker", () => {
@@ -110,5 +112,78 @@ describe("AskUniObjectPicker", () => {
     expect(await screen.findByText("Không có kết quả")).toBeInTheDocument();
     expect(key("Enter")).toBe(false);
     expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it("keeps the active row in view when moving down", async () => {
+    const spy = vi.fn();
+    Element.prototype.scrollIntoView = spy;
+    const { key } = mount(["task"]);
+    await screen.findByRole("option", { name: /Hoàn thiện báo cáo/ });
+    spy.mockClear();
+    key("ArrowDown");
+    expect(spy).toHaveBeenCalledWith({ block: "nearest" });
+    // @ts-expect-error restore the jsdom default (no scrollIntoView)
+    delete Element.prototype.scrollIntoView;
+  });
+
+  it("arrows switch tabs from an input only when the caret allows", async () => {
+    const { key } = mount();
+    await screen.findByRole("option", { name: /Hoàn thiện báo cáo/ });
+    const input = document.createElement("input");
+    input.value = "hoan";
+    input.setSelectionRange(2, 2);
+    expect(key("ArrowLeft", {}, input)).toBe(false);
+    expect(screen.getByRole("tab", { name: "Tất cả" })).toHaveAttribute("aria-selected", "true");
+    input.setSelectionRange(0, 0);
+    expect(key("ArrowLeft", {}, input)).toBe(true);
+    expect(screen.getByRole("tab", { name: "Người" })).toHaveAttribute("aria-selected", "true");
+    input.setSelectionRange(4, 4);
+    expect(key("ArrowRight", {}, input)).toBe(true);
+    input.value = "";
+    expect(key("ArrowRight", {}, input)).toBe(true);
+  });
+
+  it("reports the active option id for a host input", async () => {
+    const ids: (string | undefined)[] = [];
+    const { key } = mount(["task"], "hoan", { onActiveChange: (id) => ids.push(id) });
+    await screen.findByRole("option", { name: /Hoàn thiện báo cáo/ });
+    const before = ids.at(-1);
+    expect(before).toBeTruthy();
+    key("ArrowDown");
+    expect(ids.at(-1)).not.toBe(before);
+    expect(document.getElementById(ids.at(-1)!)).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("has no Documents tab when the documents flag is off", async () => {
+    mount(["task", "document"], "hoan", { documents: false });
+    await screen.findByRole("option", { name: /Hoàn thiện báo cáo/ });
+    expect(screen.queryByRole("tab", { name: "Tài liệu" })).toBeNull();
+  });
+
+  it("ignores keys while composing", async () => {
+    const { onPick, key } = mount(["task"]);
+    await screen.findByRole("option", { name: /Hoàn thiện báo cáo/ });
+    expect(key("Enter", { isComposing: true })).toBe(false);
+    expect(key("ArrowDown", { isComposing: true })).toBe(false);
+    expect(onPick).not.toHaveBeenCalled();
+    expect(screen.getByRole("option", { name: /Hoàn thiện báo cáo/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("up at the top wraps to the last row; tab picks the active row", async () => {
+    const { onPick, key } = mount(["task"]);
+    await screen.findByRole("option", { name: /Hoàn thiện báo cáo/ });
+    key("ArrowUp");
+    expect(screen.getByRole("option", { name: /Hoàn tiền khách/ })).toHaveAttribute("aria-selected", "true");
+    expect(key("Tab")).toBe(true);
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: "t2" }));
+  });
+
+  it("a new query returns the highlight to the first row", async () => {
+    const { key, rerender } = mount(["task"]);
+    await screen.findByRole("option", { name: /Hoàn thiện báo cáo/ });
+    key("ArrowDown");
+    rerender("hoan t");
+    await screen.findAllByText("Hoàn t");
+    expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
   });
 });

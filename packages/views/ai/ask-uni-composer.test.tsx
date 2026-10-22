@@ -144,8 +144,15 @@ describe("AskUniComposer", () => {
   it("plus finds a task and the picked task becomes the focus", async () => {
     const { onSend, box } = mount();
     fireEvent.click(screen.getByRole("button", { name: "Thêm phạm vi" }));
-    fireEvent.change(await screen.findByRole("textbox", { name: /Tìm/ }), { target: { value: "ori" } });
+    fireEvent.change(await screen.findByRole("combobox", { name: /Tìm/ }), { target: { value: "ori" } });
     expect(await screen.findByRole("tab", { name: "Task" })).toBeInTheDocument();
+    const search = screen.getByRole("combobox");
+    await screen.findByRole("option", { name: /gami kế hoạch/ });
+    const first = search.getAttribute("aria-activedescendant");
+    expect(first).toBeTruthy();
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(search.getAttribute("aria-activedescendant")).not.toBe(first);
+    expect(search).toHaveAttribute("aria-controls", screen.getByRole("listbox").id);
     fireEvent.click(await screen.findByRole("option", { name: /gami kế hoạch/ }));
     expect(screen.getByText("Task: Origami kế hoạch")).toBeInTheDocument();
     type(box(), "Còn gì?");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type RefObject } from "react";
+import { useId, useRef, useState, type RefObject } from "react";
 import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -27,10 +27,16 @@ function ScopeList({ onPick, onDismiss }: { onPick: (pick: ScopePick) => void; o
   const { workspace } = useWorkspace();
   const [q, setQ] = useState("");
   const picker = useRef<AskUniObjectPickerHandle>(null);
+  const listboxId = useId();
+  const [activeId, setActiveId] = useState<string>();
   return (
     <>
       <Input
         autoFocus
+        role="combobox"
+        aria-expanded
+        aria-controls={listboxId}
+        aria-activedescendant={activeId}
         value={q}
         onChange={(e) => setQ(e.target.value)}
         onKeyDown={(e) => {
@@ -46,6 +52,8 @@ function ScopeList({ onPick, onDismiss }: { onPick: (pick: ScopePick) => void; o
         kinds={SCOPE_KINDS}
         onPick={(item) => onPick({ kind: item.kind as ScopeKind, id: item.id, title: item.title })}
         onDismiss={onDismiss}
+        listboxId={listboxId}
+        onActiveChange={setActiveId}
       />
     </>
   );
