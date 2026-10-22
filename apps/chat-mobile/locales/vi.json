@@ -1631,7 +1631,19 @@
       "bubble_sending_hint": "Mở tùy chọn xóa tin đang gửi",
       "new_messages": "{{count}} tin nhắn mới",
       "image_viewer_hint": "Chụm hai ngón để phóng to, chạm hai lần để phóng to hoặc thu nhỏ, vuốt xuống để đóng",
-      "image_zoomed": "Đang phóng to"
+      "image_zoomed": "Đang phóng to",
+      "react_quick": "Thả cảm xúc {{reaction}}",
+      "react_quick_remove": "Bỏ cảm xúc {{reaction}}"
+    },
+    "room_swipe": {
+      "read": "Đã đọc",
+      "mute": "Tắt tiếng",
+      "unmute": "Bật tiếng"
+    },
+    "lists": {
+      "calls_load_failed": "Không tải được nhật ký cuộc gọi",
+      "contacts_load_failed": "Không tải được danh bạ",
+      "load_failed_hint": "Kiểm tra kết nối mạng rồi thử lại."
     },
     "permissions": {
       "continue": "Tiếp tục",

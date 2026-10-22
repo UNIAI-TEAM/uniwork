@@ -6,7 +6,8 @@
 // a local message's send state at the bubble's foot, reaction pills, the tasks
 // made from it and the thread link. A screen reader hears one element per
 // bubble: sender, time, the quote, the text, its state and its
-// receipt, with actions for the menu and the quoted message, and a hint on a
+// receipt, with actions for reply and a quick 👍 (what a swipe and the bar do
+// by touch), the menu, the quoted message and its links, and a hint on a
 // local message that its tap opens retry / delete.
 import { Ionicons } from "@expo/vector-icons";
 import { memo, useState, type ReactNode } from "react";
@@ -31,6 +32,9 @@ import { cn } from "@/lib/utils";
 import { AlbumGrid } from "./album-grid";
 import { INTERACTIVE_VIEWS, MessageContent, type MessageCardContext } from "./message-cards";
 import { TaskCards } from "./task-card";
+
+/** The bar's first reaction, offered straight on the bubble to a screen reader (message-actions.tsx › QUICK_REACTIONS). */
+const QUICK_REACTION = "👍";
 
 /** A screen reader's actions name at most this many of a message's links (the menu would bury the rest). */
 const MAX_LINK_ACTIONS = 5;
@@ -81,6 +85,8 @@ export interface MessageRowProps {
   onPressThread: (message: TimelineMessage) => void;
   onPressPending: (message: TimelineMessage) => void;
   onToggleReaction: (message: TimelineMessage, emoji: string) => void;
+  /** Quotes it in the composer, as the swipe does: set where the swipe is on (message-cell.tsx). */
+  onReply?: (message: TimelineMessage) => void;
 }
 
 /** A local message's state in words: sending, waiting for the network, or failed. */
@@ -163,8 +169,13 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   const longPress = () => props.onLongPress(message);
   // The links of a text message, each a screen-reader action that opens its open / copy / share sheet (link-sheet.tsx).
   const links = record && messageView(record) === "text" ? messageLinks(record.body).slice(0, MAX_LINK_ACTIONS) : [];
-  // Every long-press action reachable without a long press: the menu, the quoted message and each link.
+  // Every long-press action reachable without a long press: reply and a quick reaction first (iMessage and WhatsApp
+  // put them straight in the rotor), then the menu, the quoted message and each link.
+  const reacted = record?.my_reactions?.includes(QUICK_REACTION) ?? false;
+  const reaction = t("chat.mobile.react_label_like");
   const actions = [
+    ...(props.onReply && record ? [{ name: "reply", label: t("chat.action_reply") }] : []),
+    ...(record ? [{ name: "react", label: t(reacted ? "mobile.a11y.react_quick_remove" : "mobile.a11y.react_quick", { reaction }) }] : []),
     { name: "longpress", label: t("chat.message_actions_aria") },
     ...(quote ? [{ name: "open_quote", label: t("chat.reply_quote_jump", { preview: quote.text }) }] : []),
     ...links.map((url, index) => ({ name: `link_${index}`, label: t("mobile.conversation.link_label", { link: spokenLink(url) }) })),
@@ -173,6 +184,8 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
     const name = event.nativeEvent.actionName;
     const link = name.startsWith("link_") ? links[Number(name.slice(5))] : undefined;
     if (link) ctx.onLinkMenu(link);
+    else if (name === "reply" && props.onReply && record) props.onReply(message);
+    else if (name === "react" && record) props.onToggleReaction(message, QUICK_REACTION);
     else if (name === "open_quote" && quote) props.onPressQuote(quote.id);
     else longPress();
   };

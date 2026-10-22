@@ -164,6 +164,7 @@ describe("MessageRow", () => {
     // One stop for VoiceOver/TalkBack: the quote is an action of the bubble, not a second button.
     expect(screen.queryByRole("button", { name: viText("chat.reply_quote_jump", { preview: "Ai đi họp?" }) })).toBeNull();
     expect(bubble.props.accessibilityActions).toEqual([
+      { name: "react", label: viText("mobile.a11y.react_quick", { reaction: viText("chat.mobile.react_label_like") }) },
       { name: "longpress", label: viText("chat.message_actions_aria") },
       { name: "open_quote", label: viText("chat.reply_quote_jump", { preview: "Ai đi họp?" }) },
     ]);
@@ -235,6 +236,7 @@ describe("links and bold in a message", () => {
     await render(<MessageRow {...p} />);
     const bubble = screen.getByLabelText(new RegExp(`^${viText("chat.message_list.label", { sender: "Bình", time: TIME })}`));
     expect(bubble.props.accessibilityActions).toEqual([
+      { name: "react", label: viText("mobile.a11y.react_quick", { reaction: viText("chat.mobile.react_label_like") }) },
       { name: "longpress", label: viText("chat.message_actions_aria") },
       { name: "link_0", label: viText("mobile.conversation.link_label", { link: "docs.example.com/a?b=1" }) },
       { name: "link_1", label: viText("mobile.conversation.link_label", { link: "b.example" }) },
@@ -243,6 +245,44 @@ describe("links and bold in a message", () => {
     expect(p.ctx.onLinkMenu).toHaveBeenCalledWith("https://b.example/");
     await fireEvent(bubble, "accessibilityAction", { nativeEvent: { actionName: "link_9" } });
     expect(p.onLongPress).toHaveBeenCalledTimes(1);
+  });
+
+  it("replies and reacts from the screen reader's actions, as the swipe and the bar do by touch", async () => {
+    const onReply = jest.fn();
+    const p = props(sent(), { onReply });
+    await render(<MessageRow {...p} />);
+    const bubble = screen.getByLabelText(bubbleLabel("Bình", "Mai họp lúc 9 giờ nhé"));
+    expect(bubble.props.accessibilityActions.slice(0, 3)).toEqual([
+      { name: "reply", label: viText("chat.action_reply") },
+{ name: "react", label: viText("mobile.a11y.react_quick", { reaction: viText("chat.mobile.react_label_like") }) },
+      { name: "longpress", label: viText("chat.message_actions_aria") },
+    ]);
+    await fireEvent(bubble, "accessibilityAction", { nativeEvent: { actionName: "reply" } });
+    expect(onReply).toHaveBeenCalledWith(p.message);
+    await fireEvent(bubble, "accessibilityAction", { nativeEvent: { actionName: "react" } });
+    expect(p.onToggleReaction).toHaveBeenCalledWith(p.message, "👍");
+    expect(p.onLongPress).not.toHaveBeenCalled();
+  });
+
+  it("offers to take back a 👍 already given, and no reply or reaction on a message not sent yet", async () => {
+    const liked = props(sent({ reactions: { "👍": 1 }, my_reactions: ["👍"] }), { onReply: jest.fn() });
+    const { unmount } = await render(<MessageRow {...liked} />);
+    const label = viText("mobile.a11y.react_quick_remove", { reaction: viText("chat.mobile.react_label_like") });
+    expect(screen.getByLabelText(new RegExp(`^${viText("chat.message_list.label", { sender: "Bình", time: TIME })}`)).props.accessibilityActions).toContainEqual({
+      name: "react",
+      label,
+    });
+    await unmount();
+    const local = props(pending("failed"), { own: true, onReply: jest.fn() });
+    await render(<MessageRow {...local} />);
+    const bubble = screen.getByLabelText(new RegExp(viText("chat.send_failed")));
+    expect(bubble.props.accessibilityActions.map((action: { name: string }) => action.name)).toEqual(["longpress"]);
+    // A stale action name from an earlier render opens the menu rather than acting on a message that has no record.
+    await fireEvent(bubble, "accessibilityAction", { nativeEvent: { actionName: "react" } });
+    await fireEvent(bubble, "accessibilityAction", { nativeEvent: { actionName: "reply" } });
+    expect(local.onToggleReaction).not.toHaveBeenCalled();
+    expect(local.onReply).not.toHaveBeenCalled();
+    expect(local.onLongPress).toHaveBeenCalledTimes(2);
   });
 
   it("links in my own bubble too", async () => {

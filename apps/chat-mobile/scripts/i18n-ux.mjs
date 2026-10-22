@@ -36,6 +36,18 @@ export const UX_ONLY = {
       new_messages: "{{count}} tin nhắn mới",
       image_viewer_hint: "Chụm hai ngón để phóng to, chạm hai lần để phóng to hoặc thu nhỏ, vuốt xuống để đóng",
       image_zoomed: "Đang phóng to",
+      react_quick: "Thả cảm xúc {{reaction}}",
+      react_quick_remove: "Bỏ cảm xúc {{reaction}}",
+    },
+    room_swipe: {
+      read: "Đã đọc",
+      mute: "Tắt tiếng",
+      unmute: "Bật tiếng",
+    },
+    lists: {
+      calls_load_failed: "Không tải được nhật ký cuộc gọi",
+      contacts_load_failed: "Không tải được danh bạ",
+      load_failed_hint: "Kiểm tra kết nối mạng rồi thử lại.",
     },
     permissions: {
       continue: "Tiếp tục",
@@ -85,6 +97,18 @@ export const UX_ONLY = {
       new_messages_other: "{{count}} new messages",
       image_viewer_hint: "Pinch to zoom, double-tap to zoom in or out, swipe down to close",
       image_zoomed: "Zoomed in",
+      react_quick: "React with {{reaction}}",
+      react_quick_remove: "Remove your {{reaction}} reaction",
+    },
+    room_swipe: {
+      read: "Read",
+      mute: "Mute",
+      unmute: "Unmute",
+    },
+    lists: {
+      calls_load_failed: "Couldn't load your call history",
+      contacts_load_failed: "Couldn't load contacts",
+      load_failed_hint: "Check your connection and try again.",
     },
     permissions: {
       continue: "Continue",

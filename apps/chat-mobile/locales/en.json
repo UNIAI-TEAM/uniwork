@@ -1688,7 +1688,19 @@
       "new_messages_one": "{{count}} new message",
       "new_messages_other": "{{count}} new messages",
       "image_viewer_hint": "Pinch to zoom, double-tap to zoom in or out, swipe down to close",
-      "image_zoomed": "Zoomed in"
+      "image_zoomed": "Zoomed in",
+      "react_quick": "React with {{reaction}}",
+      "react_quick_remove": "Remove your {{reaction}} reaction"
+    },
+    "room_swipe": {
+      "read": "Read",
+      "mute": "Mute",
+      "unmute": "Unmute"
+    },
+    "lists": {
+      "calls_load_failed": "Couldn't load your call history",
+      "contacts_load_failed": "Couldn't load contacts",
+      "load_failed_hint": "Check your connection and try again."
     },
     "permissions": {
       "continue": "Continue",

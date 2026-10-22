@@ -66,6 +66,8 @@ export const MessageCell = memo(function MessageCell({ model, ctx, scheme, handl
       onPressThread={handlers.onPressThread}
       onPressPending={handlers.onPressPending}
       onToggleReaction={handlers.onToggleReaction}
+      // Reply as a screen-reader action wherever the swipe replies by touch.
+      onReply={model.swipeToReply ? handlers.onReply : undefined}
     />
   );
   if (!model.root) {
