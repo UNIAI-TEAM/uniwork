@@ -5,11 +5,15 @@ import { useChatRooms } from "@uniwork/core/chat";
 import { chatWallpaperFromRoom } from "@uniwork/core/chat/chat-wallpaper-from-room";
 import { DEFAULT_CHAT_WALLPAPER } from "@uniwork/core/chat/chat-wallpaper";
 import { resolveChatWallSurface, type ChatWallSurface } from "@uniwork/core/chat/chat-wallpaper-resolve";
-import { useWorkspaceId } from "../layout/workspace-context";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 
-/** Shared room wallpaper from the server (every member sees the same background). */
+/**
+ * Shared room wallpaper from the server (every member sees the same background).
+ * Outside a workspace (a surface mounted alone) there is no room list: the
+ * default wall.
+ */
 export function useChatWall(roomId?: string | null): ChatWallSurface {
-  const workspaceId = useWorkspaceId();
+  const workspaceId = useOptionalWorkspace()?.workspace.id ?? "";
   const { data: rooms } = useChatRooms(workspaceId);
   const room = useMemo(
     () => (roomId ? rooms?.find((entry) => entry.id === roomId) : undefined),
