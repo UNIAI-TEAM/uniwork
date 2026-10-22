@@ -70,8 +70,11 @@ describe("document_owner_transferred kind", () => {
     }
   });
 
-  it("has a short title and a settings label in both locales", () => {
-    expect(t(`notifications.kindTitle.${KIND}`, { defaultValue: "" })).not.toBe("");
-    expect(t(`settings.notifications.kinds.${KIND}`, { defaultValue: "" })).not.toBe("");
+  it("has a short title and a settings label in both locales", async () => {
+    for (const locale of ["vi", "en"] as const) {
+      await setLocale(locale);
+      expect(t(`notifications.kindTitle.${KIND}`, { defaultValue: "" }), `${locale} kindTitle`).not.toBe("");
+      expect(t(`settings.notifications.kinds.${KIND}`, { defaultValue: "" }), `${locale} settings label`).not.toBe("");
+    }
   });
 });
