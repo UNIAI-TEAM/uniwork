@@ -240,6 +240,7 @@ describe("the Office page", () => {
     it("never shows a stable line for a stable suite prop while the catalogue publishes no stable", async () => {
       request.mockResolvedValue({ flags: {}, office_installers: onDownloads });
       await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, { suite: "stable" }))); });
+      await tick();
       const [script, quick, setup] = [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
       expect(script).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- dev");
       expect(quick).toContain("/apt/latest/dev/uniwork-office_amd64.deb");
@@ -249,6 +250,7 @@ describe("the Office page", () => {
       root = createRoot(container);
       request.mockResolvedValue({ flags: {}, office_installers: { ...onDownloads, beta: [deb("beta")] } });
       await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, { suite: "stable" }))); });
+      await tick();
       const beta = [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
       expect(beta[0]).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- beta");
       expect(beta[1]).toContain("/apt/latest/beta/uniwork-office_amd64.deb");
@@ -257,6 +259,7 @@ describe("the Office page", () => {
     it("keeps a stable suite prop while the catalogue publishes stable", async () => {
       request.mockResolvedValue({ flags: {}, office_installers: installers });
       await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, { suite: "stable" }))); });
+      await tick();
       const [script, quick] = [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
       expect(script).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh");
       expect(quick).toContain("/apt/latest/uniwork-office_amd64.deb");
