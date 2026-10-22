@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appEnvironment, easProjectId, runtimeFromExtra, sentryDsn, perfMarksOn } from "./runtime-extra";
+import { appEnvironment, easProjectId, lackingFlags, runtimeFromExtra, sentryDsn, perfMarksOn } from "./runtime-extra";
 
 describe("easProjectId", () => {
   it("reads extra.eas.projectId and nothing else", () => {
@@ -55,5 +55,14 @@ describe("appEnvironment", () => {
     expect(appEnvironment({ APP_ENV: "staging" })).toBe("staging");
     expect(appEnvironment({ APP_ENV: "qa" })).toBe("dev");
     expect(appEnvironment(undefined)).toBe("dev");
+  });
+});
+
+describe("lackingFlags", () => {
+  it("keeps calling off on an iPhone binary built without calls, and only there", () => {
+    expect(lackingFlags("ios", undefined)).toEqual(["unichat_mobile_calls"]);
+    expect(lackingFlags("ios", { iosCalls: "true" })).toEqual(["unichat_mobile_calls"]);
+    expect(lackingFlags("ios", { iosCalls: true })).toEqual([]);
+    expect(lackingFlags("android", undefined)).toEqual([]);
   });
 });

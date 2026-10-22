@@ -6,6 +6,7 @@ const calls = vi.hoisted(() => ({
   setClientIdentity: vi.fn(),
   setCredentialFetch: vi.fn(),
   enablePerfMarks: vi.fn(),
+  setBuildLacks: vi.fn(),
 }));
 vi.mock("expo-constants", () => ({ default: { expoConfig: { extra: { APP_ENV: "staging", apiUrl: "https://api.test", appUrl: "https://app.test", sentryDsn: "https://k@sentry.test/1" } } } }));
 vi.mock("@uniwork/core/runtime-config", () => ({ configureRuntime: calls.configureRuntime }));
@@ -14,6 +15,7 @@ vi.mock("./api", () => ({ api: { setClientIdentity: calls.setClientIdentity, set
 vi.mock("./auth/strict-fetch", () => ({ strictFetch: "strict fetch" }));
 vi.mock("./logger", () => ({ enablePerfMarks: calls.enablePerfMarks }));
 vi.mock("./perf/marks-file", () => ({ writePerfMarks: "file sink" }));
+vi.mock("./remote-config", () => ({ setBuildLacks: calls.setBuildLacks }));
 vi.mock("./build-info", () => ({ buildInfo: () => ({ version: "0.3.0", build: "17", os: "android", osVersion: "14", appId: "com.uniworkos.chat", channel: "internal", updateId: null, embedded: true, runtimeVersion: "fp" }) }));
 
 beforeEach(() => {
@@ -34,5 +36,7 @@ describe("bootRuntime", () => {
     expect(calls.setCredentialFetch).toHaveBeenCalledWith("strict fetch");
     // No perfMarks in this build's extra: marks off, with the file sink a measured build writes on iOS.
     expect(calls.enablePerfMarks).toHaveBeenCalledWith(false, "file sink");
+    // An Android build lacks nothing; an iPhone build without calls keeps them off (lib/runtime-extra.ts › lackingFlags).
+    expect(calls.setBuildLacks).toHaveBeenCalledWith([]);
   });
 });

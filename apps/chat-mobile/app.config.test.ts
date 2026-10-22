@@ -1,5 +1,6 @@
 // Ported from usf apps/mobile/app.config.test.ts, re-cut for the UniChat
 // variants: identity, scheme, links and `extra` per UNICHAT_ENV.
+import { execFileSync } from "node:child_process";
 import { X509Certificate } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -7,7 +8,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConfigContext } from "expo/config";
 import { createRequire } from "node:module";
-import createConfig, { ANDROID_KEEP_RULES, tlsPinning } from "./app.config";
+import createConfig, { ANDROID_KEEP_RULES, iosCallsBuilt, tlsPinning } from "./app.config";
 
 const build = (projectRoot?: string) => createConfig({ config: {}, projectRoot } as ConfigContext);
 
@@ -149,7 +150,6 @@ describe("app.config per UNICHAT_ENV", () => {
       NSFaceIDUsageDescription: expect.stringContaining("Face ID"),
     });
     expect(options("expo-local-authentication")).toEqual({ faceIDPermission: "UniChat dùng Face ID để mở khoá ứng dụng khi bạn bật Khoá UniChat." });
-    expect(config.ios?.infoPlist?.UIBackgroundModes).toEqual(["audio"]);
   });
 
   // Audit (Security & privacy, no-masvs-baseline): unsent attachments sit in plain files under documents/outbox, and the
@@ -521,5 +521,58 @@ describe("fingerprint.config.js", () => {
   it("leaves the local modules' JVM unit and instrumented tests out of the runtime fingerprint", async () => {
     const { default: fingerprint } = (await import("./fingerprint.config.js")) as { default: { ignorePaths?: string[] } };
     expect(fingerprint.ignorePaths).toEqual(["modules/*/android/src/test/**", "modules/*/android/src/androidTest/**"]);
+  });
+});
+
+// Audit "ios-dormant-calls-bg-audio" (Apple 2.5.4, 2.3.1): calls are off on iPhone until CallKit and PushKit ship, so an
+// iPhone binary declares no background audio a reviewer could not exercise, and no server switch can turn calling on
+// in a binary reviewed without it.
+describe("calls on iPhone are a build capability", () => {
+  const withIosModule = () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "unichat-ios-calls-"));
+    fs.mkdirSync(path.join(root, "modules/unichat-calls"), { recursive: true });
+    fs.writeFileSync(path.join(root, "modules/unichat-calls/expo-module.config.json"), JSON.stringify({ platforms: ["android", "ios"] }));
+    return root;
+  };
+
+  it("declares no background mode and tells the app nothing without UNICHAT_IOS_CALLS", () => {
+    vi.stubEnv("UNICHAT_IOS_CALLS", undefined);
+    const config = build();
+    expect(config.ios?.infoPlist).toEqual({ CFBundleDevelopmentRegion: "vi" });
+    expect(config.extra?.iosCalls).toBeUndefined();
+    expect(config.plugins).toContainEqual(["./plugins/with-unichat-calls", { iosCalls: false }]);
+  });
+
+  it("refuses UNICHAT_IOS_CALLS=1 while the call module has no iOS half", () => {
+    vi.stubEnv("UNICHAT_IOS_CALLS", "1");
+    expect(() => build()).toThrow(/CallKit/);
+    expect(() => iosCallsBuilt(__dirname)).toThrow(/CallKit/);
+  });
+
+  it("declares background audio and tells the app once the module ships iOS", () => {
+    vi.stubEnv("UNICHAT_IOS_CALLS", "1");
+    const config = build(withIosModule());
+    expect(config.ios?.infoPlist?.UIBackgroundModes).toEqual(["audio"]);
+    expect(config.extra?.iosCalls).toBe(true);
+    expect(config.plugins).toContainEqual(["./plugins/with-unichat-calls", { iosCalls: true }]);
+  });
+
+  it("is set by no EAS profile", () => {
+    const eas = JSON.parse(fs.readFileSync(path.join(__dirname, "eas.json"), "utf8")) as { build: Record<string, { env?: Record<string, string> }> };
+    for (const profile of Object.values(eas.build)) expect(profile.env?.UNICHAT_IOS_CALLS).toBeUndefined();
+  });
+
+  // The Info.plist expo prebuild writes, after every plugin (expo-audio, expo-task-manager and expo-notifications
+  // each add a mode for features UniChat keeps off): nothing in the release build.
+  it("leaves the release Info.plist without any background mode", { timeout: 120_000 }, () => {
+    const out = execFileSync(process.execPath, [createRequire(__filename).resolve("expo/bin/cli"), "config", "--type", "introspect", "--json"], {
+      cwd: __dirname,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 16 * 1024 * 1024,
+      env: { ...process.env, UNICHAT_ENV: "production", UNICHAT_API_URL: "https://api.example.invalid", UNICHAT_APP_URL: "https://app.example.invalid", UNICHAT_IOS_CALLS: "", EAS_BUILD: "", EXPO_NO_TELEMETRY: "1", EXPO_OFFLINE: "1" },
+    });
+    const plist = (JSON.parse(out) as { ios: { infoPlist: Record<string, unknown> } }).ios.infoPlist;
+    expect(plist.UIBackgroundModes).toBeUndefined();
   });
 });

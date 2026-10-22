@@ -34,6 +34,7 @@ import {
   REMOTE_CONFIG_MAX_AGE_MS,
   REMOTE_CONFIG_STORE_KEY,
   restoreRemoteConfig,
+  setBuildLacks,
   flagValue,
   readMobileFlag,
   REMOTE_CONFIG_FALLBACK,
@@ -104,6 +105,21 @@ describe("flags", () => {
     expect(flagValue(undefined, "unichat_mobile_calls")).toBe(true);
     expect(flagValue(config(), "unichat_mobile_calls")).toBe(true);
     expect(flagValue(config({ flags: { unichat_mobile_calls: false } }), "unichat_mobile_calls")).toBe(false);
+  });
+
+  // Audit "ios-dormant-calls-bg-audio": an iPhone binary built without calls never shows them, whatever the server says.
+  it("read off when the build lacks the feature, default and server answer alike", () => {
+    setBuildLacks(["unichat_mobile_calls"]);
+    try {
+      expect(flagValue(undefined, "unichat_mobile_calls")).toBe(false);
+      expect(flagValue(config({ flags: { unichat_mobile_calls: true } }), "unichat_mobile_calls")).toBe(false);
+      expect(flagValue(undefined, "unichat_mobile_media_upload")).toBe(true);
+      expect(useMobileFlag("unichat_mobile_calls")).toBe(false);
+      expect(readMobileFlag({ getQueryData: () => config({ flags: { unichat_mobile_calls: true } }) } as never, "unichat_mobile_calls")).toBe(false);
+    } finally {
+      setBuildLacks([]);
+    }
+    expect(flagValue(undefined, "unichat_mobile_calls")).toBe(true);
   });
 
   it("are readable outside React from the cached answer", () => {

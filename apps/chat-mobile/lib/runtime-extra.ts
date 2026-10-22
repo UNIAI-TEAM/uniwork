@@ -28,6 +28,15 @@ export function perfMarksOn(extra: Record<string, unknown> | undefined): boolean
   return extra?.perfMarks === true;
 }
 
+/**
+ * The switches this binary cannot honour, whatever the server says: calling on an iPhone binary built without
+ * extra.iosCalls (UNICHAT_IOS_CALLS=1, app.config.ts › iosCallsBuilt), which has no CallKit, no PushKit and no
+ * background audio (Apple 2.3.1: a reviewed binary never grows a feature from a server switch).
+ */
+export function lackingFlags(os: string, extra: Record<string, unknown> | undefined): readonly "unichat_mobile_calls"[] {
+  return os === "ios" && extra?.iosCalls !== true ? ["unichat_mobile_calls"] : [];
+}
+
 /** extra.APP_ENV: Sentry's environment, and what the Update-required screen says it runs on. */
 export function appEnvironment(extra: Record<string, unknown> | undefined): "dev" | "staging" | "production" {
   const env = extra?.APP_ENV;

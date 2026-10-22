@@ -76,7 +76,10 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   `Package` từ file tên `*Package.kt`). Mã Kotlin nằm trong git: `.gitignore` của app chỉ bỏ `/android/` và `/ios/` ở
   gốc; `native-modules.test.ts` đỏ khi git thiếu project native của module, khi có gì dưới đó bị ignore, khi một
   `Package` nằm sai file, hay khi autolinking không liệt kê `UniChatCallsPackage`. Khai báo ở `plugins/with-unichat-calls.js` (quyền, service, receiver; gỡ
-  background mode `fetch` mà plugin tự động của `expo-task-manager` thêm cho iOS). Chính sách ở TypeScript, test node
+  background mode `fetch` mà plugin tự động của `expo-task-manager` thêm cho iOS, và `audio` trừ khi bản build có gọi trên
+  iPhone: `UNICHAT_IOS_CALLS=1`, `app.config.ts › iosCallsBuilt` từ chối nó khi module chưa có phần iOS; bản iPhone
+  không có nó đọc `unichat_mobile_calls` là tắt dù server nói gì, `lib/runtime-extra.ts › lackingFlags` qua
+  `data/remote-config.ts › setBuildLacks` lúc boot). Chính sách ở TypeScript, test node
   với module giả (`data/calls/native-calls.ts` là no-op khi không có module): `lib/call-push.ts` đọc push cuộc gọi
   (`call_invite`/`call_end`/`call_missed`, mọi giá trị là chuỗi); `data/calls/call-push.ts` quyết định reo — công tắc
   tắt hay hết cửa sổ thì không, màn cuộc gọi đã có cuộc gọi đó (hay cuộc gọi khác) thì không, đang mở app trong một

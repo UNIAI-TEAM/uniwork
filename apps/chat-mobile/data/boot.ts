@@ -8,12 +8,13 @@
 import { configureRuntime } from "@uniwork/core/runtime-config";
 import Constants from "expo-constants";
 import { clientHeaders } from "@/lib/build-info";
-import { appEnvironment, perfMarksOn, runtimeFromExtra, sentryDsn } from "@/lib/runtime-extra";
+import { appEnvironment, lackingFlags, perfMarksOn, runtimeFromExtra, sentryDsn } from "@/lib/runtime-extra";
 import { api } from "./api";
 import { strictFetch } from "./auth/strict-fetch";
 import { buildInfo } from "./build-info";
 import { enablePerfMarks } from "./logger";
 import { writePerfMarks } from "./perf/marks-file";
+import { setBuildLacks } from "./remote-config";
 import { initSentry } from "./sentry";
 
 let booted = false;
@@ -26,6 +27,8 @@ export function bootRuntime(): void {
   // A measured build (UNICHAT_PERF_MARKS=1) also keeps its marks in a file: iOS's release log has no room for them.
   enablePerfMarks(perfMarksOn(extra), writePerfMarks);
   configureRuntime(runtimeFromExtra(extra));
+  // Before any screen or headless task reads a switch: what this binary cannot do stays off.
+  setBuildLacks(lackingFlags(buildInfo().os, extra));
   api.setClientIdentity(clientHeaders(buildInfo()));
   // Before the first request: the bearer never follows a redirect (data/auth/strict-fetch.ts).
   api.setCredentialFetch(strictFetch);

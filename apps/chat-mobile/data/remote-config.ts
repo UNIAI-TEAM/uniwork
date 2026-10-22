@@ -103,8 +103,19 @@ export const remoteConfigOptions = () =>
     retry: 2,
   });
 
-/** The switch's value in a config, or its default when the config (or the key) is missing. */
+let lacking: ReadonlySet<MobileFlag> = new Set();
+
+/**
+ * The switches this binary was built without (lib/runtime-extra.ts › lackingFlags; data/boot.ts sets them before
+ * the first screen): they read off, default and server answer alike.
+ */
+export function setBuildLacks(flags: readonly MobileFlag[]): void {
+  lacking = new Set(flags);
+}
+
+/** The switch's value in a config, or its default when the config (or the key) is missing; off when the build lacks it. */
 export function flagValue(config: MobileRemoteConfig | undefined, name: MobileFlag): boolean {
+  if (lacking.has(name)) return false;
   return config?.flags[name] ?? MOBILE_FLAG_DEFAULTS[name];
 }
 
@@ -158,7 +169,7 @@ export function useRemoteConfig() {
 /** A kill switch for a screen: its default until the server answers, then the server's word. */
 export function useMobileFlag(name: MobileFlag): boolean {
   const { data } = useQuery({ ...remoteConfigOptions(), select: (config: MobileRemoteConfig) => flagValue(config, name) });
-  return data ?? MOBILE_FLAG_DEFAULTS[name];
+  return data ?? flagValue(undefined, name);
 }
 
 /** Where the last answer lives on the device; the version is the shape of what is kept. */

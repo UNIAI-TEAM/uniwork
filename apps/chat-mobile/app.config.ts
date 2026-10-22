@@ -3,7 +3,7 @@
 //
 // There is no .env (the pre-commit hook refuses one). The only build-time knobs
 // are UNICHAT_ENV (dev | staging | production), UNICHAT_API_URL,
-// UNICHAT_APP_URL, UNICHAT_EAS_PROJECT_ID, SENTRY_DSN and, for an OTA only, UNICHAT_CRITICAL_UPDATE; the app reads the result from
+// UNICHAT_APP_URL, UNICHAT_EAS_PROJECT_ID, SENTRY_DSN, UNICHAT_IOS_CALLS and, for an OTA only, UNICHAT_CRITICAL_UPDATE; the app reads the result from
 // `extra` via expo-constants and calls configureRuntime() at boot. Defaults are
 // the dev values; staging and production have none (eas.json, runbook
 // docs/runbooks/unichat-mobile-release.md).
@@ -45,6 +45,22 @@ function codeSigning(projectRoot: string, env: AppEnv): Pick<NonNullable<ExpoCon
     return {};
   }
   return { codeSigningCertificate: CODE_SIGNING_CERTIFICATE, codeSigningMetadata: { keyid: "main", alg: "rsa-v1_5-sha256" } };
+}
+
+/**
+ * Calls on iPhone are a capability of the binary, not of a server switch (Apple 2.5.4 and 2.3.1, audit
+ * "ios-dormant-calls-bg-audio"): the `audio` background mode is declared only by a build that can place a call a
+ * reviewer can try, and a binary built without it never shows calling, whatever unichat_mobile_calls_ios says
+ * (data/remote-config.ts › setBuildLacks). UNICHAT_IOS_CALLS=1 turns it on, and only once the call module ships its iOS
+ * half (CallKit and PushKit, docs/adr/drafts/0038): asked for before that, the config refuses to build.
+ */
+export function iosCallsBuilt(projectRoot: string): boolean {
+  if (process.env.UNICHAT_IOS_CALLS !== "1") return false;
+  const moduleConfig = JSON.parse(fs.readFileSync(path.resolve(projectRoot, "modules/unichat-calls/expo-module.config.json"), "utf8")) as { platforms?: string[] };
+  if (!moduleConfig.platforms?.includes("ios")) {
+    throw new Error("UNICHAT_IOS_CALLS=1 needs modules/unichat-calls to ship its iOS half (CallKit, PushKit): an iPhone build cannot declare calls it cannot make");
+  }
+  return true;
 }
 
 // What iOS shows when UniChat first asks for the photos, the camera and the microphone.
@@ -209,6 +225,7 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
   // background instead of the next cold start (data/updates-controller.ts). Only that workflow sets it; `extra` is
   // outside the fingerprint, so the update still reaches the binaries it was built for.
   const criticalUpdate = process.env.UNICHAT_CRITICAL_UPDATE === "1";
+  const iosCalls = iosCallsBuilt(projectRoot ?? process.cwd());
 
   return {
     ...config,
@@ -249,9 +266,10 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       entitlements: { "com.apple.developer.usernotifications.time-sensitive": true },
       // HTTPS, WSS and WebRTC only: exempt encryption, so TestFlight does not hold every build on the export question.
       config: { usesNonExemptEncryption: false },
-      // A call keeps its audio when the person switches app or locks the phone. Vietnamese is the
-      // base language (the usage strings below are written in it; `locales.en` translates them).
-      infoPlist: { UIBackgroundModes: ["audio"], CFBundleDevelopmentRegion: "vi" },
+      // A call keeps its audio when the person switches app or locks the phone, in a build that has calls
+      // (iosCallsBuilt); without them the binary declares no background mode a reviewer could not exercise.
+      // Vietnamese is the base language (the usage strings below are written in it; `locales.en` translates them).
+      infoPlist: { ...(iosCalls ? { UIBackgroundModes: ["audio"] } : {}), CFBundleDevelopmentRegion: "vi" },
       privacyManifests: IOS_PRIVACY_MANIFEST,
     },
     android: {
@@ -354,7 +372,7 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // purpose (store compliance S2): a voice note stops when the app leaves
       // the screen, so Android gets no mediaPlayback / microphone foreground
       // service from expo-audio and Play has nothing of it to declare. A call
-      // keeps its audio through UIBackgroundModes: audio (ios.infoPlist above)
+      // keeps its audio through UIBackgroundModes: audio (ios.infoPlist above, iPhone builds with calls only)
       // and the calls' own service, not through expo-audio.
       ["expo-audio", { microphonePermission: USAGE_VI.NSMicrophoneUsageDescription, enableBackgroundPlayback: false, enableBackgroundRecording: false }],
       // App lock (Settings › Privacy & security): Face ID's usage string; Android's biometric permissions are normal ones.
@@ -374,7 +392,7 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // Native calls on Android (docs/adr/drafts/0038, modules/unichat-calls): the
       // ringing screen's full-screen intent, the call's foreground service
       // (phoneCall, microphone, camera), Bluetooth audio and the Decline / Hang up actions.
-      "./plugins/with-unichat-calls",
+      ["./plugins/with-unichat-calls", { iosCalls }],
       // Crash reporting: uploads source maps and native symbols from the EAS
       // build. Organization, project and token come from the build's
       // environment (SENTRY_ORG, SENTRY_PROJECT, SENTRY_AUTH_TOKEN), never from
@@ -394,6 +412,8 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       ...(sentryDsn ? { sentryDsn } : {}),
       ...(perfMarks ? { perfMarks: true } : {}),
       ...(criticalUpdate ? { criticalUpdate: true } : {}),
+      // Read at boot (lib/runtime-extra.ts › lackingFlags): an iPhone binary without it keeps calling off.
+      ...(iosCalls ? { iosCalls: true } : {}),
     },
   };
 };

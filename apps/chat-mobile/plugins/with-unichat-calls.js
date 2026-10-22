@@ -69,11 +69,20 @@ const AUTOSTART_PACKAGES = [
   "com.asus.mobilemanager",
 ];
 
-/** @type {import("expo/config-plugins").ConfigPlugin} */
-const withUniChatCalls = (config) => {
+/**
+ * iOS: no `fetch` (expo-task-manager adds it; UniChat does no background fetch), and no `audio` unless the build has
+ * calls (app.config.ts › iosCallsBuilt): a library plugin that adds it for its own feature (expo-audio's background
+ * playback) must not leave the binary declaring a mode the reviewer cannot exercise. An emptied list is removed.
+ * @type {import("expo/config-plugins").ConfigPlugin<{ iosCalls?: boolean } | void>}
+ */
+const withUniChatCalls = (config, options) => {
+  const iosCalls = options?.iosCalls === true;
   config = withInfoPlist(config, (mod) => {
     const modes = mod.modResults.UIBackgroundModes;
-    if (Array.isArray(modes)) mod.modResults.UIBackgroundModes = modes.filter((mode) => mode !== "fetch");
+    if (!Array.isArray(modes)) return mod;
+    const kept = modes.filter((mode) => mode !== "fetch" && (iosCalls || mode !== "audio"));
+    if (kept.length > 0) mod.modResults.UIBackgroundModes = kept;
+    else delete mod.modResults.UIBackgroundModes;
     return mod;
   });
   config = AndroidConfig.Permissions.withPermissions(config, PERMISSIONS);

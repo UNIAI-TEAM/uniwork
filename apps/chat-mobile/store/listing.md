@@ -175,10 +175,14 @@ video calls"** (Apple 2.3.1: metadata phải đúng với app) cho tới khi b�
 tên và cuộc gọi nhỡ trên iPhone là "time-sensitive" (đi qua Chế độ tập trung; entitlement
 `com.apple.developer.usernotifications.time-sensitive`, EAS bật capability cho App ID khi ký) và mỗi push tin mang số
 chưa đọc cho biểu tượng app. Màn tắt khi áp tai trong cuộc gọi thoại (Android, cảm biến tiệm cận) dùng `WAKE_LOCK`, quyền
-thường đã khai, không xin quyền mới. iOS
-có background mode `audio` để cuộc gọi giữ tiếng khi người dùng rời app hoặc khoá máy (lý do cho review: "keeps an
-ongoing voice/video call audible"); `expo-task-manager` tự thêm `fetch` và plugin `with-unichat-calls` gỡ nó đi (app
-không tải nền trên iOS).
+thường đã khai, không xin quyền mới. Gọi trên iPhone là **năng lực của bản build**, không chỉ của công tắc server
+(Apple 2.5.4, 2.3.1): bản iOS hiện tại **không khai background mode nào** — `UIBackgroundModes` chỉ có `audio` (để cuộc
+gọi giữ tiếng khi rời app hay khoá máy; lý do cho review: "keeps an ongoing voice/video call audible") trong bản build
+với `UNICHAT_IOS_CALLS=1`, và `app.config.ts` từ chối biến đó khi `modules/unichat-calls` chưa có phần iOS (CallKit,
+PushKit). Bản build không có nó thì app luôn tắt gọi trên iPhone, `unichat_mobile_calls_ios` bật cũng vậy
+(`lib/runtime-extra.ts › lackingFlags`): server không bật được tính năng mà reviewer chưa thấy. `expo-task-manager`
+tự thêm `fetch`, `expo-audio` có thể thêm `audio`; plugin `with-unichat-calls` gỡ cả hai (trừ `audio` ở bản có gọi) và
+`app.config.test.ts` đọc Info.plist cuối của bản release.
 
 **Android, dịch vụ chạy nền (foreground service): đúng một, dịch vụ cuộc gọi** (`expo.modules.unichatcalls.CallService`,
 `phoneCall|microphone|camera`). Chạy từ lúc cuộc gọi đang nối tới lúc kết thúc, với thông báo cuộc gọi đang diễn ra (tên,

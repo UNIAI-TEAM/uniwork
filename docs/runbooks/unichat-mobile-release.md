@@ -472,7 +472,10 @@ máy mở lạnh không có mạng vẫn theo công tắc và mức tối thiể
   `mobile_flags.unichat_mobile_calls` của máy gửi `X-Client-OS: ios` (`featureflags.MobileFlagsFor`) nên iPhone ẩn nút
   gọi, và push đổ chuông bỏ qua đăng ký `expo/ios` (`PushConsumer.SetMobileCallsIOS`, đếm `skipped`); Android vẫn reo.
   Chỉ bật (`FF_UNICHAT_MOBILE_CALLS_IOS=true` hoặc override) khi bản iOS có CallKit/PushKit; `unichat_mobile_calls=false`
-  vẫn tắt gọi trên mọi nền tảng.
+  vẫn tắt gọi trên mọi nền tảng. Flag này **không** bật được gọi trên một bản iOS build thiếu `UNICHAT_IOS_CALLS=1`
+  (app đọc `extra.iosCalls`, `lib/runtime-extra.ts › lackingFlags`): bản đó không khai background `audio` và luôn ẩn gọi,
+  nên gọi trên iPhone tới người dùng bằng một binary mới qua App Review (Apple 2.3.1), không bằng công tắc.
+  `app.config.ts` từ chối `UNICHAT_IOS_CALLS=1` khi `modules/unichat-calls` chưa có phần iOS.
 - Tắt một phần khác của app (mặc định bật, cùng cách đặt: `FF_<KEY>=false` hoặc override ở console):
   `unichat_mobile_media_upload` (ẩn gửi ảnh/tệp trong menu đính kèm; tin đã xếp hàng vẫn đi),
   `unichat_mobile_voice_messages` (ẩn nút ghi tin thoại), `unichat_mobile_ai_catch_up` (ẩn banner "Bắt kịp nhanh"),
@@ -538,6 +541,9 @@ từng mục khi đã nộp:
 - [ ] **Sign in with Apple (Apple 4.8, chỉ iOS)**: trang đăng nhập mà app mở có "Tiếp tục với Google" và cho tự đăng ký,
   nên bản iOS đầu tiên gửi review (cả TestFlight external) phải có Sign in with Apple —
   `docs/adr/drafts/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md`. Chưa land thì không nộp bản iOS để review.
+- [ ] **iOS background modes (Apple 2.5.4)**: Info.plist của bản nộp không có `UIBackgroundModes` khi gọi còn tắt trên
+  iPhone (`app.config.test.ts` đọc Info.plist cuối của bản release); bản có gọi build với `UNICHAT_IOS_CALLS=1` và ghi
+  chú review nói cách thử cuộc gọi.
 - [ ] **iOS privacy manifest**: bản iOS archive đầu tiên trên EAS — mở `.xcarchive` trong Xcode › Organizer › Generate
   Privacy Report, đối chiếu với `store/listing.md` › "iOS privacy manifest" (dữ liệu thu thập, không tracking, lý do API).
   Email ITMS-91053/91061 sau khi upload nghĩa là một lý do hay một SDK thiếu manifest: thêm vào
