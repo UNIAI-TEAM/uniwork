@@ -10858,7 +10858,7 @@
       "archive_submitting": "Đang chuyển vào thùng rác…",
       "archive_failed": "Không chuyển vào thùng rác được. Chưa có gì thay đổi.",
       "archive_toast": "Đã chuyển vào thùng rác",
-      "archive_forbidden": "Có tài liệu con bạn không quản lý được, nên cả nhóm không vào thùng rác.",
+      "archive_forbidden": "Bạn không thể chuyển mục này vào thùng rác: bạn không quản lý nó hoặc một thư mục con bên trong.",
       "restore_title": "Khôi phục tài liệu",
       "restore_description": "Khôi phục mục này cùng những mục con bạn quản lý. Mục về lại thư mục cũ nếu thư mục còn, nếu không thì về gốc workspace.",
       "restore_confirm": "Khôi phục",

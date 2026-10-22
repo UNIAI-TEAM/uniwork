@@ -10875,7 +10875,7 @@
       "archive_submitting": "Moving to trash…",
       "archive_failed": "Could not move to trash. Nothing changed.",
       "archive_toast": "Moved to trash",
-      "archive_forbidden": "A child you cannot manage blocks the whole group from the trash.",
+      "archive_forbidden": "You cannot move this to trash: you do not manage it or a subfolder inside it.",
       "restore_title": "Restore document",
       "restore_description": "Restores this item and the items inside it that you manage. It lands back in its old folder if the folder is still there, otherwise at the workspace root.",
       "restore_confirm": "Restore",
