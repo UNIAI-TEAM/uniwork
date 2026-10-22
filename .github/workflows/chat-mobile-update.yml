@@ -27,9 +27,9 @@ name: UniChat mobile OTA update
 # The chat-mobile-update environment (deployment branches main and develop:
 # an OTA is dispatched on a branch, the store release on a tag) holds the
 # secrets: EXPO_TOKEN (required: a dispatched publish without it fails),
-# EAS_UPDATE_PRIVATE_KEY (required once
-# apps/chat-mobile/certs/eas-update-certificate.pem is committed: phones built
-# with the certificate refuse an unsigned update) and SENTRY_AUTH_TOKEN with
+# EAS_UPDATE_PRIVATE_KEY (required: every store binary embeds
+# apps/chat-mobile/certs/eas-update-certificate.pem and refuses an unsigned
+# update) and SENTRY_AUTH_TOKEN with
 # the SENTRY_ORG / SENTRY_PROJECT variables (optional: without them the source
 # maps are not uploaded and the run says so). The server URLs and SENTRY_DSN
 # come from the EAS environment of the channel, as for a build.
@@ -168,7 +168,7 @@ jobs:
             echo "::warning::this update's runtime $runtime differs from the latest $CHANNEL store build's $latest: phones on that build will not take it"
           fi
       - id: signing
-        name: Code signing key (required once the certificate is committed)
+        name: Code signing key (required)
         working-directory: apps/chat-mobile
         env:
           EAS_UPDATE_PRIVATE_KEY: ${{ secrets.EAS_UPDATE_PRIVATE_KEY }}
@@ -176,15 +176,11 @@ jobs:
         run: |
           set -euo pipefail
           if [ ! -f certs/eas-update-certificate.pem ]; then
-            # Production phones run what this publishes with the Keychain session in reach: never unsigned
-            # (app.config.ts refuses a production store build without the certificate, audit "ota-unsigned").
-            if [ "$UNICHAT_ENV" = "production" ]; then
-              echo "::error::No code-signing certificate in the app: a production update is never published unsigned (runbook › Ký OTA)."
-              exit 1
-            fi
-            echo "::notice::No code-signing certificate in the app yet: this staging update is unsigned (runbook › Ký OTA)."
-            echo "args=" >> "$GITHUB_OUTPUT"
-            exit 0
+            # Phones run what this publishes with the Keychain session in reach, and every store binary embeds the
+            # certificate (app.config.ts refuses a staging or production one without it, audit
+            # "ota-unsigned-first-binary"): an update is never published unsigned, on any channel.
+            echo "::error::No code-signing certificate in the app ($UNICHAT_ENV): an update is never published unsigned (runbook › Ký OTA)."
+            exit 1
           fi
           if [ -z "$EAS_UPDATE_PRIVATE_KEY" ]; then
             echo "::error::certs/eas-update-certificate.pem is committed but EAS_UPDATE_PRIVATE_KEY is not set: phones would refuse an unsigned update"

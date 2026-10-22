@@ -70,8 +70,7 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   luồng chờ cổng), job `eas-local` (`eas build --local --platform android`, hai profile: `preview` và
   `production-check`; đúng đường archive theo `.easignore`, nhận diện pnpm và cài đặt của EAS mà PR #387 vấp hai lần,
   và với `production-check` cả cấu hình chỉ bản production chạm — môi trường EAS `production`, chứng chỉ ký OTA mà
-  `app.config.ts` đòi trên máy build EAS — nên một đêm đỏ ở đó là một tag sẽ đỏ; chưa commit
-  `certs/eas-update-certificate.pem` (bước Ký OTA) thì chân này đỏ mỗi đêm, đúng như tag sẽ đỏ. Không profile nào
+  `app.config.ts` đòi trên máy build EAS — nên một đêm đỏ ở đó là một tag sẽ đỏ. Không profile nào
   `autoIncrement` nên version code trên store không nhảy; cần environment `chat-mobile-nightly`, mục Thiết lập lần
   đầu. Không chạy trên PR, có chủ ý: job PR không đọc secret, và `EXPO_TOKEN` trong job của một nhánh PR đủ để phát
   một bản OTA; đường EAS của PR được giữ tĩnh bằng `.easignore` sinh ra và `scripts/mobile-lockfiles.test.mjs`), job
@@ -200,18 +199,21 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    Thiếu `SENTRY_DSN` thì app không khởi động Sentry. GitHub Environment `chat-mobile-update`: secret
    `SENTRY_AUTH_TOKEN`, variables `SENTRY_ORG`, `SENTRY_PROJECT` cho source map của OTA. Đặt alert crash-free
    sessions < 99.5 % (`docs/evidence/unichat/go-no-go-template.md`) trong Sentry.
-9. **Ký OTA (EAS Update code signing).** Một lần, trên máy người giữ khoá:
-   `cd apps/chat-mobile && npx expo-updates codesigning:generate --key-output-directory ../../.secrets/unichat-keys
+9. **Ký OTA (EAS Update code signing).** Chứng chỉ công khai đã commit: `apps/chat-mobile/certs/eas-update-certificate.pem`
+   (sinh 2026-10-22 bằng `npx expo-updates codesigning:generate --key-output-directory ../../.secrets/unichat-keys
    --certificate-output-directory certs --certificate-validity-duration-years 10 --certificate-common-name "UniChat"`,
-   đổi tên chứng chỉ thành `certs/eas-update-certificate.pem` và commit nó qua PR (chứng chỉ công khai; `app.config.ts`
-   tự bật `codeSigningCertificate` khi file có mặt). Khoá riêng **không bao giờ** vào repo: lưu vào kho bí mật của tổ
-   chức và secret `EAS_UPDATE_PRIVATE_KEY` của Environment `chat-mobile-update` (nội dung PEM). Từ binary đầu tiên có
-   chứng chỉ, máy từ chối mọi bản OTA không ký; chứng chỉ thêm vào là thay đổi native (fingerprint mới, cần bản store).
-   Mất khoá = không phát OTA được cho các binary đó tới bản store kế tiếp. **Bắt buộc trước bản production** (audit
-   bảo mật "ota-unsigned"): thiếu chứng chỉ thì `app.config.ts` ném lỗi trên máy build EAS với `UNICHAT_ENV=production`
-   (build production đỏ, staging vẫn build), và `chat-mobile-update.yml` từ chối phát OTA kênh `production` không ký.
-   Bản 0.3.0 production đầu tiên được build khi chưa có chứng chỉ: không đưa nó lên track người dùng thấy; build lại
-   AAB sau khi commit chứng chỉ.
+   RSA 2048, hết hạn 2036-10-22; `app.config.test.ts` đỏ khi nó không còn là chứng chỉ code-signing thật hay còn dưới
+   2 năm). Khoá riêng nằm **trên máy đã sinh** ở `.secrets/unichat-keys/private-key.pem` (git bỏ qua, `.easignore` cũng
+   vậy) — **việc của owner, một lần, trước OTA đầu tiên**: chép nội dung PEM vào kho bí mật của tổ chức và secret
+   `EAS_UPDATE_PRIVATE_KEY` của Environment `chat-mobile-update`, rồi xoá bản trên máy
+   (`rm -P .secrets/unichat-keys/private-key.pem`). Khoá riêng **không bao giờ** vào repo. Mọi binary staging và
+   production từ đây nhúng chứng chỉ và từ chối bản OTA không ký: `app.config.ts` ném lỗi trên máy build EAS khi thiếu
+   chứng chỉ (`UNICHAT_ENV` khác `dev`), và `chat-mobile-update.yml` không phát bản không ký trên kênh nào (thiếu chứng
+   chỉ hoặc thiếu khoá thì đỏ). Mất khoá = không phát OTA được cho các binary đó tới bản store kế tiếp mang chứng chỉ
+   mới. **Xoay chứng chỉ** (lộ khoá, hay còn dưới 2 năm): sinh cặp mới như trên, thay file, đổi `EAS_UPDATE_PRIVATE_KEY`,
+   bump `version` và cắt bản store (chứng chỉ là phần native); máy cũ chỉ nhận OTA ký bằng khoá cũ tới khi cập nhật.
+   Các bản 0.3.0 build trước khi có chứng chỉ (một AAB production ngày 2026-10-21) nhận OTA không ký: không đưa lên
+   track người dùng thấy; build lại.
 10. Nightly (`chat-mobile-verify.yml`): trên staging, một org thử có một workspace, một **phòng nhóm** (group, không
    phải kênh mặc định của workspace) và một tài khoản thành viên của phòng đó, đăng nhập bằng email/mật khẩu (không
    MFA, không chỉ Google). Phòng nhóm vì cuộc gọi nhóm vào thẳng phòng LiveKit mà không cần người thứ hai; mỗi đêm

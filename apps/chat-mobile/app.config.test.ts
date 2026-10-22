@@ -1,5 +1,6 @@
 // Ported from usf apps/mobile/app.config.test.ts, re-cut for the UniChat
 // variants: identity, scheme, links and `extra` per UNICHAT_ENV.
+import { X509Certificate } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -183,15 +184,19 @@ describe("EAS project and release servers", () => {
     vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
     stubServers();
 
+    // The app's own root: its committed certificate signs every variant's updates.
     const config = build();
-    expect(config.updates).toEqual({ url: "https://u.expo.dev/0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
+    expect(config.updates).toEqual({
+      url: "https://u.expo.dev/0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e",
+      codeSigningCertificate: "./certs/eas-update-certificate.pem",
+      codeSigningMetadata: { keyid: "main", alg: "rsa-v1_5-sha256" },
+    });
     expect(config.runtimeVersion).toEqual({ policy: "fingerprint" });
     expect(config.extra?.eas).toEqual({ projectId: "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
   });
 
-  // Owner action: generate the certificate (runbook › Ký OTA). Until the file
-  // exists a dev or staging binary's updates are unsigned; from the first binary
-  // that embeds it, the phone accepts only updates signed with its key.
+  // The rule on a bare project root: without the file a dev binary's updates are unsigned; from the first
+  // binary that embeds it, the phone accepts only updates signed with its key.
   it("signs updates once the code-signing certificate is committed, and not before", () => {
     vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "unichat-config-"));
@@ -219,12 +224,16 @@ describe("EAS project and release servers", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "unichat-config-"));
     try {
       vi.stubEnv("EAS_BUILD", "true");
-      expect(() => build(root)).toThrow("certs/eas-update-certificate.pem");
-      // eas-cli's first local read (to find the project id), and a staging build, still go through.
+      expect(() => build(root)).toThrow("certs/eas-update-certificate.pem is required for a production build");
+      // The staging binaries reach people too (Play internal, the pilot APK): the same refusal.
+      vi.stubEnv("UNICHAT_ENV", "staging");
+      expect(() => build(root)).toThrow("certs/eas-update-certificate.pem is required for a staging build");
+      // eas-cli's first local read (to find the project id), and a dev client build, still go through.
       vi.stubEnv("EAS_BUILD", undefined);
+      vi.stubEnv("UNICHAT_ENV", "production");
       expect(build(root).updates).toEqual({ url: "https://u.expo.dev/0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
       vi.stubEnv("EAS_BUILD", "true");
-      vi.stubEnv("UNICHAT_ENV", "staging");
+      vi.stubEnv("UNICHAT_ENV", "dev");
       expect(build(root).updates).not.toHaveProperty("codeSigningCertificate");
       // Without an EAS project there is no update server to trust.
       vi.stubEnv("UNICHAT_ENV", "production");
@@ -236,6 +245,27 @@ describe("EAS project and release servers", () => {
       expect(build(root).updates).toMatchObject({ codeSigningCertificate: "./certs/eas-update-certificate.pem" });
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // Audit (Release, ota-unsigned-first-binary, P1): the certificate is in the repo, so every store binary from here on
+  // is signed. It must stay a real code-signing certificate with years left: one that expires (or is swapped for a
+  // stub) turns every later update into one the phones refuse, and rotating it is a native change (a store build).
+  it("carries a real EAS Update code-signing certificate, and every release build embeds it", () => {
+    const cert = new X509Certificate(fs.readFileSync(path.join(import.meta.dirname, "certs/eas-update-certificate.pem")));
+    expect(cert.subject).toBe("CN=UniChat");
+    expect(cert.keyUsage).toContain("1.3.6.1.5.5.7.3.3");
+    expect(cert.publicKey.asymmetricKeyType).toBe("rsa");
+    expect(cert.publicKey.asymmetricKeyDetails?.modulusLength).toBeGreaterThanOrEqual(2048);
+    const twoYears = Date.now() + 2 * 365 * 24 * 60 * 60 * 1000;
+    expect(Date.parse(cert.validTo), "rotate the certificate (runbook › Ký OTA) with a store build before it runs out").toBeGreaterThan(twoYears);
+    expect(cert.verify(cert.publicKey), "self-signed by its own key, as expo-updates generates it").toBe(true);
+    vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
+    vi.stubEnv("EAS_BUILD", "true");
+    stubServers();
+    for (const env of ["staging", "production"]) {
+      vi.stubEnv("UNICHAT_ENV", env);
+      expect(build(import.meta.dirname).updates).toMatchObject({ codeSigningCertificate: "./certs/eas-update-certificate.pem", codeSigningMetadata: { keyid: "main" } });
     }
   });
 

@@ -84,8 +84,9 @@ một dòng thì ghi lý do ở dòng trên.
   với id prod.
   Bảo mật của config (audit "Security & privacy"): staging/production chỉ nhận `UNICHAT_API_URL`/`UNICHAT_APP_URL`
   `https://` (ném lỗi ở mọi nơi đọc config; socket là `wss://` suy từ API), và `transport.start` chỉ mở trang đăng nhập
-  cùng origin với `appUrl`; bản production trên máy build EAS thiếu `certs/eas-update-certificate.pem` thì ném lỗi
-  (binary không ký OTA không bao giờ được build lại). Android: `allowBackup: false` + `plugins/with-android-backup-rules.js`
+  cùng origin với `appUrl`; chứng chỉ ký OTA `certs/eas-update-certificate.pem` đã commit (2026-10-22, hạn 10 năm,
+  `app.config.test.ts` giữ nó là chứng chỉ code-signing thật còn ≥ 2 năm), mọi biến thể nhúng nó; bản staging hay
+  production trên máy build EAS thiếu nó thì ném lỗi (binary không ký OTA không bao giờ được build lại). Android: `allowBackup: false` + `plugins/with-android-backup-rules.js`
   (data extraction rules loại mọi vùng khỏi sao lưu đám mây và chuyển máy, Android 12+), `READ_/WRITE_EXTERNAL_STORAGE`
   bị chặn; `android-manifest.test.ts` giữ thuộc tính `application` (không cleartext, không network security config).
   Ghim khoá TLS sẵn sàng nhưng tắt: `UNICHAT_TLS_PINS` (≥ 2 SPKI SHA-256 base64: CA hiện tại + dự phòng) và
@@ -736,10 +737,9 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   ra khỏi hash để URL, DSN không tách runtime): đổi native (gói native, plugin,
   quyền, SDK) thì bump `version` và cắt bản store — quên bump thì OTA cũng
   không khớp máy nào; chỉ đổi JS thì phát OTA. Chưa có `EAS_PROJECT_ID` thì
-  `updates.enabled: false` và push bỏ qua. Ký OTA: có
-  `certs/eas-update-certificate.pem` thì `updates.codeSigningCertificate` tự
-  bật (khoá riêng không bao giờ vào repo; runbook › Ký OTA); thiếu nó thì build production trên EAS đỏ và OTA kênh
-  production không phát.
+  `updates.enabled: false` và push bỏ qua. Ký OTA: `certs/eas-update-certificate.pem` đã commit nên
+  `updates.codeSigningCertificate` luôn bật (khoá riêng không bao giờ vào repo; runbook › Ký OTA); thiếu nó thì build
+  staging/production trên EAS đỏ, và `chat-mobile-update.yml` không phát OTA không ký trên kênh nào.
   `eas.json` đặt `SENTRY_ALLOW_FAILURE=true` cho mọi profile: build thiếu token
   Sentry vẫn xanh. Bản store production phát theo giai đoạn (Play 5 % → 100 %,
   iOS phased release), mở rộng chỉ khi crash-free sessions ≥ 99.5 % (runbook ›

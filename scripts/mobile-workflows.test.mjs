@@ -126,10 +126,36 @@ test("an OTA update is verified first, staged, signed when the app carries a cer
   assert.match(wf, /--rollout-percentage "\$ROLLOUT"/);
   assert.match(wf, /certs\/eas-update-certificate\.pem/);
   assert.match(wf, /--private-key-path/);
-  // Audit "ota-unsigned": production is never published unsigned, whatever the certificate's state.
-  assert.match(wf, /if \[ "\$UNICHAT_ENV" = "production" \]; then\n\s+echo "::error::No code-signing certificate[^\n]*\n\s+exit 1/, "an unsigned production update fails");
+  // Audit "ota-unsigned-first-binary": no update is published unsigned, on any channel (the step is run below).
+  assert.doesNotMatch(wf, /this staging update is unsigned/, "no unsigned staging path");
   assert.match(wf, /::error::EXPO_TOKEN is not set[^\n]*\n\s+exit 1/, "a dispatched publish without a token fails");
   assert.match(wf, /sentry-expo-upload-sourcemaps dist/);
+});
+
+// Every store binary embeds the certificate (app.config.ts refuses a staging or production one without it), so the
+// signing step never lets an update out unsigned: no certificate, or a certificate without its key, is red.
+test("the OTA signing step refuses every unsigned update and hands eas the key it was given", () => {
+  const marker = /^ {6}- id: signing$/m;
+  for (const channel of ["staging", "production"]) {
+    const bare = runStep("chat-mobile-update.yml", marker, { UNICHAT_ENV: channel, EAS_UPDATE_PRIVATE_KEY: "" });
+    assert.notEqual(bare.status, 0, `${channel}: no certificate fails`);
+    assert.match(bare.stdout, /::error::No code-signing certificate/);
+  }
+  const certified = (key) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mobile-cert-"));
+    try {
+      fs.mkdirSync(path.join(dir, "certs"));
+      fs.writeFileSync(path.join(dir, "certs/eas-update-certificate.pem"), "-----BEGIN CERTIFICATE-----\n");
+      const script = `cd ${JSON.stringify(dir)} && ` + stepScript("chat-mobile-update.yml", marker);
+      return runScript(script, { UNICHAT_ENV: "staging", EAS_UPDATE_PRIVATE_KEY: key });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  assert.notEqual(certified("").status, 0, "a certificate without its key fails");
+  const signed = certified("-----BEGIN PRIVATE KEY-----");
+  assert.equal(signed.status, 0);
+  assert.match(signed.outputs.args ?? "", /^--private-key-path \S+eas-update-private-key\.pem$/);
 });
 
 // The push filter is the scope script's list, and a pull request is never
@@ -262,12 +288,17 @@ test("every job that prebuilds and builds a Release binary on the runner turns t
   assert.ok(checked >= 4, `found ${checked} native Release jobs, expected the PR, nightly iOS/Android and production ones`);
 });
 
-/** Runs one `run: |` step of a workflow as written, with `extraPath` first on PATH. */
-function runStep(file, marker, env, extraPath) {
+/** The `run: |` block of the step after `marker` in a workflow, as the runner's shell gets it. */
+function stepScript(file, marker) {
   const wf = read(file);
   const step = wf.split(marker)[1]?.split(/^ {6}- /m)[0] ?? "";
   const script = step.split(/^ {8}run: \|\n/m)[1]?.split("\n").filter((l) => l === "" || l.startsWith("          ")).map((l) => l.slice(10)).join("\n");
   assert.ok(script, `${file}: the step has a run block`);
+  return script;
+}
+
+/** Runs a step's script in a scratch directory, with `extraPath` first on PATH; its status, output and outputs. */
+function runScript(script, env, extraPath) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mobile-step-"));
   try {
     const out = path.join(dir, "out");
@@ -287,6 +318,11 @@ function runStep(file, marker, env, extraPath) {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/** Runs one `run: |` step of a workflow as written, with `extraPath` first on PATH. */
+function runStep(file, marker, env, extraPath) {
+  return runScript(stepScript(file, marker), env, extraPath);
 }
 
 // eas update does not apply a build profile's env (only --environment), so the

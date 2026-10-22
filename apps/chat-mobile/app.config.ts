@@ -27,19 +27,20 @@ export const ANDROID_KEEP_RULES = ["-keep class com.margelo.nitro.** { *; }", "-
 const EAS_PROJECT_ID = "916177c9-255d-40c2-b93f-c39e85a73255";
 
 // EAS Update code signing (docs/runbooks/unichat-mobile-release.md › Ký OTA):
-// the public certificate is committed here once the owner generates it; the
-// private key never is (CI reads it from a secret). From the first binary that
-// embeds the certificate, every update must be signed or the phone refuses it.
-// A production store binary without it would run any JavaScript the Expo
-// account or a leaked EXPO_TOKEN publishes, with the Keychain session in reach,
-// and no update could take that back: the EAS builder refuses to make one
-// (audit "ota-unsigned"). eas-cli's first local read and dev/staging builds go on.
+// the public certificate is committed here (generated 2026-10-22, valid ten
+// years); the private key never is (CI reads it from a secret). Every binary
+// that embeds the certificate accepts only updates signed with that key.
+// A store binary without it would run any JavaScript the Expo account or a
+// leaked EXPO_TOKEN publishes, with the Keychain session in reach, and no
+// update could take that back: the EAS builder refuses to make a staging or
+// production one (audit "ota-unsigned-first-binary": the Play internal build
+// reaches testers too). eas-cli's first local read and dev builds go on.
 const CODE_SIGNING_CERTIFICATE = "./certs/eas-update-certificate.pem";
 
 function codeSigning(projectRoot: string, env: AppEnv): Pick<NonNullable<ExpoConfig["updates"]>, "codeSigningCertificate" | "codeSigningMetadata"> {
   if (!fs.existsSync(path.resolve(projectRoot, CODE_SIGNING_CERTIFICATE))) {
-    if (env === "production" && process.env.EAS_BUILD === "true") {
-      throw new Error(`${CODE_SIGNING_CERTIFICATE.slice(2)} is required for a production build: a store binary without it accepts unsigned updates (runbook › Ký OTA)`);
+    if (env !== "dev" && process.env.EAS_BUILD === "true") {
+      throw new Error(`${CODE_SIGNING_CERTIFICATE.slice(2)} is required for a ${env} build: a store binary without it accepts unsigned updates (runbook › Ký OTA)`);
     }
     return {};
   }
