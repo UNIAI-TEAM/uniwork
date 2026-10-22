@@ -56,10 +56,14 @@ test("the mobile checks run for the app, what it reads and the server contracts 
     "docs/events/CATALOGUE.md",
     "docs/runbooks/unichat-mobile-release.md",
     "server/internal/handler/dto/sdo/chat.go",
+    // Review P2: a handler-only rename of a wrapper key, and the kill switch catalogue.
+    "server/internal/handler/chat_threads.go",
+    "server/internal/handler/auth.go",
+    "server/internal/featureflags/keys.go",
   ]) {
     assert.equal(touchesMobile([file], none), true, file);
   }
-  for (const file of ["apps/web/app/page.tsx", "server/internal/service/chat.go", "docs/adr/README.md", ".github/workflows/ci.yml", "packages/views/chat/x.tsx", "apps/chat-desktop/package.json"]) {
+  for (const file of ["apps/web/app/page.tsx", "server/internal/service/chat.go", "server/internal/handler/meeting.go", "server/internal/handler/router/chat.go", "docs/adr/README.md", ".github/workflows/ci.yml", "packages/views/chat/x.tsx", "apps/chat-desktop/package.json"]) {
     assert.equal(touchesMobile([file], none), false, file);
   }
   assert.equal(touchesMobile([], none), false);

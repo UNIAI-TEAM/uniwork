@@ -30,7 +30,7 @@ export interface WorkspaceMemberRecord {
   avatar_url?: string;
 }
 
-const WorkspaceMemberSchema = z.object({
+export const WorkspaceMemberSchema = z.object({
   user_id: z.string(),
   email: z.string().catch(""),
   display_name: z.string().catch(""),

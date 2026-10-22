@@ -18,7 +18,7 @@ import { z } from "zod";
 import { api, type ApiClient } from "./api";
 
 /** Every switch the app reads, at the value it has before (or without) an answer. */
-const MOBILE_FLAG_DEFAULTS = {
+export const MOBILE_FLAG_DEFAULTS = {
   // Calls: off hides calling and stops incoming calls from ringing (server: featureflags.unichat_mobile_calls).
   unichat_mobile_calls: true,
 } as const satisfies Record<string, boolean>;
@@ -36,7 +36,7 @@ export interface MobileRemoteConfig {
 export const REMOTE_CONFIG_FALLBACK: MobileRemoteConfig = { minSupportedVersion: "", flags: {}, storeUrl: { ios: "", android: "" } };
 
 const text = z.string().catch("");
-const RemoteConfigSchema = z.object({
+export const RemoteConfigSchema = z.object({
   min_supported_mobile_version: text.optional(),
   mobile_flags: z.record(z.string(), z.boolean().catch(true)).catch({}).optional(),
   unichat_stores: z

@@ -72,6 +72,17 @@ export const MOBILE_PATHS = [
   // catalogue, data/server-contract.test.ts the response SDOs.
   "docs/events/CATALOGUE.md",
   "server/internal/handler/dto/sdo/**",
+  // The handlers that answer with those SDOs (wrapper keys of map-literal answers), the config
+  // struct /config embeds and the flag catalogue the kill switches come from.
+  "server/internal/handler/chat*.go",
+  "server/internal/handler/auth.go",
+  "server/internal/handler/identity.go",
+  "server/internal/handler/config.go",
+  "server/internal/handler/push_preview_policy.go",
+  "server/internal/handler/workspace.go",
+  "server/internal/handler/task.go",
+  "server/internal/config/unichat_downloads.go",
+  "server/internal/featureflags/keys.go",
 ];
 
 /** A GitHub `paths` glob as a RegExp: `**` crosses folders, `*` does not. */

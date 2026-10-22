@@ -18,7 +18,7 @@ type Request = (path: string, init?: RequestInit) => Promise<unknown>;
 const StatusSchema = z.object({ status: z.string().optional() });
 
 /** The organization's rule; a drifted answer reads as "not hidden, not yours to change", the server's default. */
-const PushPreviewPolicySchema = z.object({
+export const PushPreviewPolicySchema = z.object({
   hidden: z.boolean().catch(false),
   can_manage: z.boolean().catch(false),
 });

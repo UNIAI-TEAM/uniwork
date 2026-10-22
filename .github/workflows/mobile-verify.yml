@@ -79,6 +79,15 @@ on:
       - "docs/runbooks/unichat-mobile-release.md"
       - "docs/events/CATALOGUE.md"
       - "server/internal/handler/dto/sdo/**"
+      - "server/internal/handler/chat*.go"
+      - "server/internal/handler/auth.go"
+      - "server/internal/handler/identity.go"
+      - "server/internal/handler/config.go"
+      - "server/internal/handler/push_preview_policy.go"
+      - "server/internal/handler/workspace.go"
+      - "server/internal/handler/task.go"
+      - "server/internal/config/unichat_downloads.go"
+      - "server/internal/featureflags/keys.go"
   # Every pull request, no path filter: the gate job is a required status
   # check, and a workflow a filter keeps from starting leaves it pending for
   # ever. The scope job decides what the change needs; a PR outside the app
