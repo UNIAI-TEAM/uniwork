@@ -498,6 +498,10 @@ database and never reveal whether an id exists to a non-member.
   `TestMCPAddressCeilingStopsRotatingTokens`. The credential routes carry
   their own small budget in `server/internal/handler/router/router.go`,
   whose tests pin all of it.
+- A bearer route never answers with a redirect: only the Google sign-in,
+  MCP OAuth authorize and Swagger entry handlers call `http.Redirect`
+  (`TestOnlyBrowserFlowsRedirect` in `server/internal/arch_test.go`), since a
+  native client's HTTP stack may carry `Authorization` to wherever a 3xx points.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
 - `server/cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get

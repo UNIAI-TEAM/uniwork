@@ -83,14 +83,23 @@ export function incomingUrlAction(url: string, options: { appUrl: string; scheme
   return options.navigate ? { kind: "open", href: deepLinkHref(link) } : { kind: "ignore" };
 }
 
+/** Where a URL from outside the app may land when it is not a chat link: the start screen, which sends a
+ *  signed-in person home and anyone else to sign in (app/index.tsx). */
+const START_ROUTE = "/";
+
 /** For app/+native-intent.ts: the route expo-router opens for an OS URL. A
- *  chat link becomes its href, the PKCE callback lands on the login screen
- *  (the Linking listener in app/_layout completes the sign-in), anything else
- *  is left to expo-router untouched. */
+ *  chat link becomes its href (a bare path is read on the app's origin), the
+ *  PKCE callback lands on the login screen (the Linking listener in app/_layout
+ *  completes the sign-in), and anything else lands on the start screen. An
+ *  allowlist, not a pass-through: any app or web page can fire a URL at the
+ *  phone, and no URL may open an inner screen it names (account deletion, a
+ *  room's info, a group picker preloaded with ?room=) — audit "Security &
+ *  privacy", deep-link-catch-all. */
 export function systemPathToRoute(url: string, appUrl: string, scheme: string): string {
+  const absolute = url.startsWith("/") ? `${appUrl}${url}` : url;
   if (isAuthCallbackUrl(url, scheme)) return "/login";
-  const link = parseDeepLink(url, appUrl, scheme);
-  return link ? deepLinkHref(link) : url;
+  const link = parseDeepLink(absolute, appUrl, scheme);
+  return link ? deepLinkHref(link) : START_ROUTE;
 }
 
 // A link that arrives before sign-in waits here; app/index.tsx takes it once
@@ -109,8 +118,8 @@ export function takePendingDeepLink(): DeepLink | null {
 
 // "Message this person" inside the app (Contacts, room info) goes through the Chat tab's `dm=` too, so the back
 // button lands on the inbox; it is the person's own tap, so the tab opens it without the outside link's confirm.
-// The vouch is held here in memory, never in the URL: a param could be forged by any link (a custom-scheme URL
-// that parseDeepLink does not recognise reaches expo-router untouched). One DM, used once, for a few seconds.
+// The vouch is held here in memory, never in the URL: a param could be forged by any link (a chat link names any
+// dm= it likes). One DM, used once, for a few seconds.
 const IN_APP_DM_TTL_MS = 10_000;
 let inAppDm: { userId: string; at: number } | null = null;
 

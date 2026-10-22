@@ -115,15 +115,57 @@ describe("systemPathToRoute (+native-intent)", () => {
     expect(systemPathToRoute(`${APP_URL}/acme/hq/chat?room=r1`, APP_URL, SCHEME)).toBe("/acme/hq/chat?room=r1");
     const wrapped = `${SCHEME}://open?url=${encodeURIComponent("/acme/hq/chat?dm=u2")}`;
     expect(systemPathToRoute(wrapped, APP_URL, SCHEME)).toBe("/acme/hq/chat?dm=u2");
+    expect(systemPathToRoute("/acme/hq/chat?room=r1", APP_URL, SCHEME)).toBe("/acme/hq/chat?room=r1");
   });
 
   it("sends the PKCE callback to the login screen, which the Linking listener completes", () => {
     expect(systemPathToRoute(`${SCHEME}://auth/callback?code=c&state=s`, APP_URL, SCHEME)).toBe("/login");
   });
 
-  it("leaves any other URL to expo-router", () => {
-    expect(systemPathToRoute(`${APP_URL}/settings`, APP_URL, SCHEME)).toBe(`${APP_URL}/settings`);
-    expect(systemPathToRoute("/select-workspace", APP_URL, SCHEME)).toBe("/select-workspace");
+  // Audit "Security & privacy", deep-link-catch-all: any app or web page can fire a URL at the phone, so only the
+  // two shapes above route; every other URL lands on the start screen (app/index.tsx sends it home), never on an
+  // inner screen it names: account deletion, a room's info, a group picker preloaded with ?room=.
+  const INTERNAL_ROUTES = [
+    "/account",
+    "/licenses",
+    "/select-workspace",
+    "/login",
+    "/acme/hq/settings",
+    "/acme/hq/contacts",
+    "/acme/hq/calls",
+    "/acme/hq/channels",
+    "/acme/hq/new-chat",
+    "/acme/hq/new-group?room=r1",
+    "/acme/hq/room/r1",
+    "/acme/hq/room/r1/info",
+    "/acme/hq/room/r1/members",
+    "/acme/hq/room/r1/thread/m1",
+    "/acme/hq/chat/extra",
+  ];
+
+  it.each(INTERNAL_ROUTES)("never opens %s from outside the app", (route) => {
+    const shapes = [
+      `${SCHEME}://${route.slice(1)}`,
+      `${SCHEME}:///${route.slice(1)}`,
+      `${SCHEME}://open?url=${encodeURIComponent(route)}`,
+      `${APP_URL}${route}`,
+      route,
+    ];
+    for (const url of shapes) expect(systemPathToRoute(url, APP_URL, SCHEME)).toBe("/");
+  });
+
+  it("sends a foreign origin, another scheme, the dev client's own URL and garbage to the start screen", () => {
+    for (const url of [
+      `https://evil.example/acme/hq/chat?room=r1`,
+      `${SCHEME}://open?url=${encodeURIComponent("https://evil.example/acme/hq/chat")}`,
+      "otherapp://acme/hq/chat",
+      `${SCHEME}-dev://expo-development-client/?url=http%3A%2F%2F10.0.2.2%3A8081`,
+      `${SCHEME}://`,
+      "",
+      "::not a url::",
+    ]) {
+      expect(systemPathToRoute(url, APP_URL, SCHEME)).toBe("/");
+    }
   });
 });
 

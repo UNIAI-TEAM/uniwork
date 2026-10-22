@@ -525,3 +525,35 @@ func TestMcpToolsCallNoDelete(t *testing.T) {
 		}
 	}
 }
+
+// A bearer route never answers with a redirect (audit "Security & privacy",
+// UniChat mobile: React Native's fetch follows a 3xx whatever the app asks,
+// and whether the Authorization header follows depends on the platform). The
+// app now refuses one natively (apps/chat-mobile/data/auth/strict-fetch.ts);
+// this keeps the server from ever needing it. Only the browser flows redirect:
+// Google sign-in and the MCP OAuth authorize page, which carry no bearer, and
+// the Swagger UI's own entry.
+func TestOnlyBrowserFlowsRedirect(t *testing.T) {
+	redirect := regexp.MustCompile(`http\.Redirect\(|http\.Status(MovedPermanently|Found|SeeOther|TemporaryRedirect|PermanentRedirect)\b|Header\(\)\.Set\("Location"`)
+	allowed := map[string]bool{
+		"handler/google.go":         true,
+		"handler/mcp_oauth.go":      true,
+		"handler/router/openapi.go": true,
+	}
+	err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if redirect.Match(src) && !allowed[filepath.ToSlash(path)] {
+			t.Errorf("%s answers with a redirect; a bearer route must not (only the browser flows listed here may)", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

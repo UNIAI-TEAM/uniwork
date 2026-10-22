@@ -1,6 +1,7 @@
 // What every JavaScript runtime of the app does before its first request:
 // crash reporting first (nothing starts without a DSN), the server URLs every
-// data/* module reads per call, and the build's identity on every request.
+// data/* module reads per call, the build's identity on every request, and the
+// fetch that refuses a redirect for every request that carries a credential.
 // The app's root layout runs it at load; a headless task (an Android call
 // push or a Decline while UniChat is closed, data/calls/call-wiring.ts) runs
 // it too, since no screen loads there. Idempotent.
@@ -9,6 +10,7 @@ import Constants from "expo-constants";
 import { clientHeaders } from "@/lib/build-info";
 import { appEnvironment, perfMarksOn, runtimeFromExtra, sentryDsn } from "@/lib/runtime-extra";
 import { api } from "./api";
+import { strictFetch } from "./auth/strict-fetch";
 import { buildInfo } from "./build-info";
 import { enablePerfMarks } from "./logger";
 import { writePerfMarks } from "./perf/marks-file";
@@ -25,4 +27,6 @@ export function bootRuntime(): void {
   enablePerfMarks(perfMarksOn(extra), writePerfMarks);
   configureRuntime(runtimeFromExtra(extra));
   api.setClientIdentity(clientHeaders(buildInfo()));
+  // Before the first request: the bearer never follows a redirect (data/auth/strict-fetch.ts).
+  api.setCredentialFetch(strictFetch);
 }

@@ -49,6 +49,33 @@ describe("api client", () => {
     expect(header(init, "X-Client-Platform")).toBe("mobile");
   });
 
+  // Audit "Security & privacy": the bearer goes to the API host and nowhere a 3xx points. Every request asks for
+  // redirect: "error"; once the boot hands over the strict fetch (data/auth/strict-fetch.ts), which makes the native
+  // stack honour it, every JSON request goes through it. A multipart upload stays on the global fetch, the only one
+  // that sends React Native's { uri } file parts.
+  it("asks every request to refuse a redirect, and sends JSON through the strict fetch once the boot sets it", async () => {
+    const client = createApiClient({ session: sessionMock });
+    fetchMock.mockImplementation(async () => json(200, { workspaces: [] }));
+    await client.listWorkspaces();
+    expect(calls()[0]?.init.redirect).toBe("error");
+
+    const strict = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => json(200, { workspaces: [] }));
+    client.setCredentialFetch(strict);
+    await client.listWorkspaces();
+    expect(strict).toHaveBeenCalledTimes(1);
+    const [url, init] = strict.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://uniwork.example/api/v1/workspaces");
+    expect(init.redirect).toBe("error");
+    expect(header(init, "Authorization")).toBe("Bearer at_1");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true }));
+    await client.request("/api/v1/workspaces/w1/chat/rooms/r1/messages/file", { method: "POST", body: new FormData() });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(calls()[1]?.init.redirect).toBe("error");
+    expect(strict).toHaveBeenCalledTimes(1);
+  });
+
   it("sends JSON with the bearer from the session, a request id and the client platform, and parses /me", async () => {
     fetchMock.mockResolvedValueOnce(json(200, { user: { id: "u1", email: "a@b.c", display_name: "A" } }));
     expect(await api.getMe()).toMatchObject({ id: "u1", email: "a@b.c", display_name: "A" });

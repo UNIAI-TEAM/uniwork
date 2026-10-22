@@ -15,7 +15,7 @@ một dòng sai đi thì sửa dòng đó cùng PR; dòng "chưa có" là nợ �
 | Không sao lưu, không chuyển máy | `android.allowBackup: false`, data extraction rules loại mọi vùng (Android 12+) | `app.config.test.ts`, `android-manifest.test.ts` (thuộc tính `application`, luật của plugin) |
 | Đăng xuất / bị thu hồi xoá dấu vết | Cache ảnh expo-image, thông báo trong khay, badge, hàng đợi, cache truy vấn, workspace | `data/local-wipe.test.ts`, `data/auth/store.test.ts` |
 | Gỡ app là đăng xuất (iOS giữ Keychain) | Dấu cài đặt trong MMKV; lần mở đầu của bản cài mới bỏ phiên cũ và thu hồi thiết bị | `data/install-marker.test.ts`, `data/auth/session.test.ts`, `data/auth/store.test.ts` |
-| Log và báo crash không lộ dữ liệu | Console chỉ ở dev; Sentry `sendDefaultPii: false`, không ảnh màn hình/replay, `beforeSend` lọc token, email, query URL, push token | `data/logger.test.ts`, `data/sentry.test.ts`, `lib/redact.test.ts`, lint `no-console` (`lib/lint-quality.test.ts`) |
+| Log và báo crash không lộ dữ liệu | Console chỉ ở dev; Sentry `sendDefaultPii: false`, không ảnh màn hình/replay; app không đưa nội dung tin hay tên vào báo cáo, và `beforeSend` còn lọc token, email, query URL, push token, mọi đoạn trong ngoặc kép, cả lời của server trong `ApiError` | `data/logger.test.ts`, `data/sentry.test.ts`, `lib/redact.test.ts`, lint `no-console` (`lib/lint-quality.test.ts`) |
 
 ## MASVS-CRYPTO
 
@@ -39,7 +39,7 @@ một dòng sai đi thì sửa dòng đó cùng PR; dòng "chưa có" là nợ �
 | Kiểm soát | Cách làm | Cái giữ nó |
 | --- | --- | --- |
 | Chỉ TLS ở bản phát hành | `UNICHAT_API_URL`/`UNICHAT_APP_URL` phải `https://` với staging/production; socket `wss://` suy từ đó; không ngoại lệ ATS hay cleartext | `app.config.test.ts`, `android-manifest.test.ts` (`usesCleartextTraffic`, `networkSecurityConfig` rỗng khi không ghim) |
-| Token chỉ tới API của mình | Bearer chỉ gắn vào `apiUrl` + đường cố định; route đăng nhập `redirect: "error"`, `no-store`; socket xác thực bằng frame đầu | `data/api.test.ts`, `data/auth/transport.test.ts`, `data/realtime/ws-client.test.ts` |
+| Token chỉ tới API của mình | Bearer chỉ gắn vào `apiUrl` + đường cố định; mọi request mang credential (API JSON, route đăng nhập) đi qua `data/auth/strict-fetch.ts` (`expo/fetch`: OkHttp/URLSession thật sự từ chối 3xx — fetch của React Native bỏ qua `redirect`); upload multipart còn ở fetch của RN (Android OkHttp bỏ `Authorization` khi đổi host; iOS chưa kiểm trên máy); server không route bearer nào trả 3xx; socket xác thực bằng frame đầu | `data/auth/strict-fetch.test.ts`, `data/api.test.ts`, `data/auth/transport.test.ts`, `data/auth/flow.test.ts`, `server/internal/arch_test.go › TestOnlyBrowserFlowsRedirect`, `data/realtime/ws-client.test.ts` |
 | Ghim khoá TLS (MASVS-NETWORK-2, L2) | Sẵn sàng, tắt mặc định: `UNICHAT_TLS_PINS` + `UNICHAT_TLS_PIN_EXPIRES` bật pin-set Android (có hạn) và `NSPinnedDomains` iOS | `app.config.test.ts`, `android-manifest.test.ts`; bật và xoay vòng: runbook `unichat-mobile-release` › Khắc phục 19 |
 | Push có xác thực | Server production bắt buộc `EXPO_ACCESS_TOKEN` (enhanced push security) | `server/internal/config/config_test.go` |
 
@@ -47,7 +47,7 @@ một dòng sai đi thì sửa dòng đó cùng PR; dòng "chưa có" là nợ �
 
 | Kiểm soát | Cách làm | Cái giữ nó |
 | --- | --- | --- |
-| Deep link không tự hành động | Chỉ hai dạng link, cùng origin; `answer=` bị bỏ qua (Nghe chỉ từ PendingIntent có token); `dm=` hỏi trước khi tạo phòng | `lib/deep-link.test.ts`, `lib/deep-link-target.test.ts`, `components/chat/use-deep-link-target.test.tsx` |
+| Deep link không tự hành động | Chỉ hai dạng link, cùng origin; URL khác (kể cả `uniworkchat://account`, App Link tới màn trong) về `/`, không mở màn nó nêu; `answer=` bị bỏ qua (Nghe chỉ từ PendingIntent có token); `dm=` hỏi trước khi tạo phòng | `lib/deep-link.test.ts` (mỗi route trong một case), `lib/deep-link-target.test.ts`, `components/chat/use-deep-link-target.test.tsx` |
 | Màn khoá chỉ cho cuộc gọi thật | Activity hiện trên màn khoá chỉ khi launch mang token của lần đổ chuông | `CallLaunchTokens.kt` (runbook › kiểm bằng `adb am start` với extra giả) |
 | Quyền tối thiểu | Danh sách quyền và dịch vụ cuối cùng của bản release được ghim; quyền thừa của thư viện bị gỡ | `android-manifest.test.ts` |
 | Nội dung không lộ ngoài app | Thông báo tin riêng tư trên màn khoá Android; tuỳ chọn ẩn nội dung trong push (người dùng, tổ chức); chặn chụp màn hình và che trình chuyển app (tuỳ chọn) | `data/notification-channels.test.ts`, `server/internal/notification/push_preview_test.go`, `components/app/privacy-guard.test.tsx` |

@@ -1,13 +1,14 @@
 // Composition root of the native session. Expo / React Native APIs live here
 // and nowhere else in data/auth, so session.ts, transport.ts and pkce.ts stay
 // node-testable: Constants for the scheme and client ids, Platform for the
-// device label, WebBrowser for the modal system auth session.
+// device label, WebBrowser for the modal system auth session, expo/fetch (strict-fetch.ts) for the requests.
 import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 import { secureSessionStorage } from "../secure-storage";
 import { whileSystemUiOpen } from "../system-ui";
 import { MobileSession, deviceLabel, type MobileSessionConfig } from "./session";
+import { strictFetch } from "./strict-fetch";
 import { createTransport } from "./transport";
 
 interface ExpoConfigLike {
@@ -40,7 +41,8 @@ export const authConfig = resolveAuthConfig(Constants.expoConfig, Platform.OS);
 
 export const session = new MobileSession({
   config: authConfig,
-  transport: createTransport({ deploymentId: authConfig.deploymentId }),
+  // The sign-in routes carry the PKCE code and the refresh token: their redirect: "error" is honoured natively.
+  transport: createTransport({ deploymentId: authConfig.deploymentId }, { fetch: strictFetch }),
   storage: secureSessionStorage,
   openBrowser: openAuthBrowser,
 });

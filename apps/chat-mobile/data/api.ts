@@ -10,6 +10,7 @@ import type { Workspace } from "@uniwork/core/types/workspace";
 import type { ZodType } from "zod";
 import { endpointShape } from "@/lib/redact";
 import { session } from "./auth/flow";
+import type { FetchLike } from "./auth/transport";
 import { MeResponseSchema, WorkspacesResponseSchema } from "./schemas";
 
 /**
@@ -76,6 +77,11 @@ function messageOf(body: unknown, res: Response): string {
 export function createApiClient(deps: ApiClientDeps) {
   let onUnauthorized = deps.onUnauthorized;
   let unauthorizedReported = false;
+  // The fetch a JSON request goes through: the global one until the boot hands over data/auth/strict-fetch.ts, which
+  // makes the native stack honour redirect: "error" (React Native's own ignores it). A multipart body always takes
+  // the global fetch, the only one that sends React Native's { uri } file parts; there the platform decides whether
+  // a cross-host redirect keeps the Authorization header (OkHttp drops it).
+  let credentialFetch: FetchLike = (input, init) => fetch(input, init);
   // X-Client-Version / -OS / -Update-Id (lib/build-info.ts › clientHeaders),
   // set once at boot: the server logs and gates by them.
   let identity: Record<string, string> = {};
@@ -97,11 +103,14 @@ export function createApiClient(deps: ApiClientDeps) {
     const onCallerAbort = () => controller.abort();
     if (caller?.aborted) controller.abort();
     else caller?.addEventListener("abort", onCallerAbort);
+    const impl: FetchLike = init.body instanceof FormData ? (input, request) => fetch(input, request) : credentialFetch;
     try {
-      return await fetch(`${runtimeConfig().apiUrl}${path}`, {
+      return await impl(`${runtimeConfig().apiUrl}${path}`, {
         ...init,
         method: init.method ?? "GET",
         headers,
+        // The bearer goes to the API host only, never where a 3xx points (audit "Security & privacy").
+        redirect: "error",
         signal: controller.signal,
       });
     } catch (error) {
@@ -172,6 +181,10 @@ export function createApiClient(deps: ApiClientDeps) {
     },
     setClientIdentity(headers: Record<string, string>) {
       identity = { ...headers };
+    },
+    /** The boot's strict fetch (data/auth/strict-fetch.ts) for every request but a multipart upload. */
+    setCredentialFetch(impl: FetchLike) {
+      credentialFetch = impl;
     },
     async getMe(opts?: Opts): Promise<User | null> {
       const parsed = await fetchValidated<{ user: User } | null>("/api/v1/me", MeResponseSchema, null, {
