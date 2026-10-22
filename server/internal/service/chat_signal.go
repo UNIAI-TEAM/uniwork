@@ -208,12 +208,15 @@ func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, s
 }
 
 // closeRoomNotifications closes the reader's open message notifications of
-// the room (a DM, a mention) and, when that closed any, writes in the same
-// transaction the chat.room.notifications_cleared row the push lane turns
-// into a "read elsewhere" push: the reader's Android phones take those
-// notifications out of the tray and set the icon's count while the app is
-// closed. A read that closed nothing writes nothing, so reading a quiet room
-// wakes no phone. Thread replies and calls stay in the tray, as in the app.
+// the room (a DM, a mention) and, when one of those had reached a phone
+// (phone_pushed_at), writes in the same transaction the
+// chat.room.notifications_cleared row the push lane turns into a "read
+// elsewhere" push: the reader's Android phones take those notifications out of
+// the tray and set the icon's count while the app is closed. A read that closed
+// only rows no phone was shown writes nothing, so reading a quiet room, or
+// chatting on the web while each push is held back because the person is
+// reading, wakes no phone. Thread replies and calls stay in the tray, as in the
+// app.
 func (s *ChatService) closeRoomNotifications(ctx context.Context, room db.ChatRoom, userID string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -221,7 +224,7 @@ func (s *ChatService) closeRoomNotifications(ctx context.Context, room db.ChatRo
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
-	closed, err := qtx.CloseNotificationGroups(ctx, db.CloseNotificationGroupsParams{
+	closed, err := qtx.CloseRoomNotificationGroups(ctx, db.CloseRoomNotificationGroupsParams{
 		UserID: userID, GroupKeys: []string{ChatDMNotifyGroup(room.ID), ChatMentionNotifyGroup(room.ID)},
 	})
 	if err != nil {

@@ -1847,6 +1847,7 @@ type Notification struct {
 	DigestedAt     pgtype.Timestamptz `json:"digested_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	PhonePushedAt  pgtype.Timestamptz `json:"phone_pushed_at"`
 }
 
 type NotificationDelivery struct {

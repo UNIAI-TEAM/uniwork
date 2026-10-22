@@ -93,6 +93,17 @@ WHERE user_id = $1 AND group_key = ANY(sqlc.arg('group_keys')::text[]) AND read_
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND group_key = ANY(sqlc.arg('group_keys')::text[]) AND read_at IS NULL;
 
+-- name: CloseRoomNotificationGroups :one
+-- tenant: self
+-- MarkNotificationGroupsRead that counts the closed rows a phone was shown
+-- (phone_pushed_at): only those left something in a phone's tray to clear.
+WITH closed AS (
+  UPDATE notifications SET read_at = now(), updated_at = now()
+  WHERE user_id = $1 AND group_key = ANY(sqlc.arg('group_keys')::text[]) AND read_at IS NULL
+  RETURNING phone_pushed_at
+)
+SELECT count(*)::bigint FROM closed WHERE phone_pushed_at IS NOT NULL;
+
 -- name: MarkAllNotificationsRead :many
 -- tenant: self
 UPDATE notifications SET read_at = now(), updated_at = now()
@@ -227,6 +238,15 @@ WHERE user_id = $1 AND endpoint = $2 AND revoked_at IS NULL;
 -- name: MarkNotificationPushed :exec
 -- tenant: system
 UPDATE notifications SET pushed_at = now() WHERE id = $1 AND pushed_at IS NULL;
+
+-- name: MarkNotificationPhonePushed :one
+-- tenant: system
+-- MarkNotificationPushed for a push a phone was actually sent. It answers
+-- whether the row was read meanwhile: a read that closed it while the push was
+-- on its way found no phone_pushed_at, so the sender clears the tray itself.
+UPDATE notifications SET pushed_at = COALESCE(pushed_at, now()), phone_pushed_at = now()
+WHERE id = $1
+RETURNING (read_at IS NOT NULL)::bool AS read;
 
 -- name: ListDigestCandidateUsers :many
 -- tenant: system

@@ -88,6 +88,30 @@ func (q *Queries) CloseNotificationGroups(ctx context.Context, arg CloseNotifica
 	return result.RowsAffected(), nil
 }
 
+const closeRoomNotificationGroups = `-- name: CloseRoomNotificationGroups :one
+WITH closed AS (
+  UPDATE notifications SET read_at = now(), updated_at = now()
+  WHERE user_id = $1 AND group_key = ANY($2::text[]) AND read_at IS NULL
+  RETURNING phone_pushed_at
+)
+SELECT count(*)::bigint FROM closed WHERE phone_pushed_at IS NOT NULL
+`
+
+type CloseRoomNotificationGroupsParams struct {
+	UserID    string   `json:"user_id"`
+	GroupKeys []string `json:"group_keys"`
+}
+
+// tenant: self
+// MarkNotificationGroupsRead that counts the closed rows a phone was shown
+// (phone_pushed_at): only those left something in a phone's tray to clear.
+func (q *Queries) CloseRoomNotificationGroups(ctx context.Context, arg CloseRoomNotificationGroupsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, closeRoomNotificationGroups, arg.UserID, arg.GroupKeys)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countOwnedNotifications = `-- name: CountOwnedNotifications :one
 SELECT count(*)::bigint FROM notifications WHERE user_id = $1 AND id = ANY($2::text[])
 `
@@ -139,7 +163,7 @@ func (q *Queries) CountUnreadNotificationsByWorkspace(ctx context.Context, userI
 }
 
 const getNotification = `-- name: GetNotification :one
-SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at FROM notifications WHERE id = $1
+SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at FROM notifications WHERE id = $1
 `
 
 // tenant: system
@@ -167,6 +191,7 @@ func (q *Queries) GetNotification(ctx context.Context, id string) (Notification,
 		&i.DigestedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PhonePushedAt,
 	)
 	return i, err
 }
@@ -651,7 +676,7 @@ func (q *Queries) ListNotificationPreferencesByUsers(ctx context.Context, userId
 }
 
 const listNotifications = `-- name: ListNotifications :many
-SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at FROM notifications
+SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at FROM notifications
 WHERE user_id = $1
   AND archived_at IS NULL
   AND ($2::text IS NULL OR workspace_id = $2::text)
@@ -707,6 +732,7 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 			&i.DigestedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PhonePushedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -719,7 +745,7 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 }
 
 const listUndigestedNotifications = `-- name: ListUndigestedNotifications :many
-SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at FROM notifications
+SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at FROM notifications
 WHERE user_id = $1 AND digested_at IS NULL AND read_at IS NULL AND archived_at IS NULL AND created_at > $2
 ORDER BY workspace_id NULLS FIRST, kind, created_at DESC
 `
@@ -760,6 +786,7 @@ func (q *Queries) ListUndigestedNotifications(ctx context.Context, arg ListUndig
 			&i.DigestedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PhonePushedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -820,6 +847,23 @@ type MarkNotificationGroupsReadParams struct {
 func (q *Queries) MarkNotificationGroupsRead(ctx context.Context, arg MarkNotificationGroupsReadParams) error {
 	_, err := q.db.Exec(ctx, markNotificationGroupsRead, arg.UserID, arg.GroupKeys)
 	return err
+}
+
+const markNotificationPhonePushed = `-- name: MarkNotificationPhonePushed :one
+UPDATE notifications SET pushed_at = COALESCE(pushed_at, now()), phone_pushed_at = now()
+WHERE id = $1
+RETURNING (read_at IS NOT NULL)::bool AS read
+`
+
+// tenant: system
+// MarkNotificationPushed for a push a phone was actually sent. It answers
+// whether the row was read meanwhile: a read that closed it while the push was
+// on its way found no phone_pushed_at, so the sender clears the tray itself.
+func (q *Queries) MarkNotificationPhonePushed(ctx context.Context, id string) (bool, error) {
+	row := q.db.QueryRow(ctx, markNotificationPhonePushed, id)
+	var read bool
+	err := row.Scan(&read)
+	return read, err
 }
 
 const markNotificationPushed = `-- name: MarkNotificationPushed :exec
@@ -987,7 +1031,7 @@ DO UPDATE SET
   actor_id = EXCLUDED.actor_id,
   correlation_id = EXCLUDED.correlation_id,
   updated_at = now()
-RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at
+RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at
 `
 
 type UpsertNotificationParams struct {
@@ -1050,6 +1094,7 @@ func (q *Queries) UpsertNotification(ctx context.Context, arg UpsertNotification
 		&i.DigestedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PhonePushedAt,
 	)
 	return i, err
 }
@@ -1099,7 +1144,7 @@ DO UPDATE SET
   actor_id = EXCLUDED.actor_id,
   correlation_id = EXCLUDED.correlation_id,
   updated_at = now()
-RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at
+RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at
 `
 
 type UpsertNotificationsForUsersParams struct {
@@ -1166,6 +1211,7 @@ func (q *Queries) UpsertNotificationsForUsers(ctx context.Context, arg UpsertNot
 			&i.DigestedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PhonePushedAt,
 		); err != nil {
 			return nil, err
 		}

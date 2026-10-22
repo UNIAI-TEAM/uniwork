@@ -281,6 +281,7 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	}
 	iPhonesRing := n.Kind == KindChatCallIncoming && (c.mobileCallsIOS == nil || c.mobileCallsIOS(ctx, n.UserID, n.OrganizationID))
 	var failed error
+	phoneSent := false
 	for _, sub := range subs {
 		// A call rings web and desktop in the page (realtime); its push is for
 		// the backgrounded phone only (spec M3 §2), never a browser banner on top.
@@ -295,6 +296,7 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		switch {
 		case err == nil:
 			c.count("sent")
+			phoneSent = phoneSent || isExpoPushToken(sub.Endpoint)
 		case errors.Is(err, ErrPushSkipped):
 			c.count("skipped")
 		case errors.Is(err, ErrSubscriptionGone):
@@ -308,7 +310,29 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if failed != nil {
 		return failed
 	}
-	return c.q.MarkNotificationPushed(ctx, n.ID)
+	if !phoneSent {
+		return c.q.MarkNotificationPushed(ctx, n.ID)
+	}
+	return c.markPhonePushed(ctx, n, chatMsg, subs)
+}
+
+// markPhonePushed records that a phone was shown n, the mark a room read looks
+// for before it wakes the person's Android phones (handleRoomCleared). A read
+// that closed n while this push was on its way found no such mark and sent
+// nothing, so the push that just landed in a tray is taken down here instead.
+func (c *PushConsumer) markPhonePushed(ctx context.Context, n db.Notification, chatMsg db.ChatMessage, subs []db.PushSubscription) error {
+	read, err := c.q.MarkNotificationPhonePushed(ctx, n.ID)
+	if err != nil {
+		return err
+	}
+	if !read || (n.Kind != KindChatDM && n.Kind != KindChatMentioned) {
+		return nil // a thread reply or a call is not closed by reading the room
+	}
+	msg := PushMessage{TTL: roomClearedTTL, Cleared: RoomCleared{RoomID: chatMsg.RoomID, WorkspaceID: chatMsg.WorkspaceID}}
+	if c.badges != nil {
+		msg.Badge = c.unreadBadge(ctx, n.UserID)
+	}
+	return c.sendToCallUI(ctx, subs, msg)
 }
 
 // hasIPhone: one of the subscriptions is an iPhone, the only device a pushed
@@ -404,8 +428,10 @@ const roomClearedTTL = int(24 * time.Hour / time.Second)
 // UI, whose background task can act on it) that they read a room on some
 // device: the room's message notifications leave the tray and the icon's
 // count follows, even while the app is closed. ChatService writes the row
-// only when reading closed an open notification of that room, so a read with
-// nothing in the tray sends nothing.
+// only when reading closed a notification of that room that a phone was shown
+// (phone_pushed_at, set by markPhonePushed), so a read with nothing in a
+// phone's tray sends nothing: not a push dropped because the person was
+// reading the room elsewhere, nor one their preferences never sent.
 func (c *PushConsumer) handleRoomCleared(ctx context.Context, ev outbox.Row) error {
 	var p map[string]string
 	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
