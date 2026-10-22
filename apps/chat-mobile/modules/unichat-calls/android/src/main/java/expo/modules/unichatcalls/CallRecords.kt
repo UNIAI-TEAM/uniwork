@@ -7,8 +7,8 @@ import expo.modules.kotlin.records.Record
 
 /**
  * The two call channels' names, in the app's language (lib/notification-channels.ts). Before JavaScript has
- * run once, [fromResources] gives the same words from res/values*/strings.xml, which scripts/sync-i18n.mjs
- * generates from the app's copy.
+ * run once, [fromResources] gives the same words from res/values/strings.xml and
+ * res/values-vi/strings.xml, which scripts/sync-i18n.mjs generates from the app's copy.
  */
 class ChannelNames : Record {
   @Field

@@ -46,6 +46,53 @@ const classFile = (classifier: string): string => {
   return path.join("android/src/main/java", ...parts.slice(0, -1), `${parts.at(-1)}.kt`);
 };
 
+// Nothing on a developer machine compiles Kotlin, so a comment that ends early (a `*/` written inside the text,
+// as in a `values*/` path) or never ends (Kotlin nests block comments, so a `/*` inside one opens another)
+// would first fail on EAS. This lexer is deliberately small: strings, char literals, line and block comments.
+const kotlinCommentFaults = (source: string): string[] => {
+  const faults: string[] = [];
+  const lineOf = (index: number): number => source.slice(0, index).split("\n").length;
+  const lineEnd = (index: number): number => {
+    const end = source.indexOf("\n", index);
+    return end < 0 ? source.length : end;
+  };
+  let i = 0;
+  while (i < source.length) {
+    const pair = source.slice(i, i + 2);
+    if (pair === "//") {
+      i = lineEnd(i);
+    } else if (pair === "/*") {
+      const close = source.indexOf("*/", i + 2);
+      if (close < 0) {
+        faults.push(`${lineOf(i)}: block comment never closes`);
+        break;
+      }
+      const body = source.slice(i + 2, close);
+      const nested = body.indexOf("/*");
+      if (nested >= 0) faults.push(`${lineOf(i + 2 + nested)}: "/*" inside a comment opens a nested one in Kotlin`);
+      const rest = source.slice(close + 2, lineEnd(close));
+      if (body.includes("\n") && rest.trim() !== "") faults.push(`${lineOf(close)}: "*/" ends the comment mid-line`);
+      i = close + 2;
+    } else if (source.startsWith('"""', i)) {
+      const end = source.indexOf('"""', i + 3);
+      i = end < 0 ? source.length : end + 3;
+    } else if (source[i] === '"') {
+      let j = i + 1;
+      while (j < source.length && source[j] !== '"' && source[j] !== "\n") j += source[j] === "\\" ? 2 : 1;
+      i = j + 1;
+    } else if (source[i] === "'") {
+      const literal = /^'(\\u[0-9a-fA-F]{4}|\\.|[^'\\\n])'/.exec(source.slice(i));
+      i += literal ? literal[0].length : 1;
+    } else if (pair === "*/") {
+      faults.push(`${lineOf(i)}: stray "*/" outside a comment`);
+      i += 2;
+    } else {
+      i += 1;
+    }
+  }
+  return faults;
+};
+
 describe("the app's local Expo modules", () => {
   it("has at least the calls module", () => {
     expect(localModules.map((module) => module.name)).toContain("unichat-calls");
@@ -71,6 +118,26 @@ describe("the app's local Expo modules", () => {
         expect(path.basename(file)).toBe(`${match[1]}.kt`);
         expect(match[1]).toMatch(/Package$/);
       }
+    }
+  });
+
+  it("the Kotlin comment check finds a comment that a path closes early", () => {
+    const early = "/**\n * Read from res/values*/strings.xml, which the app's copy fills.\n */\nclass A\n";
+    expect(kotlinCommentFaults(early)).toEqual([
+      '2: "*/" ends the comment mid-line',
+      '3: stray "*/" outside a comment',
+    ]);
+    expect(kotlinCommentFaults("/* res/values-*/\nclass A")).toEqual([]);
+    expect(kotlinCommentFaults("/**\n * see /* here\n */\n")).toEqual(['2: "/*" inside a comment opens a nested one in Kotlin']);
+    expect(kotlinCommentFaults("/* open\n")).toEqual(["1: block comment never closes"]);
+    expect(kotlinCommentFaults('val a = "*/"\nval b = \'*\'\nval c = """/* */"""\n// a */ note\n/** x */ fun f() = 1\n')).toEqual([]);
+  });
+
+  it.each(localModules)("$name: every Kotlin comment closes where it is written", ({ dir }) => {
+    const sources = tracked(dir).filter((file) => file.endsWith(".kt"));
+    expect(sources.length).toBeGreaterThan(0);
+    for (const file of sources) {
+      expect({ file, faults: kotlinCommentFaults(readFileSync(path.join(dir, file), "utf8")) }).toEqual({ file, faults: [] });
     }
   });
 
