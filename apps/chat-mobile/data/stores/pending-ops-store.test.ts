@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { installDeviceStore, memoryDeviceStore } from "../storage/device-store";
-import { hydratePendingOpsStore, rehydratedOps, usePendingOpsStore, type PendingOp } from "./pending-ops-store";
+import { hydratePendingOpsStore, rehydratedOps, selectRoomOps, usePendingOpsStore, type PendingOp } from "./pending-ops-store";
 
 const read = (key: string, extra: Partial<PendingOp> = {}): PendingOp =>
   ({ kind: "read", key, workspaceId: "w1", roomId: "r1", userId: "u1", createdAt: 1, rev: 1, verify: false, ...extra }) as PendingOp;
@@ -84,5 +84,10 @@ describe("pending ops store", () => {
       await hydratePendingOpsStore();
       expect(usePendingOpsStore.getState().ops.map((op) => [op.key, op.rev])).toEqual([["kept", 0]]);
     }
+  });
+
+  it("selects one room's wishes of one person, oldest first, for the timeline overlay", () => {
+    const ops = [read("b", { createdAt: 2 }), read("a", { createdAt: 1 }), read("other-room", { roomId: "r2" }), read("other-ws", { workspaceId: "w2" }), read("other-user", { userId: "u2" })];
+    expect(selectRoomOps(ops, "w1", "r1", "u1").map((op) => op.key)).toEqual(["a", "b"]);
   });
 });

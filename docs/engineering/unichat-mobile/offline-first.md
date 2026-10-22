@@ -64,7 +64,11 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   và reject cho màn hình báo (lượt đọc thì báo Sentry, không toast). Một mục lỗi vì lý do của riêng nó (5xx/408) bị
   để sang bên (`retryAt`) theo backoff riêng 5 s → 1 giờ (`OP_ITEM_RETRY_MS`) trong khi hàng giao các mục khác, rồi
   bị bỏ như một lần từ chối sau `MAX_OP_ITEM_FAILURES` (8, khoảng 2,5 giờ; tag `gave_up`): một mục "độc" không chặn
-  lượt đọc và biểu cảm của cả workspace. Lỗi mạng hay phiên vẫn dừng cả hàng. **Nháp** (`lib/drafts.ts`, `stores/draft-store.ts`, `components/chat/use-drafts.ts`): chữ đang viết và tin đang trích
+  lượt đọc và biểu cảm của cả workspace. Lỗi mạng hay phiên vẫn dừng cả hàng. Cache chỉ được ghi một lần, nên
+  mong muốn còn chờ được **đặt lên** mọi bản server trả về lúc vẽ (`lib/pending-ops-overlay.ts`, dùng ở
+  `data/queries/use-room-timeline.ts` cho trang mới nhất và trang quanh tin neo, và ở màn chủ đề): refetch lúc mạng
+  quay lại, tới trước khi hàng giao xong, không làm tin đã xoá hiện lại hay bản sửa về body cũ; tin không có mong
+  muốn nào giữ nguyên object (hàng không vẽ lại). **Nháp** (`lib/drafts.ts`, `stores/draft-store.ts`, `components/chat/use-drafts.ts`): chữ đang viết và tin đang trích
   của từng (người, workspace, phòng, chủ đề) sống qua rời phòng và kill app — composer ghi sau 400 ms ngừng gõ, ngay khi
   composer đóng hay app rời foreground, gửi thì xoá; sửa tin mượn ô nhập rồi trả lại nháp; danh sách phòng hiện
   "Nháp: …" (trừ khi có người đang gõ). Persist như outbox (đọc qua `DraftSchema`, quá 30 ngày thì bỏ, có trong

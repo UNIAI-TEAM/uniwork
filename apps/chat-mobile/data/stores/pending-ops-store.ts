@@ -100,6 +100,11 @@ export const usePendingOpsStore = create<PendingOpsState>()(
   ),
 );
 
+/** One room's queued wishes of the signed-in person, oldest first, for the overlay of lib/pending-ops-overlay.ts. */
+export function selectRoomOps(ops: readonly PendingOp[], workspaceId: string, roomId: string, userId: string): PendingOp[] {
+  return ops.filter((op) => op.workspaceId === workspaceId && op.roomId === roomId && op.userId === userId).sort((a, b) => a.createdAt - b.createdAt);
+}
+
 export async function hydratePendingOpsStore(): Promise<void> {
   await usePendingOpsStore.persist.rehydrate();
 }

@@ -17,6 +17,8 @@ import { useMarkThreadRead } from "@/data/mutations/rooms";
 import { bestEffort } from "@/data/report";
 import { threadTimelineOptions } from "@/data/queries/chat";
 import { selectRoomSends, useChatSendStore } from "@/data/stores/chat-send-store";
+import { selectRoomOps, usePendingOpsStore } from "@/data/stores/pending-ops-store";
+import { overlayPendingOps } from "@/lib/pending-ops-overlay";
 import { THEME } from "@/lib/theme";
 import { buildThreadViewMessages } from "@/lib/timeline-display";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
@@ -29,7 +31,8 @@ function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roo
   const [atLatest, setAtLatest] = useState(true);
   const thread = useInfiniteQuery(threadTimelineOptions(chat.wsId, roomId, rootId));
   const sends = useChatSendStore(useShallow((s) => selectRoomSends(s.entries, chat.wsId, roomId, chat.userId)));
-  const rows = useMemo(() => thread.data ?? [], [thread.data]);
+  const ops = usePendingOpsStore(useShallow((s) => selectRoomOps(s.ops, chat.wsId, roomId, chat.userId)));
+  const rows = useMemo(() => overlayPendingOps(thread.data ?? [], ops, chat.userId), [thread.data, ops, chat.userId]);
   const root = rows.find((m) => m.id === rootId);
   const messages = useMemo(
     () =>
