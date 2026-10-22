@@ -6,10 +6,10 @@
     "lines": 90
   },
   "routes": {
-    "statements": 68,
-    "branches": 66,
+    "statements": 69,
+    "branches": 67,
     "functions": 56,
-    "lines": 69
+    "lines": 70
   },
   "files": {
     "components/app/i18n-provider.tsx": {
@@ -206,7 +206,7 @@
     },
     "components/chat/message-row.tsx": {
       "statements": 98,
-      "branches": 89,
+      "branches": 91,
       "functions": 93,
       "lines": 98
     },
@@ -308,13 +308,19 @@
     },
     "components/chat/room-row.tsx": {
       "statements": 100,
-      "branches": 98,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },
     "components/chat/room-safety.tsx": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/room-swipe.tsx": {
+      "statements": 100,
+      "branches": 95,
       "functions": 100,
       "lines": 100
     },
@@ -350,7 +356,7 @@
     },
     "components/chat/use-arrival-announcements.ts": {
       "statements": 100,
-      "branches": 83,
+      "branches": 91,
       "functions": 100,
       "lines": 100
     },
@@ -387,6 +393,12 @@
     "components/chat/use-read-marking.ts": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/use-room-commands.ts": {
+      "statements": 100,
+      "branches": 94,
       "functions": 100,
       "lines": 100
     },
@@ -584,7 +596,7 @@
     },
     "components/ui/action-sheet.tsx": {
       "statements": 100,
-      "branches": 85,
+      "branches": 96,
       "functions": 100,
       "lines": 100
     },
@@ -627,6 +639,18 @@
     "components/ui/header.tsx": {
       "statements": 100,
       "branches": 90,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/ui/list-states.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/ui/live-region.tsx": {
+      "statements": 100,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },
@@ -691,10 +715,10 @@
       "lines": 100
     },
     "components/ui/use-color-scheme.ts": {
-      "statements": 66,
+      "statements": 100,
       "branches": 50,
-      "functions": 40,
-      "lines": 62
+      "functions": 100,
+      "lines": 100
     },
     "components/workspace/workspace-avatar.tsx": {
       "statements": 75,
