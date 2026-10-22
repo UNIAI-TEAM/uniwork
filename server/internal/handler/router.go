@@ -252,6 +252,7 @@ func New(d Deps) http.Handler {
 		AdminUpdateDemoRequest:     h.adminUpdateDemoRequest,
 		AdminListChatReports:       h.adminListChatReports,
 		AdminResolveChatReport:     h.adminResolveChatReport,
+		AdminRemoveReportedMessage: h.adminRemoveReportedMessage,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,
 		AdminGetOrganization:       h.adminGetOrganization,

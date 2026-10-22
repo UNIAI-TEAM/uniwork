@@ -669,6 +669,8 @@ func main() {
 	// users.platform_role rather than membership.
 	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
 	adminSvc.SetSystemSources(readiness, realtime.M.ActiveConnections.Load, featureflag.ProviderNames(flags))
+	// The console's takedown of a reported message acts through the chat service, never reading the message.
+	adminSvc.SetReportedContentRemover(chatSvc)
 	var emailHubBox *secretbox.Box
 	if key, err := secretbox.LoadKey("EMAIL_HUB_CREDENTIAL_KEY"); err == nil {
 		if box, err := secretbox.New(key); err == nil {

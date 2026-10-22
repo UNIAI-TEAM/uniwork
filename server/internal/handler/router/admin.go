@@ -15,6 +15,7 @@ import (
 //	GET  /api/v1/admin/me
 //	GET  /api/v1/admin/chat-reports
 //	POST /api/v1/admin/chat-reports/{chatReportID}/resolve
+//	POST /api/v1/admin/chat-reports/{chatReportID}/remove-message
 //	GET  /api/v1/admin/organizations
 //	GET  /api/v1/admin/organizations/{orgID}
 //	POST /api/v1/admin/organizations/{orgID}/suspend
@@ -52,6 +53,7 @@ func registerAdmin(r api, h Routes, limit, support, admin func(http.Handler) htt
 		a.Group(func(w api) {
 			w.Use(admin)
 			w.Patch("/demo-requests/{demoRequestID}", h.AdminUpdateDemoRequest, apiOp{summary: "Admin: process demo request", description: "Cập nhật trạng thái, ghi lý do vào admin_actions và audit_events trong cùng transaction.", tags: tags, sdi: sdi.UpdateDemoRequestSDI{}, sdo: sdo.DemoRequestSDO{}, auth: true})
+			w.Post("/chat-reports/{chatReportID}/remove-message", h.AdminRemoveReportedMessage, apiOp{summary: "Admin: take a reported message down", description: "Gỡ tin nhắn bị báo cáo cho mọi người (như người gửi tự xóa) và đóng báo cáo nếu còn mở; console không đọc nội dung tin. Ghi admin_actions và audit_events (chat.message.removed và chat.report.resolved, trong tổ chức của báo cáo) cùng transaction; client nhận chat.message.deleted. Tin đã bị xóa trước đó vẫn đóng được báo cáo. Báo cáo về một người (không có tin) → 400. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminChatReportSDO{}, auth: true})
 			w.Post("/chat-reports/{chatReportID}/resolve", h.AdminResolveChatReport, apiOp{summary: "Admin: resolve chat report", description: "Đóng một báo cáo đang mở sau khi đã xử lý; ghi admin_actions và audit_events (chat.report.resolved, trong tổ chức của báo cáo) cùng transaction. Đã đóng → 409. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminChatReportSDO{}, auth: true})
 			w.Post("/organizations/{orgID}/suspend", h.AdminSuspendOrganization, apiOp{summary: "Admin: suspend organization", description: "status → suspended; mọi request của thành viên trả 403 organization_suspended. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminOrganizationSDO{}, auth: true})
 			w.Post("/organizations/{orgID}/unsuspend", h.AdminUnsuspendOrganization, apiOp{summary: "Admin: unsuspend organization", description: "status → active. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminOrganizationSDO{}, auth: true})

@@ -143,6 +143,9 @@ const (
 	// The platform operator closed a report from the console's queue (store UGC policy: every report
 	// is acted on within 24 hours); the organization's owners and admins see that it was handled.
 	ActionChatReportResolved = "chat.report.resolved"
+	// The platform operator took a reported message down from the console (store UGC policy, Apple 1.2): the
+	// message is gone for everyone, as its sender's own deletion would be; the organization sees who and why.
+	ActionChatMessageRemoved = "chat.message.removed"
 
 	ActionSubscriptionChanged    = "subscription.changed"
 	ActionBillingInvoiceRefunded = "billing.invoice_refunded"

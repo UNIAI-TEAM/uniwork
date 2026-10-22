@@ -238,6 +238,14 @@ SET deleted_at = now()
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND sender_id = $4 AND deleted_at IS NULL
 RETURNING *;
 
+-- name: ModerationRemoveChatMessage :one
+-- The platform operator takes a reported message down (store UGC policy, Apple 1.2): any sender's, in the
+-- report's organization (ChatService.RemoveReportedMessageQ, called by AdminService.RemoveReportedMessage).
+UPDATE chat_messages
+SET deleted_at = now()
+WHERE id = $1 AND room_id = $2 AND organization_id = $3 AND deleted_at IS NULL
+RETURNING *;
+
 -- name: SoftDeleteChatReminderMessage :one
 -- A room moderator retires another member's reminder (its author may have left).
 UPDATE chat_messages

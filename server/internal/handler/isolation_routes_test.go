@@ -382,6 +382,9 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/admin/chat-reports/{chatReportID}/resolve": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"reason": "acted on with the organization's owner",
 	})},
+	"POST /api/v1/admin/chat-reports/{chatReportID}/remove-message": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
+		"reason": "objectionable content taken down within 24 hours",
+	})},
 	"GET /api/v1/notifications/push/config": {class: isoPublic, reason: reasonProbe},
 	"GET /api/v1/auth/google/callback":      {class: isoPublic, reason: reasonAuth},
 	"GET /api/v1/auth/google/start":         {class: isoPublic, reason: reasonAuth},

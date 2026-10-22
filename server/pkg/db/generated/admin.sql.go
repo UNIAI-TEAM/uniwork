@@ -180,17 +180,20 @@ func (q *Queries) AdminCountPaymentIntents(ctx context.Context, arg AdminCountPa
 }
 
 const adminGetChatReportForUpdate = `-- name: AdminGetChatReportForUpdate :one
-SELECT id, organization_id, workspace_id, status FROM chat_reports WHERE id = $1 FOR UPDATE
+SELECT id, organization_id, workspace_id, room_id, message_id, status FROM chat_reports WHERE id = $1 FOR UPDATE
 `
 
 type AdminGetChatReportForUpdateRow struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	Status         string `json:"status"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	RoomID         pgtype.Text `json:"room_id"`
+	MessageID      pgtype.Text `json:"message_id"`
+	Status         string      `json:"status"`
 }
 
 // tenant: platform
+// room_id and message_id name what a takedown removes (AdminService.RemoveReportedMessage); never the content.
 func (q *Queries) AdminGetChatReportForUpdate(ctx context.Context, id string) (AdminGetChatReportForUpdateRow, error) {
 	row := q.db.QueryRow(ctx, adminGetChatReportForUpdate, id)
 	var i AdminGetChatReportForUpdateRow
@@ -198,6 +201,8 @@ func (q *Queries) AdminGetChatReportForUpdate(ctx context.Context, id string) (A
 		&i.ID,
 		&i.OrganizationID,
 		&i.WorkspaceID,
+		&i.RoomID,
+		&i.MessageID,
 		&i.Status,
 	)
 	return i, err

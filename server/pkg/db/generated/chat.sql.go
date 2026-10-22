@@ -2744,6 +2744,48 @@ func (q *Queries) MarkChatThreadRead(ctx context.Context, arg MarkChatThreadRead
 	return err
 }
 
+const moderationRemoveChatMessage = `-- name: ModerationRemoveChatMessage :one
+UPDATE chat_messages
+SET deleted_at = now()
+WHERE id = $1 AND room_id = $2 AND organization_id = $3 AND deleted_at IS NULL
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
+`
+
+type ModerationRemoveChatMessageParams struct {
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// The platform operator takes a reported message down (store UGC policy, Apple 1.2): any sender's, in the
+// report's organization (ChatService.RemoveReportedMessageQ, called by AdminService.RemoveReportedMessage).
+func (q *Queries) ModerationRemoveChatMessage(ctx context.Context, arg ModerationRemoveChatMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, moderationRemoveChatMessage, arg.ID, arg.RoomID, arg.OrganizationID)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.RoomID,
+		&i.WorkspaceID,
+		&i.SenderID,
+		&i.Kind,
+		&i.Body,
+		&i.Metadata,
+		&i.ReplyToMessageID,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.SenderKind,
+		&i.ClientMsgID,
+		&i.ThreadRootID,
+		&i.ReplyCount,
+		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
+		&i.FileID,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
 const muteChatThreadFollower = `-- name: MuteChatThreadFollower :exec
 UPDATE chat_thread_followers
 SET muted = true, updated_at = now()

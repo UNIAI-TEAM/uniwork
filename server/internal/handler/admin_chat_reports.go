@@ -65,3 +65,19 @@ func (h *handlers) adminResolveChatReport(w http.ResponseWriter, r *http.Request
 	}
 	respondJSON(w, http.StatusOK, sdo.AdminChatReportSDO{ID: row.ID, Status: row.Status})
 }
+
+// adminRemoveReportedMessage is the takedown: the reported message goes for
+// everyone and the report closes, with a reason, without the console ever
+// reading the message (AdminService.RemoveReportedMessage).
+func (h *handlers) adminRemoveReportedMessage(w http.ResponseWriter, r *http.Request) {
+	var in sdi.ReasonSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	row, err := h.Admin.RemoveReportedMessage(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "chatReportID"), in.Reason)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.AdminChatReportSDO{ID: row.ID, Status: row.Status})
+}

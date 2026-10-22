@@ -18,6 +18,7 @@ type Routes struct {
 	AdminUpdateDemoRequest     http.HandlerFunc
 	AdminListChatReports       http.HandlerFunc
 	AdminResolveChatReport     http.HandlerFunc
+	AdminRemoveReportedMessage http.HandlerFunc
 	AdminMe                    http.HandlerFunc
 	AdminListOrganizations     http.HandlerFunc
 	AdminGetOrganization       http.HandlerFunc

@@ -772,6 +772,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatMessageRemoved: func(t *testing.T, f *auditFixture) {
+			dm := f.newDM(t)
+			w := f.build(t)
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, dm.ID, SendChatMessageInput{Body: "objectionable"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			report, err := f.chat.ReportChat(f.ctx, f.member.ID, w.ID, ReportChatInput{MessageID: msg.ID, Reason: "harassment"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.admin.SetReportedContentRemover(f.chat)
+			if _, err := f.admin.RemoveReportedMessage(f.ctx, CLIActor, report.ID, "taken down after reviewing the report"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatRoomCreated: func(t *testing.T, f *auditFixture) { f.newDM(t) },
 		audit.ActionChatRoomMemberAdded: func(t *testing.T, f *auditFixture) {
 			// A group needs three organization members; inviting the third is
@@ -1930,6 +1946,7 @@ func auditActions() []string {
 		audit.ActionChatMessageForwarded,
 		audit.ActionChatReportCreated,
 		audit.ActionChatReportResolved,
+		audit.ActionChatMessageRemoved,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,

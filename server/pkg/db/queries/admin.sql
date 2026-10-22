@@ -338,7 +338,8 @@ FROM chat_reports WHERE status = 'open';
 
 -- name: AdminGetChatReportForUpdate :one
 -- tenant: platform
-SELECT id, organization_id, workspace_id, status FROM chat_reports WHERE id = $1 FOR UPDATE;
+-- room_id and message_id name what a takedown removes (AdminService.RemoveReportedMessage); never the content.
+SELECT id, organization_id, workspace_id, room_id, message_id, status FROM chat_reports WHERE id = $1 FOR UPDATE;
 
 -- name: AdminResolveChatReport :one
 -- tenant: platform
