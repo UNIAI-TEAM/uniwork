@@ -326,7 +326,7 @@ export function ChatPageContent(props: ChatPageContentProps) {
               {/* A loading room draws its header first; its strips go under it, as on an open room. */}
               {roomOpen || showLoading ? null : notices}
               {showLoading ? (
-                <ChatConversationSkeleton notices={notices} />
+                <ChatConversationSkeleton notices={notices} roomId={activeRoomId} />
               ) : activeRoomId ? (
                 <ChatPageConversation
                   props={props}

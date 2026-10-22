@@ -12,6 +12,7 @@ func FileReferenceProviders(chat *ChatService, meetings *MeetingService) []files
 		NewUserAvatarProvider(),
 		WorkspaceIconProvider{},
 		ChatRoomAvatarProvider{},
+		ChatRoomWallpaperProvider{},
 		ChatLinkPreviewImageProvider{},
 		chat.FileReferenceProvider(),
 		chat.VoiceRecordingFileReferenceProvider(),

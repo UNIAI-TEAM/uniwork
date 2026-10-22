@@ -23,8 +23,6 @@ import (
 //	POST   /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members
 //	PATCH  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}
 //	DELETE /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}
-//	GET  /api/v1/workspaces/{workspaceID}/chat/messages
-//	POST /api/v1/workspaces/{workspaceID}/chat/messages
 //	GET  /api/v1/workspaces/{workspaceID}/chat/messages/search
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/around/{messageID}
@@ -243,6 +241,14 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatRoomDTO{},
 		auth:        true,
 	})
+	r.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/wallpaper", h.UploadChatRoomWallpaper, apiOp{
+		summary:     "Upload chat room wallpaper",
+		description: "Ảnh nền chat dùng chung cho mọi thành viên. DM: cả hai bên; nhóm/kênh: admin phòng. JPG/PNG/GIF/WebP, tối đa 900 KB.",
+		tags:        []string{"chat"},
+		sdi:         sdi.UploadChatRoomWallpaperSDI{},
+		sdo:         sdo.ChatRoomDTO{},
+		auth:        true,
+	})
 	r.With(chatRoomLimit).Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}", h.PatchChatRoomMember, apiOp{
 		summary:     "Update chat room member",
 		description: "Thăng/giáng admin phòng hoặc cấm/bỏ cấm gửi tin.",
@@ -256,22 +262,6 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		description: "Kick khỏi nhóm hoặc xóa khỏi workspace (phòng workspace).",
 		tags:        []string{"chat"},
 		sdo:         sdo.StatusSDO{},
-		auth:        true,
-	})
-	r.Get("/workspaces/{workspaceID}/chat/messages", h.ListWorkspaceChatMessages, apiOp{
-		summary:     "List workspace chat messages",
-		description: "Danh sách tin nhắn phòng workspace (phân trang bằng cursor).",
-		tags:        []string{"chat"},
-		sdi:         sdi.ListChatMessagesSDI{},
-		sdo:         sdo.ChatMessageDTO{},
-		auth:        true,
-	})
-	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/messages", h.SendWorkspaceChatMessage, apiOp{
-		summary:     "Send workspace chat message",
-		description: "Gửi tin nhắn vào phòng workspace.",
-		tags:        []string{"chat"},
-		sdi:         sdi.SendChatMessageSDI{},
-		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search", h.SearchChatRoomMessages, apiOp{

@@ -107,6 +107,7 @@ type TableFilterSDI struct {
 	DateField         string              `json:"date_field" description:"created_at hoặc updated_at" example:"created_at"`
 	DateFrom          string              `json:"date_from" description:"YYYY-MM-DD inclusive" example:"2026-01-01"`
 	DateTo            string              `json:"date_to" description:"YYYY-MM-DD inclusive" example:"2026-12-31"`
+	Relation          string              `json:"relation" description:"Việc của người đang xem: all (giao cho hoặc do mình tạo), assigned, created, involved (rỗng đến khi có agent link); bỏ trống = không lọc theo người" example:"assigned"`
 }
 
 // TableSortSDI orders table rows; both fields default (position asc) when empty.

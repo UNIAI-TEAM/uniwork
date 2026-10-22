@@ -415,6 +415,8 @@ type ChatRoom struct {
 	ArchivedAt        pgtype.Timestamptz `json:"archived_at"`
 	ArchivedBy        pgtype.Text        `json:"archived_by"`
 	AvatarFileID      pgtype.Text        `json:"avatar_file_id"`
+	WallpaperPreset   string             `json:"wallpaper_preset"`
+	WallpaperFileID   pgtype.Text        `json:"wallpaper_file_id"`
 }
 
 type ChatRoomMember struct {

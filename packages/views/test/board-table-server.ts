@@ -49,8 +49,6 @@ interface BoardTableServerOptions {
   hold?: string;
   /** Hold only this request of the `hold` page, counting from 1; by default every one waits. */
   holdNth?: number;
-  /** Tasks behind `/my-tasks`, spread over backlog / todo / in_progress. */
-  myTasks?: number;
   row?: (status: string, index: number) => Params;
 }
 
@@ -122,22 +120,6 @@ export function serveBoardTable(options: BoardTableServerOptions) {
         total: status === null ? claimedTotal() : claimed(status),
         rows: pageRows.map((task) => ({ task, direct_child_count: 0, labels: [] })),
         next_cursor: end < branch.length ? encodeCursor(end) : null,
-      };
-    }
-    if (path.includes("/my-tasks")) {
-      const params = Object.fromEntries(new URL(path, "http://test").searchParams);
-      const offset = Number(params.offset ?? 0);
-      const limit = Number(params.limit ?? 50);
-      const total = options.myTasks ?? 0;
-      const count = Math.max(0, Math.min(limit, total - offset));
-      const spread = ["backlog", "todo", "in_progress"];
-      return {
-        tasks: Array.from({ length: count }, (_, k) =>
-          row(spread[(offset + k) % spread.length]!, offset + k),
-        ),
-        total,
-        limit,
-        offset,
       };
     }
     return { tasks: [], total: 0, limit: 50, offset: 0 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BellOff, Phone, Pin, Search, StickyNote, Tag, Video } from "lucide-react";
+import { Bell, BellOff, Image, Phone, Pin, Search, StickyNote, Tag, Video } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
@@ -36,6 +36,7 @@ import { ChatPresenceAvatar } from "./chat-presence-avatar";
 import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
 import { ChatRoomSharedTotals } from "./chat-room-shared-totals";
 import { ChatSetNicknameDialog } from "./chat-set-nickname-dialog";
+import { ChatWallpaperSheet } from "./chat-wallpaper-sheet";
 import { useChatRoomPreferences } from "./use-chat-room-preferences";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import { chatPersonFaceClass } from "./chat-person-card";
@@ -98,6 +99,7 @@ export function DmSettingsSheet({
   const [bulletinOpen, setBulletinOpen] = useState(false);
   const [nicknameOpen, setNicknameOpen] = useState(false);
   const [selfNicknameOpen, setSelfNicknameOpen] = useState(false);
+  const [wallpaperOpen, setWallpaperOpen] = useState(false);
   const contactLabel = displayLabelForChatContact(contact, nicknamesByUserId);
   const legalName = displayLabelForChatContact(contact);
   const selfNickname = resolveChatNicknameForUser(nicknamesByUserId, currentUserId);
@@ -275,6 +277,14 @@ export function DmSettingsSheet({
               label={t("chat.nickname_action")}
               onClick={() => setNicknameOpen(true)}
             />
+            <ChatSettingsMenuRow
+              icon={Image}
+              label={t("chat.settings_wallpaper")}
+              hint={t("chat.settings_wallpaper_hint")}
+              onClick={() => setWallpaperOpen(true)}
+              disabled={!roomId}
+              disabledReason={t("chat.settings_bulletin_needs_room")}
+            />
           </ChatSettingsSection>
 
           {roomId ? <ChatRoomSharedTotals workspaceId={workspaceId} roomId={roomId} open={open} /> : null}
@@ -301,6 +311,15 @@ export function DmSettingsSheet({
           </ChatSettingsSection>
         </div>
 
+        {roomId ? (
+          <ChatWallpaperSheet
+            open={wallpaperOpen}
+            onOpenChange={setWallpaperOpen}
+            workspaceId={workspaceId}
+            roomId={roomId}
+            canEdit
+          />
+        ) : null}
         {roomId && bulletinOpen ? (
           <ChatRoomBulletinSheet
             open={bulletinOpen}

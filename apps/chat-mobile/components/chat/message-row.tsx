@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import Animated, { FadeIn, ZoomIn } from "react-native-reanimated";
 import { Text } from "@/components/ui/text";
-import { bubbleCorners } from "@/lib/conversation-display";
+import { bubbleCorners, CHAT_BUBBLE_MAX_WIDTH_CLASS, CHAT_CONVERSATION_ROW_INSET } from "@/lib/conversation-display";
 import { senderNameClass } from "@/lib/sender-colors";
 import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
 import { messagePreviewText, messageView } from "@/lib/message-display";
@@ -129,7 +129,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
 
   return (
     <Animated.View entering={message.pending ? SEND_IN : undefined}>
-    <View className={cn("px-2.5", compactTop ? "pt-0.5" : "pt-2.5", own ? "items-end" : "items-start", highlighted && "bg-primary/10")}>
+    <View className={cn(CHAT_CONVERSATION_ROW_INSET, compactTop ? "pt-0.5" : "pt-2.5", own ? "items-end" : "items-start", highlighted && "bg-primary/10")}>
       <View className={cn("max-w-full flex-row items-end gap-1.5", own ? "justify-end" : "justify-start")}>
       {avatar}
       <Pressable
@@ -143,7 +143,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
         delayLongPress={200}
         className={cn(
           album ? "gap-1 p-[3px]" : bareImage ? "overflow-hidden p-0" : "gap-1 px-3 pb-2 pt-1.5",
-          album || bareImage ? null : "max-w-[72%]",
+          album || bareImage ? null : CHAT_BUBBLE_MAX_WIDTH_CLASS,
           !bareImage && (own ? "bg-chat-bubble-own" : "bg-chat-bubble-other"),
           ringed && "border-2 border-primary/25",
         )}

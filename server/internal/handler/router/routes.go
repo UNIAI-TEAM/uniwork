@@ -470,6 +470,7 @@ type Routes struct {
 	PatchChatRoomMember              http.HandlerFunc
 	PatchChatRoom                    http.HandlerFunc
 	UploadChatRoomAvatar             http.HandlerFunc
+	UploadChatRoomWallpaper          http.HandlerFunc
 	RemoveChatRoomAvatar             http.HandlerFunc
 	RemoveChatRoomMember             http.HandlerFunc
 	LeaveChatRoom                    http.HandlerFunc
@@ -477,8 +478,6 @@ type Routes struct {
 	AckChatDelivered                 http.HandlerFunc
 	MuteChatRoom                     http.HandlerFunc
 	UnmuteChatRoom                   http.HandlerFunc
-	ListWorkspaceChatMessages        http.HandlerFunc
-	SendWorkspaceChatMessage         http.HandlerFunc
 	ListChatRoomMessages             http.HandlerFunc
 	GetChatRoomMessage               http.HandlerFunc
 	SearchChatRoomMessages           http.HandlerFunc

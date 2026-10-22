@@ -171,11 +171,9 @@ var (
 		"application/vnd.ms-powerpoint",
 		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
 	}
-	// chatFileMIMETypes mirrors supportedChatFileContentTypes in the chat
-	// message pipeline, plus text/csv and text/markdown: that pipeline sniffed
-	// both as text/plain and accepted them, and DetectContentType now names
-	// them by their extension. service.TestChatFileAllowlistsAgree holds this
-	// list, that one and the composer's together.
+	// chatFileMIMETypes mirrors storedChatFileMIMETypes in the chat message
+	// metadata reader, plus text/csv and text/markdown. service.TestChatFileAllowlistsAgree
+	// holds this list, that one and the composer's together.
 	chatFileMIMETypes = []string{
 		"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/plain", "text/csv", "text/markdown",
 		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -195,11 +193,10 @@ var (
 		"text/javascript":      "text/plain",
 		"image/svg+xml":        "text/plain",
 	}
-	// voiceCanonicalTypes keeps the names the chat voice pipeline stores and
-	// serves today (sniffChatVoiceContentType in
-	// server/internal/handler/chat_voice_message.go): any Ogg is audio/ogg,
-	// any WebM audio/webm, any MP4 audio/mp4. The UNI-745 regression tests
-	// pin audio/webm on the stored message and the playback stream.
+	// voiceCanonicalTypes keeps the names the chat voice FileService path stores
+	// and serves today: any Ogg is audio/ogg, any WebM audio/webm, any MP4
+	// audio/mp4. The UNI-745 regression tests pin audio/webm on the stored
+	// message and the playback stream.
 	voiceCanonicalTypes = map[string]string{
 		"video/webm":      "audio/webm",
 		"application/ogg": "audio/ogg",
@@ -380,6 +377,12 @@ func SpecsWithDocumentMaxBytes(documentMaxBytes int64) []PurposeSpec {
 			Prefix:  "chat/avatars",
 			Scope:   ScopeOrgWorkspaceOptional,
 			Policy:  Policy{MaxBytes: 2 << 20, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
+		},
+		{
+			Purpose: ChatRoomWallpaper,
+			Prefix:  "chat/wallpapers",
+			Scope:   ScopeOrgWorkspaceOptional,
+			Policy:  Policy{MaxBytes: 900_000, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
 		},
 		{
 			// A link preview's picture (ADR 0035): fetched by the server, kept

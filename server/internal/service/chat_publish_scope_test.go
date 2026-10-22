@@ -92,7 +92,7 @@ func TestDefaultRoomMessageEventsGoToTheWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	msg, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "hi all"})
+	msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "hi all"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +225,7 @@ func TestMemberReadReachesTheRoomScopeOfGroupsAndChannelsOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SendWorkspaceMessage(ctx, ub.ID, w.ID, SendChatMessageInput{Body: "hi all"}); err != nil {
+	if _, err := s.SendRoomMessage(ctx, ub.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "hi all"}); err != nil {
 		t.Fatal(err)
 	}
 	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)

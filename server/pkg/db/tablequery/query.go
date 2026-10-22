@@ -20,6 +20,13 @@ import (
 // CreatorRefs are "human:<id>" / "agent:<id>". Properties values may include
 // "__none__" for unset. DateField is created_at|updated_at with inclusive
 // DateFrom/DateTo (YYYY-MM-DD); incomplete or unknown dates are cleared.
+//
+// Relation narrows to the viewer's own work (my-tasks): all = assigned to or
+// created by ActorID, assigned, created, involved (empty until agent
+// involvement exists); "" = no constraint. ActorID is set by the service from
+// the session, never from the request, and is part of the fingerprint so a
+// cursor cannot be replayed for another person. An unknown Relation matches
+// nothing rather than widening to the workspace.
 type Filter struct {
 	Statuses          []string
 	Priorities        []string
@@ -33,6 +40,8 @@ type Filter struct {
 	DateField         string              // created_at|updated_at|""
 	DateFrom          string              // YYYY-MM-DD or ""
 	DateTo            string
+	Relation          string // ""|all|assigned|created|involved
+	ActorID           string
 }
 
 // PropertyRef identifies a custom property and, for select properties, the
@@ -104,6 +113,8 @@ func (q Query) Normalize() Query {
 		DateField:         dateField,
 		DateFrom:          dateFrom,
 		DateTo:            dateTo,
+		Relation:          strings.TrimSpace(q.Filter.Relation),
+		ActorID:           q.Filter.ActorID,
 	}
 	q.Search = strings.TrimSpace(q.Search)
 

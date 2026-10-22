@@ -267,8 +267,15 @@ type ChatRoomDTO struct {
 	NotificationsMuted     bool                          `json:"notifications_muted" description:"The caller muted this room's chat notifications on every device" example:"false"`
 	AvatarURL              string                        `json:"avatar_url,omitempty" description:"Signed URL of a group's uploaded avatar; absent when the group shows its members" example:"https://storage.example.com/chat/avatars/01J8X4FILE?sig=abc"`
 	CanSendDocument        bool                          `json:"can_send_document,omitempty" description:"The caller may send a document here: the room's send permission (L5). There is no recipient cap since UNI-2012 S1c; absent means false" example:"true"`
+	Wallpaper              *ChatRoomWallpaperDTO         `json:"wallpaper,omitempty" description:"Shared wallpaper every member sees in this room"`
 
 	PeerLastDeliveredAt string `json:"peer_last_delivered_at,omitempty" description:"RFC3339 (sub-second) DM peer delivered cursor: how far the peer's devices hold the room" example:"2026-03-26T10:00:00.123456Z"`
+}
+
+// ChatRoomWallpaperDTO is the room's shared chat background.
+type ChatRoomWallpaperDTO struct {
+	Preset string `json:"preset" description:"default, a built-in preset id, or custom" example:"sky"`
+	URL    string `json:"url,omitempty" description:"Signed image URL when preset is custom" example:"https://storage.example.com/chat/wallpapers/01J8X4FILE?sig=abc"`
 }
 
 // ChatChannelListSDO is GET .../chat/channels.

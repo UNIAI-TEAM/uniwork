@@ -34,3 +34,12 @@ này bằng SQL dựng trong Go (`issue_table_rows.go`).
   test builder ở trên) — ghi lại để người viết scanner không bỏ sót.
 - Sqlc vẫn là mặc định cho mọi truy vấn khác; package này không phải tiền lệ cho SQL
   động ở chỗ khác. Muốn thêm chỗ thứ hai thì cần ADR mới.
+
+## Bổ sung: bộ lọc theo người xem (`relation`)
+
+`Filter.Relation` (`all` | `assigned` | `created` | `involved`) thu hẹp bảng về việc của
+chính người xem, để `/my-tasks` phân trang từng cột như `/tasks`. Người xem không bao giờ
+đến từ request: `ActorID` do `scopeTableRelation` (service) gán từ phiên, và nằm trong
+fingerprint nên cursor không dùng lại được cho người khác. Giá trị lạ trả 400
+`invalid_relation` (bỏ đi sẽ mở rộng "việc của tôi" ra cả workspace); trong builder, giá
+trị lạ và `involved` đều là `FALSE`. Ngữ nghĩa khớp `ListMyTasks`.

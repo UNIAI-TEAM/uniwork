@@ -178,7 +178,6 @@ export function ChatPageConversation({
             onOpenThread={onOpenSideThread}
             openThreadRootId={sideThreadRootId}
             unreadSince={catchUp.unreadSince}
-            refreshKey={props.messageRefreshKey}
             showSenderName={many}
             embedded
             anchorMessageId={props.jumpToMessageId}
