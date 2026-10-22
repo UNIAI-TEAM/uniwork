@@ -82,6 +82,24 @@ WHERE workspace_id = $1 AND user_id = $2
 ORDER BY updated_at DESC
 LIMIT 20;
 
+-- name: AiSearchConversations :many
+-- search_pattern is a folded ILIKE pattern the service escapes.
+SELECT * FROM ai_conversations
+WHERE workspace_id = sqlc.arg(workspace_id) AND user_id = sqlc.arg(user_id)
+  AND uw_fold_search(title) ILIKE sqlc.arg(search_pattern)::text ESCAPE '\'
+ORDER BY updated_at DESC
+LIMIT 50;
+
+-- name: AiSetGeneratedTitle :execrows
+-- tenant: by-id
+-- Only a title still taken from the question may be replaced; a user's rename wins.
+UPDATE ai_conversations SET title = $2, title_source = 'generated'
+WHERE id = $1 AND title_source = 'question';
+
+-- name: AiSupersedeMessage :exec
+-- tenant: parent conversation_id
+UPDATE ai_messages SET superseded_at = now() WHERE id = $1 AND conversation_id = $2;
+
 -- name: AiTouchConversation :exec
 -- tenant: by-id
 UPDATE ai_conversations SET updated_at = now(), title = CASE WHEN title = '' THEN $2 ELSE title END
@@ -96,15 +114,16 @@ DELETE FROM ai_conversations WHERE id = $1;
 DELETE FROM ai_messages WHERE conversation_id = $1;
 
 -- name: AiInsertMessage :one
-INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: AiListMessages :many
 -- tenant: parent conversation_id
 -- The latest 200 messages, oldest first: a long conversation keeps its end.
+-- Answers a regenerate replaced (superseded_at) stay stored but are not shown.
 SELECT * FROM (
-  SELECT * FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at DESC, id DESC LIMIT 200
+  SELECT * FROM ai_messages WHERE conversation_id = $1 AND superseded_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 200
 ) m ORDER BY created_at ASC, id ASC;
 
 -- name: AiListConversationCitations :many
@@ -116,7 +135,7 @@ ORDER BY created_at ASC, id ASC;
 
 -- name: AiRenameConversation :one
 -- tenant: by-id
-UPDATE ai_conversations SET title = $2 WHERE id = $1
+UPDATE ai_conversations SET title = $2, title_source = 'user' WHERE id = $1
 RETURNING *;
 
 -- name: AiGetMessageInConversation :one

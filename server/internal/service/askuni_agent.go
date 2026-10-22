@@ -528,7 +528,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 // finishAgent stores the turn with the last call's usage row. Its text
 // already streamed, so it ends with citations and done.
 func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question, answer, notice string, citations []AskCitation, usageEventID string) (AskResult, error) {
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, question, answer, notice, citations, usageEventID)
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID})
 	if err != nil {
 		return AskResult{}, err
 	}

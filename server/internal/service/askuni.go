@@ -321,7 +321,7 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 			}
 		}
 	}
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, question, answer.Answer, notice, citations, resp.UsageEventID)
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: question, Answer: answer.Answer, Notice: notice, Citations: citations, UsageEventID: resp.UsageEventID})
 	if err != nil {
 		return AskResult{}, err
 	}
@@ -606,27 +606,73 @@ func history(rows []db.AiMessage) []provider.Message {
 	return out
 }
 
-func (s *AskUNIService) store(ctx context.Context, orgID, convID, question, answer, notice string, citations []AskCitation, usageEventID string) (db.AiMessage, error) {
+// AskContextRef names a task, document or meeting a question was asked about.
+type AskContextRef struct {
+	Kind  string `json:"kind"`
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// AskStep is one tool the agent ran, as the panel shows it.
+type AskStep struct {
+	Tool   string         `json:"tool"`
+	Label  string         `json:"label"`
+	Counts map[string]int `json:"counts"`
+}
+
+// askTurn is one question and its answer, as store writes them. A non-empty
+// Regenerates names the answer this one replaces, and writes no question row.
+type askTurn struct {
+	Question, Answer, Notice string
+	Citations                []AskCitation
+	UsageEventID             string
+	Focus                    *AskContextRef
+	Mentions                 []AskContextRef
+	Steps                    []AskStep
+	Followups                []string
+	Regenerates              string
+}
+
+// jsonOrEmptyList marshals v, writing "[]" for a nil slice.
+func jsonOrEmptyList[T any](v []T) string {
+	if len(v) == 0 {
+		return "[]"
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTurn) (db.AiMessage, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.AiMessage{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.q.WithTx(tx)
-	if _, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
-		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "user", Content: question, Citations: "[]",
-	}); err != nil {
+	if t.Regenerates == "" {
+		var focus pgtype.Text
+		if t.Focus != nil {
+			fj, _ := json.Marshal(t.Focus)
+			focus = strText(string(fj))
+		}
+		if _, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
+			ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "user", Content: t.Question, Citations: "[]",
+			Steps: "[]", Followups: "[]", Focus: focus, Mentions: jsonOrEmptyList(t.Mentions),
+		}); err != nil {
+			return db.AiMessage{}, err
+		}
+	} else if err := q.AiSupersedeMessage(ctx, db.AiSupersedeMessageParams{ID: t.Regenerates, ConversationID: convID}); err != nil {
 		return db.AiMessage{}, err
 	}
-	cj, _ := json.Marshal(citations)
 	msg, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
-		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: answer,
-		Citations: string(cj), UsageEventID: strText(usageEventID), Notice: strText(notice),
+		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: t.Answer,
+		Citations: jsonOrEmptyList(t.Citations), UsageEventID: strText(t.UsageEventID), Notice: strText(t.Notice),
+		Steps: jsonOrEmptyList(t.Steps), Followups: jsonOrEmptyList(t.Followups), Mentions: "[]",
 	})
 	if err != nil {
 		return db.AiMessage{}, err
 	}
-	title := question
+	title := t.Question
 	if r := []rune(title); len(r) > 80 {
 		title = string(r[:80]) + "…"
 	}
