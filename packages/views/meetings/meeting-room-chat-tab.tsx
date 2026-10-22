@@ -9,7 +9,8 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../toast-api-error";
 import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, chatBubbleShape } from "../chat/chat-message-row";
-import { useChatWall } from "../chat/use-chat-wall";
+import { DEFAULT_CHAT_WALLPAPER } from "@uniwork/core/chat/chat-wallpaper";
+import { resolveChatWallSurface } from "@uniwork/core/chat/chat-wallpaper-resolve";
 import { formatMessageDay, formatMessageTime, messageDayKey } from "../chat/chat-message-time";
 import { senderNameClass } from "../chat/sender-colors";
 import { groupChatMessages, type MeetingChatGroup, type MeetingChatItem } from "./meeting-chat";
@@ -19,6 +20,10 @@ import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 import { useEphemeralMeetingRoomChat } from "./use-ephemeral-meeting-room-chat";
 import { usePersistedMeetingRoomChat } from "./use-persisted-meeting-room-chat";
+
+// A meeting room is no chat room: its wall is the default one. Read without the
+// workspace, which a guest in the room does not have.
+const MEETING_CHAT_WALL = resolveChatWallSurface(DEFAULT_CHAT_WALLPAPER);
 
 /** How close to the bottom (px) still counts as "reading the latest". */
 const STICK_THRESHOLD = 48;
@@ -75,7 +80,6 @@ function MeetingRoomChatView({
   older?: ChatOlderState;
 }) {
   const { t, i18n } = useTranslation();
-  const chatWall = useChatWall();
   const [draft, setDraft] = useState("");
   const avatarOf = useRoomAvatarOf();
   const listRef = useRef<HTMLOListElement>(null);
@@ -137,8 +141,8 @@ function MeetingRoomChatView({
       <ol
         ref={listRef}
         // The chat bubbles are white for others: they need the chat wall behind them.
-        className={cn("min-h-0 w-full flex-1 space-y-4 overflow-y-auto overscroll-contain rounded-xl p-2", chatWall.className)}
-        style={chatWall.style}
+        className={cn("min-h-0 w-full flex-1 space-y-4 overflow-y-auto overscroll-contain rounded-xl p-2", MEETING_CHAT_WALL.className)}
+        style={MEETING_CHAT_WALL.style}
         onScroll={(e) => {
           const el = e.currentTarget;
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD;
