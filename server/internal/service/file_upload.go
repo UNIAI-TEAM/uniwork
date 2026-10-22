@@ -325,13 +325,19 @@ func (s *FileService) refuseAttemptWith(ctx context.Context, att uploadAttempt, 
 // abandonAttempt gives the lease back after a transient failure. The session
 // stays receiving, so the same key may retry at once; the file fails and a
 // cleanup job covers whatever part of the object the adapter wrote. Errors
-// here are left to the reconcile job the intent already queued.
+// here are left to the reconcile job the intent already queued. An attempt
+// whose file a sibling completion already published is not this writer's to
+// give up: its file is ready and waits for its claim.
 func (s *FileService) abandonAttempt(ctx context.Context, att uploadAttempt) {
 	ctx = context.WithoutCancel(ctx)
 	_ = s.inTx(ctx, func(q *db.Queries) error {
 		now := s.now()
-		if _, err := s.stillHolds(ctx, q, att); err != nil {
+		cur, err := lockAttempt(ctx, q, att)
+		if err != nil {
 			return err
+		}
+		if att.publishedIn(cur) {
+			return nil
 		}
 		if _, err := q.ReleaseUploadSessionLease(ctx, db.ReleaseUploadSessionLeaseParams{
 			ID: att.session.ID, LeaseOwner: fileText(att.leaseOwner),
@@ -353,17 +359,35 @@ func (s *FileService) abandonAttempt(ctx context.Context, att uploadAttempt) {
 // still holds the lease: a cancel that landed while the body streamed leaves
 // zero rows, and the upload answers upload_canceled with the stored object
 // handed to cleanup.
+//
+// The provider lease is shared by every completion of one operation, so two
+// completions that overlap (a client retry, a replayed webhook) may both have
+// read the file pending. The one that gets here second finds this very file
+// already staged or claimed by its sibling: that is the replay after success
+// CompleteProviderOutput promises, so it answers the published file, and
+// neither cancels nor cleans up what the sibling published.
 func (s *FileService) publishUpload(ctx context.Context, att uploadAttempt, contentType string, size int64, checksum, version string) (files.Upload, error) {
 	var result files.Upload
 	ctx = context.WithoutCancel(ctx)
 	err := s.inTx(ctx, func(q *db.Queries) error {
 		now := s.now()
 		claimExpires := now.Add(files.ClaimTTL)
-		held, err := s.stillHolds(ctx, q, att)
+		cur, err := lockAttempt(ctx, q, att)
 		if err != nil {
 			return err
 		}
-		if !held {
+		if att.publishedIn(cur) {
+			file, err := q.GetFileByID(ctx, att.file.ID)
+			if err != nil {
+				return fmt.Errorf("files: read back: %w", err)
+			}
+			if err := fileState(file); err != nil {
+				return err
+			}
+			result = files.Upload{File: fileView(file), UploadSessionID: cur.ID, ClaimExpiresAt: cur.ClaimExpiresAt.Time}
+			return nil
+		}
+		if !att.heldIn(cur) {
 			return errAttemptSuperseded
 		}
 		if _, err := q.MarkUploadSessionStaged(ctx, db.MarkUploadSessionStagedParams{
@@ -436,21 +460,51 @@ func (s *FileService) takeLease(ctx context.Context, q *db.Queries, sessionID, o
 	return owner, nil
 }
 
-// stillHolds locks the session and reports whether this writer still owns it:
-// still receiving, still bound to this attempt's file, and the lease still
-// this writer's. A cancel that won the race, or a retry that took over after
-// the lease expired, makes it false.
+// stillHolds locks the session and reports whether this writer still owns it.
 func (s *FileService) stillHolds(ctx context.Context, q *db.Queries, att uploadAttempt) (bool, error) {
-	// File row first, then the session (FS-C1 section 5.4).
+	cur, err := lockAttempt(ctx, q, att)
+	if err != nil {
+		return false, err
+	}
+	return att.heldIn(cur), nil
+}
+
+// lockAttempt locks the attempt's file row and then its session (FS-C1
+// section 5.4) and returns the session as it now stands.
+func lockAttempt(ctx context.Context, q *db.Queries, att uploadAttempt) (db.FileUploadSession, error) {
 	if _, err := q.LockFilesInIDOrder(ctx, []string{att.file.ID}); err != nil {
-		return false, fmt.Errorf("files: lock file: %w", err)
+		return db.FileUploadSession{}, fmt.Errorf("files: lock file: %w", err)
 	}
 	cur, err := q.GetUploadSessionByIDForUpdate(ctx, att.session.ID)
 	if err != nil {
-		return false, fmt.Errorf("files: lock session: %w", err)
+		return db.FileUploadSession{}, fmt.Errorf("files: lock session: %w", err)
 	}
+	return cur, nil
+}
+
+// heldIn reports whether this writer still owns the session: still
+// receiving, still bound to this attempt's file, and the lease still this
+// writer's. A cancel that won the race, a retry that took over after the
+// lease expired, or a sibling completion that already published makes it
+// false.
+func (att uploadAttempt) heldIn(cur db.FileUploadSession) bool {
 	return cur.Status == string(files.SessionReceiving) && cur.FileID == att.file.ID &&
-		cur.LeaseOwner.String == att.leaseOwner, nil
+		cur.LeaseOwner.String == att.leaseOwner
+}
+
+// publishedIn reports whether the session already published this attempt's
+// own file (staged, or claimed since). Only a provider output gets there
+// without this writer: its completions share one lease, while a streamed
+// upload's takeover always moves the session to a new file.
+func (att uploadAttempt) publishedIn(cur db.FileUploadSession) bool {
+	if cur.FileID != att.file.ID {
+		return false
+	}
+	switch files.SessionStatus(cur.Status) {
+	case files.SessionStaged, files.SessionClaimed:
+		return true
+	}
+	return false
 }
 
 // errAttemptSuperseded: the session left this writer's hands (canceled, or
