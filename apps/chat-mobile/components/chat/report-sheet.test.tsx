@@ -1,6 +1,7 @@
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import { AccessibilityInfo } from "react-native";
 import { safetyApi } from "@/data/safety-api";
+import { useReportedMessagesStore } from "@/data/stores/reported-messages-store";
 import { useToastStore } from "@/data/stores/toast-store";
 import { i18n } from "@/lib/i18n/singleton";
 import { render, viText } from "@/test/render";
@@ -20,6 +21,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   await act(() => useToastStore.getState().clear());
+  useReportedMessagesStore.getState().clearAll();
   jest.restoreAllMocks();
   jest.clearAllMocks();
 });
@@ -64,6 +66,8 @@ describe("ReportSheet", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onReported).toHaveBeenCalledWith(false);
     expect(messages()).toEqual([viText("mobile.report.sent")]);
+    // The reporter stops seeing the message at once (Apple 1.2).
+    expect(Object.keys(useReportedMessagesStore.getState().reported)).toEqual(["m1"]);
   });
 
   it("blocks the person in the same step when asked", async () => {
@@ -99,6 +103,8 @@ describe("ReportSheet", () => {
     await fireEvent.press(screen.getByTestId("report-submit"));
     expect(screen.getByRole("alert")).toHaveTextContent(viText("mobile.report.failed"));
     expect(onClose).not.toHaveBeenCalled();
+    // A report that did not go hides nothing.
+    expect(useReportedMessagesStore.getState().reported).toEqual({});
   });
 
   it("ignores taps while sending, and cancel forgets the choice", async () => {

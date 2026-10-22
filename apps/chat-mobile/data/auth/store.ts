@@ -25,6 +25,7 @@ import { bestEffort, setReportUser } from "../report";
 import { currentSessionEpoch } from "../session-epoch";
 import { hydrateChatSendStore, useChatSendStore } from "../stores/chat-send-store";
 import { hydrateDraftStore, useDraftStore } from "../stores/draft-store";
+import { hydrateReportedMessagesStore, useReportedMessagesStore } from "../stores/reported-messages-store";
 import { hydratePendingOpsStore, usePendingOpsStore } from "../stores/pending-ops-store";
 import { useWorkspaceStore } from "../stores/workspace-store";
 import { openDeviceStore } from "../storage/device-store";
@@ -119,7 +120,8 @@ async function endAccountSession(): Promise<void> {
 
 /**
  * Everything an account left on this phone besides its session: workspace, stored person, cached rooms, queues and
- * their files, drafts, and the cached photos, tray notifications and badge (data/local-wipe.ts › wipeSessionTraces).
+ * their files, drafts, the messages they reported, and the cached photos, tray notifications and badge
+ * (data/local-wipe.ts › wipeSessionTraces).
  */
 async function forgetAccountLocally(): Promise<void> {
   await Promise.all([useWorkspaceStore.getState().clear(), forgetLastUser(), dropAccountCache(), forgetChatSyncHeads(), wipeSessionTraces()]);
@@ -127,6 +129,7 @@ async function forgetAccountLocally(): Promise<void> {
   clearChatOutbox(chatSendDeps);
   clearPendingOps(pendingOpsDeps);
   useDraftStore.getState().clearAll();
+  useReportedMessagesStore.getState().clearAll();
 }
 
 /** Something of the last person is still on this phone: who they were, what they queued, or what they left unsent. */
@@ -135,13 +138,17 @@ function leftTraces(lastUser: User | null): boolean {
     lastUser !== null ||
     useChatSendStore.getState().entries.length > 0 ||
     usePendingOpsStore.getState().ops.length > 0 ||
-    Object.keys(useDraftStore.getState().drafts).length > 0
+    Object.keys(useDraftStore.getState().drafts).length > 0 ||
+    Object.keys(useReportedMessagesStore.getState().reported).length > 0
   );
 }
 
-/** What the device kept across the last run: the unsent messages, the queued reads, reactions and votes, and the drafts. */
+/**
+ * What the device kept across the last run: the unsent messages, the queued reads, reactions and votes, the drafts,
+ * and the messages the person reported (hidden from them).
+ */
 async function hydrateDeviceState(): Promise<void> {
-  await Promise.all([hydrateChatSendStore(), hydratePendingOpsStore(), hydrateDraftStore()]);
+  await Promise.all([hydrateChatSendStore(), hydratePendingOpsStore(), hydrateDraftStore(), hydrateReportedMessagesStore()]);
 }
 
 let adopting: Promise<void> | null = null;

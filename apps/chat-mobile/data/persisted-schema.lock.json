@@ -18,5 +18,10 @@
     "version": 1,
     "file": "lib/drafts.ts",
     "sha256": "b69631caf0770a87b8e0c8d9dedc6c443b2b93de80adbe4204c79df0cd0a1659"
+  },
+  "chat-reported-messages": {
+    "version": 1,
+    "file": "lib/reported-messages.ts",
+    "sha256": "e3274683bdb77c16ccef8fc3fc4d5ecff9bad5e78d5c2ed44857cc26a7c0b5bb"
   }
 }

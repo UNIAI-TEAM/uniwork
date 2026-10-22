@@ -82,6 +82,9 @@ export const COMPLIANCE_ONLY = {
       sent: "Đã gửi báo cáo. Cảm ơn bạn.",
       sent_blocked: "Đã gửi báo cáo và chặn {{name}}.",
       failed: "Không gửi được báo cáo. Thử lại sau.",
+      hidden: "Bạn đã báo cáo tin nhắn này",
+      show: "Xem",
+      show_hint: "Hiện lại tin nhắn bạn đã báo cáo",
     },
     safety: {
       section: "Quyền riêng tư và an toàn",
@@ -177,6 +180,9 @@ export const COMPLIANCE_ONLY = {
       sent: "Report sent. Thank you.",
       sent_blocked: "Report sent and {{name}} blocked.",
       failed: "Couldn't send the report. Try again later.",
+      hidden: "You reported this message",
+      show: "Show",
+      show_hint: "Shows the message you reported",
     },
     safety: {
       section: "Privacy & safety",

@@ -12,6 +12,7 @@ import type { RoomListRow } from "@/lib/room-list";
 import { toTimelineMessage } from "@/lib/timeline-display";
 import { listAnchoring } from "@/test/list-anchoring";
 import { render, viText } from "@/test/render";
+import { useReportedMessagesStore } from "@/data/stores/reported-messages-store";
 import { MessageCell, type MessageHandlers } from "./message-cell";
 import { RoomListView } from "./room-list-view";
 import { ConversationTyping, RoomChatHeader } from "./room-typing";
@@ -95,6 +96,21 @@ describe("MessageCell", () => {
     expect(screen.queryByRole("button", { name: "swipe" })).toBeNull();
     await rerender(<MessageCell model={model({ root: true, threadReplies: 0 })} ctx={ctx} scheme="dark" handlers={handlers()} />);
     expect(screen.queryByRole("header")).toBeNull();
+  });
+
+  // Apple 1.2: a message this person reported stands hidden, with no swipe to quote it, until they choose to see it.
+  it("stands a reported message as a hidden row until the reporter shows it again", async () => {
+    useReportedMessagesStore.getState().hide("m1");
+    try {
+      await render(<MessageCell model={model()} ctx={ctx} scheme="light" handlers={handlers()} />);
+      expect(screen.getByText(viText("mobile.report.hidden"))).toBeOnTheScreen();
+      expect(screen.queryByText("chào")).toBeNull();
+      expect(screen.queryByRole("button", { name: "swipe" })).toBeNull();
+      await fireEvent.press(screen.getByRole("button", { name: viText("mobile.report.show") }));
+      expect(screen.getByText("chào")).toBeOnTheScreen();
+    } finally {
+      useReportedMessagesStore.getState().clearAll();
+    }
   });
 });
 

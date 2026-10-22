@@ -1618,7 +1618,10 @@
       "submit": "Send report",
       "sent": "Report sent. Thank you.",
       "sent_blocked": "Report sent and {{name}} blocked.",
-      "failed": "Couldn't send the report. Try again later."
+      "failed": "Couldn't send the report. Try again later.",
+      "hidden": "You reported this message",
+      "show": "Show",
+      "show_hint": "Shows the message you reported"
     },
     "safety": {
       "section": "Privacy & safety",

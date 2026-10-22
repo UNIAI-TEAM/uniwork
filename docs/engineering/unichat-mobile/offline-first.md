@@ -79,7 +79,9 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   của từng (người, workspace, phòng, chủ đề) sống qua rời phòng và kill app — composer ghi sau 400 ms ngừng gõ, ngay khi
   composer đóng hay app rời foreground, gửi thì xoá; sửa tin mượn ô nhập rồi trả lại nháp; danh sách phòng hiện
   "Nháp: …" (trừ khi có người đang gõ). Persist như outbox (đọc qua `DraftSchema`, quá 30 ngày thì bỏ, có trong
-  `persisted-schema.lock.json`), hydrate lúc boot, xoá khi đăng xuất. **Sửa và xoá tin cũng offline** (cùng hàng đợi,
+  `persisted-schema.lock.json`), hydrate lúc boot, xoá khi đăng xuất. **Tin đã báo cáo** (`lib/reported-messages.ts`,
+  `stores/reported-messages-store.ts`): mã tin người dùng đã báo cáo (tối đa 500, mới nhất giữ lại), persist cùng cách
+  (có trong lock), để tin đó vẫn ẩn với họ sau khi mở lại app. **Sửa và xoá tin cũng offline** (cùng hàng đợi,
   key `edit/<ws>/<msg>`, `delete/<ws>/<msg>`): sửa hiện ngay (`withEdit`: body mới + `edited_at`), lần sửa cuối thắng,
   giao bằng PATCH cả body (idempotent, không đọc trước); xoá gỡ tin khỏi timeline ngay và bỏ mọi mong muốn còn chờ cho
   tin đó (sửa, biểu cảm, phiếu); 404 khi giao là đã xong (tin đã mất), từ chối hẳn thì refetch phòng (tin quay lại) và

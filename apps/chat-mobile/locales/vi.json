@@ -1562,7 +1562,10 @@
       "submit": "Gửi báo cáo",
       "sent": "Đã gửi báo cáo. Cảm ơn bạn.",
       "sent_blocked": "Đã gửi báo cáo và chặn {{name}}.",
-      "failed": "Không gửi được báo cáo. Thử lại sau."
+      "failed": "Không gửi được báo cáo. Thử lại sau.",
+      "hidden": "Bạn đã báo cáo tin nhắn này",
+      "show": "Xem",
+      "show_hint": "Hiện lại tin nhắn bạn đã báo cáo"
     },
     "safety": {
       "section": "Quyền riêng tư và an toàn",

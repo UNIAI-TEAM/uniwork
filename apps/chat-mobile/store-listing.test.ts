@@ -148,7 +148,7 @@ describe("the listing's on-device paragraph", () => {
   it("names what the device keeps, with the persister's own numbers", () => {
     expect(onDevice).toContain(`trang tin mới nhất của ${PERSISTED_ROOM_TIMELINES} cuộc trò chuyện`);
     expect(onDevice).toContain(`${PERSISTED_THREAD_TIMELINES} chủ đề đọc gần nhất`);
-    for (const kept of ["lượt đọc", "biểu cảm", "bình chọn", "sửa", "xoá tin", "bản nháp"]) expect(onDevice, kept).toContain(kept);
+    for (const kept of ["lượt đọc", "biểu cảm", "bình chọn", "sửa", "xoá tin", "bản nháp", "tin người dùng đã báo cáo"]) expect(onDevice, kept).toContain(kept);
   });
 });
 

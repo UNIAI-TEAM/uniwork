@@ -1,6 +1,7 @@
 // One cell of a conversation's list: the bubble its model describes
 // (lib/message-row-model.ts), inside the swipe that quotes it, or, for a
-// thread's root, above the "N trả lời" divider. Memoized on props that keep
+// thread's root, above the "N trả lời" divider; a message this person reported is a "you reported it" row instead
+// (reported-message-row.tsx). Memoized on props that keep
 // their identity while the row draws the same (the model, the card context,
 // the scheme, one stable handlers object), so only rows that changed render.
 import { memo } from "react";
@@ -12,6 +13,7 @@ import type { MessageRowModel } from "@/lib/message-row-model";
 import type { TimelineMessage } from "@/lib/timeline-display";
 import type { MessageCardContext } from "./message-cards";
 import { MessageRow } from "./message-row";
+import { ReportedMessageRow, useReportedHidden } from "./reported-message-row";
 import { SwipeToReply } from "./swipe-to-reply";
 
 /** What a row's taps do; one object for the whole list (components/chat/use-stable-handlers.ts). */
@@ -37,7 +39,10 @@ const AVATAR_SPACER = { width: 30 };
 export const MessageCell = memo(function MessageCell({ model, ctx, scheme, handlers }: Props) {
   const { t } = useTranslation();
   const { message } = model;
-  const bubble = (
+  const hidden = useReportedHidden(message.id);
+  const bubble = hidden ? (
+    <ReportedMessageRow messageId={message.id} />
+  ) : (
     <MessageRow
       message={message}
       own={model.own}
@@ -72,7 +77,7 @@ export const MessageCell = memo(function MessageCell({ model, ctx, scheme, handl
   );
   if (!model.root) {
     return (
-      <SwipeToReply enabled={model.swipeToReply} onReply={() => handlers.onReply(message)}>
+      <SwipeToReply enabled={model.swipeToReply && !hidden} onReply={() => handlers.onReply(message)}>
         {bubble}
       </SwipeToReply>
     );

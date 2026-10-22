@@ -88,7 +88,7 @@ vẫn nêu tên từng bên, và cột Apple vẫn khai loại dữ liệu đó 
 
 **Lưu trên máy (UNI-2053 S3, để app dùng được khi mất mạng).** Phiên đăng nhập và hồ sơ người dùng cuối (tên, email,
 id) nằm trong Keychain/Keystore. Tin chưa gửi được; lượt đọc, biểu cảm, bình chọn, lần sửa và xoá tin chờ gửi; bản
-nháp đang soạn; cùng bản sao danh sách cuộc trò chuyện, số chưa đọc, danh bạ của workspace, trang tin mới nhất của 24
+nháp đang soạn; mã các tin người dùng đã báo cáo (để ẩn chúng với họ); cùng bản sao danh sách cuộc trò chuyện, số chưa đọc, danh bạ của workspace, trang tin mới nhất của 24
 cuộc trò chuyện có hoạt động gần nhất và trang đầu (tin gốc cùng các trả lời mới nhất) của 12 chủ đề đọc gần nhất
 trong các cuộc đó nằm trong một kho MMKV **mã hoá AES-256** bằng khoá ngẫu nhiên giữ trong Keychain/Keystore, chỉ trên máy này (khoá không vào bản
 sao lưu và không chuyển máy, nên bản sao lưu hay máy khác không đọc được kho). Ảnh, tệp và tin thoại chưa gửi được chép vào thư mục riêng của app (được hệ
@@ -117,7 +117,8 @@ app và trang đăng ký/đăng nhập web nói đăng nhập (đăng ký) là �
 cam kết nhà vận hành xem mọi báo cáo trong 24 giờ: nhà vận hành gỡ tin vi phạm, tổ chức vô hiệu hoá tài khoản đã đăng
 theo yêu cầu, hoặc nhà vận hành tạm ngưng tổ chức (khi đó không ai trong tổ chức xem được nội dung); người dùng đồng ý điều khoản khi đăng ký và mỗi lần đăng nhập (dòng dưới nút). Tin nhắn chỉ đi giữa thành viên một tổ chức. Báo cáo: nhấn giữ một tin › Báo cáo; chi tiết cuộc trò chuyện riêng ›
 Báo cáo; chạm một thành viên trong chi tiết nhóm › Báo cáo — chọn lý do (spam, quấy rối, thù ghét, khiêu dâm, bạo lực,
-tự gây hại, khác), mô tả tuỳ chọn, và có thể chặn luôn. Báo cáo lưu ở server (`chat_reports`) và ghi nhật ký
+tự gây hại, khác), mô tả tuỳ chọn, và có thể chặn luôn. Tin vừa báo cáo **ẩn ngay với người báo cáo** (thay bằng dòng
+"Bạn đã báo cáo tin nhắn này" có nút Xem; giữ qua lần mở lại app, `data/stores/reported-messages-store.ts`). Báo cáo lưu ở server (`chat_reports`) và ghi nhật ký
 `chat.report.created`: chủ sở hữu và quản trị viên tổ chức thấy nó ở web › Cài đặt › Nhật ký hoạt động — lý do, người
 và tin bị báo cáo, **ai đã báo cáo** (sheet báo cáo nói điều này; người bị báo cáo không nhận thông báo, nhưng nếu là
 chủ sở hữu/quản trị viên thì cũng thấy). Lời mô tả của người báo cáo không vào nhật ký (nhật ký không xoá được, không
@@ -232,7 +233,7 @@ bản release do `android-manifest.test.ts` giữ.
 >
 > Our terms of use (https://app.uniworkos.com/terms#acceptable-use), which every user agrees to when they sign up and
 > sign in, forbid objectionable content and abusive users with no tolerance. Long-press any message from another
-> person and choose "Report". In a direct conversation, open its details (tap the name at the top) for "Block" and
+> person and choose "Report": the message is hidden from you at once. In a direct conversation, open its details (tap the name at the top) for "Block" and
 > "Report". The organization's owners and admins see each report (reason, the person or message reported, and who
 > reported it) in the web app's Settings › Activity log, and can deactivate the member who posted it. Every report also
 > reaches the operator's moderation queue, and anyone can report content or a user directly to the operator at

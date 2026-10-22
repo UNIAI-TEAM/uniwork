@@ -30,7 +30,9 @@ Xoá tài khoản, pháp lý, giấy phép, đồng ý AI, báo cáo và chặn,
   Anthropic khi thành viên khác dùng AI trên web — chính sách và dòng "Xử lý AI" của listing nói đúng vậy
   (`privacy-content.test.ts`), đừng viết lại thành "chỉ khi người dùng đồng ý". **Báo cáo và chặn**: `data/safety-api.ts` (route chặn qua factory `chat-users-api` của core + `POST …/chat/reports`), key
   `chatKeys.blockStatus`, `data/queries/safety.ts`, lệnh chặn `data/safety-actions.ts` qua `data/mutations/safety.ts`; `components/chat/report-sheet.tsx` (lý do đóng theo
-  `lib/report.ts` = CHECK của server, mô tả, "chặn luôn"), `room-safety.tsx` (DM: chặn/bỏ chặn + báo cáo trong chi
+  `lib/report.ts` = CHECK của server, mô tả, "chặn luôn"; tin vừa báo cáo ẩn ngay với người báo cáo —
+  `data/stores/reported-messages-store.ts`, giữ trong kho máy và xoá khi đăng xuất, `components/chat/reported-message-row.tsx`
+  thay bong bóng bằng "Bạn đã báo cáo tin nhắn này" có nút Xem cho lần chạy đó), `room-safety.tsx` (DM: chặn/bỏ chặn + báo cáo trong chi
   tiết, banner trong cuộc trò chuyện; nhóm: chạm thành viên → nhắn riêng/báo cáo/chặn), nhấn giữ tin của người khác ›
   Báo cáo. Audit `chat.report.created` ghi người báo cáo làm actor, nên chủ sở hữu và quản trị viên (kể cả khi chính họ
   bị báo cáo) thấy ai đã báo cáo: sheet và chính sách nói thế, không hứa ẩn danh (`report-sheet.test.tsx`,

@@ -14,6 +14,7 @@ import { CACHE_SCHEMA_VERSION } from "./persisted-cache";
 import { useChatSendStore } from "./stores/chat-send-store";
 import { useDraftStore } from "./stores/draft-store";
 import { usePendingOpsStore } from "./stores/pending-ops-store";
+import { useReportedMessagesStore } from "./stores/reported-messages-store";
 
 const APP = path.resolve(__dirname, "..");
 const LOCK = path.join(__dirname, "persisted-schema.lock.json");
@@ -23,6 +24,7 @@ const current: Record<string, { version: number | undefined; file: string }> = {
   "chat-send-outbox": { version: useChatSendStore.persist.getOptions().version, file: "lib/persisted-records.ts" },
   "chat-pending-ops": { version: usePendingOpsStore.persist.getOptions().version, file: "lib/persisted-records.ts" },
   "chat-drafts": { version: useDraftStore.persist.getOptions().version, file: "lib/drafts.ts" },
+  "chat-reported-messages": { version: useReportedMessagesStore.persist.getOptions().version, file: "lib/reported-messages.ts" },
 };
 
 const sha = (file: string) => createHash("sha256").update(fs.readFileSync(path.join(APP, file))).digest("hex");

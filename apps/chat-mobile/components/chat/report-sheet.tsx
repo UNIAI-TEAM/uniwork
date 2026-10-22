@@ -3,7 +3,8 @@
 // group member's menu. One reason from the server's closed set, optional
 // words, and — when there is a person to block — "also block" in the same
 // step, as the big messengers offer. The organization's admins read reports
-// in the audit trail (chat.report.created). A refusal stays in the sheet,
+// in the audit trail (chat.report.created); a reported message is hidden from
+// the reporter at once (reported-message-row.tsx). A refusal stays in the sheet,
 // said under the button (a toast would sit under the Modal).
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,6 +12,7 @@ import { AccessibilityInfo, ActivityIndicator, Pressable, ScrollView, Switch, Te
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Text } from "@/components/ui/text";
 import { useBlockUser, useReport } from "@/data/mutations/safety";
+import { useReportedMessagesStore } from "@/data/stores/reported-messages-store";
 import { toast } from "@/data/stores/toast-store";
 import { continuousCorners } from "@/lib/radius";
 import { REPORT_DETAILS_MAX, REPORT_REASONS, reportBody, type ReportReason, type ReportTarget } from "@/lib/report";
@@ -72,6 +74,8 @@ export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: 
       say(t("mobile.report.failed"));
       return;
     }
+    // The reporter stops seeing what they reported (Apple 1.2), whatever the operator decides.
+    if (target.kind === "message") useReportedMessagesStore.getState().hide(target.messageId);
     // The report stands even if the block fails; the person can block from the details later.
     const blocked =
       alsoBlock && blockUserId
