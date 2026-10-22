@@ -86,6 +86,7 @@ describe("AskUniThread", () => {
     const empty = mount(stream());
     expect(await screen.findByText(/Đã dừng/)).toBeInTheDocument();
     for (const name of ["Sao chép", "Hữu ích", "Chưa đúng"]) expect(screen.queryByRole("button", { name })).toBeNull();
+    expect(screen.getByRole("button", { name: "Trả lời lại" })).toBeInTheDocument();
     empty.unmount();
     requestMock.mockImplementation((path: string) =>
       Promise.resolve(path === "/api/v1/ai/conversations/c1/messages" ? { messages: [history[0], stopped("a-text", "Một phần")] } : {}),

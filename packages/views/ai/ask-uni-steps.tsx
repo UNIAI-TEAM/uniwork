@@ -31,7 +31,7 @@ export function AskUniProgress({ steps, running, writing }: { steps: AiStep[]; r
     return (
       <div role="status" className="mb-2 flex items-center gap-2 text-caption text-muted-foreground">
         <Spinner className="size-3.5" />
-        <span>{text}</span>
+        <span className="min-w-0 break-words">{text}</span>
       </div>
     );
   }
@@ -46,7 +46,7 @@ export function AskUniProgress({ steps, running, writing }: { steps: AiStep[]; r
         <ul className="mt-1 ms-5 list-disc text-caption text-muted-foreground">
           {steps.map((s, i) => (
             // Steps are append-only and can repeat, so the index is the identity.
-            <li key={i}>{t(`steps_done.${stepKey(s)}`, { label: s.label })}</li>
+            <li key={i} className="break-words">{t(`steps_done.${stepKey(s)}`, { label: s.label })}</li>
           ))}
         </ul>
       </CollapsibleContent>

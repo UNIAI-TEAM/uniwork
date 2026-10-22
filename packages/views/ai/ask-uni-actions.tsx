@@ -142,20 +142,29 @@ export function AskUniActions({ conversationId, messageId, content, sources, onR
     );
   };
 
+  // An answer with no text has nothing to copy or rate; regenerate stays.
+  const hasText = content !== "";
+  if (!hasText && !onRegenerate) return null;
   return (
     <div className="mt-1 flex items-center gap-0.5">
-      <ActionButton label={copied ? t("copied") : t("copy")} onClick={() => void copy()}>
-        {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-      </ActionButton>
+      {hasText ? (
+        <ActionButton label={copied ? t("copied") : t("copy")} onClick={() => void copy()}>
+          {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+        </ActionButton>
+      ) : null}
       {onRegenerate ? (
         <ActionButton label={t("regenerate")} disabled={regenerateDisabled} onClick={onRegenerate}>
           <RefreshCw aria-hidden />
         </ActionButton>
       ) : null}
-      <ActionButton label={t("helpful")} pressed={rating === "up"} onClick={up}>
-        <ThumbsUp aria-hidden />
-      </ActionButton>
-      <DownFeedback active={rating === "down"} onSend={down} />
+      {hasText ? (
+        <>
+          <ActionButton label={t("helpful")} pressed={rating === "up"} onClick={up}>
+            <ThumbsUp aria-hidden />
+          </ActionButton>
+          <DownFeedback active={rating === "down"} onSend={down} />
+        </>
+      ) : null}
     </div>
   );
 }

@@ -87,8 +87,6 @@ export function AskUniMessageTurn({
   const notice = message.notice ?? "";
   const noticeKey = NOTICES.has(notice) ? notice : notice ? "unavailable" : "";
   const showNotice = noticeKey !== "" && (message.content === "" || PARTIAL.has(notice));
-  // A turn stopped before any text has nothing to copy or rate.
-  const emptyStop = notice === "stopped" && message.content === "";
   const stored = !streaming && !message.id.startsWith("pending-") && message.id !== "live";
   return (
     <li className="flex flex-col items-start">
@@ -99,7 +97,7 @@ export function AskUniMessageTurn({
           <p className={cn("text-caption text-muted-foreground", message.content ? "mt-2" : "")}>{t(`notice.${noticeKey}`)}</p>
         ) : null}
         <AskUniSources citations={message.citations} />
-        {stored && conversationId && !emptyStop ? (
+        {stored && conversationId ? (
           <AskUniActions
             conversationId={conversationId}
             messageId={message.id}
