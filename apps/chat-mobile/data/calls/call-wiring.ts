@@ -27,16 +27,19 @@ import * as TaskManager from "expo-task-manager";
 import { AppRegistry, AppState, PermissionsAndroid, Platform } from "react-native";
 import { callPushFromData, ringLatencyMs, taskPayloadData } from "@/lib/call-push";
 import { chatNotificationAction } from "@/lib/chat-notification";
+import { roomReadPushFromData, type RoomReadPush } from "@/lib/room-read-push";
 import { i18n } from "@/lib/i18n/singleton";
 import { showInForeground } from "@/lib/notification-presentation";
 import { track } from "../analytics";
 import { applyStoredLocale } from "../app-locale";
 import { authConfig, session } from "../auth/flow";
+import { setAppBadge } from "../badge";
 import { bootRuntime } from "../boot";
 import { chatApi } from "../chat-api";
 import { runChatNotificationAction } from "../chat-notification-actions";
 import { createLogger } from "../logger";
 import { callChannelNames } from "../notification-channels";
+import { dismissRoomNotifications } from "../notification-tray";
 import { queryClient } from "../query-client";
 import { readMobileFlag, remoteConfigKey, restoreRemoteConfig } from "../remote-config";
 import { bestEffort } from "../report";
@@ -109,14 +112,28 @@ const actionEnv: CallActionEnv = {
 };
 
 /**
- * The background notification task's body: a call push, or a Reply / Mark as read tapped on a chat
- * notification while UniChat is closed (Android runs this task for an action too:
+ * A room read on another device (server: chat.room.notifications_cleared): its message notifications leave this
+ * phone's tray and the icon takes the count the server sent, with UniChat closed or not. No runtime to boot: both
+ * are expo-notifications calls.
+ */
+async function clearReadRoom(push: RoomReadPush): Promise<void> {
+  const dismissed = await dismissRoomNotifications(push.roomId);
+  if (push.badge !== null) await setAppBadge(push.badge);
+  log.info("room read elsewhere", { dismissed });
+}
+
+/**
+ * The background notification task's body: a call push, a room read on another device, or a Reply / Mark as read
+ * tapped on a chat notification while UniChat is closed (Android runs this task for an action too:
  * data/chat-notification-actions.ts), or nothing.
  */
 export async function runCallPushTask(payload: unknown): Promise<void> {
   const chatAction = chatNotificationAction(payload);
   if (chatAction) return runChatNotificationAction(chatAction);
-  const push = callPushFromData(taskPayloadData(payload));
+  const data = taskPayloadData(payload);
+  const roomRead = roomReadPushFromData(data);
+  if (roomRead) return clearReadRoom(roomRead).catch(bestEffort("push", "read room's notifications not cleared", "breadcrumb"));
+  const push = callPushFromData(data);
   if (!push) return;
   bootRuntime();
   await applyStoredLocale();

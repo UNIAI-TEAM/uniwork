@@ -69,6 +69,9 @@ vi.mock("../storage/device-store", () => ({ openDeviceStore: deps.openDeviceStor
 vi.mock("../stores/workspace-store", () => ({ getCurrentWorkspace: () => deps.workspace }));
 const analytics = vi.hoisted(() => ({ track: vi.fn() }));
 vi.mock("../analytics", () => analytics);
+const tray = vi.hoisted(() => ({ dismissRoomNotifications: vi.fn(async () => 2), setAppBadge: vi.fn(async () => undefined) }));
+vi.mock("../notification-tray", () => ({ dismissRoomNotifications: tray.dismissRoomNotifications }));
+vi.mock("../badge", () => ({ setAppBadge: tray.setAppBadge }));
 const chatActions = vi.hoisted(() => ({ runChatNotificationAction: vi.fn(async () => undefined) }));
 vi.mock("../chat-notification-actions", () => chatActions);
 
@@ -249,6 +252,19 @@ describe("runCallPushTask", () => {
     await wiring.runCallPushTask({ data: { ...INVITE, expires_at: "" } });
     expect(analytics.track).toHaveBeenCalledWith({ name: "call_push", result: "shown" });
     expect(analytics.track.mock.calls.some(([event]) => (event as { name: string }).name === "call_ring")).toBe(false);
+  });
+
+  it("takes a room read on another device out of the tray and sets the icon's count, without booting anything", async () => {
+    await wiring.runCallPushTask({ data: { body: JSON.stringify({ type: "room_read", room_id: "r-1", workspace_id: "w-1", badge: "3" }) } });
+    expect(tray.dismissRoomNotifications).toHaveBeenCalledWith("r-1");
+    expect(tray.setAppBadge).toHaveBeenCalledWith(3);
+    expect(deps.bootRuntime).not.toHaveBeenCalled();
+    // No count from the server: the icon is left as it is; a tray that cannot be read is a breadcrumb, not a crash.
+    tray.dismissRoomNotifications.mockRejectedValueOnce(new Error("no tray"));
+    await expect(wiring.runCallPushTask({ data: { type: "room_read", room_id: "r-2", call_id: "" } })).resolves.toBeUndefined();
+    await wiring.runCallPushTask({ data: { body: JSON.stringify({ type: "room_read", room_id: "r-3" }) } });
+    expect(tray.dismissRoomNotifications).toHaveBeenLastCalledWith("r-3");
+    expect(tray.setAppBadge).toHaveBeenCalledTimes(1);
   });
 
   it("ignores a push that is not about a call, without booting anything", async () => {

@@ -713,6 +713,8 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
   thoại đến", Nghe / Từ chối), nhạc chuông là nhạc chuông của máy; chế độ rung chỉ rung, im lặng không kêu. Chuông hiện
   trong vòng 1–2 s sau khi A bấm gọi (đường native, không chờ JavaScript); `adb logcat -s UniChatCalls ReactNativeJS`
   không thấy JavaScript khởi động cho tới khi bấm Nghe.
+- [ ] B kill app; A nhắn DM cho B (thông báo hiện trên máy B); B đọc phòng đó trên web: trong vài phút (push ưu tiên
+  thường, máy ngủ sâu thì lâu hơn) thông báo trên máy B biến mất và số trên biểu tượng giảm, app vẫn đóng.
 - [ ] B đang nghe một cuộc gọi điện thoại (hoặc cuộc gọi Zalo/WhatsApp); A gọi UniChat: B thấy thông báo cuộc gọi đến có
   Nghe / Từ chối nhưng không có nhạc chuông lặp đè lên cuộc gọi đang nghe (chờ cuộc gọi); app đang mở thì chỉ rung ngắn.
 - [ ] Trên Xiaomi/Redmi, Oppo/realme, vivo và Samsung có pin "tối ưu": Cài đặt › Thông báo hiện dòng "Cho UniChat chạy

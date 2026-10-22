@@ -132,7 +132,12 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   nhắc tên, cuộc gọi đến/nhỡ trên iPhone là `interruptionLevel: time-sensitive` (entitlement trong `app.config.ts`).
   Phòng đã đọc — ở máy này (`pending-ops.ts › markRoomRead`) hay ở thiết bị khác khi socket còn mở (`chat.room.read` của
   chính mình) — gỡ thông báo tin của phòng khỏi khay (`data/room-read-signal.ts` → `data/notification-tray.ts`, gắn ở
-  `app-startup.ts`; thông báo trả lời chủ đề và cuộc gọi ở lại). Android 14+ bị thu hồi full-screen intent thì Cài
+  `app-startup.ts`; thông báo trả lời chủ đề và cuộc gọi ở lại). Khi app đóng hay socket đã ngủ: đọc phòng ở thiết bị nào
+  mà đóng được thông báo DM/nhắc tên còn mở của phòng đó thì server ghi `chat.room.notifications_cleared` (cùng
+  transaction, `ChatService.closeRoomNotifications`), lane push gửi một push data-only ưu tiên thường `room_read`
+  (phòng, workspace, số chưa đọc; `push_expo.go › roomReadMessage`) tới máy Android có call UI, và task nền
+  (`runCallPushTask` → `lib/room-read-push.ts`) gỡ thông báo của phòng và đặt badge, không khởi động runtime. Đọc phòng
+  không còn thông báo mở thì không gửi gì; iPhone không nhận (số trên biểu tượng đi theo mỗi push). Android 14+ bị thu hồi full-screen intent thì Cài
   đặt › Thông báo hiện `components/settings/full-screen-calls-row.tsx`. Server: push đổ chuông tới Android là data-only chỉ khi bản đó
   đăng ký token với `call_ui: true` (`registerPushToken({ callUI: nativeCalls.available })`, mỗi lần mở app, và lại khi
   FCM/APNs đổi token lúc app đang chạy — `watchPushTokenRotation`, chỉ khi token máy khác lần trước vì tự lấy token cũng
