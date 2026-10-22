@@ -72,19 +72,6 @@ export async function createTaskFromChatMessage(
   return parsed.task ?? null;
 }
 
-export async function listChatMessageLinks(
-  workspaceId: string,
-  messageId: string,
-): Promise<ChatMessageLinkRecord[]> {
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/messages/${enc(messageId)}/links`,
-  );
-  const parsed = parseWithFallback(raw, LinkListSchema, { links: [] }, {
-    endpoint: "GET .../chat/messages/{id}/links",
-  });
-  return parsed.links ?? [];
-}
-
 /**
  * Links of many messages in one room, in one request: a timeline asks once
  * for the messages it shows instead of once per message.

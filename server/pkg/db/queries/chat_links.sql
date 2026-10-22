@@ -10,19 +10,10 @@ INSERT INTO chat_message_links (
 )
 RETURNING *;
 
--- name: GetChatMessageLink :one
-SELECT * FROM chat_message_links
-WHERE id = $1 AND workspace_id = $2;
-
 -- name: GetChatMessageLinkByPair :one
 -- tenant: parent message_id
 SELECT * FROM chat_message_links
 WHERE message_id = $1 AND target_type = $2 AND target_id = $3;
-
--- name: ListChatMessageLinksByMessage :many
-SELECT * FROM chat_message_links
-WHERE message_id = $1 AND workspace_id = $2
-ORDER BY created_at ASC;
 
 -- name: ListChatMessageLinksByRoomMessages :many
 -- tenant: parent room_id
