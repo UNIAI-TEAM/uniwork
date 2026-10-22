@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { Maximize2, Minimize2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { OfficeModule, ProtocolErrorShape } from "@uniwork/core/office/docs-frame-protocol";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { OfficeModuleFrame, OfficeModuleOpenSwitch, OfficeTooLargeProvider } from "../office";
 import { sourceOfficeModule } from "./source-links";
@@ -37,6 +38,8 @@ export function useSourceOfficeViewer({ wsId, organizationId, frameVersion, onDo
 } {
   const { t } = useTranslation();
   const [view, setView] = useState<{ source: DocumentSourceFile; module: OfficeModule; version: string } | null>(null);
+  // Widens to the viewport (the height already fills it); kept across opens in this session.
+  const [expanded, setExpanded] = useState(false);
 
   const open = (source: DocumentSourceFile): boolean => {
     const module = sourceOfficeModule(source);
@@ -60,7 +63,10 @@ export function useSourceOfficeViewer({ wsId, organizationId, frameVersion, onDo
       <DialogContent
         showCloseButton={false}
         overlayClassName="bg-black/70"
-        className="flex h-[calc(100%-2rem)] max-w-[calc(100%-2rem)] flex-col gap-0 p-0 sm:max-w-5xl"
+        className={cn(
+          "flex h-[calc(100%-2rem)] max-w-[calc(100%-2rem)] flex-col gap-0 p-0",
+          expanded ? "sm:max-w-[calc(100%-2rem)]" : "sm:max-w-5xl",
+        )}
         data-testid="source-office-viewer"
       >
         {view ? (
@@ -70,6 +76,16 @@ export function useSourceOfficeViewer({ wsId, organizationId, frameVersion, onDo
               <span className="order-last w-full rounded-md bg-muted px-2 py-0.5 text-caption text-muted-foreground sm:order-none sm:w-auto sm:shrink-0 sm:rounded-full">
                 {t("documents.home.row.view_only_notice")}
               </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="hidden lg:inline-flex"
+                aria-label={t(expanded ? "documents.home.row.preview_restore" : "documents.home.row.preview_expand")}
+                onClick={() => setExpanded((value) => !value)}
+              >
+                {expanded ? <Minimize2 aria-hidden /> : <Maximize2 aria-hidden />}
+              </Button>
               <DialogClose
                 render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t("documents.home.row.preview_close")} />}
               >

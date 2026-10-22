@@ -11395,6 +11395,8 @@
         "go_to_source_named": "Xem nơi đính kèm: {{title}}",
         "preview_failed": "Không xem được file. Thử lại.",
         "preview_close": "Đóng",
+        "preview_expand": "Mở rộng hết chiều ngang",
+        "preview_restore": "Thu về kích thước cũ",
         "view_only_notice": "Chỉ xem · thay đổi sẽ không được lưu",
         "download": "Tải xuống",
         "save_to_folder": "Lưu vào thư mục",
