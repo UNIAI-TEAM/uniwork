@@ -95,7 +95,7 @@ Biến tùy chọn của repo: `UNICHAT_APP_URL`, `UNICHAT_API_URL` (repository 
       `spctl -a -vv /Applications/UniChat.app` báo `Notarized Developer ID`; Windows: thuộc tính tệp → Digital
       Signatures có tên công ty (`docs/runbooks/unichat-desktop-release.md`).
 - [ ] Desktop macOS đã ký nhận bản mới tự động (cài bản cũ, cắt bản mới, mở lại).
-- [ ] Mobile: tag `chat-mobile-v0.3.0` (bản `version` hiện tại của `apps/chat-mobile/app.config.ts`) → run xanh, build có
+- [ ] Mobile: tag `chat-mobile-v0.3.1` (bản `version` hiện tại của `apps/chat-mobile/app.config.ts`) → run xanh, build có
       ở Play internal (và TestFlight khi có #1–#9) (`docs/runbooks/unichat-mobile-release.md`).
 - [ ] `gh auth login` (admin) rồi `node scripts/mobile-ci-provisioning.mjs --check` xanh: mọi biến, secret và
       environment mà workflow mobile đọc đã có (tên thiếu in `MISSING`).

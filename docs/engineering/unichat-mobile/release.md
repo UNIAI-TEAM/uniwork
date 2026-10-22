@@ -17,7 +17,7 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   Bản iPhone có gọi còn cần `UNICHAT_IOS_CALLS=1` trong môi trường EAS của profile (flag
   `unichat_mobile_calls_ios` không bật được gọi trên bản build thiếu nó); danh sách biến build đủ ở
   `config-security.md` và khối "UniChat mobile (build-time)" của `.env.example`.
-- `version` trong `app.config.ts` là version store (0.3.0); `runtimeVersion` là
+- `version` trong `app.config.ts` là version store (0.3.1); `runtimeVersion` là
   `policy: fingerprint` (hash phần native; `fingerprint.config.js` bỏ `extra`
   ra khỏi hash để URL, DSN không tách runtime): đổi native (gói native, plugin,
   quyền, SDK) thì bump `version` và cắt bản store — quên bump thì OTA cũng

@@ -242,9 +242,10 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
     // The EAS project belongs to the organization, not to whoever is signed in to eas-cli.
     owner: "uniai-team",
     slug: "uniwork-chat",
-    // The store version. 0.3.0: Sentry, expo-application and the native call
-    // work (UNI-2053) change the binary.
-    version: "0.3.0",
+    // The store version. 0.3.1: 0.3.0 shipped (TestFlight build 4, Play internal
+    // 11), and the R8 keep rule for WebRTC and the iOS autolinking exclusion
+    // change the binary again.
+    version: "0.3.1",
     orientation: "portrait",
     userInterfaceStyle: "automatic",
     // The server allowlists both redirects for client uniwork-chat-mobile

@@ -12,7 +12,7 @@ App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Năm pr
 | `production` | `production` | store → internal track của app production, rồi promote | `production` | `production` | `chat-mobile-production.yml` từ tag trên `main`; phát hành theo giai đoạn (mục dưới) |
 | `production-check` | `production` | không phát hành | `production` | `production` | Chỉ nightly `eas-local`: đúng profile `production`, tắt `autoIncrement` để version code trên store không nhảy |
 
-`version` trong `apps/chat-mobile/app.config.ts` là version store (0.3.0 từ UNI-2053). `runtimeVersion` là
+`version` trong `apps/chat-mobile/app.config.ts` là version store (0.3.1; 0.3.0 từ UNI-2053). `runtimeVersion` là
 `policy: fingerprint`: hash của phần native (gói có mã native, plugin, cấu hình trong `app.config.ts` trừ `extra`,
 xem `apps/chat-mobile/fingerprint.config.js`). Một bản OTA chỉ tới các bản cài cùng fingerprint, nên một thay đổi
 native quên bump `version` không còn lọt qua OTA: nó đơn giản không khớp máy nào. Build number (`ios.buildNumber`,

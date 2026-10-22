@@ -7,6 +7,26 @@ khác (`scripts/mobile-play-release.mjs`); `scripts/mobile-release-notes.test.mj
 có đủ hai ngôn ngữ. Bản nháp từ commit: `node scripts/mobile-release-notes.mjs draft` — viết lại cho người dùng đọc,
 không chép tên commit.
 
+## 0.3.1
+
+### vi-VN
+
+- Cuộc gọi đến hiện toàn màn hình, kể cả khi máy khoá; nghe, từ chối hay gác máy ngay trên thông báo.
+- Trả lời tin hoặc đánh dấu đã đọc ngay từ thông báo.
+- Khoá UniChat bằng vân tay, khuôn mặt hoặc mật mã; ẩn nội dung tin trong thông báo.
+- Mở lại đúng chỗ bạn đọc dở, kể cả khi không có mạng; tin viết lúc offline tự gửi khi có mạng.
+- Nháp giữ theo từng cuộc trò chuyện, link trong tin bấm được.
+- Mở nhanh hơn trên iPhone; ổn định hơn, dễ dùng hơn với trình đọc màn hình và cỡ chữ lớn.
+
+### en-US
+
+- Incoming calls fill the screen, even on a locked phone; answer, decline or hang up from the notification.
+- Reply to a message or mark it read from its notification.
+- Lock UniChat with your fingerprint, face or passcode; hide message text in notifications.
+- Opens where you left off, even offline; messages written offline send once you are online.
+- Drafts are kept per conversation; links in messages open.
+- Starts faster on iPhone; more stable, easier with a screen reader and large text.
+
 ## 0.3.0
 
 ### vi-VN
