@@ -152,6 +152,104 @@ func TestChatPollSendBlankDeadlineNormalized(t *testing.T) {
 	}
 }
 
+func TestChatPollSendPinToTopSetsPinned(t *testing.T) {
+	s, _, _, ua, _, w := chatFixture(t)
+	ctx := context.Background()
+	roomID := mustPollRoom(t, s, ctx, ua.ID, w.ID)
+
+	row := mustSendPoll(t, s, ctx, ua.ID, w.ID, roomID, SendPollMessageInput{
+		Question: "Ghim?",
+		Options:  []string{"A", "B"},
+		Settings: ChatPollSettings{PinToTop: true},
+	})
+	if !row.Pinned {
+		t.Fatal("poll with pin_to_top should set message pinned for the bulletin bar")
+	}
+}
+
+func TestChatPollAddOption(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	roomID := mustPollRoom(t, s, ctx, ua.ID, w.ID)
+
+	poll := mustSendPoll(t, s, ctx, ua.ID, w.ID, roomID, SendPollMessageInput{
+		Question: "Thêm lựa chọn?",
+		Options:  []string{"A", "B"},
+		Settings: ChatPollSettings{AllowAddOptions: true},
+	})
+
+	if _, err := s.AddChatPollOptionMessage(ctx, ub.ID, w.ID, roomID, poll.ID, "   "); err == nil {
+		t.Fatal("blank label should fail")
+	} else {
+		requireValidationError(t, err, "blank label")
+	}
+
+	closed := mustSendPoll(t, s, ctx, ua.ID, w.ID, roomID, SendPollMessageInput{
+		Question: "Không cho thêm?",
+		Options:  []string{"X", "Y"},
+	})
+	if _, err := s.AddChatPollOptionMessage(ctx, ub.ID, w.ID, roomID, closed.ID, "Z"); err == nil {
+		t.Fatal("poll without allow_add_options should fail")
+	} else {
+		requireValidationError(t, err, "disabled add")
+	}
+
+	updated, err := s.AddChatPollOptionMessage(ctx, ub.ID, w.ID, roomID, poll.ID, "C")
+	if err != nil {
+		t.Fatalf("add option: %v", err)
+	}
+	if updated.Poll == nil || len(updated.Poll.Options) != 3 {
+		t.Fatalf("expected 3 options, got %+v", updated.Poll)
+	}
+	if updated.Poll.Options[2].Label != "C" {
+		t.Fatalf("third option label: got %q", updated.Poll.Options[2].Label)
+	}
+
+	if _, err := s.AddChatPollOptionMessage(ctx, ub.ID, w.ID, roomID, poll.ID, "c"); err == nil {
+		t.Fatal("duplicate label should fail")
+	} else {
+		requireValidationError(t, err, "duplicate")
+	}
+}
+
+func TestChatPollVotersHonoursSettings(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	roomID := mustPollRoom(t, s, ctx, ua.ID, w.ID)
+
+	poll := mustSendPoll(t, s, ctx, ua.ID, w.ID, roomID, SendPollMessageInput{
+		Question: "Voters?", Options: []string{"A", "B"},
+	})
+	optA := poll.Poll.Options[0].ID
+	if _, err := s.VoteChatPollMessage(ctx, ua.ID, w.ID, roomID, poll.ID, optA); err != nil {
+		t.Fatalf("vote A: %v", err)
+	}
+	if _, err := s.VoteChatPollMessage(ctx, ub.ID, w.ID, roomID, poll.ID, optA); err != nil {
+		t.Fatalf("vote B: %v", err)
+	}
+	voters, err := s.ChatPollVoters(ctx, ua.ID, w.ID, roomID, poll.ID)
+	if err != nil || len(voters) != 2 {
+		t.Fatalf("voters: err=%v n=%d", err, len(voters))
+	}
+	plain, err := s.SendRoomMessage(ctx, ua.ID, w.ID, roomID, SendChatMessageInput{Body: "text"})
+	if err != nil {
+		t.Fatalf("plain: %v", err)
+	}
+	if _, err := s.ChatPollVoters(ctx, ua.ID, w.ID, plain.RoomID, plain.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("non-poll: %v", err)
+	}
+	anon := mustSendPoll(t, s, ctx, ua.ID, w.ID, roomID, SendPollMessageInput{
+		Question: "Anon?", Options: []string{"P", "Q"}, Settings: ChatPollSettings{HideVoters: true},
+	})
+	if _, err := s.ChatPollVoters(ctx, ua.ID, w.ID, roomID, anon.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("hide voters: %v", err)
+	}
+}
+
 func TestChatPollSendFutureDeadlineKept(t *testing.T) {
 	s, _, _, ua, _, w := chatFixture(t)
 	ctx := context.Background()
@@ -193,7 +291,7 @@ func TestChatPollVoteValidation(t *testing.T) {
 		t.Fatalf("unknown message: want ErrNotFound, got %v", err)
 	}
 
-	sent, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "plain"})
+	sent, err := s.SendRoomMessage(ctx, ua.ID, w.ID, roomID, SendChatMessageInput{Body: "plain"})
 	if err != nil {
 		t.Fatalf("send plain: %v", err)
 	}
@@ -418,8 +516,8 @@ func TestChatPollHideResultsUntilVote(t *testing.T) {
 		Options:  []string{"A", "B"},
 		Settings: ChatPollSettings{HideResultsUntilVote: true},
 	})
-	if row.Poll.VotesByUser != nil {
-		t.Fatalf("votes should be hidden before vote: %+v", row.Poll.VotesByUser)
+	if _, err := s.ChatPollVoters(ctx, ua.ID, w.ID, roomID, row.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("voters before vote: want forbidden, got %v", err)
 	}
 
 	optA := row.Poll.Options[0].ID
@@ -427,9 +525,10 @@ func TestChatPollHideResultsUntilVote(t *testing.T) {
 	if err != nil {
 		t.Fatalf("vote: %v", err)
 	}
-	if voted.Poll.VotesByUser == nil {
-		t.Fatal("votes should be visible to voter after voting")
+	if voters, err := s.ChatPollVoters(ctx, ua.ID, w.ID, roomID, row.ID); err != nil || len(voters) != 1 {
+		t.Fatalf("voters after vote for A: %v %+v", err, voters)
 	}
+	_ = voted
 
 	if got := optionVotes(voted, optA); got != 1 {
 		t.Fatalf("voter should see the count after voting: got %d want 1", got)
@@ -452,8 +551,8 @@ func TestChatPollHideResultsUntilVote(t *testing.T) {
 	if found.Poll == nil {
 		t.Fatal("expected poll in listed message")
 	}
-	if found.Poll.VotesByUser != nil {
-		t.Fatalf("votes should stay hidden for non-voter: %+v", found.Poll.VotesByUser)
+	if _, err := s.ChatPollVoters(ctx, ub.ID, w.ID, roomID, row.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("voters for non-voter: want forbidden, got %v", err)
 	}
 	if len(found.Poll.ViewerOptionIDs) != 0 {
 		t.Fatalf("non-voter viewer options: %+v", found.Poll.ViewerOptionIDs)
@@ -516,9 +615,10 @@ func TestChatPollHideVoters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("vote: %v", err)
 	}
-	if voted.Poll.VotesByUser != nil {
-		t.Fatalf("voters should stay hidden: %+v", voted.Poll.VotesByUser)
+	if _, err := s.ChatPollVoters(ctx, ub.ID, w.ID, roomID, row.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("hide voters endpoint: want forbidden, got %v", err)
 	}
+	_ = voted
 	if len(voted.Poll.ViewerOptionIDs) != 1 || voted.Poll.ViewerOptionIDs[0] != optA {
 		t.Fatalf("viewer should still see own vote: %+v", voted.Poll.ViewerOptionIDs)
 	}
@@ -535,7 +635,7 @@ func TestPollFromMetadataBranches(t *testing.T) {
 		}
 		raw, err := encodePollMetadata(ChatPollPayload{
 			Question: question, Options: opts, Settings: settings, VotesByUser: votes,
-		})
+		}, false)
 		if err != nil {
 			t.Fatalf("encode: %v", err)
 		}
@@ -567,10 +667,6 @@ func TestPollFromMetadataBranches(t *testing.T) {
 	if len(got.ViewerOptionIDs) != 1 || got.ViewerOptionIDs[0] != "opt-a" {
 		t.Fatalf("viewer filter (case-insensitive): %+v", got.ViewerOptionIDs)
 	}
-	if got.VotesByUser == nil {
-		t.Fatal("votes should be visible by default")
-	}
-
 	got = pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(raw), "  ")
 	if got == nil || len(got.ViewerOptionIDs) != 0 {
 		t.Fatalf("blank viewer should have no options: %+v", got)
@@ -581,17 +677,14 @@ func TestPollFromMetadataBranches(t *testing.T) {
 	}
 
 	hidden := mkPayload("Q", 2, ChatPollSettings{HideResultsUntilVote: true}, votes)
-	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(hidden), "u2"); got == nil || got.VotesByUser != nil || got.Options[1].Votes != 0 {
-		t.Fatalf("non-voter should not see votes or counts: %+v", got)
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(hidden), "u2"); got == nil || got.Options[1].Votes != 0 {
+		t.Fatalf("non-voter should not see counts: %+v", got)
 	}
-	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(hidden), "u1"); got == nil || got.VotesByUser == nil || got.Options[1].Votes != 1 {
-		t.Fatalf("voter should see votes and counts: %+v", got)
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(hidden), "u1"); got == nil || got.Options[1].Votes != 1 {
+		t.Fatalf("voter should see counts: %+v", got)
 	}
 
 	anon := mkPayload("Q", 2, ChatPollSettings{HideVoters: true}, votes)
-	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(anon), "u1"); got == nil || got.VotesByUser != nil {
-		t.Fatalf("HideVoters should suppress votes_by_user: %+v", got)
-	}
 	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(anon), "u1"); got == nil || len(got.ViewerOptionIDs) != 1 {
 		t.Fatalf("HideVoters should keep viewer options: %+v", got)
 	}
@@ -651,7 +744,7 @@ func TestEncodePollMetadataRoundTrip(t *testing.T) {
 	raw, err := encodePollMetadata(ChatPollPayload{
 		Question: "Round trip?",
 		Options:  []ChatPollOption{{ID: "a", Label: "A"}, {ID: "b", Label: "B"}},
-	})
+	}, false)
 	if err != nil || len(raw) == 0 {
 		t.Fatalf("encode: err=%v raw=%s", err, raw)
 	}

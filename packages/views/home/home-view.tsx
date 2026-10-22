@@ -19,6 +19,7 @@ import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { formatMeetingDay, meetingDayKey, meetingLocale } from "../meetings/meeting-datetime";
 import { AppLink } from "../navigation";
+import { useDocumentListDialog } from "../notifications/document-changed-dialog";
 import { HomeCustomizePanel } from "./home-customize-panel";
 import { HomeInbox } from "./home-inbox";
 import { homeBands, isHomeAside } from "./home-layout";
@@ -123,6 +124,8 @@ export function HomeView() {
   const summaryQuery = useHomeSummary(workspace.id);
   const { prefs, loading: prefsLoading, saving, failed, update, reset } = useHomePrefs(workspace.id);
   const [customizing, setCustomizing] = useState(false);
+  // Hosted here, not in the Inbox card: opening the only unread row turns Home quiet and unmounts the card.
+  const { openList, dialog: documentsDialog } = useDocumentListDialog();
 
   useEffect(() => {
     if (failed) toast.error(t("home.customize.save_failed"));
@@ -161,7 +164,7 @@ export function HomeView() {
     stats: <HomeStats summary={summary} loading={loading} onShowWork={visible.includes("mywork") ? showWork : undefined} />,
     mywork: <HomeMyWork {...sectionProps} />,
     upcoming: <HomeUpcoming {...sectionProps} />,
-    inbox: <HomeInbox {...sectionProps} />,
+    inbox: <HomeInbox {...sectionProps} onOpenList={openList} />,
   };
 
   // Every band keeps the saved order in the DOM; the columns appear once the
@@ -267,6 +270,7 @@ export function HomeView() {
           )}
         </div>
       </div>
+      {documentsDialog}
       <HomeCustomizePanel
         open={customizing}
         prefs={prefs}

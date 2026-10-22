@@ -30,7 +30,9 @@ import { ChatMessageLinksProvider } from "./chat-message-links-context";
 import { ChatLinkPreviewsProvider } from "./chat-link-preview-card";
 import { ChatForwardContext } from "./chat-forward-context";
 import { ChatPeerReadAtContext } from "./chat-message-parts";
-import { CHAT_WALL } from "./chat-wall";
+import { CHAT_CONVERSATION_GUTTER } from "./chat-wall";
+import { cn } from "@uniwork/ui/lib/utils";
+import { useChatWall } from "./use-chat-wall";
 import { toastChatError } from "./chat-error-message";
 import { VirtualChatMessageList, updateStickToBottomFromScroll, useReaderScrollAt } from "./virtual-chat-message-list";
 import type { NameContextEntry } from "./native-chat-message-mapping";
@@ -46,7 +48,7 @@ import { ChatIntroCompactContext } from "./chat-conversation-intro";
 import { useMessageTaskLinkDialogs } from "./use-message-task-link-dialogs";
 import { useNativeChatMessageActions } from "./use-native-chat-message-actions";
 import { useAnchorWindowLoad, useChatHighlightFlash, useOwnSendFollowsLatest, useTypingKeepsPinned } from "./use-chat-anchor-follow";
-import type { ChatDocumentDesktopOpen } from "./chat-document-message-row";
+import type { ChatDocumentDesktopOpen } from "./chat-document-menu";
 
 const EMPTY_LINKS: ReadonlyMap<string, ChatMessageLinkRecord[]> = new Map();
 
@@ -91,7 +93,6 @@ export function NativeChatMessagePanel({
   youLabel: string;
   replyTo: ChatMessage | null;
   onReplyToChange: (message: ChatMessage | null) => void;
-  refreshKey?: number;
   showSenderName?: boolean;
   embedded?: boolean;
   anchorMessageId?: string | null;
@@ -124,10 +125,11 @@ export function NativeChatMessagePanel({
   roomTitle?: string;
   /** Where the room begins: shown when empty, and above the first message once all history is loaded. */
   intro?: ReactNode;
-  /** Host wiring for a document card's "Mở bằng UniWork Office"; absent → hidden. */
+  /** Host wiring for a document card's "Chỉnh sửa trong UniWork Office" menu entry; absent → hidden. */
   desktopOpen?: ChatDocumentDesktopOpen;
 }) {
   const { t } = useTranslation();
+  const chatWall = useChatWall(roomId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const readerScrollAtRef = useReaderScrollAt(scrollRef);
   const stickToBottomRef = useRef(true);
@@ -481,15 +483,23 @@ export function NativeChatMessagePanel({
           ref={scrollRef}
           onScroll={onScroll}
           // A size container: a message's actions bar fits itself to the timeline's width.
-          className={`@container/timeline min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain ${CHAT_WALL}`}
+          className={cn(
+            "@container/timeline min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain",
+            chatWall.className,
+          )}
+          style={chatWall.style}
           role="log"
           aria-live="off"
           aria-label={t("chat.messages_region")}
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must be reachable by keyboard to scroll it (axe scrollable-region-focusable)
           tabIndex={0}
         >
-          {/* One readable column however wide the window is; the side thread is narrower (canvas). */}
-          <div className={sideThreadPanel ? "w-full p-4" : "mx-auto w-full max-w-195 px-3 pt-5 pb-3 sm:px-7"}>
+          {/* Full width of the conversation column; side thread stays tighter (canvas). */}
+          <div
+            className={
+              sideThreadPanel ? "w-full p-4" : `w-full pt-5 pb-3 ${CHAT_CONVERSATION_GUTTER}`
+            }
+          >
             <ChatLinkPreviewsProvider workspaceId={workspaceId} roomId={roomId} messages={messages}>
               <ChatMessageLinksProvider value={linksValue}>
                 <ChatPeerReadAtContext.Provider value={receiptReadAt}>

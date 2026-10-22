@@ -130,7 +130,7 @@ test); `token` is the invitation token.
 | `createInvitation` | POST `/workspaces/{workspaceID}/invitations` | `email`, `role` |
 | `myInvitations` | GET `/me/invitations` | - |
 | `acceptInvitation` | POST `/invitations/{token}/accept` | - |
-| `mintLaunch` (existing) | POST `/documents/{documentID}/office/sessions` | adds optional `comment_id` |
+| `mintLaunch` (existing) | POST `/documents/{documentID}/office/sessions` | adds optional `comment_id` and optional `version` (UNI-2033 G8-A02: a positive integer, sent with `operation: "view"` to mint the read-only view ticket of that version) |
 | `getDocument` | GET `/documents/{documentID}` | - |
 | `patchDocument` (rename) | PATCH `/documents/{documentID}` | `revision`, `title` |
 | `archiveDocument` | POST `/documents/{documentID}/archive` | - |

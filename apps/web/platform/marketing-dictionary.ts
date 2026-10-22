@@ -19,7 +19,7 @@ const EMAIL_PREVIEW_KEYS = [
   "has_attachments", "attachment_untitled", "attachments_count", "download_named", "no_subject", "to_recipient", "conversation_count", "select_thread",
   "folders", "folders_nav", "folder_menu", "filters", "empty", "shortcuts", "bulk", "snooze", "compose", "ai", "ai_title", "coming_soon",
   "reply", "reply_all", "forward", "restore_inbox", "star", "unstar", "archive", "trash", "not_spam", "report_spam",
-  "thread_toolbar", "back_to_list_shortcut", "archive_shortcut", "trash_shortcut", "mark_unread_shortcut", "star_shortcut", "more_actions",
+  "thread_toolbar", "back_to_list", "back_to_list_shortcut", "archive_shortcut", "trash_shortcut", "mark_unread_shortcut", "more_actions",
   "disconnect", "disconnect_named", "disconnect_confirm_title", "disconnect_confirm_body", "reconnect",
   "trusted_senders", "trusted_senders_description", "trusted_senders_empty", "trusted_senders_empty_hint", "trusted_senders_remove",
 ];

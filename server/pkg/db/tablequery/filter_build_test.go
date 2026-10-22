@@ -105,6 +105,63 @@ func TestNormalizeClearsUnknownDateField(t *testing.T) {
 	}
 }
 
+func TestMemberFiltersRelation(t *testing.T) {
+	build := func(relation, actor string) (string, []any) {
+		return BuildGroups(Query{
+			OrganizationID: "o",
+			WorkspaceID:    "w",
+			Filter:         Filter{Relation: relation, ActorID: actor},
+		}.Normalize())
+	}
+
+	sql, args := build("all", "me")
+	if !strings.Contains(sql, "assignee_id = $") || !strings.Contains(sql, "created_by = $") || !strings.Contains(sql, " OR ") {
+		t.Fatalf("all: want assignee OR created_by: %s", sql)
+	}
+	assertArgsContain(t, args, "me")
+	if strings.Contains(sql, "'me'") {
+		t.Errorf("actor id leaked into SQL: %s", sql)
+	}
+
+	sql, _ = build("assigned", "me")
+	if !strings.Contains(sql, "assignee_id = $") || strings.Contains(sql, "created_by = $") {
+		t.Fatalf("assigned: want assignee only: %s", sql)
+	}
+
+	sql, _ = build("created", "me")
+	if !strings.Contains(sql, "created_by = $") || strings.Contains(sql, "assignee_id = $") {
+		t.Fatalf("created: want created_by only: %s", sql)
+	}
+
+	// involved is empty until agent involvement exists; an unknown relation
+	// fails closed instead of widening to the whole workspace.
+	for _, relation := range []string{"involved", "bogus"} {
+		sql, _ = build(relation, "me")
+		if !strings.Contains(sql, "FALSE") {
+			t.Fatalf("%s: want FALSE clause: %s", relation, sql)
+		}
+	}
+
+	sql, _ = build("", "")
+	if strings.Contains(sql, "FALSE") || strings.Contains(sql, "created_by = $") {
+		t.Fatalf("empty relation must not constrain: %s", sql)
+	}
+}
+
+func TestFingerprintBindsRelationAndActor(t *testing.T) {
+	base := Query{OrganizationID: "o", WorkspaceID: "w"}
+	a := base
+	a.Filter = Filter{Relation: "assigned", ActorID: "u1"}
+	b := base
+	b.Filter = Filter{Relation: "created", ActorID: "u1"}
+	c := base
+	c.Filter = Filter{Relation: "assigned", ActorID: "u2"}
+	fa, fb, fc := Fingerprint(a.Normalize()), Fingerprint(b.Normalize()), Fingerprint(c.Normalize())
+	if fa == fb || fa == fc {
+		t.Fatalf("a cursor must not carry across relation or actor: %s %s %s", fa, fb, fc)
+	}
+}
+
 func assertArgsContain(t *testing.T, args []any, want ...string) {
 	t.Helper()
 	have := map[string]bool{}

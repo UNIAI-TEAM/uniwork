@@ -301,7 +301,16 @@ func (s *ChatService) refuseLastAdminLeaving(ctx context.Context, roomID, userID
 }
 
 func (s *ChatService) requireCanSendInRoom(ctx context.Context, userID, roomID string, room db.ChatRoom) error {
-	member, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+	return s.requireCanSendInRoomQ(ctx, s.q, userID, roomID, room)
+}
+
+// requireCanSendInRoomQ is requireCanSendInRoom read through q. A send that
+// re-checks the gate inside its commit transaction passes the transaction's
+// queries: a pool read there would hold the transaction's connection while it
+// waits for a second one, so as many concurrent sends as the pool has
+// connections would wait on each other until their deadlines.
+func (s *ChatService) requireCanSendInRoomQ(ctx context.Context, q *db.Queries, userID, roomID string, room db.ChatRoom) error {
+	member, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: roomID, UserID: userID,
 	})
 	if err != nil {
@@ -323,7 +332,7 @@ func (s *ChatService) requireCanSendInRoom(ctx context.Context, userID, roomID s
 	if err != nil {
 		return err
 	}
-	blocked, err := s.dmMessagingBlocked(ctx, room.OrganizationID, userID, peerID)
+	blocked, err := dmMessagingBlockedQ(ctx, q, room.OrganizationID, userID, peerID)
 	if err != nil {
 		return err
 	}

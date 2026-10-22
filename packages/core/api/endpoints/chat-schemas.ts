@@ -48,6 +48,14 @@ export const ChatMessageDocumentSchema = z
     can_open_in_app: z.boolean().optional(),
     /** Sender only: "Đã chia sẻ với N người". */
     recipient_count: z.number().optional(),
+    /**
+     * Where the card came from (UNI-2012 D8): "upload" owns the document,
+     * "link" only points at one. A value the client does not know falls to
+     * absent, which every reader treats as "upload".
+     */
+    origin: z.enum(["upload", "link"]).optional().catch(undefined),
+    /** Sender's own upload card only: people other than the sender who committed a version. */
+    other_editors_count: z.number().optional().catch(undefined),
   })
   .optional()
   .catch(undefined);
@@ -188,10 +196,6 @@ export const ChatMessageSchema = z.object({
         .array(z.string())
         .nullish()
         .transform((value) => value ?? []),
-      votes_by_user: z
-        .record(z.string(), z.array(z.string()))
-        .nullish()
-        .transform((value) => value ?? undefined),
     })
     .optional(),
   poll_vote: z
@@ -308,11 +312,19 @@ export const ChatRoomSchema = z.object({
   /** A group's uploaded avatar, signed; absent when the group shows its members. */
   avatar_url: z.string().optional().catch(undefined),
   /**
-   * UNI-1966 (L5), room detail read only: the caller may send in the room and
-   * its grantable human recipients fit the share batch. Absent reads as not
-   * allowed, so the composer picker hides rather than offers a refused send.
+   * UNI-1966 (L5), room detail read only: the caller may send a document in
+   * the room — a permission, not the room's size (no recipient cap, UNI-2012).
+   * Absent reads as not allowed, so the composer picker hides rather than
+   * offers a refused send.
    */
   can_send_document: z.boolean().optional().catch(undefined),
+  wallpaper: z
+    .object({
+      preset: z.string(),
+      url: z.string().optional(),
+    })
+    .optional()
+    .catch(undefined),
 });
 export type ChatRoomRecord = z.infer<typeof ChatRoomSchema>;
 

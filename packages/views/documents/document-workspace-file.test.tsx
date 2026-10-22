@@ -119,12 +119,10 @@ describe("DocumentWorkspace on a file document", () => {
     expect(acquires).toEqual([]);
   });
 
-  it("mounts the editor layout for a .txt file when the organization's answer turns office_txt_open on, global off (UNI-1813)", async () => {
-    orgConfig({ office_engine: true, office_txt_open: true });
+  it("mounts the editor layout for a .txt file with no txt key in the organization's answer", async () => {
+    orgConfig({ office_engine: true });
     const txt = fileDocument({ file: { file_id: "f1", version_id: "v2", version: 2, filename: "ghi-chu.txt", mime_type: "text/plain", size_bytes: 128, checksum_sha256: "b".repeat(64) } });
 
-    // The workspace's own usesOfficeEditor answer mounts the editor layout;
-    // the global flag is absent (off default), the organization says on.
     renderWorkspace(testClient(), txt, true);
     expect(await screen.findByTestId("office-host")).toBeInTheDocument();
     expect(container()).toHaveClass("overflow-hidden");
@@ -132,15 +130,15 @@ describe("DocumentWorkspace on a file document", () => {
     expect(screen.queryByRole("button", { name: t("documents.file.download") })).toBeNull();
   });
 
-  it("keeps the file-card layout for the same .txt file when the organization's answer turns office_txt_open off, global on (UNI-1813)", async () => {
-    orgConfig({ office_engine: true, office_txt_open: false });
+  it("keeps the file-card layout for the same .txt file when office_markdown is off, whatever a txt key says", async () => {
+    orgConfig({ office_engine: true, office_markdown: false, office_txt_open: true });
     const txt = fileDocument({ file: { file_id: "f1", version_id: "v2", version: 2, filename: "ghi-chu.txt", mime_type: "text/plain", size_bytes: 128, checksum_sha256: "b".repeat(64) } });
 
     renderWorkspace(testClient(), txt, true, { office_txt_open: true });
-    // The card: filename, download command and the no-web-editor notice; no host.
+    // The card: filename, download command and the Markdown-off notice; no host.
     expect(await screen.findByText("ghi-chu.txt")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
-    expect(await screen.findByText(t("documents.file.no_web_editor_title"), { exact: false })).toBeInTheDocument();
+    expect(await screen.findByText(t("documents.file.office_off_title", { format: "Markdown" }), { exact: false })).toBeInTheDocument();
     expect(screen.queryByTestId("office-host")).toBeNull();
     // And the workspace wraps it in the card layout, not the editor's.
     const cardWrapper = screen.getByText("ghi-chu.txt").closest("div.flex.flex-col.gap-4")?.parentElement;

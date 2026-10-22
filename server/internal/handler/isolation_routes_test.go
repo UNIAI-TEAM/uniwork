@@ -199,6 +199,33 @@ func isoAccessRequestCreate(_ *isoWorld, _ *isoTenant) isoBody {
 	return isoBody{json: map[string]any{"requested_level": "view", "message": "isolation matrix"}}
 }
 
+// isoDownloadJobBody asks for the tenant's own file document as a zip.
+func isoDownloadJobBody(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{json: map[string]any{"document_ids": []string{tn.ids["fileDocument"]}}}
+}
+
+// isoFolderUploadBody plans one small file under the tenant's own folder.
+func isoFolderUploadBody(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{
+		json: map[string]any{
+			"parent_id": tn.ids["folder"], "root_name": "Iso upload", "share_with_workspace": false,
+			"folders": []string{}, "files": []map[string]any{{"file_key": "k1", "path": "", "filename": "iso.md", "size_bytes": 3}},
+		},
+		headers: map[string]string{"Idempotency-Key": "iso-folder-upload-" + tn.tag},
+	}
+}
+
+// isoFolderUploadContent is the three bytes the seeded file row declares.
+func isoFolderUploadContent(_ *isoWorld, _ *isoTenant) isoBody {
+	return isoBody{raw: []byte("abc")}
+}
+
+// isoFolderUploadComplete completes the seeded file with an ETag no upload
+// answers, so the file stays pending (parts_invalid or upload_missing).
+func isoFolderUploadComplete(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{json: map[string]any{"files": []map[string]any{{"file_key": tn.ids["folderUploadFileKey"], "etag": `"iso"`}}}}
+}
+
 // isoUnknownDocumentID is a well-formed ULID that names no row: the id the
 // uniformAnswer check pairs with the foreign one, so the route's answer cannot
 // depend on whether the document exists.
@@ -222,6 +249,27 @@ func (w *isoWorld) accessRequestSnapshot(t *testing.T, orgID string) string {
 		t.Fatal(err)
 	}
 	return snap
+}
+
+// isoNotificationDocumentsCheck proves the owner's control reads the one
+// notification_documents row the world seeds: the tenant's own document,
+// which its owner reads, comes back named and not deleted.
+func isoNotificationDocumentsCheck(t *testing.T, tn *isoTenant, raw []byte) {
+	t.Helper()
+	var out struct {
+		Documents []struct {
+			ID      string `json:"id"`
+			Title   string `json:"title"`
+			Deleted bool   `json:"deleted"`
+		} `json:"documents"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Errorf("GET /me/notifications/{notificationID}/documents (%s): unmarshal: %v (%s)", tn.tag, err, isoClip(raw))
+		return
+	}
+	if len(out.Documents) != 1 || out.Documents[0].ID != tn.ids["document"] || out.Documents[0].Title == "" || out.Documents[0].Deleted {
+		t.Errorf("GET /me/notifications/{notificationID}/documents (%s): documents = %v, want the tenant's own document: %s", tn.tag, out.Documents, isoClip(raw))
+	}
 }
 
 // isoAccessRequestsListCheck asserts the populated manager list on
@@ -443,36 +491,37 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/public/meeting-invite-links/resolve":       {class: isoPublic, reason: reasonLink},
 
 	// The caller's own account.
-	"GET /api/v1/ws":                            {class: isoRealtime, reason: "workspace WebSocket: membership is checked on the auth frame, scopes on subscribe - TestIsolationRealtime"},
-	"GET /api/v1/me":                            {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/me/chat/unread-summary":        {class: isoSelf, reason: reasonSelf},
-	"PATCH /api/v1/me":                          {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/avatar":                    {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/delete":                    {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/email/resend":              {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/email/verify":              {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/me/invitations":                {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/mfa/confirm":               {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/mfa/disable":               {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/mfa/setup":                 {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/me/notification-preferences":   {class: isoSelf, reason: reasonSelf},
-	"PUT /api/v1/me/notification-preferences":   {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/me/notifications":              {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/notifications/archive":     {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/notifications/read":        {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/notifications/unarchive":   {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/notifications/unread":      {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/me/notifications/unread-count": {class: isoSelf, reason: reasonSelf},
-	"PATCH /api/v1/me/onboarding":               {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/onboarding/complete":       {class: isoSelf, reason: reasonSelf},
-	"DELETE /api/v1/me/push-subscriptions":      {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/push-subscriptions":        {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/me/sessions":                   {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/sessions/revoke-others":    {class: isoSelf, reason: reasonSelf},
-	"DELETE /api/v1/me/sessions/{sessionId}":    {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/orgs":                          {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/orgs":                         {class: isoSelf, reason: "creates a new organization owned by the caller"},
-	"GET /api/v1/workspaces":                    {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/ws":                                          {class: isoRealtime, reason: "workspace WebSocket: membership is checked on the auth frame, scopes on subscribe - TestIsolationRealtime"},
+	"GET /api/v1/me":                                          {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/chat/unread-summary":                      {class: isoSelf, reason: reasonSelf},
+	"PATCH /api/v1/me":                                        {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/avatar":                                  {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/delete":                                  {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/email/resend":                            {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/email/verify":                            {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/invitations":                              {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/mfa/confirm":                             {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/mfa/disable":                             {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/mfa/setup":                               {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/notification-preferences":                 {class: isoSelf, reason: reasonSelf},
+	"PUT /api/v1/me/notification-preferences":                 {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/notifications":                            {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/notifications/{notificationID}/documents": {class: isoScoped, reason: "the caller's own notification row (it carries the tenant): B names A's id and gets the same 404 as an unknown one, and the page lists a document only after the read gate passes for the caller; control = the owner reads the seeded notification_documents row", checkControl: isoNotificationDocumentsCheck},
+	"POST /api/v1/me/notifications/archive":                   {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/notifications/read":                      {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/notifications/unarchive":                 {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/notifications/unread":                    {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/notifications/unread-count":               {class: isoSelf, reason: reasonSelf},
+	"PATCH /api/v1/me/onboarding":                             {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/onboarding/complete":                     {class: isoSelf, reason: reasonSelf},
+	"DELETE /api/v1/me/push-subscriptions":                    {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/push-subscriptions":                      {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/sessions":                                 {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/sessions/revoke-others":                  {class: isoSelf, reason: reasonSelf},
+	"DELETE /api/v1/me/sessions/{sessionId}":                  {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/orgs":                                        {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/orgs":                                       {class: isoSelf, reason: "creates a new organization owned by the caller"},
+	"GET /api/v1/workspaces":                                  {class: isoSelf, reason: reasonSelf},
 
 	// Office desktop bridge. The credential in each public route (the PKCE
 	// verifier with its one-time code, the refresh token, the preview
@@ -571,8 +620,21 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/workspaces/{workspaceID}/projects/search":           {query: "?q=Project"},
 	// The access report (UNI-1643) over the tenant's folder: the mixed pass
 	// sends B's workspace with A's folder.
-	"GET /api/v1/workspaces/{workspaceID}/documents/access-report":               {query: "?folder_id={folderID}"},
-	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/export":        {query: "?folder_id={folderID}&format=csv"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report":            {query: "?folder_id={folderID}"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/export":     {query: "?folder_id={folderID}&format=csv"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/summary":    {query: "?folder_id={folderID}"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/principals": {query: "?folder_id={folderID}"},
+	// The zip download job (UNI-2045): the request names the tenant's own file;
+	// the job row is queued and has no file, so its download answers 404 to its
+	// own creator too. In the mixed pass B's workspace carries A's ids: the job
+	// is accepted and skips them as not_found (nothing of A's in the answer).
+	"POST /api/v1/workspaces/{workspaceID}/documents/download-jobs":                 {body: isoDownloadJobBody, mixedOK: "an id of another tenant is skipped as not_found like an unknown one; the job answer carries no id or text of A's"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/download-jobs/{jobID}/download": {control: []int{http.StatusNotFound}},
+	// Folder upload PLAN (UNI-2052): the tenant's own folder as the parent, one
+	// fixed Idempotency-Key per tenant so every control pass replays the same
+	// batch instead of taking another of the owner's two open batches. The
+	// mixed pass sends A's folder in B's workspace: lockPageParent answers 404.
+	"POST /api/v1/workspaces/{workspaceID}/documents/folder-uploads":             {body: isoFolderUploadBody},
 	"GET /api/v1/workspaces/{workspaceID}/task-view-preferences":                 {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/task-views":                            {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start": {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
@@ -584,6 +646,20 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/models":                       {skipControl: reasonBYOKVendor},
 	"GET /api/v1/files/{fileID}/content":                                         {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 	"HEAD /api/v1/files/{fileID}/content":                                        {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
+
+	// Folder upload batch read and cancel (UNI-2052 w3). B naming A's batch is
+	// 404 on both (the batch is the creator's alone). The seeded batch is
+	// completed: the owner's GET answers it without targets and the owner's
+	// DELETE answers it unchanged (no status change, no audit row), so the
+	// control cancels nothing the other batch routes need.
+	"GET /api/v1/workspaces/{workspaceID}/documents/folder-uploads/{batchID}":    {},
+	"DELETE /api/v1/workspaces/{workspaceID}/documents/folder-uploads/{batchID}": {},
+	// The folder upload content route and COMPLETE (UNI-2052 w2) act on the
+	// seeded batch, whose one file stays pending: the PUT replaces its upload
+	// each pass and COMPLETE sends an ETag that never matches, so the file
+	// never lands and every control pass finds it as the first did.
+	"PUT /api/v1/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/files/{fileKey}/content": {body: isoFolderUploadContent},
+	"POST /api/v1/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/complete":               {body: isoFolderUploadComplete},
 
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
 	"PUT /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {body: isoJSON(map[string]any{"calendar_ids": []string{"primary"}}), skipControl: "owner 5xx found by G8-04, owner: calendar (no provider client is configured in tests; the owner gets 503)"},
@@ -744,12 +820,14 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/tasks/{taskID}/attachments":                                                          {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"DELETE /api/v1/tasks/{taskID}/reactions":                                                          {body: isoJSON(map[string]any{"emoji": "👍"})},
 	"POST /api/v1/tasks/{taskID}/reactions":                                                            {body: isoJSON(map[string]any{"emoji": "👍"})},
+	"PATCH /api/v1/ai/conversations/{conversationID}":                                                  {body: isoJSON(map[string]any{"title": "renamed"})},
+	"PUT /api/v1/ai/conversations/{conversationID}/messages/{messageID}/feedback":                      {body: isoJSON(map[string]any{"rating": "up"})},
 	"POST /api/v1/workspaces/{workspaceID}/ai/ask":                                                     {body: isoJSON(map[string]any{"question": "what is overdue?"})},
+	"POST /api/v1/workspaces/{workspaceID}/ai/ask/stream":                                              {body: isoJSON(map[string]any{"question": "what is overdue?"})},
 	"POST /api/v1/workspaces/{workspaceID}/ai/chat/catch-up":                                           {body: isoWith(map[string]string{"room_id": "room"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/icon":                                                       {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/attachments":                                                {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/dm":                                                    {body: isoWith(map[string]string{"user_id": "peer"}, nil)},
-	"POST /api/v1/workspaces/{workspaceID}/chat/messages":                                              {body: isoJSON(map[string]any{"body": "hello"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/links":                            {body: isoWith(map[string]string{"target_id": "task"}, map[string]any{"target_type": "task"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/forward":                          {body: isoForwardBody},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages":                               {body: isoJSON(map[string]any{"body": "hello"})},
@@ -760,6 +838,8 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/avatar":                                 {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}":                  {body: isoJSON(map[string]any{"body": "edited"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote":         {body: isoWith(map[string]string{"option_id": "pollOption"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document-link":                 {body: isoWith(map[string]string{"document_id": "chatLinkDocument"}, map[string]any{"share_level": "comment"})},
+	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/options":      {body: isoJSON(map[string]any{"label": "new option"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/share-as-document": {body: isoIdem(nil, map[string]any{"share_level": "comment", "client_msg_id": "iso-share-as-doc"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/threads/{messageID}/messages":           {body: isoJSON(map[string]any{"body": "hello"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/accept":                           {body: isoWith(map[string]string{"call_id": "callID"}, nil)},

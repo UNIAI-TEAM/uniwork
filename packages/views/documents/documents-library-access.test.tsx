@@ -2,11 +2,10 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { DocumentsLibraryList } from "./documents-library-list";
-import { LibraryToolbar } from "./documents-library-toolbar";
 import { type LibraryRowHandlers } from "./documents-library-row";
-import { ACCESS_FILTERS, documentRow, type AccessFilter, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
+import { documentRow, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 
-// UNI-1642: the "My access" and "Visibility" columns and the access filter beside the type chips.
+// UNI-1642: the "My access" and "Visibility" columns (the access filter left the toolbar with UNI-2045 Q6).
 
 const { t } = initI18n();
 
@@ -55,7 +54,7 @@ const handlers: LibraryRowHandlers = {
 function renderList(rows: LibraryRow[]) {
   return render(
     <DocumentsLibraryList
-      groups={[{ key: "unfiled", title: "", rows }]}
+      groups={[{ key: "all", rows }]}
       loading={false}
       failure={null}
       filteredBy={null}
@@ -71,7 +70,7 @@ function renderList(rows: LibraryRow[]) {
 }
 
 describe("library table access column", () => {
-  it("shows the visibility and the viewer's level per row, with — where the row carries nothing", () => {
+  it("shows the access pill and the viewer's level per row, and Riêng tư without a level where the row carries nothing", () => {
     renderList([
       documentRow(item("a", "A.docx", { my_level: "manage", visibility: "restricted", share_scope: SCOPE_PRIVATE })),
       documentRow(item("b", "B.docx", { my_level: "view", visibility: "workspace", share_scope: SCOPE_HOME })),
@@ -83,17 +82,20 @@ describe("library table access column", () => {
     expect(within(rowA).getAllByText("Riêng tư")).toHaveLength(2);
     expect(within(rowA).getByText("Bạn: Quản lý")).toBeTruthy();
     const rowB = document.querySelector('[data-library-row="b"]') as HTMLElement;
-    expect(within(rowB).getByText("Bạn: Chỉ xem")).toBeTruthy();
+    // UNI-2045: the shared level words and pill (doclist/cells.tsx); an unknown visibility is never a wider scope.
+    expect(within(rowB).getByText("Bạn: Xem")).toBeTruthy();
     expect(within(rowB).getByText("Workspace")).toBeTruthy();
-    const rowC = document.querySelector('[data-library-row="c"]') as HTMLElement;
-    expect(within(rowC).getAllByText("—").length).toBeGreaterThanOrEqual(1);
+    const accessC = document.querySelector('[data-library-row="c"] > td[data-column="access"]') as HTMLElement;
+    expect(accessC.querySelector("[data-access-kind]")).toHaveAttribute("data-access-kind", "restricted");
+    expect(accessC.textContent).not.toMatch(/Bạn:/);
   });
 
   it("labels the comment level as its own word", () => {
     renderList([documentRow(item("a", "A.docx", { my_level: "comment" as DocumentSummaryRow["my_level"] }))]);
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
-    expect(within(row).getByText("Bạn: Nhận xét")).toBeTruthy();
-    expect(within(row).getByText("Nhận xét")).toBeTruthy();
+    // UNI-2045: the shared word is Bình luận, in the column and on the narrow line.
+    expect(within(row).getByText("Bạn: Bình luận")).toBeTruthy();
+    expect(within(row).getByText("Bình luận")).toBeTruthy();
   });
 
   it("shows the column only when the list container is wide, and keeps the colgroup in step", () => {
@@ -101,10 +103,11 @@ describe("library table access column", () => {
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
     const cell = within(row).getByText("Bạn: Quản lý").closest("td")!;
     expect(cell.className).toContain("hidden");
-    expect(cell.className).toContain("@min-[59rem]/library:table-cell");
+    // UNI-2045: Access joins at the shared ladder's access rung (39rem on the workspace screen).
+    expect(cell.className).toContain("@min-[39rem]/library:table-cell");
     expect(document.querySelectorAll("colgroup col")).toHaveLength(6);
-    expect(document.querySelectorAll("colgroup col.\\@min-\\[59rem\\]\\/library\\:table-column")).toHaveLength(1);
-    expect(document.querySelectorAll("thead th.\\@min-\\[59rem\\]\\/library\\:table-cell")).toHaveLength(1);
+    expect(document.querySelectorAll("colgroup col.\\@min-\\[39rem\\]\\/library\\:table-column")).toHaveLength(1);
+    expect(document.querySelectorAll("thead th.\\@min-\\[39rem\\]\\/library\\:table-cell")).toHaveLength(1);
     // The ladder (documents-library-ladder.test.tsx) holds the rest: no viewport breakpoint decides a column.
     expect(document.querySelector("th.lg\\:table-cell, .xl\\:table-cell, .xl\\:table-column, .xl\\:hidden, .md\\:table-cell")).toBeNull();
   });
@@ -125,46 +128,10 @@ describe("library table access column", () => {
     expect(lineA.textContent).toContain("Riêng tư");
     expect(lineA.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
     // A workspace row gets its level only, no lock and no "Workspace" noise.
-    expect(line("b")!.textContent).toContain("Chỉ xem");
+    expect(line("b")!.textContent).toContain("Xem");
     expect(line("b")!.querySelector("svg")).toBeNull();
     expect(line("b")!.textContent).not.toContain("Workspace");
     // Unknown/missing level and visibility show nothing in the line.
     expect(line("c")?.textContent ?? "").not.toMatch(/Chỉ xem|Chỉnh sửa|Xem|Sửa|Quản lý|Nhận xét|Riêng tư|Hạn chế/);
-  });
-});
-
-describe("access filter in the toolbar", () => {
-  function renderToolbar(access: AccessFilter, onAccess = vi.fn()) {
-    render(
-      <LibraryToolbar
-        variant="list"
-        chip="all"
-        onChip={vi.fn()}
-        access={access}
-        onAccess={onAccess}
-        groupBy="none"
-        onGroupBy={vi.fn()}
-      />,
-    );
-    return onAccess;
-  }
-
-  it("is its own labelled group of pressed-state buttons, captioned so it is not a second type row", () => {
-    renderToolbar("all");
-    const group = screen.getByRole("group", { name: t("documents.home.access_filter_label") });
-    expect(ACCESS_FILTERS).toEqual(["all", "manage", "edit", "restricted"]);
-    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["Tất cả", "Tôi quản lý", "Tôi sửa được", "Riêng tư"]);
-    expect(within(group).getByRole("button", { name: "Tất cả" }).getAttribute("aria-pressed")).toBe("true");
-    expect(within(group).getByRole("button", { name: "Tôi sửa được" }).getAttribute("aria-pressed")).toBe("false");
-    // A visible caption sits before the group, and no divider is left to orphan when the groups wrap.
-    expect(screen.getByText(t("documents.home.access_group_caption"))).toBeTruthy();
-    expect(t("documents.home.access_group_caption")).toBe("Quyền");
-    expect(document.querySelector("span.w-px")).toBeNull();
-  });
-
-  it("reports the pressed filter", () => {
-    const onAccess = renderToolbar("all");
-    fireEvent.click(screen.getByRole("button", { name: "Tôi quản lý" }));
-    expect(onAccess).toHaveBeenCalledWith("manage");
   });
 });

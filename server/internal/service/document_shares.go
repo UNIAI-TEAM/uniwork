@@ -15,12 +15,33 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
+// DocumentShareSourceKindChat marks a document_shares row granted by a chat
+// document message (UNI-2012 D2a). Manual grants and pre-existing chat grants
+// have an empty/NULL source_kind and are never auto-revoked when a member
+// leaves a chat room.
+const DocumentShareSourceKindChat = "chat"
+
+// Share origins (UNI-2039 S3), stored in document_shares.origin. A chat
+// grant (SourceKind chat) is always origin chat.
+const (
+	DocumentShareOriginDirect = "direct"
+	DocumentShareOriginChat   = "chat"
+)
+
 // DocumentShareInput is one grant (C-01 §5.3): a principal of the
-// document's organization and the level it receives.
+// document's organization and the level it receives. SourceKind, SourceRoomID
+// and SourceMessageID are set only on the chat document send/share paths.
 type DocumentShareInput struct {
-	PrincipalType string
-	PrincipalID   string
-	Level         DocumentLevel
+	PrincipalType   string
+	PrincipalID     string
+	Level           DocumentLevel
+	SourceKind      string
+	SourceRoomID    string
+	SourceMessageID string
+	// Origin is where the grant came from (UNI-2039 S3): "" or "direct" for
+	// the share panel and every API caller, "chat" for a document sent in a
+	// chat message.
+	Origin string
 }
 
 // errDocumentOwned is the §13.4 refusal: sharing, links, visibility, moving
@@ -145,7 +166,7 @@ func (s *DocumentService) shareDocumentInTx(ctx context.Context, q *db.Queries, 
 	}
 	notifyUserID := ""
 	if in.PrincipalType == DocumentPrincipalUser {
-		uid, err := s.notifyOnUserShare(ctx, q, actor, doc, nil, in.PrincipalID, in.Level)
+		uid, err := s.notifyOnUserShare(ctx, q, actor, doc, in.PrincipalID, in.Level)
 		if err != nil {
 			return db.DocumentShare{}, err
 		}
@@ -159,24 +180,17 @@ func (s *DocumentService) shareDocumentInTx(ctx context.Context, q *db.Queries, 
 // effective level on the document compared to before it, and never for the
 // actor's own grant (SH-S3; addendum §8, §10 Q-S2).
 //
-// It runs against the COMMAND-START document and shares, once per recipient
-// and before any write, so the decision can never depend on the order items
-// are applied nor be taken against partially applied ones (R1-01/R1-02/
-// R1-13). sharesBefore is the live share set read before the first write; a
-// nil slice means "not loaded yet" and the level is resolved with a fresh
-// read instead (the single ShareDocument path). A recipient who is refused
-// by the tenant gate is not notified: the same answer the grant would get.
-func (s *DocumentService) notifyOnUserShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, sharesBefore []db.DocumentShare, userID string, level DocumentLevel) (string, error) {
+// It runs against the COMMAND-START document and shares, before any write, so
+// the decision can never depend on the order items are applied nor be taken
+// against partially applied ones (R1-01/R1-02/R1-13). The level is resolved
+// with a fresh read; a batch decides for all its recipients at once with
+// notifyOnUsersShare. A recipient who is refused by the tenant gate is not
+// notified: the same answer the grant would get.
+func (s *DocumentService) notifyOnUserShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, userID string, level DocumentLevel) (string, error) {
 	if actor.Kind == audit.KindHuman && userID == actor.ID {
 		return "", nil
 	}
-	var acc DocumentAccess
-	var err error
-	if sharesBefore != nil {
-		acc, err = s.resolveLevelInTenantWithShares(ctx, q, Human(userID), doc, sharesBefore)
-	} else {
-		acc, err = s.effectiveLevel(ctx, q, Human(userID), doc)
-	}
+	acc, err := s.effectiveLevel(ctx, q, Human(userID), doc)
 	if err != nil {
 		if isGateRefusal(err) {
 			return "", nil
@@ -202,7 +216,8 @@ func validShareLevel(level DocumentLevel) error {
 
 // applyDocumentShare writes one grant inside the caller's transaction, after
 // the caller has gated the actor and validated the principal: the same live
-// level is returned unchanged with no audit row, another live level is
+// level is returned unchanged with no audit row (unless a manual grant takes
+// over a chat-origin row, keepsLiveShare), another live level is
 // revoked and replaced, and a new grant is inserted with its audit row and
 // document.shared event. A share naming the document's own workspace is not a
 // grant of its own (BR-04, SH-S1 item 2): it merges into the home row.
@@ -229,7 +244,8 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		PrincipalType:  in.PrincipalType,
 		PrincipalID:    in.PrincipalID,
 	})
-	if err == nil && prev.Level == string(in.Level) {
+	hasPrev := err == nil
+	if hasPrev && keepsLiveShare(prev, in.Level, in.SourceKind) {
 		return prev, nil
 	}
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -240,7 +256,7 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		notifyUserID = ""
 	}
 	var before map[string]any
-	if err == nil {
+	if hasPrev {
 		if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
 			ID: prev.ID, OrganizationID: prev.OrganizationID, WorkspaceID: prev.WorkspaceID,
 			DocumentID: prev.DocumentID, RevokedBy: nullText(actor.ID),
@@ -249,16 +265,30 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		}
 		before = map[string]any{"level": prev.Level}
 	}
+	origin := in.Origin
+	var sourceKind, sourceRoomID, sourceMessageID pgtype.Text
+	if in.SourceKind == DocumentShareSourceKindChat {
+		origin = DocumentShareOriginChat
+		sourceKind = nullText(in.SourceKind)
+		sourceRoomID = nullText(in.SourceRoomID)
+		sourceMessageID = nullText(in.SourceMessageID)
+	}
+	priorManualLevel := priorManualLevelForChatGrant(hasPrev, prev, in.SourceKind)
 	sh, err := q.InsertDocumentShare(ctx, db.InsertDocumentShareParams{
-		ID:             util.NewID(),
-		OrganizationID: doc.OrganizationID,
-		WorkspaceID:    doc.WorkspaceID,
-		DocumentID:     doc.ID,
-		PrincipalType:  in.PrincipalType,
-		PrincipalID:    in.PrincipalID,
-		Level:          string(in.Level),
-		GrantedBy:      actor.ID,
-		GrantedByKind:  string(actor.Kind),
+		ID:               util.NewID(),
+		OrganizationID:   doc.OrganizationID,
+		WorkspaceID:      doc.WorkspaceID,
+		DocumentID:       doc.ID,
+		PrincipalType:    in.PrincipalType,
+		PrincipalID:      in.PrincipalID,
+		Level:            string(in.Level),
+		GrantedBy:        actor.ID,
+		GrantedByKind:    string(actor.Kind),
+		Origin:           origin,
+		SourceKind:       sourceKind,
+		SourceRoomID:     sourceRoomID,
+		SourceMessageID:  sourceMessageID,
+		PriorManualLevel: priorManualLevel,
 	})
 	if err != nil {
 		return db.DocumentShare{}, err
@@ -267,6 +297,7 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		"share_id":       sh.ID,
 		"principal_type": sh.PrincipalType,
 		"principal_id":   sh.PrincipalID,
+		"origin":         sh.Origin,
 	}
 	if batchID != "" {
 		meta["batch_id"] = batchID
@@ -292,6 +323,35 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		return db.DocumentShare{}, err
 	}
 	return sh, nil
+}
+
+// keepsLiveShare reports whether a grant at level from sourceKind leaves the
+// live share prev as it is: the same level is not written again, except when
+// a manual grant meets a chat-origin row (UNI-2012 S1-fix B4). The manual
+// grant then takes the row over (revoke and insert with no source), so leaving
+// the room no longer revokes what the manager granted. A chat grant never
+// takes over a manual row, and a chat replay keeps its own row.
+func keepsLiveShare(prev db.DocumentShare, level DocumentLevel, sourceKind string) bool {
+	if prev.Level != string(level) {
+		return false
+	}
+	return sourceKind == DocumentShareSourceKindChat || !prev.SourceKind.Valid
+}
+
+// priorManualLevelForChatGrant decides the prior_manual_level column of a new
+// document_shares row (UNI-2012 D2a): a manual grant (sourceKind == "") is a
+// manual share itself so it carries NULL; a chat grant that raises a live
+// manual share records that manual share's level so leaving the room restores
+// it instead of deleting access; and a chat grant that raises an earlier chat
+// grant preserves whatever prior_manual_level the earlier row remembered.
+func priorManualLevelForChatGrant(hasPrev bool, prev db.DocumentShare, sourceKind string) pgtype.Text {
+	if sourceKind != DocumentShareSourceKindChat || !hasPrev {
+		return pgtype.Text{}
+	}
+	if !prev.SourceKind.Valid {
+		return nullText(prev.Level)
+	}
+	return prev.PriorManualLevel
 }
 
 // mergeDocumentShareIntoHomeRow is a share whose principal is the document's
@@ -407,33 +467,8 @@ func revokeDocumentShareRowWithBatch(ctx context.Context, q *db.Queries, actor A
 	}); err != nil {
 		return err
 	}
-	meta := map[string]any{
-		"share_id":       sh.ID,
-		"principal_type": sh.PrincipalType,
-		"principal_id":   sh.PrincipalID,
-		// The prior level is replicated into the metadata the change
-		// feed reads (BE-G1-2): a removal is decided from the audit
-		// row alone, so the revoked principal and the level it held
-		// must sit together in one durable row.
-		"level": sh.Level,
-	}
-	if batchID != "" {
-		meta["batch_id"] = batchID
-	}
-	return auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: doc.OrganizationID,
-		WorkspaceID:    doc.WorkspaceID,
-		Actor:          actor,
-		Action:         audit.ActionDocumentShareRevoked,
-		ResourceType:   "document",
-		ResourceID:     doc.ID,
-		Changes:        audit.Diff(map[string]any{"level": sh.Level}, nil),
-		Metadata:       meta,
-	}, audit.Event{Topic: "document.share_revoked", Payload: map[string]string{
-		"document_id":  doc.ID,
-		"workspace_id": doc.WorkspaceID,
-		"share_id":     sh.ID,
-	}})
+	rec := documentShareRevokeRecord(actor, doc, sh, batchID)
+	return auditRecorder.Record(ctx, q, rec.Entry, rec.Events...)
 }
 
 // DocumentAccessSource via values on GET /api/v1/documents/{documentID}/shares (SH-S2, UNI-1781).
@@ -795,6 +830,22 @@ type SharedDocument struct {
 	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
 	// addendum §6.4, §7); nil for agent actors.
 	ShareScope *DocumentShareScope
+	// Shared is the share that grants the caller: who, when (UNI-2045 SV-3).
+	Shared DocumentSharedBy
+	// IsOwner is whether the caller is the document's ACL owner (SV-5).
+	IsOwner bool
+	// UpdatedByUser is the last editor, as DocumentListItem.UpdatedByUser (SV-6).
+	UpdatedByUser *DocumentPerson
+}
+
+// DocumentSharedBy says who shared a document with the caller and when - the
+// granter and time of the share the list picked for the row. ByName is nil
+// unless the granter is a human member of the caller's organization.
+type DocumentSharedBy struct {
+	By     string
+	ByKind string
+	ByName *string
+	At     time.Time
 }
 
 // SharedWithMeQuery is one page request of the recipient's shared list.
@@ -808,6 +859,17 @@ type SharedWithMeQuery struct {
 	// (UNI-1868); an unknown value is 400 invalid_filter.
 	Format string
 	Access string
+	// UpdatedBy, UpdatedFrom and UpdatedTo are the last-editor and updated_at
+	// window of the other lists (UNI-2045 SV-8); zero values are absent.
+	UpdatedBy   string
+	UpdatedFrom time.Time
+	UpdatedTo   time.Time
+	// Sort is the optional column sort (UNI-2038 S3). With it the keyset is the
+	// sort key of the last candidate: AfterSort carries the key and
+	// AfterCreatedAt the updated key; without it the share-time keyset above
+	// applies.
+	Sort      DocumentSort
+	AfterSort DocumentSortCursor
 }
 
 // SharedWithMePage is one page of shared documents plus the keyset of the
@@ -816,6 +878,9 @@ type SharedWithMePage struct {
 	Items         []SharedDocument
 	NextCreatedAt time.Time
 	NextID        string
+	// NextSort is the sort half of the next cursor of a sorted page; NextCreatedAt
+	// then holds the updated key of the last row read.
+	NextSort DocumentSortCursor
 }
 
 // sharedWithMeCandidatePage is how many share candidates one SQL page reads
@@ -865,6 +930,12 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 	if err := s.attachSharedEditLocks(ctx, Human(userID), organizationID, page.Items); err != nil {
 		return SharedWithMePage{}, err
 	}
+	if err := s.attachSharedByNames(ctx, organizationID, page.Items); err != nil {
+		return SharedWithMePage{}, err
+	}
+	if err := s.attachSharedEditors(ctx, page.Items); err != nil {
+		return SharedWithMePage{}, err
+	}
 	return page, s.attachSharedShareScopes(ctx, Human(userID), organizationID, page.Items)
 }
 
@@ -885,6 +956,9 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 			workspaceIDs = append(workspaceIDs, w.ID)
 		}
 	}
+	if err := in.Sort.CheckRoute(DocumentSortShared); err != nil {
+		return SharedWithMePage{}, err
+	}
 	limit := EffectiveSharedWithMeLimit(in.Limit)
 	filters, err := resolveListFilters(in.Format, in.Access, "", false)
 	if err != nil {
@@ -893,6 +967,15 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 	afterAt, afterID := in.AfterCreatedAt, in.AfterID
 	if afterAt.IsZero() || afterID == "" {
 		afterAt, afterID = time.Time{}, ""
+	}
+	afterSort := in.AfterSort
+	// nextAfter is where the candidate walk resumes after row r: the share time
+	// of an unsorted list, the sort key of a sorted one.
+	nextAfter := func(r db.ListDocumentShareCandidatesRow) (time.Time, string, DocumentSortCursor) {
+		if !in.Sort.Active() {
+			return r.CreatedAt.Time, r.Document.ID, DocumentSortCursor{}
+		}
+		return r.SortAt.Time, r.Document.ID, NewDocumentSortCursor(in.Sort, r.SortSize, r.SortName, r.SortEditor, r.SortEditorNull)
 	}
 	out := make([]SharedDocument, 0, limit)
 	for {
@@ -905,8 +988,24 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
 			FormatMimes: files.DocumentFormatMimes(),
 			Access:      nullText(filters.access), AccessLevels: filters.accessLevels,
+			UpdatedBy: nullText(in.UpdatedBy),
 		}
-		if !afterAt.IsZero() {
+		if !in.UpdatedFrom.IsZero() {
+			params.UpdatedFrom = pgtype.Timestamptz{Time: in.UpdatedFrom, Valid: true}
+		}
+		if !in.UpdatedTo.IsZero() {
+			params.UpdatedTo = pgtype.Timestamptz{Time: in.UpdatedTo, Valid: true}
+		}
+		switch {
+		case in.Sort.Active():
+			var at *time.Time
+			if !afterAt.IsZero() {
+				at = &afterAt
+			}
+			arg := sortArgs(in.Sort, afterSort, at, afterID)
+			params.SortKey, params.SortDesc, params.SortCursorID, params.SortCursorAt = arg.key, arg.desc, arg.id, arg.at
+			params.SortCursorNum, params.SortCursorText, params.SortCursorNull = arg.num, arg.text, arg.null
+		case !afterAt.IsZero():
 			params.AfterCreatedAt = pgtype.Timestamptz{Time: afterAt, Valid: true}
 			params.AfterID = nullText(afterID)
 		}
@@ -930,20 +1029,65 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 				// does not list it.
 				continue
 			}
-			out = append(out, SharedDocument{Document: r.Document, Access: acc})
+			out = append(out, SharedDocument{Document: r.Document, Access: acc, IsOwner: isACLOwner(&r.Document, Human(userID)), Shared: DocumentSharedBy{
+				By: r.GrantedBy, ByKind: r.GrantedByKind, At: r.CreatedAt.Time.UTC(),
+			}})
 			if len(out) == limit {
 				// The keyset points just past the row that filled the page;
 				// candidates after it (denied or not) are re-read by the next
 				// request, never dropped. A full page may still have no
 				// successor, and the next call then answers an empty page.
-				return SharedWithMePage{Items: out, NextCreatedAt: r.CreatedAt.Time, NextID: r.Document.ID}, nil
+				at, id, cur := nextAfter(r)
+				return SharedWithMePage{Items: out, NextCreatedAt: at, NextID: id, NextSort: cur}, nil
 			}
 		}
 		if len(rows) < sharedWithMeCandidatePage {
 			break
 		}
-		last := rows[len(rows)-1]
-		afterAt, afterID = last.CreatedAt.Time, last.Document.ID
+		afterAt, afterID, afterSort = nextAfter(rows[len(rows)-1])
 	}
 	return SharedWithMePage{Items: out}, nil
+}
+
+// attachSharedByNames names the granter of each row's share, once per page: only
+// a human member of the caller's organization has a name (UNI-2045 SV-3).
+func (s *DocumentService) attachSharedByNames(ctx context.Context, organizationID string, items []SharedDocument) error {
+	ids := make([]string, 0, len(items))
+	for _, it := range items {
+		if it.Shared.ByKind == string(audit.KindHuman) {
+			ids = append(ids, it.Shared.By)
+		}
+	}
+	people, err := s.organizationPeople(ctx, organizationID, ids, false)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		if items[i].Shared.ByKind != string(audit.KindHuman) {
+			continue
+		}
+		if p, ok := people[items[i].Shared.By]; ok {
+			name := p.Name
+			items[i].Shared.ByName = &name
+		}
+	}
+	return nil
+}
+
+// attachSharedEditors names the last editor of each shared row (UNI-2045 SV-6).
+func (s *DocumentService) attachSharedEditors(ctx context.Context, items []SharedDocument) error {
+	docs := make([]*db.Document, len(items))
+	for i := range items {
+		docs[i] = &items[i].Document
+	}
+	people, err := s.editorPeople(ctx, docs)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		if p, ok := people[items[i].Document.ID]; ok {
+			items[i].UpdatedByUser = &p
+		}
+	}
+	return nil
 }

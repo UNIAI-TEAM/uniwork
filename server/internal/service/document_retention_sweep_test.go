@@ -453,6 +453,25 @@ func TestDocumentWorkersRunRetentionSweeps(t *testing.T) {
 	}
 	expiredIdemp := seedIdemp(old)
 	freshIdemp := seedIdemp(fixed.Add(-time.Hour))
+	// A folder upload batch settled more than a week ago (UNI-2052), with a
+	// file row, goes with the same pass.
+	seedBatch := func(finishedAt time.Time) string {
+		id := util.NewID()
+		insertRow(t, f.ctx, f.pool, "document_folder_uploads", map[string]any{
+			"id": id, "organization_id": tn.orgID, "workspace_id": tn.wsA,
+			"created_by": tn.member.ID, "created_by_kind": "human", "root_folder_id": util.NewID(),
+			"root_title": "Sweep", "status": "completed", "file_count": 1, "total_bytes": int64(1),
+			"folders": []byte(`{}`), "expires_at": finishedAt.Add(24 * time.Hour), "finished_at": finishedAt,
+		})
+		insertRow(t, f.ctx, f.pool, "document_folder_upload_files", map[string]any{
+			"id": util.NewID(), "file_key": "k", "organization_id": tn.orgID, "workspace_id": tn.wsA,
+			"batch_id": id, "folder_id": util.NewID(), "path": "", "filename": "a.md",
+			"size_bytes": int64(1), "target_kind": "put",
+		})
+		return id
+	}
+	oldBatch := seedBatch(old)
+	freshBatch := seedBatch(fixed.Add(-time.Hour))
 
 	metrics := &countingDocMetrics{}
 	f.svc.SetMetrics(metrics)
@@ -495,6 +514,7 @@ func TestDocumentWorkersRunRetentionSweeps(t *testing.T) {
 		{"file_multipart_uploads", multipart},
 		{"document_break_glass_grants", grant},
 		{"idempotency_keys", expiredIdemp},
+		{"document_folder_uploads", oldBatch},
 	} {
 		if retentionRowExists(t, f, id.table, id.id) {
 			t.Fatalf("%s row %s survived one worker pass", id.table, id.id)
@@ -503,11 +523,22 @@ func TestDocumentWorkersRunRetentionSweeps(t *testing.T) {
 	if !retentionRowExists(t, f, "idempotency_keys", freshIdemp) {
 		t.Fatalf("fresh idempotency_keys row %s was swept", freshIdemp)
 	}
+	if !retentionRowExists(t, f, "document_folder_uploads", freshBatch) {
+		t.Fatalf("fresh document_folder_uploads row %s was swept", freshBatch)
+	}
+	var orphans int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM document_folder_upload_files WHERE batch_id = $1`, oldBatch).Scan(&orphans); err != nil || orphans != 0 {
+		t.Fatalf("file rows of the swept batch = %d, %v", orphans, err)
+	}
 	// Run has joined every loop, so the recorded sweeps are stable.
 	sweeps := metrics.sweepLabels()
-	for _, want := range []string{"office_job/ok", "multipart_row/ok", "break_glass/ok", "idempotency_key/ok"} {
+	for _, want := range []string{"office_job/ok", "multipart_row/ok", "break_glass/ok", "idempotency_key/ok", "document_download/ok", "folder_upload/ok"} {
 		if !containsString(sweeps, want) {
 			t.Fatalf("worker sweeps %v, want %s", sweeps, want)
 		}
 	}
 }
+
+// CancelUpload answers nothing: the folder upload sweep revokes the uploads of
+// the expired batches it finds, and this spy holds no uploads.
+func (*releaseSpy) CancelUpload(context.Context, files.CancelInput) error { return nil }

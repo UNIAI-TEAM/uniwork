@@ -151,6 +151,9 @@ func (c *PrivacyDeletionConsumer) erase(ctx context.Context, row db.DataSubjectR
 	if err := q.ClearAuditExportFiles(ctx, row.OrganizationID); err != nil {
 		return err
 	}
+	if err := q.ClearDocumentDownloadJobFiles(ctx, row.OrganizationID); err != nil {
+		return err
+	}
 	if err := q.ScrubOrganizationMemberProfiles(ctx, row.OrganizationID); err != nil {
 		return err
 	}

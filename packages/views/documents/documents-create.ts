@@ -1,17 +1,52 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { BlankDocumentFormat } from "@uniwork/core/api/endpoints/documents-blank";
 import { useCreateDocument } from "@uniwork/core/documents/hooks";
 import { isEndpointMissing, useCreateBlankFile, useCreateFolder } from "@uniwork/core/documents/hooks-library";
+import { defaultStorage } from "@uniwork/core/platform";
 import { createSafeId } from "@uniwork/core/utils";
 import { documentErrorMessage } from "./document-error-message";
 
 /** What the create cards and the "New" menu offer, in the design's order. */
-export const CREATE_TYPES = ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"] as const;
+export const CREATE_TYPES = ["page", "docx", "xlsx", "pptx", "md", "txt", "html", "pdf"] as const;
 export type CreateType = (typeof CREATE_TYPES)[number];
+
+/** The "Tạo nhanh" strip: UniNote and the three Office formats; the rest live only in the New menu (user 2026-10-21). */
+const QUICK_CREATE_TYPES = ["page", "docx", "xlsx", "pptx"] as const satisfies readonly CreateType[];
+
+/**
+ * The strip plus the type created last when it is not already one of them
+ * (user 2026-10-21): someone who keeps making Markdown files gets a pill for it.
+ * Plain text never gets one: it has no chip and lives only in the New menu.
+ */
+export function quickCreateTypes(recent: CreateType | null | undefined): readonly CreateType[] {
+  const base: readonly CreateType[] = QUICK_CREATE_TYPES;
+  return recent && recent !== "txt" && !base.includes(recent) ? [...base, recent] : base;
+}
+
+// Per device and per workspace by design, like the mention recency: the goal
+// is a faster next create, not a cross-device preference.
+const LAST_CREATE_KEY = "uniwork:documents:last-create-type:";
+
+function readLastCreateType(wsId: string): CreateType | null {
+  try {
+    const raw = defaultStorage.getItem(`${LAST_CREATE_KEY}${wsId}`);
+    return CREATE_TYPES.find((type) => type === raw) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastCreateType(wsId: string, type: CreateType): void {
+  try {
+    defaultStorage.setItem(`${LAST_CREATE_KEY}${wsId}`, type);
+  } catch {
+    // Storage full or disabled: the strip just keeps its fixed pills.
+  }
+}
 
 /** What the "New" menu offers inside an open folder: folder first, then CREATE_TYPES (FD-D9). */
 export const CREATE_MENU_TYPES = ["folder", ...CREATE_TYPES] as const;
@@ -46,7 +81,7 @@ export function isParentWorkspaceShared(parent?: ParentShareSource | null, fallb
 /**
  * Create one document of a type in the open folder with its default name and
  * open it — no name prompt (user decision 2026-10-12); renaming happens on the
- * document's breadcrumb. A page keeps the "New UniNote" flow; the six file
+ * document's breadcrumb. A page keeps the "New UniNote" flow; the seven file
  * types go through the blank-file route. Create awaits the server, never an
  * optimistic row (CLAUDE.md § State Rules: create navigates).
  */
@@ -61,18 +96,23 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
   const folderBusy = useRef(false);
   const folderKeyRef = useRef<{ title: string; parentId: string | null; key: string } | null>(null);
   const [unavailable, setUnavailable] = useState<ReadonlySet<CreateType>>(new Set());
+  // Tracks the workspace: a switch re-reads that workspace's own last type.
+  const [created, setCreated] = useState<{ wsId: string; type: CreateType } | null>(null);
+  const storedLastType = useMemo(() => readLastCreateType(wsId), [wsId]);
+  const lastType = created?.wsId === wsId ? created.type : storedLastType;
+  const remember = (type: CreateType) => {
+    writeLastCreateType(wsId, type);
+    setCreated({ wsId, type });
+  };
 
-  const create = async (type: CreateType, parentId: string | null, options?: CreateShareOptions) => {
-    const shareFields = options?.shareWithWorkspace
-      ? ({ visibility: "workspace" } as const)
-      : {};
+  const create = async (type: CreateType, parentId: string | null) => {
     try {
       if (type === "page") {
         const doc = await createPage.mutateAsync({
           title: t("documents.page.new_page"),
           ...(parentId ? { parent_id: parentId } : { destination: "my_folder" as const }),
-          ...shareFields,
         });
+        remember(type);
         onOpen(doc.id);
         return;
       }
@@ -80,9 +120,9 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
         format: type satisfies BlankDocumentFormat,
         title: t(`documents.home.default_names.${type}`),
         ...(parentId ? { parent_id: parentId } : { destination: "my_folder" as const }),
-        ...shareFields,
         idempotencyKey: createSafeId(),
       });
+      remember(type);
       onOpen(doc.id);
     } catch (error) {
       if (type !== "page" && isEndpointMissing(error)) {
@@ -126,6 +166,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
     create,
     newFolder,
     unavailable,
+    lastType,
     pending: createPage.isPending || createBlank.isPending,
     folderPending: createFolder.isPending,
   };

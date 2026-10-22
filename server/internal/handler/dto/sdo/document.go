@@ -193,7 +193,7 @@ type DocumentSummaryDTO struct {
 	CurrentVersion int32   `json:"current_version" description:"Ordinal phiên bản mới nhất; 0 = chưa có mốc" example:"3"`
 	Position       float64 `json:"position" description:"Thứ tự trong cây" example:"0"`
 	SizeBytes      int64   `json:"size_bytes" description:"Kích thước phiên bản file hiện tại (byte); 0 với trang và thư mục" example:"325632"`
-	Format         *string `json:"format,omitempty" description:"Định dạng của tệp theo phiên bản hiện tại: docx, xlsx, pptx, pdf, md hoặc html (MIME đã xác minh, nếu không có thì theo phần mở rộng của tiêu đề); vắng mặt với trang, thư mục và tệp không xác định được định dạng" example:"docx"`
+	Format         *string `json:"format,omitempty" description:"Định dạng của tệp theo phiên bản hiện tại: docx, xlsx, pptx, pdf, md, html hoặc txt (MIME đã xác minh, nếu không có thì theo phần mở rộng của tiêu đề); vắng mặt với trang, thư mục và tệp không xác định được định dạng" example:"docx"`
 	Origin         string  `json:"origin" description:"upload (file tải lên) hoặc created (trang, thư mục, file trống, bản chuyển đổi)" example:"upload"`
 	Snippet        *string `json:"snippet,omitempty" description:"Đoạn khớp ≤ 160 ký tự khi tìm bằng q" example:"…kế hoạch quý 4 gồm ba mốc…"`
 	MyLevel        *string `json:"my_level,omitempty" description:"view, comment, edit hoặc manage của người xem trên dòng này; vắng mặt = coi như view, trừ khi admin_scope (dòng bị khóa)" example:"view"`
@@ -221,6 +221,45 @@ type DocumentSummaryDTO struct {
 	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
 	// addendum §6.4, §7); absent for agent actors (C-01 §4).
 	ShareScope *DocumentShareScopeSDO `json:"share_scope,omitempty" description:"Tóm tắt phạm vi chia sẻ trên dòng danh sách (Workspace gốc, số người dùng, số workspace khác, toàn tổ chức, liên kết công khai còn sống); vắng mặt với tác nhân agent" example:"{\"home_workspace\":true,\"users\":2,\"workspaces\":1,\"organization\":false,\"public_link\":false}"`
+	// UNI-2045 DOCLIST-UNIFIED: the columns of the unified documents table.
+	// Every field below is additive and optional; a client that does not know
+	// one ignores it.
+	IsEmpty       *bool                    `json:"is_empty,omitempty" description:"Chỉ có trên dòng thư mục của danh sách tài liệu: true = người gọi không đọc được mục nào nằm trực tiếp trong thư mục (đếm theo người xem); vắng mặt = không biết" example:"false"`
+	IsOwner       *bool                    `json:"is_owner,omitempty" description:"true = người gọi là chủ ACL của tài liệu (cùng khái niệm acl_owner của báo cáo quyền truy cập); có trên mọi dòng của danh sách tài liệu" example:"true"`
+	UpdatedByUser *DocumentEditorSDO       `json:"updated_by_user,omitempty" description:"Người sửa gần nhất khi là người dùng trong tổ chức của người gọi; vắng mặt khi người sửa là agent/hệ thống hoặc ngoài tổ chức (không lộ tên qua tổ chức khác)"`
+	LastActivity  *DocumentLastActivitySDO `json:"last_activity,omitempty" description:"Chỉ có trên /documents/recent: hoạt động gần nhất của người gọi trên dòng (opened, edited, commented hoặc owned) và thời điểm"`
+	FavoritedAt   *string                  `json:"favorited_at,omitempty" description:"Chỉ có trên /documents/favorites: thời điểm người gọi gắn sao tài liệu (RFC3339)" example:"2026-10-20T08:00:00Z"`
+	Shared        *DocumentSharedSDO       `json:"shared,omitempty" description:"Chỉ có trên /documents/shared-with-me: ai chia sẻ và khi nào, theo chính share cấp quyền cho người gọi"`
+	ShareSummary  *DocumentShareSummarySDO `json:"share_summary,omitempty" description:"Chỉ có khi shared_by_me=true: tóm tắt các grant còn sống của tài liệu (người, workspace, liên kết) và lần chia sẻ mới nhất"`
+}
+
+// DocumentEditorSDO is the last editor of a document row, resolved inside the
+// caller's organization only.
+type DocumentEditorSDO struct {
+	Name      string  `json:"name" description:"Tên hiển thị của người sửa gần nhất" example:"Nguyễn Văn An"`
+	AvatarURL *string `json:"avatar_url,omitempty" description:"URL tuyệt đối tải được không cần header xác thực. Ảnh lưu trong FileService là URL ký sẵn, có thời hạn, sống tối đa 12 giờ kể từ lúc trả danh sách (client tải lại danh sách để lấy URL mới khi hết hạn); ảnh khác là URL tuyệt đối đã lưu của tài khoản; vắng mặt khi chưa có ảnh (client hiện chữ cái đầu)" example:"https://cdn.example.com/avatars/an.png"`
+}
+
+// DocumentLastActivitySDO is the caller's last activity on a recent row.
+type DocumentLastActivitySDO struct {
+	Kind string `json:"kind" description:"opened (đã mở/xem), edited (người gọi là người sửa gần nhất), commented (người gọi bình luận) hoặc owned (người gọi là chủ ACL và người khác đã sửa sau hoạt động của người gọi, tính theo updated_at; chỉ có khi include_owned=true)" example:"opened"`
+	At   string `json:"at" description:"Thời điểm hoạt động (RFC3339)" example:"2026-10-20T08:00:00Z"`
+}
+
+// DocumentSharedSDO says who shared a document with the caller and when.
+type DocumentSharedSDO struct {
+	By     string  `json:"by" description:"ULID người cấp quyền" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	ByKind string  `json:"by_kind" description:"human, agent hoặc system" example:"human"`
+	ByName *string `json:"by_name" description:"Tên hiển thị người cấp quyền; null khi người cấp không phải người dùng trong tổ chức của người gọi" example:"Trần Thị Bình"`
+	At     string  `json:"at" description:"Thời điểm cấp quyền (created_at của share, RFC3339)" example:"2026-10-19T09:30:00Z"`
+}
+
+// DocumentShareSummarySDO counts the live grants of a shared-by-me row.
+type DocumentShareSummarySDO struct {
+	People     int     `json:"people" description:"Số share trực tiếp còn sống cho người dùng" example:"3"`
+	Workspaces int     `json:"workspaces" description:"Số share còn sống cho workspace" example:"1"`
+	Links      int     `json:"links" description:"Số liên kết công khai chưa thu hồi và chưa hết hạn" example:"1"`
+	LatestAt   *string `json:"latest_at" description:"Thời điểm mới nhất trong các grant đó (RFC3339); null khi không có grant nào (chỉ chia sẻ bằng visibility workspace)" example:"2026-10-19T09:30:00Z"`
 }
 
 // DocumentShareScopeSDO is the share_scope block of DocumentSummaryDTO
@@ -253,6 +292,7 @@ type DocumentTreeNodeDTO struct {
 	SystemKind *string               `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
 	Position   float64               `json:"position" description:"Thứ tự giữa các sibling" example:"0"`
 	Children   []DocumentTreeNodeDTO `json:"children" description:"Con đã sắp theo position; rỗng khi hết cấp 5"`
+	IsEmpty    *bool                 `json:"is_empty,omitempty" description:"Chỉ có trên thư mục: true = người gọi không đọc được mục nào nằm trực tiếp trong thư mục (đếm theo người xem, kể cả khi chỉ lấy cây thư mục)" example:"false"`
 	// EditLock is who is editing this node's document right now (UNI-1645
 	// §3.2); absent when nobody holds the lock. Never carries lock_id.
 	EditLock *DocumentEditLockSummarySDO `json:"edit_lock,omitempty" description:"Người đang sửa tài liệu (tóm tắt, không có lock_id); vắng mặt khi không ai giữ" example:"{\"holder_id\":\"01J8X4USR0N1P2Q3R4S5T6U7\",\"holder_name\":\"Nguyễn Văn A\",\"since\":\"2026-10-15T03:12:00Z\",\"expires_at\":\"2026-10-15T03:14:00Z\",\"reserved\":false,\"held_by_me\":false}"`
@@ -282,6 +322,9 @@ type DocumentArchiveImpactSDO struct {
 	Total     int  `json:"total" description:"Tổng số dòng lệnh lưu trữ sẽ ghi, gồm chính gốc; chỉ chính xác khi too_large = false" example:"8"`
 	MaxNodes  int  `json:"max_nodes" description:"Trần số nút một lần lưu trữ nhận" example:"1000"`
 	TooLarge  bool `json:"too_large" description:"true = cây con vượt trần: không có số đếm, nút xác nhận bị khóa và thông báo folder_too_large" example:"false"`
+	// RelocatedCount is ADR 0037 point 5: documents the caller cannot manage
+	// leave a trashed workspace folder for the workspace root. A number only.
+	RelocatedCount int `json:"relocated_count" description:"Số tài liệu người gọi không quản lý được sẽ chuyển về gốc workspace thay vì vào thùng rác khi bỏ thư mục chung (giữ nguyên quyền); chỉ là con số, không lộ tài liệu nào; 0 với mọi gốc khác" example:"0"`
 }
 
 // DocumentAccessSourceDTO is one source entry on a user share row or in my_sources
@@ -819,4 +862,28 @@ type UploadSessionCompleteSDO struct{}
 // route-family success envelopes on the shared completion endpoint.
 func (UploadSessionCompleteSDO) JSONSchemaOneOf() []interface{} {
 	return []interface{}{DocumentSDO{}, DocumentUploadSDO{}}
+}
+
+// DocumentDownloadSkipSDO is one requested document the zip does not carry.
+// reason is not_found (unreadable, foreign or missing: never a title),
+// not_a_file (a page or folder) or too_large.
+type DocumentDownloadSkipSDO struct {
+	DocumentID string `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Reason     string `json:"reason" description:"not_found | not_a_file | too_large" example:"not_a_file"`
+}
+
+// DocumentDownloadJobSDO is the multi-document zip download job (UNI-2045
+// SV-9), answered by the 202 create and by the poll. status is queued,
+// running, ready, failed or expired (the set is open: read it with a default).
+// The zip is not counted against the organization's storage quota: it is kept
+// for one hour after it is ready, then released by the next sweep (minutes).
+type DocumentDownloadJobSDO struct {
+	ID          string                    `json:"id" example:"01J8X4DLJ0N1P2Q3R4S5T6U7"`
+	Status      string                    `json:"status" description:"queued | running | ready | failed | expired" example:"ready"`
+	CreatedAt   string                    `json:"created_at" example:"2026-10-21T02:00:00Z"`
+	ExpiresAt   *string                   `json:"expires_at" description:"Hết hạn tải, 1 giờ sau khi sẵn sàng; null khi chưa xong" example:"2026-10-21T03:00:00Z"`
+	DownloadURL *string                   `json:"download_url" description:"Đường tải zip qua proxy; chỉ có khi status=ready" example:"/api/v1/workspaces/01J8X4WS0N1P2Q3R4S5T6U7V8/documents/download-jobs/01J8X4DLJ0N1P2Q3R4S5T6U7/download"`
+	FileCount   *int                      `json:"file_count" description:"Số tệp trong zip; null khi chưa xong" example:"3"`
+	Skipped     []DocumentDownloadSkipSDO `json:"skipped" description:"Tài liệu không có trong zip và lý do"`
+	Error       *string                   `json:"error" description:"nothing_to_download | build_failed khi status=failed" example:"nothing_to_download"`
 }

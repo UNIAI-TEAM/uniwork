@@ -113,7 +113,6 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
             hide_voters: record.poll.settings.hide_voters ?? false,
           },
           viewer_option_ids: record.poll.viewer_option_ids,
-          votes_by_user: record.poll.votes_by_user,
         }
       : undefined,
     pollVote: record.poll_vote

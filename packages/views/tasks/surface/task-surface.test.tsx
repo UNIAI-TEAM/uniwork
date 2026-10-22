@@ -226,17 +226,17 @@ describe("TaskSurface", () => {
     expect(screen.queryByText("Done only")).not.toBeInTheDocument();
   });
 
-  it("does not request table groups for my-scope even if table is in modes", async () => {
-    const store = getTaskSurfaceViewStore("test-my-no-table");
+  it("queries the my-scope table on the table API with the viewer relation", async () => {
+    const store = getTaskSurfaceViewStore("test-my-table");
     store.getState().setViewMode("table");
 
     render(
       wrap(
         <TaskSurface
           workspaceId="w1"
-          scope={{ type: "my", userId: "u1", relation: "all" }}
+          scope={{ type: "my", userId: "u1", relation: "created" }}
           modes={["board", "list", "table", "swimlane"]}
-          surfaceKey="test-my-no-table"
+          surfaceKey="test-my-table"
         />,
       ),
     );
@@ -245,14 +245,19 @@ describe("TaskSurface", () => {
       expect(
         requestMock.mock.calls.some(
           ([path]) =>
-            typeof path === "string" && path.includes("/my-tasks"),
+            typeof path === "string" && path.includes("/tasks/table/rows"),
         ),
       ).toBe(true);
     });
+    const rowsCall = requestMock.mock.calls.find(
+      ([path]) => typeof path === "string" && path.includes("/tasks/table/rows"),
+    );
+    expect(rowsCall?.[1]).toMatchObject({
+      body: { query: { filter: { relation: "created" } } },
+    });
     expect(
       requestMock.mock.calls.some(
-        ([path]) =>
-          typeof path === "string" && path.includes("/tasks/table/groups"),
+        ([path]) => typeof path === "string" && path.includes("/my-tasks"),
       ),
     ).toBe(false);
   });
@@ -539,6 +544,8 @@ describe("TaskSurface", () => {
   });
 
   it("nút thử lại phát lại đúng truy vấn đã hỏng ở phạm vi my-tasks", async () => {
+    // List mode is the my-scope view fed by the flat /my-tasks query.
+    getTaskSurfaceViewStore("test-my-error-retry").getState().setViewMode("list");
     requestMock.mockReset();
     requestMock.mockImplementation(async (path: string) => {
       if (typeof path === "string" && path.includes("/my-tasks")) {

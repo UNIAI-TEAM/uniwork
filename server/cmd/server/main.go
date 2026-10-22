@@ -408,6 +408,8 @@ func main() {
 			RequestTTL:        cfg.DocumentEditRequestTTL,
 			RequestMaxPerHour: cfg.DocumentEditRequestMaxPerHour,
 		},
+		FolderUploadMaxFiles: cfg.FolderUploadMaxFiles,
+		FolderUploadMaxBytes: cfg.FolderUploadMaxBytes,
 	})
 	// The chat document send files its bytes into the Documents tree and the
 	// read path resolves each message's document block against it
@@ -493,11 +495,22 @@ func main() {
 	officeLeases := service.NewOfficeLeaseService(documentSvc, flags, cfg)
 	officeLeaseSweep := officeLeases.NewSweeper(log)
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewOfficeLeaseRevoker(documentSvc))
+	// The multi-document zip (UNI-2045) streams every file through FileService,
+	// so it waits on storage: slow lane, never realtime. The expiry release
+	// rides the audit retention tick already in the shutdown sequence.
+	documentDownloads := service.NewDocumentDownloadConsumer(pool, q, documentSvc)
+	documentDownloads.SetFileService(fileSvc)
+	dispatcher.RegisterLane(outbox.LaneSlow, documentDownloads)
 	// The edit lock (UNI-1645 §3.5): the releaser ends tenures on a revoked
 	// session, lost access, suspension and delete - audit + outbox across
 	// several tables, so it rides the notify lane, not realtime - and the
 	// expiry sweep is awaited in the shutdown sequence below.
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewDocumentEditLockReleaser(documentSvc))
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatDocumentShareRevoker(documentSvc))
+	// The card refresher stays on the realtime lane: one indexed read returns
+	// every card with its room and members, then only ephemeral publishes, so
+	// the document.* frames of the Documents UI are not slowed down.
+	dispatcher.Register(service.NewChatDocumentCardRefresher(q, chatSvc))
 	editLockSweep := service.NewDocumentEditLockSweeper(documentSvc, log)
 	if reg != nil {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
@@ -831,6 +844,9 @@ func main() {
 		log.Info("shutting down", "signal", sig.String())
 	}
 	signal.Stop(quit)
+	// Ask UNI runs first: each stores what it streamed as interrupted and
+	// ends its stream, so srv.Shutdown below does not wait on a model call.
+	askUNI.Shutdown()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

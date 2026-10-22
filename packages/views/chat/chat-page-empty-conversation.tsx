@@ -3,7 +3,8 @@
 import { ChevronLeft, MessageCircle, PanelLeft } from "lucide-react";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { CHAT_WALL } from "./chat-wall";
+import { cn } from "@uniwork/ui/lib/utils";
+import { useChatWall } from "./use-chat-wall";
 
 /**
  * Main pane when no conversation is open: say so, and where to start. When
@@ -24,6 +25,7 @@ export function ChatPageEmptyConversation({
   /** Phones only: back to the conversation list. */
   onBackToList?: () => void;
 }) {
+  const chatWall = useChatWall();
   const showList =
     listHidden && onShowList ? (
       <Button
@@ -47,7 +49,7 @@ export function ChatPageEmptyConversation({
 
   // The wall the conversation opens on, with one card that says where to start.
   return (
-    <div className={`flex flex-1 items-center justify-center p-6 ${CHAT_WALL}`}>
+    <div className={cn("flex flex-1 items-center justify-center p-6", chatWall.className)} style={chatWall.style}>
       <div className="flex w-full max-w-85 flex-col items-center rounded-2xl bg-surface px-6 pt-7 pb-6 text-center shadow-chat-bubble">
         <IconTile icon={MessageCircle} tone="brand" size="lg" className="mb-3 size-16 rounded-2xl [&_svg]:size-7" />
         <h2 className="font-display text-title font-bold text-foreground">

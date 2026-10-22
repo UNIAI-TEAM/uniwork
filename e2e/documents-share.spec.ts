@@ -11,7 +11,7 @@ import {
   grantAccess,
   groupTargets,
   levelOf,
-  libraryBadge,
+  libraryAccessPill,
   openShareDialog,
   ownerDoc,
   pickCandidate,
@@ -60,15 +60,18 @@ test.beforeAll(async ({ browser }) => {
   }
 });
 
-test("U-SH2 a new page is private; the create toggle shares it with the workspace at View (Q-S3)", async ({ page, request }) => {
+test("U-SH2 a new page is private: the home and the New menu carry no share toggle (UNI-2038)", async ({ page, request }) => {
   await signInOwner(page, s);
   const library = `/${s.m.aOwner.orgSlug}/${s.m.aOwner.wsSlug}/documents`;
 
-  // Default: the toggle is off, and the page that comes out belongs to its owner alone.
+  // Sharing moved to the first-save dialog and the Share dialog: creating is always private.
   await page.goto(library);
-  const toggle = page.getByRole("switch", { name: "Chia sẻ với workspace" });
-  await expect(toggle).toBeVisible({ timeout: 60_000 });
-  await expect(toggle).not.toBeChecked();
+  await expect(newPageCard(page)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("switch", { name: "Chia sẻ với workspace" })).toHaveCount(0);
+  await page.getByRole("button", { name: /Tạo mới/ }).click();
+  await expect(page.getByRole("menuitemcheckbox")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
   await newPageCard(page).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
   const privateId = page.url().split("/").pop()!;
@@ -77,25 +80,6 @@ test("U-SH2 a new page is private; the create toggle shares it with the workspac
   expect(doc.document.visibility).toBe("restricted");
   expect((await sharesOf(request, s.owner.token, privateId)).home_workspace?.level ?? null).toBeNull();
   expect(await levelOf(request, s.member.token, privateId)).toBe("");
-
-  // Toggle on: the new page opens to the workspace at View, nothing more.
-  await page.goto(library);
-  await expect(toggle).toBeVisible({ timeout: 60_000 });
-  await toggle.click();
-  await expect(toggle).toBeChecked();
-  await expect(page.getByText("Mọi thành viên của workspace này sẽ chỉ xem tài liệu mới")).toBeVisible();
-  await newPageCard(page).click();
-  await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
-  const sharedId = page.url().split("/").pop()!;
-  expect(sharedId).not.toBe(privateId);
-
-  expect((await sharesOf(request, s.owner.token, sharedId)).home_workspace?.level).toBe("view");
-  expect(await levelOf(request, s.member.token, sharedId)).toBe("view");
-  const write = await request.patch(`${api}/api/v1/documents/${sharedId}`, {
-    headers: authHeaders(s.member.token),
-    data: { revision: "1", title: "hijacked" },
-  });
-  expect(write.status(), "View never lets the workspace write").toBe(403);
 });
 
 test("AC01 one person at View: popup, confirmation toast, list row, and a dry run writes nothing", async ({ page, request }) => {
@@ -215,7 +199,9 @@ test("AC04 the workspace at View goes through the home row, not a share row", as
 
   await page.keyboard.press("Escape");
   await page.goto(`/${s.m.aOwner.orgSlug}/${s.m.aOwner.wsSlug}/documents`);
-  await expect(libraryBadge(contentRow(page, title))).toHaveAttribute("data-scope-kind", "workspace", { timeout: 60_000 });
+  const pill = libraryAccessPill(contentRow(page, title));
+  await expect(pill).toHaveAttribute("data-access-kind", "workspace", { timeout: 60_000 });
+  await expect(pill).toHaveText("Workspace");
 });
 
 test("AC05 + Q-S1 the organization at Edit asks to confirm; Manage is refused for the organization and the home row", async ({ page, request }) => {
@@ -365,7 +351,7 @@ test("AC08 revoking every source leaves the document private; an admin keeps adm
 
   await signInOwner(page, s);
   await page.goto(`/${s.m.aOwner.orgSlug}/${s.m.aOwner.wsSlug}/documents`);
-  const badge = libraryBadge(contentRow(page, title));
-  await expect(badge).toHaveAttribute("data-scope-kind", "private", { timeout: 60_000 });
-  await expect(badge).toContainText("Riêng tư");
+  const pill = libraryAccessPill(contentRow(page, title));
+  await expect(pill).toHaveAttribute("data-access-kind", "restricted", { timeout: 60_000 });
+  await expect(pill).toHaveText("Riêng tư");
 });

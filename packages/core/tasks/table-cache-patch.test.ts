@@ -1,7 +1,9 @@
 import { QueryClient } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { TableFilter, TableGroupsResult, TableRowsResult } from "../api/endpoints/tasks-table";
+import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
 import type { Task } from "../types/task";
+import type { User } from "../types/user";
 import { taskKeys } from "./keys";
 import { tableGroupsBody, tableRowsPageBody, tableRowsPageQuery } from "./surface/table-query";
 import { patchTableCaches } from "./table-cache-patch";
@@ -633,5 +635,67 @@ describe("patchTableCaches", () => {
 
       expect(idsOf(qc, rowsKey("status:done", { hierarchy: true, parentId: null }))).toEqual(["A"]);
     });
+  });
+});
+
+describe("patchTableCaches with a viewer relation (my-tasks board)", () => {
+  afterEach(() => resetAuthStoreForTests());
+
+  const signIn = (id: string) =>
+    useAuthStore.setState({
+      status: "authed",
+      user: {
+        id,
+        email: `${id}@example.test`,
+        display_name: id,
+        onboarded_at: null,
+        email_verified_at: null,
+        onboarding_questionnaire: {},
+        locale: "en",
+      } satisfies User,
+    });
+
+  it("moves a card between status columns instead of dropping it", () => {
+    signIn("u1");
+    const qc = new QueryClient();
+    const A = task("A", { status: "todo", assignee_id: "u1", created_by: "u2" });
+    const filter: TableFilter = { relation: "assigned" };
+    const todoKey = rowsKey("status:todo", { filter });
+    const doneKey = rowsKey("status:done", { filter });
+    qc.setQueryData(todoKey, rowsPage([A]));
+    qc.setQueryData(doneKey, rowsPage([]));
+
+    patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+    expect(idsOf(qc, todoKey)).toEqual([]);
+    expect(idsOf(qc, doneKey)).toEqual(["A"]);
+  });
+
+  it("drops the card once the patch ends the viewer's relation to it", () => {
+    signIn("u1");
+    const qc = new QueryClient();
+    const A = task("A", { assignee_id: "u1", created_by: "u2" });
+    const key = rowsKey("status:todo", { filter: { relation: "assigned" } });
+    qc.setQueryData(key, rowsPage([A]));
+
+    patchTableCaches(qc, WS, "A", { assignee_id: "u9" });
+
+    expect(idsOf(qc, key)).toEqual([]);
+  });
+
+  it("reads all as assigned or created, created as the creator only, involved as nobody", () => {
+    signIn("u1");
+    const qc = new QueryClient();
+    const mine = task("M", { assignee_id: "u2", created_by: "u1" });
+    const allKey = rowsKey("status:todo", { filter: { relation: "all" } });
+    const createdKey = rowsKey("status:todo", { filter: { relation: "created" } });
+    const involvedKey = rowsKey("status:todo", { filter: { relation: "involved" } });
+    for (const key of [allKey, createdKey, involvedKey]) qc.setQueryData(key, rowsPage([mine]));
+
+    patchTableCaches(qc, WS, "M", { priority: "high" });
+
+    expect(idsOf(qc, allKey)).toEqual(["M"]);
+    expect(idsOf(qc, createdKey)).toEqual(["M"]);
+    expect(idsOf(qc, involvedKey)).toEqual([]);
   });
 });

@@ -319,14 +319,11 @@ func TestSendFileMessageRequiresRoomMembershipAndHonoursDMBlockFS(t *testing.T) 
 	if !errors.Is(err, ErrForbidden) {
 		t.Fatalf("outsider send = %v, want ErrForbidden", err)
 	}
-	if _, err := s.GetFileMessage(ctx, outsider.ID, w.ID, dm.ID, row.ID); !errors.Is(err, ErrForbidden) {
-		t.Fatalf("outsider file get = %v, want ErrForbidden", err)
-	}
 	if _, _, err := s.OpenChatFileMessage(ctx, outsider.ID, w.ID, dm.ID, row.ID, false); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("outsider file open = %v, want ErrForbidden", err)
 	}
-	if _, err := s.GetVoiceMessage(ctx, outsider.ID, w.ID, dm.ID, row.ID); !errors.Is(err, ErrForbidden) {
-		t.Fatalf("outsider voice get = %v, want ErrForbidden", err)
+	if _, _, err := s.OpenChatVoiceMessage(ctx, outsider.ID, w.ID, dm.ID, row.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("outsider voice open = %v, want ErrForbidden", err)
 	}
 
 	// A DM peer who blocked the sender stops new file and voice uploads, and

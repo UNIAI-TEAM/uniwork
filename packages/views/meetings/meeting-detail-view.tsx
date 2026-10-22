@@ -31,6 +31,7 @@ import { useWorkspace } from "../layout/workspace-context";
 import { MeetingActivityTimeline } from "./meeting-activity-timeline";
 import { MeetingAttendanceCard } from "./meeting-attendance-card";
 import { MeetingDetailAside, MeetingDetailRoster } from "./meeting-detail-aside";
+import { AskUniFocusButton } from "../ai/ask-uni-focus-button";
 import { MeetingDetailHero } from "./meeting-detail-hero";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
 import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
@@ -188,6 +189,7 @@ export function MeetingDetailView({
                 }
               />
             ) : null}
+            <AskUniFocusButton kind="meeting" id={meetingId} title={meeting.title} workspaceId={workspaceId} />
             {headerActions}
           </>
         }

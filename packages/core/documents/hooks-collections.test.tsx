@@ -21,6 +21,7 @@ import {
   useSharedByMe,
   useSharedWithMe,
   useShelvedDocuments,
+  useTrashedDocuments,
   useUnshelveDocument,
 } from "./hooks-collections";
 import { documentKeys } from "./keys";
@@ -273,7 +274,7 @@ describe("documents collection hooks", () => {
     expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
       "http://api.test/api/v1/documents/d1/archive-impact",
     );
-    expect(result.current.data).toEqual({ folders: 2, documents: 5, total: 8, max_nodes: 1000, too_large: false });
+    expect(result.current.data).toEqual({ folders: 2, documents: 5, total: 8, max_nodes: 1000, too_large: false, relocated_count: 0 });
     expect(qc.getQueryData(documentKeys.archiveImpact("w1", "d1"))).toEqual(result.current.data);
     // staleTime 0: the counts are stale the moment they land, so reopening
     // the dialog always asks again.
@@ -387,6 +388,80 @@ describe("documents collection hooks", () => {
     expect(qc.getQueryData(filtered)).toBeDefined();
     expect(filtered).not.toEqual(documentKeys.recent("w1"));
     expect(qc.getQueryData(documentKeys.recent("w1"))).toBeUndefined();
+  });
+
+  it("the sibling lists put sort and order in the request and in their own cache entry (UNI-2038 S2)", async () => {
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json(listBody([summary("d1")]))));
+    const { qc, wrapper } = setup();
+    const recent = renderHook(() => useRecentDocuments("w1", { sort: "name", order: "asc" }), { wrapper });
+    const shared = renderHook(() => useSharedWithMe("w1", { sort: "size", order: "desc" }), { wrapper });
+    const byMe = renderHook(() => useSharedByMe("w1", { sort: "editor", order: "asc" }), { wrapper });
+    await waitFor(() => expect(recent.result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(shared.result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(byMe.result.current.isSuccess).toBe(true));
+    const urls = vi.mocked(fetch).mock.calls.map(([url]) => new URL(String(url)));
+    const of = (suffix: string) => urls.find((u) => u.pathname.endsWith(suffix))!;
+    expect(of("/documents/recent").searchParams.get("sort")).toBe("name");
+    expect(of("/documents/recent").searchParams.get("order")).toBe("asc");
+    expect(of("/documents/shared-with-me").searchParams.get("sort")).toBe("size");
+    expect(of("/documents/shared-with-me").searchParams.get("order")).toBe("desc");
+    expect(urls.find((u) => u.searchParams.get("shared_by_me") === "true")!.searchParams.get("sort")).toBe("editor");
+    // A sorted list is not the unsorted entry, so a new order starts from page 1.
+    expect(qc.getQueryData(documentKeys.recent("w1", documentFilterKey({ sort: "name", order: "asc" })))).toBeDefined();
+    expect(qc.getQueryData(documentKeys.recent("w1"))).toBeUndefined();
+  });
+
+  it("Lưu trữ puts sort and order in the request and in its own cache entry (UNI-2045 W12, SV-0)", async () => {
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json(listBody([summary("d1")]))));
+    const { qc, wrapper } = setup();
+    const shelved = renderHook(() => useShelvedDocuments("w1", { sort: "shelved", order: "desc" }), { wrapper });
+    await waitFor(() => expect(shelved.result.current.isSuccess).toBe(true));
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(url.searchParams.get("shelved")).toBe("true");
+    expect(url.searchParams.get("sort")).toBe("shelved");
+    expect(url.searchParams.get("order")).toBe("desc");
+    expect(qc.getQueryData(documentKeys.shelved("w1", documentFilterKey({ sort: "shelved", order: "desc" })))).toBeDefined();
+    expect(qc.getQueryData(documentKeys.shelved("w1"))).toBeUndefined();
+  });
+
+  it("useDocumentList keys the sort so each order is its own entry (UNI-2038 S2)", async () => {
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json(listBody([summary("d1")]))));
+    const { qc, wrapper } = setup();
+    const filter = { parentId: "", sort: "updated", order: "desc" } as const;
+    const { result } = renderHook(() => useDocumentList("w1", filter), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(url.searchParams.get("sort")).toBe("updated");
+    expect(url.searchParams.get("order")).toBe("desc");
+    expect(qc.getQueryData(documentKeys.list("w1", documentFilterKey(filter)))).toBeDefined();
+    expect(documentFilterKey(filter)).not.toBe(documentFilterKey({ ...filter, order: "asc" }));
+  });
+
+  it("keeps the previous rows on screen while the same list loads in another order, but not across a chip change (UNI-2038 S2)", async () => {
+    let release: (() => void) | undefined;
+    vi.mocked(fetch).mockImplementationOnce(() => Promise.resolve(json(listBody([summary("old")]))));
+    vi.mocked(fetch).mockImplementationOnce(
+      () => new Promise((resolve) => (release = () => resolve(json(listBody([summary("new")]))))),
+    );
+    const { wrapper } = setup();
+    const { result, rerender } = renderHook(
+      ({ order, format }: { order: "asc" | "desc"; format?: "pdf" }) => useRecentDocuments("w1", { sort: "name", order, format }),
+      { wrapper, initialProps: { order: "asc", format: undefined } as { order: "asc" | "desc"; format?: "pdf" } },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    rerender({ order: "desc" });
+    await waitFor(() => expect(release).toBeDefined());
+    expect(result.current.isPlaceholderData).toBe(true);
+    expect(result.current.data?.pages[0]?.documents[0]?.id).toBe("old");
+    release!();
+    await waitFor(() => expect(result.current.data?.pages[0]?.documents[0]?.id).toBe("new"));
+
+    // Another filter is another list: nothing of the old one lingers.
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise(() => {}));
+    rerender({ order: "desc", format: "pdf" });
+    await waitFor(() => expect(result.current.isPending).toBe(true));
+    expect(result.current.data).toBeUndefined();
   });
 
   it("useSharedWithMe and useSharedByMe take the same chips", async () => {
@@ -664,6 +739,31 @@ describe("documents collection hooks", () => {
       await expectNotVerifiable(() => unshelve.result.current.mutateAsync({ documentId: "d2" }));
     });
     expect(qc.getQueryState(shelvedKey)?.isInvalidated).toBe(false);
+  });
+
+  it("useTrashedDocuments always sends sort=deleted&order=asc on archived=1 and follows next_cursor (UNI-2045 Q2)", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(listBody([summary("d1", { archived_at: "2026-10-17T00:00:00Z" })], "n1")))
+      .mockResolvedValueOnce(json(listBody([summary("d2", { archived_at: "2026-10-17T01:00:00Z" })])));
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useTrashedDocuments("w1", { format: "docx" }), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.data?.pages.length).toBe(2));
+    expect(result.current.data?.pages.flatMap((p) => p.documents.map((d) => d.id))).toEqual(["d1", "d2"]);
+    for (const [index, cursor] of [[0, null], [1, "n1"]] as const) {
+      const url = new URL(String(vi.mocked(fetch).mock.calls[index]![0]));
+      expect(url.searchParams.get("archived")).toBe("1");
+      expect(url.searchParams.get("sort")).toBe("deleted");
+      expect(url.searchParams.get("order")).toBe("asc");
+      expect(url.searchParams.get("format")).toBe("docx");
+      expect(url.searchParams.get("cursor")).toBe(cursor);
+    }
+    // Under the list root, so every document.* invalidation and a restore/purge refresh reach it.
+    const entry = qc.getQueryCache().findAll({ queryKey: documentKeys.listRoot("w1") });
+    expect(entry).toHaveLength(1);
   });
 
   it("useShelvedDocuments queries shelved=true under documentKeys.shelved(wsId, filters) and follows next_cursor", async () => {

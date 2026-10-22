@@ -7,7 +7,7 @@ import type { Document } from "@uniwork/core/types/document";
 // The document page's entry: a format a genoffice module opens goes to the lazy
 // module host with its module; anything else gets the typed unsupported state.
 // Only the transport and the flag service are replaced: the organization-scoped
-// config read (office_txt_open included) answers from the mocked request.
+// config read answers from the mocked request.
 const mocks = vi.hoisted(() => ({
   hostProps: vi.fn(),
   loaders: [] as Array<() => Promise<unknown>>,
@@ -88,72 +88,47 @@ describe("DocumentOfficeEditorHost", () => {
     expect(mocks.hostProps).not.toHaveBeenCalled();
   });
 
-  // UNI-1813: a .txt file opens in the markdown module only while
-  // office_txt_open is on in the document's organization's own config answer;
-  // the host-level flag default no longer decides. The flag read happens here,
-  // detectDocumentFormat stays pure.
-  it.each(["ghi-chu.txt", "README.TXT"])("opens %s in the markdown module when the organization's answer turns office_txt_open on, global off", async (filename) => {
-    answerConfig({ office_txt_open: true });
+  // A .txt file always opens in the markdown module (plain mode in the frame),
+  // like a .md file: no office_txt_open flag, nothing but the extension decides.
+  it.each(["ghi-chu.txt", "README.TXT"])("opens %s in the markdown module with no txt flag in the organization's answer", async (filename) => {
+    answerConfig();
     await mount(doc(filename, "text/plain"));
     await settle();
     expect(mocks.hostProps).toHaveBeenCalledWith(expect.objectContaining({ module: "markdown" }));
+    expect(container.querySelector('[data-testid="office-host-unsupported"]')).toBeNull();
   });
 
-  it("gives a .txt file the unsupported state when the organization's answer turns office_txt_open off, even with the global flag on", async () => {
-    mocks.useFlag.mockImplementation((key: string, fallback: boolean) => (key === "office_txt_open" ? true : fallback));
-    answerConfig({ office_txt_open: false });
+  it("does not read the organization's config for a .txt file: opening needs no txt answer", async () => {
+    mocks.request.mockImplementation(() => new Promise(() => { /* never settles */ }));
     await mount(doc("ghi-chu.txt", "text/plain"));
-    await settle();
-    expect(container.querySelector('[data-testid="office-host-unsupported"]')).not.toBeNull();
-    expect(mocks.hostProps).not.toHaveBeenCalled();
+    expect(mocks.hostProps).toHaveBeenCalledWith(expect.objectContaining({ module: "markdown" }));
+    expect(mocks.request).not.toHaveBeenCalled();
   });
 
-  it("gives a .txt file the unsupported state while the organization's answer is still loading", async () => {
-    mocks.request.mockImplementation((path: string) => path.startsWith("/api/v1/config")
-      ? new Promise(() => { /* never settles */ })
-      : Promise.reject(new Error(`unexpected ${path}`)));
-    await mount(doc("ghi-chu.txt", "text/plain"));
-    expect(container.querySelector('[data-testid="office-host-unsupported"]')).not.toBeNull();
-    expect(mocks.hostProps).not.toHaveBeenCalled();
-  });
-
-  it("trusts the page's resolved officeFormat over its own flag read (UNI-1813)", async () => {
-    // While the leave guards hold a .txt editor open, office_txt_open can
-    // settle off; the gate's format keeps the markdown module instead of the
-    // typed unsupported state, which would unmount the frame and its draft.
-    answerConfig({ office_txt_open: false });
+  it("trusts the page's resolved officeFormat over its own detection", async () => {
     await mount(doc("ghi-chu.txt", "text/plain"), { officeFormat: "md" });
     await settle();
     expect(mocks.hostProps).toHaveBeenCalledWith(expect.objectContaining({ module: "markdown" }));
   });
 
-  it.each(["notes.csv", "app.log", "no-extension"])("never gives %s a module, text/plain or not, flag on or off", async (filename) => {
-    for (const flagOn of [false, true]) {
-      answerConfig({ office_txt_open: flagOn });
-      mocks.hostProps.mockReset();
-      await mount(doc(filename, "text/plain"));
-      await settle();
-      expect(container.querySelector('[data-testid="office-host-unsupported"]')).not.toBeNull();
-      expect(mocks.hostProps).not.toHaveBeenCalled();
-      await act(async () => root.render(null));
-    }
+  it.each(["notes.csv", "app.log", "no-extension"])("never gives %s a module, even as text/plain", async (filename) => {
+    await mount(doc(filename, "text/plain"));
+    await settle();
+    expect(container.querySelector('[data-testid="office-host-unsupported"]')).not.toBeNull();
+    expect(mocks.hostProps).not.toHaveBeenCalled();
   });
 });
 
 describe("detectDocumentFormat", () => {
-  it("maps a .txt file to md only while office_txt_open is on", () => {
-    expect(detectDocumentFormat(doc("ghi-chu.txt", "text/plain"), true)).toBe("md");
-    expect(detectDocumentFormat(doc("README.TXT", "text/plain"), true)).toBe("md");
-    expect(detectDocumentFormat(doc("ghi-chu.txt", "text/plain"), false)).toBe("unknown");
-    expect(detectDocumentFormat(doc("ghi-chu.txt", "text/plain"))).toBe("unknown");
+  it("maps a .txt file to md by extension alone", () => {
+    expect(detectDocumentFormat(doc("ghi-chu.txt", "text/plain"))).toBe("md");
+    expect(detectDocumentFormat(doc("README.TXT", "application/octet-stream"))).toBe("md");
   });
 
-  it("never maps a bare text/plain file that is not .txt, flag on or off", () => {
-    for (const flag of [true, false]) {
-      expect(detectDocumentFormat(doc("notes.csv", "text/plain"), flag)).toBe("unknown");
-      expect(detectDocumentFormat(doc("app.log", "text/plain"), flag)).toBe("unknown");
-      expect(detectDocumentFormat(doc("no-extension", "text/plain"), flag)).toBe("unknown");
-    }
+  it("never maps a bare text/plain file that is not .txt", () => {
+    expect(detectDocumentFormat(doc("notes.csv", "text/plain"))).toBe("unknown");
+    expect(detectDocumentFormat(doc("app.log", "text/plain"))).toBe("unknown");
+    expect(detectDocumentFormat(doc("no-extension", "text/plain"))).toBe("unknown");
   });
 
   it("reads the mime type before the file name, and names the conversion-only sources", () => {

@@ -9,7 +9,6 @@ export const chatKeys = {
     ["chat", "channels", wsId, scope, projectId] as const,
   projectChannels: (wsId: string, projectId: string) =>
     ["chat", "project-channels", wsId, projectId] as const,
-  messages: (wsId: string) => ["chat", "messages", wsId] as const,
   roomMessages: (wsId: string, roomId: string) => ["chat", "room-messages", wsId, roomId] as const,
   /** Prefix — invalidate all open room timelines for a workspace (reconnect). */
   roomMessagesRoot: (wsId: string) => ["chat", "room-messages", wsId] as const,
@@ -49,6 +48,8 @@ export const chatKeys = {
     ["chat", "room-shared-summary", wsId, roomId] as const,
   /** The stored transcript of one voice message (UNI-1908 F2). */
   voiceTranscript: (wsId: string, messageId: string) => ["chat", "voice-transcript", wsId, messageId] as const,
+  /** Who voted on a poll message (UNI-1726); fetched only when opening the voters dialog. */
+  pollVoters: (wsId: string, messageId: string) => ["chat", "poll-voters", wsId, messageId] as const,
   /** Prefix for all Follow-up list variants; invalidate with this key only. */
   followUps: (wsId: string) => ["chat", "follow-ups", wsId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>

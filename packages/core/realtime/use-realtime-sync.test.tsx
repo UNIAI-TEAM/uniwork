@@ -665,6 +665,45 @@ describe("useRealtimeSync", () => {
     vi.useRealTimers();
   });
 
+  // UNI-2012 D3-B: the server emits chat.message.updated to every room that holds a
+  // document card; the FE needs no document index, the existing frame refetches the card.
+  it("re-reads and patches a kind=document card on chat.message.updated", async () => {
+    vi.useFakeTimers();
+    const card = (version: number) => ({
+      id: "doc-msg",
+      room_id: "dm1",
+      workspace_id: "ws1",
+      sender_id: "u2",
+      sender_display_name: "Bob",
+      kind: "document",
+      body: "bao-cao.docx",
+      created_at: "2026-01-01T10:00:00Z",
+      pinned: false,
+      mentioned_user_ids: [],
+      reactions: {},
+      reply_count: 0,
+      thread_unread: false,
+      document: { document_id: "D1", viewer_has_access: true, viewer_level: "comment" as const, version_number: version },
+    });
+    const get = vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(card(2));
+    const qc = new QueryClient();
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pages: [[card(1)]], pageParams: [null] });
+    const client = fakeClient();
+    renderHook(() => useRealtimeSync(client, "ws1"), {
+      wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
+    });
+    client.emit({ type: "chat.message.updated", payload: { room_id: "dm1", message_id: "doc-msg" } });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+    expect(get).toHaveBeenCalledWith("ws1", "dm1", "doc-msg");
+    const rows = timelineRows(qc, "dm1");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.document?.version_number).toBe(2);
+    vi.useRealTimers();
+  });
+
   // UNI-1693: the sidebar counts only the main timeline (thread_root_id IS NULL).
   it("does not count a default-channel thread reply as unread or as a mention", async () => {
     vi.useFakeTimers();
@@ -702,7 +741,7 @@ describe("useRealtimeSync", () => {
     vi.useRealTimers();
   });
 
-  it("patches workspace messages when the event targets the workspace room", async () => {
+  it("patches the workspace room timeline when that room is open", async () => {
     vi.useFakeTimers();
     vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue({
       id: "m1",
@@ -720,8 +759,7 @@ describe("useRealtimeSync", () => {
       thread_unread: false,
     });
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.room("ws1"), { workspace_id: "ws1", room_id: "ws-room" });
-    shown(qc, chatKeys.messages("ws1"), []);
+    shown(qc, chatKeys.roomMessages("ws1", "ws-room"), { pages: [[]], pageParams: [null] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -732,14 +770,11 @@ describe("useRealtimeSync", () => {
       vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
-    // The room's own timeline is not loaded here, so it is marked stale for the
-    // next open (UNI-950) while the loaded workspace list is patched in place.
-    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(invalidate).toHaveBeenCalledTimes(1);
     expect(keysCalled(invalidate)).toEqual([
       JSON.stringify(chatKeys.voiceRecordings("ws1", "ws-room")),
-      JSON.stringify(chatKeys.roomMessages("ws1", "ws-room")),
     ]);
-    expect(qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.messages("ws1"))).toHaveLength(1);
+    expect(timelineRows(qc, "ws-room")).toHaveLength(1);
     vi.useRealTimers();
   });
 
@@ -945,6 +980,7 @@ describe("useRealtimeSync", () => {
 
     it.each([
       "document.created",
+      "document.batch_uploaded",
       "document.updated",
       "document.version_created",
       "document.shared",
@@ -1217,7 +1253,6 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["projects", "ws1"]),
         JSON.stringify(["chat", "rooms", "ws1"]),
         JSON.stringify(["chat", "room", "ws1"]),
-        JSON.stringify(["chat", "messages", "ws1"]),
         JSON.stringify(["chat", "thread-messages", "ws1"]),
         JSON.stringify(["meetings", "ws1"]),
         JSON.stringify(["meeting-stats", "ws1"]),

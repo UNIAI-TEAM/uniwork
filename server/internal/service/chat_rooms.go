@@ -69,10 +69,14 @@ type ChatRoomSummary struct {
 	NotificationsMuted bool
 	// AvatarURL is a group's uploaded avatar, signed; "" shows its members.
 	AvatarURL string
+	// WallpaperPreset is the shared room wallpaper id (default, a preset, or custom).
+	WallpaperPreset string
+	// WallpaperURL is a signed URL when WallpaperPreset is custom.
+	WallpaperURL string
 	// CanSendDocument is set on the room DETAIL read only (UNI-1966 L5): the
-	// caller may send a document here and the grantable audience is within one
-	// share batch. The room list never computes it - that would be a member
-	// read per list row.
+	// caller may send a document here. Since UNI-2012 S1c removed the
+	// recipient cap it is send permission alone (chatDocumentCanSend); the
+	// field stays for deployed clients. The room list never computes it.
 	CanSendDocument bool
 }
 
@@ -97,8 +101,11 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 		return nil, err
 	}
 	out := make([]ChatRoomSummary, 0, len(channelRows)+1)
+	wallScope := files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}
 	if len(channelRows) > 0 && channelRows[0].IsDefault {
-		out = append(out, channelSummaryFromMineRow(channelRows[0]))
+		sum := channelSummaryFromMineRow(channelRows[0])
+		s.applyWallpaperToSummary(ctx, &sum, wallScope, channelRows[0].WallpaperPreset, channelRows[0].WallpaperFileID)
+		out = append(out, sum)
 	} else if def, err := s.defaultRoomForNonMember(ctx, workspaceID); err != nil {
 		return nil, err
 	} else if def != nil {
@@ -115,7 +122,9 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 		if row.IsDefault {
 			continue // already first
 		}
-		out = append(out, channelSummaryFromMineRow(row))
+		sum := channelSummaryFromMineRow(row)
+		s.applyWallpaperToSummary(ctx, &sum, wallScope, row.WallpaperPreset, row.WallpaperFileID)
+		out = append(out, sum)
 	}
 	return out, nil
 }
@@ -182,11 +191,11 @@ func (s *ChatService) directRooms(ctx context.Context, userID, orgID, workspaceI
 			row.LastMessageSenderName, row.LastMessageCallOutcome, int(row.LastMessageDurationMs), row.LastMessageAt,
 		))
 		summary.LastReadAt = timePtr(row.MyLastReadAt)
+		scope := files.Scope{OrganizationID: orgID, WorkspaceID: textOrEmpty(row.WorkspaceID)}
 		if row.Kind == chatRoomKindGroup {
-			summary.AvatarURL = s.roomAvatarURL(ctx, row.ID, files.Scope{
-				OrganizationID: orgID, WorkspaceID: textOrEmpty(row.WorkspaceID),
-			}, row.AvatarFileID)
+			summary.AvatarURL = s.roomAvatarURL(ctx, row.ID, scope, row.AvatarFileID)
 		}
+		s.applyWallpaperToSummary(ctx, &summary, scope, row.WallpaperPreset, row.WallpaperFileID)
 		out = append(out, summary)
 	}
 	return out, nil
@@ -616,6 +625,13 @@ func (s *ChatService) authorizeRoom(ctx context.Context, userID, workspaceID, ro
 	return s.authorizeRoomAccess(ctx, userID, workspaceID, roomID, true)
 }
 
+// authorizeRoomQ is authorizeRoom read through q: a caller that holds a
+// transaction passes its q so the gate reads on that connection instead of
+// borrowing a second one from the pool. Same decision, same errors.
+func (s *ChatService) authorizeRoomQ(ctx context.Context, q *db.Queries, userID, workspaceID, roomID string) (db.ChatRoom, error) {
+	return s.authorizeRoomAccessQ(ctx, q, userID, workspaceID, roomID, true)
+}
+
 // authorizeRoomRead allows reading a public channel without joining.
 func (s *ChatService) authorizeRoomRead(ctx context.Context, userID, workspaceID, roomID string) (db.ChatRoom, error) {
 	return s.authorizeRoomAccess(ctx, userID, workspaceID, roomID, false)
@@ -627,11 +643,15 @@ func (s *ChatService) authorizeRoomMember(ctx context.Context, userID, workspace
 }
 
 func (s *ChatService) authorizeRoomAccess(ctx context.Context, userID, workspaceID, roomID string, requireMember bool) (db.ChatRoom, error) {
-	wsMember, err := s.ws.RequireMember(ctx, workspaceID, userID)
+	return s.authorizeRoomAccessQ(ctx, s.q, userID, workspaceID, roomID, requireMember)
+}
+
+func (s *ChatService) authorizeRoomAccessQ(ctx context.Context, q *db.Queries, userID, workspaceID, roomID string, requireMember bool) (db.ChatRoom, error) {
+	wsMember, err := s.ws.RequireMemberQ(ctx, q, workspaceID, userID)
 	if err != nil {
 		return db.ChatRoom{}, err
 	}
-	room, err := s.q.GetChatRoomByID(ctx, roomID)
+	room, err := q.GetChatRoomByID(ctx, roomID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.ChatRoom{}, ErrNotFound
 	}
@@ -652,7 +672,7 @@ func (s *ChatService) authorizeRoomAccess(ctx context.Context, userID, workspace
 		}
 	}
 
-	_, memErr := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+	_, memErr := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: roomID, UserID: userID,
 	})
 	isMember := memErr == nil
@@ -789,7 +809,7 @@ func (s *ChatService) GetRoomSummary(ctx context.Context, userID, workspaceID, r
 	if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	summary.CanSendDocument = s.chatDocumentShareBatchCap(ctx, userID, room)
+	summary.CanSendDocument = s.chatDocumentCanSend(ctx, userID, room)
 	return summary, nil
 }
 

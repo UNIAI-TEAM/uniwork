@@ -27,7 +27,10 @@ const officeSeed = workspaceSeed("documents", "office", stamp);
 const librarySeed = workspaceSeed("documents", "library", stamp);
 const SHOTS =
   process.env.DOCUMENT_SHOT_DIR ?? resolve(process.cwd(), "test-results", "documents-shots");
+// The shared parity fixture's bytes, uploaded as a .css: a .txt opens in the Markdown
+// frame since UNI-2046, so this test needs a file kind that still has no Office frame.
 const FIXTURE = resolve(process.cwd(), "fixtures", "parity-upload.txt");
+const FILE_NAME = "parity-upload.css";
 
 const DOCUMENT_URL = /\/documents\/[0-9A-HJKMNP-TV-Z]{26}$/;
 
@@ -139,15 +142,21 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
   await onboard(page, fileSeed);
 
   await page.goto(`/${fileSeed.orgSlug}/${fileSeed.wsSlug}/documents`);
+  // "Tải lên" is a menu once the server offers folder upload: pick the file entry.
   await page.getByRole("button", { name: "Tải lên", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Tải lên tệp" }).click();
   const uploadDialog = page.getByRole("dialog", { name: "Tải tệp lên" });
   await expect(uploadDialog).toBeVisible();
-  await uploadDialog.getByLabel("Chọn tệp").setInputFiles(FIXTURE);
+  await uploadDialog.getByLabel("Chọn tệp").setInputFiles({
+    name: FILE_NAME,
+    mimeType: "text/css",
+    buffer: readFileSync(FIXTURE),
+  });
   await uploadDialog.getByRole("button", { name: "Tải lên", exact: true }).click();
 
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 90_000 });
-  await expect(page.getByText("parity-upload.txt").first()).toBeVisible({ timeout: 60_000 });
-  // A plain-text file has no Office frame: the format says what is possible.
+  await expect(page.getByText(FILE_NAME).first()).toBeVisible({ timeout: 60_000 });
+  // A stylesheet has no Office frame: the format says what is possible.
   await expect(page.getByText("Không sửa được trên web")).toBeVisible();
   await shot(page, "document-file-light-vi");
 
@@ -156,8 +165,8 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
   const versionDialog = page.getByRole("dialog", { name: "Tải phiên bản mới" });
   // Different bytes: an identical file makes no new version (VERSION-DEDUP, UNI-1900).
   await versionDialog.getByLabel("Chọn tệp").setInputFiles({
-    name: "parity-upload.txt",
-    mimeType: "text/plain",
+    name: FILE_NAME,
+    mimeType: "text/css",
     buffer: Buffer.concat([readFileSync(FIXTURE), Buffer.from("\nversion 2\n")]),
   });
   await versionDialog.getByRole("button", { name: "Tải lên", exact: true }).click();
@@ -168,7 +177,7 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
   await page
     .getByRole("button", { name: "Tải về" })
     .click();
-  expect((await download).suggestedFilename()).toBe("parity-upload.txt");
+  expect((await download).suggestedFilename()).toBe(FILE_NAME);
 });
 
 test("the library lists pages across its views and the tree opens one", async ({ page }) => {
@@ -215,8 +224,7 @@ test("the library lists pages across its views and the tree opens one", async ({
   await sidebar(page).getByRole("button", { name: "Tài liệu của workspace" }).click();
 
   // The type filter drops the page row.
-  await page.getByRole("combobox", { name: /^Loại/ }).click();
-  await page.getByRole("option", { name: "Docs" }).click();
+  await page.getByRole("group", { name: "Lọc theo loại" }).getByRole("button", { name: ".docx", exact: true }).click();
   await expect(page.getByText("Không có tài liệu khớp bộ lọc")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Bỏ bộ lọc" }).click();
   await myFolderRow(page).click();

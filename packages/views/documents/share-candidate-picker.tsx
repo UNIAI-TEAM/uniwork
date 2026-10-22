@@ -160,7 +160,6 @@ export interface ShareCandidatePickerProps {
   alreadySharedUserIds?: readonly (string | null | undefined)[];
   isLoading: boolean;
   disabled: boolean;
-  atLimit: boolean;
   rejectedByKey: Record<string, DocumentAccessRejectedCode>;
   onSelectCandidate: (candidate: DocumentShareCandidate) => void;
   onRemoveCandidate: (key: string, displayName: string) => void;
@@ -187,7 +186,6 @@ export function ShareCandidatePicker({
   alreadySharedUserIds,
   isLoading,
   disabled,
-  atLimit,
   rejectedByKey,
   onSelectCandidate,
   onRemoveCandidate,
@@ -291,7 +289,7 @@ export function ShareCandidatePicker({
           aria-controls={firstPageFailed ? undefined : listboxId}
           placeholder={t("documents.share.candidate_search")}
           value={query}
-          disabled={disabled || atLimit}
+          disabled={disabled}
           // Not on focus: the dialog focuses this input when it opens, and an inline list
           // that opened then collapses on the first press elsewhere, moving the control
           // under the pointer before the click completes (UNI-1914).
@@ -382,7 +380,7 @@ export function ShareCandidatePicker({
                           role="option"
                           tabIndex={-1}
                           aria-selected={isPicked}
-                          aria-disabled={isPicked || atLimit || undefined}
+                          aria-disabled={isPicked || undefined}
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             onSelectCandidate(candidate);

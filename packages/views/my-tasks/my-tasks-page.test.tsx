@@ -53,7 +53,7 @@ beforeEach(() => {
 });
 
 describe("MyTasksPageView", () => {
-  it("switches assigned scope and requests relation=assigned", async () => {
+  it("switches assigned scope and asks the table API for relation=assigned", async () => {
     render(
       wrap(
         <MyTasksPageView
@@ -68,10 +68,15 @@ describe("MyTasksPageView", () => {
     fireEvent.click(screen.getByTestId("my-tasks-scope-assigned"));
 
     await waitFor(() => {
-      const myCalls = requestMock.mock.calls
-        .map((c) => String(c[0]))
-        .filter((p) => p.includes("/my-tasks"));
-      expect(myCalls.some((p) => p.includes("relation=assigned"))).toBe(true);
+      expect(
+        requestMock.mock.calls.some(
+          ([path, init]) =>
+            typeof path === "string" &&
+            path.includes("/tasks/table/groups") &&
+            (init as { body?: { query?: { filter?: { relation?: string } } } })
+              ?.body?.query?.filter?.relation === "assigned",
+        ),
+      ).toBe(true);
     });
     expect(myTasksViewStore.getState().scope).toBe("assigned");
   });
@@ -93,7 +98,7 @@ describe("MyTasksPageView", () => {
     expect(myTasksViewStore.getState().scope).toBe("all");
   });
 
-  it("exposes board list swimlane without table or gantt", async () => {
+  it("exposes board list table swimlane without gantt", async () => {
     myTasksViewStore.setState({ scope: "assigned" });
     render(
       wrap(
@@ -111,13 +116,13 @@ describe("MyTasksPageView", () => {
     });
     expect(screen.getByTestId("task-mode-board")).toBeInTheDocument();
     expect(screen.getByTestId("task-mode-swimlane")).toBeInTheDocument();
-    expect(screen.queryByTestId("task-mode-table")).toBeNull();
+    expect(screen.getByTestId("task-mode-table")).toBeInTheDocument();
     expect(screen.queryByTestId("task-mode-gantt")).toBeNull();
   });
 
-  it("does not request workspace table groups on my-scope", async () => {
-    const store = getTaskSurfaceViewStore("my:u1:all");
-    store.getState().setViewMode("table");
+  it("keeps list mode on the flat my-tasks query with the relation param", async () => {
+    myTasksViewStore.setState({ scope: "created" });
+    getTaskSurfaceViewStore("my:u1:created").getState().setViewMode("list");
 
     render(
       wrap(
@@ -133,7 +138,9 @@ describe("MyTasksPageView", () => {
       expect(
         requestMock.mock.calls.some(
           ([path]) =>
-            typeof path === "string" && path.includes("/my-tasks"),
+            typeof path === "string" &&
+            path.includes("/my-tasks") &&
+            path.includes("relation=created"),
         ),
       ).toBe(true);
     });

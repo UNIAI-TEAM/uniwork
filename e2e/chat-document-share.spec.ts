@@ -3,6 +3,7 @@ import { basename, resolve } from "node:path";
 import { expect, test, type FrameLocator, type Locator, type Page } from "@playwright/test";
 import { e2eApiUrl } from "./api-url";
 import { loginFolderUser, seedFolderWorkspace } from "./documents-folders-fixtures";
+import { installUniChatBridge } from "./unichat-bridge";
 
 /**
  * UNI-1966 (contract §7.3, RFC-05): a file sent in a conversation at a level
@@ -227,7 +228,13 @@ test("a new version uploaded from the card writes a version line into the conver
   const card = page.locator(`article#chat-msg-${messageId}`);
   await expect(card.getByRole("button", { name: /^Mở trong Tài liệu:/ })).toBeVisible({ timeout: 60_000 });
 
-  await card.getByRole("button", { name: "Tải lên phiên bản mới" }).click();
+  // The document's actions live in the message menu (UNI-2012 S7): a right
+  // click on the card opens it; the card itself has no upload button.
+  await expect(card.getByRole("button", { name: "Tải lên phiên bản mới" })).toHaveCount(0);
+  await card.getByRole("button", { name: /^Mở trong Tài liệu:/ }).click({ button: "right" });
+  const menu = page.getByRole("menu");
+  await expect(menu.getByRole("menuitem", { name: "Lịch sử phiên bản" })).toBeVisible({ timeout: 15_000 });
+  await menu.getByRole("menuitem", { name: "Tải lên phiên bản mới" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible({ timeout: 15_000 });
   // Different bytes: an identical upload is refused as "nothing changed".
@@ -242,4 +249,41 @@ test("a new version uploaded from the card writes a version line into the conver
   // The compact system line: "{name} đã tải lên phiên bản {n}".
   const line = page.locator('article[id^="chat-msg-"]').filter({ hasText: /đã tải lên phiên bản \d+/ });
   await expect(line).toHaveCount(1, { timeout: 60_000 });
+});
+
+test("inside the UniChat shell the card offers no Office entry and opens its pages in the browser (UNI-2012 D7)", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const name = `bien-ban-shell-${stamp}.docx`;
+  const { ws, sender, roomId, messageId, auth } = await seedDmWithPlainDocx(page, `docshell${stamp}`, name);
+  const shared = await page.request.post(
+    `${e2eApiUrl}/api/v1/workspaces/${ws.wsId}/chat/rooms/${roomId}/messages/${messageId}/share-as-document`,
+    {
+      headers: { ...auth, "content-type": "application/json" },
+      data: { share_level: "comment", client_msg_id: `share-shell-docx-${stamp}` },
+    },
+  );
+  expect(shared.ok(), `share as document: ${shared.status()} ${await shared.text()}`).toBeTruthy();
+
+  // Signed in on the web first (the refresh cookie backs the fake bridge's
+  // session), then every later load boots as the UniChat host.
+  await loginFolderUser(page, sender.email);
+  await installUniChatBridge(page);
+  const chatPath = `/${ws.orgSlug}/${ws.wsSlug}/chat`;
+  await page.goto(`${chatPath}?room=${roomId}`);
+  const card = page.locator(`article#chat-msg-${messageId}`);
+  await expect(card.getByRole("button", { name: /^Mở trong Tài liệu:/ })).toBeVisible({ timeout: 60_000 });
+
+  await card.getByRole("button", { name: /^Mở trong Tài liệu:/ }).click({ button: "right" });
+  const menu = page.getByRole("menu");
+  await expect(menu.getByRole("menuitem", { name: "Lịch sử phiên bản" })).toBeVisible({ timeout: 15_000 });
+  // The shell cannot launch the desktop app: the entry is not offered at all.
+  await expect(menu.getByRole("menuitem", { name: "Chỉnh sửa trong UniWork Office" })).toHaveCount(0);
+  await expect(menu.getByRole("menuitem", { name: "Chia sẻ", exact: true })).toBeVisible();
+  await menu.getByRole("menuitem", { name: "Lịch sử phiên bản" }).click();
+
+  // The document page leaves the shell for the browser; the shell stays on chat.
+  await expect
+    .poll(() => page.evaluate(() => window.__uniChat.external))
+    .toEqual([expect.stringMatching(new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents/[^/?]+\\?panel=versions$`))]);
+  await expect(page).toHaveURL(new RegExp(`${chatPath}\\?room=${roomId}`));
 });

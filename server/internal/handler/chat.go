@@ -156,6 +156,13 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			count := m.Document.RecipientCount
 			block.RecipientCount = &count
 		}
+		// The origin is the message's own and carries no document data, so it
+		// is set with or without access; the editors count is the sender's.
+		block.Origin = m.Document.Origin
+		if m.Document.HasOtherEditorsCount {
+			count := m.Document.OtherEditorsCount
+			block.OtherEditorsCount = &count
+		}
 		out.Document = block
 	}
 	if m.Poll != nil {
@@ -177,7 +184,6 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 				HideVoters:           m.Poll.Settings.HideVoters,
 			},
 			ViewerOptionIDs: m.Poll.ViewerOptionIDs,
-			VotesByUser:     m.Poll.VotesByUser,
 		}
 	}
 	if m.PollVote != nil {
@@ -235,6 +241,11 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 		Visibility: r.Visibility, ProjectID: r.ProjectID, Topic: r.Topic, IsDefault: r.IsDefault,
 		NotificationsMuted: r.NotificationsMuted, AvatarURL: r.AvatarURL, CanSendDocument: r.CanSendDocument,
 	}
+	wallPreset := strings.TrimSpace(r.WallpaperPreset)
+	if wallPreset == "" {
+		wallPreset = "default"
+	}
+	out.Wallpaper = &sdo.ChatRoomWallpaperDTO{Preset: wallPreset, URL: r.WallpaperURL}
 	if r.PeerLastReadAt != nil {
 		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)
 	}
@@ -332,47 +343,6 @@ func (h *handlers) ensureWorkspaceChatRoom(w http.ResponseWriter, r *http.Reques
 	respondJSON(w, http.StatusOK, sdo.WorkspaceChatRoomSDO{
 		RoomID: room.RoomID, WorkspaceID: room.WorkspaceID, Enabled: true,
 	})
-}
-
-func (h *handlers) listWorkspaceChatMessages(w http.ResponseWriter, r *http.Request) {
-	wsID := chi.URLParam(r, "workspaceID")
-	in, err := parseChatMessageListQuery(r)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid_request", "before must be RFC3339")
-		return
-	}
-	msgs, err := h.Chat.ListWorkspaceMessages(r.Context(), middleware.UserID(r.Context()), wsID, in)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	out := make([]sdo.ChatMessageDTO, 0, len(msgs))
-	for _, m := range msgs {
-		out = append(out, toChatMessageDTO(m))
-	}
-	respondJSON(w, http.StatusOK, map[string]any{"messages": out})
-}
-
-func (h *handlers) sendWorkspaceChatMessage(w http.ResponseWriter, r *http.Request) {
-	var in sdi.SendChatMessageSDI
-	if !decode(w, r, &in, maxJSONBody) {
-		return
-	}
-	msg, err := h.Chat.SendWorkspaceMessage(
-		r.Context(),
-		middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"),
-		service.SendChatMessageInput{
-			Body:             in.Body,
-			ReplyToMessageID: in.ReplyToMessageID,
-			ClientMsgID:      in.ClientMsgID,
-		},
-	)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	respondJSON(w, http.StatusOK, map[string]any{"message": toChatMessageDTO(msg)})
 }
 
 func (h *handlers) listChatRooms(w http.ResponseWriter, r *http.Request) {
@@ -590,6 +560,14 @@ func (h *handlers) patchChatRoom(w http.ResponseWriter, r *http.Request) {
 	roomID := chi.URLParam(r, "roomID")
 	wsID := chi.URLParam(r, "workspaceID")
 	actorID := middleware.UserID(r.Context())
+	if in.Wallpaper != nil {
+		if err := h.Chat.UpdateChatRoomWallpaperPreset(
+			r.Context(), actorID, wsID, roomID, in.Wallpaper.Preset,
+		); err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+	}
 	var merged *service.ChatRoomMemberPermissions
 	if in.MemberPermissions != nil {
 		current, err := h.Chat.GetRoomMemberPermissions(r.Context(), actorID, wsID, roomID)
@@ -600,10 +578,21 @@ func (h *handlers) patchChatRoom(w http.ResponseWriter, r *http.Request) {
 		next := patchMemberPermissionsFromSDI(current, in.MemberPermissions)
 		merged = &next
 	}
-	perms, err := h.Chat.UpdateChatRoomSettings(
-		r.Context(), actorID, wsID, roomID,
-		service.UpdateChatRoomSettingsInput{Name: in.Name, Topic: in.Topic, MemberPermissions: merged},
-	)
+	settingsChange := in.Name != nil || in.Topic != nil || merged != nil
+	if in.Wallpaper == nil && !settingsChange {
+		respondError(w, http.StatusBadRequest, "invalid_request", "no fields to update")
+		return
+	}
+	var perms service.ChatRoomMemberPermissions
+	var err error
+	if settingsChange {
+		perms, err = h.Chat.UpdateChatRoomSettings(
+			r.Context(), actorID, wsID, roomID,
+			service.UpdateChatRoomSettingsInput{Name: in.Name, Topic: in.Topic, MemberPermissions: merged},
+		)
+	} else {
+		perms, err = h.Chat.GetRoomMemberPermissions(r.Context(), actorID, wsID, roomID)
+	}
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -746,6 +735,41 @@ func (h *handlers) voteChatPollMessage(w http.ResponseWriter, r *http.Request) {
 		chi.URLParam(r, "roomID"),
 		chi.URLParam(r, "messageID"),
 		in.OptionID,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"message": toChatMessageDTO(msg)})
+}
+
+func (h *handlers) getChatPollVoters(w http.ResponseWriter, r *http.Request) {
+	votes, err := h.Chat.ChatPollVoters(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "roomID"),
+		chi.URLParam(r, "messageID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.ChatPollVotersSDO{VotesByUser: votes})
+}
+
+func (h *handlers) addChatPollOptionMessage(w http.ResponseWriter, r *http.Request) {
+	var in sdi.AddChatPollOptionSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	msg, err := h.Chat.AddChatPollOptionMessage(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "roomID"),
+		chi.URLParam(r, "messageID"),
+		in.Label,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)

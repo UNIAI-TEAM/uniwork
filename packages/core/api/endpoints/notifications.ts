@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
+  NotificationDocumentSchema,
   NotificationPreferenceSchema,
   NotificationSchema,
   PushConfigSchema,
   UnreadCountSchema,
   type Notification,
+  type NotificationDocument,
   type NotificationPreference,
   type PushConfig,
   type PushSubscriptionBody,
@@ -17,12 +19,26 @@ const ListResponse = z.object({
   notifications: z.array(NotificationSchema),
   next_before: z.string().optional().default(""),
 });
+const DocumentsResponse = z.object({
+  documents: z.array(NotificationDocumentSchema),
+  next_cursor: z.string().nullable().optional().default(null),
+});
 const PreferencesResponse = z.object({ preferences: z.array(NotificationPreferenceSchema) });
 const ReadResponse = z.object({ ids: z.array(z.string()).optional().default([]) });
 
 export interface NotificationPage {
   notifications: Notification[];
   next_before: string;
+}
+
+export interface NotificationDocumentPage {
+  documents: NotificationDocument[];
+  next_cursor: string | null;
+}
+
+export interface ListNotificationDocumentsQuery {
+  cursor?: string;
+  limit?: number;
 }
 
 export interface ListNotificationsQuery {
@@ -33,6 +49,7 @@ export interface ListNotificationsQuery {
 }
 
 const EMPTY_PAGE: NotificationPage = { notifications: [], next_before: "" };
+const EMPTY_DOCUMENTS: NotificationDocumentPage = { documents: [], next_cursor: null };
 const EMPTY_COUNT: UnreadCount = { total: 0, by_workspace: {} };
 
 export async function listNotifications(q: ListNotificationsQuery = {}): Promise<NotificationPage> {
@@ -45,6 +62,24 @@ export async function listNotifications(q: ListNotificationsQuery = {}): Promise
   const raw = await request(`/api/v1/me/notifications${qs ? `?${qs}` : ""}`);
   return parseWithFallback<NotificationPage>(raw, ListResponse, EMPTY_PAGE, {
     endpoint: "GET /api/v1/me/notifications",
+  });
+}
+
+/**
+ * The documents of one document_changed notification the caller can read now,
+ * one page at a time: pass the previous page's next_cursor back untouched.
+ */
+export async function listNotificationDocuments(
+  notificationId: string,
+  q: ListNotificationDocumentsQuery = {},
+): Promise<NotificationDocumentPage> {
+  const params = new URLSearchParams();
+  if (q.cursor) params.set("cursor", q.cursor);
+  if (q.limit) params.set("limit", String(q.limit));
+  const qs = params.toString();
+  const raw = await request(`/api/v1/me/notifications/${encodeURIComponent(notificationId)}/documents${qs ? `?${qs}` : ""}`);
+  return parseWithFallback<NotificationDocumentPage>(raw, DocumentsResponse, EMPTY_DOCUMENTS, {
+    endpoint: "GET /api/v1/me/notifications/{notificationID}/documents",
   });
 }
 

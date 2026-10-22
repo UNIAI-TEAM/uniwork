@@ -2,6 +2,9 @@ export {
   SHORTCUT_ACTIONS,
   SHORTCUT_ACTION_BY_ID,
   createShortcutChord,
+  DOCUMENT_EDITOR_SCOPE,
+  DOCUMENT_EDITOR_SCOPE_ATTRIBUTE,
+  isDocumentEditorShortcutTarget,
   shortcutFromEvent,
   shortcutChordEquals,
   shortcutMatchesEvent,
@@ -19,6 +22,7 @@ export {
   type ShortcutChord,
   type ShortcutModifiers,
 } from "./definitions";
+export { ariaKeyShortcuts } from "./aria";
 export {
   configureShortcutPlatform,
   configureShortcutRuntime,

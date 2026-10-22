@@ -12,8 +12,15 @@ export async function enablePush(publicKey: string): Promise<void> {
   if (!a) throw new Error("push_unsupported");
   const perm = await a.requestPermission();
   if (perm !== "granted") throw new Error("push_denied");
+  const previous = await a.current();
   const sub = await a.subscribe(publicKey);
-  await api.subscribePush(sub);
+  try {
+    await api.subscribePush(sub);
+  } catch (error) {
+    // An unregistered subscription must not silence the open-tab notification fallback.
+    if (!previous) await a.unsubscribe().catch(() => undefined);
+    throw error;
+  }
 }
 
 /** Unsubscribe in the browser first so a server failure cannot leave a live subscription nobody tracks. */
@@ -31,7 +38,7 @@ export interface PushState {
   /** This browser holds a subscription. */
   subscribed: boolean;
   isLoading: boolean;
-  enable: () => Promise<void>;
+  enable: (publicKey?: string) => Promise<void>;
   disable: () => Promise<void>;
   isPending: boolean;
 }
@@ -48,7 +55,7 @@ export function usePush(): PushState {
     enabled: available,
   });
   const enable = useMutation({
-    mutationFn: () => enablePush(config.data?.public_key ?? ""),
+    mutationFn: (publicKey?: string) => enablePush(publicKey ?? config.data?.public_key ?? ""),
     onSettled: () => qc.invalidateQueries({ queryKey: subscriptionKey }),
   });
   const disable = useMutation({
@@ -60,7 +67,7 @@ export function usePush(): PushState {
     permission: adapter?.permission() ?? "unsupported",
     subscribed: !!current.data,
     isLoading: config.isLoading || (available && current.isLoading),
-    enable: () => enable.mutateAsync(),
+    enable: (publicKey) => enable.mutateAsync(publicKey),
     disable: () => disable.mutateAsync(),
     isPending: enable.isPending || disable.isPending,
   };

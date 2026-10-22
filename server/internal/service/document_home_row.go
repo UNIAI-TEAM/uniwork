@@ -30,6 +30,11 @@ type documentHomeRowMove struct {
 	// (C-01 §9.1 item 3). The zero value bumps, so a caller that does not ask
 	// keeps the behaviour of every other home-row write.
 	KeepRevision bool
+	// FolderLocation marks the location rule's own write (ADR 0037): a folder
+	// takes workspace/view outside every My Folder tree and restricted inside
+	// one, and only this write may move a folder's home row. Set only by the
+	// folder location helpers (document_folder_location.go).
+	FolderLocation bool
 }
 
 // writeDocumentHomeRow is the one place a document's home row moves. Inside
@@ -46,8 +51,10 @@ func writeDocumentHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc d
 	if isMyFolder(doc) {
 		return db.Document{}, errMyFolderLocked()
 	}
-	if doc.Kind == DocumentKindFolder && move.Visibility == documentVisibilityWorkspace {
-		return db.Document{}, errFolderNotShareable()
+	if doc.Kind == DocumentKindFolder {
+		if err := folderHomeRowMoveAllowed(doc, move); err != nil {
+			return db.Document{}, err
+		}
 	}
 	legacy, err := homeWorkspaceShares(ctx, q, doc)
 	if err != nil {
@@ -89,7 +96,7 @@ func writeDocumentHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc d
 		Payload: map[string]string{
 			"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
 		},
-	}); err != nil {
+	}, documentChangeNotice(updated.ID, updated.WorkspaceID, docNoticeAccessChanged)); err != nil {
 		return db.Document{}, err
 	}
 	for _, sh := range legacy {
@@ -98,6 +105,25 @@ func writeDocumentHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc d
 		}
 	}
 	return updated, nil
+}
+
+// folderHomeRowMoveAllowed is the folder half of the home-row writer (ADR
+// 0037 §1-§2): the location rule writes the pair it owns (workspace/view or
+// restricted); no other command opens a folder, grants it a level or closes
+// a workspace folder - its visibility follows where it is. Closing a folder
+// that is not a workspace folder (a legacy own-workspace share on a private
+// folder) stays allowed.
+func folderHomeRowMoveAllowed(doc db.Document, move documentHomeRowMove) error {
+	if move.FolderLocation {
+		if move.WorkspaceLevel != string(DocumentLevelView) {
+			return errFolderNotShareable()
+		}
+		return nil
+	}
+	if move.Visibility == documentVisibilityWorkspace || isWorkspaceFolder(doc) {
+		return errFolderNotShareable()
+	}
+	return nil
 }
 
 // homeWorkspaceShares lists the live shares whose principal is the document's

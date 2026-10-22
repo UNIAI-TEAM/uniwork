@@ -168,10 +168,6 @@ export function buildChatMentionCandidates(
   return out;
 }
 
-export function messageBodyHasMention(body: string): boolean {
-  return body.includes("mention://") || body.includes("[@ ");
-}
-
 /** Active @-query at cursor when user is typing a mention (not inside an existing token). */
 export function getActiveMentionQuery(
   text: string,
@@ -269,10 +265,4 @@ export function filterMentionCandidates(
     return [{ kind: "all", label: options.allLabel }, ...filtered];
   }
   return filtered;
-}
-
-export function messageMentionsUser(message: { mentionedUserIds?: string[] }, userId: string): boolean {
-  if (!message.mentionedUserIds?.length) return false;
-  const normalized = userId.trim().toUpperCase();
-  return message.mentionedUserIds.some((id) => id.trim().toUpperCase() === normalized);
 }

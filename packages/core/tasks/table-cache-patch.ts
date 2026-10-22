@@ -11,6 +11,7 @@ import type {
   TableRowsResult,
 } from "../api/endpoints/tasks-table";
 import type { TaskStatusList } from "../api/endpoints/task-catalog";
+import { useAuthStore } from "../auth/store";
 import type { Task } from "../types/task";
 import { taskKeys } from "./keys";
 import { tableRowsPageBody, tableRowsPageQuery } from "./surface/table-query";
@@ -54,12 +55,35 @@ const FILTER_FIELD = {
 } as const;
 
 /**
+ * The viewer-relative filter of the my-tasks board, mirroring the server's
+ * `relationFilter`: all = assigned to or created by the signed-in person, then
+ * assigned, created, involved (empty until agent involvement exists). With no
+ * signed-in person, or a relation this client does not know, nothing is
+ * admitted, so the settle refetch decides rather than a guess.
+ */
+function relationAdmits(relation: string, task: Task): boolean {
+  const me = useAuthStore.getState().user?.id;
+  if (!me) return false;
+  switch (relation) {
+    case "all":
+      return task.assignee_id === me || task.created_by === me;
+    case "assigned":
+      return task.assignee_id === me;
+    case "created":
+      return task.created_by === me;
+    default:
+      return false;
+  }
+}
+
+/**
  * Whether the table filter would return the task: an empty (or absent) list
  * is no filter, a filter field this client does not know admits nothing, so
  * no task is ever placed in a page that filter could exclude it from.
  */
 function filterAdmits(filter: TableFilter | undefined, task: Task): boolean {
   return Object.entries(filter ?? {}).every(([name, values]: [string, unknown]) => {
+    if (name === "relation" && typeof values === "string") return relationAdmits(values, task);
     if (values === undefined || values === null || (Array.isArray(values) && values.length === 0)) {
       return true;
     }

@@ -81,6 +81,8 @@ export function ChatConversationHeader({
   catchUpAriaLabel,
   onCatchUp,
   catchUpDisabled,
+  askUniAriaLabel,
+  onAskUni,
   voiceCallAriaLabel,
   onVoiceCall,
   voiceCallDisabled,
@@ -111,6 +113,9 @@ export function ChatConversationHeader({
   catchUpAriaLabel?: string;
   onCatchUp?: () => void;
   catchUpDisabled?: boolean;
+  /** "Hỏi UNI về cuộc trò chuyện này": opens the Ask UNI dock focused on the room. */
+  askUniAriaLabel?: string;
+  onAskUni?: () => void;
   voiceCallAriaLabel?: string;
   onVoiceCall?: () => void;
   voiceCallDisabled?: boolean;
@@ -127,7 +132,7 @@ export function ChatConversationHeader({
   const { t } = useTranslation();
   // Below sm every action but the panel folds into one "more" menu — calls
   // included — so a 360px screen still gives the room name its width.
-  const hasMenu = Boolean(onSearch || onCatchUp || onVideoCall || onVoiceCall);
+  const hasMenu = Boolean(onSearch || onCatchUp || onAskUni || onVideoCall || onVoiceCall);
   const typing = typingLabel?.trim();
   return (
     <header
@@ -200,6 +205,9 @@ export function ChatConversationHeader({
             className="hidden sm:inline-flex"
           />
         ) : null}
+        {onAskUni ? (
+          <HeaderAction icon={Sparkles} label={askUniAriaLabel} onClick={onAskUni} className="hidden sm:inline-flex" />
+        ) : null}
         {onVoiceCall ? (
           <HeaderAction
             icon={Phone}
@@ -244,6 +252,12 @@ export function ChatConversationHeader({
                 <DropdownMenuItem disabled={catchUpDisabled} onClick={onCatchUp}>
                   <Sparkles aria-hidden />
                   {catchUpAriaLabel}
+                </DropdownMenuItem>
+              ) : null}
+              {onAskUni ? (
+                <DropdownMenuItem onClick={onAskUni}>
+                  <Sparkles aria-hidden />
+                  {askUniAriaLabel}
                 </DropdownMenuItem>
               ) : null}
               {onVoiceCall ? (

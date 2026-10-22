@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -118,6 +119,10 @@ type DocumentSourceFilter struct {
 	Q      string
 	Cursor string
 	Limit  int
+	// Sort is the optional column sort (UNI-2038 S3): updated is the file's
+	// sort date, name its file name, size its bytes, editor the sender or
+	// uploader. The zero value keeps today's order and cursor.
+	Sort DocumentSort
 }
 
 // DocumentSourceParent is where a source file lives. Ref is internal: the
@@ -153,6 +158,15 @@ type DocumentSourceItem struct {
 	// verdict the document upload would give (documentSourceSaveable).
 	CanSave bool
 	rowID   string
+	// Sort keys the list query computed (UNI-2038 S3): the name under the
+	// Vietnamese collation and the sender's display name; editorNull is a row
+	// with no human name (an agent, email, a removed account).
+	nameKey    string
+	editorKey  string
+	editorNull bool
+	// keyRank orders nameKey or editorKey across the merged pages under the
+	// database's collation (rankSourceKeys); only a name or editor sort sets it.
+	keyRank int
 }
 
 // DocumentSourcePage is one list page; NextCursor is empty on the last one.
@@ -170,6 +184,7 @@ type documentSourceQuery struct {
 	typeExts                     []string
 	limit                        int32
 	rowID                        pgtype.Text
+	sort                         documentSortArgs
 }
 
 // List answers GET .../documents/sources.
@@ -205,12 +220,25 @@ func (s *DocumentSourceService) List(ctx context.Context, actor Actor, workspace
 		}
 	}
 	if f.Cursor != "" {
-		at, id, ok := decodeDocumentSourceCursor(f.Cursor)
-		if !ok {
-			return DocumentSourcePage{}, Invalid("cursor không hợp lệ")
+		if sc, ok := decodeSortedDocumentSourceCursor(f.Cursor); ok {
+			if err := sc.CheckAgainst(f.Sort); err != nil {
+				return DocumentSourcePage{}, err
+			}
+			dq.sort = sortArgs(f.Sort, sc.DocumentSortCursor, &sc.At, sc.ID)
+		} else {
+			if f.Sort.Active() {
+				return DocumentSourcePage{}, Invalid("cursor không dùng được với sort/order này")
+			}
+			at, id, ok := decodeDocumentSourceCursor(f.Cursor)
+			if !ok {
+				return DocumentSourcePage{}, Invalid("cursor không hợp lệ")
+			}
+			dq.cursorAt = pgtype.Timestamptz{Time: at, Valid: true}
+			dq.cursorID = pgtype.Text{String: id, Valid: true}
 		}
-		dq.cursorAt = pgtype.Timestamptz{Time: at, Valid: true}
-		dq.cursorID = pgtype.Text{String: id, Valid: true}
+	}
+	if f.Sort.Active() && !dq.sort.key.Valid {
+		dq.sort = sortArgs(f.Sort, DocumentSortCursor{}, nil, "")
 	}
 	var all []DocumentSourceItem
 	for _, src := range sources {
@@ -220,12 +248,23 @@ func (s *DocumentSourceService) List(ctx context.Context, actor Actor, workspace
 		}
 		all = append(all, items...)
 	}
-	sort.SliceStable(all, func(i, j int) bool { return documentSourceBefore(all[i], all[j]) })
+	before := documentSourceBefore
+	if f.Sort.Active() {
+		if err := s.rankSourceKeys(ctx, f.Sort, all); err != nil {
+			return DocumentSourcePage{}, err
+		}
+		before = documentSourceSortedBefore(f.Sort)
+	}
+	sort.SliceStable(all, func(i, j int) bool { return before(all[i], all[j]) })
 	page := DocumentSourcePage{Items: all}
 	if len(all) > limit {
 		page.Items = all[:limit]
 		last := page.Items[limit-1]
-		page.NextCursor = encodeDocumentSourceCursor(last.UpdatedAt, last.ID)
+		if f.Sort.Active() {
+			page.NextCursor = encodeSortedDocumentSourceCursor(f.Sort, last)
+		} else {
+			page.NextCursor = encodeDocumentSourceCursor(last.UpdatedAt, last.ID)
+		}
 	}
 	if page.Items == nil {
 		page.Items = []DocumentSourceItem{}
@@ -393,6 +432,8 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 		got, err := s.q.ListDocumentSourceChatFiles(ctx, db.ListDocumentSourceChatFilesParams{
 			CursorAt: dq.cursorAt, CursorID: dq.cursorID, Q: dq.q, TypeMode: dq.typeMode, TypeExts: dq.typeExts,
 			RowLimit: dq.limit, ViewerID: dq.viewerID, OrganizationID: dq.orgID, WorkspaceID: dq.workspaceID, RowID: dq.rowID,
+			SortKey: dq.sort.key, SortDesc: dq.sort.desc, SortCursorID: dq.sort.id, SortCursorAt: dq.sort.at,
+			SortCursorNum: dq.sort.num, SortCursorText: dq.sort.text, SortCursorNull: dq.sort.null,
 		})
 		if err != nil {
 			return nil, err
@@ -402,6 +443,8 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 		got, err := s.q.ListDocumentSourceTaskFiles(ctx, db.ListDocumentSourceTaskFilesParams{
 			CursorAt: dq.cursorAt, CursorID: dq.cursorID, Q: dq.q, TypeMode: dq.typeMode, TypeExts: dq.typeExts,
 			RowLimit: dq.limit, OrganizationID: dq.orgID, WorkspaceID: dq.workspaceID, RowID: dq.rowID,
+			SortKey: dq.sort.key, SortDesc: dq.sort.desc, SortCursorID: dq.sort.id, SortCursorAt: dq.sort.at,
+			SortCursorNum: dq.sort.num, SortCursorText: dq.sort.text, SortCursorNull: dq.sort.null,
 		})
 		if err != nil {
 			return nil, err
@@ -413,6 +456,8 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 		got, err := s.q.ListDocumentSourceMeetingFiles(ctx, db.ListDocumentSourceMeetingFilesParams{
 			CursorAt: dq.cursorAt, CursorID: dq.cursorID, Q: dq.q, TypeMode: dq.typeMode, TypeExts: dq.typeExts,
 			RowLimit: dq.limit, OrganizationID: dq.orgID, WorkspaceID: dq.workspaceID, RowID: dq.rowID,
+			SortKey: dq.sort.key, SortDesc: dq.sort.desc, SortCursorID: dq.sort.id, SortCursorAt: dq.sort.at,
+			SortCursorNum: dq.sort.num, SortCursorText: dq.sort.text, SortCursorNull: dq.sort.null,
 		})
 		if err != nil {
 			return nil, err
@@ -424,6 +469,8 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 		got, err := s.q.ListDocumentSourceEmailFiles(ctx, db.ListDocumentSourceEmailFilesParams{
 			CursorAt: dq.cursorAt, CursorID: dq.cursorID, Q: dq.q, TypeMode: dq.typeMode, TypeExts: dq.typeExts,
 			RowLimit: dq.limit, ViewerID: dq.viewerID, OrganizationID: dq.orgID, RowID: dq.rowID,
+			SortKey: dq.sort.key, SortDesc: dq.sort.desc, SortCursorID: dq.sort.id, SortCursorAt: dq.sort.at,
+			SortCursorNum: dq.sort.num, SortCursorText: dq.sort.text, SortCursorNull: dq.sort.null,
 		})
 		if err != nil {
 			return nil, err
@@ -435,14 +482,9 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 		return nil, nil
 	}
 	policy := s.docs.documentFilePolicy()
-	txtOpen := s.docs.txtOpenEnabled(ctx, dq.viewerID, dq.workspaceID, dq.orgID)
 	out := make([]DocumentSourceItem, 0, len(rows))
 	for _, r := range rows {
-		it := documentSourceItem(src, r, policy)
-		if it.Extension == "txt" && !txtOpen {
-			it.CanOpenInApp = false
-		}
-		out = append(out, it)
+		out = append(out, documentSourceItem(src, r, policy))
 	}
 	return out, nil
 }
@@ -455,6 +497,7 @@ func documentSourceItem(src string, r db.ListDocumentSourceChatFilesRow, docPoli
 		CanSave: documentSourceSaveable(docPolicy, ext, r.MimeType, r.SizeBytes),
 		Parent:  DocumentSourceParent{Kind: documentSourceParentKind(r.ParentKind), ID: r.ParentID, Title: r.ParentTitle, Ref: r.ParentRef},
 		rowID:   r.RowID,
+		nameKey: r.NameKey, editorKey: r.EditorKey, editorNull: r.EditorNull,
 	}
 	// A task comment's file links to its task: the comment is read there.
 	if item.Parent.Kind == "task_comment" && r.ParentRef != "" {
@@ -598,6 +641,103 @@ func documentSourceBefore(a, b DocumentSourceItem) bool {
 	return a.ID > b.ID
 }
 
+// documentSourceSortedBefore is the order of a column sort across the four
+// merged sources: the key, then the source id, both in the requested
+// direction; a row with no human editor stays last either way. The keys are
+// byte-compared exactly as the queries order them.
+func documentSourceSortedBefore(sort DocumentSort) func(a, b DocumentSourceItem) bool {
+	return func(a, b DocumentSourceItem) bool {
+		var c int
+		switch sort.Key {
+		case DocumentSortSize:
+			c = cmpInt64(a.SizeBytes, b.SizeBytes)
+		case DocumentSortName:
+			c = cmpInt64(int64(a.keyRank), int64(b.keyRank))
+		case DocumentSortEditor:
+			if a.editorNull != b.editorNull {
+				return !a.editorNull
+			}
+			c = cmpInt64(int64(a.keyRank), int64(b.keyRank))
+		default:
+			c = a.UpdatedAt.Compare(b.UpdatedAt)
+		}
+		if c == 0 {
+			c = strings.Compare(a.ID, b.ID)
+		}
+		if sort.Desc {
+			return c > 0
+		}
+		return c < 0
+	}
+}
+
+// rankSourceKeys fills keyRank for a name or editor sort: the pages come from
+// four queries, each already in the database's collation order, and Go has no
+// way to compare two names the way that collation does, so the database ranks
+// the page's keys (at most four pages of rows) in one round trip.
+func (s *DocumentSourceService) rankSourceKeys(ctx context.Context, sort DocumentSort, items []DocumentSourceItem) error {
+	if (sort.Key != DocumentSortName && sort.Key != DocumentSortEditor) || len(items) == 0 {
+		return nil
+	}
+	keys := make([]string, len(items))
+	for i, it := range items {
+		keys[i] = it.nameKey
+		if sort.Key == DocumentSortEditor {
+			keys[i] = it.editorKey
+		}
+	}
+	rows, err := s.q.RankDocumentSortKeys(ctx, keys)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		if r.Ord >= 1 && int(r.Ord) <= len(items) {
+			items[r.Ord-1].keyRank = int(r.Rank)
+		}
+	}
+	return nil
+}
+
+func cmpInt64(a, b int64) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	}
+	return 0
+}
+
+// documentSourceSortCursor is the cursor of a sorted sources page: the sort
+// half every list shares, the last row's date and its source id.
+type documentSourceSortCursor struct {
+	At time.Time `json:"t"`
+	ID string    `json:"id"`
+	DocumentSortCursor
+}
+
+func encodeSortedDocumentSourceCursor(sort DocumentSort, last DocumentSourceItem) string {
+	raw, _ := json.Marshal(documentSourceSortCursor{
+		At: last.UpdatedAt.UTC(), ID: last.ID,
+		DocumentSortCursor: NewDocumentSortCursor(sort, last.SizeBytes, last.nameKey, last.editorKey, last.editorNull),
+	})
+	return base64.RawURLEncoding.EncodeToString(raw)
+}
+
+// decodeSortedDocumentSourceCursor reads a cursor of a sorted page; an
+// unsorted cursor (the "time|id" text) answers false.
+func decodeSortedDocumentSourceCursor(raw string) (documentSourceSortCursor, bool) {
+	b, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil || len(b) == 0 || b[0] != '{' {
+		return documentSourceSortCursor{}, false
+	}
+	var c documentSourceSortCursor
+	if err := json.Unmarshal(b, &c); err != nil || c.ID == "" || strings.ContainsRune(c.ID, 0) || c.At.IsZero() || !c.Sorted() || !c.ValidShape(true) {
+		return documentSourceSortCursor{}, false
+	}
+	return c, true
+}
+
 func encodeDocumentSourceCursor(at time.Time, id string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(at.UTC().Format(time.RFC3339Nano) + "|" + id))
 }
@@ -608,7 +748,7 @@ func decodeDocumentSourceCursor(raw string) (time.Time, string, bool) {
 		return time.Time{}, "", false
 	}
 	ts, id, ok := strings.Cut(string(b), "|")
-	if !ok || id == "" {
+	if !ok || id == "" || strings.ContainsRune(id, 0) {
 		return time.Time{}, "", false
 	}
 	at, err := time.Parse(time.RFC3339Nano, ts)

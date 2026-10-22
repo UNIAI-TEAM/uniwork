@@ -36,6 +36,7 @@ import { CHAT_DOCUMENT_ACCEPT, CHAT_FILE_ACCEPT } from "./chat-file-accept";
 import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
 import { useComposerMentions } from "./use-composer-mentions";
 import { useFileDropZone } from "../editor/use-file-drop-zone";
+import { CHAT_CONVERSATION_GUTTER } from "./chat-wall";
 
 /** Show the character count once a message gets this close to the limit. */
 const COUNTER_THRESHOLD = 200;
@@ -78,9 +79,9 @@ type ChatComposerProps = {
   onSendFile?: (file: File) => void | Promise<void>;
   /** UNI-1966: set when the staged files may go out as shared documents. */
   onSendDocument?: (file: File, shareLevel: ChatDocumentShareLevel) => void | Promise<void>;
-  /** The room detail's can_send_document: the server already folded in the
-      send permission and the share batch cap, so false/absent hides the
-      picker rather than offering a refused send. */
+  /** The room detail's can_send_document: whether the caller may send a
+      document in this room (a permission, never the room's size), so
+      false/absent hides the picker rather than offering a refused send. */
   canSendDocument?: boolean;
   showCreatePoll?: boolean;
   /** A host may provide its own voice capture flow. */
@@ -164,7 +165,7 @@ export function ChatComposer({
   const mentionEnabled = mentionCandidates !== undefined;
   const voiceRecorder = useChatVoiceRecorder();
   const voiceActive = voiceRecorder.state !== "idle" || Boolean(voiceRecorder.error);
-  const { shareChoice, setShareChoice, showSharePicker, sharePickerAllowsFile } =
+  const { shareChoice, setShareChoice, showSharePicker } =
     useComposerDocumentShare({ stagedFiles, canSendDocument, hasDocumentSender: Boolean(onSendDocument) });
 
   useImperativeHandle(ref, () => ({
@@ -280,7 +281,10 @@ export function ChatComposer({
 
   return (
     // Telegram's composer: one flat bar across the conversation's foot, not a pill on the wall.
-    <div className="relative flex shrink-0 flex-col gap-1.5 border-t border-border bg-surface px-2 py-2 sm:px-2.5" {...dropZoneProps}>
+    <div
+      className={cn("relative flex shrink-0 flex-col gap-1.5 border-t border-border bg-surface py-2", CHAT_CONVERSATION_GUTTER)}
+      {...dropZoneProps}
+    >
       {isDragOver ? <ComposerDropOverlay /> : null}
       <input
         ref={fileInputRef}
@@ -367,6 +371,8 @@ export function ChatComposer({
                 onAction={handleAttachAction}
                 align="start"
                 showCreatePoll={showCreatePoll}
+                // A document picked from the library is sent with the same grant a staged one is.
+                showAttachDocument={canSendDocument}
               />
             )}
             {/* The bar is the field: no pill, a ring only to say over the limit or editing. */}
@@ -400,10 +406,7 @@ export function ChatComposer({
                           ))}
                         </div>
                         {showSharePicker ? (
-                          <ChatComposerShareLevelPicker
-                            value={shareChoice} onChange={setShareChoice} disabled={disabled}
-                            allowFileChoice={sharePickerAllowsFile}
-                          />
+                          <ChatComposerShareLevelPicker value={shareChoice} onChange={setShareChoice} disabled={disabled} />
                         ) : null}
                       </div>
                     ) : null}

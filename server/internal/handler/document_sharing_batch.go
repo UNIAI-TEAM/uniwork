@@ -13,7 +13,8 @@ import (
 )
 
 // createDocumentShareBatch is POST /documents/{documentID}/shares/batch: one
-// level for 1-50 users, all or nothing (UNI-1641).
+// level for any number of users, all or nothing (UNI-1641; UNI-2012 S1c
+// removed the 50-user cap).
 func (h *handlers) createDocumentShareBatch(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")

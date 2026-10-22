@@ -1,0 +1,148 @@
+common-01	ms_win	ctrl+n	no line id hit
+common-01	ms_win	ctrl+n	no line id hit
+common-01	ms_mac	cmd+n	no line id hit
+common-01	ms_mac	cmd+n or ctrl+n	no line id hit
+common-01	ms_mac	cmd+n	no line id hit
+common-03	ms_win	ctrl+o	no line id hit
+common-03	ms_win	ctrl+o	no line id hit
+common-03	ms_win	ctrl+o	no line id hit
+common-03	ms_mac	cmd+o	no line id hit
+common-03	ms_mac	cmd+o or ctrl+o	no line id hit
+common-03	ms_mac	cmd+o	no line id hit
+common-04	ms_win	ctrl+s	no line id hit
+common-04	ms_win	ctrl+s	no line id hit
+common-04	ms_win	ctrl+s	no line id hit
+common-04	ms_mac	cmd+s	no line id hit
+common-04	ms_mac	cmd+s or ctrl+s	no line id hit
+common-04	ms_mac	cmd+s	no line id hit
+common-05	ms_win	f12	no line id hit
+common-05	ms_win	f12	no line id hit
+common-05	ms_win	ctrl+shift+s	no line id hit
+common-05	ms_mac	cmd+shift+s	no line id hit
+common-05	ms_mac	cmd+shift+s or f12	no line id hit
+common-05	ms_mac	cmd+shift+s	no line id hit
+common-06	ms_win	ctrl+p	no line id hit
+common-06	ms_win	ctrl+p	no line id hit
+common-06	ms_mac	cmd+p	no line id hit
+common-06	ms_mac	cmd+p or ctrl+p	no line id hit
+common-06	ms_mac	cmd+p	no line id hit
+common-07	ms_win	ctrl+w	no line id hit
+common-07	ms_win	ctrl+w	no line id hit
+common-07	ms_win	ctrl+d	no line id hit
+common-07	ms_mac	cmd+f4	no line id hit
+common-07	ms_mac	cmd+w or ctrl+w	no line id hit
+common-07	ms_mac	cmd+w	no line id hit
+common-08	ms_win	ctrl+q	no line id hit
+common-08	ms_mac	cmd+q	no line id hit
+common-08	ms_mac	cmd+q	no line id hit
+common-09	ms_win	f6	no line id hit
+common-09	ms_win	shift+f6	no line id hit
+common-09	ms_win	f6 / shift+f6	no line id hit
+common-09	ms_win	f6 / shift+f6	no line id hit
+common-09	ms_mac	f6	no line id hit
+common-09	ms_mac	shift+f6	no line id hit
+common-09	ms_mac	f6 or shift+f6	no line id hit
+common-09	ms_mac	f6 / shift+f6	no line id hit
+common-10	ms_win	ctrl+f1	no line id hit
+common-10	ms_win	ctrl+f1	no line id hit
+common-10	ms_win	ctrl+f1	no line id hit
+common-10	ms_mac	cmd+option+r	no line id hit
+common-10	ms_mac	cmd+option+r	no line id hit
+common-12	ms_win	alt or f10. to move to a different tab, use access keys or the arrow keys	no line id hit
+common-12	ms_win	alt or f10. to move to a different tab, use access keys or the arrow keys	no line id hit
+common-12	ms_win	alt or f10. to move to a different tab, use access keys or the arrow keys	no line id hit
+common-13	ms_win	f1	no line id hit
+common-13	ms_win	f1	no line id hit
+common-13	ms_win	f1	no line id hit
+common-13	ms_mac	f1 or cmd+forward slash (/)	no line id hit
+common-13	ms_mac	f1	no line id hit
+common-14	ms_mac	cmd+forward slash (/) (display the help window)	no line id hit
+common-15	ms_win	alt, q, then enter the search term	no line id hit
+common-15	ms_win	alt+q, then enter the search term	no line id hit
+common-15	ms_win	alt+q, then type the search term	no line id hit
+common-16	ms_win	ctrl+plus sign (+)	no line id hit
+common-16	ms_win	ctrl+alt+equal sign (=)	no line id hit
+common-16	ms_win	ctrl+plus sign (+)	no line id hit
+common-16	ms_mac	cmd+plus sign (+)	no line id hit
+common-16	ms_mac	cmd+plus sign (+)	no line id hit
+common-17	ms_win	ctrl+minus sign (-)	no line id hit
+common-17	ms_win	ctrl+alt+minus sign (-)	no line id hit
+common-17	ms_win	ctrl+minus sign (-)	no line id hit
+common-17	ms_mac	cmd+minus sign (-)	no line id hit
+common-17	ms_mac	cmd+minus sign (-)	no line id hit
+common-18	ms_win	ctrl+0	no line id hit
+common-18	ms_mac	cmd+0	no line id hit
+common-19	ms_win	ctrl+scroll	no line id hit
+common-19	ms_mac	cmd+scroll	no line id hit
+common-20	ms_win	f11	no line id hit
+common-20	ms_mac	cmd+ctrl+f	no line id hit
+common-21	ms_win	f12	no line id hit
+common-21	ms_mac	f12	no line id hit
+common-22	ms_win	f5 or ctrl+r	no line id hit
+common-22	ms_mac	cmd+r	no line id hit
+docs-103	ms_mac	cmd+ctrl+v	line-id rows (1) do not contain it
+pdf-01	ms_win	ctrl+s	no line id hit
+pdf-01	ms_mac	cmd+s	no line id hit
+pdf-05	ms_win	ctrl+f	no line id hit
+pdf-05	ms_mac	cmd+f	no line id hit
+pdf-07	ms_win	ctrl+p	no line id hit
+pdf-07	ms_mac	cmd+p	no line id hit
+pdf-08	ms_win	ctrl+plus (+) / ctrl+minus (-)	no line id hit
+pdf-08	ms_mac	cmd+plus (+) / cmd+minus (-)	no line id hit
+pdf-09	ms_win	ctrl+plus (+) / ctrl+minus (-)	no line id hit
+pdf-09	ms_mac	cmd+plus (+) / cmd+minus (-)	no line id hit
+pdf-10	ms_win	ctrl+0 (zero)	no line id hit
+pdf-10	ms_mac	cmd+0 (zero)	no line id hit
+pdf-11	ms_win	ctrl+\ (in a pdf)	no line id hit
+pdf-11	ms_mac	cmd+\ (in a pdf)	no line id hit
+pdf-19	ms_win	f11	no line id hit
+pdf-19	ms_mac	cmd+ctrl+f	no line id hit
+pdf-20	ms_win	ctrl+shift+u	no line id hit
+pdf-20	ms_mac	cmd+shift+u	no line id hit
+pdf-23	ms_win	esc	no line id hit
+pdf-23	ms_mac	esc	no line id hit
+shell-03	ms_win	ctrl+alt+equal sign (=) (zoom in); ctrl+alt+minus sign (-) (zoom out)	no line id hit
+shell-04	ms_win	ctrl+z	no line id hit
+shell-04	ms_win	ctrl+z	no line id hit
+shell-04	ms_win	ctrl+z	no line id hit
+shell-04	ms_mac	cmd+z or f1	no line id hit
+shell-04	ms_mac	cmd+z or ctrl+z	no line id hit
+shell-04	ms_mac	cmd+z	no line id hit
+shell-05	ms_win	ctrl+y	no line id hit
+shell-05	ms_win	ctrl+y	no line id hit
+shell-05	ms_win	ctrl+y	no line id hit
+shell-05	ms_mac	cmd+y	no line id hit
+shell-05	ms_mac	cmd+y or ctrl+y or cmd+shift+z	no line id hit
+shell-05	ms_mac	cmd+y	no line id hit
+shell-06	ms_win	ctrl+x / ctrl+c / ctrl+v	no line id hit
+shell-06	ms_win	ctrl+a	no line id hit
+shell-06	ms_mac	cmd+x or ctrl+x or shift+[img: the mac delete button with a cross symbol on it.] / cmd+c or ctrl+c / cmd+v or ctrl+v	no line id hit
+shell-06	ms_mac	cmd+a	no line id hit
+shell-07	ms_win	ctrl+shift+v	no line id hit
+shell-07	ms_mac	cmd+shift+v	no line id hit
+shell-08	ms_win	ctrl+f	no line id hit
+shell-08	ms_win	ctrl+g	no line id hit
+shell-08	ms_mac	cmd+f	no line id hit
+shell-08	ms_mac	cmd+option+g or f5	no line id hit
+shell-09	ms_win	ctrl+k	no line id hit
+shell-09	ms_mac	cmd+k	no line id hit
+shell-10	ms_win	ctrl+b	no line id hit
+shell-10	ms_win	ctrl+i	no line id hit
+shell-10	ms_win	ctrl+u	no line id hit
+shell-10	ms_mac	cmd+b	no line id hit
+shell-10	ms_mac	cmd+i	no line id hit
+shell-10	ms_mac	cmd+u	no line id hit
+shell-11	ms_win	ctrl+d or ctrl+shift+f	no line id hit
+shell-11	ms_mac	cmd+d	no line id hit
+shell-12	ms_win	ctrl+alt+m (insert comment, collides)	no line id hit
+shell-12	ms_mac	cmd+option+a (insert comment, collides)	no line id hit
+shell-13	ms_mac	cmd+m (office common)	no line id hit
+shell-13	ms_mac	ctrl+f9	no line id hit
+shell-14	ms_mac	cmd+h (hide excel)	no line id hit
+shell-15	ms_win	alt or f10. to move to a different tab, use access keys or the arrow keys	no line id hit
+global-04	ms_win	ctrl+f	no line id hit
+global-04	ms_mac	cmd+f	no line id hit
+global-18	ms_win	ctrl+s	no line id hit
+global-18	ms_mac	cmd+s	no line id hit
+global-19	ms_win	ctrl+s	no line id hit
+global-19	ms_mac	cmd+s	no line id hit

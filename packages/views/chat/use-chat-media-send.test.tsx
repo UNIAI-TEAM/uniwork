@@ -206,7 +206,6 @@ describe("useChatMediaSend", () => {
   it("maps the document send refusal codes to their own sentences", async () => {
     const cases: Array<[ApiError, string]> = [
       [new ApiError("quota", "quota_exceeded", 403), "Tổ chức đã hết dung lượng lưu trữ. Hãy giải phóng dung lượng hoặc nâng cấp gói."],
-      [new ApiError("batch", "share_batch_too_large", 422), "Cuộc trò chuyện có quá nhiều người để chia sẻ tài liệu. Hãy chia sẻ từ trang Tài liệu."],
       [new ApiError("fmt", "unsupported_media_type", 415, undefined, { reason: "format" }), "Định dạng tệp này chưa được hỗ trợ."],
     ];
     for (const [err, text] of cases) {
