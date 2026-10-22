@@ -36,6 +36,7 @@ export const WORKFLOWS = [
 export const OPTIONAL = {
   SENTRY_URL: "a self-hosted Sentry only; the default is https://sentry.io/",
   UNICHAT_RELEASE_HEALTH: "the switch that turns the hourly release-health run on; off until Sentry has data",
+  SENTRY_ALERT_EXTRA_ACTIONS: "the pager actions Sentry's alert rules add to the team email; email only without it",
   ASC_KEY_ID: "iOS only: the App Store Connect API key, once the Apple Developer account exists (UNI-1838)",
   ASC_ISSUER_ID: "iOS only: the issuer of that key (UNI-1838)",
   ASC_PRIVATE_KEY: "iOS only: that key's .p8 (UNI-1838)",

@@ -342,6 +342,29 @@ test("release health runs hourly once switched on, needs its settings, and acts 
   }
 });
 
+// Audit "alerting-not-as-code": the alert rules are checked every hour and applied only when someone asks.
+test("release health checks the Sentry alert rules as code every run, and applies them only when dispatched to", () => {
+  const step = (env) => runStep("chat-mobile-release-health.yml", "- name: Sentry alert rules as code", env, nodeStub());
+  const set = { SENTRY_PROJECT: "unichat-mobile", SENTRY_ALERT_TEAM: "mobile" };
+  const checked = step({ ...set, SYNC_ALERTS: "false" });
+  assert.equal(checked.status, 0);
+  assert.match(checked.stdout, /node scripts\/mobile-sentry-alerts\.mjs check/);
+  const applied = step({ ...set, SYNC_ALERTS: "true" });
+  assert.match(applied.stdout, /node scripts\/mobile-sentry-alerts\.mjs apply/);
+  assert.equal(step({ ...set, SYNC_ALERTS: "false", NODE_EXIT: "1" }).status, 0, "a failed check is a warning");
+  assert.notEqual(step({ ...set, SYNC_ALERTS: "true", NODE_EXIT: "1" }).status, 0, "a failed apply is red");
+  assert.equal(step({ SENTRY_PROJECT: "", SENTRY_ALERT_TEAM: "", SYNC_ALERTS: "false" }).status, 0, "unset: a warning");
+  assert.notEqual(step({ SENTRY_PROJECT: "", SENTRY_ALERT_TEAM: "", SYNC_ALERTS: "true" }).status, 0, "an apply that cannot run is red");
+  assert.match(read("chat-mobile-release-health.yml"), /^ {6}sync_alerts:\n {8}description: [^\n]+\n {8}type: boolean\n {8}default: false$/m);
+});
+
+/** A directory with a `node` that echoes its arguments and exits with $NODE_EXIT. */
+function nodeStub() {
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "node-stub-"));
+  fs.writeFileSync(path.join(bin, "node"), '#!/bin/sh\necho "node $*"\nexit "${NODE_EXIT:-0}"\n', { mode: 0o755 });
+  return bin;
+}
+
 // Audit "health-gate-platform-blind" and the verifier's miss on tester builds: both variants are read every hour, and
 // one red variant does not stop the other from being read.
 test("release health reads production and staging every hour, each through the script, and is red when either is", () => {

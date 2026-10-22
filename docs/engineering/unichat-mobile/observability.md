@@ -68,7 +68,8 @@
   mốc log đã kể giữ trong device store nên mỗi lỗi kể một lần — thì thêm một báo cáo `OtaLaunchError` tag
   `ota_failure`/`failed_update_id`/`failed_update_code`, fingerprint theo OS và bản OTA, mà job sức khoẻ bản phát hành
   đếm cho đúng bản đó; `crashedLastRun` của Sentry nói lần chạy trước crash; alert `UniChatMobileUpdateLaunchFailures`
-  và `UniChatMobileCrashes` báo qua Alertmanager không chờ Sentry)
+  và `UniChatMobileCrashes` báo qua Alertmanager không chờ Sentry; `UniChatMobileSendFailures` khi > 5 % tin của một bản
+  hỏng hẳn; alert của chính Sentry là code ở `deploy/sentry/unichat-mobile-alerts.json`, `scripts/mobile-sentry-alerts.mjs`)
   — gửi theo lô ≤ 20 mỗi phút và khi vào nền tới `POST /api/v1/mobile/events` (server chỉ cộng bộ đếm
   `uniwork_mobile_events_total` theo OS, version và bản OTA / histogram `uniwork_mobile_event_duration_seconds` theo OS
   và version; dashboard `deploy/grafana/dashboards/unichat-mobile.json`; không lưu gì của người hay nội dung); không thử lại, hàng tối đa 60. Tắt ở Cài đặt › Quyền riêng tư và bảo mật (`usageStats` trong

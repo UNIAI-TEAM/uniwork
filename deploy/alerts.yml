@@ -410,6 +410,23 @@ groups:
           summary: "Một bản UniChat mobile crash nhiều"
           description: "Bản {{ $labels.client_version }} ({{ $labels.os }}): {{ $value | humanizePercentage }} lần mở lạnh trong 1 giờ đến sau một lần crash."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatMobileCrashes.md
+      # A UniChat mobile build whose messages fail for good (the outbox gave up: a refusal, not a slow network, which
+      # keeps them queued) far more than the rest: a crash-free build can still break the one thing a chat app is for.
+      # Fifty sends an hour keep a build with a handful of phones from paging on one person's bad afternoon.
+      - alert: UniChatMobileSendFailures
+        expr: |
+          (
+            sum by (os, client_version) (increase(uniwork_mobile_events_total{event="message_send",result="failed"}[1h]))
+              / sum by (os, client_version) (increase(uniwork_mobile_events_total{event="message_send"}[1h]))
+          ) > 0.05
+          and sum by (os, client_version) (increase(uniwork_mobile_events_total{event="message_send"}[1h])) >= 50
+        for: 15m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Một bản UniChat mobile gửi tin hỏng nhiều"
+          description: "Bản {{ $labels.client_version }} ({{ $labels.os }}): {{ $value | humanizePercentage }} tin gửi trong 1 giờ hỏng hẳn."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatMobileSendFailures.md
       # A member reported a message or a person in UniChat (store UGC policy, Apple 1.2): the terms of use promise the
       # operator acts on every report within 24 hours. Both rules read queue state (metrics.ChatReportQueueCollector, the
       # open rows of chat_reports at scrape time), never the chat.report.created counter: that series is born at 1 with

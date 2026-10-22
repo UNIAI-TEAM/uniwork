@@ -255,9 +255,14 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    Thiếu `SENTRY_DSN` thì app không khởi động Sentry. GitHub Environment `chat-mobile-update`: secret
    `SENTRY_AUTH_TOKEN`, variables `SENTRY_ORG`, `SENTRY_PROJECT` cho source map của OTA; Environment
    `chat-mobile-production` cùng ba thứ đó (bản production chứng minh symbol đã lên). Bản production và OTA kênh
-   `production` không phát khi thiếu báo crash (trừ khi miễn có ghi lại). Đặt alert crash-free sessions < 99.5 %
-   (`docs/evidence/unichat/go-no-go-template.md`) trong Sentry; việc dừng rollout khi dưới ngưỡng là của job Sức khoẻ
-   bản phát hành.
+   `production` không phát khi thiếu báo crash (trừ khi miễn có ghi lại). **Alert của Sentry là code**
+   (`deploy/sentry/unichat-mobile-alerts.json`: crash-free sessions < 99.5 %, cold start p75 > 3 s, crash mới hay quay
+   lại, bản OTA máy không khởi động được): đặt variables `SENTRY_PROJECT` và `SENTRY_ALERT_TEAM` (slug team nhận email)
+   cho Environment `chat-mobile-release-health`, token có thêm `alerts:write`, rồi chạy "UniChat mobile release health"
+   với `sync_alerts`; mỗi lượt chạy giờ sau so lại và cảnh báo khi ai đó sửa tay trong Sentry. Muốn alert gọi pager
+   (PagerDuty/Opsgenie/Slack đã nối vào Sentry): variable `SENTRY_ALERT_EXTRA_ACTIONS` =
+   `{"metric": [<action của metric alert>], "issue": [<action của issue alert>]}` theo dạng API của Sentry. Đổi alert
+   thì sửa file đó qua PR, không sửa trong UI. Việc dừng rollout khi dưới ngưỡng là của job Sức khoẻ bản phát hành.
 9. **Ký OTA (EAS Update code signing).** Chứng chỉ công khai đã commit: `apps/chat-mobile/certs/eas-update-certificate.pem`
    (sinh 2026-10-22 bằng `npx expo-updates codesigning:generate --key-output-directory ../../.secrets/unichat-keys
    --certificate-output-directory certs --certificate-validity-duration-years 10 --certificate-common-name "UniChat"`,
@@ -821,10 +826,10 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
    JS stall nằm trong measurements của chúng. Mẫu 10 % phiên production, mọi phiên dev/staging; một nửa phiên được mẫu
    ở production (5 % tổng) và mọi phiên dev/staging mang profile Hermes (`profilesSampleRate`): mở transaction chậm →
    tab Profile cho stack đã tiêu thời gian trên luồng JS (tên hàm và thời gian, không nội dung). So sánh TTFD p75 giữa
-   hai release trước khi mở rộng rollout. Alert hiệu năng của Sentry (thiết lập một lần, khi có dự án Sentry —
-   Alerts › Create › Performance/Metric, môi trường `production`, mỗi release): `app.start.cold` p75 > 3 s trong 1 giờ;
-   TTFD (`ui.load.full_display`) p75 của transaction tab Chat > 2,5 s và của phòng > 2 s; tỷ lệ khung đơ
-   (`frames_frozen_rate`) > 1 % — gửi tới kênh on-call mobile. Số p75 của release đang rollout đi vào báo cáo go/no-go
+   hai release trước khi mở rộng rollout. Alert hiệu năng của Sentry là code (`deploy/sentry/unichat-mobile-alerts.json`,
+   áp bằng `sync_alerts` ở trên): `app.start.cold` p75 > 3 s trong 1 giờ. Khi Sentry đã có tên transaction thật của tab
+   Chat và phòng, thêm vào cùng file TTFD (`ui.load.full_display`) p75 tab Chat > 2,5 s và phòng > 2 s, và tỷ lệ khung
+   đơ (`frames_frozen_rate`) > 1 %. Số p75 của release đang rollout đi vào báo cáo go/no-go
    (`docs/evidence/unichat/go-no-go-template.md` › Hiệu năng). Trên máy dev, số render của hàng khi gõ/hiện diện/tin mới:
    `pnpm --filter @uniwork/chat-mobile exec jest components/chat/conversation-renders.test.tsx components/chat/chat-tab-renders.test.tsx`.
 

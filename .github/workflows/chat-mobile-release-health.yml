@@ -26,6 +26,13 @@ name: UniChat mobile release health
 # ASC_PRIVATE_KEY with the variable ASC_APP_ID; the variable SENTRY_ORG
 # (SENTRY_URL for a self-hosted Sentry). The UNICHAT_HEALTH_* variables lower
 # the counts for a pilot (runbook).
+#
+# The same run checks Sentry's alert rules against
+# deploy/sentry/unichat-mobile-alerts.json (scripts/mobile-sentry-alerts.mjs:
+# drift is a warning) and applies them when dispatched with sync_alerts
+# (the token then needs alerts:write). It reads the variables SENTRY_PROJECT
+# and SENTRY_ALERT_TEAM (the team the alerts email) and, optionally,
+# SENTRY_ALERT_EXTRA_ACTIONS (the pager actions, as Sentry action objects).
 
 on:
   schedule:
@@ -36,6 +43,10 @@ on:
         description: Report only; revert and halt nothing
         type: boolean
         default: true
+      sync_alerts:
+        description: Apply deploy/sentry/unichat-mobile-alerts.json to Sentry
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -58,6 +69,7 @@ jobs:
     environment: chat-mobile-release-health
     env:
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      SYNC_ALERTS: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_alerts }}
     steps:
       - name: Settings
         env:
@@ -120,6 +132,29 @@ jobs:
             UNICHAT_ENV="$app" node scripts/mobile-release-health.mjs "${args[@]}" || status=1
           done
           exit "$status"
+      - name: Sentry alert rules as code
+        if: ${{ always() }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_URL: ${{ vars.SENTRY_URL }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_ALERT_TEAM: ${{ vars.SENTRY_ALERT_TEAM }}
+          SENTRY_ALERT_EXTRA_ACTIONS: ${{ vars.SENTRY_ALERT_EXTRA_ACTIONS }}
+        # A check never turns the health run red (a token without alerts:read only loses the drift report); an apply
+        # someone asked for does.
+        run: |
+          set -uo pipefail
+          if [ -z "$SENTRY_PROJECT" ] || [ -z "$SENTRY_ALERT_TEAM" ]; then
+            echo "::warning::SENTRY_PROJECT or SENTRY_ALERT_TEAM is not set: the alert rules in deploy/sentry/ are not checked (runbook › Sức khoẻ bản phát hành)"
+            [ "$SYNC_ALERTS" != "true" ]
+            exit
+          fi
+          if [ "$SYNC_ALERTS" = "true" ]; then
+            node scripts/mobile-sentry-alerts.mjs apply
+            exit
+          fi
+          node scripts/mobile-sentry-alerts.mjs check || echo "::warning::the Sentry alert rules could not be checked (does the token have alerts:read?)"
       - name: Remove the signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/eas-update-private-key.pem"
