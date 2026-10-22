@@ -61,6 +61,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   document_trashed_by_other: Trash2,
   document_changed: MODULE_ICONS.documents,
   document_owner_transferred: Crown,
+  document_owners_bulk_transferred: Crown,
 };
 
 /**
