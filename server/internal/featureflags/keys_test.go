@@ -235,3 +235,19 @@ func TestMobileCallsAreOffOnAnIPhoneUntilTheIOSSwitchIsOn(t *testing.T) {
 		t.Fatal("the calls kill switch still turns calls off on every platform")
 	}
 }
+
+// The recycled message list is an A/B, not a kill switch: a mobile flag off by default, with a review date, that
+// a share of people (by user id) can be put on.
+func TestTimelineRecycledIsAnOffByDefaultMobileRollout(t *testing.T) {
+	f, ok := Lookup("unichat_mobile_timeline_recycled")
+	if !ok || !f.Mobile || f.Default || f.Public || f.ReviewAt.IsZero() {
+		t.Fatalf("unichat_mobile_timeline_recycled = %+v, want a mobile flag off by default with a review date", f)
+	}
+	if EvaluateMobileFlags(context.Background(), nil)["unichat_mobile_timeline_recycled"] {
+		t.Fatal("unichat_mobile_timeline_recycled is off without a service")
+	}
+	t.Setenv("FF_UNICHAT_MOBILE_TIMELINE_RECYCLED", "true")
+	if !EvaluateMobileFlags(context.Background(), featureflag.NewService(featureflag.NewEnvProvider("FF_")))["unichat_mobile_timeline_recycled"] {
+		t.Fatal("FF_UNICHAT_MOBILE_TIMELINE_RECYCLED=true turns it on")
+	}
+}

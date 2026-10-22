@@ -116,7 +116,14 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   (giữ 90 ngày). Sau 5 run xanh của một job: `gh run download <run> -n <artifact> -D runs/<run>` cho từng run, rồi
   `node scripts/mobile-perf.mjs tighten --profile <android|android-2gb|ios-simulator> runs/*/*.json` in đề xuất và
   `--write` ghi: mỗi trần = số tệ nhất + 15 %, không bao giờ cao hơn trần cũ, profile rời `provisional` khi mọi chỉ số
-  có đủ 5 run. Commit đó trích URL các run; từ đó trần chỉ hạ, và chỉ nâng trong commit thêm sức nặng, ghi lý do. Phòng `MAESTRO_ROOM_ID` cần ≥ 500 tin để lần cuộn tải nhiều trang: gieo một lần
+  có đủ 5 run. Commit đó trích URL các run; từ đó trần chỉ hạ, và chỉ nâng trong commit thêm sức nặng, ghi lý do.
+  **A/B danh sách tin** (`unichat_mobile_timeline_recycled`, FlashList 2 thay FlatList đảo ngược): (1) nightly như
+  thường 5 đêm làm mốc; (2) bật override mức người dùng cho tài khoản `MAESTRO_TEST_EMAIL` ở console admin (hay
+  `FF_UNICHAT_MOBILE_TIMELINE_RECYCLED=true` trên staging) và chạy 5 đêm nữa; so `scrollJankyPercent`,
+  `scrollP90FrameMs`, `memoryPssMB` của hai nhóm artifact `unichat-perf-android-nightly`, cộng tay một lượt nhảy tới
+  trích dẫn và mở phòng có dòng chưa đọc trên máy thật (neo cuộn dưới bàn phím chỉ máy thấy). Thắng thì bật dần
+  `FF_…=10%` ở production và so khung chậm/đơ theo tag `timeline_list` trong Sentry › Performance; thua hay lỗi thì
+  tắt — phòng mở sau đó về FlatList, không cần bản mới. Phòng `MAESTRO_ROOM_ID` cần ≥ 500 tin để lần cuộn tải nhiều trang: gieo một lần
   bằng một access token của tài khoản thử (`TOKEN`), id workspace (`WS_ID`) và URL API staging (`API`):
   `for i in $(seq 1 500); do curl -fsS -X POST "$API/api/v1/workspaces/$WS_ID/chat/rooms/$MAESTRO_ROOM_ID/messages"
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json'
@@ -384,6 +391,8 @@ máy mở lạnh không có mạng vẫn theo công tắc và mức tối thiể
   lại — chúng nằm yên trên máy; gửi từ ô soạn tin và nút Thử lại vẫn chạy; dùng khi bản app gây bão gửi lại),
   `unichat_mobile_chat_sync` (ngừng đồng bộ theo nhật ký thay đổi `GET …/chat/sync`: reconnect lại refetch mọi
   timeline đang hiện như trước; dùng khi endpoint sync chậm hay trả sai — app không cần bản mới).
+- `unichat_mobile_timeline_recycled` thì ngược lại: mặc định **tắt** (FlatList đảo ngược); bật là A/B danh sách tin
+  trên FlashList 2 (mục Đo hiệu năng trên thiết bị), tắt là quay về FlatList ở phòng mở kế tiếp.
 - Bật dần cho một phần người dùng: `FF_<KEY>=N%` hoặc trong tệp `FEATURE_FLAGS_FILE`
   `<key>: {default: false, percent: {percent: N, by: user_id}}` — cùng một người luôn trong hay ngoài (băm id người
   dùng), khoảng N % tổng số; đổi cần khởi động lại server. Override ở console chỉ bật/tắt (người > tổ chức > toàn hệ

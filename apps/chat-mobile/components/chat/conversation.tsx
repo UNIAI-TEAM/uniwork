@@ -50,7 +50,6 @@ import { LinkSheet, useOpenLink } from "./link-sheet";
 import { MessageActionsSheet } from "./message-actions";
 import type { MessageCardContext } from "./message-cards";
 import { MessageCell, type MessageHandlers } from "./message-cell";
-import { MessageList } from "./message-list";
 import { PinnedBar } from "./pinned-bar";
 import { ReportSheet } from "./report-sheet";
 import { ReminderSheet } from "./reminder-sheet";
@@ -59,6 +58,7 @@ import { useArrivalAnnouncements } from "./use-arrival-announcements";
 import { useSendFailureFeedback } from "./use-send-failure-feedback";
 import { useMessageActions } from "./use-message-actions";
 import { useStableHandlers } from "./use-stable-handlers";
+import { TimelineList } from "./timeline-list";
 import type { ChatWorkspace } from "./use-chat-workspace";
 import type { useRoomContext } from "./use-room-context";
 
@@ -339,7 +339,7 @@ export function Conversation(props: Props) {
         <View className="flex-1 bg-chat-wall">
           {!threadRootId ? <PinnedBar messages={messages} onJump={props.onQuoteJump} /> : null}
           <ImageBackground source={WALL_DOTS[colorScheme]} resizeMode="repeat" style={{ flex: 1 }}>
-            <MessageList
+            <TimelineList
               rows={rows}
               renderMessage={renderMessage}
               onLoadOlder={props.onLoadOlder}

@@ -12,10 +12,12 @@
 // the inverted list's anchor (older pages arrive above without moving what is
 // read, new messages arrive below the keyboard-tracking composer), and only a
 // device can tell whether a new list keeps it; FlashList 2 lays chat out
-// bottom-up a different way (startRenderingFromBottom, onStartReached). Until
-// that is measured on hardware, the FlatList is tuned instead:
-// one screenful first, ten cells a batch and a window of 11 screens rather
-// than 21, so a 2,000-message history keeps a few dozen bubbles mounted.
+// bottom-up a different way (startRenderingFromBottom, onStartReached). That
+// list is recycled-message-list.tsx, behind the unichat_mobile_timeline_recycled
+// switch (timeline-list.tsx) for an A/B on devices; until it wins, this FlatList
+// is tuned instead: one screenful first, ten cells a batch and a window of 7
+// screens rather than 21, so a 2,000-message history keeps a few dozen bubbles
+// mounted (audit timeline-flatlist: 11 kept too many rich cells).
 //
 // A room opened with unread messages draws "N tin chưa đọc" above the first
 // of them and, when that is past the first screen, opens on it (near the top,
@@ -35,16 +37,16 @@ import { formatMessageDay, type TimelineRow } from "@/lib/timeline-display";
 import { OlderPagesFooter } from "./conversation-states";
 
 /** How close to the newest message still counts as "at the latest" (read marking). */
-const AT_LATEST_PX = 120;
+export const AT_LATEST_PX = 120;
 /** Rows from the newest past which a jump is not animated. */
-const FAR_JUMP_ROWS = 30;
+export const FAR_JUMP_ROWS = 30;
 /** Attempts at a jump target the list has not measured yet, after the first. */
 const JUMP_RETRIES = 3;
 const RETRY_MS = 60;
 /** Rows from the newest within which the unread line is on the first screen already: no scroll to it. */
-const UNREAD_IN_VIEW_ROWS = 8;
+export const UNREAD_IN_VIEW_ROWS = 8;
 
-interface Props {
+export interface MessageListProps {
   /** Newest first, the inverted list's order (lib/timeline-layout.ts): never reversed here per change. */
   rows: TimelineRow[];
   renderMessage: (row: Extract<TimelineRow, { type: "message" }>) => ReactNode;
@@ -65,12 +67,12 @@ interface Props {
   unread?: { id: string; label: string } | null;
 }
 
-type ListRow = TimelineRow | { type: "unread"; key: "unread"; label: string };
+export type ListRow = TimelineRow | { type: "unread"; key: "unread"; label: string };
 
-const keyOf = (row: ListRow) => row.key;
+export const keyOf = (row: ListRow) => row.key;
 
 /** The rows with the unread line above the first unread message (the next index, in the inverted list's order). */
-function withUnreadRow(rows: TimelineRow[], unread: { id: string; label: string } | null | undefined): ListRow[] {
+export function withUnreadRow(rows: TimelineRow[], unread: { id: string; label: string } | null | undefined): ListRow[] {
   if (!unread) return rows;
   const index = rows.findIndex((row) => row.type === "message" && row.message.id === unread.id);
   if (index < 0) return rows;
@@ -78,7 +80,7 @@ function withUnreadRow(rows: TimelineRow[], unread: { id: string; label: string 
 }
 
 /** "N tin chưa đọc" between two hairlines, read as one line. */
-const UnreadRow = memo(function UnreadRow({ label }: { label: string }) {
+export const UnreadRow = memo(function UnreadRow({ label }: { label: string }) {
   return (
     <View className="flex-row items-center gap-2.5 px-4 pb-1.5 pt-3" accessible accessibilityLabel={label} testID="unread-divider">
       <View className="h-px flex-1 bg-primary/40" />
@@ -92,7 +94,7 @@ const UnreadRow = memo(function UnreadRow({ label }: { label: string }) {
   );
 });
 
-const DayRow = memo(function DayRow({ ts }: { ts: number }) {
+export const DayRow = memo(function DayRow({ ts }: { ts: number }) {
   const { t, i18n } = useTranslation();
   const label = formatMessageDay(ts, i18n.language, { today: t("chat.day_today"), yesterday: t("chat.sidebar_yesterday") });
   return (
@@ -103,6 +105,18 @@ const DayRow = memo(function DayRow({ ts }: { ts: number }) {
     </View>
   );
 });
+
+/** A conversation with no message yet: what to say, in the middle of the wall, above who is typing. */
+export function TimelineEmpty({ text, bottom }: { text: string; bottom?: ReactNode }) {
+  return (
+    <View className="flex-1 items-center justify-center px-8">
+      <View className="rounded-2xl bg-chat-chip px-4 py-2.5">
+        <Text className="text-center text-callout text-chat-chip-foreground">{text}</Text>
+      </View>
+      {bottom}
+    </View>
+  );
+}
 
 export function MessageList({
   rows,
@@ -116,7 +130,7 @@ export function MessageList({
   empty,
   latestSignal = 0,
   unread,
-}: Props) {
+}: MessageListProps) {
   const list = useRef<FlatList<ListRow>>(null);
   const data = useMemo(() => withUnreadRow(rows, unread), [rows, unread]);
   const jumped = useRef<number | null>(null);
@@ -184,16 +198,7 @@ export function MessageList({
     list.current?.scrollToOffset({ offset: 0, animated: true });
   }, [latestSignal]);
 
-  if (rows.length === 0 && empty) {
-    return (
-      <View className="flex-1 items-center justify-center px-8">
-        <View className="rounded-2xl bg-chat-chip px-4 py-2.5">
-          <Text className="text-center text-callout text-chat-chip-foreground">{empty}</Text>
-        </View>
-        {bottom}
-      </View>
-    );
-  }
+  if (rows.length === 0 && empty) return <TimelineEmpty text={empty} bottom={bottom} />;
 
   return (
     <FlatList
@@ -220,7 +225,7 @@ export function MessageList({
       onScrollToIndexFailed={onScrollToIndexFailed}
       initialNumToRender={15}
       maxToRenderPerBatch={10}
-      windowSize={11}
+      windowSize={7}
     />
   );
 }

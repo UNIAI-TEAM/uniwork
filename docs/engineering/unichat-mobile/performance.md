@@ -37,9 +37,18 @@ Model hàng, danh sách tái chế, timeline dài, cửa sổ trượt, ảnh, b
   và test đỏ khi ScrollView nhận prop đó hay có `ScrollAnchor`. Ô tìm danh bạ lọc sau phím gõ (`useDeferredValue`).
   Jest: `test/jest-setup.ts` mock đo layout của FlashList (cửa sổ 400 × 900, ô 100) — `jestSetup.js` của gói trỏ
   tới export không có ở bản 2.0; danh sách dài trong test chỉ mount khoảng một màn như trên máy.
-  Timeline tin nhắn vẫn là FlatList đảo ngược (lý do ở `message-list.tsx`: neo cuộn của danh sách đảo ngược chỉ kiểm
-  được trên máy), chỉnh cửa sổ: 15 ô đầu, 10 ô một lượt, `windowSize` 11; nhảy tới tin xa hơn 30 hàng không animate,
-  đích chưa đo thì cuộn theo chiều cao trung bình rồi thử lại chỉ số tối đa 3 lần, không animate. **Timeline dài**
+  Timeline tin nhắn mặc định là FlatList đảo ngược (lý do ở `message-list.tsx`: neo cuộn của danh sách đảo ngược chỉ
+  kiểm được trên máy), chỉnh cửa sổ: 15 ô đầu, 10 ô một lượt, `windowSize` 7 (audit timeline-flatlist: 11 giữ quá
+  nhiều bong bóng giàu nội dung); nhảy tới tin xa hơn 30 hàng không animate, đích chưa đo thì cuộn theo chiều cao
+  trung bình rồi thử lại chỉ số tối đa 3 lần, không animate. **Timeline tái chế** (A/B): công tắc
+  `unichat_mobile_timeline_recycled` (mặc định tắt, `FF_…=N%` theo id người dùng) cho cùng hợp đồng chạy trên
+  FlashList 2 (`components/chat/recycled-message-list.tsx`): hàng xếp cũ trước (đảo một lần mỗi lần timeline đổi),
+  `maintainVisibleContentPosition.startRenderingFromBottom`, trang cũ hơn qua `onStartReached`, tin mới tự cuộn khi
+  người đọc ở trong 20 % màn cuối, ô tái chế theo loại (`timelineItemType`: ngày, dòng chưa đọc, tin theo kiểu bong
+  bóng), `scrollToIndex` của FlashList tự đo tới đích chưa đo. `components/chat/timeline-list.tsx` đọc công tắc một
+  lần mỗi phòng được mở (refetch cấu hình không đổi danh sách dưới tay người đọc) và gắn tag `timeline_list`
+  (`inverted`/`recycled`) cho báo cáo Sentry, để khung chậm/đơ của phòng tách theo danh sách. Cách chạy A/B: runbook ›
+  Đo hiệu năng trên thiết bị. **Timeline dài**
   (`lib/timeline-perf.test.ts`, 2.000 tin): hàng có cùng tin, cùng tin được trích và cùng bộ đọc (`senderName`,
   `quoteText`, người xem, chủ đề) giữ tên và trích dẫn của lần trước, không gọi lại bộ đọc, và được trả lại nguyên object
   khi không gì nó vẽ đổi (`buildMessageRowModels` nhớ bộ đọc của mỗi map đã dựng); test đếm lời gọi bộ đọc khi có tin

@@ -92,6 +92,11 @@ var catalogue = []Flag{
 	{Key: "unichat_mobile_ai_catch_up", Description: "UniChat mobile: \"Bắt kịp nhanh\" bằng AI trên danh sách chat; tắt thì ẩn banner (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	{Key: "unichat_mobile_outbox_flush", Description: "UniChat mobile: tự gửi lại tin và thao tác đang chờ (khi có mạng lại, về foreground, socket nối lại); tắt thì chúng nằm yên trên máy, gửi từ ô soạn tin và nút Thử lại vẫn chạy (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	{Key: "unichat_mobile_chat_sync", Description: "UniChat mobile: đồng bộ chat theo nhật ký thay đổi (GET .../chat/sync, ADR 0039 nháp): reconnect và mỗi phút yên lặng chỉ đọc phần đã đổi; tắt thì reconnect refetch mọi timeline đang hiện như trước (UNI-2071)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	// The conversation's message list on FlashList 2 (audit timeline-flatlist): off by default keeps the tuned
+	// inverted FlatList; FF_UNICHAT_MOBILE_TIMELINE_RECYCLED=N% puts a share of people (by user id) on the recycled
+	// list, the A/B the nightly's frame numbers and Sentry's slow and frozen frames decide. Each conversation reads it
+	// once when shown, so turning it off takes effect at the next room opened.
+	{Key: "unichat_mobile_timeline_recycled", Description: "UniChat mobile: danh sách tin của một phòng chạy trên FlashList 2 (tái chế ô, đo chiều cao từng ô); tắt (mặc định) giữ FlatList đảo ngược; bật theo % người dùng để A/B hiệu năng cuộn (UNI-2053)", Default: false, Mobile: true, Owner: "chat", ReviewAt: day(2027, 3, 31)},
 	{Key: "ask_uni_agent", Description: "Hỏi UNI chạy như agent tự tra cứu bằng tool chỉ đọc (UNI-1962, P1); tắt thì giữ luồng P0", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 1, 31)},
 }
 

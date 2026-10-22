@@ -40,7 +40,7 @@ describe("MessageList", () => {
     expect(screen.getByText("tin 499")).toBeOnTheScreen();
     expect(screen.queryByText("tin 0")).toBeNull();
     const flat = screen.getByTestId("message-list").props as { windowSize: number; initialNumToRender: number; maxToRenderPerBatch: number };
-    expect(flat).toMatchObject({ windowSize: 11, initialNumToRender: 15, maxToRenderPerBatch: 10 });
+    expect(flat).toMatchObject({ windowSize: 7, initialNumToRender: 15, maxToRenderPerBatch: 10 });
   });
 
   it("animates a jump to a near message, and jumps far without animation", async () => {

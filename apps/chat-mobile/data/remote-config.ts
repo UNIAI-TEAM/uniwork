@@ -37,6 +37,9 @@ export const MOBILE_FLAG_DEFAULTS = {
   unichat_mobile_outbox_flush: true,
   // The chat change log: off makes a reconnect refetch every shown timeline again (server: featureflags.unichat_mobile_chat_sync).
   unichat_mobile_chat_sync: true,
+  // The message list on FlashList 2 (components/chat/timeline-list.tsx): off keeps the tuned inverted FlatList; a share
+  // of people on it is the A/B of the two lists (server: featureflags.unichat_mobile_timeline_recycled).
+  unichat_mobile_timeline_recycled: false,
 } as const satisfies Record<string, boolean>;
 
 export type MobileFlag = keyof typeof MOBILE_FLAG_DEFAULTS;
