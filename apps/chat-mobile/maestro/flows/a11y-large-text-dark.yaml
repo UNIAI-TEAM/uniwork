@@ -10,7 +10,7 @@
 # The welcome title must be on the first screen: at these sizes the decorative
 # illustration gives way to the mark (components/brand/login-hero.tsx). The hint
 # under it is body text that keeps scaling (AX5 is 3.57x: 16 pt becomes 57 pt,
-# five or six lines on a 390 pt phone), so on iOS it may start on the first
+# seven or eight lines on a 390 pt phone), so on iOS it may start on the first
 # screen and end below it; the flow scrolls until the whole hint is visible
 # rather than asserting it where it may be cut, and still asserts it.
 appId: com.uniworkos.chat
@@ -24,10 +24,12 @@ tags:
 - extendedWaitUntil:
     visible: "Welcome to UniChat|Chào mừng đến với UniChat"
     timeout: 60000
+# At AX5 the hint can be taller than a small phone's screen: half of it on screen is enough to read it.
 - scrollUntilVisible:
     element:
       text: "Message and call your team, right from your phone.|Nhắn tin và gọi cho cả đội ngay trên điện thoại."
     direction: DOWN
+    visibilityPercentage: 50
     timeout: 10000
 - assertVisible: "Message and call your team, right from your phone.|Nhắn tin và gọi cho cả đội ngay trên điện thoại."
 - scrollUntilVisible:
@@ -37,4 +39,12 @@ tags:
     timeout: 10000
 - assertVisible:
     id: login-button
+# The line under the button can still sit below the fold once the button is on screen, and iOS leaves off-screen
+# text out of the hierarchy.
+- scrollUntilVisible:
+    element:
+      text: "Sign in with your UniWork account in the browser|Đăng nhập bằng tài khoản UniWork trong trình duyệt"
+    direction: DOWN
+    visibilityPercentage: 50
+    timeout: 10000
 - assertVisible: "Sign in with your UniWork account in the browser|Đăng nhập bằng tài khoản UniWork trong trình duyệt"
