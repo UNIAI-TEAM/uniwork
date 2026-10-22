@@ -125,6 +125,7 @@ func tableQueryInputFromSDI(q sdi.TableQuerySDI, groupBy string, hierarchy bool)
 	in.Filter.DateField = q.Filter.DateField
 	in.Filter.DateFrom = q.Filter.DateFrom
 	in.Filter.DateTo = q.Filter.DateTo
+	in.Filter.Relation = q.Filter.Relation
 	in.Search = q.Search
 	in.SortField = q.Sort.Field
 	in.SortDir = q.Sort.Direction

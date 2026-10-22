@@ -5596,6 +5596,7 @@
       "prompt": "Turn on notifications so you don't miss new messages.",
       "enable": "Turn on notifications",
       "check": "When macOS asks, choose Allow. If no test notification appeared, turn UniChat on in your computer's notification settings.",
+      "check_windows": "No test notification? Open Windows Settings › System › Notifications, turn UniChat on, and turn off Focus assist if it is on.",
       "open_settings": "Open notification settings",
       "test_title": "Notifications are on",
       "test_body": "New messages will show up here."
@@ -10256,6 +10257,7 @@
         "refusal_title_files": "These files can’t be uploaded",
         "share_toggle": "Share with workspace",
         "share_hint": "Applies to every file in this upload. The folders stay private.",
+        "share_hint_workspace": "Applies to every file in this upload. The new folders are visible to the whole workspace.",
         "share_hint_files": "Applies to every file in this upload.",
         "share_inherited": "The destination folder is shared with the workspace, so the files are too.",
         "cancel": "Cancel",

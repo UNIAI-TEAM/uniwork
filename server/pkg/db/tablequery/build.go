@@ -95,6 +95,9 @@ func (b *builder) memberFilters(alias string, g *GroupPredicate) []string {
 	if c := b.creatorFilter(alias); c != "" {
 		out = append(out, c)
 	}
+	if c := b.relationFilter(alias); c != "" {
+		out = append(out, c)
+	}
 	if c := b.labelFilter(alias); c != "" {
 		out = append(out, c)
 	}
@@ -147,6 +150,25 @@ func (b *builder) creatorFilter(alias string) string {
 	}
 	return fmt.Sprintf("(%s.created_by_kind, %s.created_by) IN (%s)",
 		alias, alias, strings.Join(pairs, ", "))
+}
+
+// relationFilter renders the viewer-relative filter of Filter.Relation,
+// mirroring ListMyTasks. An unknown relation is FALSE so it can never widen the
+// result to tasks the viewer has no relation to.
+func (b *builder) relationFilter(alias string) string {
+	switch b.q.Filter.Relation {
+	case "":
+		return ""
+	case "all":
+		actor := b.a.add(b.q.Filter.ActorID)
+		return fmt.Sprintf("(%s.assignee_id = %s OR %s.created_by = %s)", alias, actor, alias, actor)
+	case "assigned":
+		return fmt.Sprintf("%s.assignee_id = %s", alias, b.a.add(b.q.Filter.ActorID))
+	case "created":
+		return fmt.Sprintf("%s.created_by = %s", alias, b.a.add(b.q.Filter.ActorID))
+	default: // involved, or anything unknown
+		return "FALSE"
+	}
 }
 
 // labelFilter requires at least one task_label_links row for the selected

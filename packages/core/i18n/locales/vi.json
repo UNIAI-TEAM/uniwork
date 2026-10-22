@@ -5592,6 +5592,7 @@
       "prompt": "Bật thông báo để không bỏ lỡ tin nhắn mới.",
       "enable": "Bật thông báo",
       "check": "Khi macOS hỏi, chọn Cho phép. Không thấy thông báo thử thì bật UniChat trong cài đặt thông báo của máy.",
+      "check_windows": "Không thấy thông báo thử? Mở Cài đặt Windows › Hệ thống › Thông báo và bật UniChat; tắt Trung tâm tập trung nếu đang bật.",
       "open_settings": "Mở cài đặt thông báo",
       "test_title": "Thông báo đã bật",
       "test_body": "Tin nhắn mới sẽ hiện ở đây."
@@ -10246,6 +10247,7 @@
         "refusal_title_files": "Chưa tải lên được các tệp này",
         "share_toggle": "Chia sẻ với workspace",
         "share_hint": "Áp dụng cho mọi tệp trong lần tải lên này. Thư mục vẫn riêng tư.",
+        "share_hint_workspace": "Áp dụng cho mọi tệp trong lần tải lên này. Thư mục mới sẽ hiện với cả workspace.",
         "share_hint_files": "Áp dụng cho mọi tệp trong lần tải lên này.",
         "share_inherited": "Thư mục đích đang chia sẻ với workspace nên các tệp cũng vậy.",
         "cancel": "Hủy",

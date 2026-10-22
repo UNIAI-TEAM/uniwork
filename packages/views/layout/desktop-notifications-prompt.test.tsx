@@ -18,17 +18,19 @@ let shown: Array<{ title: string; body?: string }> = [];
 beforeEach(() => {
   shown = [];
   localStorage.clear();
-  vi.stubGlobal(
-    "Notification",
-    class {
-      static permission = "granted";
-      onclick: (() => void) | null = null;
-      constructor(title: string, options?: NotificationOptions) {
-        shown.push({ title, body: options?.body });
-      }
-      close() {}
-    },
-  );
+  class FakeNotification {
+    static permission: NotificationPermission = "default";
+    static requestPermission = vi.fn(async () => {
+      FakeNotification.permission = "granted";
+      return "granted" as NotificationPermission;
+    });
+    onclick: (() => void) | null = null;
+    constructor(title: string, options?: NotificationOptions) {
+      shown.push({ title, body: options?.body });
+    }
+    close() {}
+  }
+  vi.stubGlobal("Notification", FakeNotification);
 });
 
 afterEach(() => {
@@ -37,14 +39,16 @@ afterEach(() => {
 });
 
 describe("DesktopNotificationsPrompt", () => {
-  it("asks on macOS, sends a test notification, then points at the OS settings", () => {
+  it("asks on macOS, sends a test notification, then points at the OS settings", async () => {
     const openNotificationSettings = vi.fn(() => Promise.resolve());
     inShell("macos", openNotificationSettings);
     render(<DesktopNotificationsPrompt />);
     expect(screen.getByText("Bật thông báo để không bỏ lỡ tin nhắn mới.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Bật thông báo" }));
-    expect(shown).toEqual([{ title: "Thông báo đã bật", body: "Tin nhắn mới sẽ hiện ở đây." }]);
+    await vi.waitFor(() =>
+      expect(shown).toEqual([{ title: "Thông báo đã bật", body: "Tin nhắn mới sẽ hiện ở đây." }]),
+    );
     expect(screen.getByRole("status")).toHaveTextContent("Khi macOS hỏi, chọn Cho phép.");
 
     fireEvent.click(screen.getByRole("button", { name: "Mở cài đặt thông báo" }));
@@ -62,17 +66,56 @@ describe("DesktopNotificationsPrompt", () => {
     expect(screen.queryByRole("region")).toBeNull();
   });
 
-  it("offers no settings link in a shell that predates it", () => {
+  it("offers no settings link in a shell that predates it", async () => {
     inShell("macos");
     render(<DesktopNotificationsPrompt />);
     fireEvent.click(screen.getByRole("button", { name: "Bật thông báo" }));
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Xong" })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Mở cài đặt thông báo" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Xong" })).toBeInTheDocument();
   });
 
-  // Windows shows notifications without asking; the web has no shell at all.
-  it.each(["windows", "linux", null])("renders nothing outside the macOS shell (%s)", (os) => {
-    if (os) inShell(os, () => Promise.resolve());
+  it("asks on Windows and requests permission before the test banner", async () => {
+    const requestPermission = vi.fn(async () => "granted" as NotificationPermission);
+    class WinNotification {
+      static permission: NotificationPermission = "default";
+      static requestPermission = requestPermission.mockImplementation(async () => {
+        WinNotification.permission = "granted";
+        return "granted";
+      });
+      constructor(title: string, options?: NotificationOptions) {
+        shown.push({ title, body: options?.body });
+      }
+      close() {}
+    }
+    vi.stubGlobal("Notification", WinNotification);
+
+    inShell("windows", () => Promise.resolve());
+    render(<DesktopNotificationsPrompt />);
+    fireEvent.click(screen.getByRole("button", { name: "Bật thông báo" }));
+    await vi.waitFor(() => expect(requestPermission).toHaveBeenCalled());
+    await vi.waitFor(() =>
+      expect(shown).toEqual([{ title: "Thông báo đã bật", body: "Tin nhắn mới sẽ hiện ở đây." }]),
+    );
+  });
+
+  it("renders nothing without a desktop shell", () => {
+    render(<DesktopNotificationsPrompt />);
+    expect(screen.queryByRole("region")).toBeNull();
+  });
+
+  it("renders nothing once permission is already granted", () => {
+    vi.stubGlobal(
+      "Notification",
+      class {
+        static permission = "granted";
+        static requestPermission = vi.fn(async () => "granted" as NotificationPermission);
+        constructor(title: string, options?: NotificationOptions) {
+          shown.push({ title, body: options?.body });
+        }
+        close() {}
+      },
+    );
+    inShell("windows", () => Promise.resolve());
     render(<DesktopNotificationsPrompt />);
     expect(screen.queryByRole("region")).toBeNull();
   });
