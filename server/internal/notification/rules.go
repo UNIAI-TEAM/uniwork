@@ -99,6 +99,9 @@ type Draft struct {
 	// so a concurrent event of the same group waits and treats the committed
 	// row as already delivered (BE-TN-9).
 	OncePerGroup bool
+	// DocChange is set on document_changed drafts (UNI-2056): the consumer
+	// folds them by their own window instead of the open-row upsert.
+	DocChange *DocChange
 }
 
 // CallRingChecker says whether a chat call still rings for a user: live, and
@@ -120,6 +123,8 @@ type env struct {
 	docAdmins DocumentAdministerChecker
 	summaries SummaryChecker
 	calls     CallRingChecker
+	// docMemo keeps the per-command lookups of the document_changed rules.
+	docMemo *docCommandMemo
 }
 
 // rule turns one outbox row into drafts. Rules are pure apart from reads; the
@@ -147,14 +152,26 @@ var rules = map[string]rule{
 	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
 	// SH-S3 (UNI-1782): a direct user share that raised the recipient's
 	// effective level on the document.
-	"document.shared": ruleDocumentShared,
+	"document.shared": both(ruleDocumentShared, docChangeRule(docVerbAccessChanged)),
 	// DOC-07 (UNI-1631): a person asked a document's managers for access, and
 	// the answer that reaches the requester wherever they are.
 	"document.access_requested":       ruleDocumentAccessRequested,
 	"document.access_request_decided": ruleDocumentAccessRequestDecided,
 	// TRASH-NOTIFY-01 (UNI-1844): somebody else archived a person's
 	// document; the ACL owner hears once per archive batch.
-	"document.archived":      ruleDocumentTrashed,
+	"document.archived": both(ruleDocumentTrashed, ruleDocumentTrashedChange),
+	// DOC-CHANGE-NOTIFY (UNI-2056): one document_changed notice per
+	// recipient per command for every in-scope change of a document
+	// somebody besides the actor can read. The topics that already had a
+	// notify-lane consumer carry their verb themselves; every other verb
+	// arrives on the server-only document.change_noticed, so the frame
+	// topics of a rename, restore, shelve, access change, link or version
+	// keep no consumer here and stay on the realtime lane (BE-R1-1).
+	"document.moved":          ruleDocumentMovedChange,
+	"document.deleted":        ruleDocumentDeletedChange,
+	"document.share_revoked":  docChangeRule(docVerbAccessChanged),
+	"document.change_noticed": ruleDocumentChangeNoticed,
+
 	"participant.invited":    ruleParticipantInvited,
 	"member.joined":          ruleMemberJoined,
 	"member.role_changed":    ruleRoleChanged,
@@ -531,10 +548,68 @@ func ruleDocumentBodyMentioned(ctx context.Context, e env, ev outbox.Row, p map[
 // table (contract-collab section 8.3): the people whose mention row nobody
 // claimed yet, and - for a reply - the parent's author when no mention
 // already speaks for them. A new comment or thread without a mention notifies
-// nobody; document_commented is no longer emitted, its kind survives for rows
-// written before this change.
+// nobody, with one conditional exception (UNI-2012 D6): the document's human
+// ACL owner hears document_commented when somebody else comments on a
+// document that still has a live chat card, because that is how a person who
+// sent a file in chat learns the manager reviewed it. UNI-1337's removal of the
+// blanket comment notice stands for every other document.
 func ruleDocumentCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
-	return documentCommentMentionRule(ctx, e, ev, p, true)
+	out, err := documentCommentMentionRule(ctx, e, ev, p, true)
+	if err != nil {
+		return nil, err
+	}
+	owner, err := ownerCommentedDraft(ctx, e, ev, p, out)
+	if err != nil || owner == nil {
+		return out, err
+	}
+	return append(out, *owner), nil
+}
+
+// ownerCommentedDraft is the D6 notice: one document_commented draft for the
+// human ACL owner, only when the commenter is not the owner, the owner is not
+// already drafted by a mention or reply, the document has at least one live
+// chat card in its organization, and the owner can still read it (re-checked at
+// delivery time, so a share revoked since the comment yields nothing).
+func ownerCommentedDraft(ctx context.Context, e env, ev outbox.Row, p map[string]string, drafts []Draft) (*Draft, error) {
+	if e.docs == nil {
+		return nil, nil
+	}
+	doc, comment, ok, err := documentCommentContext(ctx, e, ev, p)
+	if err != nil || !ok || comment.DeletedAt.Valid {
+		return nil, err
+	}
+	if !doc.AclOwnerID.Valid || doc.OwnerKind.Valid {
+		return nil, nil
+	}
+	owner := doc.AclOwnerID.String
+	if isActorOfEvent(ev, owner) || (comment.AuthorKind == string(audit.KindHuman) && comment.AuthorID == owner) {
+		return nil, nil
+	}
+	for _, d := range drafts {
+		if d.UserID == owner {
+			return nil, nil
+		}
+	}
+	hasCard, err := e.q.OrganizationHasLiveChatDocumentCard(ctx, db.OrganizationHasLiveChatDocumentCardParams{
+		OrganizationID: doc.OrganizationID, DocumentID: doc.ID,
+	})
+	if err != nil || !hasCard {
+		return nil, err
+	}
+	readers, err := e.docs.FilterDocumentReaders(ctx, doc.ID, []string{owner})
+	if err != nil || len(readers) == 0 {
+		return nil, err
+	}
+	return &Draft{
+		UserID: owner, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		Kind: KindDocumentCommented, GroupKey: "document:" + doc.ID + ":commented:" + comment.ID,
+		ResourceType: "document", ResourceID: doc.ID,
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String,
+		Params: map[string]string{
+			"actor": actorName(ctx, e.q, ev), "document": doc.Title,
+			"snippet": snippet(comment.Body), "comment_id": comment.ID, "kind": comment.CommentType,
+		},
+	}, nil
 }
 
 // ruleDocumentCommentUpdated drafts the edit-time mentions only (UNI-1336

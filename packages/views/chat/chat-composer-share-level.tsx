@@ -11,38 +11,26 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 
-/** The picker's choices: a share level, or "file" for today's plain send. */
-export type ChatComposerShareChoice = ChatDocumentShareLevel | "file";
-
 const LEVELS: readonly ChatDocumentShareLevel[] = ["view", "comment", "edit"];
 
-function choiceLabel(t: (key: string) => string, choice: ChatComposerShareChoice): string {
-  return choice === "file"
-    ? t("chat.composer_send_as_file")
-    : t(`documents.share.level_${choice}`);
-}
-
 /**
- * UNI-1966: shown while a staged file may go out as a shared document. The
- * level names come from the share dialog's own vocabulary
- * (documents.share.level_*) so the room reads the same words everywhere.
+ * UNI-1966: the level a document goes out at — for a staged file, and (UNI-2012)
+ * for a document picked from the library. There is no "plain file" choice: a
+ * document always carries rights. The level names come from the share
+ * dialog's own vocabulary (documents.share.level_*) so the room reads the same
+ * words everywhere.
  */
 export function ChatComposerShareLevelPicker({
   value,
   onChange,
   disabled,
-  allowFileChoice = true,
 }: {
-  value: ChatComposerShareChoice;
-  onChange: (choice: ChatComposerShareChoice) => void;
+  value: ChatDocumentShareLevel;
+  onChange: (level: ChatDocumentShareLevel) => void;
   disabled?: boolean;
-  /** False while a staged file cannot go by the plain route — the levels
-      are the only real choices, so "Chỉ gửi tệp" hides (RFC-02). */
-  allowFileChoice?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -60,7 +48,7 @@ export function ChatComposerShareLevelPicker({
             disabled={disabled}
           >
             <FileText aria-hidden className="size-4" />
-            <span className="text-caption">{choiceLabel(t, value)}</span>
+            <span className="text-caption">{t(`documents.share.level_${value}`)}</span>
             <ChevronDown aria-hidden className="size-3.5" />
           </Button>
         }
@@ -71,22 +59,14 @@ export function ChatComposerShareLevelPicker({
           <DropdownMenuRadioGroup
             value={value}
             onValueChange={(next) => {
-              if (typeof next === "string" && next) onChange(next as ChatComposerShareChoice);
+              if (next === "view" || next === "comment" || next === "edit") onChange(next);
             }}
           >
             {LEVELS.map((level) => (
               <DropdownMenuRadioItem key={level} value={level} className="pointer-coarse:min-h-11">
-                {choiceLabel(t, level)}
+                {t(`documents.share.level_${level}`)}
               </DropdownMenuRadioItem>
             ))}
-            {allowFileChoice ? (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuRadioItem value="file" className="pointer-coarse:min-h-11">
-                  {t("chat.composer_send_as_file")}
-                </DropdownMenuRadioItem>
-              </>
-            ) : null}
           </DropdownMenuRadioGroup>
         </DropdownMenuGroup>
       </DropdownMenuContent>

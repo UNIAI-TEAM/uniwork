@@ -377,6 +377,19 @@ describe("DocumentDetailView", () => {
     );
   });
 
+  it("opens a document of another workspace under the reader's own route (a chat card's share, UNI-2012 D1b)", async () => {
+    // A DM recipient outside the document's workspace opens it from the card
+    // under their own workspace slug: GET /documents/{id} is gated by the
+    // organization and the share, never by the route's workspace.
+    requestMock.mockResolvedValue({ document: pageDocument({ workspace_id: "w-other", my_level: "comment" }) });
+    renderView();
+
+    expect(await findEditor()).toHaveTextContent("Nội dung A");
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/documents/d1", expect.anything());
+    expect(screen.queryByText(t("documents.detail.revoked_title"))).toBeNull();
+    expect(screen.queryByRole("heading", { name: t("documents.access_request.locked_title") })).toBeNull();
+  });
+
   it("links every readable ancestor the server sent, and invents none", async () => {
     // The server truncates the chain at the first unreadable ancestor: the
     // client renders exactly that list, so an unreadable page never leaks a

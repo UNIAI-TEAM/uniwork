@@ -3,6 +3,7 @@
 import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSearchStore } from "@uniwork/core/search";
+import { ariaKeyShortcuts, useShortcut } from "@uniwork/core/shortcuts";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 
@@ -21,11 +22,13 @@ function shortcutLabel(t: (key: string) => string) {
 export function SearchTrigger({ className }: { className?: string }) {
   const { t } = useTranslation();
   const label = t("topbar.search");
+  const chord = useShortcut("openSearch");
   return (
     <Button
       type="button"
       variant="ghost"
       aria-label={label}
+      aria-keyshortcuts={ariaKeyShortcuts(chord)}
       className={cn(
         "h-8 w-8 justify-center gap-2 border-transparent bg-surface-hover/60 px-0 font-normal text-muted-foreground hover:bg-surface-hover hover:text-foreground sm:w-64 sm:justify-start sm:pr-2 sm:pl-2.5 dark:hover:bg-surface-hover",
         className,

@@ -6,7 +6,7 @@ import {
   type BlankDocumentFormat,
   type CreateBlankDocumentBody,
 } from "../api/endpoints/documents-blank";
-import { createDocument, type CreateDocumentBody } from "../api/endpoints/documents";
+import { createDocument, downloadDocumentFile, type CreateDocumentBody } from "../api/endpoints/documents";
 import {
   downloadDocumentSource,
   listDocumentSources,
@@ -19,6 +19,7 @@ import type {
 } from "../types/document";
 import { useEnsureMyFolder, type CreateDocumentPlacementInput } from "./hooks";
 import { documentKeys } from "./keys";
+import { keepWhileSorting } from "./keep-while-sorting";
 import { requireVerifiableDocument } from "./verify";
 
 export { useEnsureMyFolder };
@@ -48,7 +49,7 @@ export function isEndpointMissing(error: unknown): boolean {
   return error instanceof ApiError && (error.status === 404 || error.status === 501);
 }
 
-function sourcesFilterKey(filter?: Pick<ListDocumentSourcesOpts, "source" | "type" | "q">): string {
+function sourcesFilterKey(filter?: Pick<ListDocumentSourcesOpts, "source" | "type" | "q" | "sort" | "order">): string {
   if (!filter) return "";
   const entries = Object.entries(filter)
     .filter(([, value]) => value !== undefined && value !== "")
@@ -60,11 +61,12 @@ function sourcesFilterKey(filter?: Pick<ListDocumentSourcesOpts, "source" | "typ
  *  endpoint is not retried so the caller can hide the section at once. */
 export function useDocumentSources(
   wsId: string,
-  filter?: Pick<ListDocumentSourcesOpts, "source" | "type" | "q">,
+  filter?: Pick<ListDocumentSourcesOpts, "source" | "type" | "q" | "sort" | "order">,
   opts?: { enabled?: boolean },
 ) {
   return useInfiniteQuery({
     queryKey: documentKeys.sources(wsId, sourcesFilterKey(filter)),
+    placeholderData: keepWhileSorting(documentKeys.sources(wsId, sourcesFilterKey(filter))),
     queryFn: ({ pageParam, signal }) =>
       listDocumentSources(
         wsId,
@@ -168,5 +170,17 @@ export function useDownloadDocumentSource(wsId: string) {
   return useMutation({
     mutationFn: (input: { sourceId: string }): Promise<Blob> =>
       downloadDocumentSource(wsId, input.sourceId),
+  });
+}
+
+/**
+ * The bytes of a document file named at call time, for a list row: the list
+ * shows many documents, so the id cannot be fixed when the hook mounts the way
+ * `useDocumentDownload` fixes it for a document page.
+ */
+export function useDownloadDocumentFile() {
+  return useMutation({
+    mutationFn: (input: { documentId: string; version?: number }): Promise<Blob> =>
+      downloadDocumentFile(input.documentId, input.version),
   });
 }

@@ -121,7 +121,7 @@ export function useChatMediaSend({
   /**
    * UNI-1966: the picker's document send — the file send's staging rules but
    * the document byte ceiling and the document route's own error copy
-   * (quota, batch cap, refused format).
+   * (quota, refused format).
    */
   const handleSendDocument = useCallback(
     async (file: File, shareLevel: ChatDocumentShareLevel) => {

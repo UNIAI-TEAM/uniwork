@@ -43,8 +43,8 @@ describe("documents-blank endpoint", () => {
     setAccessToken(null);
   });
 
-  it("lists the six formats", () => {
-    expect([...BLANK_DOCUMENT_FORMATS].sort()).toEqual(["docx", "html", "md", "pdf", "pptx", "xlsx"]);
+  it("lists the seven formats, plain text included", () => {
+    expect([...BLANK_DOCUMENT_FORMATS].sort()).toEqual(["docx", "html", "md", "pdf", "pptx", "txt", "xlsx"]);
   });
 
   it("posts format/title/parent_id with the idempotency header", async () => {
@@ -86,6 +86,14 @@ describe("documents-blank endpoint", () => {
       parent_id: "p1",
     };
     expect(badBlankBody).toBeDefined();
+  });
+
+  it("posts a blank .txt as format txt", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody() }, 201));
+    const out = await createBlankDocumentFile("w1", { format: "txt", title: "Văn bản chưa đặt tên.txt", destination: "my_folder" });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({ format: "txt", title: "Văn bản chưa đặt tên.txt", destination: "my_folder" });
+    expect(out?.id).toBe("d1");
   });
 
   it("omits the header without a key", async () => {

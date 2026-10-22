@@ -251,8 +251,6 @@ func TestDocumentOfficeCommit(t *testing.T) {
 			}
 		})
 		t.Run("a .txt engine output commit keeps text/plain and .txt across storage backends", func(t *testing.T) {
-			env.svc.SetFlags(staticDocFlags{"office_txt_open": true})
-			t.Cleanup(func() { env.svc.SetFlags(nil) })
 			created := env.createFile(t, member, "ghi-chu.txt", []byte("dong 1\ndong 2\n"))
 			eng := newScriptedEngine()
 			eng.fake = env.fake
@@ -319,10 +317,10 @@ func TestDocumentOfficeCommit(t *testing.T) {
 				t.Fatalf("fresh GET after second .txt commit = %+v, want %+v", view2.File, res2.File)
 			}
 
-			// BE-UN02-15: markdown Recents include the engine-committed .txt
-			// while the flag is on and exclude it once the flag is turned off.
+			// BE-UN02-15: markdown Recents include the engine-committed .txt, as they
+			// do an .md, with no flag in play.
 			recentsOn, err := frame.Recents(context.Background(), tok.Claims, 20)
-			mustf(t, err, "recents with flag on")
+			mustf(t, err, "recents")
 			foundOn := false
 			for _, d := range recentsOn {
 				if d.ID == created.Document.ID {
@@ -331,21 +329,11 @@ func TestDocumentOfficeCommit(t *testing.T) {
 				}
 			}
 			if !foundOn {
-				t.Fatalf("markdown Recents with flag on missing %s: %+v", created.Document.ID, recentsOn)
-			}
-			env.svc.SetFlags(staticDocFlags{"office_txt_open": false})
-			recentsOff, err := frame.Recents(context.Background(), tok.Claims, 20)
-			mustf(t, err, "recents with flag off")
-			for _, d := range recentsOff {
-				if d.ID == created.Document.ID {
-					t.Fatalf("markdown Recents with flag off still includes %s", created.Document.ID)
-				}
+				t.Fatalf("markdown Recents missing %s: %+v", created.Document.ID, recentsOn)
 			}
 		})
 
 		t.Run("a restored .txt engine version recovers its .txt identity across intervening plain uploads", func(t *testing.T) {
-			env.svc.SetFlags(staticDocFlags{"office_txt_open": true})
-			t.Cleanup(func() { env.svc.SetFlags(nil) })
 			created := env.createFile(t, member, "notes.txt", []byte("notes v1\n"))
 			eng := newScriptedEngine()
 			eng.fake = env.fake
@@ -430,8 +418,6 @@ func TestDocumentOfficeCommit(t *testing.T) {
 		// replay and a fresh GET all keep the .txt identity instead of
 		// stopping at the v3 server.log boundary.
 		t.Run("an engine save on a restored .txt version keeps the .txt name", func(t *testing.T) {
-			env.svc.SetFlags(staticDocFlags{"office_txt_open": true})
-			t.Cleanup(func() { env.svc.SetFlags(nil) })
 			created := env.createFile(t, member, "notes.txt", []byte("notes v1\n"))
 			eng := newScriptedEngine()
 			eng.fake = env.fake
@@ -556,8 +542,6 @@ func TestDocumentOfficeCommit(t *testing.T) {
 		// engine output is that boundary, so the placeholder is never traded
 		// for the unrelated older notes.txt identity.
 		t.Run("a non-txt historical boundary stops the recovery", func(t *testing.T) {
-			env.svc.SetFlags(staticDocFlags{"office_txt_open": true})
-			t.Cleanup(func() { env.svc.SetFlags(nil) })
 			created := env.createFile(t, member, "notes.txt", []byte("notes v1\n"))
 			eng := newScriptedEngine()
 			eng.fake = env.fake

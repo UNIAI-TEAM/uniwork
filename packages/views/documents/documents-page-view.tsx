@@ -10,7 +10,7 @@ import { useDocument, useDocumentLimits } from "@uniwork/core/documents/hooks";
 import { useFavoriteDocument, useUnfavoriteDocument } from "@uniwork/core/documents/hooks-favorites";
 import { useDownloadDocumentSource, useEnsureMyFolder } from "@uniwork/core/documents/hooks-library";
 import { paths } from "@uniwork/core/paths";
-import { canEditDocument } from "@uniwork/core/permissions";
+import { canCreateInsideFolder, canEditDocument, useCurrentMember } from "@uniwork/core/permissions";
 import { isMyFolder } from "@uniwork/core/types/document";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -18,28 +18,34 @@ import { CollectionPageState } from "../layout/collection-page";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink, useNavigation } from "../navigation";
 import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "../office/office-home-launch";
-import { AccessReportMenu } from "./access-report/access-report-menu";
+import { DocumentsDropOverlay } from "./documents-drop-overlay";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
-import { isParentWorkspaceShared, useCreateOfType, type CreateShareOptions } from "./documents-create";
+import { isParentWorkspaceShared, useCreateOfType } from "./documents-create";
 import { CreateMenu } from "./documents-home-create";
 import { DocumentsCollectionHeader, DocumentsHomeHeader, DocumentsHomeNote } from "./documents-home-header";
 import { DocumentsLibraryList } from "./documents-library-list";
+import { docListGroupScreen, groupRowsByDate } from "./doclist/date-groups";
+import { useCollapsedGroups } from "./doclist/group-state";
+import { docListScreenOfView, folderNameLookup } from "./doclist/live-screen";
+import { docMemberLookup } from "./doclist/screen-cells";
+import { useDocListBulkCommands } from "./doclist/use-bulk-commands";
 import type { LibraryDesktopOpen, LibraryRowHandlers } from "./documents-library-row";
 import { LibraryToolbar } from "./documents-library-toolbar";
 import { DocumentsSections, nonFolderRows, subfoldersOf } from "./documents-folders-grid";
+import { continueCards, RecentContinue } from "./documents-recent-continue";
+import { DocumentsScreenHead } from "./documents-screen-head";
 import { DocumentsShelvedView } from "./documents-shelved-view";
 import { DocumentsTrashView } from "./documents-trash-view";
 import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./documents-sidebar";
 import { downloadSourceFile } from "./download-source-file";
-import { DocumentUploadDialog } from "./document-upload-dialog";
-import { groupRows, type GroupBy, type TypeChip } from "./library-rows";
+import type { TypeChip } from "./library-rows";
 import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
-import { useDocumentFileUpload } from "./use-document-file-upload";
-import { useDropUpload } from "./use-drop-upload";
+import { useDocumentsUploads } from "./use-documents-uploads";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { useSourceOfficeViewer } from "./source-office-viewer";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
+import { useLibraryRowFileCommands } from "./use-library-row-file-commands";
 import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
@@ -61,8 +67,8 @@ export interface DocumentsPageViewProps {
 
 /**
  * `/documents` — the Documents home (TRASH-A3 boards, 2026-10-16): at home and
- * in a folder a header row, folder cards and the documents table; the Trash
- * view has its own table; Recent / Starred / Shared / Elsewhere keep the
+ * in a folder a header row, folder cards and the documents table; Trash and
+ * Lưu trữ wrap the same table with their own heading; Recent / Starred / Shared / Elsewhere keep the
  * collection header and the library table. Every row is a server answer;
  * create, upload and save await the server.
  */
@@ -83,11 +89,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     setView(viewFromSearchParams(searchParams));
   }
   const [chip, setChip] = useState<TypeChip>("all");
-  const [groupBy, setGroupBy] = useState<GroupBy>("folder");
   const [navOpen, setNavOpen] = useState(false);
-  // One state for the strip switch and the "Tạo mới" menu check item (TV1-15):
-  // the two controls always agree because they read and write the same value.
-  const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
 
   // The trashed document a notification pointed at is scrolled to and focused once per id, the first time its row shows.
   const focusId = searchParams.get("focus");
@@ -109,8 +111,18 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     [context?.workspace.organization_slug, context?.workspace.slug, wsId],
   );
 
-  // Only the home root and the list views show a type control.
-  const library = useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip: view.kind === "archived" || folderId ? "all" : chip });
+  // Every list screen but Thùng rác shows the filter bar (UNI-2045 W10).
+  const members = useMembers(enabled ? wsId : "");
+  const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
+  const library = useDocumentsLibrary({
+    wsId,
+    orgId,
+    enabled,
+    view,
+    folderId,
+    chip: view.kind === "archived" ? "all" : chip,
+    editorNames: names,
+  });
   const search = useDocumentsSearch(wsId, enabled);
   const folder = useDocument(wsId, folderId ?? "", {
     enabled: enabled && !!folderId,
@@ -140,7 +152,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   });
   const favorite = useFavoriteDocument();
   const unfavorite = useUnfavoriteDocument();
-  const members = useMembers(enabled ? wsId : "");
 
   const rawFolderDoc = folder.data ?? null;
   const folderInvalid =
@@ -162,47 +173,48 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   );
   const openFolderTitle = folderDoc ? (isMyFolder(folderDoc) ? myFolderLabel : folderDoc.title) : undefined;
   const userId = useAuthStore((s) => s.user?.id ?? null);
-  const canCreate =
-    !folderId ||
-    (folderDoc !== null &&
-      canEditDocument(folderDoc, { userId: context?.user.id ?? userId, orgRole: null, wsRole: null }).allowed);
+  const permissionCtx = { userId: context?.user.id ?? userId, orgRole: null, wsRole: useCurrentMember(enabled ? wsId : "").role };
+  // Rename, move and trash of the open folder keep the edit rule; creating inside it is wider on a
+  // workspace folder (UNI-2055 W3/W4), so the two are asked apart.
+  const canEditFolder = !folderId || (folderDoc !== null && canEditDocument(folderDoc, permissionCtx).allowed);
+  const canCreate = !folderId || (folderDoc !== null && canCreateInsideFolder(folderDoc, permissionCtx).allowed);
   const parentForCreate = view.kind === "home" ? folderId : null;
   const parentShared = parentForCreate !== null && isParentWorkspaceShared(folderDoc, library.docById.get(parentForCreate));
 
-  const fileUpload = useDocumentFileUpload({
+  const uploads = useDocumentsUploads({
     wsId,
-    parentId: parentForCreate,
     limits,
-    onOpen,
-    description: t(parentForCreate && !isMyFolder(folderDoc) ? "documents.upload.description_folder" : "documents.upload.description"),
-    rootDestination: "my_folder",
-    rootParentId: myFolderId,
+    canUpload: enabled && canCreate && !folderInvalid,
+    parentId: parentForCreate,
+    folderDoc,
+    folderTitle: openFolderTitle,
+    tree: library.tree,
+    myFolderId,
     resolveRootParent: async () => myFolderId ?? (await ensureMyFolder.mutateAsync()).id,
     parentShared,
+    onOpen,
+    onOpenFolder: (id) => goHome({ kind: "home" }, id),
   });
 
-  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle });
+  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle, folderRow: folderDoc });
+  const fileCommands = useLibraryRowFileCommands({ wsId, documentHref: wsPaths.document });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   const shelvedActions = useShelvedActions({ wsId, rows: library.state.rows });
+  // The bulk bar (UNI-2045 W9) on every list screen but the sources view; a
+  // new folder, view or filter starts a fresh selection.
+  const bulkCommands = useDocListBulkCommands({ wsId, tree: library.tree, onDownloadOne: fileCommands.onDownload });
+  const selectionKey = [wsId, view.kind, view.kind === "sources" ? (view.source ?? "") : "", folderId ?? "", chip, library.activity, library.editor, library.updated, library.shelvedBy ?? ""].join("|");
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
   // Lưu trữ joins the same set (U-4: manage-only at the menu item itself).
-  const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred" || view.kind === "sharedByMe");
+  const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred" || view.kind === "shared" || view.kind === "sharedByMe");
 
-  const memberIndex = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
-  const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
-  const drop = useDropUpload({
-    enabled: enabled && canCreate && !folderInvalid,
-    maxBytes: limits.upload_max_bytes,
-    upload: fileUpload.uploadDroppedFile,
-  });
-
+  const member = useMemo(() => docMemberLookup(members.data), [members.data]);
   const goHome = (next: LibraryView, nextFolder: string | null = null) => {
     if (next.kind !== view.kind) {
-      // Each view has its own filter controls; none carries over unseen.
+      // A screen change starts with no filter; none carries over unseen.
       setChip("all");
-      library.setAccess("all");
-      library.setShelvedBy(null);
+      library.clearFilters();
     }
     setView(next);
     setNavOpen(false);
@@ -248,10 +260,17 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onDownloadSource: downloadFile,
     onSaveSource: rowDialogs.onSaveSource,
     onNewSubfolder: rowCommands ? rowDialogs.onNewSubfolder : undefined,
+    canCreateInside: (doc) => canCreateInsideFolder(doc, permissionCtx).allowed,
     onRename: rowCommands ? rowDialogs.onRename : undefined,
     onMove: rowCommands ? rowDialogs.onMove : undefined,
     onArchive: rowCommands ? rowDialogs.onArchive : undefined,
+    // Any reader may open Share from a row (UNI-2009); it is not gated by canCreate like the commands above.
+    onShare: rowDialogs.onShare,
     onShelve: rowCommands ? (doc) => shelvedActions.onShelve(doc) : undefined,
+    // Link and download are reads, offered to any reader; the copy needs edit, which the menu checks per row.
+    onCopyLink: fileCommands.onCopyLink,
+    onDownload: fileCommands.onDownload,
+    onDuplicate: rowCommands ? fileCommands.onDuplicate : undefined,
     onToggleStar: orgId
       ? (documentId, starred) => {
           const op = starred ? unfavorite : favorite;
@@ -259,23 +278,27 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
         }
       : undefined,
     isStarred: (documentId) => library.starredIds.has(documentId),
+    member,
     personName: (userId, kind) => names.get(userId) ?? (kind === "agent" ? t("documents.home.editor_agent") : null),
+    locationName: folderNameLookup(library.tree, t("documents.home.my_folder.label")),
     desktopOpen,
   };
 
   const homeView = view.kind === "home";
-  const homeFilters = homeView && !folderId && (library.editor !== "any" || library.updated !== "any");
-  const accessFiltered = library.access !== "all";
-  // "filtered" answers "is a filter on" (editor/updated live on the home filter
-  // bar, chip/access everywhere the list toolbar shows): it gates the folder's
-  // subfolders-only suppression (TV-4), the root's empty copy and the
-  // no-results state, so all three read the same flag.
-  const filtered = homeFilters || chip !== "all" || accessFiltered;
+  const metaFiltered = library.editor !== "any" || library.updated !== "any" || (view.kind === "recent" && library.activity !== "all");
+  // "filtered" answers "is a filter on" (the filter bar of every list screen):
+  // it gates the folder's subfolders-only suppression (TV-4), the root's empty
+  // copy and the no-results state, so all three read the same flag.
+  const filtered = metaFiltered || chip !== "all";
   const filteredBy = filtered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
   const state = library.state;
   // At home and in a folder the folders are cards above the table.
   const tableRows = homeView ? nonFolderRows(state.rows) : state.rows;
-  const groups = groupRows(tableRows, homeView ? "none" : groupBy, library.folderIndex, myFolderLabel);
+  // The date groups (W11) while the rows sit in their screen's own order; a flat list otherwise.
+  const listScreen = docListScreenOfView(view);
+  const groupScreen = docListGroupScreen(listScreen);
+  const collapse = useCollapsedGroups(groupScreen);
+  const groups = groupScreen && library.ownOrderShown ? groupRowsByDate(tableRows, groupScreen, new Date()) : [{ key: "all", rows: tableRows }];
   const subfolders = subfoldersOf(library.tree, folderId);
   // The root's folders come from the tree query: until it answers, an empty root
   // list cannot tell "no folders" from "folders not here yet".
@@ -308,6 +331,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     sourcesAvailable: library.sourcesAvailable,
     canCreate: !folderId || canCreate,
     newFolderPending: creator.folderPending,
+    accessReportHref: wsPaths.documentsAccessReport(),
     onView: (next: LibraryView) => goHome(next),
     onFolder: (id: string) => goHome({ kind: "home" }, id),
     onMyFolder: openMyFolder,
@@ -316,10 +340,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const createProps = {
     pending: creator.pending,
     unavailable: creator.unavailable,
-    parentShared,
-    shareToggle: { shareWithWorkspace, setShareWithWorkspace },
-    onCreate: (type: Parameters<typeof creator.create>[0], options: CreateShareOptions) => void creator.create(type, parentForCreate, options),
-    onUpload: fileUpload.openUpload,
+    recentType: creator.lastType,
+    onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate),
+    onUpload: uploads.openUpload,
+    onUploadFolder: uploads.openFolderUpload,
     onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
   };
 
@@ -329,24 +353,22 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       {t("documents.home.sidebar.open")}
     </Button>
   );
-  const hostActions = (
-    <>
-      {officeHome ? <OfficeHomeLaunch {...officeHome} /> : null}
-      <AccessReportMenu onOpen={() => push(wsPaths.documentsAccessReport())} />
-    </>
-  );
-  // Home, folder and Trash carry their own h1 (the boards); the other views
-  // and the gate states keep the collection header.
-  const collectionHeader = gate !== "on" || !(homeView || view.kind === "archived");
+  const hostActions = officeHome ? <OfficeHomeLaunch {...officeHome} /> : null;
+  // Home, folder and Trash carry their own h1 (the boards), and so do the list
+  // screens with the shared head, Lưu trữ included (UNI-2045 W14); only the
+  // gate states keep the collection header.
+  const screenHead = !homeView && view.kind !== "archived";
+  const collectionHeader = gate !== "on";
+  // Gần đây's Mở tiếp cards (recent-canvas): only while no filter or search narrows the list, and while the rows
+  // sit in the screen's own order (under another sort they are the newest of what loaded, not of everything).
+  const cards = view.kind === "recent" && !filtered && !search.active && library.ownOrderShown ? continueCards(state.rows) : [];
   const libraryList = (
     <DocumentsLibraryList
       groups={groups}
       loading={listLoading}
       failure={state.failure}
       filteredBy={filteredBy}
-      accessFiltered={accessFiltered}
-      typeFiltered={chip !== "all"}
-      homeFiltered={homeFilters}
+      metaFiltered={metaFiltered}
       cardsShown={canCreate && homeView}
       hasMore={state.hasMore}
       loadingMore={state.loadingMore}
@@ -354,24 +376,21 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       onRetry={state.refetch}
       onClearFilters={() => {
         setChip("all");
-        library.setAccess("all");
-        library.setEditor("any");
-        library.setUpdated("any");
+        library.clearFilters();
       }}
       handlers={handlers}
-      sharedByMe={view.kind === "sharedByMe"}
+      sort={library.sortControl}
+      screen={listScreen}
+      collapse={collapse}
+      selectable={view.kind !== "sources"}
+      bulk={bulkCommands.bulk}
+      selectionKey={selectionKey}
       empty={emptyCopy}
     />
   );
   const toolbar = {
     chip,
     onChip: setChip,
-    access: library.access,
-    onAccess: library.setAccess,
-    groupBy,
-    onGroupBy: setGroupBy,
-    sort: library.sort,
-    onSort: library.setSort,
     editor: library.editor,
     onEditor: library.setEditor,
     members: members.data,
@@ -398,18 +417,19 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
           <section
             className="relative min-h-0 min-w-0 flex-1 overflow-y-auto"
             aria-label={t("documents.page.title")}
-            {...drop.zoneProps}
+            {...uploads.zoneProps}
           >
             {homeView ? (
               <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6">
                 <DocumentsHomeHeader
                   wsId={wsId}
                   folderDoc={folderDoc}
-                  canRename={canCreate}
+                  canRename={canEditFolder}
                   myFolderId={myFolderId}
                   onRoot={() => goHome({ kind: "home" })}
                   onFolder={(id) => goHome({ kind: "home" }, id)}
                   folderHandlers={handlers}
+                  onAccessReport={(id) => push(wsPaths.documentsAccessReport(id))}
                   search={search}
                   canCreate={canCreate && !folderInvalid}
                   create={createProps}
@@ -420,6 +440,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                     </>
                   }
                 />
+              </div>
+            ) : screenHead ? (
+              <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6">
+                <DocumentsScreenHead view={view} search={search} actions={navButton} />
               </div>
             ) : null}
             {search.active ? (
@@ -455,15 +479,15 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
               <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-5 sm:px-6">
                 <div className="flex justify-end xl:hidden">{navButton}</div>
                 <DocumentsTrashView
-                  rows={state.rows.flatMap((row) => (row.type === "document" ? [row.doc] : []))}
+                  rows={state.rows}
                   loading={state.loading}
                   failure={state.failure}
                   onRetry={state.refetch}
                   actions={trashActions}
-                  members={memberIndex}
-                  membersReady={Boolean(members.data)}
-                  onOpen={(doc) => onOpen(doc.id)}
-                  tree={library.tree}
+                  handlers={handlers}
+                  bulk={bulkCommands.bulk}
+                  selectionKey={selectionKey}
+                  collapse={collapse}
                   focusId={focusId}
                   claimFocus={claimFocus}
                   hasMore={state.hasMore}
@@ -480,21 +504,19 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                 chip={chip}
                 onChip={setChip}
                 members={members.data}
-                memberIndex={memberIndex}
                 handlers={handlers}
+                bulk={bulkCommands.bulk}
+                selectionKey={selectionKey}
                 actions={{
                   onUnshelve: shelvedActions.onUnshelve,
                   onTrash: (doc) => rowDialogs.onArchive(doc),
                   isUnshelving: shelvedActions.isUnshelving,
-                  onToggleStar: handlers.onToggleStar,
-                  isStarred: handlers.isStarred,
                 }}
-                navButton={navButton}
               />
             ) : homeView ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
                 {canCreate ? <DocumentsHomeNote create={folderId ? null : createProps} /> : null}
-                <LibraryToolbar variant={folderId ? "folder" : "home"} {...toolbar} />
+                <LibraryToolbar {...toolbar} className="border-t border-border pt-4" />
                 <DocumentsSections
                   folderTitle={folderId ? "documents.home.sections.subfolders" : "documents.home.sections.folders"}
                   folders={subfolders}
@@ -515,26 +537,22 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
               </div>
             ) : (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind === "sharedByMe" ? "shared_by_me" : view.kind}`)}</h2>
-                  {navButton}
-                </div>
-                <LibraryToolbar variant="list" {...toolbar} />
+                {cards.length > 0 ? <RecentContinue cards={cards} onOpen={onOpen} /> : null}
+                <LibraryToolbar
+                  {...toolbar}
+                  {...(view.kind === "recent" ? { activity: library.activity, onActivity: library.setActivity } : {})}
+                />
                 {libraryList}
               </div>
             )}
-            {drop.active ? (
-              <div aria-hidden className="pointer-events-none absolute inset-2 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-background/80 text-body font-medium text-foreground">
-                {t("documents.home.drop_active")}
-              </div>
-            ) : null}
+            {uploads.dropActive ? <DocumentsDropOverlay /> : null}
           </section>
         </div>
       )}
 
       <DocumentsSidebarSheet open={navOpen} onOpenChange={setNavOpen} {...sidebar} />
 
-      <DocumentUploadDialog {...fileUpload.dialogProps} />
+      {uploads.dialogs}
 
       {officeViewer.dialog}
 
@@ -542,7 +560,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
 
       {shelvedActions.dialog}
 
+      {bulkCommands.dialogs}
+
       {rowDialogs.dialogs}
+      {fileCommands.dialogs}
     </div>
   );
 }

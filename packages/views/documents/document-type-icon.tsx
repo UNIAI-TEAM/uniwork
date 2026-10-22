@@ -1,11 +1,11 @@
 "use client";
 
-import { File, Folder } from "lucide-react";
+import { File, FileText, Folder } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { FileTypeMark, isFileMarkFormat } from "./file-type-marks";
 
-export type DocumentIconFormat = "docx" | "xlsx" | "pptx" | "pdf" | "md" | "html" | "page" | "folder" | "file";
+export type DocumentIconFormat = "docx" | "xlsx" | "pptx" | "pdf" | "md" | "txt" | "html" | "page" | "folder" | "file";
 
 /** The lowercase extension of a file name, or "" when it has none. */
 export function fileExtension(name: string | null | undefined): string {
@@ -44,7 +44,7 @@ export function DocumentTypeIcon({
       </span>
     );
   }
-  const Icon = normalized === "folder" ? Folder : File;
+  const Icon = normalized === "folder" ? Folder : normalized === "txt" ? FileText : File;
   return decorative ? <Icon className={className} aria-hidden /> : <Icon className={className} aria-label={label} role="img" />;
 }
 
@@ -60,6 +60,8 @@ function labelFor(format: string, t: (key: string) => string): string {
       return t("documents.file_types.pdf");
     case "md":
       return t("documents.file_types.md");
+    case "txt":
+      return t("documents.file_types.txt");
     case "html":
       return t("documents.file_types.html");
     case "page":

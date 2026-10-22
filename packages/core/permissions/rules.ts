@@ -1,4 +1,5 @@
 import type { Agent } from "../types/agent";
+import { isWorkspaceFolder } from "../types/document";
 import type { Project } from "../types/project";
 import type { Task } from "../types/task";
 import { ALLOW, deny, isAdminLike, type Decision, type PermissionContext } from "./types";
@@ -543,6 +544,30 @@ export function canCommentDocument(doc: DocumentLevelInput | null, ctx: Permissi
  */
 export function canEditDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
   return requireDocumentLevel(doc, ctx, documentLevelRank("edit"), "You can view this document but not edit it.");
+}
+
+/** What a folder tells the create gate: the document level plus the fields that name a workspace folder (UNI-2055 W1). */
+interface DocumentFolderInput extends DocumentLevelInput {
+  kind?: string | null;
+  visibility?: string | null;
+  system_kind?: string | null;
+}
+
+/**
+ * Create a sub-folder, page, file or upload inside a folder. On a workspace
+ * folder (kind folder, visibility workspace, no system_kind) every human
+ * workspace owner/admin/member may, even at my_level "view"; anyone else —
+ * a read-only role, an agent, a restricted folder or My Folder — keeps the
+ * edit rule. Rename, move and trash stay on `canEditDocument` / manage.
+ * Backend: DocumentService.lockPageParent treats a workspace folder as a
+ * contributable parent for human members
+ * (server/internal/service/document_permissions.go, UNI-2055 W3).
+ */
+export function canCreateInsideFolder(folder: DocumentFolderInput | null, ctx: PermissionContext): Decision {
+  if (isWorkspaceFolder(folder) && ctx.userId !== null && ctx.orgMemberStatus !== "deactivated") {
+    if (isAdminLike(ctx.wsRole) || ctx.wsRole === "member") return ALLOW;
+  }
+  return canEditDocument(folder, ctx);
 }
 
 /**

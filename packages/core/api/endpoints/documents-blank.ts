@@ -13,10 +13,10 @@ import {
 
 export { DOCUMENT_DESTINATIONS, type DocumentCreateDestination };
 
-// Blank file documents: the server seeds an empty docx/xlsx/pptx/md/html/pdf
+// Blank file documents: the server seeds an empty docx/xlsx/pptx/md/txt/html/pdf
 // so the person can open it in the matching editor straight away.
 
-export const BLANK_DOCUMENT_FORMATS = ["docx", "xlsx", "pptx", "md", "html", "pdf"] as const;
+export const BLANK_DOCUMENT_FORMATS = ["docx", "xlsx", "pptx", "md", "txt", "html", "pdf"] as const;
 export type BlankDocumentFormat = (typeof BLANK_DOCUMENT_FORMATS)[number];
 
 export type CreateBlankDocumentBody = {

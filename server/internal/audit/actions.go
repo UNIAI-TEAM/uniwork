@@ -166,6 +166,15 @@ const (
 	// ActionDocumentsAccessReportExported is one access report export
 	// (UNI-1643): ids, the filter and counts, never a name.
 	ActionDocumentsAccessReportExported = "documents.access_report_exported"
+	// ActionDocumentsDownloadJobCreated is one multi-document zip download
+	// requested (UNI-2045 SV-9): the job id and the requested document ids, never a title.
+	ActionDocumentsDownloadJobCreated = "documents.download_job_created"
+	// Folder upload (UNI-2052): one row per PLAN (the batch, its folders and
+	// counts, never a filename), per cancel and per sweep expiry. Each folder
+	// and document the batch creates also gets its own document.created row.
+	ActionDocumentsFolderUploadPlanned  = "documents.folder_upload_planned"
+	ActionDocumentsFolderUploadCanceled = "documents.folder_upload_canceled"
+	ActionDocumentsFolderUploadExpired  = "documents.folder_upload_expired"
 
 	// Document comments + favorites (UNI-681): the document half of the
 	// shared comment core. The reaction actions stay document-scoped so

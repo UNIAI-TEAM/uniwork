@@ -25,7 +25,11 @@ export function useNoticeDocumentGone({
   if (!enabled) return { pending: false, gone: false };
   if (page.isPending) return { pending: true, gone: false };
   if (!page.isSuccess) return { pending: false, gone: false };
-  const rows = page.data.notifications.filter((n) => n.resource_type === "document" && n.resource_id === documentId);
+  // document_changed is left out: its resource_id is only the first document of a multi-document
+  // notice, and the row is never resource_deleted.
+  const rows = page.data.notifications.filter(
+    (n) => n.kind !== "document_changed" && n.resource_type === "document" && n.resource_id === documentId,
+  );
   const row = rows.find((n) => n.params.comment_id === commentId) ?? rows[0];
   return { pending: false, gone: row?.resource_deleted === true };
 }

@@ -283,4 +283,96 @@ describe("config endpoints", () => {
       },
     });
   });
+
+  it("reads documents.limits.folder_upload and leaves it undefined when the server lacks it", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, documents: { limits: {} } }));
+    const absent = (await getPublicConfig()).documents?.limits;
+    expect(absent?.folder_upload).toBeUndefined();
+    expect(absent && "folder_upload" in absent).toBe(false);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        flags: {},
+        rum_sample_rate: 0,
+        documents: {
+          limits: {
+            folder_upload: {
+              max_files: 300,
+              max_folders: 200,
+              max_total_bytes: 1073741824,
+              max_depth: 10,
+              parallel: 3,
+              complete_batch: 25,
+            },
+          },
+        },
+      }),
+    );
+    expect((await getPublicConfig()).documents?.limits.folder_upload).toEqual({
+      max_files: 300,
+      max_folders: 200,
+      max_total_bytes: 1073741824,
+      max_depth: 10,
+      parallel: 3,
+      complete_batch: 25,
+    });
+  });
+
+  it("degrades malformed folder_upload fields to the contract defaults, and a non-object block to absent", async () => {
+    const defaults = {
+      max_files: 500,
+      max_folders: 500,
+      max_total_bytes: 2147483648,
+      max_depth: 20,
+      parallel: 6,
+      complete_batch: 50,
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ flags: {}, rum_sample_rate: 0, documents: { limits: { folder_upload: {} } } }),
+    );
+    expect((await getPublicConfig()).documents?.limits.folder_upload).toEqual(defaults);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        flags: {},
+        rum_sample_rate: 0,
+        documents: {
+          limits: {
+            folder_upload: {
+              max_files: "many",
+              max_folders: [],
+              max_total_bytes: -1,
+              max_depth: 2.5,
+              parallel: null,
+              complete_batch: 0,
+            },
+          },
+        },
+      }),
+    );
+    expect((await getPublicConfig()).documents?.limits.folder_upload).toEqual(defaults);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ flags: {}, rum_sample_rate: 0, documents: { limits: { upload_max_bytes: 1000, folder_upload: "yes" } } }),
+    );
+    const limits = (await getPublicConfig()).documents?.limits;
+    expect(limits?.upload_max_bytes).toBe(1000);
+    expect(limits?.folder_upload).toBeUndefined();
+  });
+
+  it("reads documents.limits.upload_extensions lower-cased without dots, and absent when malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ flags: {}, rum_sample_rate: 0, documents: { limits: { upload_extensions: ["pdf", ".DOCX", 7, "", "xlsx"] } } }),
+    );
+    expect((await getPublicConfig()).documents?.limits.upload_extensions).toEqual(["pdf", "docx", "xlsx"]);
+
+    for (const drifted of ["pdf", {}, null, []]) {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        json({ flags: {}, rum_sample_rate: 0, documents: { limits: { upload_extensions: drifted } } }),
+      );
+      const limits = (await getPublicConfig()).documents?.limits;
+      expect(limits?.upload_extensions).toBeUndefined();
+      expect(limits && "upload_extensions" in limits).toBe(false);
+    }
+  });
 });

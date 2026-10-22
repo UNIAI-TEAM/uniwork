@@ -244,7 +244,7 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
 
     const { unmount } = render(
       <DocumentsLibraryList
-        groups={[{ key: "unfiled", title: "", rows: [documentRow(summaryRow)] }]}
+        groups={[{ key: "all", rows: [documentRow(summaryRow)] }]}
         loading={false}
         failure={null}
         filteredBy={null}
@@ -258,7 +258,13 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
       />,
     );
     const libRow = document.querySelector('[data-library-row="d1"]') as HTMLElement;
-    expect(within(libRow).getAllByText("4 người")).toHaveLength(2);
+    // The narrow name-line badge still names the people; the access cell is the
+    // shared pill (Được chia sẻ + level line), never the people count.
+    expect(within(libRow).getAllByText("4 người")).toHaveLength(1);
+    const accessCell = libRow.querySelector('td[data-column="access"]') as HTMLElement;
+    expect(accessCell.querySelector("[data-access-kind]")).toHaveAttribute("data-access-kind", "shared");
+    expect(within(accessCell).getByText("Được chia sẻ")).toBeInTheDocument();
+    expect(within(accessCell).queryByText("4 người")).not.toBeInTheDocument();
     unmount();
 
     // Search results mount
@@ -301,16 +307,28 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
     const treeNodes: DocumentTreeNode[] = [
       {
         id: "t1",
+        title: "Kế hoạch chung",
+        kind: "page",
+        position: 0,
+        share_scope: scope({ home_workspace: true, users: 2 }),
+        children: [],
+      },
+      // A folder is never shared (UNI-1974, UNI-2055 W1): it carries no badge whatever scope it arrives with.
+      {
+        id: "t2",
         title: "Thư mục Chung",
         kind: "folder",
-        position: 0,
+        position: 1,
         share_scope: scope({ home_workspace: true, users: 2 }),
         children: [],
       },
     ];
     requestMock.mockResolvedValue({ documents: treeNodes });
     render(wrap(<DocumentTree wsId="ws1" />));
-    const treeItem = await screen.findByRole("treeitem", { name: /Thư mục Chung/ });
+    const treeItem = await screen.findByRole("treeitem", { name: /Kế hoạch chung/ });
     expect(within(treeItem).getByText("Nhiều phạm vi")).toBeInTheDocument();
+    const folderItem = await screen.findByRole("treeitem", { name: /Thư mục Chung/ });
+    expect(within(folderItem).queryByTestId("document-share-scope-badge")).toBeNull();
+    expect(within(folderItem).queryByText("Nhiều phạm vi")).toBeNull();
   });
 });

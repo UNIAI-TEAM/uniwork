@@ -142,11 +142,6 @@ var errorClassByCode = map[string]string{
 //     every case, so the route never confirms a version exists elsewhere;
 //     the editor treats its anchor as stale and retries at the next save
 //     receipt.
-//   share_batch_too_large  (422, fields.max) a batch share named more than 50
-//     distinct users (UNI-1641). A count limit like offline_lease_limit_reached
-//     and document_link_limit, which stay unclassified: "quota" would read as a
-//     usage meter and "conflict" as a reload-and-retry; the picker keeps its
-//     selection and shows the cap from fields.max instead.
 //   level_not_allowed     (422, fields.max) a share for the document's own
 //     workspace carried manage, which the home row never takes (Q-S1,
 //     SH-S1). The caller may share (so not permission) and nothing needs a
@@ -158,9 +153,15 @@ var errorClassByCode = map[string]string{
 //     not permission (the caller may administer the folder) and not conflict
 //     (nothing to reload); the dialogs that could send it are gone, so the
 //     client only shows the message.
+//   folder_into_my_folder (422) a move would put a workspace folder (or a
+//     folder below it) into a My Folder tree (ADR 0037 §6, UNI-2055). A
+//     refusal of the request like folder_not_shareable: the caller may move
+//     the folder, just not there, and nothing needs a reload.
 //   access_report_too_large (422, fields.max_rows) an access report export
 //     over 10,000 rows or folder nodes (UNI-1643), refused before any byte.
-//     The same count-limit reasoning as share_batch_too_large: the page asks
+//     A count limit like document_link_limit, unclassified for the same
+//     reason ("quota" would read as a usage meter, "conflict" as a
+//     reload-and-retry): the page asks
 //     to narrow the folder or add a filter.
 //   commit_intent_unknown  (410, fields.outcome="unknown", plan G5-07) the
 //     server holds no commit intent for the key any more (swept after the

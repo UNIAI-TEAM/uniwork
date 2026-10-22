@@ -239,6 +239,9 @@ export function useNativeChatMessageActions({
         .filter(Boolean)
         .join(" · ")
     : "";
+  // A document message's delete also moves or revokes the document (UNI-2012 D8); absent origin is an upload.
+  const linkOrigin = deleting?.document?.origin === "link";
+  const otherEditors = deleting?.document?.other_editors_count ?? 0;
   const dialogs = (
     <>
       <ChatForwardDialog
@@ -278,7 +281,20 @@ export function useNativeChatMessageActions({
           <AlertDialogHeader>
             <IconTile icon={Trash2} tone="destructive" className="mb-2.5" />
             <AlertDialogTitle>{t("chat.message_list.delete_confirm_title")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("chat.message_list.delete_confirm_description")}</AlertDialogDescription>
+            <AlertDialogDescription>
+              {deleting?.kind === "document" ? (
+                <>
+                  {linkOrigin ? t("chat.message_list.delete_document_link") : t("chat.message_list.delete_document_upload")}
+                  {!linkOrigin && otherEditors > 0 ? (
+                    <span className="mt-1.5 block font-medium text-foreground">
+                      {t("chat.message_list.delete_document_upload_editors", { count: otherEditors })}
+                    </span>
+                  ) : null}
+                </>
+              ) : (
+                t("chat.message_list.delete_confirm_description")
+              )}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           {deleting ? (
             <blockquote className="min-w-0 rounded-[10px] border-l-3 border-brand/30 bg-muted px-3 py-2 text-body text-foreground">

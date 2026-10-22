@@ -159,6 +159,8 @@ describe("toChatMessage", () => {
         revision: "42",
         can_open_in_app: true,
         recipient_count: 4,
+        origin: "upload",
+        other_editors_count: 2,
       } as NonNullable<ChatMessageRecord["document"]>,
       can_share_as_document: true,
     });
@@ -172,6 +174,8 @@ describe("toChatMessage", () => {
       version_number: 3,
       revision: "42",
       recipient_count: 4,
+      origin: "upload",
+      other_editors_count: 2,
     });
     expect(mapped.canShareAsDocument).toBe(true);
   });

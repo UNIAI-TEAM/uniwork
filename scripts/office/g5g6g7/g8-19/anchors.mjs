@@ -17,7 +17,10 @@
 // document's answer the same 400. The web -> desktop direction (the same shift
 // plan run in the web frame, saved with harness/web.mjs webSave, read on the
 // desktop) needs the web frame to carry the G8-12..15 adapters: BLOCKED(R1)
-// while the pin is older.
+// while the pin is older. Last, check:lost-view-version (UNI-2033): the row the
+// remove step left lost names the version it was last anchored on, the web opens
+// that version read-only (no Save, no anchors write) and `?comment=` alone follows
+// to it once, and a view ticket opens the @vN copy on the desktop.
 // Contract: scripts/office/g5g6g7/harness/g8-contract.md; plan card G8-19.
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
@@ -58,7 +61,38 @@ export function readFramePin(repoRoot, format) {
   const abs = join(repoRoot, file);
   if (!existsSync(abs)) return null;
   const pin = JSON.parse(readFileSync(abs, "utf8"));
-  return { file, gitSha: String(pin.gitSha ?? ""), version: String(pin.version ?? "") };
+  return { file, gitSha: String(pin.gitSha ?? ""), version: String(pin.version ?? ""), protocolSha: String(pin.protocolSha256?.protocol ?? "") };
+}
+
+// ---- the web frame pin vs the fork UNI-2033 kit/protocol (comments.viewVersion, openVersionId) ----
+
+/** Frame builds known to predate fork UNI-2033: the G5-G7 base pins and fork 1abc493e4 (REPIN-6). */
+const PRE_VIEW_VERSION_PINS = Object.freeze([...PRE_G8_EDITOR_PINS, "1abc493"]);
+/** `protocolSha256.protocol` (sha of web/docs/protocol/types.ts) before and after fork e854a49ae (T4: comments.viewVersion). */
+export const PRE_VIEW_VERSION_PROTOCOL_SHAS = Object.freeze(["4e8633643d3bf5e6f14ccb679e39704d0935a362a9b8dfc51bb774f06acfa1c1"]);
+export const VIEW_VERSION_PROTOCOL_SHA = "914cc47118663fd7e503d90a9fe57671d7364ab6bbd217d9b927f3d192841664";
+/** The fork commit a frame must contain for `comments.viewVersion` / `commentsViewVersion` (T4, web/docs/protocol). */
+export const VIEW_VERSION_FORK_COMMITS = Object.freeze(["e854a49ae"]);
+export const VIEW_VERSION_BLOCKER = "frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)";
+export const VIEW_VERSION_BLOCKER_OWNER = "g6-fork_ui T6";
+
+/**
+ * The web part of check:lost-view-version is BLOCKED while the pinned frame lacks the fork UNI-2033
+ * protocol, else null. Decided from facts, never a timeout: the pin's git sha against the known older
+ * pins, its `protocolSha256.protocol` against the pre-T4 value (the T4 value lifts it), and, when a
+ * fork clone answers, whether the T4 commit is an ancestor of the pin. An unknown newer pin with no
+ * answer runs the real check (which FAILs if the frame still lacks the protocol).
+ */
+export function viewVersionPinBlock(pin, { isAncestor = null } = {}) {
+  const sha = String(pin?.gitSha ?? "");
+  const block = { status: "BLOCKED", blocker: VIEW_VERSION_BLOCKER, owner: VIEW_VERSION_BLOCKER_OWNER, pin: sha };
+  if (!sha) return block;
+  const protocol = String(pin?.protocolSha ?? "");
+  if (protocol === VIEW_VERSION_PROTOCOL_SHA) return null;
+  if (PRE_VIEW_VERSION_PINS.some((old) => old.startsWith(sha) || sha.startsWith(old))) return block;
+  if (PRE_VIEW_VERSION_PROTOCOL_SHAS.includes(protocol)) return block;
+  if (typeof isAncestor === "function" && VIEW_VERSION_FORK_COMMITS.some((commit) => isAncestor(commit, sha) === false)) return block;
+  return null;
 }
 
 /**
@@ -406,14 +440,21 @@ export async function openOnDesktop({ ctx, world, connectApp = realConnectApp, u
 }
 
 /** Mints a launch ticket for `documentId` as `userKey` and opens it in the already signed-in app. */
-export async function openTicketOnDesktop({ ctx, world, ctrl, userKey = "A", documentId, format, commentId = null }) {
+export async function openTicketOnDesktop({ ctx, world, ctrl, userKey = "A", documentId, format, commentId = null, operation = "edit", version = null, copyMarker = null, sleep = realSleep, now = Date.now }) {
   const launch = await world.session(userKey).call(
     "mintLaunch",
     { documentID: documentId },
-    { operation: "edit", deployment_id: ctx.portsEnv?.HARNESS_DEPLOYMENT_ID || "default", client_id: DEV_CLIENT_ID, return_hint: "office", ...(commentId ? { comment_id: commentId } : {}) },
+    { operation, ...(version ? { version } : {}), deployment_id: ctx.portsEnv?.HARNESS_DEPLOYMENT_ID || "default", client_id: DEV_CLIENT_ID, return_hint: "office", ...(commentId ? { comment_id: commentId } : {}) },
   );
   if (!launch.ok || !launch.body?.launch_url) throw new Error(`mintLaunch answered ${launch.status}${launch.error ? ` (${launch.error})` : ""}`);
-  const opened = await ctrl.openByTicket(launch.body.launch_url, { documentId });
+  let opened = await ctrl.openByTicket(launch.body.launch_url, { documentId });
+  // a document that is already open answers the ticket with its active working copy at once; a version copy
+  // (`...@vN`) is a second copy, so wait (bounded) until the app reports it as the active one
+  if (copyMarker && !String(opened.path ?? "").includes(copyMarker)) {
+    const seen = await pollUntil(() => Promise.resolve(ctrl.aiOffice("uniworkActiveDocStatus")).catch(() => null), (st) => String(st?.path ?? "").includes(copyMarker) && (!documentId || st.documentId === documentId), { boundMs: 20_000, intervalMs: 500, sleep, now });
+    if (!seen.ok) throw new Error(`the app opened no ${copyMarker} copy of the document (active copy: ${seen.value?.path ?? "none"})`);
+    opened = { ...opened, path: seen.value.path };
+  }
   const kind = opened.kind ?? editorKindOfFormat(format);
   // the page that shows THIS document: another one of the same kind may be open (harness contract §15)
   const page = await ctrl.editorPage(kind, { path: opened.path, documentId });
@@ -479,6 +520,33 @@ export function documentListRequests(serverLogPath, offset, documentId) {
   return out;
 }
 
+/**
+ * The writes of a version view the server logged after `offset` bytes: a Save commit or a comments.anchors
+ * PUT of `documentId` (the frame's own commit route included); `["POST /path", ...]`, or null when there is no log.
+ * Other posts of the page (the frame token, the launch ticket) are not writes of the document.
+ */
+export function documentWriteRequests(serverLogPath, offset, documentId) {
+  if (!serverLogPath || !existsSync(serverLogPath)) return null;
+  const write = new RegExp(`/documents/${documentId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/(versions/commit|comments/anchors)$`);
+  const out = [];
+  for (const raw of readFileSync(serverLogPath).subarray(offset).toString("utf8").split("\n")) {
+    const line = raw.replace(ANSI, "").trim();
+    if (!line) continue;
+    let f;
+    if (line.startsWith("{")) {
+      try {
+        f = JSON.parse(line);
+      } catch {
+        continue;
+      }
+    } else {
+      f = { method: /\bmethod=(\S+)/.exec(line)?.[1], path: /\bpath=(\S+)/.exec(line)?.[1] };
+    }
+    if (["POST", "PUT", "PATCH"].includes(f.method) && typeof f.path === "string" && write.test(f.path)) out.push(`${f.method} ${f.path}`);
+  }
+  return out;
+}
+
 const listed2xx = (reqs) => (reqs ?? []).filter((r) => r.status >= 200 && r.status < 300);
 
 /** The server comments panel in the editor page: how many, and the comment ids it lists (fork CollabPanel.tsx:526-528, CollabThread.tsx:712). */
@@ -527,7 +595,10 @@ export async function openCommentsPanel({ ctrl, page, format, probe, sleep = rea
   return { status: "ok", panels: shown.value.panels, opened: true };
 }
 
-const rowState = (row) => (row ? { id: row.id, anchor: row.anchor ?? null, anchor_state: row.anchor_state ?? null, anchor_version_id: row.anchor_version_id ?? null, deleted_at: row.deleted_at ?? null } : null);
+const rowState = (row) =>
+  row
+    ? { id: row.id, anchor: row.anchor ?? null, anchor_state: row.anchor_state ?? null, anchor_version_id: row.anchor_version_id ?? null, anchor_version_no: row.anchor_version_no ?? null, deleted_at: row.deleted_at ?? null }
+    : null;
 
 // ---- G8-A02 decision ----------------------------------------------------------------------
 
@@ -673,8 +744,12 @@ function decideEdit(name, part, more) {
  * G8-A02 from the record the flow builds (pure). Checks: create, shift (B8 /
  * path+1 / slide+1 / page-1, exact, on the new head), rest-sees-moved, remove
  * (lost, thread + reply kept, last anchor kept), invalid-versions (three
- * byte-equal 400 anchor_version_invalid, nothing written) and web-to-desktop
- * (BLOCKED(R1) while the frame pin is old). FAIL beats BLOCKED beats PASS.
+ * byte-equal 400 anchor_version_invalid, nothing written), lost-view-version (judged
+ * right after remove-lost: the lost row names the shift head's version and ordinal, the
+ * web opens it read-only and `?comment=` alone follows once, the desktop view ticket opens
+ * the @vN copy; BLOCKED while the web frame pin predates the fork UNI-2033 protocol,
+ * NOT_JUDGED when remove-lost failed) and web-to-desktop (BLOCKED(R1) while the frame pin
+ * is old). FAIL beats BLOCKED beats PASS.
  */
 export function decideG8A02(rec) {
   const steps = {};
@@ -735,6 +810,19 @@ export function decideG8A02(rec) {
           return reasons;
         });
 
+  // the lost view needs the row the remove step left lost: BLOCKED with it, NOT_JUDGED (cascading) when it failed
+  const removed = steps["check:remove-lost"];
+  steps["check:lost-view-version"] =
+    removed.status === "PASS"
+      ? decideLostViewVersion(rec.lostView)
+      : removed.status === "BLOCKED"
+        ? { status: "BLOCKED", blocker: removed.blocker ?? "", owner: removed.owner ?? "", reason: "not judged: check:remove-lost is BLOCKED, so no row was left lost" }
+        : {
+            status: "NOT_JUDGED",
+            cascadeFrom: removed.status === "NOT_JUDGED" ? removed.cascadeFrom : "check:remove-lost",
+            reason: "not judged: check:remove-lost did not leave the row lost, so there is no version to open",
+          };
+
   const inv = Array.isArray(rec.invalidVersions) ? rec.invalidVersions : [];
   const invReasons = [];
   const cases = inv.map((x) => x.case).sort();
@@ -781,6 +869,92 @@ export function decideWebToDesktop(part) {
     if (desk.anchor_version_id !== saved.versionId) reasons.push(`the desktop reads version ${desk.anchor_version_id}, want ${saved.versionId}`);
   }
   return check(reasons);
+}
+
+// ---- check:lost-view-version (UNI-2033 T7) ---------------------------------------------------------
+
+const bannerNamesVersion = (text, n) => new RegExp(`(?<!\\d)${n}(?!\\d)`).test(String(text ?? ""));
+
+/** The server half: the row the remove step left lost keeps the shift Save's head version, and says its ordinal. */
+function decideLostServer(part, expected) {
+  if (!part?.ran) return { status: part?.status ?? "FAIL", reason: part?.reason ?? "the server read did not run" };
+  const row = part.row;
+  if (!row) return { status: "FAIL", reason: "the comment row is missing" };
+  const reasons = [];
+  if (row.anchor_state !== "lost") reasons.push(`anchor_state ${row.anchor_state}, want lost`);
+  if (row.anchor_version_id !== expected.versionId) reasons.push(`anchor_version_id ${row.anchor_version_id ?? null}, want ${expected.versionId} (the head of the Save before the delete)`);
+  if (row.anchor_version_no !== expected.versionNo) reasons.push(`anchor_version_no ${row.anchor_version_no ?? null}, want ${expected.versionNo} (the ordinal of ${expected.versionId})`);
+  return check(reasons);
+}
+
+/** The web half: the read-only version view of N with the thread revealed and no write, then the `?comment=` landing, once. */
+function decideLostWeb(part, versionNo, commentId) {
+  if (!part) return { status: "FAIL", reason: "the web view did not run" };
+  if (!part.ran) return { status: part.status ?? "FAIL", ...(part.reason ? { reason: part.reason } : {}), ...(part.blocker ? { blocker: part.blocker, owner: part.owner ?? "" } : {}) };
+  const reasons = [];
+  const v = part.view ?? {};
+  if (v.unavailable) reasons.push(`the page shows version ${versionNo} as unavailable`);
+  else if (!v.banner) reasons.push("no read-only version banner on the version view");
+  else if (!bannerNamesVersion(v.banner, versionNo)) reasons.push(`the banner names another version ("${v.banner}"), want version ${versionNo}`);
+  if (!(v.contentVersions ?? []).map(String).includes(String(versionNo))) reasons.push(`the frame never fetched the bytes of version ${versionNo} (fetched: ${(v.contentVersions ?? []).join(", ") || "none"})`);
+  if (!v.revealed) reasons.push(`thread ${commentId} is not revealed in the version view`);
+  if ((v.writes ?? []).length > 0) reasons.push(`a write request during the version view: ${v.writes.join(", ")}`);
+  if ((v.serverLogWrites ?? []).length > 0) reasons.push(`the server log saw a write during the version view: ${v.serverLogWrites.join(", ")}`);
+  const land = part.landing;
+  if (!land) reasons.push("the ?comment= landing did not run");
+  else if ((land.switches ?? []).length === 0) reasons.push(`?comment= alone did not switch to ?version=${versionNo} (the page stayed on ${land.finalUrl})`);
+  else {
+    if (land.switches.length > 1) reasons.push(`?comment= alone switched more than once (${land.switches.length} times)`);
+    const final = new URL(land.finalUrl, "http://x");
+    if (final.searchParams.get("version") !== String(versionNo) || final.searchParams.get("comment") !== commentId) reasons.push(`landed on ${land.finalUrl}, want version=${versionNo}&comment=${commentId}`);
+  }
+  return check(reasons);
+}
+
+/**
+ * The desktop half: the view ticket opened the `@vN` copy. Judged only on what the app reports: the copy
+ * path, a read-only flag, the version id the copy's comments bridge answers and the editor's panel listing
+ * the comment (required once the probe ran: panels 0 or a missing id FAILs); a fact the app does not report
+ * (including a probe that returned no panel data) is recorded in `note`, not failed.
+ */
+function decideLostDesktop(part, expected, commentId) {
+  if (!part) return { status: "FAIL", reason: "the desktop view did not run" };
+  if (!part.ran) return { status: part.status ?? "FAIL", ...(part.reason ? { reason: part.reason } : {}) };
+  const reasons = [];
+  const notes = [];
+  if (!String(part.copyPath ?? "").includes(`@v${expected.versionNo}`)) reasons.push(`the opened copy ${part.copyPath ?? "none"} is not the @v${expected.versionNo} copy`);
+  const st = part.status ?? {};
+  if (st.readOnly === false || st.access === "edit") reasons.push(`the @v${expected.versionNo} copy is not read-only (${JSON.stringify(st)})`);
+  else if (st.readOnly === undefined && st.access === undefined) notes.push("the read-only flag");
+  if (typeof part.contextVersionId === "string") {
+    if (part.contextVersionId !== expected.versionId) reasons.push(`the copy's open version id is ${part.contextVersionId}, want ${expected.versionId}`);
+  } else notes.push("the copy's open version id");
+  if (part.panel && typeof part.panel === "object") {
+    // The probe ran: the contract is that the comment is revealed, so a copy with no panel listing it fails.
+    if (!(part.panel.commentIds ?? []).includes(commentId)) reasons.push(`the view copy shows no comments panel with the comment (panels ${part.panel.panels ?? 0})`);
+  } else notes.push("the revealed thread (the panel probe returned nothing)");
+  const res = check(reasons);
+  return res.status === "PASS" && notes.length > 0 ? { ...res, note: `not reported by the app: ${notes.join("; ")}` } : res;
+}
+
+/**
+ * check:lost-view-version from `rec.lostView` (pure): server, web and desktop are judged apart and combined
+ * the way the row is, FAIL beats BLOCKED beats PASS (the web half is BLOCKED while the frame pin predates the fork protocol).
+ */
+export function decideLostViewVersion(lv) {
+  if (!lv?.ran) return { status: "FAIL", reason: lv?.skipped ?? "the lost-view step did not run" };
+  if (lv.expected?.conflict) return { status: "FAIL", reason: `harness: ${lv.expected.conflict}` };
+  const expected = lv.expected ?? {};
+  const commentId = lv.commentId ?? lv.server?.row?.id ?? "";
+  const parts = {
+    server: decideLostServer(lv.server, expected),
+    web: decideLostWeb(lv.web, expected.versionNo, commentId),
+    desktop: decideLostDesktop(lv.desktop, expected, commentId),
+  };
+  const decided = decideFromSteps(parts);
+  const notes = Object.values(parts).map((p) => p.note).filter(Boolean);
+  const { reason, ...rest } = decided;
+  return { ...rest, ...(reason ? { reason } : {}), ...(notes.length > 0 ? { note: notes.join("; ") } : {}) };
 }
 
 /** What the artifact says about the third 400 case (lead decision r1b, applied-pending-Advisor). */
@@ -853,6 +1027,112 @@ async function runWebToDesktop({ ctx, world, desk, format, driver, web, launchBr
   } finally {
     await Promise.race([Promise.resolve().then(() => browser.close?.()).catch(() => {}), realSleep(2_000)]);
   }
+}
+
+// ---- check:lost-view-version: the web view and the Inbox landing -----------------------------------
+
+const VIEW_OPEN_BOUND_MS = 60_000;
+const VIEW_REVEAL_BOUND_MS = 20_000;
+/** How long the view is watched for a Save or anchors request after it has settled (a write that follows the open, not one that races it). */
+const VIEW_QUIET_MS = 3_000;
+const LANDING_QUIET_MS = 2_000;
+
+/**
+ * In the page: the version view markers D renders (packages/views/office/frame/frame-version-banner.tsx
+ * `office-version-view-banner` / `office-version-view-unavailable`, office-module-frame.tsx `data-state`) and
+ * whether D's own comments pane shows `commentId` highlighted (document-comment-thread.tsx `data-highlighted`).
+ */
+export function readVersionViewPage({ commentId }) {
+  const banner = document.querySelector('[data-testid="office-version-view-banner"]');
+  const host = document.querySelector("[data-office-docs-frame]");
+  const thread = [...document.querySelectorAll('[data-testid^="document-thread-"]')].find((el) => el.getAttribute("data-testid") === `document-thread-${commentId}`);
+  return {
+    banner: banner ? (banner.textContent ?? "").trim() : null,
+    unavailable: document.querySelector('[data-testid="office-version-view-unavailable"]') !== null,
+    frameState: host?.getAttribute("data-state") ?? null,
+    highlighted: Boolean(thread && thread.hasAttribute("data-highlighted")),
+  };
+}
+
+const pathOf = (url) => {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return String(url);
+  }
+};
+
+/**
+ * Opens `?version=N&comment=<id>` as the page's user and records, from the page and the requests it makes:
+ * the version banner (read-only marker), the version the frame fetched bytes for, whether the thread is
+ * revealed (the frame's comments panel lists it or D's pane highlights it), and every Save commit / comments.anchors
+ * write (the browser's own requests, and the server log after the open). Then opens `?comment=<id>` alone
+ * and records the URLs the page switches to. Resolves `{ ran: true, view, landing }`. Every wait is a bounded poll.
+ */
+export async function observeVersionView({ web, page, kind, where, commentId, versionNo, documentId, serverLog = null, sleep = realSleep, now = Date.now }) {
+  const requests = [];
+  const contentVersions = [];
+  const urls = [];
+  const writeRoute = new RegExp(`/documents/${documentId}/(versions/commit|comments/anchors)$`);
+  page.on("request", (req) => {
+    const method = req.method();
+    const path = pathOf(req.url());
+    if ((method === "POST" || method === "PUT") && writeRoute.test(path)) requests.push(`${method} ${path}`);
+  });
+  page.on("response", (res) => {
+    const url = res.url();
+    if (res.request().method() !== "GET" || !pathOf(url).endsWith(`/office-frame/documents/${documentId}/content`)) return;
+    const status = res.status();
+    const version = new URL(url).searchParams.get("version");
+    if (version && status >= 200 && status < 300) contentVersions.push(version);
+  });
+  page.on("framenavigated", (frame) => {
+    if (typeof page.mainFrame !== "function" || frame === page.mainFrame()) {
+      const url = frame.url();
+      if (urls[urls.length - 1] !== url) urls.push(url);
+    }
+  });
+  const poll = (fn, pred, boundMs, intervalMs = 500) => pollUntil(fn, pred, { boundMs, intervalMs, sleep, now });
+
+  // 1. the version view
+  const logOffset = logSize(serverLog);
+  const viewUrl = new URL(realWeb.documentUrl({ ...where, comment: commentId }));
+  viewUrl.searchParams.set("version", String(versionNo));
+  await page.goto(viewUrl.toString(), { waitUntil: "domcontentloaded", timeout: VIEW_OPEN_BOUND_MS });
+  const read = await poll(
+    () => page.evaluate(readVersionViewPage, { commentId }).catch(() => null),
+    (r) => Boolean(r?.unavailable || (r?.banner && r.frameState === "ready")),
+    VIEW_OPEN_BOUND_MS,
+  );
+  const page1 = read.value ?? {};
+  const panel = await poll(
+    async () => (await web.webFrameEval(page, kind, panelListing, undefined, { timeoutMs: 10_000 }).catch(() => null)) ?? { panels: 0, commentIds: [] },
+    (p) => (p.commentIds ?? []).includes(commentId),
+    VIEW_REVEAL_BOUND_MS,
+  );
+  const inPanel = (panel.value?.commentIds ?? []).includes(commentId);
+  const revealed = inPanel || Boolean(page1.highlighted);
+  await sleep(VIEW_QUIET_MS);
+  const view = {
+    url: viewUrl.toString(),
+    banner: page1.banner ?? null,
+    unavailable: Boolean(page1.unavailable),
+    frameState: page1.frameState ?? null,
+    contentVersions: [...contentVersions],
+    revealed,
+    revealedIn: inPanel ? "the frame's comments panel" : page1.highlighted ? "D's comments pane (highlighted thread)" : "nowhere",
+    writes: [...requests],
+    serverLogWrites: documentWriteRequests(serverLog, logOffset, documentId),
+  };
+
+  // 2. the Inbox landing: ?comment= alone follows the lost comment to its version, once
+  const landStart = urls.length;
+  const startUrl = realWeb.documentUrl({ ...where, comment: commentId });
+  await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: VIEW_OPEN_BOUND_MS });
+  await poll(() => Promise.resolve(page.url()), (url) => url.includes("version="), VIEW_OPEN_BOUND_MS);
+  await sleep(LANDING_QUIET_MS);
+  const switches = urls.slice(landStart).filter((url) => new URL(url).searchParams.has("version"));
+  return { ran: true, view, landing: { startUrl, finalUrl: page.url(), switches } };
 }
 
 // ---- G8-A02 flow ---------------------------------------------------------------------------
@@ -970,11 +1250,94 @@ export async function saveOnDesktop(ctrl, path) {
   return res;
 }
 
+/** The part of a failed half: what the decision reads (`ran: false` carries the status and reason). */
+const failedPart = (err) => ({ ran: false, status: "FAIL", reason: err instanceof Error ? err.message : String(err) });
+
+/** The fields of the app's active-document status the lost view can judge (a field the app does not report is absent). */
+const pickDocStatus = (status) => Object.fromEntries(["readOnly", "access", "mode"].filter((k) => status && typeof status === "object" && k in status).map((k) => [k, status[k]]));
+
+/**
+ * check:lost-view-version flow (the row is lost after the remove step). Three halves, each recorded in
+ * `rec.lostView` and judged by decideLostViewVersion:
+ * - server: the lost row's anchor_version_id is the shift Save's head, anchor_version_no its ordinal
+ *   (the versions list and the head's `version` at the shift Save must agree);
+ * - web (BLOCKED by the pin probe, else a browser as A): observeVersionView;
+ * - desktop: a view ticket `{operation: "view", version: N, comment_id}` opens the `...@vN` copy.
+ */
+async function runLostViewVersion({ ctx, world, A, desk, doc, rec, rowOf, commentId, format, poll, web, launchBrowser, framePin, isAncestor, observe, serverLog, sleep, now }) {
+  const lv = { ran: true, commentId, expected: { versionId: rec.shift.headVersionId, versionNo: null }, server: null, web: null, desktop: null };
+  rec.lostView = lv;
+  await ctx.step("lost-view-server", async () => {
+    try {
+      const srv = await readServer(A, doc.documentId);
+      const row = rowState(rowOf(srv));
+      let listedNo = null;
+      const list = await A.call("listDocumentVersions", { documentID: doc.documentId });
+      if (list.ok) listedNo = (list.body?.versions ?? []).find((v) => v.id === lv.expected.versionId)?.version ?? null;
+      const shiftNo = rec.shift.headVersion ?? null;
+      lv.expected.versionNo = listedNo ?? shiftNo;
+      if (listedNo !== null && shiftNo !== null && listedNo !== shiftNo) lv.expected.conflict = `version ${lv.expected.versionId} is number ${listedNo} in the versions list but the document said ${shiftNo} at the shift Save`;
+      else if (lv.expected.versionNo === null) lv.expected.conflict = `version ${lv.expected.versionId} is not in the versions list and the shift Save recorded no version number`;
+      lv.server = { ran: true, row };
+    } catch (err) {
+      lv.server = failedPart(err);
+    }
+  });
+  const versionNo = lv.expected.versionNo;
+  await ctx.step("lost-view-web", async () => {
+    const block = framePinBlock(framePin, { isAncestor }) ?? viewVersionPinBlock(framePin, { isAncestor });
+    if (block) {
+      lv.web = block;
+      return;
+    }
+    if (!(versionNo > 0)) {
+      lv.web = failedPart("no version number to open (see the server half)");
+      return;
+    }
+    let browser = null;
+    let session = null;
+    try {
+      const where = { webOrigin: ctx.webOrigin, org: world.org("X").slug, ws: world.workspace("X", "W2").slug, documentId: doc.documentId };
+      browser = await launchBrowser();
+      session = await web.webLogin(browser, world.user("A"), { webOrigin: ctx.webOrigin });
+      lv.web = await observe({ web, page: session.page, kind: editorKindOfFormat(format), where, commentId, versionNo, documentId: doc.documentId, serverLog, sleep, now });
+    } catch (err) {
+      lv.web = failedPart(err);
+    } finally {
+      await Promise.resolve(session?.close?.()).catch(() => {});
+      await Promise.race([Promise.resolve().then(() => browser?.close?.()).catch(() => {}), realSleep(2_000)]);
+    }
+  });
+  await ctx.step("lost-view-desktop", async () => {
+    if (!(versionNo > 0)) {
+      lv.desktop = failedPart("no version number to open (see the server half)");
+      return;
+    }
+    try {
+      const opened = await openTicketOnDesktop({ ctx, world, ctrl: desk.ctrl, documentId: doc.documentId, format, commentId, operation: "view", version: versionNo, copyMarker: `@v${versionNo}`, sleep, now });
+      const status = await Promise.resolve(desk.ctrl.aiOffice("uniworkActiveDocStatus")).catch(() => null);
+      const context = await Promise.resolve(opened.comments.context({ path: opened.path })).catch(() => null);
+      const probe = () => desk.ctrl.evalBounded(opened.page, panelListing, {}, "probe:listed");
+      const seen = await pollUntil(probe, (v) => Array.isArray(v?.commentIds) && v.commentIds.includes(commentId), { boundMs: VIEW_REVEAL_BOUND_MS, intervalMs: 1_000, sleep, now });
+      lv.desktop = {
+        ran: true,
+        copyPath: opened.path,
+        contextVersionId: context?.ok === true && typeof context.value?.versionId === "string" ? context.value.versionId : null,
+        status: pickDocStatus(status),
+        panel: seen.value && typeof seen.value === "object" ? { panels: seen.value.panels ?? 0, commentIds: seen.value.commentIds ?? [] } : null,
+      };
+    } catch (err) {
+      lv.desktop = failedPart(err);
+    }
+  });
+}
+
 /**
  * Runs G8-A02 on one fixture (ctx from runRowModule). `deps`: `connectApp`,
  * `sleep`, `now`, `framePin` (else read now), `isAncestor` (else the fork clone),
  * `web` (harness/web.mjs), `launchBrowser`, `download` (`(documentId, version)` -> bytes, docx head check),
- * `serverLog` (else the run's logs/server.log: the editor's first list of the closed-panel document).
+ * `serverLog` (else the run's logs/server.log: the editor's first list of the closed-panel document),
+ * `observeVersionView` (the web half of check:lost-view-version; else the Playwright driver above).
  */
 export async function runG8A02(ctx, deps = {}) {
   const { connectApp = realConnectApp, sleep = realSleep, now = Date.now, web = realWeb } = deps;
@@ -1077,7 +1440,7 @@ export async function runG8A02(ctx, deps = {}) {
           return Boolean(row && srv.head && srv.head !== versionBefore && ((row.anchor_version_id === srv.head && row.anchor_state === "exact") || row.anchor_state === "lost"));
         },
       );
-      Object.assign(rec.shift, { headVersionId: settled.value.head, row: rowState(rowOf(settled.value)), elapsedMs: settled.elapsedMs });
+      Object.assign(rec.shift, { headVersionId: settled.value.head, headVersion: settled.value.headVersion ?? null, row: rowState(rowOf(settled.value)), elapsedMs: settled.elapsedMs });
       await trace.mark(rec.shift, "afterSave", desk, commentId);
       await trace.headQuote(rec.shift, doc.documentId, settled.value);
       return settled.ok ? {} : { status: "FAIL", reason: `the server row did not reach the new version within ${settled.elapsedMs} ms` };
@@ -1100,6 +1463,14 @@ export async function runG8A02(ctx, deps = {}) {
       return settled.ok ? {} : { status: "FAIL", reason: `the row did not go lost within ${settled.elapsedMs} ms` };
     });
 
+    // check:lost-view-version: only when check:remove-lost holds (the row lost on the shift Save's version)
+    const framePin = deps.framePin ?? readFramePin(ctx.repoRoot, format);
+    const isAncestor = deps.isAncestor ?? forkAncestorChecker(process.env, ctx.portsEnv);
+    rec.lostView = { ran: false, skipped: "check:remove-lost did not leave the row lost" };
+    if (decideG8A02({ ...rec, lostView: undefined }).steps["check:remove-lost"].status === "PASS") {
+      await runLostViewVersion({ ctx, world, A, desk, doc, rec, rowOf, commentId, format, poll, web, launchBrowser, framePin, isAncestor, observe: deps.observeVersionView ?? observeVersionView, serverLog, sleep, now });
+    }
+
     await ctx.step("invalid-versions", async () => {
       // a purged version cannot be made through REST (no document/version delete route in
       // server/internal/handler/router/documents.go); the server answers it through the same
@@ -1118,7 +1489,7 @@ export async function runG8A02(ctx, deps = {}) {
       rec.afterInvalid = rowState(rowOf(await readServer(A, doc.documentId)));
     });
 
-    const block = framePinBlock(deps.framePin ?? readFramePin(ctx.repoRoot, format), { isAncestor: deps.isAncestor ?? forkAncestorChecker(process.env, ctx.portsEnv) });
+    const block = framePinBlock(framePin, { isAncestor });
     if (block) rec.webToDesktop = block;
     else {
       const part = { ran: true };

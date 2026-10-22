@@ -1,5 +1,6 @@
 import type { Notification } from "@uniwork/core/types";
 import { K } from "../documents/document-comments-keys";
+import { documentChangedFacts, isDocumentChanged } from "./document-changed";
 import { trashedOtherCount } from "./trashed-notice";
 
 // The mention token of the comment body (contract-collab §4.2), and the same
@@ -29,6 +30,7 @@ type NotificationSnippet =
   | { kind: "text"; text: string }
   | { kind: "deleted"; key: string }
   | { kind: "trashed"; document: string; count: number }
+  | { kind: "documents"; titles: string[]; more: number }
   | null;
 
 /**
@@ -38,6 +40,13 @@ type NotificationSnippet =
  * of post it was, and never shows what it said.
  */
 export function notificationSnippet(n: Notification): NotificationSnippet {
+  // A folded change row lists the sample titles the server already filtered to what the reader can read,
+  // so the row-level access flags (about the first document only) do not apply. No titles: the sentence
+  // carries the count and there is nothing to add, never an id.
+  if (isDocumentChanged(n)) {
+    const { titles, more } = documentChangedFacts(n);
+    return titles.length > 0 ? { kind: "documents", titles, more } : null;
+  }
   if (n.resource_type !== "document" || n.resource_access_lost || n.resource_deleted) return null;
   // A trash notice names the top item and how many others rode in its batch (TRASH-NOTIFY-01).
   if (n.kind === "document_trashed_by_other") {

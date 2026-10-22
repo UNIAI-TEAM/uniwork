@@ -19,7 +19,7 @@ type CreateDocumentSDI struct {
 	Destination *string          `json:"destination" description:"Đích tạo tắt: my_folder tạo trong Thư mục của tôi (tự khởi tạo nếu chưa có); loại trừ lẫn nhau với parent_id; giá trị khác -> 400 invalid_destination" example:"my_folder"`
 	Icon        *string          `json:"icon" description:"Emoji ≤ 8 ký tự" example:"📄"`
 	Content     *json.RawMessage `json:"content" description:"ProseMirror JSON {type:\"doc\"}; server sanitize trước khi lưu"`
-	Visibility  string           `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa trang cha, ở gốc hoặc trong thư mục = restricted; thư mục với workspace -> 422 folder_not_shareable" example:"restricted"`
+	Visibility  string           `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa trang cha, ở gốc hoặc trong thư mục = restricted; thư mục bỏ qua trường này (vị trí quyết định, ADR 0037)" example:"restricted"`
 }
 
 // CreateDocumentFileSDI documents POST
@@ -48,7 +48,7 @@ type PatchDocumentSDI struct {
 	Title      *string          `json:"title" description:"Tiêu đề mới: 1–500 ký tự cho trang/tệp, 1–255 cho thư mục (đổi tên trùng thư mục còn sống cùng cha → 409 folder_name_taken)" example:"Kế hoạch Q4 (bản nháp)"`
 	Icon       *string          `json:"icon" description:"Emoji mới; chuỗi rỗng để gỡ icon (bỏ qua = giữ nguyên)" example:"📑"`
 	Content    *json.RawMessage `json:"content" description:"ProseMirror JSON mới; server sanitize và rút content_text"`
-	Visibility *string          `json:"visibility" description:"workspace hoặc restricted; đổi visibility cần manage; thư mục với workspace -> 422 folder_not_shareable" example:"restricted"`
+	Visibility *string          `json:"visibility" description:"workspace hoặc restricted; đổi visibility cần manage; thư mục -> 422 folder_not_shareable (vị trí quyết định, ADR 0037)" example:"restricted"`
 	// EditLockID gates only a PATCH that carries content; a rename or a
 	// visibility change needs no lock (addendum §2, Q5).
 	EditLockID string `json:"edit_lock_id,omitempty" description:"lock_id nhiệm kỳ khóa sửa người gọi đang giữ (UNI-1645), chỉ xét khi PATCH có content; bỏ trống = không giữ khóa. Tài liệu đang bị người khác (hoặc tab/thiết bị khác) giữ -> 423 document_locked, trước kiểm revision" example:"01J8X4LOCK0N1P2Q3R4S5T6U7V"`
@@ -195,16 +195,18 @@ type ListDocumentsSDI struct {
 	Query       *string `query:"q" description:"Tìm văn bản đã fold; kết quả kèm snippet ≤ 160 ký tự" example:"kế hoạch quý 4"`
 	Match       *string `query:"match" description:"title = chỉ khớp tiêu đề đã fold; bỏ trống = tìm cả nội dung" example:"title"`
 	Kind        *string `query:"kind" description:"Lọc page, file, folder hoặc document (mọi loại trừ folder)" example:"page"`
-	Format      *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md hoặc html (MIME đã xác minh, nếu không có thì theo phần mở rộng tiêu đề). Thư mục luôn nằm trong kết quả, trang không bao giờ khớp; giá trị khác -> 400 invalid_filter; dùng cùng kind=page -> 400 invalid_filter" example:"pdf"`
+	Format      *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md, html hoặc txt (MIME đã xác minh, nếu không có thì theo phần mở rộng tiêu đề). Thư mục luôn nằm trong kết quả, trang không bao giờ khớp; giá trị khác -> 400 invalid_filter; dùng cùng kind=page -> 400 invalid_filter" example:"pdf"`
 	Access      *string `query:"access" description:"Lọc theo quyền của người gọi trên dòng: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted). Áp cho cả thư mục theo cấp của chính nó; giá trị khác -> 400 invalid_filter" example:"edit"`
 	Archived    *bool   `query:"archived" description:"1 = thùng rác (chỉ manage); bỏ trống = tài liệu sống. Trên thùng rác chỉ nhận access=restricted: access=manage/edit -> 400 invalid_filter" example:"false"`
 	Shelved     *bool   `query:"shelved" description:"1 = kho lưu trữ (mọi người xem được đều thấy mục mình được xem, sắp shelved_at mới nhất trước); kết hợp format/access được; cùng archived=1 -> 400 invalid_filter; mục vừa lưu trữ vừa vào thùng rác chỉ hiện ở thùng rác" example:"true"`
 	UpdatedBy   *string `query:"updated_by" description:"Lọc theo ULID người sửa gần nhất" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	UpdatedFrom *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339)" example:"2026-09-01T00:00:00Z"`
-	UpdatedTo   *string `query:"updated_to" description:"Mốc updated_at đến (RFC3339)" example:"2026-09-30T23:59:59Z"`
+	UpdatedFrom *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339); với archived=1 / shelved=1 mốc là archived_at / shelved_at" example:"2026-09-01T00:00:00Z"`
+	UpdatedTo   *string `query:"updated_to" description:"Mốc updated_at đến (RFC3339); với archived=1 / shelved=1 mốc là archived_at / shelved_at" example:"2026-09-30T23:59:59Z"`
 	SharedByMe  *bool   `query:"shared_by_me" description:"true = chỉ tài liệu sống do người gọi làm ACL owner và đang chia sẻ (share người dùng/nhóm còn hiệu lực hoặc visibility=workspace); dùng cùng parent_id -> 400 invalid_filter" example:"true"`
 	Cursor      *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
 	Limit       *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"50"`
+	Sort        *string `query:"sort" enum:"updated,name,size,editor,deleted,shelved,shared" description:"Sắp xếp theo cột: updated (updated_at), name (tiêu đề, bảng mã tiếng Việt), size (dung lượng phiên bản tệp hiện tại, trang/thư mục = 0) hoặc editor (tên hiển thị người sửa gần nhất; người sửa là agent/đã xóa luôn xếp cuối). Thêm một khóa riêng cho từng màn: deleted (archived_at, chỉ cùng archived=1), shelved (shelved_at, chỉ cùng shelved=1), shared (thời điểm grant mới nhất, chỉ cùng shared_by_me=true; dòng chưa có grant nào xếp cuối); khóa riêng mặc định giảm dần, dùng sai route -> 400 invalid_request. Bỏ trống = thứ tự riêng của danh sách và con trỏ cũ. Giá trị khác -> 400 invalid_request; next_cursor của một sort không dùng được cho sort/order khác (400)" example:"name"`
+	Order       *string `query:"order" enum:"asc,desc" description:"Chiều sắp xếp; chỉ dùng cùng sort (order không có sort -> 400). Bỏ trống: updated và size giảm dần, name và editor tăng dần" example:"asc"`
 }
 
 // ListRecentDocumentsSDI documents GET
@@ -214,11 +216,30 @@ type ListDocumentsSDI struct {
 // "title", else 400) is validated identically to the list route so a shared
 // client query string is accepted and ignored.
 type ListRecentDocumentsSDI struct {
-	Cursor *string `query:"cursor" description:"next_cursor của trang trước" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
-	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"10"`
-	Match  *string `query:"match" description:"Chỉ nhận title (hoặc bỏ trống); recent không lọc theo q nên giá trị hợp lệ được chấp nhận và bỏ qua, giá trị khác -> 400" example:"title"`
-	Format *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md hoặc html; thư mục luôn nằm trong kết quả, trang không bao giờ khớp; giá trị khác -> 400 invalid_filter" example:"pdf"`
-	Access *string `query:"access" description:"Lọc theo quyền của người gọi trên dòng: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted); giá trị khác -> 400 invalid_filter" example:"manage"`
+	Cursor       *string `query:"cursor" description:"next_cursor của trang trước" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
+	Limit        *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"10"`
+	Match        *string `query:"match" description:"Chỉ nhận title (hoặc bỏ trống); recent không lọc theo q nên giá trị hợp lệ được chấp nhận và bỏ qua, giá trị khác -> 400" example:"title"`
+	Format       *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md, html hoặc txt; thư mục luôn nằm trong kết quả, trang không bao giờ khớp; giá trị khác -> 400 invalid_filter" example:"pdf"`
+	Access       *string `query:"access" description:"Lọc theo quyền của người gọi trên dòng: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted); giá trị khác -> 400 invalid_filter" example:"manage"`
+	Sort         *string `query:"sort" enum:"updated,name,size,editor,activity" description:"Sắp xếp theo cột: updated (updated_at), name (tiêu đề, bảng mã tiếng Việt), size (dung lượng phiên bản tệp hiện tại, trang/thư mục = 0), editor (tên hiển thị người sửa gần nhất; người sửa là agent/đã xóa luôn xếp cuối) hoặc activity (last_activity.at, mặc định giảm dần). Bỏ trống = thứ tự riêng của danh sách và con trỏ cũ. Giá trị khác -> 400 invalid_request; kết hợp archived hoặc shelved -> 400; next_cursor của một sort không dùng được cho sort/order khác (400)" example:"activity"`
+	Activity     *string `query:"activity" enum:"opened,edited" description:"Lọc theo hoạt động của người gọi: opened (có dòng access log của người gọi), edited (người gọi là người sửa gần nhất); bỏ trống = tất cả; giá trị khác -> 400 invalid_filter" example:"opened"`
+	IncludeOwned *bool   `query:"include_owned" description:"true = liệt kê thêm tài liệu người gọi là ACL owner (theo updated_at) dù người khác đã sửa sau đó; mặc định chỉ tài liệu người gọi đã mở, sửa hoặc bình luận. Kết hợp với activity: activity=edited không thêm dòng nào (người gọi không phải người sửa); activity=opened chỉ giữ tài liệu người gọi đã mở, dòng đó báo kind owned theo updated_at khi người khác sửa sau lần mở" example:"true"`
+	UpdatedBy    *string `query:"updated_by" description:"Lọc theo ULID người sửa gần nhất (cùng nghĩa với danh sách phẳng)" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UpdatedFrom  *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339)" example:"2026-09-01T00:00:00Z"`
+	UpdatedTo    *string `query:"updated_to" description:"Mốc updated_at đến (RFC3339)" example:"2026-09-30T23:59:59Z"`
+	Order        *string `query:"order" enum:"asc,desc" description:"Chiều sắp xếp; chỉ dùng cùng sort (order không có sort -> 400). Bỏ trống: updated và size giảm dần, name và editor tăng dần" example:"asc"`
+}
+
+// ListFavoriteDocumentsSDI documents GET
+// /api/v1/workspaces/{workspaceID}/documents/favorites (UNI-2045 SV-2): the
+// caller's own stars in the workspace as list rows, paged by keyset.
+type ListFavoriteDocumentsSDI struct {
+	Cursor *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu. Gắn với sort/order của trang đã cấp" example:"eyJ0IjoiMjAyNi0xMC0yMFQwODowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyIsInMiOiJzdGFycmVkIiwibyI6ImRlc2MifQ"`
+	Limit  *int32  `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
+	Kind   *string `query:"kind" description:"Lọc page, file, folder hoặc document (mọi loại trừ folder)" example:"file"`
+	Format *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md, html hoặc txt; giá trị khác -> 400 invalid_filter; dùng cùng kind=page -> 400 invalid_filter" example:"pdf"`
+	Sort   *string `query:"sort" enum:"updated,name,size,editor,starred" description:"Sắp xếp theo cột: updated, name, size, editor (như danh sách phẳng) hoặc starred (thời điểm gắn sao, favorited_at). Bỏ trống = starred giảm dần. Giá trị khác -> 400 invalid_request; next_cursor của một sort không dùng được cho sort/order khác (400)" example:"starred"`
+	Order  *string `query:"order" enum:"asc,desc" description:"Chiều sắp xếp; chỉ dùng cùng sort. Bỏ trống: starred, updated và size giảm dần, name và editor tăng dần" example:"desc"`
 }
 
 // ListSharedWithMeSDI documents GET
@@ -227,10 +248,15 @@ type ListRecentDocumentsSDI struct {
 // denied candidate never fills a page slot; pages follow the same opaque
 // cursor as the other lists.
 type ListSharedWithMeSDI struct {
-	Cursor *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0wOS0yOFQxMDowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
-	Limit  *int32  `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
-	Format *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md hoặc html; giá trị khác -> 400 invalid_filter" example:"pdf"`
-	Access *string `query:"access" description:"Lọc theo quyền người gọi nhận được qua chia sẻ: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted); giá trị khác -> 400 invalid_filter" example:"edit"`
+	Cursor      *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0wOS0yOFQxMDowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
+	Limit       *int32  `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
+	Format      *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md, html hoặc txt; giá trị khác -> 400 invalid_filter" example:"pdf"`
+	Access      *string `query:"access" description:"Lọc theo quyền người gọi nhận được qua chia sẻ: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted); giá trị khác -> 400 invalid_filter" example:"edit"`
+	UpdatedBy   *string `query:"updated_by" description:"Lọc theo ULID người sửa gần nhất (cùng nghĩa với danh sách phẳng)" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UpdatedFrom *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339)" example:"2026-09-01T00:00:00Z"`
+	UpdatedTo   *string `query:"updated_to" description:"Mốc updated_at đến (RFC3339)" example:"2026-09-30T23:59:59Z"`
+	Sort        *string `query:"sort" enum:"updated,name,size,editor,shared" description:"Sắp xếp theo cột: updated (updated_at), name (tiêu đề, bảng mã tiếng Việt), size (dung lượng phiên bản tệp hiện tại, trang/thư mục = 0), editor (tên hiển thị người sửa gần nhất; người sửa là agent/đã xóa luôn xếp cuối) hoặc shared (thời điểm share cấp quyền cho người gọi, shared.at; mặc định giảm dần, id cùng chiều khi trùng). Bỏ trống = thứ tự riêng của danh sách (share mới nhất trước) và con trỏ cũ. Giá trị khác -> 400 invalid_request; next_cursor của một sort không dùng được cho sort/order khác (400)" example:"shared"`
+	Order       *string `query:"order" enum:"asc,desc" description:"Chiều sắp xếp; chỉ dùng cùng sort (order không có sort -> 400). Bỏ trống: updated và size giảm dần, name và editor tăng dần" example:"asc"`
 }
 
 // DocumentTreeSDI documents GET /api/v1/workspaces/{workspaceID}/documents/tree:
@@ -274,7 +300,7 @@ type BreakGlassSDI struct {
 // ShareDocumentBatchSDI is POST /api/v1/documents/{documentID}/shares/batch:
 // users only (workspace/organization stay single-select on POST /shares).
 type ShareDocumentBatchSDI struct {
-	PrincipalIDs []string `json:"principal_ids" description:"ULID người dùng cùng tổ chức với tài liệu; tối đa 50 id phân biệt sau khi cắt khoảng trắng và gộp trùng lặp" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\",\"01J8X4K2M0N1P2Q3R4S5T6U7V9\"]"`
+	PrincipalIDs []string `json:"principal_ids" description:"ULID người dùng cùng tổ chức với tài liệu, ít nhất 1 id, không giới hạn số lượng; khoảng trắng được cắt và trùng lặp được gộp" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\",\"01J8X4K2M0N1P2Q3R4S5T6U7V9\"]"`
 	Level        string   `json:"level" description:"Cấp quyền, cùng tập giá trị với POST /shares" example:"view"`
 }
 
@@ -282,7 +308,7 @@ type ShareDocumentBatchSDI struct {
 // UNI-1781): batch grant/update/revoke/keep across users, workspaces and the
 // organization, with optional dry_run preview.
 type UpdateDocumentAccessSDI struct {
-	Items  []DocumentAccessItemSDI `json:"items" description:"1–100 mục phân quyền; trùng (principal_type, principal_id) -> 422 document_access_rejected"`
+	Items  []DocumentAccessItemSDI `json:"items" description:"Từ 1 mục phân quyền, không giới hạn trên (body tối đa 1 MiB); trùng (principal_type, principal_id) -> 422 document_access_rejected"`
 	DryRun bool                    `json:"dry_run,omitempty" description:"true = chỉ tính preview và kết quả dự kiến, không ghi DB" example:"false"`
 }
 
@@ -409,4 +435,10 @@ type CompleteUploadSessionSDI struct {
 type UploadSessionPartSDI struct {
 	PartNumber int    `json:"part_number" description:"Số thứ tự phần, 1..total_parts" example:"1"`
 	ETag       string `json:"etag" description:"ETag S3 trả về ở header ETag của PUT phần, kể cả dấu ngoặc kép" example:"\"3858f62230ac3c915f300c664312c63f\""`
+}
+
+// CreateDocumentDownloadJobSDI is POST
+// /api/v1/workspaces/{workspaceID}/documents/download-jobs (UNI-2045 SV-9).
+type CreateDocumentDownloadJobSDI struct {
+	DocumentIDs []string `json:"document_ids" minItems:"1" maxItems:"100" description:"1-100 ULID tài liệu khác nhau cần nén thành một zip; chỉ tệp, trang và thư mục bị bỏ qua" example:"[\"01J8X4DOC0N1P2Q3R4S5T6U7\"]"`
 }

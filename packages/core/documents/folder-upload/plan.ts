@@ -1,0 +1,263 @@
+// Pure planner for a folder upload (UNI-2052 contract §2). No DOM and no
+// transport: the web readers and the desktop app both feed it `{ path, size }`
+// pairs, and nothing is sent anywhere until the plan has no refusal.
+
+import { DOCUMENT_TITLE_MAX, FOLDER_TITLE_MAX } from "../folder-limits";
+import { validateDocumentUploadFile } from "../limits";
+import type {
+  FolderUploadEntry,
+  FolderUploadLimits,
+  FolderUploadPlan,
+  FolderUploadSkipReason,
+  PlannedFile,
+} from "./types";
+
+export interface PlanFolderUploadOptions {
+  limits: FolderUploadLimits;
+  /** Level of the target folder: workspace root is 0, My Folder is 1. */
+  parentLevel: number;
+  /** Names of the items already at the target level, for the "(n)" preview. */
+  siblingNames: readonly string[];
+}
+
+// Matched case-insensitively on the whole segment.
+const HIDDEN_NAMES = new Set(["__macosx", "thumbs.db", "ehthumbs.db", "desktop.ini"]);
+// Finder's folder icon file: the carriage return is part of its real name, so
+// it is matched on the segment as read, before trimming.
+const FINDER_ICON = "icon\r";
+
+function nameKey(name: string): string {
+  return name.normalize("NFC").trim().toLowerCase();
+}
+
+/** One path segment as read, hidden by the rules above (the drop walker uses it too). */
+export function isHiddenName(raw: string): boolean {
+  return isHiddenSegment(raw, raw.normalize("NFC").trim());
+}
+
+function isHiddenSegment(raw: string, trimmed: string): boolean {
+  return (
+    trimmed.startsWith(".") ||
+    trimmed.startsWith("~$") ||
+    HIDDEN_NAMES.has(trimmed.toLowerCase()) ||
+    raw.toLowerCase() === FINDER_ICON
+  );
+}
+
+/**
+ * Smallest free "Name (n)" against the sibling names, compared without case
+ * after NFC + trim. This is a preview only: the server decides under its lock
+ * and returns the real title.
+ */
+export function uniqueRootName(name: string, siblingNames: readonly string[]): string {
+  const base = name.normalize("NFC").trim();
+  const taken = new Set(siblingNames.map(nameKey));
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let n = 1; ; n += 1) {
+    const candidate = `${base} (${n})`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+}
+
+/**
+ * The file check: the server's extension list when GET /config sent one,
+ * else the client's own (`validateDocumentUploadFile`); the per-file cap
+ * either way.
+ */
+function checkFile(
+  filename: string,
+  size: number,
+  limits: Pick<FolderUploadLimits, "perFileMaxBytes" | "uploadExtensions">,
+): { ok: true } | { ok: false; reason: "unsupported_format" | "too_large" } {
+  if (!limits.uploadExtensions) return validateDocumentUploadFile({ name: filename, size }, limits.perFileMaxBytes);
+  const dot = filename.lastIndexOf(".");
+  const ext = dot > 0 && dot < filename.length - 1 ? filename.slice(dot + 1).toLowerCase() : "";
+  if (!ext || !limits.uploadExtensions.includes(ext)) return { ok: false, reason: "unsupported_format" };
+  if (size > limits.perFileMaxBytes) return { ok: false, reason: "too_large" };
+  return { ok: true };
+}
+
+/**
+ * The name-level part of the planner's keep rule (not hidden, extension
+ * allowed), for readers that must not count what the planner would skip.
+ * `uploadExtensions` is the server list when the caller has it.
+ */
+export function isUploadableName(name: string, uploadExtensions?: readonly string[]): boolean {
+  return !isHiddenName(name) && checkFile(name, 0, { perFileMaxBytes: Number.POSITIVE_INFINITY, uploadExtensions }).ok;
+}
+
+interface Normalised {
+  index: number;
+  size: number;
+  segments: string[];
+}
+
+function normalise(entry: FolderUploadEntry, index: number): Normalised | null {
+  const rawSegments = entry.path.split("/");
+  const segments: string[] = [];
+  for (const raw of rawSegments) {
+    const trimmed = raw.normalize("NFC").trim();
+    if (trimmed === "" || trimmed === "." || trimmed === "..") return null;
+    segments.push(trimmed);
+  }
+  // A path needs a root folder and a file name.
+  if (segments.length < 2) return null;
+  return { index, size: entry.size, segments };
+}
+
+/** Parent paths of a file, outermost first, ending with its own folder. */
+function ancestors(segments: readonly string[]): string[] {
+  const out: string[] = [];
+  for (let i = 1; i < segments.length; i += 1) out.push(segments.slice(0, i).join("/"));
+  return out;
+}
+
+function compareFolders(a: string, b: string): number {
+  const depth = a.split("/").length - b.split("/").length;
+  return depth !== 0 ? depth : a.localeCompare(b, "vi");
+}
+
+export interface PlanFileUploadOptions {
+  limits: FolderUploadLimits;
+  /** Level of the destination folder, as in `PlanFolderUploadOptions`; workspace root (the default) is 0. */
+  parentLevel?: number;
+}
+
+/**
+ * Files mode (CONTRACT section 10, A1): several loose files straight into the
+ * destination. The folder planner's skip rules and limits, without root,
+ * folders or "(n)": two files with the same name are both kept and never
+ * renamed (FD-D10). Only the last path segment is read, as the name. The
+ * server still checks the destination's depth (A2): parentLevel + 1 over
+ * maxDepth is `too_deep`.
+ */
+export function planFileUpload(
+  entries: readonly FolderUploadEntry[],
+  { limits, parentLevel = 0 }: PlanFileUploadOptions,
+): FolderUploadPlan {
+  const skipped: { path: string; reason: FolderUploadSkipReason }[] = [];
+  const files: PlannedFile[] = [];
+  entries.forEach((entry, index) => {
+    const raw = entry.path.split("/").pop() ?? "";
+    const name = raw.normalize("NFC").trim();
+    if (name === "" || name === "." || name === "..") {
+      skipped.push({ path: entry.path, reason: "invalid_path" });
+      return;
+    }
+    if (isHiddenSegment(raw, name)) {
+      skipped.push({ path: name, reason: "hidden" });
+      return;
+    }
+    if (name.length > DOCUMENT_TITLE_MAX) {
+      skipped.push({ path: name, reason: "name_too_long" });
+      return;
+    }
+    const check = checkFile(name, entry.size, limits);
+    if (!check.ok) {
+      skipped.push({ path: name, reason: check.reason });
+      return;
+    }
+    files.push({ path: name, filename: name, folderPath: "", size: entry.size, index });
+  });
+  const bytes = files.reduce((sum, f) => sum + f.size, 0);
+  let refusal: FolderUploadPlan["refusal"] = null;
+  if (files.length === 0) refusal = { code: "nothing_to_upload" };
+  else if (parentLevel + 1 > limits.maxDepth) refusal = { code: "too_deep", limit: limits.maxDepth, actual: parentLevel + 1 };
+  else if (files.length > limits.maxFiles) refusal = { code: "too_many_files", limit: limits.maxFiles, actual: files.length };
+  else if (bytes > limits.maxTotalBytes) refusal = { code: "too_large_total", limit: limits.maxTotalBytes, actual: bytes };
+  return {
+    rootName: null,
+    rootTitle: null,
+    folders: [],
+    files,
+    skipped,
+    totals: { files: files.length, bytes },
+    refusal,
+  };
+}
+
+export function planFolderUpload(
+  entries: readonly FolderUploadEntry[],
+  { limits, parentLevel, siblingNames }: PlanFolderUploadOptions,
+): FolderUploadPlan {
+  const skipped: { path: string; reason: FolderUploadSkipReason }[] = [];
+  const kept: Normalised[] = [];
+  const roots: string[] = [];
+  let firstRoot = "";
+
+  entries.forEach((entry, index) => {
+    const n = normalise(entry, index);
+    if (!n) {
+      skipped.push({ path: entry.path, reason: "invalid_path" });
+      return;
+    }
+    const path = n.segments.join("/");
+    if (firstRoot === "") firstRoot = n.segments[0] as string;
+    const rawSegments = entry.path.split("/");
+    if (n.segments.some((s, i) => isHiddenSegment(rawSegments[i] ?? s, s))) {
+      skipped.push({ path, reason: "hidden" });
+      return;
+    }
+    const root = n.segments[0] as string;
+    if (!roots.includes(root)) roots.push(root);
+    const filename = n.segments[n.segments.length - 1] as string;
+    if (filename.length > DOCUMENT_TITLE_MAX) {
+      skipped.push({ path, reason: "name_too_long" });
+      return;
+    }
+    const check = checkFile(filename, n.size, limits);
+    if (!check.ok) {
+      skipped.push({ path, reason: check.reason });
+      return;
+    }
+    kept.push(n);
+  });
+
+  const rootName = roots[0] ?? firstRoot;
+  const plan: FolderUploadPlan = {
+    rootName,
+    rootTitle: rootName === "" ? "" : uniqueRootName(rootName, siblingNames),
+    folders: [],
+    files: [],
+    skipped,
+    totals: { files: 0, bytes: 0 },
+    refusal: null,
+  };
+
+  if (roots.length > 1) {
+    plan.refusal = { code: "multiple_roots", limit: 1, actual: roots.length };
+    return plan;
+  }
+
+  const folderSet = new Set<string>();
+  for (const n of kept) for (const folder of ancestors(n.segments)) folderSet.add(folder);
+  const folders = [...folderSet].sort(compareFolders);
+  const files: PlannedFile[] = kept.map((n) => ({
+    path: n.segments.join("/"),
+    filename: n.segments[n.segments.length - 1] as string,
+    folderPath: n.segments.slice(0, -1).join("/"),
+    size: n.size,
+    index: n.index,
+  }));
+  const bytes = files.reduce((sum, f) => sum + f.size, 0);
+  plan.folders = folders;
+  plan.files = files;
+  plan.totals = { files: files.length, bytes };
+
+  const longest = folders.reduce((max, f) => Math.max(max, f.split("/").pop()?.length ?? 0), 0);
+  const deepest = kept.reduce((max, n) => Math.max(max, parentLevel + n.segments.length), 0);
+  if (longest > FOLDER_TITLE_MAX) {
+    plan.refusal = { code: "segment_too_long", limit: FOLDER_TITLE_MAX, actual: longest };
+  } else if (files.length === 0) {
+    plan.refusal = { code: "nothing_to_upload" };
+  } else if (deepest > limits.maxDepth) {
+    plan.refusal = { code: "too_deep", limit: limits.maxDepth, actual: deepest };
+  } else if (files.length > limits.maxFiles) {
+    plan.refusal = { code: "too_many_files", limit: limits.maxFiles, actual: files.length };
+  } else if (limits.maxFolders !== undefined && folders.length > limits.maxFolders) {
+    plan.refusal = { code: "too_many_folders", limit: limits.maxFolders, actual: folders.length };
+  } else if (bytes > limits.maxTotalBytes) {
+    plan.refusal = { code: "too_large_total", limit: limits.maxTotalBytes, actual: bytes };
+  }
+  return plan;
+}

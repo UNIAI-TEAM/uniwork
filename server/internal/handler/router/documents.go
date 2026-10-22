@@ -25,6 +25,9 @@ import (
 //	GET    /api/v1/workspaces/{workspaceID}/documents/changes      (G5-01a)
 //	GET    /api/v1/workspaces/{workspaceID}/documents/shared-with-me (G1-05b)
 //	GET    /api/v1/workspaces/{workspaceID}/documents/tree         (G1-05b)
+//	POST   /api/v1/workspaces/{workspaceID}/documents/download-jobs  (UNI-2045)
+//	GET    /api/v1/workspaces/{workspaceID}/documents/download-jobs/{jobID}
+//	GET    /api/v1/workspaces/{workspaceID}/documents/download-jobs/{jobID}/download
 //	GET    /api/v1/documents/{documentID}
 //	PATCH  /api/v1/documents/{documentID}
 //	POST   /api/v1/documents/{documentID}/move                    (G1-05b)
@@ -92,14 +95,15 @@ import (
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
 //	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
 //	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
-func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit func(http.Handler) http.Handler) {
+func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit, folderUploadPlanLimit, folderUploadLimit, folderUploadContentLimit func(http.Handler) http.Handler) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 	registerDocumentEditLock(d, h, editRequestLimit)
 
 	d.Post("/workspaces/{workspaceID}/documents", h.CreateDocument, apiOp{
 		summary: "Create a page or folder document",
 		description: "Tạo trang hoặc thư mục trong workspace. Body JSON (≤ 2 MiB content + envelope): title, kind=page|folder, parent_id (trang/thư mục; thư mục chỉ nằm ở gốc hoặc trong thư mục, sai -> 422 document_parent_kind), thư mục không nhận content (-> 422 folder_not_supported), icon, content ProseMirror {type:\"doc\"} (server sanitize), visibility workspace|restricted. " +
-			"Tài liệu mới ở gốc mặc định riêng tư (restricted); gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem (nâng mức trong hộp Chia sẻ); bỏ trống dưới cha trang thì kế thừa cha (cả mức), ở gốc hoặc dưới thư mục = restricted; giá trị khác -> 400 invalid_request; thư mục với visibility=workspace -> 422 folder_not_shareable (thư mục không bao giờ được chia sẻ). " +
+			"Tài liệu mới ở gốc mặc định riêng tư (restricted); gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem (nâng mức trong hộp Chia sẻ); bỏ trống dưới cha trang thì kế thừa cha (cả mức), ở gốc hoặc dưới thư mục = restricted; giá trị khác -> 400 invalid_request. " +
+			"Thư mục (ADR 0037): visibility do vị trí quyết định, giá trị gửi lên bị bỏ qua - ngoài My Folder = workspace/view (cả workspace thấy tên), trong cây My Folder = restricted; mọi thành viên người của workspace tạo được bên trong thư mục chung; tên trùng với thư mục sống cùng cha (của bất kỳ ai) -> tự thêm \" (1)\", \" (2)\"..., không trả 409. " +
 			"Idempotency-Key ràng create với fingerprint payload: replay trả lại trang đã tạo, payload khác cùng key -> 409 idempotency_payload_mismatch.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateDocumentSDI{},
@@ -157,7 +161,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Patch("/documents/{documentID}", h.PatchDocument, apiOp{
 		summary: "Update a document",
 		description: "Autosave/metadata của working copy. revision bắt buộc (chuỗi thập phân của base client thấy); base cũ -> 422 revision_conflict kèm fields.current_revision. " +
-			"Field nil giữ nguyên; icon rỗng xóa icon; content thay thế working copy sau khi sanitize. Thư mục đặt visibility=workspace -> 422 folder_not_shareable (đóng một thư mục cũ về restricted vẫn được phép).",
+			"Field nil giữ nguyên; icon rỗng xóa icon; content thay thế working copy sau khi sanitize. Thư mục không nhận visibility (do vị trí quyết định, ADR 0037) -> 422 folder_not_shareable; đổi tên/biểu tượng thư mục chung chỉ người tạo và admin workspace/tổ chức (người khác -> 403); đổi tên trùng thư mục cùng cha -> 409 folder_name_taken.",
 		tags: []string{"documents"},
 		sdi:  sdi.PatchDocumentSDI{},
 		sdo:  sdo.DocumentSDO{},
@@ -374,7 +378,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Post("/workspaces/{workspaceID}/documents/files/blank", h.CreateBlankDocumentFile, apiOp{
 		summary: "Create a blank file document",
 		description: "Tạo tài liệu mới với bytes do engine sinh: server chọn seed, engine serialize, FileService xác minh, rồi đường create G1 tạo document + version 1. " +
-			"Chỉ định dạng có blank generator (md, html, xlsx, docx, pptx, pdf) được nhận; docx/pptx là gói OOXML tối thiểu server tạo sẵn (1 đoạn trống / 1 slide 16:9 trống), pdf là 1 trang A4 trống; định dạng khác -> 501 unsupported_operation và KHÔNG tạo file Office rỗng. " +
+			"Chỉ định dạng có blank generator (md, html, xlsx, docx, pptx, pdf, txt) được nhận; docx/pptx là gói OOXML tối thiểu server tạo sẵn (1 đoạn trống / 1 slide 16:9 trống), pdf là 1 trang A4 trống, txt (\"Văn bản\") là tệp untitled.txt text/plain chỉ có một dòng trống, server lưu nguyên không qua engine; định dạng khác -> 501 unsupported_operation và KHÔNG tạo file Office rỗng. " +
 			"visibility workspace|restricted: tài liệu mới ở gốc mặc định riêng tư, gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem, bỏ trống dưới cha thì kế thừa cha (cả mức), giá trị khác -> 400 invalid_request. Idempotency-Key replay trả tài liệu đã tạo.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateBlankDocumentFileSDI{},
@@ -521,7 +525,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Get("/workspaces/{workspaceID}/documents", h.ListDocuments, apiOp{
 		summary: "List documents",
 		description: "Danh sách tài liệu workspace, mới sửa trước. parent_id = một cấp cây theo position; q = tìm toàn workspace kèm snippet; shared_by_me=true = tài liệu sống người gọi làm ACL owner đang chia sẻ (dùng cùng parent_id -> 400 invalid_filter); kind/archived/updated_by/updated_from/updated_to là filter. " +
-			"format (docx, xlsx, pptx, pdf, md, html) lọc theo định dạng của phiên bản hiện tại (MIME đã xác minh, nếu không có thì theo phần mở rộng tiêu đề; thư mục luôn ở lại, trang không khớp) và access (manage, edit, restricted) lọc theo quyền của người gọi trên dòng, cùng cấp mà my_level báo. " +
+			"format (docx, xlsx, pptx, pdf, md, html, txt) lọc theo định dạng của phiên bản hiện tại (MIME đã xác minh, nếu không có thì theo phần mở rộng tiêu đề; thư mục luôn ở lại, trang không khớp) và access (manage, edit, restricted) lọc theo quyền của người gọi trên dòng, cùng cấp mà my_level báo. " +
 			"Giá trị lạ, format cùng kind=page, và access=manage/edit trên thùng rác -> 400 invalid_filter. Quyền và cả hai filter được lọc trong query trước limit nên cursor ổn định và trang luôn đầy khi còn dòng khớp; archived=1 chỉ manage.",
 		tags: []string{"documents"},
 		sdi:  sdi.ListDocumentsSDI{},
@@ -530,9 +534,17 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Get("/workspaces/{workspaceID}/documents/recent", h.ListRecentDocuments, apiOp{
 		summary:     "List recent documents",
-		description: "Tài liệu người dùng đã mở (access log) hoặc sửa gần đây, lọc quyền trước limit, cursor ổn định. format và access nhận như danh sách phẳng (giá trị lạ -> 400 invalid_filter). Agent không có \"gần đây\" -> 403.",
+		description: "Tài liệu người dùng đã mở (access log) hoặc sửa gần đây, lọc quyền trước limit, cursor ổn định. format và access nhận như danh sách phẳng (giá trị lạ -> 400 invalid_filter). include_owned=true thêm cả tài liệu người gọi sở hữu. Agent không có \"gần đây\" -> 403.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListRecentDocumentsSDI{},
+		sdo:         sdo.DocumentListSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/favorites", h.ListFavoriteDocuments, apiOp{
+		summary:     "List my favorite documents in a workspace",
+		description: "Tài liệu người gọi đã gắn sao trong workspace này, mỗi dòng là DocumentSummaryDTO kèm favorited_at (người gọi gắn sao khi nào), mới gắn trước (sort=starred mặc định giảm dần). Chỉ trả dòng người gọi còn đọc được: chia sẻ bị thu hồi hoặc tài liệu vào thùng rác rụng khỏi danh sách, dòng sao vẫn còn và quay lại khi có quyền. Lọc kind, format như danh sách phẳng (giá trị lạ -> 400 invalid_filter); cursor keyset gắn với sort/order; agent -> 403. Route favorites cấp tổ chức (/orgs/{orgID}/documents/favorites) giữ nguyên.",
+		tags:        []string{"documents"},
+		sdi:         sdi.ListFavoriteDocumentsSDI{},
 		sdo:         sdo.DocumentListSDO{},
 		auth:        true,
 	})
@@ -568,6 +580,98 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		produces:    "text/csv; charset=utf-8",
 		auth:        true,
 	})
+	d.Post("/workspaces/{workspaceID}/documents/download-jobs", h.CreateDocumentDownloadJob, apiOp{
+		summary:     "Request a zip of several documents",
+		description: "Xếp hàng một zip các tệp đã chọn (UNI-2045). Body {document_ids}: 1-100 ULID khác nhau, sai -> 400 invalid_request. Chỉ tệp: trang và thư mục bị bỏ qua (not_a_file); tài liệu không đọc được, của workspace/tổ chức khác hoặc không tồn tại đều là not_found, không kèm tiêu đề. Tổng dung lượng bản hiện hành của các tệp người gọi tải được > 1 GiB -> 422 download_too_large kèm fields.max_bytes. Người tạo đã có 2 job queued/running -> 429 download_jobs_busy kèm Retry-After 30 (fields.retry_after). Trả 202 {id, status:queued, ...}; hỏi GET cho tới khi ready. Mỗi tệp ghi access log tải đúng một lần khi build; một dòng audit documents.download_job_created.",
+		tags:        []string{"documents"},
+		sdi:         sdi.CreateDocumentDownloadJobSDI{},
+		sdo:         sdo.DocumentDownloadJobSDO{},
+		status:      http.StatusAccepted,
+		auth:        true,
+	})
+	d.With(folderUploadPlanLimit).Post("/workspaces/{workspaceID}/documents/folder-uploads", h.CreateFolderUpload, apiOp{
+		summary: "Plan a folder upload",
+		description: "Lập kế hoạch tải cả một thư mục (UNI-2052). Header Idempotency-Key bắt buộc (thiếu -> 400 invalid_request; cùng key cùng body trả lại đúng lô đó với đích ký mới; cùng key khác body -> 409 idempotency_payload_mismatch). " +
+			"Body {parent_id, root_name, share_with_workspace, folders[], files[{file_key, path, filename, size_bytes, probe?}]}. Cả kế hoạch bị từ chối, không ghi gì, khi: > max_files tệp -> 422 folder_upload_too_many_files (fields.max, count); > max_folders thư mục (tính cả thư mục gốc) -> 422 folder_upload_too_many_folders (fields.max, count); " +
+			"tổng > max_total_bytes -> 422 folder_upload_too_large (fields.max_bytes, total_bytes); một tệp > upload_max_bytes -> 422 folder_upload_file_too_large (fields.path, filename, max_bytes); đuôi tệp không hỗ trợ -> 422 folder_upload_unsupported_type (fields.path, filename); " +
+			"cây sâu quá 20 cấp tính cả thư mục cha -> 422 document_too_deep (fields.max_depth); parent_id không phải thư mục -> 422 document_parent_kind; đường dẫn sai ('..', đoạn rỗng, đường dẫn tuyệt đối, ký tự điều khiển, đoạn > 255 ký tự, thiếu thư mục cha, trùng tệp trong một thư mục) -> 400 invalid_request (fields.path); file_key sai hoặc trùng -> 400 invalid_request (fields.file_key); " +
+			"vượt hạn mức lưu trữ -> 403 quota_exceeded; người gọi đã có 2 lô đang mở -> 429 folder_uploads_busy + Retry-After: 30 (fields.retry_after); bucket folder-upload-plan 10 lượt/phút/người -> 429 rate_limited; không sửa được thư mục cha hoặc không là thành viên -> 403/404. " +
+			"Thành công: tạo thư mục gốc (trùng tên cùng cấp -> '<tên> (n)') và mọi thư mục con, đều riêng tư; trả 201 lô với folders[{path,id}] và mỗi tệp một target: put {method, url, headers, expires_at} (URL đã ký, gửi không kèm credential; hoặc route content của server với auth=session khi kho không ký được URL) hoặc multipart {session_id, part_size, parts[], expires_at} cho tệp lớn. " +
+			"Một dòng audit documents.folder_upload_planned, mỗi thư mục một dòng document.created, một event document.batch_uploaded.",
+		tags:   []string{"documents"},
+		sdi:    sdi.CreateFolderUploadSDI{},
+		sdo:    sdo.FolderUploadBatchSDO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
+	d.With(folderUploadLimit).Get("/workspaces/{workspaceID}/documents/folder-uploads/{batchID}", h.GetFolderUpload, apiOp{
+		summary: "Get a folder upload batch",
+		description: "Trạng thái một lô tải thư mục (UNI-2052): mỗi tệp một dòng pending|done|failed, counts, và target ký mới cho tệp pending (tệp lớn chỉ liệt kê các phần còn thiếu trên storage) để client tiếp tục sau khi mất mạng. Chỉ người tạo đọc được; người khác (kể cả thành viên cùng workspace) -> 404. " +
+			"Lô hết hạn (24 giờ sau khi lập, hoặc sweep đã đóng) -> 410 folder_upload_expired; lô canceled hoặc completed trả nguyên trạng, không có target. Bucket folder-upload 120 lượt/phút/người -> 429 rate_limited. Đọc không ghi audit.",
+		tags: []string{"documents"},
+		sdo:  sdo.FolderUploadBatchSDO{},
+		auth: true,
+	})
+	d.With(folderUploadLimit).Delete("/workspaces/{workspaceID}/documents/folder-uploads/{batchID}", h.CancelFolderUpload, apiOp{
+		summary: "Cancel a folder upload batch",
+		description: "Hủy lô tải thư mục (UNI-2052): lô open -> canceled, hủy upload nhiều phần còn treo trên storage và các phiên tải đơn của tệp pending; thư mục và tài liệu đã tạo giữ nguyên. Một dòng audit documents.folder_upload_canceled {batch_id, pending_count}. " +
+			"Idempotent: gọi lại trả 200 cùng nội dung, không thêm audit; lô completed trả nguyên trạng, không audit. Chỉ người tạo; người khác -> 404. Lô hết hạn -> 410 folder_upload_expired. Bucket folder-upload 120 lượt/phút/người.",
+		tags: []string{"documents"},
+		sdo:  sdo.FolderUploadBatchSDO{},
+		auth: true,
+	})
+	d.With(folderUploadContentLimit).Put("/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/files/{fileKey}/content", h.PutFolderUploadContent, apiOp{
+		summary: "Upload one file of a folder upload through the server",
+		description: "Đích dự phòng của một tệp trong lô tải thư mục (UNI-2052) khi kho lưu trữ không ký được URL (target.auth=session, url tương đối): body là byte thô của tệp, gửi kèm phiên đăng nhập. Chỉ người tạo lô; người khác (kể cả cùng workspace) hoặc file_key lạ -> 404. " +
+			"Body lớn hơn size_bytes đã khai báo hoặc upload_max_bytes -> 413 file_too_large (fields.max_bytes), không ghi gì; lô đã hủy -> 409 folder_upload_canceled; lô hết hạn -> 410 folder_upload_expired; tệp không còn pending -> 409 folder_upload_file_settled; tệp có đích đã ký -> 409 folder_upload_target_signed; kho không dùng được -> 503 storage_unavailable. " +
+			"PUT lại khi tệp còn pending thay bản trước. Thành công: 200 {etag} và header ETag cùng giá trị (SHA-256 có ngoặc kép); gửi lại đúng chuỗi đó ở COMPLETE. Nội dung được kiểm ở COMPLETE. Bucket folder-upload-content 600 lượt/phút/người, ngoài giới hạn chung 300/phút.",
+		tags:   []string{"documents"},
+		sdo:    sdo.FolderUploadContentSDO{},
+		status: http.StatusOK,
+		auth:   true,
+	})
+	d.With(folderUploadLimit).Post("/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/complete", h.CompleteFolderUpload, apiOp{
+		summary: "Complete files of a folder upload",
+		description: "Hoàn tất tối đa complete_batch (50) tệp của lô (UNI-2052): mỗi tệp {file_key, etag} (đích put) hoặc {file_key, parts[]} (multipart). Quá 50 -> 400 invalid_request (fields.max=50); file_key trùng trong body -> 400 invalid_request (fields.file_key). Chỉ người tạo lô; người khác -> 404; lô đã hủy -> 409 folder_upload_canceled; lô hết hạn -> 410 folder_upload_expired. " +
+			"Thành công từng phần, luôn 200: mỗi tệp một kết quả done (document_id) hoặc failed với error.code và retryable: upload_missing, parts_invalid, size_mismatch, upload_session_busy (một lệnh COMPLETE khác đang kiểm tra tệp multipart này) -> tệp vẫn pending, retryable=true (size_mismatch bỏ bản đã tải; GET trả đích mới); unsupported_media (+ reason), storage_quota_exceeded -> tệp failed hẳn, retryable=false; not_found (file_key không thuộc lô) không đổi gì. " +
+			"Gọi lại với file_key đã done trả cùng document_id. Tệp tạo dưới thư mục của nó, visibility workspace (mức xem) khi share_with_workspace, ngược lại riêng tư; mỗi tài liệu một dòng audit document.created (metadata batch_id), không có event document.created riêng. " +
+			"Một event document.batch_uploaded cho mỗi lần gọi có ít nhất một tệp done; không có khi mọi tệp failed. Khi không còn tệp pending, lô thành completed. Bucket folder-upload 120 lượt/phút/người (chung với GET/DELETE lô).",
+		tags:   []string{"documents"},
+		sdi:    sdi.CompleteFolderUploadSDI{},
+		sdo:    sdo.FolderUploadCompleteSDO{},
+		status: http.StatusOK,
+		auth:   true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/download-jobs/{jobID}", h.GetDocumentDownloadJob, apiOp{
+		summary:     "Get a document zip download job",
+		description: "Trạng thái job và link tải khi ready. Chỉ người tạo đọc được; người khác (kể cả thành viên cùng workspace) -> 404. Link hết hạn 1 giờ sau khi ready; sau đó status=expired và download_url=null.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentDownloadJobSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/download-jobs/{jobID}/download", h.DownloadDocumentDownloadJob, apiOp{
+		summary:     "Download the zip of a document download job",
+		description: "Tải zip qua FileService proxy; người tạo, workspace và cửa sổ 1 giờ được kiểm tra lại mỗi lần tải. Hết hạn -> 410 document_download_expired; chưa ready hoặc failed -> 404.",
+		tags:        []string{"documents"},
+		produces:    "application/zip",
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/access-report/summary", h.DocumentAccessReportSummary, apiOp{
+		summary:     "Read the document access report summary",
+		description: "Số liệu toàn phạm vi của báo cáo quyền truy cập (UNI-2039): quét cả workspace hoặc folder_id (gồm thư mục con) trong một snapshot, mỗi lô 500, trần 10.000 tài liệu (quá thì truncated=true). tiles chỉ theo phạm vi, không theo bộ lọc (public_link, outside_workspace, direct_manage, documents, restricted, workspace, organization); matching_documents theo cùng bộ lọc như trang; skipped là tài liệu người gọi chỉ xem. Không phải thành viên workspace hoặc agent -> 403; folder_id không dùng được -> 404; bộ lọc lạ -> 400. Đọc không ghi audit.",
+		tags:        []string{"documents"},
+		sdi:         sdi.DocumentAccessReportSummaryQuerySDI{},
+		sdo:         sdo.DocumentAccessReportSummaryResultSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/access-report/principals", h.DocumentAccessReportPrincipals, apiOp{
+		summary:     "Read the document access report by principal",
+		description: "Bảng theo người của báo cáo quyền truy cập (UNI-2039): mỗi principal (thành viên, workspace nhà, workspace khác, tổ chức, ai có link) một dòng với số tài liệu người gọi quản lý, phân bố mức cao nhất và nguồn chính. Không phân trang, tối đa 500 principal (quá thì truncated=true). q lọc theo tên principal, kind theo loại, level theo mức dòng, sort=count|name. Mở một dòng: gọi trang báo cáo với principal=<type>:<id>. Chỉ tên, không email.",
+		tags:        []string{"documents"},
+		sdi:         sdi.DocumentAccessReportPrincipalsSDI{},
+		sdo:         sdo.DocumentAccessReportPrincipalsSDO{},
+		auth:        true,
+	})
 	d.Get("/workspaces/{workspaceID}/documents/tree", h.DocumentTree, apiOp{
 		summary:     "Read the document tree",
 		description: "Cây sidebar tối đa 20 cấp, chỉ metadata {id,title,icon,kind,position,children}; root chọn một nhánh, folders_only=1 chỉ trả thư mục. Node dưới tổ tiên không đọc được sẽ rời cây cùng tổ tiên; root không đọc được (hoặc không phải thư mục khi folders_only) -> 404.",
@@ -577,39 +681,40 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/move", h.MoveDocument, apiOp{
-		summary:     "Move a document",
-		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình (kể cả thư mục vào chính nó hoặc thư mục con) -> 422 document_cycle, cha sai loại -> 422 document_parent_kind, quá 20 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. Idempotency-Key replay an toàn.",
-		tags:        []string{"documents"},
-		sdi:         sdi.MoveDocumentSDI{},
-		sdo:         sdo.DocumentSDO{},
-		auth:        true,
+		summary: "Move a document",
+		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình (kể cả thư mục vào chính nó hoặc thư mục con) -> 422 document_cycle, cha sai loại -> 422 document_parent_kind, quá 20 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. " +
+			"Thư mục chung (ADR 0037): chỉ người tạo và admin workspace/tổ chức di chuyển được (người khác -> 403); đích là thư mục chung thì mọi thành viên người được thả tài liệu vào; thư mục chung (hoặc thư mục con của nó) vào My Folder -> 422 folder_into_my_folder; thư mục trong My Folder ra workspace -> nó và mọi thư mục con thành workspace/view, tài liệu bên trong giữ quyền. Idempotency-Key replay an toàn.",
+		tags: []string{"documents"},
+		sdi:  sdi.MoveDocumentSDI{},
+		sdo:  sdo.DocumentSDO{},
+		auth: true,
 	})
 	d.Post("/documents/{documentID}/archive", h.ArchiveDocument, apiOp{
 		summary:     "Archive a document subtree",
-		description: "Đưa tài liệu (hoặc thư mục) và cả cây con vào thùng rác trong một transaction sau khi kiểm manage trên từng node sống; node restricted không manage được sẽ chặn cả lệnh; quá 1000 node sống -> 422 folder_too_large (hãy lưu trữ từng phần). Idempotency-Key replay trả kết quả đã lưu.",
+		description: "Đưa tài liệu (hoặc thư mục) và cả cây con vào thùng rác trong một transaction sau khi kiểm manage trên từng node sống; node restricted không manage được sẽ chặn cả lệnh — trừ thư mục chung của workspace (ADR 0037): chỉ người tạo và admin workspace/tổ chức bỏ được, mọi thư mục con vào thùng rác cùng lô, còn trang/tệp người gọi không manage được (không thấy, hoặc thấy mà không quản lý) chuyển về gốc workspace kèm cây con, giữ nguyên quyền và tên, mỗi tài liệu một audit document.moved (metadata.reason=folder_trashed); quá 1000 node sống -> 422 folder_too_large (hãy lưu trữ từng phần). Idempotency-Key replay trả kết quả đã lưu.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
 	})
 	d.Get("/documents/{documentID}/archive-impact", h.ArchiveImpact, apiOp{
 		summary: "Read the archive impact of a subtree",
-		description: "Số đếm cho hộp thoại xóa (FD-04): {folders, documents, total, max_nodes, too_large}, đọc trong một transaction RepeatableRead read-only nên id, quyền và số đến từ một snapshot. " +
+		description: "Số đếm cho hộp thoại xóa (FD-04): {folders, documents, total, max_nodes, too_large, relocated_count}, đọc trong một transaction RepeatableRead read-only nên id, quyền và số đến từ một snapshot. " +
 			"Cùng thứ tự kiểm với lệnh lưu trữ: manage trên gốc (không đủ -> cùng 403/404), cây con sống giới hạn 1000 nút, manage trên từng nút của đúng tập id đó. " +
-			"folders/documents không gồm gốc (trang con trong trang tính là documents); total gồm gốc = số dòng lệnh lưu trữ sẽ ghi. Vượt trần -> {too_large: true, max_nodes: 1000}, không có số đếm. Không ghi audit.",
+			"folders/documents không gồm gốc (trang con trong trang tính là documents); total gồm gốc = số dòng lệnh lưu trữ sẽ ghi. Thư mục chung của workspace: relocated_count = số tài liệu sẽ chuyển về gốc workspace thay vì vào thùng rác (chỉ con số), folders/documents/total chỉ đếm phần vào thùng rác. Vượt trần -> {too_large: true, max_nodes: 1000}, không có số đếm. Không ghi audit.",
 		tags: []string{"documents"},
 		sdo:  sdo.DocumentArchiveImpactSDO{},
 		auth: true,
 	})
 	d.Post("/documents/{documentID}/restore", h.RestoreDocument, apiOp{
 		summary:     "Restore an archived document",
-		description: "Khôi phục mục trong thùng rác và các hậu duệ cùng batch còn trong thùng rác mà người gọi quản lý (RESTORE-01 §1); hậu duệ không quản lý ở lại thùng rác. Idempotency-Key replay trả kết quả đã lưu.",
+		description: "Khôi phục mục trong thùng rác và các hậu duệ cùng batch còn trong thùng rác mà người gọi quản lý (RESTORE-01 §1); hậu duệ không quản lý ở lại thùng rác. Thư mục chung của workspace: mọi thư mục con cùng batch về theo; tài liệu đã chuyển về gốc khi bỏ thư mục ở lại gốc; thành viên chỉ đọc thư mục -> 403. Idempotency-Key replay trả kết quả đã lưu.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/purge", h.PurgeDocument, apiOp{
 		summary:     "Permanently delete an archived document",
-		description: "Xóa vĩnh viễn một mục đang trong thùng rác và các hậu duệ cùng batch còn trong thùng rác mà người gọi quản lý (RESTORE-01 §2): dọn mọi bảng phụ thuộc, nhả blob qua FileService và ghi audit/outbox document.deleted (metadata manual_purge=true) trong một transaction. Mục đang sống -> 400 document_not_in_trash; dưới manage -> 403; không thấy -> 404; quá 1000 nút -> 400 folder_too_large.",
+		description: "Xóa vĩnh viễn một mục đang trong thùng rác và các hậu duệ cùng batch còn trong thùng rác mà người gọi quản lý (RESTORE-01 §2): dọn mọi bảng phụ thuộc, nhả blob qua FileService và ghi audit/outbox document.deleted (metadata manual_purge=true) trong một transaction. Mục đang sống -> 400 document_not_in_trash; dưới manage -> 403 (thư mục chung của workspace: thành viên chỉ đọc cũng 403, không phải 404); không thấy -> 404; quá 1000 nút -> 400 folder_too_large.",
 		tags:        []string{"documents"},
 		status:      http.StatusNoContent,
 		auth:        true,
@@ -647,9 +752,9 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Post("/documents/{documentID}/shares/batch", h.CreateDocumentShareBatch, apiOp{
 		summary: "Share a document with a batch of users",
-		description: "Cấp view/edit/manage cho 1–50 người dùng cùng tổ chức trong một transaction (all-or-nothing); trùng lặp được gộp và giữ thứ tự xuất hiện đầu. " +
+		description: "Cấp view/edit/manage cho một hoặc nhiều người dùng cùng tổ chức trong một transaction (all-or-nothing), không giới hạn số người; trùng lặp được gộp và giữ thứ tự xuất hiện đầu. " +
 			"Danh sách rỗng, có phần tử rỗng hoặc level sai -> 400 invalid_request; không đọc được -> 404; dưới manage -> 403; tài liệu thuộc Work Product -> 409 document_owned_by_work_product; " +
-			"vượt 50 người dùng phân biệt -> 422 share_batch_too_large (fields.max=50); có người ngoài tổ chức -> 422 principal_not_in_organization (fields.principal_ids); thư mục -> 422 folder_not_shareable.",
+			"có người ngoài tổ chức -> 422 principal_not_in_organization (fields.principal_ids); thư mục -> 422 folder_not_shareable.",
 		tags:   []string{"documents"},
 		sdi:    sdi.ShareDocumentBatchSDI{},
 		sdo:    sdo.DocumentShareBatchSDO{},
@@ -667,7 +772,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Put("/documents/{documentID}/access", h.UpdateDocumentAccess, apiOp{
 		summary: "Batch update document access with dry-run preview",
-		description: "Cấp, cập nhật, giữ nguyên (on_existing=keep) hoặc thu hồi (level=null) quyền cho 1–100 mục hỗn hợp (user, workspace, organization) trong một transaction (SH-S2, UNI-1781). " +
+		description: "Cấp, cập nhật, giữ nguyên (on_existing=keep) hoặc thu hồi (level=null) quyền cho một số mục hỗn hợp (user, workspace, organization; ít nhất 1, không giới hạn trên, body tối đa 1 MiB) trong một transaction (SH-S2, UNI-1781). " +
 			"Mục nhắm vào workspace gốc của tài liệu được ghi vào dòng Workspace gốc (visibility/workspace_level), không tạo dòng document_shares. " +
 			"Tổ chức hoặc workspace gốc nhận manage -> 422 document_access_rejected (level_not_allowed); có mục lỗi ngữ nghĩa -> 422 document_access_rejected (fields.rejected[]) và không ghi dòng nào; dry_run=true chỉ tính preview và kết quả dự kiến, không ghi DB. Thư mục không bao giờ được chia sẻ: mục cấp quyền trên thư mục -> 422 folder_not_shareable (kể cả dry_run); mục thu hồi vẫn được phép.",
 		tags: []string{"documents"},

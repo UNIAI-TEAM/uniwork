@@ -104,9 +104,10 @@ func TestErrorClassTable(t *testing.T) {
 		// A field validation of the break-glass reason (422, fields
 		// min/max/length): the composer renders its own sentence.
 		"break_glass_reason_invalid",
-		// Count limits with no class on purpose: neither a usage meter nor a
-		// conflict to reload (UNI-1641 batch share cap, document link cap).
-		"share_batch_too_large", "document_link_limit",
+		// A count limit with no class on purpose: neither a usage meter nor a
+		// conflict to reload (document link cap). share_batch_too_large left
+		// with UNI-2012 S1c: the batch share has no cap and never answers it.
+		"document_link_limit",
 		// The document edit lock codes (UNI-1645 §3.3): document_locked must
 		// never read as a conflict (no "Overwrite" while locked), and the
 		// lock/request answers each have their own recovery.
@@ -135,6 +136,9 @@ func TestErrorClassTable(t *testing.T) {
 		// UNI-1974: a folder is never shared (422); a refusal of the request,
 		// neither a lost permission nor a conflict to reload.
 		"folder_not_shareable",
+		// ADR 0037 §6 (UNI-2055): a workspace folder never enters My Folder
+		// (422); a refusal of the request, like folder_not_shareable.
+		"folder_into_my_folder",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {

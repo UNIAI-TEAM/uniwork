@@ -230,6 +230,66 @@ describe("DocumentArchiveDialog", () => {
       expect(screen.getByRole("button", { name: t("documents.archive.delete_confirm") })).toBeEnabled();
     });
 
+    it("adds one sentence, with no number, when documents of other people go back to their owners (UNI-2055 W5)", async () => {
+      requestMock.mockImplementation((path: string) => {
+        if (path === "/api/v1/documents/f1/archive-impact") {
+          return Promise.resolve({ folders: 2, documents: 5, total: 8, max_nodes: 1000, too_large: false, relocated_count: 3 });
+        }
+        return Promise.resolve({});
+      });
+      renderDialog({ doc: folderFixture() });
+
+      const note = await screen.findByText(t("documents.archive.delete_relocated"));
+      expect(note).toBeInTheDocument();
+      expect(note.textContent).not.toMatch(/\d/);
+      // The counted sentence is untouched.
+      expect(
+        screen.getByText(
+          t("documents.archive.delete_body", {
+            subfolders: t("documents.archive.delete_subfolders", { count: 2 }),
+            documents: t("documents.archive.delete_documents", { count: 5 }),
+          }),
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("drops the 0-and-0 count line and keeps the relocation sentence when nothing of the actor's goes to trash (TV-06)", async () => {
+      requestMock.mockImplementation((path: string) => {
+        if (path === "/api/v1/documents/f1/archive-impact") {
+          return Promise.resolve({ folders: 0, documents: 0, total: 1, max_nodes: 1000, too_large: false, relocated_count: 3 });
+        }
+        return Promise.resolve({});
+      });
+      renderDialog({ doc: folderFixture() });
+
+      expect(await screen.findByText(t("documents.archive.delete_relocated"))).toBeInTheDocument();
+      expect(screen.queryByText(/^0 /)).toBeNull();
+      expect(
+        screen.queryByText(
+          t("documents.archive.delete_body", {
+            subfolders: t("documents.archive.delete_subfolders", { count: 0 }),
+            documents: t("documents.archive.delete_documents", { count: 0 }),
+          }),
+        ),
+      ).toBeNull();
+    });
+
+    it.each([{ relocated_count: 0 }, {}])("leaves the body as it was when relocated_count is %j", async (extra) => {
+      requestMock.mockImplementation((path: string) => {
+        if (path === "/api/v1/documents/f1/archive-impact") {
+          return Promise.resolve({ folders: 2, documents: 5, total: 8, max_nodes: 1000, too_large: false, ...extra });
+        }
+        return Promise.resolve({});
+      });
+      renderDialog({ doc: folderFixture() });
+
+      await screen.findByText(t("documents.archive.delete_body", {
+        subfolders: t("documents.archive.delete_subfolders", { count: 2 }),
+        documents: t("documents.archive.delete_documents", { count: 5 }),
+      }));
+      expect(screen.queryByText(t("documents.archive.delete_relocated"))).toBeNull();
+    });
+
     it("locks confirm with a skeleton until counts arrive, and never shows fake counts on an unreadable answer", async () => {
       let resolveImpact!: (val: unknown) => void;
       requestMock.mockImplementation((path: string) => {

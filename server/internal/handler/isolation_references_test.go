@@ -200,6 +200,13 @@ var isoReferences = []isoReference{
 			"share_level":         "comment",
 			"reply_to_message_id": isoRef("message"),
 		}},
+	// The link send (UNI-2012 D5) names a document by id: A's document sent into
+	// B's own room is not found, never shared, and B's room keeps no message
+	// naming it. No client_msg_id, so the attack can never replay the control.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document-link", what: "document", body: map[string]any{
+		"document_id": isoRef("document"), "share_level": "comment"}, covers: []string{"SendChatDocumentLinkSDI.document_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document-link", what: "reply to", body: map[string]any{
+		"document_id": isoOwn("document"), "share_level": "comment", "reply_to_message_id": isoRef("message")}, covers: []string{"SendChatDocumentLinkSDI.reply_to_message_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/catch-up", what: "room", body: map[string]any{"room_id": isoRef("room")}, covers: []string{"ChatCatchUpSDI.room_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/delivered", what: "room", allow2xx: true,
 		body: map[string]any{"rooms": []any{map[string]any{"room_id": isoRef("room"), "up_to": isoAt(0)}}}, covers: []string{"ChatDeliveredRoomSDI.room_id"}},
@@ -241,6 +248,11 @@ var isoReferences = []isoReference{
 	// 409 for a parent of another tenant - the parent gate decides first.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent folder", body: map[string]any{
 		"title": isoUnique("ref folder"), "kind": "folder", "parent_id": isoRef("folder")}},
+	// UNI-2055 (ADR 0037): the folder is a workspace folder of its tenant, so
+	// the members of A may create in it, but B's owner, in another tenant, gets
+	// a refusal for a page created under it.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "page under a foreign workspace folder", body: map[string]any{
+		"title": isoUnique("ref in folder"), "kind": "page", "parent_id": isoRef("folder")}},
 	// The large-upload create route (BIGUP-S1): parent_id names a page or
 	// folder of the same workspace, checked before any session or part URL is
 	// created. Its control is also the route's write control, because the
@@ -289,6 +301,26 @@ var isoReferences = []isoReference{
 		"version_id": isoOwn("anchorVersionID"), "anchors": []any{map[string]any{
 			"comment_id": isoRef("docComment"), "anchor": map[string]any{"format": "docx", "v": 1, "path": []any{3, 0}, "start": 12, "end": 40, "quote": "q", "prefix": "", "suffix": ""}, "state": "exact"}}},
 		covers: []string{"DocumentCommentAnchorItemSDI.comment_id"}},
+	// UNI-2045 SV-9: B's owner names A's file in the zip request. The job is
+	// accepted and skips the id as not_found, so 2xx is fine as long as the
+	// answer shows nothing of A's and no row of A's changes.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/download-jobs", what: "documents of another tenant", allow2xx: true,
+		body:   map[string]any{"document_ids": []any{isoRef("fileDocument")}},
+		covers: []string{"CreateDocumentDownloadJobSDI.document_ids"}},
+	// UNI-2052: B's owner plans a folder upload under A's folder. lockPageParent
+	// classifies the parent by the caller's tenant pair first, so the answer is
+	// 404 and nothing of B's comes to point at A.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/folder-uploads", what: "parent folder", idempotent: true, body: map[string]any{
+		"parent_id": isoRef("folder"), "root_name": "Iso ref upload", "share_with_workspace": false,
+		"folders": []string{}, "files": []map[string]any{{"file_key": "k1", "path": "", "filename": "iso-ref.md", "size_bytes": 3}}},
+		covers: []string{"CreateFolderUploadSDI.parent_id"}},
+	// UNI-2052 w2: B's owner completes B's own batch naming A's file_key. A
+	// file_key is looked up inside the batch the path names, so A's key is
+	// not_found like any unknown one: 200, nothing of A's in the answer (the
+	// key itself is what B sent) and no row of A's changes. file_key does not
+	// end in _id, so it carries no covers entry.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/complete", what: "file_key of another tenant's batch", allow2xx: true,
+		body: map[string]any{"files": []map[string]any{{"file_key": isoRef("folderUploadFileKey"), "etag": `"iso"`}}}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "parent page", idempotent: true, body: map[string]any{
 		"consent": "copy", "parent_id": isoRef("document")}, covers: []string{"CopyDocumentSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "convert job", idempotent: true, body: map[string]any{
@@ -516,6 +548,7 @@ var isoRefFieldExempt = map[string]string{
 	"CalendarSelectionSDI.calendar_ids":           "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
 	"SendChatMessageSDI.client_msg_id":            "the client's idempotency key, not a row",
 	"ShareChatMessageAsDocumentSDI.client_msg_id": "the client's idempotency key, not a row",
+	"SendChatDocumentLinkSDI.client_msg_id":       "the client's idempotency key, not a row",
 	"MintChatVoiceTokenSDI.call_id":               "a client-generated call id, not a row",
 	"VoiceSignalSDI.call_id":                      "a client-generated call id, not a row",
 	"AiUniworkMessageSDI.tool_call_id":            "the model's tool call id, matched against the server's own transcript, not a row",

@@ -35,8 +35,34 @@ export const NOTIFICATION_KINDS = [
   "document_access_declined",
   "document_shared",
   "document_trashed_by_other",
+  "document_changed",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+
+/**
+ * One sample document of a document_changed row. A purged document sent with
+ * only its snapshot still has an id; a missing title reads "".
+ */
+export const NotificationSampleDocumentSchema = z.object({
+  id: z.string(),
+  title: z.string().optional().default(""),
+});
+export type NotificationSampleDocument = z.infer<typeof NotificationSampleDocumentSchema>;
+
+/**
+ * params stay a string map for every renderer. A document_changed row also
+ * carries a count and a list of ids (document_count, sample_document_ids): a
+ * number or boolean is kept as its string, and a list or object is dropped,
+ * so a value of a new shape never fails the whole row.
+ */
+const ParamsSchema = z.record(z.string(), z.unknown()).transform((raw) => {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === "string") out[key] = value;
+    else if (typeof value === "number" || typeof value === "boolean") out[key] = String(value);
+  }
+  return out;
+});
 
 /** Lenient on the wire: kind and resource_type stay strings, the types narrow them. */
 export const NotificationSchema = z.object({
@@ -56,13 +82,40 @@ export const NotificationSchema = z.object({
   actor_kind: z.string().optional().default("system"),
   actor_id: z.string().optional().default(""),
   title_key: z.string(),
-  params: z.record(z.string(), z.string()).optional().default({}),
+  params: ParamsSchema.optional().default({}),
+  /**
+   * document_changed rows only: the sample documents the caller can read now.
+   * An additive field, so a malformed one degrades to [] rather than blanking
+   * the inbox.
+   */
+  sample_documents: z.array(NotificationSampleDocumentSchema).catch([]),
   count: z.number().optional().default(1),
   read_at: z.string().optional(),
   created_at: z.string(),
   updated_at: z.string().optional(),
 });
-export type Notification = Omit<z.infer<typeof NotificationSchema>, "kind"> & { kind: NotificationKind | (string & {}) };
+/**
+ * sample_documents is optional in the type: only document_changed rows carry
+ * it, and a Notification built by hand (a test, a fixture) need not.
+ */
+export type Notification = Omit<z.infer<typeof NotificationSchema>, "kind" | "sample_documents"> & {
+  kind: NotificationKind | (string & {});
+  sample_documents?: NotificationSampleDocument[];
+};
+
+/**
+ * One document of a notification as its recipient sees it now. A purged
+ * document has no title or kind (a deleted verb sends the title it had).
+ */
+export const NotificationDocumentSchema = z.object({
+  id: z.string(),
+  title: z.string().optional().default(""),
+  kind: z.string().optional().default(""),
+  trashed: z.boolean().optional().default(false),
+  shelved: z.boolean().optional().default(false),
+  deleted: z.boolean().optional().default(false),
+});
+export type NotificationDocument = z.infer<typeof NotificationDocumentSchema>;
 
 export const UnreadCountSchema = z.object({
   total: z.number(),

@@ -315,15 +315,23 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	})
 	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document", h.SendChatDocumentMessage, apiOp{
 		summary:     "Send chat document message",
-		description: "Gửi tệp dạng tài liệu: tệp thành một tài liệu trong My Folder của người gửi và mọi thành viên trong phòng nhận được quyền chia sẻ (share_level, mặc định comment; tối đa 50 người). Định dạng: PDF, TXT, Markdown, HTML, DOC/DOCX, XLS/XLSX, PPT/PPTX, ODT.",
+		description: "Gửi tệp dạng tài liệu: tệp thành một tài liệu ở gốc workspace của người gửi và mọi thành viên trong phòng nhận được quyền chia sẻ (share_level, mặc định comment), phòng bao nhiêu người cũng được. Định dạng: PDF, TXT, Markdown, HTML, DOC/DOCX, XLS/XLSX, PPT/PPTX, ODT.",
 		tags:        []string{"chat"},
 		sdi:         sdi.SendChatDocumentMessageSDI{},
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
+	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document-link", h.SendChatDocumentLink, apiOp{
+		summary:     "Send existing document to chat",
+		description: "Gửi một tài liệu có sẵn trong Tài liệu vào phòng chat (UNI-2012 D5): người gửi phải chia sẻ được tài liệu (quản lý hoặc quản trị); tài liệu không bị di chuyển hay sao chép; mọi thành viên trong phòng nhận quyền share_level (mặc định comment, manage -> 400), ai đã có quyền cao hơn giữ nguyên. Thư mục -> 422 folder_not_shareable, thùng rác -> 403 document_archived, đã lưu trữ -> 409 document_shelved, thuộc kết quả công việc -> 409 document_owned_by_work_product, không chia sẻ được -> 403, không đọc được hoặc không tồn tại -> 404. Idempotent theo client_msg_id.",
+		tags:        []string{"chat"},
+		sdi:         sdi.SendChatDocumentLinkSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
 	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/share-as-document", h.ShareChatMessageAsDocument, apiOp{
 		summary:     "Share chat attachment as document",
-		description: "Chuyển tệp đính kèm của chính người gửi thành tài liệu chia sẻ trong My Folder và cấp quyền cho các thành viên hiện tại trong phòng; cập nhật tin nhắn tại chỗ sang kind=document (UNI-1966 §2.2).",
+		description: "Chuyển tệp đính kèm của chính người gửi thành tài liệu chia sẻ ở gốc workspace của người gửi và cấp quyền cho các thành viên hiện tại trong phòng; cập nhật tin nhắn tại chỗ sang kind=document (UNI-1966 §2.2, UNI-2012 D1a/D1b).",
 		tags:        []string{"chat"},
 		sdi:         sdi.ShareChatMessageAsDocumentSDI{},
 		sdo:         sdo.ChatMessageDTO{},
@@ -331,7 +339,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}", h.GetChatRoomDetail, apiOp{
 		summary:     "Get chat room",
-		description: "Lấy một phòng chat kèm can_send_document: người gọi được gửi tài liệu và số người nhận được quyền chia sẻ không vượt 50 (L5).",
+		description: "Lấy một phòng chat kèm can_send_document: người gọi có quyền gửi tài liệu vào phòng (L5).",
 		tags:        []string{"chat"},
 		sdo:         sdo.ChatRoomDTO{},
 		auth:        true,

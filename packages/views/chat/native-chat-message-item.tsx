@@ -7,7 +7,8 @@ import type { ChatMessage } from "./chat-messages";
 import { ChatMessageRow } from "./chat-message-row";
 import { ChatFileMessageRow } from "./chat-file-message-row";
 import { ChatImageAlbumRow } from "./chat-image-album";
-import { ChatDocumentMessageRow, type ChatDocumentDesktopOpen } from "./chat-document-message-row";
+import type { ChatDocumentDesktopOpen } from "./chat-document-menu";
+import { ChatDocumentMessageRow } from "./chat-document-message-row";
 import { ChatDocumentVersionRow } from "./chat-document-version-row";
 import { ChatNoteMessageRow } from "./chat-note-message-row";
 import { ChatPostMessageRow } from "./chat-post-message-row";
@@ -55,7 +56,7 @@ export type NativeChatMessageContext = {
   /** Room moderator: may delete someone else's reminder (the server's isChatRoomModerator). */
   canModerate: boolean;
   actions: NativeChatMessageActions;
-  /** Host wiring for the document card's "Mở bằng UniWork Office"; absent → hidden. */
+  /** Host wiring for the document card's "Chỉnh sửa trong UniWork Office" menu entry; absent → hidden. */
   desktopOpen?: ChatDocumentDesktopOpen;
 };
 
