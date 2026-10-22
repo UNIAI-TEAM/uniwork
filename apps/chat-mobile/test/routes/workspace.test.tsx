@@ -9,7 +9,7 @@ import type { Workspace } from "@uniwork/core/types/workspace";
 import AppLayout from "@/app/(app)/_layout";
 import WorkspaceLayout from "@/app/(app)/[org]/[ws]/_layout";
 import ChannelsScreen from "@/app/(app)/[org]/[ws]/channels";
-import LicensesScreen from "@/app/(app)/[org]/[ws]/licenses";
+import LicensesScreen from "@/app/(app)/licenses";
 import NewChatScreen from "@/app/(app)/[org]/[ws]/new-chat";
 import NewGroupScreen from "@/app/(app)/[org]/[ws]/new-group";
 import TabsLayout from "@/app/(app)/[org]/[ws]/(tabs)/_layout";
@@ -64,7 +64,7 @@ const ROUTES = {
   "(app)/[org]/[ws]/new-chat": NewChatScreen,
   "(app)/[org]/[ws]/new-group": NewGroupScreen,
   "(app)/[org]/[ws]/channels": ChannelsScreen,
-  "(app)/[org]/[ws]/licenses": LicensesScreen,
+  "(app)/licenses": LicensesScreen,
   "(app)/[org]/[ws]/room/[roomId]/index": RoomScreen,
   "(app)/[org]/[ws]/room/[roomId]/info": RoomInfoScreen,
   "(app)/[org]/[ws]/room/[roomId]/thread/[rootId]": ThreadScreen,
@@ -277,7 +277,7 @@ describe("the workspace's other screens", () => {
     expect(await screen.findByText("me@acme.vn")).toBeOnTheScreen();
     expect(screen.getAllByText("HQ").length).toBeGreaterThan(0);
     await fireEvent.press(screen.getByTestId("legal-licenses"));
-    await waitFor(() => expect(routes.pathname()).toBe("/acme/hq/licenses"));
+    await waitFor(() => expect(routes.pathname()).toBe("/licenses"));
     expect(await screen.findAllByText(viText("mobile.licenses.title"))).not.toHaveLength(0);
   });
 

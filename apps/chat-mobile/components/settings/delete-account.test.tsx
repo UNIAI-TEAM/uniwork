@@ -21,8 +21,8 @@ const refusal = (code: string, status: number) => Object.assign(new Error(code),
 const signedIn = (user: Record<string, unknown>) =>
   useAuthStore.setState({ user: { id: "u1", email: "an@acme.vn", display_name: "An", ...user } as never, accountDeleted: jest.fn(async () => {}) });
 
-async function open() {
-  await render(<DeleteAccountSection orgSlug="acme" wsSlug="hq" />);
+async function open(workspace: { orgSlug: string; wsSlug: string } | null = { orgSlug: "acme", wsSlug: "hq" }) {
+  await render(<DeleteAccountSection workspace={workspace ?? undefined} />);
   await fireEvent.press(screen.getByTestId("settings-delete-account"));
 }
 const proofInput = (mode: "password" | "code" | "email") => screen.getByLabelText(viText(`settings.security.delete.proof.${mode}`));
@@ -111,6 +111,16 @@ describe("DeleteAccountSection", () => {
     expect(screen.queryByTestId("delete-account-confirm")).toBeNull();
     await fireEvent.press(screen.getByRole("link", { name: viText("mobile.account.owner_open_web") }));
     expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://app.example/acme/hq/settings");
+  });
+
+  // select-workspace › Settings: no workspace to name, so the web app decides where its owner lands.
+  it("sends an owner with no workspace to the web app itself", async () => {
+    deleteAccount.mockRejectedValueOnce(refusal("owner_must_transfer", 409));
+    await open(null);
+    await fireEvent.changeText(proofInput("password"), "pw");
+    await confirm();
+    await fireEvent.press(screen.getByRole("link", { name: viText("mobile.account.owner_open_web") }));
+    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://app.example/");
   });
 
   it.each([

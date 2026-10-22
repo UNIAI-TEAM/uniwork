@@ -305,14 +305,19 @@ một dòng thì ghi lý do ở dòng trên.
   query cấu hình từ xa được giữ (update gate quan sát nó suốt đời app; xoá thì
   gate đứng ở câu trả lời cũ) và hỏi lại không kèm tổ chức.
 - Tuân thủ store (UNI-2053 S2; Apple 5.1.1(v), 1.2, 5.1.2(i), Play account deletion/UGC/FGS). **Xóa tài khoản**:
-  Cài đặt › Xóa tài khoản (`components/settings/delete-account.tsx`, port dialog web) nêu hệ quả, xin một bằng chứng
+  Cài đặt › Xóa tài khoản (`components/settings/delete-account.tsx`, port dialog web; cả ở Cài đặt của tài khoản
+  `app/(app)/account.tsx` — `accountRoutes` của `lib/chat-routes.ts`, ngoài mọi workspace, mở từ nút Cài đặt của
+  `select-workspace` ở mọi trạng thái kể cả danh sách rỗng: xoá tài khoản và trang pháp lý không bao giờ nằm sau một
+  workspace; giấy phép cũng ở `/licenses`) nêu hệ quả, xin một bằng chứng
   theo `lib/account-deletion.ts` (mật khẩu, else mã hai lớp, else gõ lại email), gọi `POST /me/delete`
   (`data/account-api.ts`), `owner_must_transfer` → hướng dẫn chuyển quyền trên web; thành công thì
   `useAuthStore.accountDeleted()` (không gọi server: phiên và push đã bị thu hồi; như đăng xuất, xoá người dùng đã
   lưu, outbox và tệp của nó, lượt đọc/biểu cảm chờ gửi, cache đĩa) + `data/local-wipe.ts` (cache ảnh,
   thông báo, badge, lựa chọn push, ghim từng workspace; theme và ngôn ngữ giữ vì là của máy). **Quyền riêng tư và pháp
   lý** (`components/settings/legal-section.tsx`, link ở `lib/legal-links.ts`: `/privacy` và `/vi/privacy`, neo
-  `#delete-account`, terms ẩn tới khi có URL, `mailto:` hỗ trợ — không có app mail thì chép địa chỉ), mở trang qua
+  `#delete-account`, điều khoản `/terms` và `/vi/terms` — cấm nội dung phản cảm, Apple 1.2 —, `mailto:` hỗ trợ — không
+  có app mail thì chép địa chỉ; màn đăng nhập nói đăng nhập là đồng ý điều khoản và có link hai trang,
+  `components/settings/sign-in-legal-note.tsx`, như trang đăng nhập/đăng ký web), mở trang qua
   `components/settings/use-open-web-page.ts`. **Giấy phép**: route `licenses.tsx` đọc `assets/licenses.json`, sinh bởi
   `scripts/generate-licenses.mjs` (đi cây `dependencies` production qua node_modules của pnpm, bỏ `@uniwork/*` và gói
   ghim OS/CPU; `lib/licenses.test.ts` chạy `--check` — đổi dependency thì chạy lại script). **Đồng ý xử lý AI**:

@@ -4,7 +4,9 @@
 // asks for (lib/account-deletion.ts), POST /api/v1/me/delete, then a sign-out
 // that wipes everything the account left on this phone
 // (useAuthStore.accountDeleted). An owner is told to hand the organization
-// over on the web first. Every refusal is said under the field and read out;
+// over on the web first. Mounted in the workspace's Settings tab and, with no
+// workspace, in the account's own Settings (app/(app)/account.tsx): deletion is
+// reachable from every signed-in state. Every refusal is said under the field and read out;
 // the sheet is a Modal, so a toast would sit under it.
 import { Ionicons } from "@expo/vector-icons";
 import { paths } from "@uniwork/core/paths/paths";
@@ -17,6 +19,7 @@ import { Text } from "@/components/ui/text";
 import { useDeleteAccount } from "@/data/mutations/account";
 import { useAuthStore } from "@/data/auth/store";
 import { toast } from "@/data/stores/toast-store";
+import type { WorkspaceSlugs } from "@/lib/chat-routes";
 import { deleteAccountFailure, deleteProofBody, deleteProofMode, type DeleteProofMode } from "@/lib/account-deletion";
 import { legalLinks, legalLocale } from "@/lib/legal-links";
 import { continuousCorners } from "@/lib/radius";
@@ -43,11 +46,11 @@ const CONSEQUENCES = [
 interface SheetProps {
   visible: boolean;
   onClose: () => void;
-  orgSlug: string;
-  wsSlug: string;
+  /** The workspace whose web settings hold the organization's ownership; none from the account's own Settings. */
+  workspace?: WorkspaceSlugs;
 }
 
-function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
+function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
   const { t, i18n } = useTranslation();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
@@ -155,7 +158,7 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
               accessibilityRole="link"
               // The label, not the children: the icon's glyph is a character a screen reader would spell.
               accessibilityLabel={t("mobile.account.owner_open_web")}
-              onPress={() => openWebPage(`${appUrl}${paths.workspace(orgSlug, wsSlug).settings()}`)}
+              onPress={() => openWebPage(`${appUrl}${workspace ? paths.workspace(workspace.orgSlug, workspace.wsSlug).settings() : paths.root()}`)}
               className="min-h-11 flex-row items-center justify-center gap-2 rounded-full bg-muted px-4 py-2.5 active:opacity-70"
             >
               <Text className="text-subhead font-semibold text-foreground">{t("mobile.account.owner_open_web")}</Text>
@@ -217,13 +220,13 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
 }
 
 /** The danger zone at the end of Settings: one row that opens the sheet. */
-export function DeleteAccountSection({ orgSlug, wsSlug }: { orgSlug: string; wsSlug: string }) {
+export function DeleteAccountSection({ workspace }: { workspace?: WorkspaceSlugs }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
     <SettingsSection title={t("settings.security.delete.section")} hint={t("settings.security.delete.hint")}>
       <SettingsRow first destructive icon="trash-outline" label={t("settings.security.delete.open")} testID="settings-delete-account" onPress={() => setOpen(true)} />
-      <DeleteAccountSheet visible={open} onClose={() => setOpen(false)} orgSlug={orgSlug} wsSlug={wsSlug} />
+      <DeleteAccountSheet visible={open} onClose={() => setOpen(false)} workspace={workspace} />
     </SettingsSection>
   );
 }

@@ -18,6 +18,16 @@ export const chatRoutes = {
   channels: (ws: WorkspaceSlugs) => `${base(ws)}/channels`,
   /** A new group, or (with a room) more members for that group. */
   newGroup: (ws: WorkspaceSlugs, roomId?: string) => `${base(ws)}/new-group${roomId ? `?room=${encodeURIComponent(roomId)}` : ""}`,
-  /** Settings › Privacy & legal › Open-source licenses. */
-  licenses: (ws: WorkspaceSlugs) => `${base(ws)}/licenses`,
 };
+
+/**
+ * The account's own screens, under app/(app)/ and outside every workspace: a person with no
+ * workspace (removed from all of them, or signed up and not onboarded) still reaches Settings,
+ * the legal pages and account deletion from select-workspace (Apple 5.1.1(v), Play's account
+ * deletion policy: deletion is reachable from every signed-in state).
+ */
+export const accountRoutes = {
+  settings: "/account",
+  /** Settings › Privacy & legal › Open-source licenses. */
+  licenses: "/licenses",
+} as const;

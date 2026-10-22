@@ -87,16 +87,22 @@ Keychain qua lần gỡ, nên lần mở đầu của bản cài mới bỏ phi�
 Dữ liệu này không rời máy nên không là dữ liệu "thu thập" trong Apple App Privacy hay Google Data safety; câu hỏi
 "Data is encrypted in transit" của Play: có.
 
-**Xoá tài khoản.** Trong app: Cài đặt › Xóa tài khoản — nêu hệ quả, xác nhận lại bằng mật khẩu (hoặc mã hai lớp, hoặc
+**Xoá tài khoản.** Trong app: Cài đặt › Xóa tài khoản — ở tab Cài đặt của workspace, và khi người dùng không ở
+workspace nào (bị gỡ khỏi mọi workspace, hay mới đăng ký) thì ở nút Cài đặt của màn chọn workspace —, nêu hệ quả, xác nhận lại bằng mật khẩu (hoặc mã hai lớp, hoặc
 gõ lại email với tài khoản chỉ Google), gọi `POST /api/v1/me/delete`, rồi đăng xuất mọi thiết bị và xoá dữ liệu của tài
 khoản trên máy (bản sao cuộc trò chuyện, tin và tệp chưa gửi, ảnh đã lưu, thông báo, ghim). Chủ sở hữu tổ chức được hướng dẫn chuyển quyền trên web trước. URL
 chính sách riêng tư: `https://app.uniworkos.com/privacy`; URL xoá tài khoản cho Play:
-`https://app.uniworkos.com/privacy#delete-account`. Cài đặt › Quyền riêng tư và pháp lý mở cả hai, liên hệ hỗ trợ
-(`contact@unicomhub.com`) và danh sách giấy phép mã nguồn mở.
+`https://app.uniworkos.com/privacy#delete-account`. Điều khoản sử dụng: `https://app.uniworkos.com/terms` (App Store
+Connect › License Agreement: dùng điều khoản này làm EULA riêng — có mục tối thiểu Apple yêu cầu — hoặc giữ EULA chuẩn của
+Apple; điều khoản này vẫn áp dụng vì người dùng đồng ý khi đăng ký và đăng nhập). Cài đặt › Quyền riêng tư và pháp lý mở
+chính sách, điều khoản, liên hệ hỗ trợ (`contact@unicomhub.com`) và danh sách giấy phép mã nguồn mở; màn đăng nhập của
+app và trang đăng ký/đăng nhập web nói đăng nhập (đăng ký) là đồng ý điều khoản, kèm link.
 
 ## Nội dung do người dùng tạo (Apple 1.2, Play UGC)
 
-Tin nhắn chỉ đi giữa thành viên một tổ chức. Báo cáo: nhấn giữ một tin › Báo cáo; chi tiết cuộc trò chuyện riêng ›
+Điều khoản sử dụng (`/terms`, neo `#acceptable-use`) cấm nội dung phản cảm và người dùng lạm dụng, không ngoại lệ, và
+cam kết nhà vận hành xem mọi báo cáo gửi tới `contact@unicomhub.com` trong 24 giờ, gỡ nội dung vi phạm và tạm ngưng
+hay chấm dứt tài khoản đã đăng; người dùng đồng ý điều khoản khi đăng ký và mỗi lần đăng nhập (dòng dưới nút). Tin nhắn chỉ đi giữa thành viên một tổ chức. Báo cáo: nhấn giữ một tin › Báo cáo; chi tiết cuộc trò chuyện riêng ›
 Báo cáo; chạm một thành viên trong chi tiết nhóm › Báo cáo — chọn lý do (spam, quấy rối, thù ghét, khiêu dâm, bạo lực,
 tự gây hại, khác), mô tả tuỳ chọn, và có thể chặn luôn. Báo cáo lưu ở server (`chat_reports`) và ghi nhật ký
 `chat.report.created`: chủ sở hữu và quản trị viên tổ chức thấy nó ở web › Cài đặt › Nhật ký hoạt động — lý do, người
@@ -108,10 +114,12 @@ vận hành UniWork không tự thấy báo cáo nào: người dùng và review
 viên nhóm › Chặn nhắn tin (hai bên không nhắn riêng được; cuộc trò chuyện biến khỏi danh sách người chặn); cuộc trò
 chuyện hiện người nào đã chặn. Ghi chú cho reviewer (en):
 
-> Long-press any message from another person and choose "Report". In a direct conversation, open its details (tap the
+> Our terms of use (https://app.uniworkos.com/terms#acceptable-use), which every user agrees to when they sign up and
+> sign in, forbid objectionable content and abusive users with no tolerance. Long-press any message from another person and choose "Report". In a direct conversation, open its details (tap the
 > name at the top) for "Block" and "Report". The organization's owners and admins see each report (reason, the
 > person or message reported, and who reported it) in the web app's Settings › Activity log. Anyone can also report
-> content or a user directly to the operator at contact@unicomhub.com.
+> content or a user directly to the operator at contact@unicomhub.com, which we review within 24 hours, removing the
+> content and suspending or terminating the offending account.
 
 ## Quyền và chuỗi xin quyền
 

@@ -6,12 +6,13 @@ describe("legalLinks", () => {
     expect(legalLinks("https://app.uniworkos.com/", "en", "UniChat")).toEqual({
       privacy: "https://app.uniworkos.com/privacy",
       deleteAccount: "https://app.uniworkos.com/privacy#delete-account",
-      terms: null,
+      terms: "https://app.uniworkos.com/terms",
       support: "mailto:contact@unicomhub.com?subject=UniChat",
     });
     const vi = legalLinks("https://app.uniworkos.com", "vi", "Hỗ trợ UniChat 0.3.0");
     expect(vi.privacy).toBe("https://app.uniworkos.com/vi/privacy");
     expect(vi.deleteAccount).toBe("https://app.uniworkos.com/vi/privacy#delete-account");
+    expect(vi.terms).toBe("https://app.uniworkos.com/vi/terms");
     expect(vi.support).toBe(`mailto:${SUPPORT_EMAIL}?subject=H%E1%BB%97%20tr%E1%BB%A3%20UniChat%200.3.0`);
   });
 

@@ -1,6 +1,8 @@
 // Ported from usf apps/mobile/app/(app)/select-workspace.tsx. One organization
 // per account (ADR 0032), so the list is flat, the organization named once
-// above it (canvas MobSelectWorkspace).
+// above it (canvas MobSelectWorkspace). Settings sits under the list in every
+// state, an empty one included: the account's own Settings (accountRoutes)
+// keeps the legal pages and account deletion reachable without a workspace.
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import type { Workspace } from "@uniwork/core/types/workspace";
@@ -16,6 +18,7 @@ import { unreadSummaryOptions } from "@/data/queries/chat";
 import { useAuthStore } from "@/data/auth/store";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
+import { accountRoutes } from "@/lib/chat-routes";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { badgeText, unreadOfWorkspace } from "@/lib/workspace-unread";
@@ -66,7 +69,7 @@ export default function SelectWorkspace() {
             </Button>
           </View>
         ) : !data || data.length === 0 ? (
-          <Text className="text-callout text-muted-foreground">{t("common.empty")}</Text>
+          <Text className="text-callout leading-[22px] text-muted-foreground">{t("mobile.account.no_workspace")}</Text>
         ) : (
           <View className="gap-3">
             {data.map((ws) => {
@@ -100,7 +103,11 @@ export default function SelectWorkspace() {
             })}
           </View>
         )}
-        <View className="border-t border-border pt-5">
+        <View className="gap-3 border-t border-border pt-5">
+          <Button variant="outline" className="min-h-12 rounded-full py-3" testID="select-workspace-settings" onPress={() => router.push(accountRoutes.settings)}>
+            <Ionicons name="settings-outline" size={18} color={THEME[colorScheme].foreground} />
+            <Text className="text-subhead font-semibold">{t("nav.settings")}</Text>
+          </Button>
           <Button variant="outline" className="min-h-12 rounded-full py-3" onPress={() => void logout()}>
             <Ionicons name="log-out-outline" size={18} color={THEME[colorScheme].foreground} />
             <Text className="text-subhead font-semibold">{t("auth.logout")}</Text>

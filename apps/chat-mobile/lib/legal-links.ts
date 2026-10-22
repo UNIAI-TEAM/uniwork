@@ -2,9 +2,10 @@
 // web's /privacy (Vietnamese under /vi, paths/marketing), whose deletion
 // section keeps the fixed anchor #delete-account — the account deletion URL
 // given to Google Play (apps/web/features/landing/privacy-content.ts). The
+// terms of use are the web's /terms (terms-content.ts), which forbid
+// objectionable content (Apple 1.2); the sign-in screen links both. The
 // support address is the legal entity's (apps/web/platform/site-information.ts
-// › legalEntity.email; copied: the app does not import the web). There are no
-// terms of service yet: `terms` stays null and Settings hides the row.
+// › legalEntity.email; copied: the app does not import the web).
 import { marketingHref } from "@uniwork/core/paths/marketing";
 
 export const SUPPORT_EMAIL = "contact@unicomhub.com";
@@ -19,7 +20,7 @@ export function legalLocale(language: string): LegalLocale {
 export interface LegalLinks {
   privacy: string;
   deleteAccount: string;
-  terms: string | null;
+  terms: string;
   support: string;
 }
 
@@ -30,7 +31,7 @@ export function legalLinks(appUrl: string, locale: LegalLocale, subject: string)
   return {
     privacy,
     deleteAccount: `${privacy}#delete-account`,
-    terms: null,
+    terms: `${origin}${marketingHref("/terms", locale)}`,
     support: `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`,
   };
 }

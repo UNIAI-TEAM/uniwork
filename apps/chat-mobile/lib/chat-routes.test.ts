@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatRoutes } from "./chat-routes";
+import { accountRoutes, chatRoutes } from "./chat-routes";
 
 const ws = { orgSlug: "acme", wsSlug: "hq" };
 
@@ -13,6 +13,11 @@ describe("chatRoutes", () => {
     expect(chatRoutes.channels({ orgSlug: "a b", wsSlug: "c" })).toBe("/a%20b/c/channels");
     expect(chatRoutes.newGroup(ws)).toBe("/acme/hq/new-group");
     expect(chatRoutes.newGroup(ws, "g/1")).toBe("/acme/hq/new-group?room=g%2F1");
-    expect(chatRoutes.licenses(ws)).toBe("/acme/hq/licenses");
+  });
+
+  // Reachable with no workspace at all (select-workspace › Settings): account deletion and the
+  // legal pages may never sit behind a workspace (Apple 5.1.1(v), Play's account deletion policy).
+  it("keeps the account's screens outside every workspace", () => {
+    expect(accountRoutes).toEqual({ settings: "/account", licenses: "/licenses" });
   });
 });

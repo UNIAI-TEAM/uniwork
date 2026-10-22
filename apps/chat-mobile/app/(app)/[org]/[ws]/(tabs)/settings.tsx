@@ -27,7 +27,6 @@ import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { WorkspaceSwitchSheet } from "@/components/workspace/workspace-switch-sheet";
 import { useAuthStore } from "@/data/auth/store";
 import { workspaceListOptions } from "@/data/queries/workspaces";
-import { chatRoutes } from "@/lib/chat-routes";
 import { useLocalePreference } from "@/components/app/i18n-provider";
 import type { SupportedLocale } from "@/lib/i18n/singleton";
 import { continuousCorners } from "@/lib/radius";
@@ -103,7 +102,7 @@ export default function SettingsTab() {
         <DevicesSection />
         <OptionGroup title={t("settings.preferences.theme")} options={THEME_OPTIONS} value={preference} onChange={setPreference} />
         <OptionGroup title={t("settings.preferences.language")} options={LOCALE_OPTIONS} value={locale} onChange={setLocale} />
-        <LegalSection licensesHref={chatRoutes.licenses({ orgSlug: org, wsSlug: ws })} />
+        <LegalSection />
         <AboutSection />
         <View className="gap-3.5 pt-1">
           <Button
@@ -116,7 +115,7 @@ export default function SettingsTab() {
             <Text className="text-body font-semibold">{t("auth.logout")}</Text>
           </Button>
         </View>
-        <DeleteAccountSection orgSlug={org} wsSlug={ws} />
+        <DeleteAccountSection workspace={{ orgSlug: org, wsSlug: ws }} />
       </ScrollView>
       <WorkspaceSwitchSheet visible={switchOpen} onClose={() => setSwitchOpen(false)} currentWsId={workspace?.id ?? ""} />
     </View>

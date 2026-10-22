@@ -20,6 +20,8 @@ export const COMPLIANCE_ONLY = {
       offline: "Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.",
       deleting: "Đang xóa…",
       deleted: "Đã xóa tài khoản của bạn.",
+      no_workspace: "Bạn chưa ở workspace nào. Nhờ quản trị viên tổ chức thêm bạn vào một workspace, hoặc mở UniWork trên web.",
+      signed_in_as: "Đang đăng nhập bằng {{email}}",
     },
     legal: {
       title: "Quyền riêng tư và pháp lý",
@@ -33,6 +35,8 @@ export const COMPLIANCE_ONLY = {
       ai_on: "Đã đồng ý",
       ai_off: "Chưa đồng ý",
       open_failed: "Không mở được trang. Thử lại sau.",
+      agree_prefix: "Khi đăng nhập, bạn đồng ý với",
+      agree_and: "và đã đọc",
     },
     ai_consent: {
       title: "UNI dùng AI để tóm tắt",
@@ -103,6 +107,8 @@ export const COMPLIANCE_ONLY = {
       offline: "Couldn't reach the server. Check your connection, then try again.",
       deleting: "Deleting…",
       deleted: "Your account has been deleted.",
+      no_workspace: "You're not in any workspace yet. Ask an admin of your organization to add you to one, or open UniWork on the web.",
+      signed_in_as: "Signed in as {{email}}",
     },
     legal: {
       title: "Privacy & legal",
@@ -116,6 +122,8 @@ export const COMPLIANCE_ONLY = {
       ai_on: "Agreed",
       ai_off: "Not agreed",
       open_failed: "Couldn't open the page. Try again later.",
+      agree_prefix: "By signing in, you agree to the",
+      agree_and: "and acknowledge the",
     },
     ai_consent: {
       title: "UNI uses AI to summarize",

@@ -1553,7 +1553,9 @@
       "rate_limited": "Too many attempts. Wait a few minutes, then try again.",
       "offline": "Couldn't reach the server. Check your connection, then try again.",
       "deleting": "Deleting…",
-      "deleted": "Your account has been deleted."
+      "deleted": "Your account has been deleted.",
+      "no_workspace": "You're not in any workspace yet. Ask an admin of your organization to add you to one, or open UniWork on the web.",
+      "signed_in_as": "Signed in as {{email}}"
     },
     "legal": {
       "title": "Privacy & legal",
@@ -1566,7 +1568,9 @@
       "ai": "AI processing",
       "ai_on": "Agreed",
       "ai_off": "Not agreed",
-      "open_failed": "Couldn't open the page. Try again later."
+      "open_failed": "Couldn't open the page. Try again later.",
+      "agree_prefix": "By signing in, you agree to the",
+      "agree_and": "and acknowledge the"
     },
     "ai_consent": {
       "title": "UNI uses AI to summarize",

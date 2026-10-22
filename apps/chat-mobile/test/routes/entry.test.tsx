@@ -6,6 +6,8 @@ import { EMPTY_UNREAD_SUMMARY } from "@uniwork/core/api/endpoints/chat-schemas";
 import type { Workspace } from "@uniwork/core/types/workspace";
 import { Text } from "react-native";
 import AppLayout from "@/app/(app)/_layout";
+import AccountSettings from "@/app/(app)/account";
+import LicensesScreen from "@/app/(app)/licenses";
 import SelectWorkspace from "@/app/(app)/select-workspace";
 import AuthLayout from "@/app/(auth)/_layout";
 import Login from "@/app/(auth)/login";
@@ -34,6 +36,8 @@ const ROUTES = {
   "(auth)/login": Login,
   "(app)/_layout": AppLayout,
   "(app)/select-workspace": SelectWorkspace,
+  "(app)/account": AccountSettings,
+  "(app)/licenses": LicensesScreen,
   "(app)/[org]/[ws]/chat": ChatStandIn,
 };
 
@@ -103,5 +107,38 @@ describe("the entry gate", () => {
     const retry = await screen.findByRole("button", { name: viText("common.retry") });
     await act(async () => fireEvent.press(retry));
     expect(await screen.findByRole("button", { name: /Không gian main/ })).toBeTruthy();
+  });
+
+  // Apple 5.1.1(v), Play's account deletion policy: deletion and the legal pages are reachable from
+  // every signed-in state, including a member removed from every workspace (audit
+  // "deletion-unreachable-without-workspace"). The policy's "Settings → Delete account" holds here too.
+  it("lets a person with no workspace reach Settings: the legal pages, the licenses and account deletion", async () => {
+    jest.mocked(api.listWorkspaces).mockResolvedValue([]);
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    const routes = await renderRoutes(ROUTES, "/");
+    expect(await screen.findByText(viText("mobile.account.no_workspace"))).toBeTruthy();
+    expect(routes.pathname()).toBe("/select-workspace");
+    await act(async () => fireEvent.press(screen.getByTestId("select-workspace-settings")));
+    expect(await screen.findByTestId("settings-delete-account")).toBeTruthy();
+    expect(routes.pathname()).toBe("/account");
+    expect(screen.getByTestId("legal-privacy")).toBeTruthy();
+    expect(screen.getByTestId("legal-terms")).toBeTruthy();
+    await act(async () => fireEvent.press(screen.getByTestId("legal-licenses")));
+    expect((await screen.findAllByText(viText("mobile.licenses.title"))).length).toBeGreaterThan(0);
+    expect(routes.pathname()).toBe("/licenses");
+  });
+
+  it("signs out from the account's own Settings", async () => {
+    jest.mocked(api.listWorkspaces).mockResolvedValue([]);
+    const original = useAuthStore.getState().logout;
+    const logout = jest.fn(async () => {});
+    useAuthStore.setState({ user: user as never, isLoading: false, logout });
+    try {
+      await renderRoutes(ROUTES, "/account");
+      await act(async () => fireEvent.press(await screen.findByTestId("account-logout")));
+      expect(logout).toHaveBeenCalled();
+    } finally {
+      await act(async () => useAuthStore.setState({ logout: original }));
+    }
   });
 });

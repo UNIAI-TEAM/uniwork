@@ -9,7 +9,6 @@ import { accountApi } from "@/data/account-api";
 import { useAuthStore } from "@/data/auth/store";
 import { useToastStore } from "@/data/stores/toast-store";
 import { AI_CONSENT_VERSION } from "@/lib/ai-consent";
-import * as legalLinksModule from "@/lib/legal-links";
 import { render, viText } from "@/test/render";
 import { LegalSection } from "./legal-section";
 
@@ -39,16 +38,17 @@ afterEach(async () => {
 });
 
 describe("LegalSection", () => {
-  it("opens the privacy policy in the reader's language; there are no terms to show yet", async () => {
-    await render(<LegalSection licensesHref="/acme/hq/licenses" />);
+  it("opens the privacy policy and the terms of use in the reader's language", async () => {
+    await render(<LegalSection />);
     expect(screen.getByRole("header", { name: viText("mobile.legal.title") })).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId("legal-privacy"));
     expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://app.example/vi/privacy");
-    expect(screen.queryByText(viText("mobile.legal.terms"))).toBeNull();
+    await fireEvent.press(screen.getByTestId("legal-terms"));
+    expect(WebBrowser.openBrowserAsync).toHaveBeenLastCalledWith("https://app.example/vi/terms");
   });
 
   it("writes to support with the version in the subject, and copies the address when there is no mail app", async () => {
-    await render(<LegalSection licensesHref="/acme/hq/licenses" />);
+    await render(<LegalSection />);
     await fireEvent.press(screen.getByTestId("legal-support"));
     expect(Linking.openURL).toHaveBeenCalledWith(`mailto:contact@unicomhub.com?subject=${encodeURIComponent(viText("mobile.legal.support_subject", { version: "0.3.0" }))}`);
     jest.mocked(Linking.openURL).mockRejectedValueOnce(new Error("no handler"));
@@ -58,14 +58,14 @@ describe("LegalSection", () => {
   });
 
   it("opens the licenses screen", async () => {
-    await render(<LegalSection licensesHref="/acme/hq/licenses" />);
+    await render(<LegalSection />);
     await fireEvent.press(screen.getByTestId("legal-licenses"));
-    expect(router.push).toHaveBeenCalledWith("/acme/hq/licenses");
+    expect(router.push).toHaveBeenCalledWith("/licenses");
   });
 
   it("shows the AI answer on file and lets the reader agree from Settings", async () => {
     jest.mocked(accountApi.setAiConsent).mockResolvedValueOnce({ ...user, ai_consent_version: AI_CONSENT_VERSION, ai_consent_at: "2026-10-21T08:00:00Z" });
-    await render(<LegalSection licensesHref="/acme/hq/licenses" />);
+    await render(<LegalSection />);
     expect(screen.getByRole("button", { name: `${viText("mobile.legal.ai")}, ${viText("mobile.legal.ai_off")}` })).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId("legal-ai"));
     expect(screen.getByRole("header", { name: viText("mobile.ai_consent.title") })).toBeOnTheScreen();
@@ -76,7 +76,7 @@ describe("LegalSection", () => {
 
   it("says so when a page cannot open: a build without a web origin, or the browser failing", async () => {
     configureRuntime({ appUrl: "" });
-    await render(<LegalSection licensesHref="/acme/hq/licenses" />);
+    await render(<LegalSection />);
     await fireEvent.press(screen.getByTestId("legal-privacy"));
     expect(WebBrowser.openBrowserAsync).not.toHaveBeenCalled();
     expect(messages()).toEqual([viText("mobile.legal.open_failed")]);
@@ -84,18 +84,10 @@ describe("LegalSection", () => {
     await act(() => useToastStore.getState().clear());
     configureRuntime({ appUrl: "https://app.example" });
     jest.mocked(WebBrowser.openBrowserAsync).mockRejectedValueOnce(new Error("no browser"));
-    await render(<LegalSection licensesHref="/acme/hq/licenses" />);
+    await render(<LegalSection />);
     await fireEvent.press(screen.getByTestId("legal-privacy"));
     // The browser's refusal settles after the press.
     await act(async () => {});
     expect(messages()).toEqual([viText("mobile.legal.open_failed")]);
-  });
-
-  it("shows the terms once there are terms to show", async () => {
-    const real = legalLinksModule.legalLinks("https://app.example", "vi", "");
-    jest.spyOn(legalLinksModule, "legalLinks").mockReturnValue({ ...real, terms: "https://app.example/terms" });
-    await render(<LegalSection licensesHref="/acme/hq/licenses" />);
-    await fireEvent.press(screen.getByRole("link", { name: viText("mobile.legal.terms") }));
-    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://app.example/terms");
   });
 });

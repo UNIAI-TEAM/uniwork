@@ -15,6 +15,7 @@ import { Image, ImageBackground, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { UniChatLogo } from "@/components/brand/unichat-logo";
 import { PersonAvatar } from "@/components/people/person-avatar";
+import { SignInLegalNote } from "@/components/settings/sign-in-legal-note";
 import { useAnnounce } from "@/components/ui/a11y";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
@@ -102,6 +103,7 @@ export default function Login() {
           <Ionicons name="globe-outline" size={14} color={THEME[colorScheme].mutedForeground} />
           <Text className="text-footnote text-muted-foreground">{t("chat.mobile.login_browser_hint")}</Text>
         </View>
+        <SignInLegalNote />
       </View>
       <SafeAreaView edges={["bottom"]} />
     </ScrollView>
