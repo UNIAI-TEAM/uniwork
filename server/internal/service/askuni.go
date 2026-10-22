@@ -672,7 +672,11 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTu
 	if err != nil {
 		return db.AiMessage{}, err
 	}
+	// A regenerate has no question of its own: an empty title leaves the stored one.
 	title := t.Question
+	if t.Regenerates != "" {
+		title = ""
+	}
 	if r := []rune(title); len(r) > 80 {
 		title = string(r[:80]) + "…"
 	}

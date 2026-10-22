@@ -75,8 +75,27 @@ func TestRenameMarksTheTitleTheUsers(t *testing.T) {
 	if err != nil || n != 0 {
 		t.Fatalf("rows=%d err=%v", n, err)
 	}
-	got, _ := s.q.AiGetConversation(ctx, conv)
+	got, err := s.q.AiGetConversation(ctx, conv)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got.Title != "Mine" {
 		t.Fatalf("title=%q", got.Title)
+	}
+}
+
+func TestStoreRegenerateKeepsTheTitle(t *testing.T) {
+	s, org, conv, _ := storeFixture(t)
+	ctx := context.Background()
+	first, err := s.store(ctx, org, conv, askTurn{Question: "original question", Answer: "old"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store(ctx, org, conv, askTurn{Answer: "new", Regenerates: first.ID}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.q.AiGetConversation(ctx, conv)
+	if err != nil || got.Title != "original question" {
+		t.Fatalf("title=%q err=%v", got.Title, err)
 	}
 }
