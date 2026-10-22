@@ -2,7 +2,8 @@
 // (min_supported_mobile_version, data/remote-config.ts) is above the running
 // version, the whole app is this one screen with a way to the store. It sits
 // above the sign-in screen too: an old build must not even start a session.
-// Nothing gates before the server answers or when it cannot be reached.
+// The last answer is kept on the device (data/remote-config.ts), so the gate
+// holds through an offline cold start; with no answer ever kept, nothing gates.
 import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import type { ReactNode } from "react";

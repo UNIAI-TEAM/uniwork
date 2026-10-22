@@ -3,8 +3,9 @@
 // most recently active, written to the encrypted device store
 // (storage/device-store.ts) and read back before the first screen, so the
 // inbox is there at once, offline included, and every query refetches behind
-// it as usual. Nothing else is kept: search, threads, older pages, tasks and
-// the remote config are asked again. The copy belongs to one person and one
+// it as usual. Nothing else is kept: search, threads, older pages and tasks
+// are asked again (the remote config keeps its own copy, outside any account:
+// data/remote-config.ts). The copy belongs to one person and one
 // cache schema (the buster is CACHE_SCHEMA_VERSION and the user id: another
 // account, or a change of what a kept record means, reads nothing of it) and
 // is removed on sign-out. A store update or an OTA keeps it, so what it reads

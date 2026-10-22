@@ -46,6 +46,7 @@ import { ensureNotificationChannels } from "@/data/notification-channels";
 import { queryClient } from "@/data/query-client";
 import { startLocaleSync } from "@/data/locale-sync";
 import { createDevicePersister, installAccountCache } from "@/data/query-persister";
+import { persistRemoteConfig, restoreRemoteConfig } from "@/data/remote-config";
 import { bestEffort } from "@/data/report";
 import { sentryNavigation } from "@/data/sentry";
 import { installDeviceStore, openDeviceStore } from "@/data/storage/device-store";
@@ -72,6 +73,9 @@ startUpdatesController();
 // The encrypted store the outbox and the cached rooms live in, before the session is restored.
 installDeviceStore(openNativeDeviceStore);
 installAccountCache({ queryClient, persister: createDevicePersister(openDeviceStore) });
+// The server's last kill switches and minimum version, kept on the device: they hold through an offline cold start.
+persistRemoteConfig(queryClient, openDeviceStore);
+void restoreRemoteConfig(queryClient, openDeviceStore).catch(bestEffort("remote-config", "kept answer not read", "breadcrumb"));
 // The app's language reaches the server, which writes pushes and emails in it (data/locale-sync.ts).
 startLocaleSync({
   getUser: () => useAuthStore.getState().user,

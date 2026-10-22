@@ -334,7 +334,8 @@ biến thể và ký giống CI (thiếu `UNICHAT_ENV` là cấu hình dev: khô
 `--environment production`) rồi `pnpm exec sentry-expo-upload-sourcemaps dist`.
 
 **Chặn bản cũ và tắt tính năng từ server (UNI-2053)**: `GET /api/v1/config` trả `min_supported_mobile_version` và
-`mobile_flags`; app đọc lúc mở và mỗi lần quay lại foreground.
+`mobile_flags`; app đọc lúc mở và mỗi lần quay lại foreground, và giữ câu trả lời cuối trên máy (tối đa 30 ngày):
+máy mở lạnh không có mạng vẫn theo công tắc và mức tối thiểu lần cuối nó nghe được.
 
 - Bắt cập nhật: đặt `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION=<MAJOR.MINOR.PATCH>` trên server (sai dạng thì server không
   khởi động) và khởi động lại. Máy dưới mức đó chỉ còn màn "Cần cập nhật UniChat" với link store (`UNICHAT_STORE_*`,

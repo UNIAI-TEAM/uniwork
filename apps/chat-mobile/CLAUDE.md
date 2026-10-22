@@ -271,8 +271,10 @@ một dòng thì ghi lý do ở dòng trên.
   dưới mức tối thiểu; `useMobileFlag(name)` / `readMobileFlag(qc, name)` cho
   công tắc (`unichat_mobile_calls`: tắt thì ẩn nút gọi, không đổ chuông — cả màn đổ chuông
   native của Android, push cuộc gọi mở phòng; server cũng không gửi push cuộc gọi hay push kết thúc cho người đó —
-  `PushConsumer.SetMobileCalls`; cuộc gọi đang diễn ra không bị cắt và giữ dịch vụ cuộc gọi). Chưa có câu trả lời hay server không tới được thì không
-  chặn gì và mọi công tắc ở mặc định. Lỗi một thao tác → `toast.error(...)`
+  `PushConsumer.SetMobileCalls`; cuộc gọi đang diễn ra không bị cắt và giữ dịch vụ cuộc gọi). Câu trả lời cuối của server được giữ trên máy
+  (`remote-config/v1` trong device store, `persistRemoteConfig`, ≤ 30 ngày, ngoài mọi tài khoản) và gieo lại vào query
+  lúc mở (`restoreRemoteConfig`, đề ngày lúc nhận nên query hỏi lại ngay): kill switch và mức tối thiểu giữ qua một lần
+  mở lạnh không mạng. Chưa từng có câu trả lời và server không tới được thì không chặn gì và mọi công tắc ở mặc định. Lỗi một thao tác → `toast.error(...)`
   (`data/stores/toast-store.ts`, `components/ui/toast-host.tsx`); `Alert.alert`
   chỉ cho xác nhận thật (xoá, rời, thu hồi) và trong sheet là `Modal` (toast vẽ
   dưới cửa sổ Modal). Đăng xuất: `useAuthStore.logout()` tự gỡ push

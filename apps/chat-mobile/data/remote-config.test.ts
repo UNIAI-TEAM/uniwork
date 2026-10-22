@@ -25,9 +25,14 @@ const apiMock = vi.hoisted(() => ({ request: vi.fn<(path: string, init?: Request
 vi.mock("./api", () => ({ api: apiMock }));
 
 import { QueryClient } from "@tanstack/react-query";
+import { memoryDeviceStore } from "./storage/device-store";
 import {
   clearAccountCache,
   fetchRemoteConfig,
+  persistRemoteConfig,
+  REMOTE_CONFIG_MAX_AGE_MS,
+  REMOTE_CONFIG_STORE_KEY,
+  restoreRemoteConfig,
   flagValue,
   readMobileFlag,
   REMOTE_CONFIG_FALLBACK,
@@ -163,3 +168,69 @@ describe("clearAccountCache (sign-out)", () => {
   });
 });
 
+
+// Audit (Release, missed): the kill switch and the minimum version failed open on every cold start without a network,
+// because the last answer lived only in memory. It is kept on the device and seeded at the next launch.
+describe("the last answer kept on the device", () => {
+  const killed: MobileRemoteConfig = { minSupportedVersion: "0.4.0", flags: { unichat_mobile_calls: false }, storeUrl: { ios: "", android: "https://play.example/uc" } };
+  const NOW = 1_800_000_000_000;
+
+  it("keeps each answer the server gives, and seeds it, stale, at the next launch", async () => {
+    const store = memoryDeviceStore();
+    const open = vi.fn(async () => store);
+    const first = new QueryClient();
+    const stop = persistRemoteConfig(first, open, () => NOW - 60_000);
+    apiMock.request.mockResolvedValueOnce({ min_supported_mobile_version: "0.4.0", mobile_flags: { unichat_mobile_calls: false }, unichat_stores: { android: "https://play.example/uc" } });
+    await first.fetchQuery({ queryKey: remoteConfigKey, queryFn: () => fetchRemoteConfig(apiMock) });
+    await vi.waitFor(() => expect(store.getString(REMOTE_CONFIG_STORE_KEY)).toBeDefined());
+    expect(JSON.parse(store.getString(REMOTE_CONFIG_STORE_KEY) ?? "")).toEqual({ savedAt: NOW - 60_000, config: killed });
+    // Other queries are not the remote config's to keep.
+    first.setQueryData(["workspaces"], []);
+    await first.fetchQuery({ queryKey: ["chat", "x"], queryFn: async () => 1 });
+    stop();
+
+    const next = new QueryClient();
+    const keeping = persistRemoteConfig(next, open, () => NOW);
+    expect(await restoreRemoteConfig(next, open, NOW)).toBe(true);
+    expect(next.getQueryData(remoteConfigKey)).toEqual(killed);
+    expect(readMobileFlag(next, "unichat_mobile_calls")).toBe(false);
+    // Dated when the server said it: the first observer asks again at once.
+    expect(next.getQueryState(remoteConfigKey)?.dataUpdatedAt).toBe(NOW - 60_000);
+    // The seed is not written back as a fresh answer.
+    await Promise.resolve();
+    expect(JSON.parse(store.getString(REMOTE_CONFIG_STORE_KEY) ?? "").savedAt).toBe(NOW - 60_000);
+    keeping();
+  });
+
+  it("lets an answer that arrived first win, and seeds nothing without a copy", async () => {
+    const store = memoryDeviceStore();
+    store.set(REMOTE_CONFIG_STORE_KEY, JSON.stringify({ savedAt: NOW, config: killed }));
+    const client = new QueryClient();
+    client.setQueryData(remoteConfigKey, REMOTE_CONFIG_FALLBACK);
+    expect(await restoreRemoteConfig(client, async () => store, NOW)).toBe(false);
+    expect(client.getQueryData(remoteConfigKey)).toBe(REMOTE_CONFIG_FALLBACK);
+    expect(await restoreRemoteConfig(new QueryClient(), async () => memoryDeviceStore(), NOW)).toBe(false);
+  });
+
+  it.each([
+    ["does not read", "{"],
+    ["has another shape", JSON.stringify({ savedAt: NOW, config: { flags: "off" } })],
+    ["is too old", JSON.stringify({ savedAt: NOW - REMOTE_CONFIG_MAX_AGE_MS - 1, config: killed })],
+  ])("drops a copy that %s", async (_why, raw) => {
+    const store = memoryDeviceStore();
+    store.set(REMOTE_CONFIG_STORE_KEY, raw);
+    const client = new QueryClient();
+    expect(await restoreRemoteConfig(client, async () => store, NOW)).toBe(false);
+    expect(client.getQueryData(remoteConfigKey)).toBeUndefined();
+    expect(store.getString(REMOTE_CONFIG_STORE_KEY)).toBeUndefined();
+  });
+
+  it("leaves a store that cannot open to a breadcrumb", async () => {
+    const client = new QueryClient();
+    const stop = persistRemoteConfig(client, () => Promise.reject(new Error("keystore")));
+    await client.fetchQuery({ queryKey: remoteConfigKey, queryFn: async () => killed });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(client.getQueryData(remoteConfigKey)).toEqual(killed);
+    stop();
+  });
+});
