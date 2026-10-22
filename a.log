@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -5; git fetch -q origin feature/UNI-923-office-g5-g6-g7 2>/dev/null; git merge-base HEAD FETCH_HEAD; true
+f197eb7f07704ec3701b0effe499cf40a118da45
+f197eb7f0 chore: merge the G5-G7 root 838435f62 into the UNI-2074 lane
+838435f62 chore: merge develop d081da74c (UNI-1718 chat dead-code cleanup, UniAI sync) into the G5-G7 root
+d081da74c Merge pull request #397 from UNIAI-TEAM/feature/UNI-1718-chat-dead-code-cleanup
+72f9eeefa feat(scripts): copy UniAI files into UniWork and retry hung CLI calls
+b87ef26a3 fix(scripts): match UniWork MCP accept header and write limit
+838435f6292a4540890945d5f7dda28d0f5248d2

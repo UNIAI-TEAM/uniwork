@@ -1,0 +1,5 @@
+$ pnpm --filter @uniwork/views test > /tmp/vt.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|ERROR|threshold|AssertionError|Expected|Received|Unable to find|TestingLibraryElementError" /tmp/vt.log | tail -40; echo; echo "VIEWS_TEST_EXIT=$rc"
+ Test Files  753 passed (753)
+      Tests  7675 passed (7675)
+
+VIEWS_TEST_EXIT=0
