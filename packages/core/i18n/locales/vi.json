@@ -11303,6 +11303,8 @@
         "editor": "Người sửa",
         "updated": "Cập nhật",
         "type": "Loại",
+        "type_count_other": "{{count}} loại",
+        "type_remove": "Bỏ lọc {{type}}",
         "editor_any": "Bất kỳ",
         "editor_me": "Tôi",
         "updated_any": "Bất kỳ lúc nào",
@@ -11350,7 +11352,7 @@
         "email": "Email"
       },
       "chips": {
-        "all": "Mọi loại",
+        "all": "Tất cả",
         "page": "UniNote",
         "docx": ".docx",
         "xlsx": ".xlsx",

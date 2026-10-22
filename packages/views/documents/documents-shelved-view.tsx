@@ -6,7 +6,7 @@ import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import type { DocListBulk } from "./doclist/bulk-actions";
 import { ShelvedToolbar, SHELVED_BY_SYSTEM, type ShelvedByOption } from "./documents-shelved-toolbar";
-import type { DocumentSummaryRow, TypeChip } from "./library-rows";
+import type { DocumentSummaryRow, DocumentTypeFilter } from "./library-rows";
 import type { useDocumentsLibrary } from "./use-documents-library";
 
 /** The commands a shelved row offers (ARCHIVE-01 U-3/U-4). The page owns the
@@ -22,8 +22,8 @@ interface ShelvedRowActions {
 
 export interface DocumentsShelvedViewProps {
   library: ReturnType<typeof useDocumentsLibrary>;
-  chip: TypeChip;
-  onChip: (chip: TypeChip) => void;
+  types: DocumentTypeFilter[];
+  onTypes: (types: DocumentTypeFilter[]) => void;
   /** The workspace members (the "Lưu trữ bởi" options; the column reads `handlers.member`). */
   members: Member[] | undefined;
   handlers: LibraryRowHandlers;
@@ -42,7 +42,7 @@ export interface DocumentsShelvedViewProps {
  * trữ` · `Tải xuống` │ `Chuyển vào thùng rác`, flat in the server's
  * shelved_at-newest order (F1).
  */
-export function DocumentsShelvedView({ library, chip, onChip, members, handlers, actions, bulk, selectionKey }: DocumentsShelvedViewProps) {
+export function DocumentsShelvedView({ library, types, onTypes, members, handlers, actions, bulk, selectionKey }: DocumentsShelvedViewProps) {
   const { t } = useTranslation();
   const state = library.state;
   // The "Lưu trữ bởi" options (U-2/Q-UI2): the workspace members plus the
@@ -56,12 +56,12 @@ export function DocumentsShelvedView({ library, chip, onChip, members, handlers,
       .map((id) => ({ value: id, label: t("documents.shelved_list.shelved_by_former") })),
     ...(library.shelvedHasSystem ? [{ value: SHELVED_BY_SYSTEM, label: t("documents.shelved_list.shelved_by_system") }] : []),
   ];
-  const filtered = chip !== "all" || library.shelvedBy !== null || library.editor !== "any" || library.updated !== "any";
+  const filtered = types.length > 0 || library.shelvedBy !== null || library.editor !== "any" || library.updated !== "any";
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
       <ShelvedToolbar
-        chip={chip}
-        onChip={onChip}
+        types={types}
+        onTypes={onTypes}
         editor={library.editor}
         onEditor={library.setEditor}
         members={members}
@@ -90,7 +90,7 @@ export function DocumentsShelvedView({ library, chip, onChip, members, handlers,
         onLoadMore={state.loadMore}
         onRetry={state.refetch}
         onClearFilters={() => {
-          onChip("all");
+          onTypes([]);
           library.clearFilters();
         }}
         handlers={{ ...handlers, onUnshelve: actions.onUnshelve, onArchive: actions.onTrash, isBusy: actions.isUnshelving }}

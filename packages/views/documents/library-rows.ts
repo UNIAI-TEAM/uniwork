@@ -18,6 +18,8 @@ export type LibraryRow =
 /** The filter bar's type chips, in their order on every screen (UNI-2045 W10; `txt` is SV-7). */
 export const TYPE_CHIPS = ["all", "page", "docx", "xlsx", "pptx", "pdf", "md", "html", "txt"] as const;
 export type TypeChip = (typeof TYPE_CHIPS)[number];
+/** One pick of the Loại multi-select; its Tất cả is "no pick", never a value. */
+export type DocumentTypeFilter = Exclude<TypeChip, "all">;
 
 export function documentRow(doc: DocumentSummaryRow): LibraryRow {
   return { type: "document", id: doc.id, doc };

@@ -21,6 +21,8 @@ import type { LibraryView } from "./documents-sidebar";
 import {
   editorFilterId,
   matchesMeta,
+  matchesTypes,
+  typeFilterQuery,
   updatedFilterSince,
   type ActivityFilter,
   type EditorFilter,
@@ -28,7 +30,7 @@ import {
 } from "./doclist/filters";
 import { docListSpec } from "./doclist/columns";
 import { docListScreenOfView } from "./doclist/live-screen";
-import { documentRow, matchesChip, sourceRow, type LibraryRow, type TypeChip } from "./library-rows";
+import { documentRow, matchesChip, sourceRow, type DocumentTypeFilter, type LibraryRow } from "./library-rows";
 import {
   mergeSorted,
   nextSort,
@@ -116,7 +118,8 @@ export interface UseDocumentsLibraryInput {
   enabled: boolean;
   view: LibraryView;
   folderId: string | null;
-  chip: TypeChip;
+  /** The Loại picks; none = every type. */
+  types: readonly DocumentTypeFilter[];
   /** Member display names by user id: the Người sửa column sorts by name, and only the client can look them up. */
   editorNames?: EditorNames;
 }
@@ -135,7 +138,8 @@ export interface UseDocumentsLibraryInput {
  * viewer and per screen. Where the order comes from is decided in one place,
  * `sortedOnServer` below.
  */
-export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip, editorNames = NO_EDITOR_NAMES }: UseDocumentsLibraryInput) {
+export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, types, editorNames = NO_EDITOR_NAMES }: UseDocumentsLibraryInput) {
+  const { chip, narrowOnClient } = typeFilterQuery(types);
   const home = view.kind === "home";
   const sourceType = SOURCE_TYPES.has(chip) ? (chip as DocumentSourceType) : undefined;
   const sourcesWanted = chip !== "page" && ((home && !folderId) || view.kind === "sources");
@@ -375,9 +379,11 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   // The "Lưu trữ bởi" member filter is always client-side: the server has no
   // shelved_by parameter, so it narrows only the loaded pages (Q-UI2).
   const memberFiltered = shelvedView && shelvedBy !== null;
-  const clientFiltered = loadedInFull || mergedHome || pageChipOnListWithoutKind || memberFiltered;
+  const clientFiltered = loadedInFull || mergedHome || pageChipOnListWithoutKind || memberFiltered || narrowOnClient;
   const filtered = state.rows.filter((row) => {
     if (memberFiltered && (row.type !== "document" || (row.doc.shelved_by ?? SHELVED_BY_SYSTEM) !== shelvedBy)) return false;
+    // Two or more types: the server was sent none (typeFilterQuery), so every row is narrowed here.
+    if (narrowOnClient && !matchesTypes(row, types)) return false;
     // Only the type predicate runs on the server-paged lists: the server applied the rest there.
     if (pageChipOnListWithoutKind) return matchesChip(row, chip);
     const clientSide = loadedInFull || (mergedHome && row.type === "source");

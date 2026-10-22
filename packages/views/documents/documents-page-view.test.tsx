@@ -269,7 +269,7 @@ describe("DocumentsPageView", () => {
     expect(urls.some((url) => queryOf(url).get("cursor") === "c2")).toBe(true);
   });
 
-  it("filters by the type chips on the server: ?format= for file types, ?kind=page for UniNote", async () => {
+  it("filters by one picked type on the server: ?format= for file types, ?kind=page for UniNote", async () => {
     const urls: string[] = [];
     route({
       list: (path) => {
@@ -290,13 +290,14 @@ describe("DocumentsPageView", () => {
     expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
     expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
 
-    await pickTypeFilter("page");
+    // The menu is multi-select: toggle .docx off and UniNote on.
+    await pickTypeFilter("docx", "page");
     await waitFor(() => expect(urls.some((url) => queryOf(url).get("kind") === "page")).toBe(true));
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.queryByText("Báo giá.docx")).toBeNull();
   });
 
-  it("sets the same state through the Loại select as the chips did: the server query changes, the URL does not (UNI-2113)", async () => {
+  it("sets the same state through the Loại menu as the chips did: the server query changes, the URL does not (UNI-2113)", async () => {
     const urls: string[] = [];
     route({ list: (path) => (urls.push(path), queryOf(path).get("format") === "xlsx" ? [file("f2", "Số liệu.xlsx")] : [summary(), file("f2", "Số liệu.xlsx")]) });
     const { nav } = renderView(vi.fn());
@@ -1432,7 +1433,7 @@ describe("DocumentsPageView", () => {
         },
       });
       const { result } = renderHook(
-        () => useDocumentsLibrary({ wsId: WS, orgId: "org1", enabled: true, view: { kind: "home" }, folderId: "fo-cap", chip: "all" }),
+        () => useDocumentsLibrary({ wsId: WS, orgId: "org1", enabled: true, view: { kind: "home" }, folderId: "fo-cap", types: [] }),
         { wrapper: (props: { children: React.ReactNode }) => wrap(<>{props.children}</>) },
       );
 
