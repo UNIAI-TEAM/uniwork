@@ -9,7 +9,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/config"
 )
 
-// UNI-2113 contract A: the four document list routes document `type` as one
+// UNI-2113 contract A: the four document list routes and the sources route document `type` as one
 // query parameter that repeats (?type=docx&type=xlsx), so a generated client
 // sends one type= per value instead of a comma-joined string.
 func TestDocumentListsDocumentTheRepeatedTypeParam(t *testing.T) {
@@ -39,7 +39,7 @@ func TestDocumentListsDocumentTheRepeatedTypeParam(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := "/api/v1/workspaces/{workspaceID}/documents"
-	for _, path := range []string{base, base + "/recent", base + "/favorites", base + "/shared-with-me"} {
+	for _, path := range []string{base, base + "/recent", base + "/favorites", base + "/shared-with-me", base + "/sources"} {
 		found := false
 		for _, p := range spec.Paths[path]["get"].Parameters {
 			if p.Name != "type" {

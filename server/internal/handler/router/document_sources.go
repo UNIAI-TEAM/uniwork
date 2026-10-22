@@ -25,7 +25,7 @@ func registerDocumentSources(r api, h Routes, flags *featureflag.Service) {
 		summary: "List files from other sources",
 		description: "Tệp nằm ở Chat, Công việc, Cuộc họp và Email Hub mà người gọi được đọc theo đúng quyền của từng nơi: kênh riêng/tin nhắn riêng chỉ thành viên, " +
 			"đính kèm công việc theo thành viên workspace (không gồm ảnh dán trong mô tả), bản ghi cuộc họp đã xong, email chỉ hộp thư của chính người gọi. " +
-			"Lọc source/type/q (q không phân biệt hoa thường và dấu: \"hop dong\" tìm được \"Hợp đồng\"); mới nhất trước, cursor keyset ổn định qua mọi nguồn. " +
+			"Lọc source/type/q (q không phân biệt hoa thường và dấu: \"hop dong\" tìm được \"Hợp đồng\"); type lặp được (?type=docx&type=pdf, các giá trị cộng nhau; page không có tệp nguồn nên chọn riêng page trả trang rỗng); mới nhất trước, cursor keyset ổn định qua mọi nguồn. " +
 			"Mỗi dòng có can_save: false nghĩa là định dạng hoặc dung lượng không thể thành tài liệu. " +
 			"Lỗi: 400 invalid_request (source/type/q/cursor/limit sai), 403 member_deactivated | organization_suspended | agent, 404 workspace không thuộc người gọi.",
 		tags: []string{"documents"},

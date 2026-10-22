@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -59,6 +60,7 @@ var documentSourceTypeExts = map[string][]string{
 	"pdf":  {"pdf"},
 	"md":   {"md", "markdown"},
 	"html": {"html", "htm"},
+	"txt":  {"txt"},
 }
 
 // documentSourceAllExts is the whole source set: the document kinds only
@@ -66,7 +68,7 @@ var documentSourceTypeExts = map[string][]string{
 // the list, the lookup behind Open/ViewSource/Save and the frame mint all
 // filter by it.
 var documentSourceAllExts = func() []string {
-	all := []string{"txt"}
+	var all []string
 	for _, exts := range documentSourceTypeExts {
 		all = append(all, exts...)
 	}
@@ -115,7 +117,11 @@ func NewDocumentSourceService(d DocumentSourceDeps) *DocumentSourceService {
 // DocumentSourceFilter is the query of one list page.
 type DocumentSourceFilter struct {
 	Source string
-	Type   string
+	// Types is the repeated ?type= filter (UNI-2113), OR-ed: the extensions of
+	// every value. "page" is a list type sources cannot hold, so it adds none
+	// (a page-only pick is an empty page, never the whole set); a value no
+	// list accepts is a validation error. Nil is no constraint.
+	Types  []string
 	Q      string
 	Cursor string
 	Limit  int
@@ -205,7 +211,7 @@ func (s *DocumentSourceService) List(ctx context.Context, actor Actor, workspace
 		limit = DocumentSourceMaxLimit
 	}
 	dq := documentSourceQuery{orgID: ws.OrganizationID, workspaceID: workspaceID, viewerID: actor.ID, limit: int32(limit + 1)}
-	if dq.typeMode, dq.typeExts, err = documentSourceTypeFilter(f.Type); err != nil {
+	if dq.typeMode, dq.typeExts, err = documentSourceTypeFilter(f.Types); err != nil {
 		return DocumentSourcePage{}, err
 	}
 	if q := strings.TrimSpace(f.Q); q != "" {
@@ -239,6 +245,9 @@ func (s *DocumentSourceService) List(ctx context.Context, actor Actor, workspace
 	}
 	if f.Sort.Active() && !dq.sort.key.Valid {
 		dq.sort = sortArgs(f.Sort, DocumentSortCursor{}, nil, "")
+	}
+	if len(dq.typeExts) == 0 {
+		sources = nil
 	}
 	var all []DocumentSourceItem
 	for _, src := range sources {
@@ -607,15 +616,30 @@ func documentSourcesFor(source string) ([]string, error) {
 	return nil, Invalid("source phải là chat, task, meeting hoặc email")
 }
 
-func documentSourceTypeFilter(t string) (string, []string, error) {
-	t = strings.TrimSpace(t)
-	if t == "" {
+// documentSourceTypeFilter turns the repeated ?type= values into the extension
+// set the queries match. The vocabulary is the document lists' (UNI-2113): page
+// or one of the seven formats; page maps to no extension, so the union can be
+// empty and the list is then an empty page.
+func documentSourceTypeFilter(types []string) (string, []string, error) {
+	if len(types) == 0 {
 		return "ext", documentSourceAllExts, nil
 	}
-	if exts, ok := documentSourceTypeExts[t]; ok {
-		return "ext", exts, nil
+	exts := []string{}
+	for _, t := range types {
+		if t == DocumentTypePage {
+			continue
+		}
+		add, ok := documentSourceTypeExts[t]
+		if !ok {
+			return "", nil, Invalid("type phải là page, docx, xlsx, pptx, pdf, md, html hoặc txt")
+		}
+		for _, e := range add {
+			if !slices.Contains(exts, e) {
+				exts = append(exts, e)
+			}
+		}
 	}
-	return "", nil, Invalid("type phải là docx, xlsx, pptx, pdf, md hoặc html")
+	return "ext", exts, nil
 }
 
 func documentSourceExtension(name string) string {
