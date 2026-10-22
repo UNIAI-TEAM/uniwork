@@ -94,7 +94,7 @@ env:
   # Pinned: a new Maestro changes how flows run; bump it in its own PR.
   MAESTRO_VERSION: "2.11.0"
   # The iOS job's Xcode (scripts/select-xcode.sh), the same as mobile-verify.yml's.
-  XCODE_VERSION: "27.0"
+  XCODE_VERSION: "26.6"
   # The store release's eas-cli (chat-mobile-release.yml), for the eas-local job.
   EAS_CLI_VERSION: "24.12.0"
   EXPO_NO_TELEMETRY: "1"

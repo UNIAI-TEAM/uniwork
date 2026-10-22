@@ -157,7 +157,7 @@ env:
   # The same Maestro the nightly pins (chat-mobile-verify.yml).
   MAESTRO_VERSION: "2.11.0"
   # The Xcode the iOS simulator build uses, the same as the nightly's (chat-mobile-verify.yml).
-  XCODE_VERSION: "27.0"
+  XCODE_VERSION: "26.6"
   # ktlint over the local Expo modules' Kotlin, with the release binary's checksum.
   KTLINT_VERSION: "1.5.0"
   KTLINT_SHA256: a16be01dcc480aab2f55f444b620142152f66e31564b3b9376506d624c28a2ad
@@ -654,8 +654,10 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
       - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
-      # SDK 57 needs Xcode 27. Pinned (XCODE_VERSION), never "the newest on the
-      # image": a runner image update must not swap in another Xcode or a beta.
+      # The newest Xcode GitHub's macos-26 image ships (26.6 as of 2026-10; Xcode 27
+      # is not on it yet). Pinned (XCODE_VERSION), never "the newest on the image":
+      # a runner image update must not swap in another Xcode or a beta. EAS builds
+      # with its own image; move this to 27.0 in both workflows once GitHub has it.
       - name: Select Xcode
         run: scripts/select-xcode.sh "$XCODE_VERSION"
       - name: Prebuild and install the pods

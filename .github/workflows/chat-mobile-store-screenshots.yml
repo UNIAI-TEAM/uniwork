@@ -35,7 +35,7 @@ env:
   JAVA_VERSION: "17"
   # The same Maestro and Xcode as chat-mobile-verify.yml: bump them there and here together.
   MAESTRO_VERSION: "2.11.0"
-  XCODE_VERSION: "27.0"
+  XCODE_VERSION: "26.6"
   EXPO_NO_TELEMETRY: "1"
   UNICHAT_ENV: staging
   UNICHAT_API_URL: ${{ vars.MAESTRO_API_URL }}
