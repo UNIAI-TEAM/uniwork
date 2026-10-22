@@ -146,7 +146,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	})
 	r.Get("/workspaces/{workspaceID}/chat/sync", h.GetChatSync, apiOp{
 		summary:     "Sync chat changes",
-		description: "Nhật ký thay đổi chat của tổ chức (ADR 0039 nháp): mọi tin được tạo, sửa (cả biểu cảm, phiếu, ghim) hay xoá sau since, mỗi tin một dòng kèm bản người gọi đọc được lúc này, chỉ trong phòng đọc được từ workspace này. reset=true khi since quá cũ: tải lại rồi đồng bộ tiếp từ head. Chỉ đọc.",
+		description: "Nhật ký thay đổi chat của tổ chức (ADR 0039 nháp): mọi tin được tạo, sửa (cả biểu cảm, phiếu, ghim) hay xoá sau since, mỗi tin một dòng kèm bản người gọi đọc được lúc này, chỉ trong phòng đọc được từ workspace này. Mỗi trang tối đa 200 thay đổi; more=true thì hỏi tiếp với since=head. reset=true chỉ khi since quá cũ (nhật ký đã cắt) hay mới hơn nhật ký: tải lại rồi đồng bộ tiếp từ head. Chỉ đọc.",
 		tags:        []string{"chat"},
 		sdi:         sdi.ChatSyncSDI{},
 		sdo:         sdo.ChatSyncSDO{},

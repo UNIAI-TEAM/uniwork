@@ -152,12 +152,81 @@ func TestChatSyncTellsAClientTooFarBehindToReload(t *testing.T) {
 		t.Fatalf("right at the oldest change kept: err=%v page=%+v", err, kept)
 	}
 
-	// More changes than one answer carries: reloading costs less.
+	// More changes than one page carries: pages, not a reset. Each page ends at
+	// its last change and says more; the last one ends at the head.
 	for i := 0; i <= ChatSyncMaxChanges; i++ {
 		s.recordChatChange(ctx, db.ChatRoom{ID: m.RoomID}, m.ID, ChatChangeUpdated)
 	}
-	far, err := s.SyncChatChanges(ctx, ua.ID, w.ID, kept.Head, true)
-	if err != nil || !far.Reset || far.Head != kept.Head+ChatSyncMaxChanges+1 {
-		t.Fatalf("too far behind: err=%v page=%+v", err, far)
+	first, err := s.SyncChatChanges(ctx, ua.ID, w.ID, kept.Head, true)
+	if err != nil || first.Reset || !first.More || first.Head != kept.Head+ChatSyncMaxChanges || len(first.Changes) != 1 {
+		t.Fatalf("first page: err=%v reset=%v more=%v head=%d changes=%d", err, first.Reset, first.More, first.Head, len(first.Changes))
+	}
+	rest, err := s.SyncChatChanges(ctx, ua.ID, w.ID, first.Head, true)
+	if err != nil || rest.Reset || rest.More || rest.Head != kept.Head+ChatSyncMaxChanges+1 || len(rest.Changes) != 1 {
+		t.Fatalf("last page: err=%v page=%+v", err, rest)
+	}
+}
+
+// Review P2: the page cap counted the whole organization's log, so a busy
+// organization answered reset to every live check of every phone, even when
+// nothing changed in a room the caller reads.
+func TestChatSyncDoesNotCountRoomsTheCallerCannotRead(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	uc := registerVerified(t, q, as, "chat-sync-c@example.com", "C")
+	for _, u := range []db.User{ub, uc} {
+		addOrgMember(t, q, w.OrganizationID, u.ID)
+		addWorkspaceMember(t, q, w.ID, u.ID)
+	}
+	start, err := s.SyncChatChanges(ctx, uc.ID, w.ID, 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("dm: %v", err)
+	}
+	private, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{Body: "riêng"})
+	if err != nil {
+		t.Fatalf("send dm: %v", err)
+	}
+	for i := 0; i < ChatSyncMaxChanges+50; i++ {
+		s.recordChatChange(ctx, db.ChatRoom{ID: dm.ID, OrganizationID: w.OrganizationID}, private.ID, ChatChangeUpdated)
+	}
+	public, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "chung"})
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	page, err := s.SyncChatChanges(ctx, uc.ID, w.ID, start.Head, true)
+	if err != nil || page.Reset || page.More || len(page.Changes) != 1 || page.Changes[0].MessageID != public.ID {
+		t.Fatalf("C reads only the public change, in one page: err=%v reset=%v more=%v changes=%+v", err, page.Reset, page.More, page.Changes)
+	}
+	member, err := s.SyncChatChanges(ctx, ub.ID, w.ID, start.Head, true)
+	if err != nil || member.Reset || !member.More {
+		t.Fatalf("B, in the DM, pages through it: err=%v reset=%v more=%v", err, member.Reset, member.More)
+	}
+}
+
+// Review P2: the log row was written on the request's context after the
+// commit, so a sender whose phone dropped right then lost the row, and a
+// reconnect that syncs no longer refetches what it shows.
+func TestChatChangeIsRecordedAfterTheRequestIsGone(t *testing.T) {
+	s, _, _, ua, _, w, _ := chatFixtureWithPool(t)
+	ctx := context.Background()
+	start, err := s.SyncChatChanges(ctx, ua.ID, w.ID, 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone, cancel := context.WithCancel(ctx)
+	cancel()
+	s.recordChatChange(gone, db.ChatRoom{ID: m.RoomID}, m.ID, ChatChangeUpdated)
+	page, err := s.SyncChatChanges(ctx, ua.ID, w.ID, start.Head, true)
+	if err != nil || page.Head != start.Head+2 {
+		t.Fatalf("the change of a cancelled request is in the log: err=%v page=%+v", err, page)
 	}
 }

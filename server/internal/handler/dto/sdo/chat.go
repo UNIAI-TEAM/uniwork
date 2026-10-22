@@ -62,7 +62,6 @@ type ChatCallLogDTO struct {
 	Participants    []VoiceCallParticipantDTO `json:"participants" description:"Những người có mặt trong cuộc gọi"`
 }
 
-// ChatCallLogListSDO is GET /workspaces/{workspaceID}/chat/call-logs.
 // ChatSyncChangeDTO is one changed message of GET .../chat/sync.
 type ChatSyncChangeDTO struct {
 	Seq       int64           `json:"seq" description:"Số thứ tự thay đổi cuối của tin trong trang" example:"1043"`
@@ -76,9 +75,11 @@ type ChatSyncChangeDTO struct {
 type ChatSyncSDO struct {
 	Head    int64               `json:"head" description:"Gửi lại làm since ở lần sau" example:"1043"`
 	Reset   bool                `json:"reset" description:"true: since quá cũ (hay mới hơn nhật ký); tải lại những gì đang hiện rồi đồng bộ tiếp từ head" example:"false"`
-	Changes []ChatSyncChangeDTO `json:"changes" description:"Mỗi tin một dòng, theo thứ tự thay đổi, chỉ trong các phòng người gọi đọc được từ workspace này"`
+	More    bool                `json:"more" description:"true: trang dừng ở 200 thay đổi, còn thay đổi sau head; hỏi tiếp với since=head" example:"false"`
+	Changes []ChatSyncChangeDTO `json:"changes" description:"Mỗi tin một dòng, theo thứ tự thay đổi, chỉ trong các phòng người gọi đọc được từ workspace này; tối đa 200 một trang"`
 }
 
+// ChatCallLogListSDO is GET /workspaces/{workspaceID}/chat/call-logs.
 type ChatCallLogListSDO struct {
 	CallLogs   []ChatCallLogDTO `json:"call_logs" description:"Mới nhất trước"`
 	NextCursor *string          `json:"next_cursor" description:"Con trỏ trang kế; null ở trang cuối" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`

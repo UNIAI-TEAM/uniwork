@@ -68,15 +68,21 @@ Phần không đổi luật nào đã land, để reconnect của điện thoạ
 - `chat_changes` + `chat_change_heads` (migration `9991792654508195_chat_changes`): thứ tự theo **tổ chức**, không
   theo workspace — DM và nhóm thuộc tổ chức, không thuộc workspace nào. Ghi bởi `ChatService.recordChatChange`
   (`server/internal/service/chat_changes.go`) ngay sau commit, cạnh frame (ba helper publish), trong một transaction
-  ngắn riêng: khoá dòng head xếp thứ tự người ghi nên thứ tự seq là thứ tự commit. Ghi lỗi thì log và thiếu một
-  dòng — cùng mất mát như frame rơi hôm nay; không phải exactly-once của 0009 (đó là phần cần chấp nhận). Giữ
+  ngắn riêng: khoá dòng head xếp thứ tự người ghi nên thứ tự seq là thứ tự commit. Lần ghi tách khỏi request
+  (`context.WithoutCancel`, hạn 5 s), nên người gửi rớt mạng ngay sau commit không làm mất dòng. Ghi lỗi thì log và
+  thiếu một dòng — cùng mất mát như frame rơi hôm nay; không phải exactly-once của 0009 (đó là phần cần chấp nhận). Giữ
   50.000 thay đổi mới nhất mỗi tổ chức (cắt mỗi 1.000 lần ghi).
 - `GET /api/v1/workspaces/{ws}/chat/sync?since=` (`ChatService.SyncChatChanges`): mỗi tin một dòng (thay đổi cuối),
-  kèm bản người gọi đọc được lúc này hoặc `null` khi đã xoá, chỉ trong phòng đọc được từ workspace đó; không có
-  `since` thì chỉ trả `head`; `reset: true` khi `since` cũ hơn phần còn giữ, mới hơn head, hay quá 200 thay đổi.
+  kèm bản người gọi đọc được lúc này hoặc `null` khi đã xoá, chỉ trong phòng đọc được từ workspace đó (lọc ngay
+  trong truy vấn theo phòng người gọi là thành viên và kênh công khai của workspace, nên hoạt động riêng của người
+  khác không chiếm trang; mỗi phòng xác quyền một lần, tin của nó đọc một lần); không có `since` thì chỉ trả `head`.
+  Một trang tối đa 200 thay đổi: đầy thì `more: true` và `head` là thay đổi cuối của trang, client hỏi tiếp từ đó;
+  `reset: true` chỉ khi `since` cũ hơn phần còn giữ hay mới hơn head.
 - Điện thoại (`apps/chat-mobile/data/chat-sync/`, sau công tắc `unichat_mobile_chat_sync`): giữ `head` theo
-  người + workspace trên máy; reconnect và mỗi 60 s yên lặng lúc app ở trước gọi sync và vá cache, chỉ khi `reset`
-  hay lỗi mới đi đường cũ (invalidate và refetch mọi trang đã cuộn).
+  người + workspace trên máy; reconnect và mỗi 60 s yên lặng (chậm nhất 5 phút một lần khi frame chảy liên tục) lúc
+  app ở trước gọi sync, đi tiếp các trang `more` (tối đa 5 trang) và vá cache; chỉ khi `reset`, quá 5 trang hay lỗi
+  mới đi đường cũ (invalidate và refetch mọi trang đã cuộn). Reconnect đồng bộ được vẫn đọc phần mới sau tin mới
+  nhất của phòng đang hiện, phòng khi một dòng nhật ký bị thiếu.
 
 ## Trạng thái
 

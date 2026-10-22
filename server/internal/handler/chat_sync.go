@@ -34,7 +34,7 @@ func (h *handlers) getChatSync(w http.ResponseWriter, r *http.Request) {
 }
 
 func toChatSyncSDO(page service.ChatSyncPage) sdo.ChatSyncSDO {
-	out := sdo.ChatSyncSDO{Head: page.Head, Reset: page.Reset, Changes: make([]sdo.ChatSyncChangeDTO, 0, len(page.Changes))}
+	out := sdo.ChatSyncSDO{Head: page.Head, Reset: page.Reset, More: page.More, Changes: make([]sdo.ChatSyncChangeDTO, 0, len(page.Changes))}
 	for _, c := range page.Changes {
 		change := sdo.ChatSyncChangeDTO{Seq: c.Seq, RoomID: c.RoomID, MessageID: c.MessageID, Kind: c.Kind}
 		if c.Message != nil {

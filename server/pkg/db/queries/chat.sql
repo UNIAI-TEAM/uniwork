@@ -201,6 +201,12 @@ INSERT INTO chat_messages (
 SELECT * FROM chat_messages
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL;
 
+-- name: ListChatMessagesInRoomByIDs :many
+-- GetChatMessageInRoom for many ids at once (the chat sync answer, one read per room).
+SELECT * FROM chat_messages
+WHERE room_id = sqlc.arg(room_id) AND workspace_id = sqlc.arg(workspace_id)
+  AND id = ANY(sqlc.arg(ids)::text[]) AND deleted_at IS NULL;
+
 -- name: GetChatMessageInRoomForUpdate :one
 -- Locks the row so a metadata read-modify-write cannot lose a concurrent one.
 SELECT * FROM chat_messages

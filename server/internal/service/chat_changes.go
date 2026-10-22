@@ -11,15 +11,23 @@ package service
 // The row is written right after the change commits, beside its frame (the
 // publish helpers), in a short transaction of its own: the head row's lock
 // orders the writers, so sequence order is commit order and a reader never
-// sees N+1 before N. A write that fails is logged and the change is missing
+// sees N+1 before N. It runs detached from the request (a sender whose phone
+// drops right after the commit must not take the row with it), under its own
+// short deadline. A write that still fails is logged and the change is missing
 // from the log, the same loss a dropped frame is today; it is not the
 // outbox's exactly-once (ADR 0009) because the log is a projection that a
 // reload rebuilds, not a business record.
+//
+// An answer is a page: at most ChatSyncMaxChanges changes of rooms the caller
+// could read, and More when the log holds more after it. The client asks again
+// from the page's head; only a since the log no longer holds (trimmed) or has
+// never held (ahead of it) is a reset.
 
 import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -37,9 +45,12 @@ const (
 	chatChangeRetention = 50_000
 	chatChangeTrimEvery = 1_000
 
-	// ChatSyncMaxChanges bounds one sync answer: past it, reloading the rooms
-	// on screen costs less than re-reading every changed message.
+	// ChatSyncMaxChanges bounds one sync page; past it the answer says More
+	// and the client asks again from its head.
 	ChatSyncMaxChanges = 200
+
+	// chatChangeWriteTimeout bounds the detached log write.
+	chatChangeWriteTimeout = 5 * time.Second
 )
 
 // ChatSyncChange is one changed message, as the caller may read it now.
@@ -59,7 +70,9 @@ type ChatSyncPage struct {
 	Head int64
 	// Reset: the client is too far behind (or ahead, a restored database);
 	// it reloads what it shows and starts again from Head.
-	Reset   bool
+	Reset bool
+	// More: the page stopped at ChatSyncMaxChanges; more changes follow Head.
+	More    bool
 	Changes []ChatSyncChange
 }
 
@@ -70,6 +83,10 @@ func (s *ChatService) recordChatChange(ctx context.Context, room db.ChatRoom, me
 	if s.pool == nil || messageID == "" {
 		return
 	}
+	// The business change has committed: the request going away (a phone that
+	// dropped right after its send) must not drop the log row with it.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), chatChangeWriteTimeout)
+	defer cancel()
 	orgID := room.OrganizationID
 	if orgID == "" {
 		full, err := s.q.GetChatRoomByID(ctx, room.ID)
@@ -139,46 +156,49 @@ func (s *ChatService) SyncChatChanges(ctx context.Context, userID, workspaceID s
 	if oldest == 0 || since < oldest-1 {
 		return ChatSyncPage{Head: head, Reset: true, Changes: []ChatSyncChange{}}, nil
 	}
-	rows, err := s.q.ListChatChangesSince(ctx, db.ListChatChangesSinceParams{OrganizationID: orgID, Since: since, RowLimit: ChatSyncMaxChanges + 1})
+	rows, err := s.q.ListReadableChatChangesSince(ctx, db.ListReadableChatChangesSinceParams{
+		OrganizationID: orgID, Since: since, Through: head, UserID: userID, WorkspaceID: workspaceID,
+		RowLimit: ChatSyncMaxChanges + 1,
+	})
 	if err != nil {
 		return ChatSyncPage{}, err
 	}
+	// The whole rest of the log up to head was scanned, unless the page is full.
+	page := ChatSyncPage{Head: head}
 	if len(rows) > ChatSyncMaxChanges {
-		return ChatSyncPage{Head: head, Reset: true, Changes: []ChatSyncChange{}}, nil
+		rows = rows[:ChatSyncMaxChanges]
+		page.Head, page.More = rows[len(rows)-1].Seq, true
 	}
-	page := ChatSyncPage{Head: since, Changes: []ChatSyncChange{}}
 	changes, err := s.readableChatChanges(ctx, userID, workspaceID, rows)
 	if err != nil {
 		return ChatSyncPage{}, err
 	}
 	page.Changes = changes
-	if len(rows) > 0 {
-		page.Head = rows[len(rows)-1].Seq
-	}
 	return page, nil
 }
 
 // readableChatChanges keeps the changes of rooms the caller may read, one per
 // message (its last change), each with the message as the caller sees it now.
-func (s *ChatService) readableChatChanges(ctx context.Context, userID, workspaceID string, rows []db.ListChatChangesSinceRow) ([]ChatSyncChange, error) {
-	readable := map[string]bool{}
+// Each room is authorized once and its changed messages are read together.
+func (s *ChatService) readableChatChanges(ctx context.Context, userID, workspaceID string, rows []db.ListReadableChatChangesSinceRow) ([]ChatSyncChange, error) {
+	rooms := map[string]*db.ChatRoom{}
 	last := map[string]int{}
-	var out []ChatSyncChange
+	out := []ChatSyncChange{}
 	for _, row := range rows {
-		ok, seen := readable[row.RoomID]
+		room, seen := rooms[row.RoomID]
 		if !seen {
-			_, err := s.authorizeRoomRead(ctx, userID, workspaceID, row.RoomID)
+			r, err := s.authorizeRoomRead(ctx, userID, workspaceID, row.RoomID)
 			switch {
 			case err == nil:
-				ok = true
+				room = &r
 			case errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden):
-				ok = false
+				room = nil
 			default:
 				return nil, err
 			}
-			readable[row.RoomID] = ok
+			rooms[row.RoomID] = room
 		}
-		if !ok {
+		if room == nil {
 			continue
 		}
 		change := ChatSyncChange{Seq: row.Seq, RoomID: row.RoomID, MessageID: row.MessageID, Kind: row.Kind}
@@ -197,22 +217,84 @@ func (s *ChatService) readableChatChanges(ctx context.Context, userID, workspace
 		last[row.MessageID] = len(out)
 		out = append(out, change)
 	}
-	for i := range out {
-		if out[i].Kind == ChatChangeDeleted {
-			continue
-		}
-		msg, err := s.GetRoomMessage(ctx, userID, workspaceID, out[i].RoomID, out[i].MessageID)
-		switch {
-		case err == nil:
-			out[i].Message = &msg
-		case errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden):
-			out[i].Kind = ChatChangeDeleted
-		default:
-			return nil, err
-		}
-	}
-	if out == nil {
-		out = []ChatSyncChange{}
+	if err := s.attachSyncMessages(ctx, userID, rooms, out); err != nil {
+		return nil, err
 	}
 	return out, nil
+}
+
+// attachSyncMessages reads the messages of the changes that are not deletes,
+// one query per room, and dresses them as GetRoomMessage would (media signed,
+// thread participants, documents resolved). A message no longer there is a
+// delete to the client.
+func (s *ChatService) attachSyncMessages(ctx context.Context, userID string, rooms map[string]*db.ChatRoom, changes []ChatSyncChange) error {
+	byRoom := map[string][]string{}
+	var order []string
+	for _, c := range changes {
+		if c.Kind == ChatChangeDeleted {
+			continue
+		}
+		if _, ok := byRoom[c.RoomID]; !ok {
+			order = append(order, c.RoomID)
+		}
+		byRoom[c.RoomID] = append(byRoom[c.RoomID], c.MessageID)
+	}
+	found := map[string]ChatMessageRow{}
+	for _, roomID := range order {
+		room := *rooms[roomID]
+		msgs, err := s.q.ListChatMessagesInRoomByIDs(ctx, db.ListChatMessagesInRoomByIDsParams{
+			RoomID: roomID, WorkspaceID: roomAnchorWorkspaceID(room), Ids: byRoom[roomID],
+		})
+		if err != nil {
+			return err
+		}
+		names, err := s.senderNames(ctx, msgs)
+		if err != nil {
+			return err
+		}
+		dressed := make([]ChatMessageRow, 0, len(msgs))
+		for _, m := range msgs {
+			dressed = append(dressed, chatMessageRowFromDBForViewer(m, names[m.SenderID], userID))
+		}
+		s.signChatMedia(ctx, room, dressed)
+		s.attachThreadParticipants(ctx, room, dressed)
+		s.resolveChatDocuments(ctx, room, dressed, userID)
+		for _, row := range dressed {
+			found[row.ID] = row
+		}
+	}
+	for i := range changes {
+		if changes[i].Kind == ChatChangeDeleted {
+			continue
+		}
+		if row, ok := found[changes[i].MessageID]; ok {
+			changes[i].Message = &row
+		} else {
+			changes[i].Kind = ChatChangeDeleted
+		}
+	}
+	return nil
+}
+
+// senderNames is the display name of each sender of msgs, in one read.
+func (s *ChatService) senderNames(ctx context.Context, msgs []db.ChatMessage) (map[string]string, error) {
+	names := map[string]string{}
+	if len(msgs) == 0 {
+		return names, nil
+	}
+	ids := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		if _, ok := names[m.SenderID]; !ok {
+			names[m.SenderID] = ""
+			ids = append(ids, m.SenderID)
+		}
+	}
+	users, err := s.q.GetUsersByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, u := range users {
+		names[u.ID] = u.DisplayName
+	}
+	return names, nil
 }

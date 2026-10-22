@@ -2065,6 +2065,59 @@ func (q *Queries) ListChatMessagesInRoomBetween(ctx context.Context, arg ListCha
 	return items, nil
 }
 
+const listChatMessagesInRoomByIDs = `-- name: ListChatMessagesInRoomByIDs :many
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id FROM chat_messages
+WHERE room_id = $1 AND workspace_id = $2
+  AND id = ANY($3::text[]) AND deleted_at IS NULL
+`
+
+type ListChatMessagesInRoomByIDsParams struct {
+	RoomID      string   `json:"room_id"`
+	WorkspaceID string   `json:"workspace_id"`
+	Ids         []string `json:"ids"`
+}
+
+// GetChatMessageInRoom for many ids at once (the chat sync answer, one read per room).
+func (q *Queries) ListChatMessagesInRoomByIDs(ctx context.Context, arg ListChatMessagesInRoomByIDsParams) ([]ChatMessage, error) {
+	rows, err := q.db.Query(ctx, listChatMessagesInRoomByIDs, arg.RoomID, arg.WorkspaceID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChatMessage{}
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.RoomID,
+			&i.WorkspaceID,
+			&i.SenderID,
+			&i.Kind,
+			&i.Body,
+			&i.Metadata,
+			&i.ReplyToMessageID,
+			&i.EditedAt,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.SenderKind,
+			&i.ClientMsgID,
+			&i.ThreadRootID,
+			&i.ReplyCount,
+			&i.LastReplyAt,
+			&i.MirroredFromCommentID,
+			&i.FileID,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChatRoomAvatarFileIDs = `-- name: ListChatRoomAvatarFileIDs :many
 SELECT avatar_file_id FROM chat_rooms
 WHERE avatar_file_id = ANY($1::text[])

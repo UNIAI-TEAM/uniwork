@@ -63,35 +63,62 @@ func (q *Queries) InsertChatChange(ctx context.Context, arg InsertChatChangePara
 	return err
 }
 
-const listChatChangesSince = `-- name: ListChatChangesSince :many
-SELECT seq, room_id, message_id, kind FROM chat_changes
-WHERE organization_id = $1 AND seq > $2
-ORDER BY seq
-LIMIT $3
+const listReadableChatChangesSince = `-- name: ListReadableChatChangesSince :many
+SELECT c.seq, c.room_id, c.message_id, c.kind FROM chat_changes c
+WHERE c.organization_id = $1
+  AND c.seq > $2 AND c.seq <= $3
+  AND (
+    c.room_id IN (
+      SELECT m.room_id FROM chat_room_members m
+      WHERE m.user_id = $4 AND m.status IN ('invited', 'active')
+    )
+    OR c.room_id IN (
+      SELECT r.id FROM chat_rooms r
+      WHERE r.workspace_id = $5::text AND r.kind = 'channel' AND r.visibility = 'public'
+        AND r.archived_at IS NULL
+    )
+  )
+ORDER BY c.seq
+LIMIT $6
 `
 
-type ListChatChangesSinceParams struct {
+type ListReadableChatChangesSinceParams struct {
 	OrganizationID string `json:"organization_id"`
 	Since          int64  `json:"since"`
+	Through        int64  `json:"through"`
+	UserID         string `json:"user_id"`
+	WorkspaceID    string `json:"workspace_id"`
 	RowLimit       int32  `json:"row_limit"`
 }
 
-type ListChatChangesSinceRow struct {
+type ListReadableChatChangesSinceRow struct {
 	Seq       int64  `json:"seq"`
 	RoomID    string `json:"room_id"`
 	MessageID string `json:"message_id"`
 	Kind      string `json:"kind"`
 }
 
-func (q *Queries) ListChatChangesSince(ctx context.Context, arg ListChatChangesSinceParams) ([]ListChatChangesSinceRow, error) {
-	rows, err := q.db.Query(ctx, listChatChangesSince, arg.OrganizationID, arg.Since, arg.RowLimit)
+// The changes after since, up to through (the head read first, so a page never
+// runs past the head it answers with), in rooms the caller could read: rooms it
+// is an invited or active member of, and the live public channels of the
+// workspace. A superset of authorizeRoomRead, which still decides each room;
+// it keeps other people's private activity from filling the page.
+func (q *Queries) ListReadableChatChangesSince(ctx context.Context, arg ListReadableChatChangesSinceParams) ([]ListReadableChatChangesSinceRow, error) {
+	rows, err := q.db.Query(ctx, listReadableChatChangesSince,
+		arg.OrganizationID,
+		arg.Since,
+		arg.Through,
+		arg.UserID,
+		arg.WorkspaceID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListChatChangesSinceRow{}
+	items := []ListReadableChatChangesSinceRow{}
 	for rows.Next() {
-		var i ListChatChangesSinceRow
+		var i ListReadableChatChangesSinceRow
 		if err := rows.Scan(
 			&i.Seq,
 			&i.RoomID,
