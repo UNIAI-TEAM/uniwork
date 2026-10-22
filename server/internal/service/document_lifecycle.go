@@ -278,9 +278,12 @@ type archiveReplay struct {
 	BatchID    string `json:"batch_id"`
 }
 
-// ArchiveDocument moves a document and its subtree into the trash. Every
-// live node of the subtree must be manageable by the caller; the command
-// refuses a subtree that contains one it cannot manage.
+// ArchiveDocument moves a document and its subtree into the trash. The root
+// must be manageable by the caller. A page or file below it that the caller
+// cannot manage is not trashed: it leaves for the workspace root with its own
+// subtree (planSubtreeTrash, ADR 0037 point 5 as amended). A non-workspace
+// folder the caller cannot manage still refuses the whole command, as it is
+// never relocated.
 func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
 	var archiveLockOps *editLockOps
 	res, err := s.archiveDocument(ctx, actor, documentID, in, &archiveLockOps)
