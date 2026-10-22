@@ -525,6 +525,11 @@ lại — nhạc chuông, màn toàn màn hình, push khi app bị kill, OEM. Ch
   trở lại như trước.
 - [ ] B kill app, khoá máy; A gọi rồi gác ngay khi màn B vừa sáng (app còn đang mở lạnh): B thấy lại màn khoá của máy,
   không phải phòng chat với A.
+- [ ] B kill app, khoá máy; A gọi, B không chạm gì tới khi hết chuông: chậm nhất 75 s sau lần màn sáng, máy B về màn
+  khoá của máy (watchdog `CallLockScreen.HOLD_MS`), không để app mở trên màn khoá. Nghe rồi nói chuyện quá 75 s: màn cuộc
+  gọi vẫn ở trên màn khoá tới khi gác máy.
+- [ ] Cuộc gọi thoại ở loa trong: áp máy vào tai thì màn tắt (máy có cảm biến tiệm cận), bỏ ra thì sáng lại; chuyển loa
+  ngoài hay Bluetooth thì che cảm biến không tắt màn; gọi video không bao giờ tắt màn; gác máy thì màn không còn tắt khi che.
 - [ ] A gọi rồi đưa app xuống nền (Home) trước khi B nghe; B nghe: tiếng hai chiều vẫn còn ở A sau 2 phút, thông báo
   "đang diễn ra" của A chuyển sang đồng hồ; A mở lại app: không lỗi, cuộc gọi vẫn chạy.
 - [ ] Bản 0.2.x còn cài trên một máy Android khi server đã deploy: A gọi, máy đó vẫn hiện push "A đang gọi" (không
@@ -543,6 +548,8 @@ lại — nhạc chuông, màn toàn màn hình, push khi app bị kill, OEM. Ch
   "Lượt nhắc đến bạn", "Tin nhắn", "Thông báo khác" theo ngôn ngữ app; không còn kênh "Chat"; biểu tượng app có số
   tin chưa đọc (launcher hỗ trợ).
 - [ ] `FF_UNICHAT_MOBILE_CALLS=false`: không máy nào reo, cuộc gọi đang diễn ra vẫn tiếp tục với thông báo của nó.
+- [ ] B khoá máy (app ở nền) ngay sau khi đọc tin, A nhắn DM trong 10 s sau đó: B nhận push (không còn "im" 2 phút sau
+  khi rời app). B đang mở workspace X trên máy, A nhắn vào kênh của workspace Y: B vẫn nhận push của Y.
 - [ ] Không gì ngoài nút Nghe nhận cuộc gọi (audit bảo mật, `CallLaunchTokens.kt`). Trong lúc A đang gọi B, trên máy B:
   `adb shell am start -a android.intent.action.VIEW -d 'uniworkchat://open?url=<link chat của cuộc gọi>%26answer%3D1'`
   và cùng lệnh với `--es expo.modules.unichatcalls.CALL_LAUNCH <callId> --es expo.modules.unichatcalls.LAUNCH_TOKEN x

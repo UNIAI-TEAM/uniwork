@@ -23,6 +23,15 @@ export function audioOutputOptions(reported: readonly string[]): AudioOutput[] {
   return ORDER.filter((output) => reported.includes(output));
 }
 
+/**
+ * The screen goes off near the ear (Android's proximity wake lock, modules/unichat-calls › CallProximity): only for a
+ * voice call that is connected and plays on the earpiece. On the speaker, a headset or in a video call the person looks
+ * at the screen, and a hand over the sensor must not blank it.
+ */
+export function proximityScreenOff(call: { connected: boolean; video: boolean; output: AudioOutput }): boolean {
+  return call.connected && !call.video && call.output === "earpiece";
+}
+
 /** Only the phone's own two: a tap toggles between them, no list to choose from. */
 export function isSpeakerToggle(options: readonly AudioOutput[]): boolean {
   return options.every((output) => output === "speaker" || output === "earpiece");

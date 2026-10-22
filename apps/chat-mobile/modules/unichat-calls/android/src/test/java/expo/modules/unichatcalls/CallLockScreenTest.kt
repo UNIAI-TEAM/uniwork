@@ -8,7 +8,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Bundle
+import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
+import java.time.Duration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -120,6 +122,38 @@ class CallLockScreenTest {
     assertFalse(CallLaunchTokens.takeAnswered(app, "call-1", System.currentTimeMillis()))
     assertFalse(CallLockScreen.isCallLaunch(Intent(Intent.ACTION_MAIN)))
     assertFalse(CallLockScreen.isCallLaunch(null))
+  }
+
+  /** Runs the main looper's clock forward by [ms]. */
+  private fun advance(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
+
+  @Test
+  fun aLaunchThatNeverBecameACallGivesTheLockScreenBackOnItsOwn() {
+    // The ring's launch showed the app over the lock, then the call was over before the call screen came:
+    // nothing in JavaScript released it, the watchdog does once the ring window is past.
+    CallService.stop(app) // no call's service left from another test
+    val (open, _) = ring()
+    val activity = activity(open)
+    CallActivityListener().onCreate(activity, null)
+    assertTrue(shownOverLock(activity))
+    advance(CallLockScreen.HOLD_MS - 1_000)
+    assertTrue("still within the ring window", shownOverLock(activity))
+    advance(1_000)
+    assertFalse(shadowOf(activity).showWhenLocked)
+    assertFalse(shadowOf(activity).turnScreenOn)
+  }
+
+  @Test
+  fun aCallUnderWayKeepsTheLockScreenUntilItsServiceStops() {
+    val (_, answer) = ring()
+    val activity = activity(answer)
+    CallActivityListener().onCreate(activity, null)
+    val service = Robolectric.buildService(CallService::class.java).create()
+    advance(CallLockScreen.HOLD_MS * 3)
+    assertTrue("the call is under way", shownOverLock(activity))
+    service.destroy()
+    advance(CallLockScreen.HOLD_MS)
+    assertFalse(shadowOf(activity).showWhenLocked)
   }
 
   @Test

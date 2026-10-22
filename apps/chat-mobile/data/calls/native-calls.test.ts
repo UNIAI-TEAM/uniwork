@@ -17,6 +17,7 @@ function fakeModule(): UniChatCallsModule {
     canUseFullScreenIntent: vi.fn(() => false),
     openFullScreenIntentSettings: vi.fn(),
     releaseLockScreen: vi.fn(),
+    setProximityScreenOff: vi.fn(),
     takePendingActions: vi.fn(() => [{ action: "decline", callId: "c", roomId: "r", workspaceId: "w", callKind: "dm", at: 1 }]),
     takeAnsweredCall: vi.fn((callId: string) => callId === "c"),
   };
@@ -38,6 +39,7 @@ describe("nativeCalls", () => {
     expect(nativeCalls.canUseFullScreenIntent()).toBe(true);
     nativeCalls.openFullScreenIntentSettings();
     nativeCalls.releaseLockScreen();
+    nativeCalls.setProximityScreenOff(true);
     expect(nativeCalls.takePendingActions()).toEqual([]);
     expect(nativeCalls.takeAnsweredCall("c")).toBe(false);
   });
@@ -57,6 +59,7 @@ describe("nativeCalls", () => {
     expect(calls.canUseFullScreenIntent()).toBe(false);
     calls.openFullScreenIntentSettings();
     calls.releaseLockScreen();
+    calls.setProximityScreenOff(true);
     expect(calls.takePendingActions()).toHaveLength(1);
     expect(calls.takeAnsweredCall("c")).toBe(true);
     expect(calls.takeAnsweredCall("other")).toBe(false);
@@ -64,6 +67,8 @@ describe("nativeCalls", () => {
     expect(module.showIncomingCall).toHaveBeenCalledWith(INCOMING);
     expect(module.cancelIncomingCall).toHaveBeenCalledWith("c");
     expect(module.startOngoingCall).toHaveBeenCalledWith(ONGOING);
+    expect(module.setProximityScreenOff).toHaveBeenCalledWith(true);
+    expect(vi.mocked(module.setProximityScreenOff).mock.contexts[0]).toBe(module);
     for (const fn of [module.stopOngoingCall, module.startRinging, module.stopRinging, module.openFullScreenIntentSettings, module.releaseLockScreen]) {
       expect(fn).toHaveBeenCalledTimes(1);
       expect(vi.mocked(fn).mock.contexts[0]).toBe(module);

@@ -446,10 +446,15 @@ một dòng thì ghi lý do ở dòng trên.
   service `CallService` (`phoneCall`, thêm `microphone`/`camera` khi quyền đã cấp) với `CallStyle.forOngoingCall`;
   chỉ `startForegroundService` một lần, cập nhật sau đó đi thẳng tới service đang chạy, loại bị Android từ chối lúc đó
   thì giữ loại đã có và chỉ đổi thông báo (không bao giờ tự dừng service của cuộc gọi đang chạy),
-  `CallRinger`, Từ chối/Gác máy → `CallActionReceiver` → headless task `UniChatCallAction` (không khởi động được thì
+  `CallRinger`, `CallProximity` (wake lock `PROXIMITY_SCREEN_OFF` — màn tắt khi áp tai — chỉ khi cuộc gọi thoại đã nối
+  và âm thanh ở loa trong: `lib/audio-outputs.ts › proximityScreenOff`, gắn ở `audio-output-button.tsx`; nhả khi ra loa
+  ngoài/tai nghe, khi màn cuộc gọi đóng và trong `CallService.stop`; nhả bằng `RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY`; iOS
+  chưa có — gọi trên iPhone còn tắt), Từ chối/Gác máy → `CallActionReceiver` → headless task `UniChatCallAction` (không khởi động được thì
   `PendingActions` giữ tới lần mở sau), activity hiện trên màn khoá chỉ khi được mở bởi cuộc gọi
   (`CallLockScreen`, nhả khi cuộc gọi xong, và khi lần đổ chuông mở app không thành màn cuộc gọi — cuộc gọi đã kết thúc
-  lúc app mở lạnh, công tắc gọi tắt — trước khi tab Chat mở phòng, `use-deep-link-target.ts`; listener đăng ký qua `UniChatCallsPackage.kt` — autolinking chỉ nhận
+  lúc app mở lạnh, công tắc gọi tắt — trước khi tab Chat mở phòng, `use-deep-link-target.ts`; thêm một watchdog native:
+  `HOLD_MS` (75 s: cửa sổ chuông 60 s + mở lạnh) sau lần mở cuối mà không có dịch vụ cuộc gọi nào chạy thì tự nhả, dù JS
+  có làm gì, cuộc gọi đang diễn ra thì giữ và kiểm lại mỗi `HOLD_MS`; listener đăng ký qua `UniChatCallsPackage.kt` — autolinking chỉ nhận
   `Package` từ file tên `*Package.kt`). Mã Kotlin nằm trong git: `.gitignore` của app chỉ bỏ `/android/` và `/ios/` ở
   gốc; `native-modules.test.ts` đỏ khi git thiếu project native của module, khi có gì dưới đó bị ignore, khi một
   `Package` nằm sai file, hay khi autolinking không liệt kê `UniChatCallsPackage`. Khai báo ở `plugins/with-unichat-calls.js` (quyền, service, receiver; gỡ
@@ -495,7 +500,8 @@ một dòng thì ghi lý do ở dòng trên.
   `ShadowRefusingService` trong test giả lời từ chối theo loại của Android 14), `CallActionReceiver` (Từ chối gỡ thông báo
   đổ chuông, khởi task JS; Android không cho khởi thì hành động nằm ở `PendingActions`), `CallLockScreen` và listener của
   `UniChatCallsPackage` (chỉ lần mở có token đúng mới hiện trên màn khoá và ghi Nghe, một lần kể cả khi activity tạo
-  lại), `CallRinger` (im lặng không reo, rung chỉ rung); CI chạy
+  lại; watchdog trả màn khoá khi không thành cuộc gọi, giữ khi dịch vụ cuộc gọi chạy), `CallRinger` (im lặng không reo,
+  rung chỉ rung), `CallProximity` (giữ một lần, nhả khi tắt và khi cuộc gọi dừng, máy không có cảm biến thì không giữ); CI chạy
   `:unichat-calls:testReleaseUnitTest` cùng lượt Gradle của `android-release`. Thêm một test instrumented
   (`src/androidTest`, UiAutomator): cuộc gọi đến đăng qua `CallNotifications` hiện trong khay của System UI như một cuộc
   gọi có Nghe/Từ chối và biến mất khi huỷ; `android-release` build APK test (`:unichat-calls:assembleDebugAndroidTest`),

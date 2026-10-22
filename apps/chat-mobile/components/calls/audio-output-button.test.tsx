@@ -1,6 +1,7 @@
 import { AudioSession } from "@livekit/react-native";
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { Platform } from "react-native";
+import { nativeCalls } from "@/data/calls/native-calls";
 import { useToastStore } from "@/data/stores/toast-store";
 import { render, viText } from "@/test/render";
 import { AudioOutputButton } from "./audio-output-button";
@@ -13,7 +14,10 @@ jest.mock("@livekit/react-native", () => ({
   },
 }));
 
+jest.mock("@/data/calls/native-calls", () => ({ nativeCalls: { setProximityScreenOff: jest.fn() } }));
+
 const session = jest.mocked(AudioSession);
+const proximity = jest.mocked(nativeCalls.setProximityScreenOff);
 const os = Platform.OS;
 
 function setOS(value: typeof Platform.OS) {
@@ -65,6 +69,24 @@ describe("AudioOutputButton", () => {
     await render(<AudioOutputButton video connected />);
     await fireEvent.press(await screen.findByRole("button", { name: viText("chat.mobile.call_speaker") }));
     await waitFor(() => expect(session.selectAudioOutput).toHaveBeenCalledWith("earpiece"));
+  });
+
+  it("turns the screen off at the ear while a voice call plays on the earpiece, and back on off it", async () => {
+    const { unmount } = await render(<AudioOutputButton video={false} connected />);
+    await waitFor(() => expect(proximity).toHaveBeenLastCalledWith(true));
+    await fireEvent.press(await screen.findByRole("button", { name: viText("mobile.call_audio.earpiece") }));
+    // On the speaker the phone is not at the ear.
+    await waitFor(() => expect(proximity).toHaveBeenLastCalledWith(false));
+    await fireEvent.press(await screen.findByRole("button", { name: viText("chat.mobile.call_speaker") }));
+    await waitFor(() => expect(proximity).toHaveBeenLastCalledWith(true));
+    await unmount();
+    expect(proximity).toHaveBeenLastCalledWith(false);
+  });
+
+  it("leaves the screen alone for a video call and before the call connects", async () => {
+    await render(<AudioOutputButton video connected />);
+    await render(<AudioOutputButton video={false} connected={false} />);
+    expect(proximity).not.toHaveBeenCalledWith(true);
   });
 
   it("shows the system route picker on iOS", async () => {

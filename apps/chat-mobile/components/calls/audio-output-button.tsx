@@ -2,14 +2,18 @@
 // speaker and earpiece as before; with a wired or Bluetooth headset there a
 // tap lists every output (LiveKit's AudioSession) and marks the one in use.
 // iOS: the system's own route picker (speaker, receiver, AirPods, CarPlay).
+// A connected voice call on the earpiece turns the screen off at the ear
+// (Android; lib/audio-outputs.ts › proximityScreenOff), released when it moves
+// off the earpiece or the call screen goes.
 import { AudioSession } from "@livekit/react-native";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 import { ActionSheet } from "@/components/ui/action-sheet";
+import { nativeCalls } from "@/data/calls/native-calls";
 import { bestEffort } from "@/data/report";
 import { toast } from "@/data/stores/toast-store";
-import { AUDIO_OUTPUT_ICONS, AUDIO_OUTPUT_LABEL_KEYS, audioOutputOptions, automaticOutput, isSpeakerToggle, type AudioOutput } from "@/lib/audio-outputs";
+import { AUDIO_OUTPUT_ICONS, AUDIO_OUTPUT_LABEL_KEYS, audioOutputOptions, automaticOutput, isSpeakerToggle, proximityScreenOff, type AudioOutput } from "@/lib/audio-outputs";
 import { CallButton } from "./call-surface";
 
 /** The outputs LiveKit reports; none when it cannot say (the speaker toggle stands in). */
@@ -34,6 +38,14 @@ export function AudioOutputButton({ video, connected }: { video: boolean; connec
       cancelled = true;
     };
   }, [connected, ios, video]);
+
+  // The no-op module stands in on iOS, so no platform branch here.
+  const atTheEar = proximityScreenOff({ connected, video, output: current });
+  useEffect(() => {
+    if (!atTheEar) return;
+    nativeCalls.setProximityScreenOff(true);
+    return () => nativeCalls.setProximityScreenOff(false);
+  }, [atTheEar]);
 
   const choose = (output: AudioOutput) => {
     setOptions(null);

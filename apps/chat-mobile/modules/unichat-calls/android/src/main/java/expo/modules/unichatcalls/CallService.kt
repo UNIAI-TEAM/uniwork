@@ -131,9 +131,14 @@ class CallService : Service() {
       }
     }
 
+    /** A call's service is running: the call is under way (CallLockScreen's watchdog keeps the lock screen for it). */
+    fun isRunning(): Boolean = running != null
+
     fun stop(context: Context) {
       // Forgotten now, not at onDestroy: the next call's start must not update a service on its way out.
       running = null
+      // The screen turns off near the ear only during a call.
+      CallProximity.set(context, false)
       context.stopService(Intent(context, CallService::class.java))
     }
   }

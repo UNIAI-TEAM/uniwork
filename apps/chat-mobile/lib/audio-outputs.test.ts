@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AUDIO_OUTPUT_ICONS, AUDIO_OUTPUT_LABEL_KEYS, audioOutputOptions, automaticOutput, isSpeakerToggle, preferredOutputs } from "./audio-outputs";
+import { AUDIO_OUTPUT_ICONS, AUDIO_OUTPUT_LABEL_KEYS, audioOutputOptions, automaticOutput, isSpeakerToggle, preferredOutputs, proximityScreenOff } from "./audio-outputs";
 
 describe("audio outputs", () => {
   it("starts a voice call on the earpiece and a video call on the speaker, a headset before either", () => {
@@ -24,6 +24,13 @@ describe("audio outputs", () => {
     expect(isSpeakerToggle(["earpiece", "speaker"])).toBe(true);
     expect(isSpeakerToggle(["speaker"])).toBe(true);
     expect(isSpeakerToggle(["bluetooth", "earpiece", "speaker"])).toBe(false);
+  });
+
+  it("turns the screen off at the ear only for a connected voice call on the earpiece", () => {
+    expect(proximityScreenOff({ connected: true, video: false, output: "earpiece" })).toBe(true);
+    expect(proximityScreenOff({ connected: false, video: false, output: "earpiece" })).toBe(false);
+    expect(proximityScreenOff({ connected: true, video: true, output: "earpiece" })).toBe(false);
+    for (const output of ["speaker", "bluetooth", "headset"] as const) expect(proximityScreenOff({ connected: true, video: false, output })).toBe(false);
   });
 
   it("names and draws every output", () => {

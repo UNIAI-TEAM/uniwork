@@ -66,6 +66,8 @@ export interface UniChatCallsModule {
   canUseFullScreenIntent(): boolean;
   openFullScreenIntentSettings(): void;
   releaseLockScreen(): void;
+  /** Holds (true) or releases (false) the proximity wake lock: the screen goes off at the ear (CallProximity.kt). */
+  setProximityScreenOff(on: boolean): void;
   takePendingActions(): NativeCallAction[];
   /**
    * True once when this call's notification Answer button opened the app (its PendingIntent's token checked,

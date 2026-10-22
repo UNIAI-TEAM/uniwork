@@ -66,6 +66,10 @@ class UniChatCallsModule : Module() {
       (appContext.currentActivity ?: CallLockScreen.current())?.let { CallLockScreen.release(it) }
     }
 
+    Function("setProximityScreenOff") { on: Boolean ->
+      CallProximity.set(context, on)
+    }
+
     Function("takePendingActions") {
       PendingActions.take(context)
     }

@@ -20,6 +20,7 @@ const NONE: UniChatCallsModule = {
   canUseFullScreenIntent: () => true,
   openFullScreenIntentSettings: () => undefined,
   releaseLockScreen: () => undefined,
+  setProximityScreenOff: () => undefined,
   takePendingActions: (): NativeCallAction[] => [],
   takeAnsweredCall: () => false,
 };
@@ -39,6 +40,7 @@ export function nativeCallsFrom(module: UniChatCallsModule | null): NativeCalls 
     canUseFullScreenIntent: () => module.canUseFullScreenIntent(),
     openFullScreenIntentSettings: () => module.openFullScreenIntentSettings(),
     releaseLockScreen: () => module.releaseLockScreen(),
+    setProximityScreenOff: (on) => module.setProximityScreenOff(on),
     takePendingActions: () => module.takePendingActions(),
     takeAnsweredCall: (callId) => module.takeAnsweredCall(callId),
   };
