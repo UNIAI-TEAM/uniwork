@@ -27,7 +27,8 @@ export interface DocumentCopyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wsId: string;
-  doc: Document;
+  /** A list row is enough: only its id and title are read. */
+  doc: Pick<Document, "id" | "title">;
   /** Called with the new document after a verified copy. */
   onCopied?: (copy: Document) => void;
   /**

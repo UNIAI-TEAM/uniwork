@@ -41,6 +41,7 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   audit_export_ready: "workspace",
   document_break_glass: "workspace",
   document_trashed_by_other: "workspace",
+  document_changed: "updates",
   email_hub_new_mail: "updates",
   document_access_approved: "updates",
   document_access_declined: "updates",

@@ -6,6 +6,7 @@ import type { Notification, TaskStatus } from "@uniwork/core/types";
 import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { STATUS_CONFIG } from "../tasks/modes/status-config";
+import { documentChangedTitleKey, documentChangedTitleParams, isDocumentChanged } from "./document-changed";
 import { isPurgeDate, purgeDate } from "./trashed-notice";
 
 /** The share levels the client words; any other value (a newer server) reads level-less. */
@@ -45,6 +46,8 @@ export function titleParts(render: (params: Record<string, string>) => string, p
  * (`_nolevel`), never "Quyền: ." and never the raw enum.
  */
 export function notificationTitleKey(n: Notification): string {
+  // One kind, ten verbs and three shapes: the client words it from the row's facts (document-changed.ts).
+  if (isDocumentChanged(n)) return documentChangedTitleKey(n);
   if (n.kind === "document_edit_request_answered" && n.params.decision === "decline") {
     return "notifications.kind.document_edit_request_answered_declined";
   }
@@ -68,7 +71,10 @@ export function notificationTitleKey(n: Notification): string {
  */
 export function NotificationTitle({ notification: n, unread }: { notification: Notification; unread: boolean }) {
   const { t, i18n } = useTranslation();
-  const parts = titleParts((params) => t(notificationTitleKey(n), { ...params, defaultValue: n.kind }), n.params);
+  const parts = titleParts(
+    (params) => t(notificationTitleKey(n), { ...params, defaultValue: n.kind }),
+    isDocumentChanged(n) ? documentChangedTitleParams(n) : n.params,
+  );
   const isAgent = n.actor_kind === "agent";
 
   const render = (param: string, value: string): ReactNode => {

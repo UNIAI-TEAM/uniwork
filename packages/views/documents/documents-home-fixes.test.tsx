@@ -6,7 +6,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { DocumentsPageView } from "./documents-page-view";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { libraryLadder } from "./library-columns";
+import { specLadder } from "./library-columns";
 import { documentRow } from "./library-rows";
 import { favoriteRow } from "./starred-rows";
 
@@ -103,13 +103,10 @@ function route(routes: Routes) {
 
 const queryOf = (path: string) => new URLSearchParams(path.split("?")[1] ?? "");
 
-/** Picks a type in the home filter bar's "Loại" select (TRASH-A3 replaced the chip row at home). */
+/** Presses a type chip of the filter bar (one bar on every screen since UNI-2045 W10). */
 async function pickType(chip: string) {
-  fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) }));
-  const option = within(await screen.findByRole("listbox")).getByText(t(`documents.home.chips.${chip}`));
-  // Base UI only commits a click that started on the item with a pointer.
-  fireEvent.pointerDown(option);
-  fireEvent.click(option);
+  const chips = await screen.findByRole("group", { name: t("documents.home.chips_label") });
+  fireEvent.click(within(chips).getByRole("button", { name: t(`documents.home.chips.${chip}`) }));
 }
 const writes = (method: string) =>
   requestMock.mock.calls.filter(([, opts]) => (opts as { method?: string } | undefined)?.method === method);
@@ -283,7 +280,7 @@ describe("starred rows without a loaded copy (m1)", () => {
     render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(favoriteRow(fav, known))} handlers={handlers} ladder={libraryLadder()} />
+          <LibraryRowView row={documentRow(favoriteRow(fav, known))} handlers={handlers} ladder={specLadder("workspace", { selectable: false })} />
         </tbody>
       </table>,
     );
@@ -294,16 +291,35 @@ describe("starred rows without a loaded copy (m1)", () => {
     expect(screen.queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
   });
 
-  it("offers it once a loaded copy gives the organisation and version", () => {
+  it("offers it once a loaded copy gives the organisation and version, in the menu only: the row keeps no app button (RFD-16)", () => {
     renderRow({ id: "f1", organization_id: "org1", current_version: 2 });
-    expect(screen.getByRole("button", { name: t("office.desktop.row_action") })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
+    const actions = document.querySelector<HTMLElement>("td[data-column='actions']")!;
+    // This list row carries no quick star (the menu has it): the menu is the only button left in the cell.
+    expect(within(actions).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+      t("documents.home.row.menu", { title: "Báo giá.docx" }),
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Báo giá.docx" }) }));
+    expect(screen.getByRole("menuitem", { name: t("documents.home.row.open_app") })).toBeInTheDocument();
+  });
+
+  it("keeps the launch flow mounted for the menu item in a host that is out of the tab order and the accessibility tree (N6)", () => {
+    renderRow({ id: "f1", organization_id: "org1", current_version: 2 });
+    // The menu item runs the launch (and its install prompt) through this component, so it stays; its button is not drawn.
+    const host = document.querySelector<HTMLElement>("[data-app-open-host]")!;
+    expect(host).toHaveAttribute("hidden");
+    const button = host.querySelector<HTMLElement>("[data-office-desktop-action]")!;
+    expect(button).not.toBeVisible();
+    expect(screen.queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
+    // Nothing else of the row's actions cell is a hidden duplicate of the menu: the host is the only one.
+    expect(document.querySelectorAll("[data-office-desktop-action]")).toHaveLength(1);
   });
 
   it("shows a star marker next to the title on a starred row and none on an unstarred row", () => {
     const { unmount } = render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(favoriteRow(fav))} handlers={handlers} ladder={libraryLadder()} />
+          <LibraryRowView row={documentRow(favoriteRow(fav))} handlers={handlers} ladder={specLadder("workspace", { selectable: false })} />
         </tbody>
       </table>,
     );
@@ -316,7 +332,7 @@ describe("starred rows without a loaded copy (m1)", () => {
           <LibraryRowView
             row={documentRow(favoriteRow(fav))}
             handlers={{ ...handlers, isStarred: () => false }}
-            ladder={libraryLadder()}
+            ladder={specLadder("workspace", { selectable: false })}
           />
         </tbody>
       </table>,

@@ -1,0 +1,1024 @@
+{
+  "access": {
+    "cases": [
+      {
+        "label": "restricted, nobody else, view",
+        "my_level": "view",
+        "pill": "restricted",
+        "pill_text": {
+          "en": "Private",
+          "vi": "Riêng tư"
+        },
+        "share_scope": {
+          "home_workspace": false,
+          "organization": false,
+          "public_link": false,
+          "users": 0,
+          "workspaces": 0
+        },
+        "sub": {
+          "en": "You: View",
+          "vi": "Bạn: Xem"
+        },
+        "visibility": "restricted"
+      },
+      {
+        "label": "restricted, comment",
+        "my_level": "comment",
+        "pill": "restricted",
+        "pill_text": {
+          "en": "Private",
+          "vi": "Riêng tư"
+        },
+        "share_scope": {
+          "home_workspace": false,
+          "organization": false,
+          "public_link": false,
+          "users": 0,
+          "workspaces": 0
+        },
+        "sub": {
+          "en": "You: Comment",
+          "vi": "Bạn: Bình luận"
+        },
+        "visibility": "restricted"
+      },
+      {
+        "label": "restricted, edit",
+        "my_level": "edit",
+        "pill": "restricted",
+        "pill_text": {
+          "en": "Private",
+          "vi": "Riêng tư"
+        },
+        "share_scope": {
+          "home_workspace": false,
+          "organization": false,
+          "public_link": false,
+          "users": 0,
+          "workspaces": 0
+        },
+        "sub": {
+          "en": "You: Edit",
+          "vi": "Bạn: Sửa"
+        },
+        "visibility": "restricted"
+      },
+      {
+        "label": "restricted, manage",
+        "my_level": "manage",
+        "pill": "restricted",
+        "pill_text": {
+          "en": "Private",
+          "vi": "Riêng tư"
+        },
+        "share_scope": {
+          "home_workspace": false,
+          "organization": false,
+          "public_link": false,
+          "users": 0,
+          "workspaces": 0
+        },
+        "sub": {
+          "en": "You: Manage",
+          "vi": "Bạn: Quản lý"
+        },
+        "visibility": "restricted"
+      },
+      {
+        "label": "workspace visibility",
+        "my_level": "view",
+        "pill": "workspace",
+        "pill_text": {
+          "en": "Workspace",
+          "vi": "Workspace"
+        },
+        "share_scope": {
+          "home_workspace": true,
+          "organization": false,
+          "public_link": false,
+          "users": 0,
+          "workspaces": 0
+        },
+        "sub": {
+          "en": "You: View",
+          "vi": "Bạn: Xem"
+        },
+        "visibility": "workspace"
+      },
+      {
+        "label": "shared via people",
+        "my_level": "comment",
+        "pill": "shared",
+        "pill_text": {
+          "en": "Shared",
+          "vi": "Được chia sẻ"
+        },
+        "share_scope": {
+          "home_workspace": false,
+          "organization": false,
+          "public_link": false,
+          "users": 2,
+          "workspaces": 0
+        },
+        "sub": {
+          "en": "You: Comment",
+          "vi": "Bạn: Bình luận"
+        },
+        "visibility": "restricted"
+      },
+      {
+        "label": "shared via another workspace",
+        "my_level": "view",
+        "pill": "shared",
+        "pill_text": {
+          "en": "Shared",
+          "vi": "Được chia sẻ"
+        },
+        "share_scope": {
+          "home_workspace": false,
+          "organization": false,
+          "public_link": false,
+          "users": 0,
+          "workspaces": 1
+        },
+        "sub": {
+          "en": "You: View",
+          "vi": "Bạn: Xem"
+        },
+        "visibility": "restricted"
+      },
+      {
+        "label": "shared via the organization",
+        "my_level": "view",
+        "pill": "shared",
+        "pill_text": {
+          "en": "Shared",
+          "vi": "Được chia sẻ"
+        },
+        "share_scope": {
+          "home_workspace": false,
+          "organization": true,
+          "public_link": false,
+          "users": 0,
+          "workspaces": 0
+        },
+        "sub": {
+          "en": "You: View",
+          "vi": "Bạn: Xem"
+        },
+        "visibility": "restricted"
+      },
+      {
+        "label": "shared via a live public link only",
+        "my_level": "manage",
+        "pill": "shared",
+        "pill_text": {
+          "en": "Shared",
+          "vi": "Được chia sẻ"
+        },
+        "share_scope": {
+          "home_workspace": false,
+          "organization": false,
+          "public_link": true,
+          "users": 0,
+          "workspaces": 0
+        },
+        "sub": {
+          "en": "You: Manage",
+          "vi": "Bạn: Quản lý"
+        },
+        "visibility": "restricted"
+      },
+      {
+        "is_owner": true,
+        "label": "owner replaces the level line",
+        "my_level": "manage",
+        "pill": "restricted",
+        "pill_text": {
+          "en": "Private",
+          "vi": "Riêng tư"
+        },
+        "share_scope": {
+          "home_workspace": false,
+          "organization": false,
+          "public_link": false,
+          "users": 0,
+          "workspaces": 0
+        },
+        "sub": {
+          "en": "Owner",
+          "vi": "Chủ sở hữu"
+        },
+        "visibility": "restricted"
+      },
+      {
+        "is_owner": true,
+        "label": "owner of a shared document",
+        "my_level": "manage",
+        "pill": "shared",
+        "pill_text": {
+          "en": "Shared",
+          "vi": "Được chia sẻ"
+        },
+        "share_scope": {
+          "home_workspace": false,
+          "organization": false,
+          "public_link": false,
+          "users": 1,
+          "workspaces": 0
+        },
+        "sub": {
+          "en": "Owner",
+          "vi": "Chủ sở hữu"
+        },
+        "visibility": "restricted"
+      },
+      {
+        "is_owner": false,
+        "label": "is_owner false shows the level",
+        "my_level": "edit",
+        "pill": "restricted",
+        "pill_text": {
+          "en": "Private",
+          "vi": "Riêng tư"
+        },
+        "share_scope": {
+          "home_workspace": false,
+          "organization": false,
+          "public_link": false,
+          "users": 0,
+          "workspaces": 0
+        },
+        "sub": {
+          "en": "You: Edit",
+          "vi": "Bạn: Sửa"
+        },
+        "visibility": "restricted"
+      },
+      {
+        "label": "no level and no scope",
+        "my_level": null,
+        "pill": "restricted",
+        "pill_text": {
+          "en": "Private",
+          "vi": "Riêng tư"
+        },
+        "share_scope": null,
+        "sub": null,
+        "visibility": "restricted"
+      },
+      {
+        "label": "a level this client does not know",
+        "my_level": "superuser",
+        "pill": "workspace",
+        "pill_text": {
+          "en": "Workspace",
+          "vi": "Workspace"
+        },
+        "share_scope": null,
+        "sub": null,
+        "visibility": "workspace"
+      },
+      {
+        "admin_scope": true,
+        "label": "administrator without a level reads manage",
+        "my_level": null,
+        "pill": "restricted",
+        "pill_text": {
+          "en": "Private",
+          "vi": "Riêng tư"
+        },
+        "share_scope": null,
+        "sub": {
+          "en": "You: Manage",
+          "vi": "Bạn: Quản lý"
+        },
+        "visibility": "restricted"
+      }
+    ]
+  },
+  "bytes": {
+    "cases": [
+      {
+        "bytes": null,
+        "en": "—",
+        "label": "no size (null)",
+        "vi": "—"
+      },
+      {
+        "bytes": 0,
+        "en": "—",
+        "label": "zero",
+        "vi": "—"
+      },
+      {
+        "bytes": null,
+        "en": "—",
+        "label": "UniNote page (never a size)",
+        "vi": "—"
+      },
+      {
+        "bytes": 0,
+        "en": "—",
+        "label": "folder (never a size)",
+        "vi": "—"
+      },
+      {
+        "bytes": 23,
+        "en": "23 B",
+        "label": "bytes",
+        "vi": "23 B"
+      },
+      {
+        "bytes": 2970,
+        "en": "2.9 KB",
+        "label": "KB one decimal",
+        "vi": "2,9 KB"
+      },
+      {
+        "bytes": 1024,
+        "en": "1 KB",
+        "label": "exact KB",
+        "vi": "1 KB"
+      },
+      {
+        "bytes": 5033165,
+        "en": "4.8 MB",
+        "label": "MB one decimal",
+        "vi": "4,8 MB"
+      },
+      {
+        "bytes": 12582912,
+        "en": "12 MB",
+        "label": "10 units and up is whole",
+        "vi": "12 MB"
+      },
+      {
+        "bytes": 325632,
+        "en": "318 KB",
+        "label": "KB from 10 up is whole",
+        "vi": "318 KB"
+      },
+      {
+        "bytes": 1610612736,
+        "en": "1.5 GB",
+        "label": "GB",
+        "vi": "1,5 GB"
+      },
+      {
+        "bytes": 1048575,
+        "en": "1 MB",
+        "label": "rounds up to 1024 KB, rolls over to MB",
+        "vi": "1 MB"
+      },
+      {
+        "bytes": 1073741823,
+        "en": "1 GB",
+        "label": "rounds up to 1024 MB, rolls over to GB",
+        "vi": "1 GB"
+      },
+      {
+        "bytes": 1047552,
+        "en": "1,023 KB",
+        "label": "exactly 1023 KB stays in KB",
+        "vi": "1.023 KB"
+      },
+      {
+        "bytes": 10234,
+        "en": "10 KB",
+        "label": "9.99 KB reads as 10 KB",
+        "vi": "10 KB"
+      },
+      {
+        "bytes": 1099511627775,
+        "en": "1,024 GB",
+        "label": "just below 1 TB stays in GB (no larger unit)",
+        "vi": "1.024 GB"
+      }
+    ]
+  },
+  "dates": {
+    "cases": [
+      {
+        "at": "2026-10-21T23:41:00",
+        "en": "23:41",
+        "vi": "23:41"
+      },
+      {
+        "at": "2026-10-21T00:07:00",
+        "en": "00:07",
+        "vi": "00:07"
+      },
+      {
+        "at": "2026-10-20T16:30:00",
+        "en": "Yesterday, 16:30",
+        "vi": "Hôm qua, 16:30"
+      },
+      {
+        "at": "2026-10-20T00:00:00",
+        "en": "Yesterday, 00:00",
+        "vi": "Hôm qua, 00:00"
+      },
+      {
+        "at": "2026-10-19T23:59:00",
+        "en": "Oct 19",
+        "vi": "19/10"
+      },
+      {
+        "at": "2026-10-18T12:00:00",
+        "en": "Oct 18",
+        "vi": "18/10"
+      },
+      {
+        "at": "2026-01-03T12:00:00",
+        "en": "Jan 3",
+        "vi": "03/01"
+      },
+      {
+        "at": "2025-10-18T12:00:00",
+        "en": "Oct 18, 2025",
+        "vi": "18/10/2025"
+      },
+      {
+        "at": "2025-12-31T22:15:00",
+        "en": "Dec 31, 2025",
+        "vi": "31/12/2025"
+      },
+      {
+        "at": "2025-12-31T22:15:00",
+        "en": "Yesterday, 22:15",
+        "now": "2026-01-01T07:00:00",
+        "vi": "Hôm qua, 22:15"
+      },
+      {
+        "at": "2026-09-30T08:00:00",
+        "en": "Yesterday, 08:00",
+        "now": "2026-10-01T00:30:00",
+        "vi": "Hôm qua, 08:00"
+      },
+      {
+        "at": null,
+        "en": "—",
+        "vi": "—"
+      },
+      {
+        "at": "",
+        "en": "—",
+        "vi": "—"
+      },
+      {
+        "at": "not a date",
+        "en": "—",
+        "vi": "—"
+      }
+    ],
+    "now": "2026-10-21T09:05:00"
+  },
+  "days_left": {
+    "cases": [
+      {
+        "days": 30,
+        "en": "30 days left",
+        "label": "30 days",
+        "purge_after": "2026-11-20T09:05:00",
+        "vi": "Còn 30 ngày"
+      },
+      {
+        "days": 7,
+        "en": "7 days left",
+        "label": "exactly 7 days",
+        "purge_after": "2026-10-28T09:05:00",
+        "vi": "Còn 7 ngày"
+      },
+      {
+        "days": 8,
+        "en": "8 days left",
+        "label": "7 days and a minute rounds up to 8",
+        "purge_after": "2026-10-28T09:06:00",
+        "vi": "Còn 8 ngày"
+      },
+      {
+        "days": 8,
+        "en": "8 days left",
+        "label": "8 days",
+        "purge_after": "2026-10-29T09:05:00",
+        "vi": "Còn 8 ngày"
+      },
+      {
+        "days": 2,
+        "en": "2 days left",
+        "label": "a day and an hour",
+        "purge_after": "2026-10-22T10:05:00",
+        "vi": "Còn 2 ngày"
+      },
+      {
+        "days": 1,
+        "en": "1 day left",
+        "label": "exactly one day",
+        "purge_after": "2026-10-22T09:05:00",
+        "vi": "Còn 1 ngày"
+      },
+      {
+        "days": 1,
+        "en": "1 day left",
+        "label": "under a day",
+        "purge_after": "2026-10-21T20:00:00",
+        "vi": "Còn 1 ngày"
+      },
+      {
+        "days": 1,
+        "en": "1 day left",
+        "label": "an hour",
+        "purge_after": "2026-10-21T10:05:00",
+        "vi": "Còn 1 ngày"
+      },
+      {
+        "days": 1,
+        "en": "1 day left",
+        "label": "already past stays at 1",
+        "purge_after": "2026-10-21T09:00:00",
+        "vi": "Còn 1 ngày"
+      },
+      {
+        "days": null,
+        "en": null,
+        "label": "no date",
+        "purge_after": null,
+        "vi": null
+      },
+      {
+        "days": null,
+        "en": null,
+        "label": "invalid date",
+        "purge_after": "not a date",
+        "vi": null
+      }
+    ],
+    "now": "2026-10-21T09:05:00"
+  },
+  "groups": {
+    "cases": [
+      {
+        "en": "Today",
+        "group": "today",
+        "input": {
+          "at": "2026-10-21T00:00:00"
+        },
+        "label": "recent: today 00:00",
+        "now": "2026-10-21T09:05:00",
+        "screen": "recent",
+        "vi": "Hôm nay"
+      },
+      {
+        "en": "Today",
+        "group": "today",
+        "input": {
+          "at": "2026-10-21T23:00:00"
+        },
+        "label": "recent: later today",
+        "now": "2026-10-21T09:05:00",
+        "screen": "recent",
+        "vi": "Hôm nay"
+      },
+      {
+        "en": "Yesterday",
+        "group": "yesterday",
+        "input": {
+          "at": "2026-10-20T23:59:00"
+        },
+        "label": "recent: yesterday 23:59",
+        "now": "2026-10-21T09:05:00",
+        "screen": "recent",
+        "vi": "Hôm qua"
+      },
+      {
+        "en": "Yesterday",
+        "group": "yesterday",
+        "input": {
+          "at": "2026-10-20T00:00:00"
+        },
+        "label": "recent: yesterday 00:00",
+        "now": "2026-10-21T09:05:00",
+        "screen": "recent",
+        "vi": "Hôm qua"
+      },
+      {
+        "en": "This week",
+        "group": "this_week",
+        "input": {
+          "at": "2026-10-19T00:00:00"
+        },
+        "label": "recent: Monday 00:00 is this week",
+        "now": "2026-10-21T09:05:00",
+        "screen": "recent",
+        "vi": "Tuần này"
+      },
+      {
+        "en": "Earlier",
+        "group": "earlier",
+        "input": {
+          "at": "2026-10-18T23:59:00"
+        },
+        "label": "recent: Sunday 23:59 is earlier",
+        "now": "2026-10-21T09:05:00",
+        "screen": "recent",
+        "vi": "Trước đó"
+      },
+      {
+        "en": "Earlier",
+        "group": "earlier",
+        "input": {
+          "at": null
+        },
+        "label": "recent: no date",
+        "now": "2026-10-21T09:05:00",
+        "screen": "recent",
+        "vi": "Trước đó"
+      },
+      {
+        "en": "Earlier",
+        "group": "earlier",
+        "input": {
+          "at": "not a date"
+        },
+        "label": "recent: invalid date",
+        "now": "2026-10-21T09:05:00",
+        "screen": "recent",
+        "vi": "Trước đó"
+      },
+      {
+        "en": "Today",
+        "group": "today",
+        "input": {
+          "at": "2026-10-19T08:00:00"
+        },
+        "label": "recent on a Monday: this morning",
+        "now": "2026-10-19T10:00:00",
+        "screen": "recent",
+        "vi": "Hôm nay"
+      },
+      {
+        "en": "Yesterday",
+        "group": "yesterday",
+        "input": {
+          "at": "2026-10-18T23:00:00"
+        },
+        "label": "recent on a Monday: Sunday is yesterday",
+        "now": "2026-10-19T10:00:00",
+        "screen": "recent",
+        "vi": "Hôm qua"
+      },
+      {
+        "en": "Earlier",
+        "group": "earlier",
+        "input": {
+          "at": "2026-10-17T12:00:00"
+        },
+        "label": "recent on a Monday: Saturday is earlier",
+        "now": "2026-10-19T10:00:00",
+        "screen": "recent",
+        "vi": "Trước đó"
+      },
+      {
+        "en": "This week",
+        "group": "this_week",
+        "input": {
+          "at": "2026-10-19T00:00:00"
+        },
+        "label": "recent on a Sunday: Monday 00:00 is this week",
+        "now": "2026-10-25T20:00:00",
+        "screen": "recent",
+        "vi": "Tuần này"
+      },
+      {
+        "en": "This week",
+        "group": "this_week",
+        "input": {
+          "at": "2026-10-23T12:00:00"
+        },
+        "label": "recent on a Sunday: Friday is this week",
+        "now": "2026-10-25T20:00:00",
+        "screen": "recent",
+        "vi": "Tuần này"
+      },
+      {
+        "en": "Yesterday",
+        "group": "yesterday",
+        "input": {
+          "at": "2026-10-24T12:00:00"
+        },
+        "label": "recent on a Sunday: Saturday is yesterday",
+        "now": "2026-10-25T20:00:00",
+        "screen": "recent",
+        "vi": "Hôm qua"
+      },
+      {
+        "en": "Earlier",
+        "group": "earlier",
+        "input": {
+          "at": "2026-10-18T12:00:00"
+        },
+        "label": "recent on a Sunday: last Sunday is earlier",
+        "now": "2026-10-25T20:00:00",
+        "screen": "recent",
+        "vi": "Trước đó"
+      },
+      {
+        "en": "This week",
+        "group": "this_week",
+        "input": {
+          "at": "2026-10-21T08:00:00"
+        },
+        "label": "shared: today is this week",
+        "now": "2026-10-21T09:05:00",
+        "screen": "shared",
+        "vi": "Tuần này"
+      },
+      {
+        "en": "This week",
+        "group": "this_week",
+        "input": {
+          "at": "2026-10-20T08:00:00"
+        },
+        "label": "shared: yesterday is this week",
+        "now": "2026-10-21T09:05:00",
+        "screen": "shared",
+        "vi": "Tuần này"
+      },
+      {
+        "en": "This week",
+        "group": "this_week",
+        "input": {
+          "at": "2026-10-19T00:00:00"
+        },
+        "label": "shared: Monday 00:00 is this week",
+        "now": "2026-10-21T09:05:00",
+        "screen": "shared",
+        "vi": "Tuần này"
+      },
+      {
+        "en": "Earlier",
+        "group": "earlier",
+        "input": {
+          "at": "2026-10-18T23:59:00"
+        },
+        "label": "shared: Sunday 23:59 is earlier",
+        "now": "2026-10-21T09:05:00",
+        "screen": "shared",
+        "vi": "Trước đó"
+      },
+      {
+        "en": "This week",
+        "group": "this_week",
+        "input": {
+          "at": "2026-10-19T08:00:00"
+        },
+        "label": "shared on a Monday: this morning",
+        "now": "2026-10-19T10:00:00",
+        "screen": "shared",
+        "vi": "Tuần này"
+      },
+      {
+        "en": "Earlier",
+        "group": "earlier",
+        "input": {
+          "at": "2026-10-18T23:00:00"
+        },
+        "label": "shared on a Monday: yesterday (Sunday) is earlier",
+        "now": "2026-10-19T10:00:00",
+        "screen": "shared",
+        "vi": "Trước đó"
+      },
+      {
+        "en": "This week",
+        "group": "this_week",
+        "input": {
+          "at": "2026-10-19T00:00:00"
+        },
+        "label": "shared on a Sunday: Monday 00:00 is this week",
+        "now": "2026-10-25T20:00:00",
+        "screen": "shared",
+        "vi": "Tuần này"
+      },
+      {
+        "en": "Earlier",
+        "group": "earlier",
+        "input": {
+          "at": null
+        },
+        "label": "shared: no date",
+        "now": "2026-10-21T09:05:00",
+        "screen": "shared",
+        "vi": "Trước đó"
+      },
+      {
+        "en": "Deleting soon",
+        "group": "deleting_soon",
+        "input": {
+          "purgeAfter": "2026-10-28T09:05:00"
+        },
+        "label": "trash: 7 days left is deleting soon",
+        "now": "2026-10-21T09:05:00",
+        "screen": "trash",
+        "vi": "Sắp xóa vĩnh viễn"
+      },
+      {
+        "en": "More than 7 days left",
+        "group": "more_than_7_days",
+        "input": {
+          "purgeAfter": "2026-10-28T09:06:00"
+        },
+        "label": "trash: 7 days and a minute is more than 7",
+        "now": "2026-10-21T09:05:00",
+        "screen": "trash",
+        "vi": "Còn trên 7 ngày"
+      },
+      {
+        "en": "More than 7 days left",
+        "group": "more_than_7_days",
+        "input": {
+          "purgeAfter": "2026-10-29T09:05:00"
+        },
+        "label": "trash: 8 days",
+        "now": "2026-10-21T09:05:00",
+        "screen": "trash",
+        "vi": "Còn trên 7 ngày"
+      },
+      {
+        "en": "Deleting soon",
+        "group": "deleting_soon",
+        "input": {
+          "purgeAfter": "2026-10-21T20:00:00"
+        },
+        "label": "trash: under a day",
+        "now": "2026-10-21T09:05:00",
+        "screen": "trash",
+        "vi": "Sắp xóa vĩnh viễn"
+      },
+      {
+        "en": "Deleting soon",
+        "group": "deleting_soon",
+        "input": {
+          "purgeAfter": "2026-10-20T09:05:00"
+        },
+        "label": "trash: past due",
+        "now": "2026-10-21T09:05:00",
+        "screen": "trash",
+        "vi": "Sắp xóa vĩnh viễn"
+      },
+      {
+        "en": "More than 7 days left",
+        "group": "more_than_7_days",
+        "input": {
+          "purgeAfter": null
+        },
+        "label": "trash: no purge date",
+        "now": "2026-10-21T09:05:00",
+        "screen": "trash",
+        "vi": "Còn trên 7 ngày"
+      }
+    ],
+    "labels": {
+      "deleting_soon": {
+        "en": "Deleting soon",
+        "vi": "Sắp xóa vĩnh viễn"
+      },
+      "earlier": {
+        "en": "Earlier",
+        "vi": "Trước đó"
+      },
+      "more_than_7_days": {
+        "en": "More than 7 days left",
+        "vi": "Còn trên 7 ngày"
+      },
+      "this_week": {
+        "en": "This week",
+        "vi": "Tuần này"
+      },
+      "today": {
+        "en": "Today",
+        "vi": "Hôm nay"
+      },
+      "yesterday": {
+        "en": "Yesterday",
+        "vi": "Hôm qua"
+      }
+    }
+  },
+  "i18n_keys": [
+    "documents.list.access.level.comment",
+    "documents.list.access.level.edit",
+    "documents.list.access.level.manage",
+    "documents.list.access.level.view",
+    "documents.list.access.owner",
+    "documents.list.access.restricted",
+    "documents.list.access.shared",
+    "documents.list.access.workspace",
+    "documents.list.access.you",
+    "documents.list.activity.commented",
+    "documents.list.activity.edited",
+    "documents.list.activity.opened",
+    "documents.list.bulk.action.download",
+    "documents.list.bulk.action.move",
+    "documents.list.bulk.action.purge",
+    "documents.list.bulk.action.restore",
+    "documents.list.bulk.action.share",
+    "documents.list.bulk.action.shelve",
+    "documents.list.bulk.action.trash",
+    "documents.list.bulk.action.unshelve",
+    "documents.list.bulk.clear",
+    "documents.list.bulk.confirm.purge_action",
+    "documents.list.bulk.confirm.purge_description",
+    "documents.list.bulk.confirm.purge_title_one",
+    "documents.list.bulk.confirm.purge_title_other",
+    "documents.list.bulk.confirm.trash_action",
+    "documents.list.bulk.confirm.trash_description",
+    "documents.list.bulk.confirm.trash_title_one",
+    "documents.list.bulk.confirm.trash_title_other",
+    "documents.list.bulk.done.download",
+    "documents.list.bulk.done.move",
+    "documents.list.bulk.done.purge",
+    "documents.list.bulk.done.restore",
+    "documents.list.bulk.done.share",
+    "documents.list.bulk.done.shelve",
+    "documents.list.bulk.done.trash",
+    "documents.list.bulk.done.unshelve",
+    "documents.list.bulk.error.conflict",
+    "documents.list.bulk.error.failed",
+    "documents.list.bulk.error.folder_too_large",
+    "documents.list.bulk.error.forbidden",
+    "documents.list.bulk.error.not_a_file",
+    "documents.list.bulk.error.not_found",
+    "documents.list.bulk.error.not_shareable",
+    "documents.list.bulk.error.not_verifiable",
+    "documents.list.bulk.error.rate_limited",
+    "documents.list.bulk.error.too_large",
+    "documents.list.bulk.error.zip_limit",
+    "documents.list.bulk.error_line",
+    "documents.list.bulk.more_one",
+    "documents.list.bulk.more_other",
+    "documents.list.bulk.move.description",
+    "documents.list.bulk.move.title_one",
+    "documents.list.bulk.move.title_other",
+    "documents.list.bulk.select_all",
+    "documents.list.bulk.select_row",
+    "documents.list.bulk.selected",
+    "documents.list.bulk.share.applies_to_one",
+    "documents.list.bulk.share.applies_to_other",
+    "documents.list.bulk.share.close",
+    "documents.list.bulk.share.copy_all",
+    "documents.list.bulk.share.keep",
+    "documents.list.bulk.share.link_create",
+    "documents.list.bulk.share.link_keep",
+    "documents.list.bulk.share.link_label",
+    "documents.list.bulk.share.link_revoke",
+    "documents.list.bulk.share.links_created",
+    "documents.list.bulk.share.skipped_note_one",
+    "documents.list.bulk.share.skipped_note_other",
+    "documents.list.bulk.share.title_one",
+    "documents.list.bulk.share.title_other",
+    "documents.list.bulk.share.update_existing",
+    "documents.list.bulk.share.workspace_label",
+    "documents.list.bulk.share.workspace_level",
+    "documents.list.bulk.share.workspace_none",
+    "documents.list.bulk.toolbar",
+    "documents.list.bulk.zip.expired",
+    "documents.list.bulk.zip.failed",
+    "documents.list.bulk.zip.preparing",
+    "documents.list.bulk.zip.timeout",
+    "documents.list.bulk.zip.too_large",
+    "documents.list.column.access",
+    "documents.list.column.actions",
+    "documents.list.column.editor",
+    "documents.list.column.name",
+    "documents.list.column.select",
+    "documents.list.column.size",
+    "documents.list.column.updated",
+    "documents.list.date.yesterday",
+    "documents.list.days_left_one",
+    "documents.list.days_left_other",
+    "documents.list.group.deleting_soon",
+    "documents.list.group.earlier",
+    "documents.list.group.more_than_7_days",
+    "documents.list.group.this_week",
+    "documents.list.group.today",
+    "documents.list.group.yesterday",
+    "documents.list.menu.copy_link",
+    "documents.list.menu.link_copied",
+    "documents.list.menu.link_copy_failed",
+    "documents.list.screen_column.activity",
+    "documents.list.screen_column.deleted",
+    "documents.list.screen_column.shared",
+    "documents.list.screen_column.shared_with",
+    "documents.list.screen_column.shelved",
+    "documents.list.screen_column.starred",
+    "documents.list.share_summary.links_one",
+    "documents.list.share_summary.links_other",
+    "documents.list.share_summary.people_one",
+    "documents.list.share_summary.people_other",
+    "documents.list.share_summary.workspaces_one",
+    "documents.list.share_summary.workspaces_other",
+    "documents.list.starred_by_you"
+  ]
+}

@@ -21,15 +21,18 @@ func TestPoolConfigFillsDefaultsTheDSNLeavesOut(t *testing.T) {
 	if got, set := cfg.ConnConfig.RuntimeParams[idleInTxParam]; set {
 		t.Fatalf("%s sent as a startup parameter (%q)", idleInTxParam, got)
 	}
+	if got, set := cfg.ConnConfig.RuntimeParams[jitParam]; set {
+		t.Fatalf("%s sent as a startup parameter (%q)", jitParam, got)
+	}
 	if cfg.AfterConnect == nil {
-		t.Fatalf("no AfterConnect to set %s", idleInTxParam)
+		t.Fatalf("no AfterConnect to set %s and %s", idleInTxParam, jitParam)
 	}
 }
 
 func TestPoolConfigKeepsWhatTheDSNSets(t *testing.T) {
 	for _, dsn := range []string{
-		"postgres://u:p@localhost:5432/db?pool_max_conns=7&idle_in_transaction_session_timeout=5s",
-		"host=localhost dbname=db pool_max_conns=7 idle_in_transaction_session_timeout=5s",
+		"postgres://u:p@localhost:5432/db?pool_max_conns=7&idle_in_transaction_session_timeout=5s&jit=on",
+		"host=localhost dbname=db pool_max_conns=7 idle_in_transaction_session_timeout=5s jit=on",
 	} {
 		cfg, err := PoolConfig(dsn)
 		if err != nil {
@@ -40,6 +43,9 @@ func TestPoolConfigKeepsWhatTheDSNSets(t *testing.T) {
 		}
 		if got := cfg.ConnConfig.RuntimeParams[idleInTxParam]; got != "5s" {
 			t.Fatalf("%s: %s = %q, want 5s", dsn, idleInTxParam, got)
+		}
+		if got := cfg.ConnConfig.RuntimeParams[jitParam]; got != "on" {
+			t.Fatalf("%s: %s = %q, want on", dsn, jitParam, got)
 		}
 		if cfg.AfterConnect != nil {
 			t.Fatalf("%s: default SET runs beside the DSN's own value", dsn)
@@ -54,13 +60,32 @@ func TestPoolConfigKeepsWhatTheDSNSets(t *testing.T) {
 	if got, set := cfg.ConnConfig.RuntimeParams[idleInTxParam]; set {
 		t.Fatalf("default sent beside options: %q", got)
 	}
+	if cfg.AfterConnect == nil {
+		t.Fatal("the jit default is missing: only the idle timeout is named in options")
+	}
+	// The same for jit: named in options=-c, it is the DSN's.
+	cfg, err = PoolConfig("postgres://u:p@localhost:5432/db?idle_in_transaction_session_timeout=5s&options=-c%20jit%3Don")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if cfg.AfterConnect != nil {
-		t.Fatal("default SET runs beside options")
+		t.Fatal("default SET runs beside options=-c jit=on")
 	}
 }
 
-// The default reaches the session on a real connection.
-func TestPoolConfigSetsIdleInTxTimeoutOnConnect(t *testing.T) {
+// "jit" inside a password or host name is not the parameter.
+func TestPoolConfigIgnoresJitInsideOtherDSNText(t *testing.T) {
+	cfg, err := PoolConfig("postgres://u:jitter@jit-db.internal:5432/db?idle_in_transaction_session_timeout=5s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AfterConnect == nil {
+		t.Fatal("jit default skipped because the DSN text merely contains the letters jit")
+	}
+}
+
+// The defaults reach the session on a real connection.
+func TestPoolConfigSetsSessionDefaultsOnConnect(t *testing.T) {
 	url := os.Getenv("TEST_DATABASE_URL")
 	if url == "" {
 		url = "postgres://uniwork:uniwork@localhost:5432/uniwork_test?sslmode=disable"
@@ -84,6 +109,12 @@ func TestPoolConfigSetsIdleInTxTimeoutOnConnect(t *testing.T) {
 	}
 	if got != "1min" {
 		t.Fatalf("%s = %q, want 1min", idleInTxParam, got)
+	}
+	if err := pool.QueryRow(ctx, "SHOW "+jitParam).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != "off" {
+		t.Fatalf("%s = %q, want off", jitParam, got)
 	}
 }
 

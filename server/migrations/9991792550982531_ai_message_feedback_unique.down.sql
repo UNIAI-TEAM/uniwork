@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_ai_message_feedback_message_user;

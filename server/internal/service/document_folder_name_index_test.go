@@ -45,11 +45,12 @@ func TestDocumentFolderNameCreateMapsARealUniqueViolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// ADR 0037 §7: the index refusal is retried, and the retry takes the
+	// next free " (n)" instead of refusing the create.
 	select {
 	case err := <-created:
-		ce := wantCode(t, err, "folder_name_taken")
-		if ce.Status != 409 {
-			t.Fatalf("status = %d, want 409", ce.Status)
+		if err != nil {
+			t.Fatalf("create after the index refusal: %v", err)
 		}
 	case <-time.After(30 * time.Second):
 		t.Fatal("the create did not return after the holder committed")

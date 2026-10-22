@@ -12,7 +12,8 @@ import {
   groupTargets,
   inboxOf,
   levelOf,
-  libraryBadge,
+  libraryAccessButton,
+  libraryAccessPill,
   openSession,
   openShareDialog,
   ownerDoc,
@@ -188,21 +189,33 @@ test("AC19 the library row shows the share scope as a type and a count, never na
   const { homeId, homeName } = await groupTargets(request, s.owner.token, id);
   await signInOwner(page, s);
   const library = `/${s.m.aOwner.orgSlug}/${s.m.aOwner.wsSlug}/documents`;
-  const badge = async (kind: string, text: RegExp) => {
+  // The pill names the kind only (Riêng tư / Workspace / Được chia sẻ); the type and the
+  // count ride the Share button's description, still without a name (U-SH4).
+  const access = async (kind: string, label: string) => {
     await page.goto(library);
-    const mark = libraryBadge(contentRow(page, title));
-    await expect(mark).toHaveAttribute("data-scope-kind", kind, { timeout: 60_000 });
-    await expect(mark).toContainText(text);
-    return mark;
+    const row = contentRow(page, title);
+    const pill = libraryAccessPill(row);
+    await expect(pill).toHaveAttribute("data-access-kind", kind, { timeout: 60_000 });
+    await expect(pill).toHaveText(label);
+    await expect(pill).not.toHaveAttribute("title");
+    return libraryAccessButton(row);
   };
 
-  await badge("private", /Riêng tư/);
+  await expect(await access("restricted", "Riêng tư")).not.toHaveAttribute("aria-describedby");
   await grantAccess(request, s.owner.token, id, [userItem(s.extras[0]!, "view"), userItem(s.extras[1]!, "view")]);
-  await badge("people", /2 người/);
+  const people = await access("shared", "Được chia sẻ");
+  // Two people and nothing else is no more than the pill's own label, so the home row adds no
+  // description; the count sits in the Tôi đã chia sẻ column, again without a name.
+  await expect(people).not.toHaveAttribute("aria-describedby");
+  await page.goto(`${library}?view=shared-by-me`);
+  const shared = contentRow(page, title);
+  await expect(shared).toContainText("2 người", { timeout: 60_000 });
+  await expect(shared).not.toContainText(s.extras[0]!.name);
+  await expect(shared).not.toContainText(s.extras[1]!.name);
 
   await grantAccess(request, s.owner.token, id, [{ principal_type: "workspace", principal_id: homeId, level: "view" }]);
-  const multiple = await badge("multiple", /Nhiều phạm vi/);
-  await expect(multiple).not.toHaveAttribute("title");
+  // Reachable through the workspace, the pill reads Workspace; the composition keeps the rest.
+  const multiple = await access("workspace", "Workspace");
   const descId = await multiple.getAttribute("aria-describedby");
   expect(descId).toBeTruthy();
   await expect(page.locator(`[id="${descId}"]`)).toHaveText(new RegExp(`Workspace ${escapeRegExp(homeName)} · 2 người`));

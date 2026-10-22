@@ -39,7 +39,7 @@ type Consumer struct {
 
 // NewConsumer wires the consumer. members is WorkspaceService in production.
 func NewConsumer(pool *pgxpool.Pool, q *db.Queries, members MemberChecker) *Consumer {
-	return &Consumer{pool: pool, q: q, env: env{q: q, members: members}, recorder: audit.NewRecorder(), log: slog.Default()}
+	return &Consumer{pool: pool, q: q, env: env{q: q, members: members, docMemo: newDocCommandMemo()}, recorder: audit.NewRecorder(), log: slog.Default()}
 }
 
 // SetMetrics attaches counters; called once from main.
@@ -176,6 +176,9 @@ func (c *Consumer) write(ctx context.Context, eventID, correlationID string, d D
 	}
 	if n == 0 {
 		return nil // already delivered to this user by an earlier attempt
+	}
+	if d.DocChange != nil {
+		return c.writeDocChange(ctx, tx, q, correlationID, d, prefs)
 	}
 	// The once-per-group claim (BE-TN-3): the open-row merge index only
 	// dedupes a notification nobody has touched yet. A kind that is one

@@ -53,16 +53,27 @@ type SendChatFileMessageSDI struct {
 }
 
 // SendChatDocumentMessageSDI is multipart POST .../messages/document
-// (UNI-1966 §2.1). The bytes become a Document in the sender's My Folder and
-// every current human room member gets a share at ShareLevel; the message
-// carries the reference. share_level defaults to comment; manage is refused
-// with 400.
+// (UNI-1966 §2.1; UNI-2012 D1a/D1b). The bytes become a Document at the root
+// of the workspace the sender stands in and every current human room member
+// gets a share at ShareLevel; the message carries the reference. share_level
+// defaults to comment; manage is refused with 400.
 type SendChatDocumentMessageSDI struct {
 	File             []byte  `formData:"file" description:"Document (PDF, TXT, Markdown, HTML, DOC, DOCX, XLS, XLSX, PPT, PPTX, or ODT; max DOCUMENT_MAX_BYTES)"`
 	ShareLevel       string  `formData:"share_level" description:"view, comment, or edit granted to room members (default comment; manage is refused)" example:"comment"`
-	Title            string  `formData:"title" description:"Optional document title; defaults to the sanitized filename" example:"Kế hoạch sprint 12"`
+	Title            string  `formData:"title" description:"Deprecated and ignored: the document title is always the sanitized filename (UNI-2012 D1a)" example:"Kế hoạch sprint 12"`
 	ClientMsgID      string  `formData:"client_msg_id" description:"Client-generated id for idempotent retries" example:"550e8400-e29b-41d4-a716-446655440000"`
 	ReplyToMessageID *string `formData:"reply_to_message_id" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+}
+
+// SendChatDocumentLinkSDI is POST .../messages/document-link (UNI-2012 D5):
+// sends a document that already lives in Documents. The sender must be able
+// to share it; the document is not moved or copied, and every current human
+// room member gets a share at ShareLevel.
+type SendChatDocumentLinkSDI struct {
+	DocumentID       string  `json:"document_id" description:"Existing document (page or file) the sender may share; folders, the trash, shelved and work-product documents are refused" example:"01J8X4DOC0N1P2Q3R4S5T6U7V8"`
+	ShareLevel       string  `json:"share_level,omitempty" description:"view, comment, or edit granted to room members (default comment; manage is refused; a member who already holds more keeps it)" example:"comment"`
+	ClientMsgID      string  `json:"client_msg_id,omitempty" description:"Client-generated id for idempotent retries" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ReplyToMessageID *string `json:"reply_to_message_id,omitempty" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 }
 
 // ShareChatMessageAsDocumentSDI is POST

@@ -4,10 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAiCapabilities, useAiPanelStore } from "@uniwork/core/ai";
 import { initI18n } from "@uniwork/core/i18n";
 import { useSearchStore } from "@uniwork/core/search";
-import { configureShortcutPlatform, createShortcutChord, useShortcutStore } from "@uniwork/core/shortcuts";
+import {
+  configureShortcutPlatform,
+  createShortcutChord,
+  DOCUMENT_EDITOR_SCOPE,
+  DOCUMENT_EDITOR_SCOPE_ATTRIBUTE,
+  useShortcutStore,
+} from "@uniwork/core/shortcuts";
 import type { User, Workspace } from "@uniwork/core/types";
 import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
 import { Dialog, DialogContent, DialogTitle } from "@uniwork/ui/components/ui/dialog";
+import { SidebarProvider, useSidebar } from "@uniwork/ui/components/ui/sidebar";
 import type { NavigationAdapter } from "../navigation";
 import { SearchCommand } from "../search";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -94,7 +101,7 @@ beforeEach(() => {
   configureShortcutPlatform("macos");
   requestMock.mockReset();
   mockCapabilities(true);
-  useSearchStore.setState({ open: false, toggle: originalSearchToggle });
+  useSearchStore.setState({ open: false, focusTarget: null, toggle: originalSearchToggle });
   useAiPanelStore.setState({ open: false, conversationId: null, toggle: originalAiToggle });
   useShortcutStore.getState().resetAll();
 });
@@ -200,6 +207,46 @@ describe("GlobalShortcuts: search palette", () => {
     await waitFor(() => expect(useSearchStore.getState().open).toBe(false));
   });
 
+  it("hands ⌘K to a registered local search instead of the palette", () => {
+    const toggle = countSearchToggles();
+    const focusTarget = vi.fn(() => true);
+    const unregister = useSearchStore.getState().registerFocusTarget(focusTarget);
+    mount(<input aria-label="name" />);
+    const event = press(screen.getByRole("textbox", { name: "name" }), "k", { metaKey: true });
+    expect(focusTarget).toHaveBeenCalledTimes(1);
+    expect(toggle).not.toHaveBeenCalled();
+    expect(event).toBe(false);
+    unregister();
+  });
+
+  it("falls back to the palette when the local search declines the chord", () => {
+    const toggle = countSearchToggles();
+    const unregister = useSearchStore.getState().registerFocusTarget(() => false);
+    mount(null);
+    press(document.body, "k", { metaKey: true });
+    expect(toggle).toHaveBeenCalledTimes(1);
+    unregister();
+  });
+
+  it("keeps ⌘K on the palette under a modal layer even with a local search registered", async () => {
+    const toggle = countSearchToggles();
+    const focusTarget = vi.fn(() => true);
+    const unregister = useSearchStore.getState().registerFocusTarget(focusTarget);
+    mount(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>modal</DialogTitle>
+          <input aria-label="inside" />
+        </DialogContent>
+      </Dialog>,
+    );
+    await waitFor(() => expect(document.querySelector("[data-base-ui-inert]")).not.toBeNull());
+    press(screen.getByRole("textbox", { name: "inside" }), "k", { metaKey: true });
+    expect(focusTarget).not.toHaveBeenCalled();
+    expect(toggle).toHaveBeenCalledTimes(1);
+    unregister();
+  });
+
   it("still opens search under a modal layer, while C stays blocked there", async () => {
     const toggle = countSearchToggles();
     const { onCreateTask } = mount(
@@ -280,5 +327,131 @@ describe("GlobalShortcuts: navigation", () => {
     const { adapter } = mount(null, { adapter: nav({ pathname: "/acme/team/tasks" }) });
     press(document.body, "g");
     expect(adapter.push).not.toHaveBeenCalled();
+  });
+});
+
+describe("GlobalShortcuts: the document editor wins", () => {
+  // The UniNote page editor marks its DOM with the document-editor scope; a
+  // chat or task composer is a contenteditable too but keeps the global chords.
+  const pageEditor = (
+    <div data-testid="page" contentEditable="true" suppressContentEditableWarning
+      {...{ [DOCUMENT_EDITOR_SCOPE_ATTRIBUTE]: DOCUMENT_EDITOR_SCOPE }}>
+      <p data-testid="page-line">text</p>
+    </div>
+  );
+  const composer = <div data-testid="composer" contentEditable="true" suppressContentEditableWarning><p>draft</p></div>;
+
+  it("lets Ctrl+K, Ctrl+J, Ctrl+[ and Ctrl+] through to the page editor, unprevented", async () => {
+    const search = countSearchToggles();
+    const ai = countAiToggles();
+    const { adapter } = mount(pageEditor);
+    await screen.findByTestId("caps-loaded");
+    for (const [key, platform] of [["k", "macos"], ["j", "macos"], ["[", "macos"], ["]", "macos"], ["k", "windows"], ["j", "windows"], ["[", "windows"], ["]", "windows"]] as const) {
+      configureShortcutPlatform(platform);
+      const init = platform === "macos" ? { metaKey: true } : { ctrlKey: true };
+      expect(press(screen.getByTestId("page-line"), key, init), `${platform} ${key}`).toBe(true);
+    }
+    expect(search).not.toHaveBeenCalled();
+    expect(ai).not.toHaveBeenCalled();
+    expect(adapter.back).not.toHaveBeenCalled();
+    expect(adapter.forward).not.toHaveBeenCalled();
+  });
+
+  it("still opens search and Ask UNI from a composer and from outside any editor", async () => {
+    const search = countSearchToggles();
+    const ai = countAiToggles();
+    mount(composer);
+    await screen.findByTestId("caps-loaded");
+    press(screen.getByTestId("composer"), "k", { metaKey: true });
+    press(screen.getByTestId("composer"), "j", { metaKey: true });
+    press(document.body, "k", { metaKey: true });
+    press(document.body, "j", { metaKey: true });
+    expect(search).toHaveBeenCalledTimes(2);
+    expect(ai).toHaveBeenCalledTimes(2);
+  });
+
+  it("still goes back and forward outside editors", () => {
+    const { adapter } = mount(pageEditor);
+    press(document.body, "[", { metaKey: true });
+    press(document.body, "]", { metaKey: true });
+    expect(adapter.back).toHaveBeenCalledTimes(1);
+    expect(adapter.forward).toHaveBeenCalledTimes(1);
+  });
+
+  it("never reaches the host from inside an Office frame, a separate document", async () => {
+    const search = countSearchToggles();
+    const ai = countAiToggles();
+    const { adapter } = mount(<iframe title="office frame" data-testid="frame" />);
+    await screen.findByTestId("caps-loaded");
+    const frameDoc = (screen.getByTestId("frame") as HTMLIFrameElement).contentDocument!;
+    for (const key of ["k", "j", "[", "]", "b"]) {
+      frameDoc.body.dispatchEvent(new KeyboardEvent("keydown", { key, metaKey: true, bubbles: true, cancelable: true }));
+    }
+    frameDoc.body.dispatchEvent(new KeyboardEvent("keydown", { key: "c", bubbles: true, cancelable: true }));
+    expect(search).not.toHaveBeenCalled();
+    expect(ai).not.toHaveBeenCalled();
+    expect(adapter.back).not.toHaveBeenCalled();
+    expect(adapter.forward).not.toHaveBeenCalled();
+  });
+});
+
+describe("GlobalShortcuts: IME and AltGr", () => {
+  it("ignores every global chord while an IME is composing", async () => {
+    const search = countSearchToggles();
+    const ai = countAiToggles();
+    const { adapter, onCreateTask } = mount(null);
+    await screen.findByTestId("caps-loaded");
+    for (const key of ["k", "j", "[", "]"]) {
+      press(document.body, key, { metaKey: true, isComposing: true });
+      press(document.body, key, { metaKey: true, keyCode: 229 });
+    }
+    press(document.body, "c", { isComposing: true });
+    press(document.body, "c", { keyCode: 229 });
+    expect(search).not.toHaveBeenCalled();
+    expect(ai).not.toHaveBeenCalled();
+    expect(adapter.back).not.toHaveBeenCalled();
+    expect(adapter.forward).not.toHaveBeenCalled();
+    expect(onCreateTask).not.toHaveBeenCalled();
+  });
+
+  it("ignores a chord typed with AltGr, which is Ctrl+Alt on Windows layouts", async () => {
+    configureShortcutPlatform("windows");
+    const search = countSearchToggles();
+    const ai = countAiToggles();
+    const { adapter } = mount(null);
+    await screen.findByTestId("caps-loaded");
+    for (const key of ["k", "j", "[", "]"]) {
+      press(document.body, key, { ctrlKey: true, altKey: true, modifierAltGraph: true });
+    }
+    expect(search).not.toHaveBeenCalled();
+    expect(ai).not.toHaveBeenCalled();
+    expect(adapter.back).not.toHaveBeenCalled();
+    expect(adapter.forward).not.toHaveBeenCalled();
+  });
+});
+
+describe("GlobalShortcuts: sidebar Ctrl+B", () => {
+  function SidebarState() {
+    return <span data-testid="sidebar-open">{String(useSidebar().open)}</span>;
+  }
+
+  it("toggles outside editors and stands down in the page editor, where Bold wins", () => {
+    mount(
+      <SidebarProvider>
+        <SidebarState />
+        <div data-testid="page" contentEditable="true" suppressContentEditableWarning
+          {...{ [DOCUMENT_EDITOR_SCOPE_ATTRIBUTE]: DOCUMENT_EDITOR_SCOPE }}>
+          <p data-testid="page-line">text</p>
+        </div>
+      </SidebarProvider>,
+    );
+    const open = () => screen.getByTestId("sidebar-open").textContent;
+    const before = open();
+    // jsdom does not implement isContentEditable, which the sidebar primitive reads.
+    Object.defineProperty(screen.getByTestId("page"), "isContentEditable", { value: true });
+    press(screen.getByTestId("page"), "b", { metaKey: true });
+    expect(open()).toBe(before);
+    press(document.body, "b", { metaKey: true });
+    expect(open()).not.toBe(before);
   });
 });

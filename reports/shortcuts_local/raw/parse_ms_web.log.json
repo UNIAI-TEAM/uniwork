@@ -1,0 +1,145 @@
+{
+ "ms-html/word-a11y.html": {
+  "product": "word",
+  "url": "https://support.microsoft.com/en-us/accessibility/word/keyboard-shortcuts-in-word",
+  "tables": 60,
+  "rows": 68,
+  "skipped_other_tabs_cells": {
+   "windows": 284,
+   "macos": 182,
+   "office-for-ios": 32,
+   "office-for-android": 24
+  },
+  "empty_cells": 0,
+  "unparsed": []
+ },
+ "ms-html/excel-a11y.html": {
+  "product": "excel",
+  "url": "https://support.microsoft.com/en-us/accessibility/excel/keyboard-shortcuts-in-excel",
+  "tables": 47,
+  "rows": 158,
+  "skipped_other_tabs_cells": {
+   "windows": 226,
+   "macos": 245,
+   "office-for-ios": 32,
+   "office-for-android": 14
+  },
+  "empty_cells": 0,
+  "unparsed": []
+ },
+ "ms-html/ppt-a11y-create.html": {
+  "product": "powerpoint",
+  "url": "https://support.microsoft.com/en-us/accessibility/powerpoint/use-keyboard-shortcuts-to-create-powerpoint-presentations",
+  "tables": 49,
+  "rows": 222,
+  "skipped_other_tabs_cells": {
+   "windows": 192,
+   "macos": 137,
+   "ios": 55,
+   "android": 12
+  },
+  "empty_cells": 0,
+  "unparsed": []
+ },
+ "ms-html/ppt-a11y-deliver.html": {
+  "product": "powerpoint",
+  "url": "https://support.microsoft.com/en-us/accessibility/powerpoint/use-keyboard-shortcuts-to-deliver-powerpoint-presentations",
+  "tables": 12,
+  "rows": 28,
+  "skipped_other_tabs_cells": {
+   "windows": 55,
+   "macos": 30
+  },
+  "empty_cells": 0,
+  "unparsed": []
+ },
+ "ms-html-web/word-web-app-2554e572.html": {
+  "product": "word",
+  "url": "https://support.microsoft.com/en-us/word/keyboard-shortcuts-in-word-web-app",
+  "tables": 7,
+  "rows": 176,
+  "skipped_other_tabs_cells": {},
+  "empty_cells": 42,
+  "unparsed": []
+ },
+ "ms-html-web/copy-paste-office-web.html": {
+  "product": "office-common",
+  "url": "https://support.microsoft.com/en-us/word/copy-and-paste-in-office-for-the-web",
+  "tables": 1,
+  "rows": 6,
+  "skipped_other_tabs_cells": {},
+  "empty_cells": 0,
+  "unparsed": []
+ },
+ "ms-html-web/ppt-modern-comments.html": {
+  "product": "powerpoint",
+  "url": "https://support.microsoft.com/en-us/accessibility/powerpoint/use-keyboard-shortcuts-to-navigate-modern-comments-in-powerpoint",
+  "tables": 3,
+  "rows": 38,
+  "skipped_other_tabs_cells": {
+   "windows": 18,
+   "mac": 11
+  },
+  "empty_cells": 0,
+  "unparsed": []
+ },
+ "ms-html-web/ribbon-keyboard-954cd3f7.html": {
+  "product": "office-common",
+  "url": "https://support.microsoft.com/en-us/accessibility/windows/use-the-keyboard-to-work-with-the-ribbon",
+  "tables": 3,
+  "rows": 2,
+  "skipped_other_tabs_cells": {
+   "windows": 14
+  },
+  "empty_cells": 0,
+  "unparsed": []
+ },
+ "ms-html-web/copy-paste-ppt-web.html": {
+  "product": "powerpoint",
+  "url": "https://support.microsoft.com/en-us/powerpoint/copy-and-paste-in-powerpoint-for-the-web",
+  "tables": 0,
+  "rows": 0,
+  "prose_only": true,
+  "unparsed": []
+ },
+ "ms-html-web/word-select-all-web.html": {
+  "product": "word",
+  "url": "https://support.microsoft.com/en-gb/word/select-all-document-content-in-word-for-the-web",
+  "tables": 0,
+  "rows": 0,
+  "prose_only": true,
+  "unparsed": []
+ },
+ "ms-html-web/sr-word-basic.html": {
+  "product": "word",
+  "url": "https://support.microsoft.com/en-us/accessibility/word/basic-tasks-using-a-screen-reader-with-word",
+  "tables": 0,
+  "rows": 0,
+  "prose_only": true,
+  "unparsed": []
+ },
+ "ms-html-web/sr-excel-basic.html": {
+  "product": "excel",
+  "url": "https://support.microsoft.com/en-us/accessibility/excel/basic-tasks-using-a-screen-reader-with-excel",
+  "tables": 0,
+  "rows": 0,
+  "prose_only": true,
+  "unparsed": []
+ },
+ "ms-html-web/sr-ppt-basic.html": {
+  "product": "powerpoint",
+  "url": "https://support.microsoft.com/en-us/accessibility/powerpoint/basic-tasks-to-create-a-presentation-in-powerpoint-with-a-screen-reader",
+  "tables": 0,
+  "rows": 0,
+  "prose_only": true,
+  "unparsed": []
+ },
+ "ms-html-web/sr-ppt-explore.html": {
+  "product": "powerpoint",
+  "url": "https://support.microsoft.com/en-us/accessibility/powerpoint/use-a-screen-reader-to-explore-and-navigate-powerpoint",
+  "tables": 0,
+  "rows": 0,
+  "prose_only": true,
+  "unparsed": []
+ }
+}

@@ -33,7 +33,6 @@ const KIND_KEYS = [
   "documents.home.create.page.hint",
   "documents.home.create.page.menu",
   "documents.home.chips.page",
-  "documents.home.groups.type.page",
   "documents.errors.document_parent_kind",
 ];
 

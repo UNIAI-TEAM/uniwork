@@ -321,6 +321,9 @@ func TestDocumentRestorePerItem(t *testing.T) {
 			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
 			kind: DocumentKindPage, title: "Con B", parent: folderF.ID,
 		})
+		// Shared at view with the archiver: it reads and administers the child, so the
+		// trash of the workspace folder stamps it (ADR 0037 point 5) instead of relocating it.
+		f.share(t, docB, DocumentPrincipalUser, tn.wsAdmin.ID, DocumentLevelView, tn.aclOwner.ID)
 		f.share(t, docB, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
 
 		arch, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{})
@@ -386,6 +389,9 @@ func TestDocumentRestorePerItem(t *testing.T) {
 			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
 			kind: DocumentKindPage, title: "Báo cáo", parent: folderF.ID,
 		})
+		// Shared at view with the archiver: it reads and administers the child, so the
+		// trash of the workspace folder stamps it (ADR 0037 point 5) instead of relocating it.
+		f.share(t, docA, DocumentPrincipalUser, tn.wsAdmin.ID, DocumentLevelView, tn.aclOwner.ID)
 		if _, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{}); err != nil {
 			t.Fatalf("admin archive F: %v", err)
 		}
@@ -426,6 +432,9 @@ func TestDocumentRestorePerItem(t *testing.T) {
 			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
 			kind: DocumentKindPage, title: "Con B", parent: folderF.ID,
 		})
+		// Shared at view with the archiver: it reads and administers the child, so the
+		// trash of the workspace folder stamps it (ADR 0037 point 5) instead of relocating it.
+		f.share(t, docB, DocumentPrincipalUser, tn.wsAdmin.ID, DocumentLevelView, tn.aclOwner.ID)
 		if _, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{}); err != nil {
 			t.Fatalf("admin archive F: %v", err)
 		}
@@ -922,6 +931,9 @@ func TestDocumentManualPurge(t *testing.T) {
 			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
 			kind: DocumentKindPage, title: "Con của người khác", parent: folderF.ID,
 		})
+		// Shared at view with the archiver: it reads and administers the child, so the
+		// trash of the workspace folder stamps it (ADR 0037 point 5) instead of relocating it.
+		f.share(t, unmanagedChild, DocumentPrincipalUser, tn.wsAdmin.ID, DocumentLevelView, tn.aclOwner.ID)
 
 		if _, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{}); err != nil {
 			t.Fatalf("admin archive F: %v", err)
@@ -1087,6 +1099,9 @@ func TestDocumentManualPurge(t *testing.T) {
 			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
 			kind: DocumentKindPage, title: "Con PG5", parent: folderF.ID,
 		})
+		// Shared at view with the archiver: it reads and administers the child, so the
+		// trash of the workspace folder stamps it (ADR 0037 point 5) instead of relocating it.
+		f.share(t, child, DocumentPrincipalUser, tn.wsAdmin.ID, DocumentLevelView, tn.aclOwner.ID)
 		if _, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{}); err != nil {
 			t.Fatalf("archive F: %v", err)
 		}

@@ -269,6 +269,11 @@ var catalogue = []EventDef{
 
 	// Documents (UNI-675): ids only; consumers refetch the page/file.
 	{Topic: "document.created", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Folder upload (UNI-2052): one event per PLAN (the folder tree appeared)
+	// and per COMPLETE that created at least one document, instead of one
+	// document.created each; the client invalidates the workspace's document
+	// keys once.
+	{Topic: "document.batch_uploaded", Version: 1, Payload: []string{"batch_id", "workspace_id", "root_folder_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// G1-03 (UNI-677): a file version was committed or restored; the client
 	// refetches the document and its versions.
 	{Topic: "document.version_created", Version: 1, Payload: []string{"document_id", "version_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -305,6 +310,16 @@ var catalogue = []EventDef{
 	{Topic: "document.shelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.unshelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.deleted", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// DOC-CHANGE-NOTIFY (UNI-2056): the change people hear of, written by
+	// the same Record call as the frame topic of a rename, restore, shelve,
+	// unshelve, workspace access change, link create/revoke and uploaded
+	// version, and only when the command is in scope. Those eight frame topics
+	// keep no notify-lane consumer, so they stay on the realtime lane (a topic
+	// runs on its slowest consumer's lane; chat_document_card_refresh.go).
+	// Server only: no client subscribes, so the scope is none and the payload
+	// may carry the verb (renamed, restored, shelved, unshelved,
+	// access_changed, version_created) beside the ids.
+	{Topic: "document.change_noticed", Version: 1, Payload: []string{"document_id", "workspace_id", "verb"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Document comments (UNI-681): ids only, workspace scope like the task
 	// rows. A reader reached only through a share is caught by the
@@ -367,6 +382,8 @@ var catalogue = []EventDef{
 	{Topic: "file.thumbnail_requested", Version: 1, Payload: []string{"file_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	// A text message names a link: the slow lane reads its card (ADR 0035).
 	{Topic: "chat.link_preview.requested", Version: 1, Payload: []string{"room_id", "message_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	// A multi-document zip download is asked for: the slow lane builds it (UNI-2045). Ids only, no client frame; the web polls the job.
+	{Topic: "document.download_job_requested", Version: 1, Payload: []string{"job_id", "organization_id", "workspace_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Audit itself
 	{Topic: "audit.export_requested", Version: 1, Payload: []string{"export_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},

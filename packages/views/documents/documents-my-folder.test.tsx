@@ -12,7 +12,7 @@ import { DocumentActionsMenu } from "./document-actions-menu";
 import { documentErrorMessage } from "./document-error-message";
 import { DocumentPageHeader } from "./document-page-header";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { libraryLadder } from "./library-columns";
+import { specLadder } from "./library-columns";
 import { documentRow } from "./library-rows";
 
 // MYFOLDER-W1 (UNI-1850, SAVE-01 web part 1): the Documents sub-nav row
@@ -420,7 +420,7 @@ describe("guards on the My Folder row", () => {
           <LibraryRowView
             row={documentRow(myFolderDoc() as unknown as Parameters<typeof documentRow>[0])}
             handlers={rowHandlers}
-            ladder={libraryLadder()}
+            ladder={specLadder("workspace", { selectable: false })}
           />
         </tbody>
       </table>,
@@ -430,7 +430,7 @@ describe("guards on the My Folder row", () => {
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: label() }) }));
     expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_folder") })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: t("documents.home.row.new_subfolder") })).toBeInTheDocument();
-    for (const key of ["documents.home.row.rename", "documents.tree.menu.move_to", "documents.tree.menu.delete"]) {
+    for (const key of ["documents.home.row.rename", "documents.home.row.move", "documents.tree.menu.delete"]) {
       expect(screen.queryByRole("menuitem", { name: t(key) })).toBeNull();
     }
     unmount();
@@ -441,13 +441,13 @@ describe("guards on the My Folder row", () => {
           <LibraryRowView
             row={documentRow(summary({ id: "fo1", kind: "folder", title: "Dự án CCB" }) as unknown as Parameters<typeof documentRow>[0])}
             handlers={rowHandlers}
-            ladder={libraryLadder()}
+            ladder={specLadder("workspace", { selectable: false })}
           />
         </tbody>
       </table>,
     );
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) }));
-    for (const key of ["documents.home.row.rename", "documents.tree.menu.move_to", "documents.tree.menu.delete"]) {
+    for (const key of ["documents.home.row.rename", "documents.home.row.move", "documents.tree.menu.delete"]) {
       expect(await screen.findByRole("menuitem", { name: t(key) })).toBeInTheDocument();
     }
   });

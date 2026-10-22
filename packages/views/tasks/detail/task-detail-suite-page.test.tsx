@@ -7,6 +7,8 @@ import { CoreProvider, defaultStorage } from "@uniwork/core/platform";
 import { configureShortcutPlatform, useShortcutStore } from "@uniwork/core/shortcuts";
 import { useRecentTasksStore } from "@uniwork/core/tasks/stores/recent-tasks-store";
 import type { User, Workspace } from "@uniwork/core/types";
+import { useAiPanelStore } from "@uniwork/core/ai";
+import { capabilities, withAskUniDock } from "../../ai/ask-uni-fixtures";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../../test/api-mock";
 import { TaskDetailSuitePage } from "./task-detail-suite-page";
@@ -162,6 +164,18 @@ describe("TaskDetailSuitePage", () => {
     const actions = screen.getByRole("button", { name: "Thao tác công việc" });
     expect(pin).toHaveClass("text-muted-foreground");
     expect(actions).toHaveClass("text-muted-foreground");
+  });
+
+  it("opens Ask UNI focused on this task", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p === "/api/v1/tasks/t1") return Promise.resolve({ task });
+      return Promise.resolve(p.endsWith("/ai/capabilities") ? capabilities() : {});
+    });
+    useAiPanelStore.setState({ open: false, pendingFocus: null });
+    render(shell(withAskUniDock(<TaskDetailSuitePage workspaceId="w1" taskId="t1" />)));
+    fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về task này" }));
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "task", id: "t1", label: "Ship detail shell" });
   });
 
   it("đặt công việc cha từ menu thao tác, có tìm kiếm", async () => {

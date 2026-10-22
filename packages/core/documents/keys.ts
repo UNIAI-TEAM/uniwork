@@ -1,4 +1,8 @@
-import type { AccessReportFilters } from "../types/document-access-report";
+import type {
+  AccessReportFilters,
+  AccessReportPrincipalsQuery,
+  AccessReportSort,
+} from "../types/document-access-report";
 
 /**
  * Query-key factory for Documents. Every key carries `wsId` so invalidate
@@ -98,12 +102,35 @@ export const documentKeys = {
   // UNI-1643. Under the workspace root so a `document.*` frame refreshes an open
   // report. The filters are normalized (level order, empty values) so one
   // report is one cache entry however the URL spelled it.
-  accessReport: (wsId: string, folderId: string | undefined, filters: AccessReportFilters) =>
+  accessReportRoot: (wsId: string) => [...documentKeys.workspace(wsId), "access-report"] as const,
+  accessReport: (
+    wsId: string,
+    folderId: string | undefined,
+    params: AccessReportFilters & AccessReportSort,
+  ) =>
     [
-      ...documentKeys.workspace(wsId),
-      "access-report",
+      ...documentKeys.accessReportRoot(wsId),
       folderId ?? "",
-      [filters.personId ?? "", [...(filters.levels ?? [])].sort().join(","), filters.visibility ?? ""].join("|"),
+      reportFiltersKey(params),
+      params.sort ?? "",
+      params.order ?? "",
+    ] as const,
+  // Whole-scope totals (UNI-2039 S6): the tiles do not follow the sort, so the
+  // key leaves it out; `matching_documents` does follow the filters.
+  accessReportSummary: (wsId: string, folderId: string | undefined, filters: AccessReportFilters) =>
+    [...documentKeys.accessReportRoot(wsId), "summary", folderId ?? "", reportFiltersKey(filters)] as const,
+  accessReportPrincipals: (wsId: string, query: AccessReportPrincipalsQuery) =>
+    [
+      ...documentKeys.accessReportRoot(wsId),
+      "principals",
+      query.folderId ?? "",
+      JSON.stringify([
+        query.q?.trim() ?? "",
+        query.kind ?? "",
+        [...(query.levels ?? [])].sort(),
+        query.sort ?? "",
+        query.order ?? "",
+      ]),
     ] as const,
   settings: (orgId: string) => [...documentKeys.all, "settings", orgId] as const,
   public: (token: string) => [...documentKeys.all, "public", token] as const,
@@ -139,4 +166,26 @@ export const documentKeys = {
    */
   favoritesRoot: ["documents", "favorites"] as const,
   favorites: (orgId: string) => [...documentKeys.favoritesRoot, orgId] as const,
+  /**
+   * The Starred screen's rows (UNI-2045 SV-2): full list rows of one
+   * workspace, so they sit under the workspace root and a `document.*` frame
+   * (a rename, an archive) refreshes them like any list; the star toggles
+   * invalidate them beside `favoritesRoot`.
+   */
+  favoriteList: (wsId: string) => [...documentKeys.workspace(wsId), "favorites"] as const,
 };
+
+/** One report is one cache entry however the URL spelled its filters (order, blanks). */
+function reportFiltersKey(p: AccessReportFilters): string {
+  return JSON.stringify([
+    p.personId ?? "",
+    [...(p.levels ?? [])].sort(),
+    p.visibility ?? "",
+    p.q?.trim() ?? "",
+    p.principal ?? "",
+    p.scope ?? "",
+    [...(p.sources ?? [])].sort(),
+    p.flag ?? "",
+    p.nonDefault ? 1 : 0,
+  ]);
+}

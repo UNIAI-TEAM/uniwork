@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Folder, FolderInput, FolderOpen, FolderPlus, Ellipsis, Pencil, Star, StarOff, Trash2 } from "lucide-react";
+import { Archive, Folder, FolderInput, FolderOpen, FolderPlus, Ellipsis, Pencil, ShieldCheck, Star, StarOff, Trash2 } from "lucide-react";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { isMyFolder, isShelved, type DocumentTreeNode } from "@uniwork/core/types/document";
@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { formatListDate } from "./doclist/format";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import { isFolderRow, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 import { canArchiveRow, canMoveRow, rowLevel } from "./row-level";
@@ -33,7 +34,7 @@ export interface DocumentsFoldersGridProps {
   /** The table row handlers; a handler absent for the viewer hides its menu item too. */
   handlers: Pick<
     LibraryRowHandlers,
-    "onNewSubfolder" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred" | "personName"
+    "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred" | "personName"
   >;
   onOpenFolder: (folderId: string) => void;
 }
@@ -50,12 +51,13 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
         // document of a folder, so the card never counts documents. The editor
         // and the last update show only when the folder's own row is loaded.
         const sub = node.children.filter((child) => child.kind === "folder").length;
+        // UNI-2055 W6: `is_empty` is computed for this viewer, so it never says more than they can see;
+        // absent means unknown and the card says nothing about it.
+        const empty = (node.is_empty ?? doc?.is_empty) === true;
         const meta = [
-          sub > 0 ? t("documents.home.folder_card.folders", { count: sub }) : "",
+          empty ? t("documents.home.folder_card.empty") : sub > 0 ? t("documents.home.folder_card.folders", { count: sub }) : "",
           doc?.updated_by ? handlers.personName(doc.updated_by, doc.updated_by_kind) : "",
-          doc?.updated_at
-            ? new Intl.DateTimeFormat(i18n.language || undefined, { dateStyle: "short" }).format(new Date(doc.updated_at))
-            : "",
+          doc?.updated_at ? formatListDate(doc.updated_at, new Date(), i18n.language, { yesterday: t("documents.list.date.yesterday") }) : "",
         ]
           .filter(Boolean)
           .join(" · ");
@@ -144,14 +146,16 @@ interface FolderMenuItem {
 /** The commands a folder already offers (the table row's vocabulary), gated by the same levels. */
 export function folderMenuItems(
   doc: DocumentSummaryRow,
-  handlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "onRename" | "onMove" | "onShelve" | "onArchive">,
+  handlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive">,
   t: (key: string) => string,
+  /** The open folder's header offers its access report; the cards do not pass this. */
+  onAccessReport?: (doc: DocumentSummaryRow) => void,
 ): FolderMenuItem[] {
   if (doc.archived_at) return [];
   const level = rowLevel(doc);
   const myFolder = isMyFolder(doc);
   const items: FolderMenuItem[] = [];
-  if (handlers.onNewSubfolder && canMoveRow(level)) {
+  if (handlers.onNewSubfolder && (handlers.canCreateInside?.(doc) ?? canMoveRow(level))) {
     items.push({ id: "new-subfolder", label: t("documents.home.row.new_subfolder"), icon: FolderPlus, run: () => handlers.onNewSubfolder?.(doc) });
   }
   if (!myFolder && handlers.onRename && canMoveRow(level)) {
@@ -159,6 +163,10 @@ export function folderMenuItems(
   }
   if (!myFolder && handlers.onMove && canMoveRow(level)) {
     items.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
+  }
+  // The report lists grants, which only a manager may read (the server decides again).
+  if (onAccessReport && canArchiveRow(level)) {
+    items.push({ id: "access-report", label: t("documents.accessReport.menu_folder"), icon: ShieldCheck, run: () => onAccessReport(doc) });
   }
   if (!myFolder && handlers.onShelve && canArchiveRow(level) && !isShelved(doc)) {
     // ARCHIVE-01 U-4: Lưu trữ sits beside the trash command, manage-only and

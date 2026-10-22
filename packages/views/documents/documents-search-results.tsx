@@ -240,7 +240,7 @@ export function DocumentsSearchResults({
                         </span>
                       </span>
                       <DocumentShareScopeBadge
-                        shareScope={item.share_scope}
+                        shareScope={item.kind === "folder" ? null : item.share_scope}
                         workspaceId={item.workspace_id}
                         compact
                         focusable={false}

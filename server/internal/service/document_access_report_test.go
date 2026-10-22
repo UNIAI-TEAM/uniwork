@@ -148,8 +148,8 @@ func TestAccessReportWorkspaceScopeListsManagedDocs(t *testing.T) {
 	f.arDoc(t, tn, arDocSpec{ws: tn.wsB})
 
 	page := f.report(t, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{})
-	arSame(t, "listed", arIDs(page), arSorted(d1.ID, d2.ID))
-	if page.Candidates != 2 || page.Skipped != 0 || page.NextAfterID != "" || page.FolderID != "" {
+	arSame(t, "listed", arSorted(arIDs(page)...), arSorted(d1.ID, d2.ID))
+	if page.Candidates != 2 || page.Skipped != 0 || page.Next != nil || page.FolderID != "" {
 		t.Fatalf("page counters: %+v", page)
 	}
 	if page.GeneratedAt.IsZero() {
@@ -167,6 +167,8 @@ func TestAccessReportWorkspaceScopeListsManagedDocs(t *testing.T) {
 		"workspace|member|workspace|" + tn.wsA + "|edit|edit|active",
 		"share|share|user|" + tn.member.ID + "|view|edit|active",
 		"share|share|workspace|" + tn.wsB + "|edit|edit|active",
+		// UNI-2039 S2: the one live link is a row; the expired one is not.
+		"link|link|link|" + it.Rows[4].PrincipalID + "|view|view|active",
 	})
 	acl, ws, user, wsShare := it.Rows[0], it.Rows[1], it.Rows[2], it.Rows[3]
 	if acl.PrincipalName != "aclowner" || acl.GrantedBy != "" || acl.GrantedAt != nil || acl.ShareID != "" {
@@ -187,7 +189,7 @@ func TestAccessReportWorkspaceScopeListsManagedDocs(t *testing.T) {
 	}
 }
 
-func TestAccessReportFolderScopeIsRecursiveAndIncludesRoot(t *testing.T) {
+func TestAccessReportFolderScopeIsRecursiveAndExcludesFolders(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "ar2")
 	root := f.arDoc(t, tn, arDocSpec{kind: DocumentKindFolder, title: "Hợp đồng"})
@@ -198,7 +200,8 @@ func TestAccessReportFolderScopeIsRecursiveAndIncludesRoot(t *testing.T) {
 	f.arDoc(t, tn, arDocSpec{parent: sub.ID, archived: true}) // in the trash
 
 	page := f.report(t, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{FolderID: root.ID})
-	arSame(t, "listed", arIDs(page), arSorted(root.ID, sub.ID, deep.ID, direct.ID))
+	// UNI-2039 fx1: the root and the subfolder are scopes, not rows.
+	arSame(t, "listed", arSorted(arIDs(page)...), arSorted(deep.ID, direct.ID))
 	if page.FolderID != root.ID || page.FolderTitle != "Hợp đồng" {
 		t.Fatalf("scope = %q %q", page.FolderID, page.FolderTitle)
 	}
@@ -265,26 +268,28 @@ func TestAccessReportKeysetIsStable(t *testing.T) {
 		want = append(want, f.arDoc(t, tn, arDocSpec{}).ID)
 	}
 	var got []string
-	after := ""
+	var after *AccessReportKey
 	for pages := 0; ; pages++ {
 		if pages > 10 {
 			t.Fatal("paging does not end")
 		}
-		p := f.report(t, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{AfterID: after, Limit: 2})
+		p := f.report(t, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{After: after, Limit: 2})
 		got = append(got, arIDs(p)...)
 		if pages == 0 {
-			if p.NextAfterID == "" || len(p.Items) != 2 {
-				t.Fatalf("first page: %d items, next %q", len(p.Items), p.NextAfterID)
+			if p.Next == nil || len(p.Items) != 2 {
+				t.Fatalf("first page: %d items, next %v", len(p.Items), p.Next)
 			}
-			// A document created while paging has a larger id: a later page.
-			want = append(want, f.arDoc(t, tn, arDocSpec{}).ID)
+			// A document created while paging changes access last, so in the
+			// default newest-first order it sits before the cursor: no page
+			// skips or repeats a document that was there from the start.
+			f.arDoc(t, tn, arDocSpec{})
 		}
-		if p.NextAfterID == "" {
+		if p.Next == nil {
 			break
 		}
-		after = p.NextAfterID
+		after = p.Next
 	}
-	arSame(t, "all pages", got, arSorted(want...))
+	arSame(t, "all pages", arSorted(got...), arSorted(want...))
 }
 
 func TestAccessReportEffectiveLevel(t *testing.T) {
@@ -359,7 +364,7 @@ func TestAccessReportPersonFilter(t *testing.T) {
 	f.arDoc(t, tn, arDocSpec{visibility: "restricted"}) // reaches nobody filtered
 
 	page := f.report(t, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{PersonID: tn.member.ID})
-	arSame(t, "member", arIDs(page), arSorted(p1.ID, p3.ID))
+	arSame(t, "member", arSorted(arIDs(page)...), arSorted(p1.ID, p3.ID))
 	it1 := arItem(t, page, p1.ID)
 	arSame(t, "p1 rows", arRowKeys(it1), []string{"share|share|user|" + tn.member.ID + "|view|view|active"})
 	if it1.PersonLevel != DocumentLevelView {

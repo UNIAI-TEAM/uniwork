@@ -12,6 +12,7 @@ import (
 	_ "image/png"
 	"io"
 	"path"
+	"sort"
 	"strings"
 	"unicode/utf8"
 )
@@ -455,50 +456,55 @@ func validateWebP(r io.ReaderAt, size int64, limits FileLimits) (FileFacts, erro
 	return FileFacts{Format: "image", Width: w, Height: h}, nil
 }
 
+// expectedMIMEByExtension maps each document_file extension (lowercase, with
+// its dot) to its expected content type family.
+var expectedMIMEByExtension = map[string]string{
+	".pdf":      mimePDF,
+	".docx":     mimeDOCX,
+	".xlsx":     mimeXLSX,
+	".pptx":     mimePPTX,
+	".odt":      mimeODT,
+	".doc":      mimeDOC,
+	".xls":      mimeXLS,
+	".ppt":      mimePPT,
+	".txt":      mimeText,
+	".csv":      mimeText,
+	".json":     mimeText,
+	".xml":      mimeText,
+	".yaml":     mimeText,
+	".yml":      mimeText,
+	".md":       mimeMD,
+	".markdown": mimeMD,
+	".html":     mimeHTML,
+	".htm":      mimeHTML,
+	".css":      mimeCSS,
+	".js":       mimeJS,
+	".mjs":      mimeJS,
+	".svg":      mimeSVG,
+	".png":      mimePNG,
+	".jpg":      mimeJPEG,
+	".jpeg":     mimeJPEG,
+	".gif":      mimeGIF,
+	".webp":     mimeWebP,
+}
+
 // ExpectedMIMEForExtension maps each document_file extension to its expected
 // content type family for multipart upload session preflight (BIGUP S1-b).
 func ExpectedMIMEForExtension(filename string) (string, bool) {
-	ext := strings.ToLower(path.Ext(strings.TrimSpace(filename)))
-	switch ext {
-	case ".pdf":
-		return mimePDF, true
-	case ".docx":
-		return mimeDOCX, true
-	case ".xlsx":
-		return mimeXLSX, true
-	case ".pptx":
-		return mimePPTX, true
-	case ".odt":
-		return mimeODT, true
-	case ".doc":
-		return mimeDOC, true
-	case ".xls":
-		return mimeXLS, true
-	case ".ppt":
-		return mimePPT, true
-	case ".txt", ".csv", ".json", ".xml", ".yaml", ".yml":
-		return mimeText, true
-	case ".md", ".markdown":
-		return mimeMD, true
-	case ".html", ".htm":
-		return mimeHTML, true
-	case ".css":
-		return mimeCSS, true
-	case ".js", ".mjs":
-		return mimeJS, true
-	case ".svg":
-		return mimeSVG, true
-	case ".png":
-		return mimePNG, true
-	case ".jpg", ".jpeg":
-		return mimeJPEG, true
-	case ".gif":
-		return mimeGIF, true
-	case ".webp":
-		return mimeWebP, true
-	default:
-		return "", false
+	mime, ok := expectedMIMEByExtension[strings.ToLower(path.Ext(strings.TrimSpace(filename)))]
+	return mime, ok
+}
+
+// UploadExtensions lists the extensions ExpectedMIMEForExtension accepts,
+// lowercase, without the dot, sorted: GET /api/v1/config publishes it so a
+// client can filter a folder before it plans the upload (UNI-2052).
+func UploadExtensions() []string {
+	out := make([]string, 0, len(expectedMIMEByExtension))
+	for ext := range expectedMIMEByExtension {
+		out = append(out, strings.TrimPrefix(ext, "."))
 	}
+	sort.Strings(out)
+	return out
 }
 
 // RequiresZipCentralDirectory reports whether the contentType is a zip-based

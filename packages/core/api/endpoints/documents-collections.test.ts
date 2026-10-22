@@ -12,6 +12,7 @@ import {
   listSharedByMe,
   listSharedWithMe,
   listShelvedDocuments,
+  listTrashedDocuments,
   moveDocument,
   purgeDocument,
   restoreDocument,
@@ -111,6 +112,72 @@ describe("documents-collections endpoints", () => {
     expect(String(url)).toBe("http://api.test/api/v1/workspaces/w1/documents");
   });
 
+  // ---- UNI-2038 S2: the column sort of the tables ---------------------------
+
+  it("listDocuments sends sort and order, and leaves both off when the caller names neither", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listDocuments("w1", { parentId: "", sort: "name", order: "asc", limit: 50 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?parent_id=&sort=name&order=asc&limit=50",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listDocuments("w1", { parentId: "", limit: 50 });
+    const url = new URL(String(vi.mocked(fetch).mock.calls[1]![0]));
+    expect(url.searchParams.has("sort")).toBe(false);
+    expect(url.searchParams.has("order")).toBe(false);
+  });
+
+  it("listRecentDocuments sends the activity sort with include_owned", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { sort: "activity", includeOwned: true, limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?sort=activity&include_owned=true&limit=5",
+    );
+  });
+
+  it("the sibling lists carry sort and order next to the chip filters", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { format: "pdf", sort: "size", order: "desc", limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?format=pdf&sort=size&order=desc&limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listSharedWithMe("w1", { sort: "editor", order: "asc", limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/shared-with-me?sort=editor&order=asc&limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listSharedByMe("w1", { sort: "updated", order: "desc", limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&sort=updated&order=desc&limit=5",
+    );
+  });
+
+  it("recent asks for the owned rows only when told to (UNI-2012 F5)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { includeOwned: true, limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?include_owned=true&limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { includeOwned: false, limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: "nope" }));
+    await expect(listRecentDocuments("w1", { includeOwned: true })).rejects.toThrow("document_list_invalid");
+  });
+
+  it("a sorted list that answers malformed still degrades instead of rendering rows", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: "nope" }));
+    await expect(listDocuments("w1", { sort: "name", order: "asc" })).rejects.toThrow("document_list_invalid");
+  });
+
   // ---- UNI-1868 (LISTFILTER-01): the type/access chips ----------------------
 
   it("the three sibling lists carry the same chip filters", async () => {
@@ -163,6 +230,39 @@ describe("documents-collections endpoints", () => {
     expect(out.documents[0]?.admin_scope).toBe(true);
     expect(out.documents[1]?.id).toBe("d2");
     expect(out.documents[1]?.admin_scope).toBeUndefined();
+  });
+
+  // UNI-2055 W6: is_empty is computed for this viewer; absent or garbage reads as unknown, never a failure.
+  it("list rows and tree nodes keep is_empty true/false and read garbage as unknown", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "f1", kind: "folder", is_empty: true }),
+            summary({ id: "f2", kind: "folder", is_empty: false }),
+            summary({ id: "f3", kind: "folder", is_empty: "yes" }),
+            summary({ id: "f4", kind: "folder", is_empty: null }),
+            summary({ id: "f5", kind: "folder" }),
+          ],
+        }),
+      ),
+    );
+    const list = await listDocuments("w1");
+    expect(list.documents.map((row) => row.is_empty)).toEqual([true, false, undefined, undefined, undefined]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        documents: [
+          treeNode({ id: "f1", kind: "folder", is_empty: true }),
+          treeNode({ id: "f2", kind: "folder", is_empty: false }),
+          treeNode({ id: "f3", kind: "folder", is_empty: 1 }),
+          treeNode({ id: "f4", kind: "folder" }),
+        ],
+      }),
+    );
+    const tree = await getDocumentTree("w1");
+    expect(tree.documents.map((node) => node.is_empty)).toEqual([true, false, undefined, undefined]);
+    expect(tree.documents.map((node) => node.id)).toEqual(["f1", "f2", "f3", "f4"]);
   });
 
   it("listDocuments omits parent_id when the flat list is wanted", async () => {
@@ -397,6 +497,40 @@ describe("documents-collections endpoints", () => {
     expect(out.next_cursor).toBe("s9");
   });
 
+  it.each(malformedBodies)("listTrashedDocuments throws rather than fake-empty %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(listTrashedDocuments("w1")).rejects.toThrow("document_list_invalid");
+  });
+
+  it("listTrashedDocuments always asks for archived=1 sorted deleted ascending, with the chips and the cursor (UNI-2045 Q2)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(listBody({ documents: [summary({ archived_at: "2026-10-18T00:00:00Z", archived_by: "u2", purge_after: "2026-11-17T00:00:00Z" })], next_cursor: "t9" })),
+    );
+    const out = await listTrashedDocuments("w1", { kind: "page", format: "docx", access: "restricted", cursor: "c5", limit: 25 });
+    const parsed = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(parsed.pathname).toBe("/api/v1/workspaces/w1/documents");
+    expect(parsed.searchParams.get("archived")).toBe("1");
+    expect(parsed.searchParams.get("sort")).toBe("deleted");
+    expect(parsed.searchParams.get("order")).toBe("asc");
+    expect(parsed.searchParams.get("kind")).toBe("page");
+    expect(parsed.searchParams.get("format")).toBe("docx");
+    expect(parsed.searchParams.get("access")).toBe("restricted");
+    expect(parsed.searchParams.get("cursor")).toBe("c5");
+    expect(parsed.searchParams.get("limit")).toBe("25");
+    expect(parsed.searchParams.has("shelved")).toBe(false);
+    expect(parsed.searchParams.has("parent_id")).toBe(false);
+    expect(out.documents[0]?.purge_after).toBe("2026-11-17T00:00:00Z");
+    expect(out.next_cursor).toBe("t9");
+  });
+
+  it("listTrashedDocuments reads a drifted purge_after or archived_by as absent, never as a broken page", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(listBody({ documents: [summary({ id: "a", archived_at: "2026-10-18T00:00:00Z", archived_by: 7, purge_after: { at: 1 } })] })),
+    );
+    const out = await listTrashedDocuments("w1");
+    expect(out.documents.map((d) => [d.id, d.archived_by ?? null, d.purge_after ?? null])).toEqual([["a", null, null]]);
+  });
+
   it.each(malformedBodies)("listRecentDocuments throws rather than fake-empty %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(listRecentDocuments("w1")).rejects.toThrow("document_list_invalid");
@@ -554,7 +688,29 @@ describe("documents-collections endpoints", () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
     expect(String(url)).toBe("http://api.test/api/v1/documents/d%2F1/archive-impact");
     expect(init?.method ?? "GET").toBe("GET");
-    expect(out).toEqual({ folders: 3, documents: 12, total: 16, max_nodes: 1000, too_large: false });
+    expect(out).toEqual({ folders: 3, documents: 12, total: 16, max_nodes: 1000, too_large: false, relocated_count: 0 });
+  });
+
+  it("getDocumentArchiveImpact reads relocated_count, the documents the actor cannot manage (UNI-2055 W5)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ folders: 1, documents: 4, total: 6, max_nodes: 1000, too_large: false, relocated_count: 2 }),
+    );
+    await expect(getDocumentArchiveImpact("d1")).resolves.toEqual({
+      folders: 1,
+      documents: 4,
+      total: 6,
+      max_nodes: 1000,
+      too_large: false,
+      relocated_count: 2,
+    });
+  });
+
+  // relocated_count only words a sentence: a value that cannot be read never fails the impact, it reads as 0.
+  it.each([undefined, null, -1, 1.5, "2", {}])("getDocumentArchiveImpact reads relocated_count %j as 0", async (bad) => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ folders: 1, documents: 4, total: 6, max_nodes: 1000, too_large: false, relocated_count: bad }),
+    );
+    await expect(getDocumentArchiveImpact("d1")).resolves.toMatchObject({ documents: 4, relocated_count: 0 });
   });
 
   it("getDocumentArchiveImpact reads a subtree past the cap without counts", async () => {
@@ -570,6 +726,7 @@ describe("documents-collections endpoints", () => {
       total: 1,
       max_nodes: 1000,
       too_large: false,
+      relocated_count: 0,
     });
   });
 

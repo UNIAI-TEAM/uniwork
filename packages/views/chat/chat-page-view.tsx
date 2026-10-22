@@ -71,7 +71,7 @@ import { useMembers } from "@uniwork/core/workspaces";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { Member } from "@uniwork/core/types/workspace";
-import type { ChatDocumentDesktopOpen } from "./chat-document-message-row";
+import type { ChatDocumentDesktopOpen } from "./chat-document-menu";
 
 /* Stable fallbacks while queries load: a fresh `[]` / `{}` per render would
    change every memo downstream (and re-render the memoised sidebar). */
@@ -227,7 +227,7 @@ export function ChatPageView({ workspaceId, currentUserId, desktopOpen }: { work
 
   const { data: activeRoomMembers = [] } = useChatRoomMembers(workspaceId, activeRoomId ?? "", Boolean(activeRoomId));
   // L5: the detail is the only read that answers whether this room accepts
-  // document sends (send permission AND a grantable roster under the cap).
+  // document sends (the caller's send permission; there is no roster cap).
   const canSendDocument =
     useChatRoom(workspaceId, activeRoomId ?? "", Boolean(activeRoomId) && !dmBlocked).data
       ?.can_send_document === true;

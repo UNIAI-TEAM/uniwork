@@ -34,3 +34,9 @@ describe("paths.workspace().documentsTrash", () => {
     expect(ws.documentsTrash("a/b?c&d")).toBe("/acme/team/documents?view=archived&focus=a%2Fb%3Fc%26d");
   });
 });
+
+describe("paths.workspace().documentVersions", () => {
+  it("opens the document page on its version history", () => {
+    expect(paths.workspace("acme", "team").documentVersions("d1")).toBe("/acme/team/documents/d1?panel=versions");
+  });
+});

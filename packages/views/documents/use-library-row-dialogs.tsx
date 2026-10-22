@@ -11,15 +11,19 @@ import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document"
 import { createSafeId } from "@uniwork/core/utils";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { documentErrorMessage } from "./document-error-message";
-import { findTreeNode, loadMoveRevision } from "./document-tree-model";
+import { findTreeNode, folderLeavesMyFolder, loadMoveRevision, newFolderIsWorkspaceVisible } from "./document-tree-model";
 import { FolderNameDialog } from "./folder-name-dialog";
 import { FolderPickerDialog } from "./folder-picker-dialog";
 import type { DocumentSummaryRow } from "./library-rows";
+import { MoveOutConfirmDialog } from "./move-out-confirm-dialog";
+import { canShareRow } from "./row-level";
+import { ShareDialog } from "./share-dialog";
+import { rowShareTarget } from "./share-dialog-target";
 
 type SourceRow = { type: "source"; id: string; source: DocumentSourceFile };
 
 type NameDialogState =
-  | { mode: "create"; parentId: string | null; parentTitle?: string }
+  | { mode: "create"; parentId: string | null; parentTitle?: string; parentRow?: DocumentSummaryRow }
   | { mode: "rename"; doc: DocumentSummaryRow };
 
 export interface LibraryRowDialogs {
@@ -29,13 +33,16 @@ export interface LibraryRowDialogs {
   onRename: (doc: DocumentSummaryRow) => void;
   onMove: (doc: DocumentSummaryRow) => void;
   onArchive: (doc: DocumentSummaryRow) => void;
+  /** Opens the Share dialog on a row; a row that fails the Share gate (canShareRow) opens nothing. */
+  onShare: (doc: DocumentSummaryRow) => void;
   dialogs: ReactNode;
 }
 
 /**
  * The library row commands that need a dialog: save a file from another
  * module into a folder, create a folder / subfolder, rename a folder or
- * document, move a document to another folder, archive one. Restore and
+ * document, move a document to another folder, archive one, and open the
+ * Share dialog on a document (UNI-2009: one dialog per list, whatever row asks). Restore and
  * purge belong to the trash table's own actions (use-trash-actions).
  * Each awaits the server; a refusal stays in the dialog (create, rename,
  * move, save) or the archive dialog's own message, and nothing on screen
@@ -46,6 +53,7 @@ export function useLibraryRowDialogs({
   tree,
   folderId,
   folderTitle,
+  folderRow,
 }: {
   wsId: string;
   tree: DocumentTreeNode[];
@@ -53,6 +61,8 @@ export function useLibraryRowDialogs({
   folderId: string | null;
   /** Title of the open folder for the "New -> Folder" dialog header. */
   folderTitle?: string;
+  /** The open folder's own row, so the create note does not wait for the tree to hold the folder. */
+  folderRow?: DocumentSummaryRow | null;
 }): LibraryRowDialogs {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -61,7 +71,10 @@ export function useLibraryRowDialogs({
   const [saving, setSaving] = useState<SourceRow | null>(null);
   const [naming, setNaming] = useState<NameDialogState | null>(null);
   const [moving, setMoving] = useState<DocumentSummaryRow | null>(null);
+  // A folder leaving My Folder waits here for the person's yes before any request goes out (UNI-2055 W3).
+  const [confirmingOut, setConfirmingOut] = useState<string | null | undefined>(undefined);
   const [archiving, setArchiving] = useState<DocumentSummaryRow | null>(null);
+  const [sharing, setSharing] = useState<DocumentSummaryRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [moveLoading, setMoveLoading] = useState(false);
   // One key per source and target: a retry after a timeout replays the same save, a new target is a new one.
@@ -105,6 +118,7 @@ export function useLibraryRowDialogs({
         mode={naming?.mode ?? "create"}
         parentId={naming?.mode === "create" ? naming.parentId : null}
         parentTitle={naming?.mode === "create" ? naming.parentTitle : undefined}
+        workspaceNote={naming?.mode === "create" && newFolderIsWorkspaceVisible(tree, naming.parentId, naming.parentRow)}
         folderId={naming?.mode === "rename" ? naming.doc.id : ""}
         initialName={naming?.mode === "rename" ? naming.doc.title : ""}
         kind={naming?.mode === "rename" ? naming.doc.kind : "folder"}
@@ -145,7 +159,10 @@ export function useLibraryRowDialogs({
       <FolderPickerDialog
         open={moving !== null}
         onOpenChange={(next) => {
-          if (!next) setMoving(null);
+          if (!next) {
+            setMoving(null);
+            setConfirmingOut(undefined);
+          }
         }}
         title={t("documents.home.move.picker_title")}
         description={
@@ -164,7 +181,21 @@ export function useLibraryRowDialogs({
         pending={moveLoading}
         error={moving ? error : null}
         onSubmit={(target) => {
-          if (moving) void submitMove(moving, target);
+          if (!moving) return;
+          if (folderLeavesMyFolder(tree, [moving.id], target)) {
+            setConfirmingOut(target);
+            return;
+          }
+          void submitMove(moving, target);
+        }}
+      />
+      <MoveOutConfirmDialog
+        open={moving !== null && confirmingOut !== undefined}
+        onCancel={() => setConfirmingOut(undefined)}
+        onConfirm={() => {
+          const target = confirmingOut;
+          setConfirmingOut(undefined);
+          if (moving && target !== undefined) void submitMove(moving, target);
         }}
       />
       {archiving ? (
@@ -178,6 +209,16 @@ export function useLibraryRowDialogs({
           mode="archive"
         />
       ) : null}
+      {sharing ? (
+        <ShareDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setSharing(null);
+          }}
+          wsId={wsId}
+          doc={rowShareTarget(sharing)}
+        />
+      ) : null}
     </>
   );
 
@@ -186,12 +227,13 @@ export function useLibraryRowDialogs({
       setError(null);
       setSaving(row);
     },
-    onCreateFolder: () => setNaming({ mode: "create", parentId: folderId, parentTitle: folderTitle }),
+    onCreateFolder: () => setNaming({ mode: "create", parentId: folderId, parentTitle: folderTitle, parentRow: folderRow ?? undefined }),
     onNewSubfolder: (doc) =>
       setNaming({
         mode: "create",
         parentId: doc.id,
         parentTitle: isMyFolder(doc) ? t("documents.home.my_folder.label") : doc.title,
+        parentRow: doc,
       }),
     onRename: (doc) => {
       if (isMyFolder(doc)) return;
@@ -205,6 +247,9 @@ export function useLibraryRowDialogs({
     onArchive: (doc) => {
       if (isMyFolder(doc)) return;
       setArchiving(doc);
+    },
+    onShare: (doc) => {
+      if (canShareRow(doc)) setSharing(doc);
     },
     dialogs,
   };

@@ -19,7 +19,7 @@ const PAGE_ACTIONS: readonly ShortcutActionId[] = ["findInTask", "openThreadNav"
  * Mounted by the find scope, which only exists once the task has loaded.
  *
  * Not in GlobalShortcuts on purpose. The chat page owns Ctrl/Cmd+F for its own
- * message search (chat-page-content.tsx), and a shell-level claim would take
+ * message search (chat/use-chat-find-shortcut.ts), and a shell-level claim would take
  * the browser's find away from every other page too. Chords are read from the
  * shortcut store at key time, so a rebinding applies immediately.
  */

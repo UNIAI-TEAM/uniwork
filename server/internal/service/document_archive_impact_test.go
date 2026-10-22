@@ -137,10 +137,12 @@ func TestDocumentArchiveImpact(t *testing.T) {
 		defer func() { f.svc.archiveMaxNodes = 0 }()
 
 		// The same shape twice: a root the caller manages through a share and
-		// a restricted child they do not manage at all.
+		// a restricted child they do not manage at all. The root is a page: a
+		// workspace folder relocates such a child instead (ADR 0037 point 5,
+		// TestFolderTrashImpactCountsRelocationWithoutLeaking).
 		shape := func(t *testing.T, title string, children int) db.Document {
 			t.Helper()
-			root := doc(t, "", DocumentKindFolder, title, nil)
+			root := doc(t, "", DocumentKindPage, title, nil)
 			doc(t, root.ID, DocumentKindPage, title+" hạn chế", func(s *treeDocSpec) {
 				s.visibility = "restricted"
 			})
@@ -202,7 +204,9 @@ func TestDocumentArchiveImpact(t *testing.T) {
 	})
 
 	t.Run("one node the caller cannot manage refuses the whole read", func(t *testing.T) {
-		root := doc(t, "", DocumentKindFolder, "Có nút hạn chế", nil)
+		// A page root keeps the refusal; a workspace folder counts the node
+		// as relocated instead (ADR 0037 point 5), checked below.
+		root := doc(t, "", DocumentKindPage, "Có nút hạn chế", nil)
 		doc(t, root.ID, DocumentKindPage, "Hạn chế", func(s *treeDocSpec) { s.visibility = "restricted" })
 		f.share(t, root, DocumentPrincipalUser, tn.member.ID, DocumentLevelManage, tn.aclOwner.ID)
 
@@ -220,6 +224,15 @@ func TestDocumentArchiveImpact(t *testing.T) {
 		}
 		if _, err := f.svc.ArchiveImpact(ctx, Human(tn.deact.ID), root.ID); !errors.Is(err, ErrMemberDeactivated) {
 			t.Fatalf("deactivated member = %v, want ErrMemberDeactivated", err)
+		}
+
+		// The same shape under a workspace folder: counted, not refused.
+		folder := doc(t, "", DocumentKindFolder, "Thư mục có nút hạn chế", nil)
+		doc(t, folder.ID, DocumentKindPage, "Hạn chế", func(s *treeDocSpec) { s.visibility = "restricted" })
+		f.share(t, folder, DocumentPrincipalUser, tn.member.ID, DocumentLevelManage, tn.aclOwner.ID)
+		inFolder, err := f.svc.ArchiveImpact(ctx, member, folder.ID)
+		if err != nil || inFolder.Relocated != 1 || inFolder.Documents != 0 || inFolder.Total != 1 {
+			t.Fatalf("workspace folder impact = %+v, %v, want one relocated, only the folder stamped", inFolder, err)
 		}
 	})
 

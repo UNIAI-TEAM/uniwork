@@ -4,6 +4,8 @@ import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore, clearTaskSurfaceViewState } from "@uniwork/core/tasks/stores/surface-view-store";
 import type { User } from "@uniwork/core/types";
+import { useAiPanelStore } from "@uniwork/core/ai";
+import { capabilities, withAskUniDock } from "../ai/ask-uni-fixtures";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { ProjectDetailPage } from "./project-detail-page";
 
@@ -369,5 +371,20 @@ describe("ProjectDetailPage", () => {
       ([path, init]) => String(path) === "/api/v1/workspaces/w1/pins" && (init as { method?: string })?.method === "POST",
     );
     expect(post?.[1]).toMatchObject({ body: { item_type: "project", item_id: "p1" } });
+  });
+
+  it("opens Ask UNI focused on this project", async () => {
+    const fallback = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: unknown) =>
+      String(path).endsWith("/ai/capabilities") ? Promise.resolve(capabilities()) : fallback(path, init),
+    );
+    useAiPanelStore.setState({ open: false, pendingFocus: null });
+    render(
+      wrapWithNav(
+        withAskUniDock(<ProjectDetailPage workspaceId="w1" projectId="p1" onOpenTask={vi.fn()} onBack={vi.fn()} />),
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về dự án này" }, LONG));
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "project", id: "p1", label: "Q3 launch" });
   });
 });

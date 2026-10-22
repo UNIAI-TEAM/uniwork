@@ -6,6 +6,7 @@ import { ChatCreatePollDialog } from "./chat-create-poll-dialog";
 import { ChatCreateReminderDialog } from "./chat-create-reminder-dialog";
 import { ChatCreateNoteDialog } from "./chat-create-note-dialog";
 import { ChatCreatePostDialog } from "./chat-create-post-dialog";
+import { ChatDocumentPicker } from "./chat-document-picker";
 import { DmSettingsSheet } from "./dm-settings-sheet";
 import { GroupSettingsSheet } from "./group-settings-sheet";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
@@ -58,6 +59,8 @@ type ChatPageContentDialogsProps = Pick<
   | "voiceCallDisabled"
   | "onVideoCall"
   | "videoCallDisabled"
+  | "replyTo"
+  | "onReplyToChange"
 > & {
   createPollOpen: boolean;
   onCreatePollOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
@@ -67,6 +70,8 @@ type ChatPageContentDialogsProps = Pick<
   onCreateNoteOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   createPostOpen: boolean;
   onCreatePostOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
+  documentPickerOpen: boolean;
+  onDocumentPickerOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export function ChatPageContentDialogs({
@@ -114,6 +119,8 @@ export function ChatPageContentDialogs({
   voiceCallDisabled,
   onVideoCall,
   videoCallDisabled,
+  replyTo,
+  onReplyToChange,
   createPollOpen,
   onCreatePollOpenChange,
   createReminderOpen,
@@ -122,6 +129,8 @@ export function ChatPageContentDialogs({
   onCreateNoteOpenChange,
   createPostOpen,
   onCreatePostOpenChange,
+  documentPickerOpen,
+  onDocumentPickerOpenChange,
 }: ChatPageContentDialogsProps) {
   const messageMember = (member: ChatMemberMessageTarget) => {
     setTarget({
@@ -178,6 +187,16 @@ export function ChatPageContentDialogs({
           workspaceId={workspaceId}
           roomId={activeRoomId}
           canPinToTop={canPinMessages}
+        />
+      ) : null}
+      {activeRoomId ? (
+        <ChatDocumentPicker
+          open={documentPickerOpen}
+          onOpenChange={onDocumentPickerOpenChange}
+          workspaceId={workspaceId}
+          roomId={activeRoomId}
+          replyToId={replyTo?.id}
+          onSent={() => onReplyToChange(null)}
         />
       ) : null}
       {target.kind === "workspace" && workspaceRoomId ? (

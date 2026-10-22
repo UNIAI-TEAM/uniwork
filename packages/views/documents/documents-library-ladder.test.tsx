@@ -2,18 +2,26 @@ import { render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentsLibraryList } from "./documents-library-list";
+import type { DocListScreen } from "./doclist/columns";
 import { type LibraryRowHandlers } from "./documents-library-row";
 import { documentRow, type DocumentSummaryRow } from "./library-rows";
 
 // RootFix w2: every optional library column is driven by the list's own container width
 // (`@container/library`), in a ladder where Name keeps its room. jsdom cannot evaluate
 // container queries, so the test reads the rendered classes and evaluates them itself.
+// UNI-2045 W1: the ladder is the shared spec's (doclist/columns.ts), the same on every
+// screen: the table rung brings Updated (and the screen column), then Access, the editor
+// and Size join, so they hide in the reverse order.
 
 initI18n();
 
-const NAME_MIN = 220;
+/** The Name floor of the workspace screen and of a screen with a screen column (doclist/columns.ts). */
+const NAME_MIN = 260;
+const NAME_MIN_SCREEN_COLUMN = 288;
 /** Below this container width nothing optional is left to drop: Name = width - border - actions. */
 const FLOOR = 320;
+/** The actions column of the shared spec on a fine pointer. */
+const ACTIONS = 76;
 /** The list's own max width (max-w-6xl = 72rem minus the px-6 gutters). */
 const LIST_MAX = 1104;
 const BORDER = 2;
@@ -51,10 +59,10 @@ const handlers: LibraryRowHandlers = {
   personName: () => "An",
 };
 
-function renderList(opts: { sharedByMe?: boolean } = {}) {
+function renderList(opts: { screen?: DocListScreen } = {}) {
   return render(
     <DocumentsLibraryList
-      groups={[{ key: "unfiled", title: "Nhóm", rows: [documentRow(file("a"))] }]}
+      groups={[{ key: "earlier", rows: [documentRow(file("a"))] }]}
       loading={false}
       failure={null}
       filteredBy={null}
@@ -64,7 +72,7 @@ function renderList(opts: { sharedByMe?: boolean } = {}) {
       onRetry={vi.fn()}
       onClearFilters={vi.fn()}
       handlers={handlers}
-      sharedByMe={opts.sharedByMe}
+      screen={opts.screen}
       empty={{ title: "empty", description: "empty" }}
     />,
   );
@@ -135,6 +143,22 @@ function layoutAt(c: number) {
 }
 
 const IDS = ["name", "access", "editor", "updated", "size", "actions"];
+const IDS_SHARED_BY_ME = ["name", "shared_with", "access", "editor", "updated", "size", "actions"];
+
+/** The columns that join as the container widens from FLOOR to LIST_MAX, as `width:ids`. */
+function joinSteps(ids: string[]): string[] {
+  let previous = new Set<string>();
+  const steps: string[] = [];
+  for (let c = FLOOR; c <= LIST_MAX; c += 1) {
+    const { visible } = layoutAt(c);
+    const now = new Set(ids.filter((_, i) => visible[i]));
+    for (const id of previous) expect(now.has(id), `${id} disappears at ${c}`).toBe(true);
+    const added = [...now].filter((id) => !previous.has(id));
+    if (added.length > 0) steps.push(`${c}:${added.join("+")}`);
+    previous = now;
+  }
+  return steps;
+}
 
 describe("column ladder", () => {
   afterEach(() => document.body.replaceChildren());
@@ -168,65 +192,49 @@ describe("column ladder", () => {
     }
   });
 
-  it("gives Name room at every container width the list can reach", () => {
-    renderList();
+  it.each([
+    ["workspace" as const, NAME_MIN],
+    ["shared-by-me" as const, NAME_MIN_SCREEN_COLUMN],
+  ])("gives Name room at every container width the list can reach on %s", (screen, floor) => {
+    renderList({ screen });
     for (let c = FLOOR; c <= LIST_MAX; c += 1) {
       const { name } = layoutAt(c);
-      // The rungs hold Name above the 220px floor except in the narrowest
-      // containers, where only Name and the 80px actions column exist.
-      const min = c - BORDER - 80 < NAME_MIN ? c - BORDER - 80 : NAME_MIN;
+      // The rungs hold Name above the floor except in the narrowest
+      // containers, where only Name and the 76px actions column exist.
+      const min = c - BORDER - ACTIONS < floor ? c - BORDER - ACTIONS : floor;
       expect(name, `Name at ${c}`).toBeGreaterThanOrEqual(min);
     }
   });
 
   it("only adds columns as the container widens, in the documented order", () => {
     renderList();
-    let previous = new Set<string>();
-    const steps: string[] = [];
-    for (let c = FLOOR; c <= LIST_MAX; c += 1) {
-      const { visible } = layoutAt(c);
-      const now = new Set(IDS.filter((_, i) => visible[i]));
-      for (const id of previous) expect(now.has(id), `${id} disappears at ${c}`).toBe(true);
-      const added = [...now].filter((id) => !previous.has(id));
-      if (added.length > 0) steps.push(`${c}:${added.join("+")}`);
-      previous = now;
-    }
-    expect(steps.slice(1)).toEqual(["464:updated", "672:editor", "752:size", "944:access"]);
+    // 31rem table (Updated), 39rem Access, 48rem editor, 54rem Size (every column fits the ~870px of a 1440 viewport).
+    expect(joinSteps(IDS).slice(1)).toEqual(["496:updated", "624:access", "768:editor", "864:size"]);
   });
 
-  it("swaps access and editor rungs on Shared by me so the scope column joins earlier (SW-V1)", () => {
-    renderList({ sharedByMe: true });
-    let previous = new Set<string>();
-    const steps: string[] = [];
-    for (let c = FLOOR; c <= LIST_MAX; c += 1) {
-      const { visible } = layoutAt(c);
-      const now = new Set(IDS.filter((_, i) => visible[i]));
-      for (const id of previous) expect(now.has(id), `${id} disappears at ${c}`).toBe(true);
-      const added = [...now].filter((id) => !previous.has(id));
-      if (added.length > 0) steps.push(`${c}:${added.join("+")}`);
-      previous = now;
-    }
-    // Truy cập joins where the editor would (42rem) and the editor waits:
-    // the row owner is never the reader of this view, so the scope matters more.
-    expect(steps.slice(1)).toEqual(["464:updated", "672:access", "752:size", "944:editor"]);
+  it("opens the same order on Shared by me, its screen column with the table (UNI-2045 replaces the SW-V1 swap)", () => {
+    renderList({ screen: "shared-by-me" });
+    // 40rem table (screen column + Updated), 48rem Access, 57rem editor, 64rem Size: the ~870px a 1440 viewport leaves
+    // holds Access and gives Name the room of the editor and Size (FX6 N1).
+    expect(joinSteps(IDS_SHARED_BY_ME).slice(1)).toEqual(["640:shared_with+updated", "768:access", "912:editor", "1024:size"]);
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
     const accessLine = row.querySelector("[data-library-access-line]") as HTMLElement;
-    // The access group leaves the narrow line as its column joins; the rest of
-    // the line (editor · date · size) stays until the last column joins.
-    expect(rungOf(accessLine.querySelector("[data-library-access-group]")!, /^hidden$/)).toBe(672);
-    expect(rungOf(accessLine, /^hidden$/)).toBe(944);
+    expect(rungOf(accessLine.querySelector("[data-library-access-group]")!, /^hidden$/)).toBe(768);
+    expect(rungOf(accessLine, /^hidden$/)).toBe(912);
   });
 
-  it("swaps the secondary line for the access column once it fits", () => {
+  it("swaps each part of the secondary line for its column once it fits", () => {
     renderList();
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
     const accessLine = row.querySelector("[data-library-access-line]") as HTMLElement;
     expect(accessLine).toBeTruthy();
     expect(accessLine.textContent).toContain("Riêng tư");
-    const hidesAt = rungOf(accessLine, /^hidden$/);
-    // It hides at the very width the column appears, so the info is never shown twice or lost.
-    expect(hidesAt).toBe(944);
-    const access = Array.from(row.querySelectorAll("td")).filter((td) => rungOf(td, /^table-cell$/) === 944);
+    // The level · scope group hides at the very width the access column appears,
+    // so the info is never shown twice or lost; the line itself (the editor) at the editor's.
+    const accessGroup = accessLine.querySelector("[data-library-access-group]")!;
+    expect(rungOf(accessGroup, /^hidden$/)).toBe(624);
+    expect(rungOf(accessLine, /^hidden$/)).toBe(768);
+    const access = Array.from(row.querySelectorAll("td")).filter((td) => rungOf(td, /^table-cell$/) === 624);
     expect(access).toHaveLength(1);
     expect(row.querySelectorAll("td").length).toBe(6);
     expect(document.querySelectorAll("colgroup col").length).toBe(6);

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { ChevronRight, Info, RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
-import { versionViewHref } from "@uniwork/core/office/version-view";
+import { lostCommentVersion, namesComment, parseVersionParam, versionViewHref } from "@uniwork/core/office/version-view";
 import { paths } from "@uniwork/core/paths";
 import type { Document, DocumentCommentKind } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
+import { useOptionalNavigation } from "../navigation";
 import { DocumentCommentComposer } from "./document-comment-composer";
 import { DocumentCommentThread, type ThreadContext } from "./document-comment-thread";
 import {
@@ -127,6 +128,7 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
   const { t } = useTranslation();
   const chrome = useDocumentCommentsChrome();
   const workspace = useOptionalWorkspace();
+  const nav = useOptionalNavigation();
   const orgId = doc.organization_id || workspace?.workspace.organization_id || "";
   const panel = useDocumentCommentsPanel(wsId, doc);
   const { query, comments } = panel;
@@ -185,6 +187,25 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
     setFocus({ rootId: target.rootId, target: foreignFocus(paneRef.current) ? "scroll" : "heading" });
     setHighlightId(target.rootId);
   }, [comments, deepLinkId, deepLinkKind, format, query.isSuccess, setTab]);
+  // Inbox landing (UNI-2033): the formats without frame comments (pptx, pdf) are revealed here, so the first list
+  // that names the link's comment decides once per link, like the frame's `comments.list` that names it. docx and
+  // xlsx belong to the frame, which may not have claimed the comments yet when the pane opens, so they never land
+  // here. A lost comment on another version takes the page there; a version view, the open version or a comment
+  // that is not lost stays put. A list without the comment decides nothing: a later one may name it.
+  const landed = chrome?.landedLink;
+  useEffect(() => {
+    if (!landed || !deepLinkId || !query.isSuccess || landed.current === deepLinkId) return;
+    if (format !== "pptx" && format !== "pdf") return;
+    if (!nav || parseVersionParam(nav.searchParams.get("version")) !== null) {
+      landed.current = deepLinkId;
+      return;
+    }
+    const list = { comments };
+    if (!namesComment(list, deepLinkId)) return;
+    landed.current = deepLinkId;
+    const versionNo = lostCommentVersion(list, deepLinkId);
+    if (versionNo !== null && versionNo !== doc.file?.version) nav.replace(versionViewHref(nav.pathname, versionNo, deepLinkId));
+  }, [landed, comments, deepLinkId, doc.file?.version, format, nav, query.isSuccess]);
   useEffect(() => {
     if (!highlightId) return undefined;
     const timer = window.setTimeout(() => setHighlightId(null), HIGHLIGHT_MS);

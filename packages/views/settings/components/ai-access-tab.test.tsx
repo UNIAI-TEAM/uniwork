@@ -354,7 +354,7 @@ describe("AiAccessTab", () => {
     );
     renderTab();
     expect(await screen.findByText(t("settings.state.load_error"))).toBeInTheDocument();
-    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: SWITCH_NAME })).not.toBeInTheDocument();
     fail = false;
     fireEvent.click(screen.getByRole("button", { name: t("settings.state.retry") }));
     expect(await screen.findByRole("switch", { name: SWITCH_NAME })).toBeInTheDocument();
@@ -364,6 +364,21 @@ describe("AiAccessTab", () => {
     serve("owner", {});
     renderTab();
     expect(await screen.findByText(t("settings.state.load_error"))).toBeInTheDocument();
-    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: SWITCH_NAME })).not.toBeInTheDocument();
+  });
+
+  it("still shows the Ask UNI models section when the MCP policy fails to load", async () => {
+    serve("owner");
+    const base = requestMock.getMockImplementation();
+    requestMock.mockImplementation((path: string, init?: Init) =>
+      path === "/api/v1/orgs/acme/mcp-policy" && !init?.method
+        ? Promise.reject(new Error("down"))
+        : path === "/api/v1/orgs/acme/ai/ask-models"
+          ? Promise.resolve({ models: ["haiku"] })
+          : base?.(path, init),
+    );
+    renderTab();
+    expect(await screen.findByText(t("settings.state.load_error"))).toBeInTheDocument();
+    expect(await screen.findByRole("switch", { name: "Haiku 5.5" })).toBeInTheDocument();
   });
 });

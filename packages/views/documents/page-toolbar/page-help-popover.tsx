@@ -3,12 +3,13 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { CircleQuestionMark, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { createShortcutChord, type ShortcutChord } from "@uniwork/core/shortcuts";
+import { getShortcutPlatform, type ShortcutChord, type ShortcutPlatform } from "@uniwork/core/shortcuts";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import { pageShortcutChords, type PageShortcutId } from "../../editor/extensions/page-shortcuts";
 import { ShortcutKeycaps } from "../../editor/shortcut-keycaps";
 import { TOOLBAR_BUTTON_CLASS } from "./page-toolbar-button";
 
@@ -16,14 +17,27 @@ type Keys = { typed: string[] } | { chords: ShortcutChord[] } | { text: ReactNod
 interface HelpRow { id: string; what: string; keys: Keys }
 interface HelpSection { id: string; title: string; rows: HelpRow[] }
 
-const primary = (key: string, shift = false) => createShortcutChord(key, { primary: true, shift });
+/**
+ * A "keys" row names rows of the page shortcut table: every key of each one
+ * (`all`), or the preferred key of each one (a family such as Bold / Italic).
+ */
+function chordsOf(ids: readonly PageShortcutId[], platform: ShortcutPlatform, all: boolean): ShortcutChord[] {
+  return ids.flatMap((id) => {
+    const chords = pageShortcutChords(id, platform);
+    return all ? chords : chords.slice(0, 1);
+  });
+}
 
 /**
- * Every row is a shortcut a test proves works in the page editor
- * (page-shortcuts.test.ts). Ctrl/Cmd+K is deliberately absent: it is the app search.
+ * Every key row is read from the page shortcut table (`PAGE_SHORTCUTS`), the
+ * same table the editor's handlers and the toolbar tooltips use, so what is
+ * listed per platform is what a test fired (page-shortcuts.test.ts).
  */
-export function helpSections(t: (key: string) => string): HelpSection[] {
+export function helpSections(t: (key: string) => string, platform: ShortcutPlatform = getShortcutPlatform()): HelpSection[] {
   const k = (key: string) => t(`documents.page_ui.toolbar.help.${key}`);
+  const keys = (id: string, ids: PageShortcutId[], all = false): HelpRow => ({
+    id, what: k(`keys_${id}`), keys: { chords: chordsOf(ids, platform, all) },
+  });
   return [
     { id: "quick", title: k("quick"), rows: [
       { id: "slash", what: k("quick_slash"), keys: { typed: ["/"] } },
@@ -39,10 +53,23 @@ export function helpSections(t: (key: string) => string): HelpSection[] {
       { id: "divider", what: k("line_divider"), keys: { typed: ["---"] } },
     ] },
     { id: "keys", title: k("keys"), rows: [
-      { id: "format", what: k("keys_format"), keys: { chords: [primary("B"), primary("I")] } },
-      { id: "strike", what: k("keys_strike"), keys: { chords: [primary("S", true)] } },
-      { id: "code", what: k("keys_code"), keys: { chords: [primary("E")] } },
-      { id: "undo", what: k("keys_undo"), keys: { chords: [primary("Z"), primary("Z", true)] } },
+      keys("save", ["save"]),
+      keys("undo", ["undo"]),
+      keys("redo", ["redo"], true),
+      keys("format", ["bold", "italic", "underline"]),
+      keys("strike", ["strike"], true),
+      keys("code", ["code"]),
+      keys("link", ["link"]),
+      keys("clear", ["clearFormatting"]),
+    ].filter((row) => "chords" in row.keys && row.keys.chords.length > 0) },
+    { id: "blocks", title: k("blocks"), rows: [
+      keys("bullet", ["bulletList"], true),
+      keys("ordered", ["orderedList"]),
+      keys("task", ["taskList"]),
+      keys("quote", ["blockquote"]),
+      keys("code_block", ["codeBlock"]),
+      keys("paragraph", ["paragraph"]),
+      keys("headings", ["heading1", "heading2", "heading3"]),
     ] },
   ];
 }

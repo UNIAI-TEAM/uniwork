@@ -69,6 +69,8 @@ func newDocumentCollabWorld(t *testing.T) *documentCollabWorld {
 	docs.SetFiles(fake)
 	d.Actors.SetFiles(fake)
 	d.Documents = docs
+	// As main.go wires it: the inbox resolves document rows through the same gate.
+	d.Notifications.SetDocumentReaders(docs)
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 

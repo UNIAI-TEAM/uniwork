@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
@@ -8,10 +9,11 @@ import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { wrapWithNav, fakeNav } from "../test/api-mock";
 import type { ChatMessage } from "./chat-messages";
-import { ChatDocumentMessageRow, type ChatDocumentDesktopOpen } from "./chat-document-message-row";
+import type { ChatDocumentDesktopOpen } from "./chat-document-menu";
+import { ChatDocumentMessageRow } from "./chat-document-message-row";
 
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), message: vi.fn(), info: vi.fn() },
+  toast: { error: vi.fn(), message: vi.fn(), info: vi.fn(), success: vi.fn() },
 }));
 
 import { toast } from "sonner";
@@ -31,6 +33,8 @@ vi.mock("@uniwork/core/documents/hooks-versions", async (orig) => ({
   ...(await orig<typeof import("@uniwork/core/documents/hooks-versions")>()),
   useCommitDocumentVersion: (...a: unknown[]) => useCommitDocumentVersionMock(...a),
 }));
+
+initI18n();
 
 const user: User = {
   id: "u1",
@@ -66,32 +70,69 @@ function documentMessage(
   };
 }
 
+type RowProps = Parameters<typeof ChatDocumentMessageRow>[0];
+
+function row(message: ChatMessage, props: Partial<RowProps> = {}) {
+  return (
+    <WorkspaceProvider workspace={workspace} user={user}>
+      <ChatDocumentMessageRow
+        workspaceId="ws1"
+        roomId="room1"
+        message={message}
+        senderLabel="Bình"
+        isOwn={false}
+        showSenderName={false}
+        compactTop={false}
+        showAvatar={false}
+        {...props}
+      />
+    </WorkspaceProvider>
+  );
+}
+
 function renderCard(
   message: ChatMessage,
-  props: Partial<Parameters<typeof ChatDocumentMessageRow>[0]> = {},
+  props: Partial<RowProps> = {},
   nav = fakeNav(),
   client?: QueryClient,
 ) {
-  render(
-    wrapWithNav(
-      <WorkspaceProvider workspace={workspace} user={user}>
-        <ChatDocumentMessageRow
-          workspaceId="ws1"
-          roomId="room1"
-          message={message}
-          senderLabel="Bình"
-          isOwn={false}
-          showSenderName={false}
-          compactTop={false}
-          showAvatar={false}
-          {...props}
-        />
-      </WorkspaceProvider>,
-      nav,
-      client,
-    ),
-  );
+  render(wrapWithNav(row(message, props), nav, client));
   return nav;
+}
+
+/** A live row: the message menu (and the document entries in it) needs reply and react. */
+const LIVE = { onReply: vi.fn(), onReact: vi.fn() } satisfies Partial<RowProps>;
+
+/** The card's one level badge: beside the title under a fine pointer, in the caption line under a coarse one. */
+function levelBadge(text: string): HTMLElement {
+  const all = screen.getAllByText(text);
+  expect(all).toHaveLength(1);
+  expect(document.querySelectorAll("[data-slot=badge]")).toHaveLength(1);
+  return all[0]!;
+}
+
+/** Stubs `(pointer: coarse)` as matching, as the meeting notes tests do. */
+function stubCoarsePointer() {
+  const real = window.matchMedia.bind(window);
+  vi.spyOn(window, "matchMedia").mockImplementation((query: string) =>
+    query === "(pointer: coarse)" ? ({ ...real(query), matches: true } as MediaQueryList) : real(query),
+  );
+}
+
+/** The hover bar's "…" (last in the DOM; the card's touch "…" comes first and is css-hidden on a fine pointer). */
+function barMore(): HTMLElement {
+  return screen.getAllByRole("button", { name: "Thêm" }).at(-1)!;
+}
+
+async function openMenu() {
+  await userEvent.click(barMore());
+  return screen.findByRole("menu");
+}
+
+function menuLabels(menu: HTMLElement): string[] {
+  return within(menu)
+    .getAllByRole("menuitem")
+    .map((item) => item.textContent?.trim() ?? "");
 }
 
 const DOC = {
@@ -103,8 +144,45 @@ const DOC = {
   revision: "42",
 };
 
+const FULL = {
+  ...DOC,
+  viewer_level: "manage" as const,
+  recipient_count: 2,
+  viewer_can_manage: true,
+  viewer_can_upload_version: true,
+  can_open_in_app: true,
+};
+
+function desktopFactory(createSession = vi.fn(async () => null)) {
+  return vi.fn(() => ({
+    deploymentId: "dep-1",
+    channel: "stable",
+    savedVersion: 3,
+    createSession,
+    loadInstallers: vi.fn(),
+    loadPlatformHint: vi.fn(),
+    downloadInstaller: vi.fn(),
+    launch: vi.fn(),
+  })) as unknown as ChatDocumentDesktopOpen & ReturnType<typeof vi.fn>;
+}
+
+const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+/** Opens "Tải lên phiên bản mới" from the menu, picks a file and submits it. */
+async function uploadFromMenu(name = "v4.docx") {
+  await userEvent.click(within(await openMenu()).getByRole("menuitem", { name: "Tải lên phiên bản mới" }));
+  const input = await waitFor(() => {
+    const found = document.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(found).toBeTruthy();
+    return found!;
+  });
+  fireEvent.change(input, { target: { files: [new File(["x"], name, { type: DOCX })] } });
+  fireEvent.click(screen.getByRole("button", { name: "Tải lên" }));
+}
+
 describe("ChatDocumentMessageRow", () => {
   beforeEach(() => {
+    vi.mocked(toast.error).mockClear();
     useDocumentMock.mockReset().mockReturnValue({ data: undefined, isError: false });
     useDocumentLimitsMock.mockReset().mockReturnValue({ upload_max_bytes: 200 * 1024 * 1024 });
     useUploadDocumentFileMock.mockReset().mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
@@ -121,48 +199,20 @@ describe("ChatDocumentMessageRow", () => {
   });
 
   describe("on the bubble it sits on (UNI-2010)", () => {
-    const FULL = {
-      ...DOC,
-      viewer_level: "manage" as const,
-      recipient_count: 2,
-      viewer_can_manage: true,
-      viewer_can_upload_version: true,
-      can_open_in_app: true,
-    };
-    const desktopOpen = (() => ({
-      deploymentId: "dep-1",
-      channel: "stable",
-      savedVersion: 3,
-      loadInstallers: vi.fn(),
-      loadPlatformHint: vi.fn(),
-      downloadInstaller: vi.fn(),
-      launch: vi.fn(),
-    })) as unknown as ChatDocumentDesktopOpen;
     // A bare outline/ghost/default class set resolves to bg-background / bg-primary on the brand bubble.
     const barePaint = ["bg-background", "dark:bg-input/30", "border-input", "bg-primary", "bg-secondary", "text-muted-foreground", "text-foreground"];
     const ownControl = ["bg-chat-bubble-own-foreground/15", "text-chat-bubble-own-foreground"];
-    // Hover / open menu invert to white with brand text (>= 4.5:1); the old /25 wash measured 3.86:1.
-    const ownInverted = [
-      "hover:bg-chat-bubble-own-foreground",
-      "hover:text-chat-bubble-own",
-      "aria-expanded:bg-chat-bubble-own-foreground",
-      "aria-expanded:text-chat-bubble-own",
-      "focus-visible:outline-chat-bubble-own-foreground",
-    ];
 
-    it("own bubble: every control wears the own-bubble family, none a bare variant paint", () => {
-      renderCard(documentMessage(FULL), { isOwn: true, desktopOpen });
-      for (const name of ["Quản lý quyền truy cập", "Tải lên phiên bản mới", "Tùy chọn UniWork Office"]) {
-        const control = screen.getByRole("button", { name });
-        expect(control).toHaveClass(...ownControl, ...ownInverted);
-        expect(control).not.toHaveClass("hover:bg-chat-bubble-own-foreground/25", "aria-expanded:bg-chat-bubble-own-foreground/25");
-        for (const bare of barePaint) expect(control).not.toHaveClass(bare);
+    it("keeps no action buttons on the card: the title is its only control (UNI-2012 S7)", () => {
+      for (const isOwn of [true, false]) {
+        const view = render(wrapWithNav(row(documentMessage(FULL), { isOwn, desktopOpen: desktopFactory() })));
+        const article = view.container.querySelector("article")!;
+        const inCard = within(article)
+          .getAllByRole("button")
+          .filter((button) => !button.closest("[data-message-actions]"));
+        expect(inCard.map((button) => button.getAttribute("aria-label"))).toEqual(["Mở trong Tài liệu: Báo cáo Q3"]);
+        view.unmount();
       }
-      // The primary Open button inverts: it must not vanish into the brand fill.
-      const open = screen.getByRole("button", { name: "Mở bằng UniWork Office" });
-      expect(open).toHaveClass("bg-chat-bubble-own-foreground", "text-chat-bubble-own", "focus-visible:outline-chat-bubble-own-foreground");
-      expect(open).not.toHaveClass("bg-primary");
-      expect(open).not.toHaveClass("text-primary-foreground");
     });
 
     it("own bubble: title, secondary line and level badge stay readable on the brand fill", () => {
@@ -170,10 +220,10 @@ describe("ChatDocumentMessageRow", () => {
       expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("text-chat-bubble-own-foreground");
       expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).not.toHaveClass("text-foreground");
       expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("focus-visible:outline-chat-bubble-own-foreground");
-      const secondary = screen.getByText(/Phiên bản 3/);
+      const secondary = screen.getByText(/Phiên bản 3/).parentElement!;
       expect(secondary).toHaveClass("text-chat-bubble-own-meta");
       expect(secondary).not.toHaveClass("text-muted-foreground");
-      const badge = screen.getByText("Quản lý");
+      const badge = levelBadge("Quản lý");
       expect(badge).toHaveClass(...ownControl);
       expect(badge).not.toHaveClass("bg-secondary");
       // The badge is a plain span: only the resting look, never the control's hover / open / focus states.
@@ -213,17 +263,11 @@ describe("ChatDocumentMessageRow", () => {
       expect(screen.getByText("Báo cáo Q3.docx")).toHaveClass("text-chat-bubble-own-foreground");
     });
 
-    it("other bubble: the card keeps its outline buttons, grey secondary text and brand primary", () => {
-      renderCard(documentMessage(FULL), { isOwn: false, desktopOpen });
-      for (const name of ["Quản lý quyền truy cập", "Tải lên phiên bản mới", "Tùy chọn UniWork Office"]) {
-        const control = screen.getByRole("button", { name });
-        expect(control).toHaveClass("bg-background", "border-input");
-        expect(control).not.toHaveClass("bg-chat-bubble-own-foreground/15");
-      }
-      expect(screen.getByRole("button", { name: "Mở bằng UniWork Office" })).toHaveClass("bg-primary", "text-primary-foreground");
-      expect(screen.getByText(/Phiên bản 3/)).toHaveClass("text-muted-foreground");
+    it("other bubble: grey secondary text and the plain title and badge", () => {
+      renderCard(documentMessage(FULL), { isOwn: false });
+      expect(screen.getByText(/Phiên bản 3/).parentElement).toHaveClass("text-muted-foreground");
       expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("text-foreground");
-      expect(screen.getByText("Quản lý")).toHaveClass("bg-secondary");
+      expect(levelBadge("Quản lý")).toHaveClass("bg-secondary");
     });
   });
 
@@ -258,8 +302,8 @@ describe("ChatDocumentMessageRow", () => {
     expect(titleButton).toHaveAttribute("title", "bao-cao-q3-du-lieu-chi-tiet.docx");
     expect(titleButton).toHaveAttribute("aria-label", "Mở trong Tài liệu: bao-cao-q3-du-lieu-chi-tiet.docx");
     expect(titleButton.className).toContain("truncate");
-    const secondary = screen.getByText(/Phiên bản 3/);
-    expect(secondary.textContent).toBe("Phiên bản 3 · Đã chia sẻ với 1 người");
+    const secondary = screen.getByText(/Phiên bản 3/).parentElement!;
+    expect(secondary.textContent).toBe("Phiên bản 3· Đã chia sẻ với 1 người");
     expect(secondary.className).not.toContain("truncate");
     // A fixed width capped by the bubble, not the content's min width.
     const card = titleButton.closest("div.flex-col");
@@ -286,7 +330,7 @@ describe("ChatDocumentMessageRow", () => {
   it("shows the sender's share count and the viewer's level badge", () => {
     renderCard(documentMessage({ ...DOC, viewer_level: "comment", recipient_count: 4 }));
     expect(screen.getByText(/Đã chia sẻ với 4 người/)).toBeInTheDocument();
-    expect(screen.getByText("Nhận xét")).toBeInTheDocument();
+    levelBadge("Nhận xét");
   });
 
   it("renders no badge when the viewer level is absent (old server)", () => {
@@ -295,283 +339,422 @@ describe("ChatDocumentMessageRow", () => {
     expect(screen.queryByText("Chỉ xem")).not.toBeInTheDocument();
   });
 
-  it("shows manage access only when the block grants it, and lazy-loads the detail", () => {
-    const doc = { id: "doc1", title: "Báo cáo Q3" };
-    useDocumentMock.mockReturnValue({ data: doc, isError: false });
-    renderCard(documentMessage({ ...DOC, viewer_can_manage: true }));
-    expect(useDocumentMock).toHaveBeenCalledWith("ws1", "doc1", { enabled: false });
-    fireEvent.click(screen.getByRole("button", { name: "Quản lý quyền truy cập" }));
-    expect(useDocumentMock).toHaveBeenCalledWith("ws1", "doc1", { enabled: true });
-    // The share dialog mounts once the detail is in.
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-  });
-
-  it("hides manage access for a plain viewer", () => {
-    renderCard(documentMessage({ ...DOC, viewer_can_manage: false }));
-    expect(screen.queryByRole("button", { name: "Quản lý quyền truy cập" })).not.toBeInTheDocument();
-  });
-
-  it("commits a staged version with the room named (contract §4.4)", async () => {
-    const upload = { mutateAsync: vi.fn(async () => ({ upload_id: "up-1" })), isPending: false };
-    const commit = { mutateAsync: vi.fn(async () => ({})), isPending: false };
-    useUploadDocumentFileMock.mockReturnValue(upload);
-    useCommitDocumentVersionMock.mockReturnValue(commit);
-    renderCard(documentMessage({ ...DOC, viewer_can_upload_version: true }));
-
-    fireEvent.click(screen.getByRole("button", { name: "Tải lên phiên bản mới" }));
-    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
-    expect(input).toBeTruthy();
-    fireEvent.change(input!, { target: { files: [new File(["x"], "v4.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })] } });
-    fireEvent.click(screen.getByRole("button", { name: "Tải lên" }));
-
-    await waitFor(() => expect(commit.mutateAsync).toHaveBeenCalled());
-    expect(upload.mutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({ file: expect.any(File), idempotencyKey: expect.any(String) }),
-    );
-    expect(commit.mutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({
-        upload_id: "up-1",
-        base_revision: "42",
-        chat_room_id: "room1",
-        idempotencyKey: expect.any(String),
-      }),
-    );
-  });
-
-  it("refreshes the room timeline after a committed version so the card carries the new revision", async () => {
-    // The version line arrives as its own message (chat.message.created); the
-    // card is a different message whose `revision` is the base of the NEXT
-    // commit, so it must be re-read or a second upload answers 409.
-    const upload = { mutateAsync: vi.fn(async () => ({ upload_id: "up-1" })), isPending: false };
-    const commit = { mutateAsync: vi.fn(async () => ({})), isPending: false };
-    useUploadDocumentFileMock.mockReturnValue(upload);
-    useCommitDocumentVersionMock.mockReturnValue(commit);
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-    const invalidate = vi.spyOn(client, "invalidateQueries");
-    renderCard(documentMessage({ ...DOC, viewer_can_upload_version: true }), {}, fakeNav(), client);
-
-    fireEvent.click(screen.getByRole("button", { name: "Tải lên phiên bản mới" }));
-    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
-    fireEvent.change(input!, {
-      target: {
-        files: [
-          new File(["x"], "v4.docx", {
-            type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          }),
-        ],
-      },
+  describe("room for the title at 390 touch (UNI-2012 V2-N1 V2-N2)", () => {
+    it("renders one level badge beside the title under a fine pointer", () => {
+      renderCard(documentMessage(FULL));
+      const badge = levelBadge("Quản lý");
+      // A sibling of the title column, not in the caption line.
+      const titleRow = screen.getByRole("button", { name: /Mở trong Tài liệu/ }).closest("div.flex.items-center");
+      expect(badge.parentElement).toBe(titleRow);
+      expect(badge).toHaveClass("shrink-0");
     });
-    fireEvent.click(screen.getByRole("button", { name: "Tải lên" }));
 
-    await waitFor(() => expect(commit.mutateAsync).toHaveBeenCalled());
-    await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith(
-        expect.objectContaining({ queryKey: chatKeys.roomMessages("ws1", "room1") }),
-      ),
-    );
-  });
-
-  it("hides the version upload without the grant or without a revision", () => {
-    renderCard(documentMessage({ ...DOC, viewer_can_upload_version: true, revision: undefined }));
-    expect(screen.queryByRole("button", { name: "Tải lên phiên bản mới" })).not.toBeInTheDocument();
-  });
-
-  it("wires the desktop open action through the host factory", () => {
-    const desktopOpen = vi.fn<ChatDocumentDesktopOpen>(() => ({
-      deploymentId: "dep-1",
-      channel: "stable",
-      savedVersion: 3,
-      loadInstallers: vi.fn(),
-      loadPlatformHint: vi.fn(),
-      downloadInstaller: vi.fn(),
-      launch: vi.fn(),
-    })) as unknown as ChatDocumentDesktopOpen;
-    renderCard(
-      documentMessage({ ...DOC, can_open_in_app: true }),
-      { desktopOpen },
-    );
-    expect(desktopOpen).toHaveBeenCalledWith({
-      id: "doc1",
-      organization_id: "o1",
-      current_version: 3,
+    it("renders one level badge in the caption line, after the segments, under a coarse pointer", () => {
+      stubCoarsePointer();
+      renderCard(documentMessage(FULL));
+      const badge = levelBadge("Quản lý");
+      const line = screen.getByText(/Phiên bản 3/).parentElement!;
+      expect(badge.parentElement).toBe(line);
+      expect(line.lastElementChild).toBe(badge);
     });
-    expect(screen.getByRole("button", { name: /Mở bằng UniWork Office/ })).toBeInTheDocument();
-  });
 
-  it("hides the desktop action when the card says the app cannot open it", () => {
-    const desktopOpen = vi.fn() as unknown as ChatDocumentDesktopOpen;
-    renderCard(documentMessage({ ...DOC, can_open_in_app: false }), { desktopOpen });
-    expect(desktopOpen).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: /Mở bằng UniWork Office/ })).not.toBeInTheDocument();
-  });
-
-  it("hides the desktop action when can_open_in_app is absent (RFC-03)", () => {
-    // The server alone decides openability (module + version + not archived);
-    // an absent field is drift, not consent — the card mints no session.
-    const desktopOpen = vi.fn() as unknown as ChatDocumentDesktopOpen;
-    renderCard(documentMessage(DOC), { desktopOpen });
-    expect(desktopOpen).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: /Mở bằng UniWork Office/ })).not.toBeInTheDocument();
-  });
-
-  it("hides the desktop action without viewer access even when the app could open it", () => {
-    const desktopOpen = vi.fn() as unknown as ChatDocumentDesktopOpen;
-    renderCard(documentMessage({ document_id: "doc1", viewer_has_access: false, can_open_in_app: true }), {
-      desktopOpen,
+    it("never breaks the caption inside a segment: each carries nowrap and the line wraps between them", () => {
+      renderCard(documentMessage({ ...FULL, recipient_count: 2 }));
+      const line = screen.getByText(/Phiên bản 3/).parentElement!;
+      expect(line).toHaveClass("flex", "flex-wrap");
+      expect(screen.getByText("Phiên bản 3")).toHaveClass("whitespace-nowrap");
+      const shared = screen.getByText(/Đã chia sẻ với 2 người/);
+      expect(shared).toHaveClass("whitespace-nowrap");
+      // The separator is decoration, not read out.
+      expect(shared.querySelector("[aria-hidden]")).toHaveTextContent("·");
     });
-    expect(desktopOpen).not.toHaveBeenCalled();
   });
 
-  it("shows the chat 409 copy and refreshes the room timeline after a version conflict (RFC-04)", async () => {
-    const conflict = new ApiError("conflict", "document_version_conflict", 409);
-    const upload = { mutateAsync: vi.fn(async () => ({ upload_id: "up-1" })), isPending: false };
-    const commit = { mutateAsync: vi.fn(async () => { throw conflict; }), isPending: false };
-    useUploadDocumentFileMock.mockReturnValue(upload);
-    useCommitDocumentVersionMock.mockReturnValue(commit);
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-    const invalidate = vi.spyOn(client, "invalidateQueries");
-    renderCard(documentMessage({ ...DOC, viewer_can_upload_version: true }), {}, fakeNav(), client);
-
-    fireEvent.click(screen.getByRole("button", { name: "Tải lên phiên bản mới" }));
-    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
-    fireEvent.change(input!, {
-      target: {
-        files: [
-          new File(["x"], "v4.docx", {
-            type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          }),
-        ],
-      },
+  describe("the touch \"…\" (UNI-2012 V1-F9)", () => {
+    it("sits inside the card, shown only on a coarse pointer, and opens the same menu", async () => {
+      renderCard(documentMessage(FULL), { ...LIVE, desktopOpen: desktopFactory() });
+      const touchMore = screen.getAllByRole("button", { name: "Thêm" })[0]!;
+      expect(touchMore).not.toBe(barMore());
+      expect(touchMore.closest("[data-message-actions]")).toBeNull();
+      // Hidden by default (a fine pointer has the hover bar), shown under a coarse one.
+      expect(touchMore).toHaveClass("hidden", "pointer-coarse:inline-flex");
+      await userEvent.click(touchMore);
+      const labels = menuLabels(await screen.findByRole("menu"));
+      expect(labels.slice(0, 5)).toEqual([
+        "Chỉnh sửa trong UniWork Office",
+        "Chỉnh sửa trên web",
+        "Tải lên phiên bản mới",
+        "Lịch sử phiên bản",
+        "Chia sẻ",
+      ]);
     });
-    fireEvent.click(screen.getByRole("button", { name: "Tải lên" }));
 
-    // The card's own sentence, not the history-page restore copy.
-    expect(
-      await screen.findByText("Tài liệu vừa có phiên bản mới. Tải lại rồi thử lại."),
-    ).toBeInTheDocument();
-    // The stale revision is the cause: the room timeline refetches so the
-    // card re-reads the current one (and the document_version line lands).
-    await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith(
-        expect.objectContaining({ queryKey: chatKeys.roomMessages("ws1", "room1") }),
-      ),
-    );
-  });
-
-  it("resets the version Idempotency-Key when a different file is picked (RFC-08)", async () => {
-    const upload = {
-      mutateAsync: vi
-        .fn<(args: { file: File; idempotencyKey: string }) => Promise<{ upload_id: string }>>()
-        .mockRejectedValue(new ApiError("down", "internal", 500)),
-      isPending: false,
-    };
-    useUploadDocumentFileMock.mockReturnValue(upload);
-    renderCard(documentMessage({ ...DOC, viewer_can_upload_version: true }));
-
-    fireEvent.click(screen.getByRole("button", { name: "Tải lên phiên bản mới" }));
-    const type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    const pick = (name: string) =>
-      fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, {
-        target: { files: [new File(["x"], name, { type })] },
-      });
-    pick("v4-a.docx");
-    fireEvent.click(screen.getByRole("button", { name: "Tải lên" }));
-    await waitFor(() => expect(upload.mutateAsync).toHaveBeenCalledTimes(1));
-    const firstKey = upload.mutateAsync.mock.calls[0]![0].idempotencyKey;
-
-    // A different file is a new intent: the key must not survive the pick,
-    // or the server could replay the first upload for different bytes.
-    pick("v4-b.docx");
-    fireEvent.click(screen.getByRole("button", { name: "Tải lên" }));
-    await waitFor(() => expect(upload.mutateAsync).toHaveBeenCalledTimes(2));
-    const secondKey = upload.mutateAsync.mock.calls[1]![0].idempotencyKey;
-    expect(secondKey).not.toBe(firstKey);
-  });
-
-  it("keeps the version Idempotency-Key while retrying the same file (RFC-08)", async () => {
-    const upload = {
-      mutateAsync: vi
-        .fn<(args: { file: File; idempotencyKey: string }) => Promise<{ upload_id: string }>>()
-        .mockRejectedValue(new ApiError("down", "internal", 500)),
-      isPending: false,
-    };
-    useUploadDocumentFileMock.mockReturnValue(upload);
-    renderCard(documentMessage({ ...DOC, viewer_can_upload_version: true }));
-
-    fireEvent.click(screen.getByRole("button", { name: "Tải lên phiên bản mới" }));
-    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
-    const type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    fireEvent.change(input, { target: { files: [new File(["a"], "v4.docx", { type })] } });
-    fireEvent.click(screen.getByRole("button", { name: "Tải lên" }));
-    await waitFor(() => expect(upload.mutateAsync).toHaveBeenCalledTimes(1));
-    // Same file, retried: the staged upload replays under the same key.
-    fireEvent.click(screen.getByRole("button", { name: "Tải lên" }));
-    await waitFor(() => expect(upload.mutateAsync).toHaveBeenCalledTimes(2));
-    expect(upload.mutateAsync.mock.calls[1]![0].idempotencyKey).toBe(
-      upload.mutateAsync.mock.calls[0]![0].idempotencyKey,
-    );
-  });
-
-  it("toasts again on a second manage-access failure and opens the dialog on a later success (RFC-08)", async () => {
-    const nav = fakeNav();
-    const view = render(
-      wrapWithNav(
-        <WorkspaceProvider workspace={workspace} user={user}>
-          <ChatDocumentMessageRow
-            workspaceId="ws1"
-            roomId="room1"
-            message={documentMessage({ ...DOC, viewer_can_manage: true })}
-            senderLabel="Bình"
-            isOwn={false}
-            showSenderName={false}
-            compactTop={false}
-            showAvatar={false}
-          />
-        </WorkspaceProvider>,
-        nav,
-      ),
-    );
-    const rerender = () =>
-      view.rerender(
-        wrapWithNav(
-          <WorkspaceProvider workspace={workspace} user={user}>
-            <ChatDocumentMessageRow
-              workspaceId="ws1"
-              roomId="room1"
-              message={documentMessage({ ...DOC, viewer_can_manage: true })}
-              senderLabel="Bình"
-              isOwn={false}
-              showSenderName={false}
-              compactTop={false}
-              showAvatar={false}
-            />
-          </WorkspaceProvider>,
-          nav,
-        ),
+    it("wears the own-bubble control look on my bubble and the neutral one on theirs (visible focus ring)", () => {
+      const touchMore = (isOwn: boolean) => {
+        const view = render(wrapWithNav(row(documentMessage(FULL), { ...LIVE, isOwn, desktopOpen: desktopFactory() })));
+        const button = screen.getAllByRole("button", { name: "Thêm" })[0]!;
+        const classes = button.className.split(/\s+/);
+        view.unmount();
+        return classes;
+      };
+      // Same classes as the card's other controls (bubbleControlClass): on the brand fill the
+      // global ring vanishes, so the outline takes the bubble's foreground colour.
+      expect(touchMore(true)).toEqual(
+        expect.arrayContaining([
+          "bg-chat-bubble-own-foreground/15",
+          "text-chat-bubble-own-foreground",
+          "hover:bg-chat-bubble-own-foreground",
+          "hover:text-chat-bubble-own",
+          "focus-visible:outline-chat-bubble-own-foreground",
+        ]),
       );
-
-    // First failure: one toast, and the query is switched back off so the
-    // card does not hammer the detail read.
-    useDocumentMock.mockReturnValue({ data: undefined, isError: true, error: new ApiError("down", "internal", 500) });
-    fireEvent.click(screen.getByRole("button", { name: "Quản lý quyền truy cập" }));
-    rerender();
-    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
-    expect(useDocumentMock).toHaveBeenLastCalledWith("ws1", "doc1", { enabled: false });
-
-    // Second failure toasts again — the flag resets on each click.
-    useDocumentMock.mockReturnValue({
-      data: undefined,
-      isError: true,
-      error: new ApiError("down again", "internal", 500),
+      const theirs = touchMore(false);
+      expect(theirs).toContain("text-foreground");
+      expect(theirs).not.toContain("focus-visible:outline-chat-bubble-own-foreground");
     });
-    fireEvent.click(screen.getByRole("button", { name: "Quản lý quyền truy cập" }));
-    rerender();
-    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
 
-    // A later success still opens the share dialog.
-    useDocumentMock.mockReturnValue({ data: { id: "doc1", title: "Báo cáo Q3" }, isError: false });
-    fireEvent.click(screen.getByRole("button", { name: "Quản lý quyền truy cập" }));
-    rerender();
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    it("leaves the bar's own \"…\" to a fine pointer: the same row hides it under a coarse one", () => {
+      renderCard(documentMessage(FULL), { ...LIVE, desktopOpen: desktopFactory() });
+      expect(barMore()).toHaveClass("pointer-coarse:hidden");
+      expect(screen.getAllByRole("button", { name: "Thêm" })[0]).not.toHaveClass("pointer-coarse:hidden");
+    });
+
+    it("is absent from the locked card, the neutral card and a row with no live handlers", () => {
+      // The hover bar's "…" is the one that remains on a live row; no touch "…" joins it.
+      const locked = render(wrapWithNav(row(documentMessage({ ...DOC, viewer_has_access: false }), LIVE), fakeNav()));
+      expect(screen.getAllByRole("button", { name: "Thêm" })).toHaveLength(1);
+      locked.unmount();
+      const neutral = render(wrapWithNav(row(documentMessage(undefined), LIVE), fakeNav()));
+      expect(screen.getAllByRole("button", { name: "Thêm" })).toHaveLength(1);
+      neutral.unmount();
+      renderCard(documentMessage(DOC));
+      expect(screen.queryByRole("button", { name: "Thêm" })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("keyboard focus rings (UNI-2012 V1-F7)", () => {
+    it("draws the title's ring inset in its own padding, so truncate never clips it", () => {
+      renderCard(documentMessage(DOC));
+      const title = screen.getByRole("button", { name: /Báo cáo Q3/ });
+      expect(title).toHaveClass("truncate", "focus-visible:-outline-offset-2");
+      expect(title).not.toHaveClass("outline-none");
+    });
+  });
+
+  describe("the role menu (UNI-2012 S7, contract D3)", () => {
+    const MESSAGE_ITEMS = ["Trả lời", "Sao chép"];
+
+    it("leads the manager's menu with every document entry, in order", async () => {
+      renderCard(documentMessage(FULL), { ...LIVE, desktopOpen: desktopFactory() });
+      const labels = menuLabels(await openMenu());
+      expect(labels.slice(0, 5)).toEqual([
+        "Chỉnh sửa trong UniWork Office",
+        "Chỉnh sửa trên web",
+        "Tải lên phiên bản mới",
+        "Lịch sử phiên bản",
+        "Chia sẻ",
+      ]);
+      expect(labels).toEqual(expect.arrayContaining(MESSAGE_ITEMS));
+    });
+
+    it("gives an editor the edit entries but not Share", async () => {
+      renderCard(
+        documentMessage({ ...DOC, viewer_level: "edit", viewer_can_upload_version: true, can_open_in_app: true }),
+        { ...LIVE, desktopOpen: desktopFactory() },
+      );
+      const labels = menuLabels(await openMenu());
+      expect(labels.slice(0, 4)).toEqual([
+        "Chỉnh sửa trong UniWork Office",
+        "Chỉnh sửa trên web",
+        "Tải lên phiên bản mới",
+        "Lịch sử phiên bản",
+      ]);
+      expect(labels).not.toContain("Chia sẻ");
+    });
+
+    it.each(["view", "comment"] as const)("gives a %s reader the open and history entries only", async (level) => {
+      const desktopOpen = desktopFactory();
+      renderCard(documentMessage({ ...DOC, viewer_level: level, can_open_in_app: true }), { ...LIVE, desktopOpen });
+      const labels = menuLabels(await openMenu());
+      expect(labels.slice(0, 2)).toEqual(["Mở để xem và nhận xét", "Lịch sử phiên bản"]);
+      for (const absent of ["Chỉnh sửa trong UniWork Office", "Chỉnh sửa trên web", "Tải lên phiên bản mới", "Chia sẻ"]) {
+        expect(labels).not.toContain(absent);
+      }
+      expect(desktopOpen).not.toHaveBeenCalled();
+    });
+
+    it("labels the web entry for reading when the frame cannot open the document (can_open_in_app false)", async () => {
+      renderCard(documentMessage({ ...FULL, viewer_level: "edit", can_open_in_app: false }), LIVE);
+      const labels = menuLabels(await openMenu());
+      expect(labels).toContain("Mở để xem và nhận xét");
+      expect(labels).not.toContain("Chỉnh sửa trên web");
+    });
+
+    it("keeps the edit label when can_open_in_app is absent (old server)", async () => {
+      renderCard(documentMessage({ ...FULL, viewer_level: "edit", can_open_in_app: undefined }), LIVE);
+      const labels = menuLabels(await openMenu());
+      expect(labels).toContain("Chỉnh sửa trên web");
+      expect(labels).not.toContain("Mở để xem và nhận xét");
+    });
+
+    it("draws the page mark when the server sends no format, a page document (UNI-2012 V1-F3)", () => {
+      renderCard(documentMessage({ ...DOC, format: undefined }), LIVE);
+      expect(screen.getByRole("img", { name: "UniNote" })).toBeInTheDocument();
+    });
+
+    it("hides the upload entry without the grant or without a revision", async () => {
+      renderCard(documentMessage({ ...DOC, viewer_level: "edit", viewer_can_upload_version: true, revision: undefined }), LIVE);
+      expect(menuLabels(await openMenu())).not.toContain("Tải lên phiên bản mới");
+    });
+
+    it("offers no document entry to a reader without access, nor on a card without a block", async () => {
+      for (const document of [{ document_id: "doc1", viewer_has_access: false }, undefined]) {
+        const view = render(wrapWithNav(row(documentMessage(document), { ...LIVE, desktopOpen: desktopFactory() })));
+        const labels = menuLabels(await openMenu());
+        expect(labels.filter((label) => /tài liệu|phiên bản|Chia sẻ|UniWork Office|trên web/.test(label))).toEqual([]);
+        // The message's own menu still leads: nothing of the document precedes Reply.
+        expect(labels[0]).toBe("Trả lời");
+        view.unmount();
+      }
+    });
+
+    it("in the UniChat shell (no host wiring, D7): no Office entry, and the page entries still go through navigation", async () => {
+      // The shell's navigation policy hands every non-chat path to the
+      // browser (apps/web chat-only-navigation), so the card only pushes.
+      const nav = renderCard(documentMessage(FULL), LIVE);
+      const labels = menuLabels(await openMenu());
+      expect(labels.slice(0, 4)).toEqual(["Chỉnh sửa trên web", "Tải lên phiên bản mới", "Lịch sử phiên bản", "Chia sẻ"]);
+      await userEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Lịch sử phiên bản" }));
+      expect(nav.push).toHaveBeenLastCalledWith("/acme/team/documents/doc1?panel=versions");
+    });
+
+    it("hides the Office entry when can_open_in_app is absent or false (RFC-03), or with no host wiring", async () => {
+      for (const props of [
+        { message: documentMessage({ ...FULL, can_open_in_app: undefined }), desktopOpen: desktopFactory() },
+        { message: documentMessage({ ...FULL, can_open_in_app: false }), desktopOpen: desktopFactory() },
+        { message: documentMessage(FULL), desktopOpen: undefined },
+      ]) {
+        const view = render(wrapWithNav(row(props.message, { ...LIVE, desktopOpen: props.desktopOpen })));
+        expect(menuLabels(await openMenu())).not.toContain("Chỉnh sửa trong UniWork Office");
+        if (props.desktopOpen) expect(props.desktopOpen).not.toHaveBeenCalled();
+        view.unmount();
+      }
+    });
+
+    it("carries the same entries in the right-click menu", async () => {
+      renderCard(documentMessage(FULL), LIVE);
+      fireEvent.contextMenu(screen.getByText("Báo cáo Q3"));
+      const menu = await screen.findByRole("menu");
+      expect(menuLabels(menu).slice(0, 4)).toEqual([
+        "Chỉnh sửa trên web",
+        "Tải lên phiên bản mới",
+        "Lịch sử phiên bản",
+        "Chia sẻ",
+      ]);
+    });
+
+    it("opens the document page for editing, to read, and on its version history", async () => {
+      const nav = renderCard(documentMessage(FULL), LIVE);
+      await userEvent.click(within(await openMenu()).getByRole("menuitem", { name: "Chỉnh sửa trên web" }));
+      expect(nav.push).toHaveBeenLastCalledWith("/acme/team/documents/doc1");
+      await userEvent.click(within(await openMenu()).getByRole("menuitem", { name: "Lịch sử phiên bản" }));
+      expect(nav.push).toHaveBeenLastCalledWith("/acme/team/documents/doc1?panel=versions");
+    });
+
+    it("opens the page from the reader's entry", async () => {
+      const nav = renderCard(documentMessage({ ...DOC, viewer_level: "comment" }), LIVE);
+      await userEvent.click(within(await openMenu()).getByRole("menuitem", { name: "Mở để xem và nhận xét" }));
+      expect(nav.push).toHaveBeenLastCalledWith("/acme/team/documents/doc1");
+    });
+
+    it("hands the document to the desktop app for editing through the host factory", async () => {
+      const createSession = vi.fn(async () => null);
+      const desktopOpen = desktopFactory(createSession);
+      renderCard(documentMessage(FULL), { ...LIVE, desktopOpen });
+      expect(desktopOpen).toHaveBeenCalledWith({ id: "doc1", organization_id: "o1", current_version: 3 });
+      await userEvent.click(within(await openMenu()).getByRole("menuitem", { name: "Chỉnh sửa trong UniWork Office" }));
+      await waitFor(() => expect(createSession).toHaveBeenCalledWith("doc1", expect.objectContaining({ operation: "edit" })));
+      // No ticket: the failure is a toast, nothing lands in the bubble.
+      await waitFor(() => expect(toast.error).toHaveBeenCalledOnce());
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Chia sẻ", () => {
+    it("lazy-loads the detail only once asked, then opens the share dialog", async () => {
+      useDocumentMock.mockReturnValue({ data: { id: "doc1", title: "Báo cáo Q3" }, isError: false });
+      renderCard(documentMessage(FULL), LIVE);
+      expect(useDocumentMock).not.toHaveBeenCalled();
+      await userEvent.click(within(await openMenu()).getByRole("menuitem", { name: "Chia sẻ" }));
+      expect(useDocumentMock).toHaveBeenCalledWith("ws1", "doc1", { enabled: true });
+      // The dialog mounts outside the menu, so the menu closing leaves it open.
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("toasts again on a second failure and opens the dialog on a later success (RFC-08)", async () => {
+      const nav = fakeNav();
+      const message = documentMessage(FULL);
+      const view = render(wrapWithNav(row(message, LIVE), nav));
+      const rerender = () => view.rerender(wrapWithNav(row(message, LIVE), nav));
+      const share = async () => userEvent.click(within(await openMenu()).getByRole("menuitem", { name: "Chia sẻ" }));
+
+      // First failure: one toast, and the query is switched back off so the
+      // card does not hammer the detail read.
+      useDocumentMock.mockReturnValue({ data: undefined, isError: true, error: new ApiError("down", "internal", 500) });
+      await share();
+      rerender();
+      await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+      expect(useDocumentMock).toHaveBeenLastCalledWith("ws1", "doc1", { enabled: false });
+
+      // Second failure toasts again — the flag resets on each ask.
+      useDocumentMock.mockReturnValue({ data: undefined, isError: true, error: new ApiError("down again", "internal", 500) });
+      await share();
+      rerender();
+      await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
+
+      // A later success still opens the share dialog.
+      useDocumentMock.mockReturnValue({ data: { id: "doc1", title: "Báo cáo Q3" }, isError: false });
+      await share();
+      rerender();
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    });
+  });
+
+  describe("Tải lên phiên bản mới (UNI-2012 S6)", () => {
+    function mockUpload(commitImpl: () => Promise<unknown> = async () => ({ version: { id: "v4" } })) {
+      const upload = { mutateAsync: vi.fn(async () => ({ upload_id: "up-1" })), isPending: false };
+      const commit = { mutateAsync: vi.fn(commitImpl), isPending: false };
+      useUploadDocumentFileMock.mockReturnValue(upload);
+      useCommitDocumentVersionMock.mockReturnValue(commit);
+      return { upload, commit };
+    }
+
+    it("commits a staged version with the room named (contract §4.4)", async () => {
+      const { upload, commit } = mockUpload();
+      renderCard(documentMessage(FULL), LIVE);
+      await uploadFromMenu();
+
+      await waitFor(() => expect(commit.mutateAsync).toHaveBeenCalled());
+      expect(upload.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ file: expect.any(File), idempotencyKey: expect.any(String) }),
+      );
+      expect(commit.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          upload_id: "up-1",
+          base_revision: "42",
+          chat_room_id: "room1",
+          idempotencyKey: expect.any(String),
+        }),
+      );
+    });
+
+    it("confirms a committed version with a toast (UNI-2012 V1-F4)", async () => {
+      const { commit } = mockUpload();
+      renderCard(documentMessage(FULL), LIVE);
+      await uploadFromMenu();
+
+      await waitFor(() => expect(commit.mutateAsync).toHaveBeenCalled());
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã tải lên phiên bản mới"));
+    });
+
+    it("refreshes the room timeline after a committed version so the card carries the new revision", async () => {
+      // The version line arrives as its own message (chat.message.created); the
+      // card is a different message whose `revision` is the base of the NEXT
+      // commit, so it must be re-read or a second upload answers 409.
+      const { commit } = mockUpload();
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+      const invalidate = vi.spyOn(client, "invalidateQueries");
+      renderCard(documentMessage(FULL), LIVE, fakeNav(), client);
+      await uploadFromMenu();
+
+      await waitFor(() => expect(commit.mutateAsync).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: chatKeys.roomMessages("ws1", "room1") })),
+      );
+    });
+
+    it("shows the chat 409 copy and refreshes the room timeline after a version conflict (RFC-04)", async () => {
+      mockUpload(async () => {
+        throw new ApiError("conflict", "document_version_conflict", 409);
+      });
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+      const invalidate = vi.spyOn(client, "invalidateQueries");
+      renderCard(documentMessage(FULL), LIVE, fakeNav(), client);
+      await uploadFromMenu();
+
+      // The card's own sentence, not the history-page restore copy.
+      expect(await screen.findByText("Tài liệu vừa có phiên bản mới. Tải lại rồi thử lại.")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: chatKeys.roomMessages("ws1", "room1") })),
+      );
+    });
+
+    it("names the holder when someone else holds the edit lock (423)", async () => {
+      mockUpload(async () => {
+        throw new ApiError("locked", "document_locked", 423, undefined, { holder_name: "Chi", held_by_me: false });
+      });
+      renderCard(documentMessage(FULL), LIVE);
+      await uploadFromMenu();
+      expect(await screen.findByRole("alert")).toHaveTextContent("Chi đang sửa tài liệu này. Thử lại khi họ lưu xong.");
+      expect(screen.queryByRole("button", { name: "Mở trang tài liệu" })).not.toBeInTheDocument();
+    });
+
+    it("gives the reader's own hold in another window its sentence and the way to the document page (contract D6)", async () => {
+      mockUpload(async () => {
+        throw new ApiError("locked", "document_locked", 423, undefined, { held_by_me: true });
+      });
+      const nav = renderCard(documentMessage(FULL), LIVE);
+      await uploadFromMenu();
+      // The document page's sentence: a page tab opened from here holds nothing either.
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Bạn đang sửa tài liệu này ở một cửa sổ khác. Lưu hoặc đóng cửa sổ đó rồi thử lại.",
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Mở trang tài liệu" }));
+      expect(nav.push).toHaveBeenLastCalledWith("/acme/team/documents/doc1");
+    });
+
+    it("resets the version Idempotency-Key when a different file is picked (RFC-08)", async () => {
+      const upload = {
+        mutateAsync: vi
+          .fn<(args: { file: File; idempotencyKey: string }) => Promise<{ upload_id: string }>>()
+          .mockRejectedValue(new ApiError("down", "internal", 500)),
+        isPending: false,
+      };
+      useUploadDocumentFileMock.mockReturnValue(upload);
+      renderCard(documentMessage(FULL), LIVE);
+
+      await uploadFromMenu("v4-a.docx");
+      await waitFor(() => expect(upload.mutateAsync).toHaveBeenCalledTimes(1));
+      const firstKey = upload.mutateAsync.mock.calls[0]![0].idempotencyKey;
+
+      // A different file is a new intent: the key must not survive the pick,
+      // or the server could replay the first upload for different bytes.
+      fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, {
+        target: { files: [new File(["x"], "v4-b.docx", { type: DOCX })] },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Tải lên" }));
+      await waitFor(() => expect(upload.mutateAsync).toHaveBeenCalledTimes(2));
+      expect(upload.mutateAsync.mock.calls[1]![0].idempotencyKey).not.toBe(firstKey);
+    });
+
+    it("keeps the version Idempotency-Key while retrying the same file (RFC-08)", async () => {
+      const upload = {
+        mutateAsync: vi
+          .fn<(args: { file: File; idempotencyKey: string }) => Promise<{ upload_id: string }>>()
+          .mockRejectedValue(new ApiError("down", "internal", 500)),
+        isPending: false,
+      };
+      useUploadDocumentFileMock.mockReturnValue(upload);
+      renderCard(documentMessage(FULL), LIVE);
+
+      await uploadFromMenu();
+      await waitFor(() => expect(upload.mutateAsync).toHaveBeenCalledTimes(1));
+      // Same file, retried: the staged upload replays under the same key.
+      fireEvent.click(screen.getByRole("button", { name: "Tải lên" }));
+      await waitFor(() => expect(upload.mutateAsync).toHaveBeenCalledTimes(2));
+      expect(upload.mutateAsync.mock.calls[1]![0].idempotencyKey).toBe(upload.mutateAsync.mock.calls[0]![0].idempotencyKey);
+    });
   });
 });

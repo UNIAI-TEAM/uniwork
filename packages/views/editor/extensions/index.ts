@@ -48,6 +48,7 @@ import { createSlashCommandSuggestion, createBuiltinCommandSuggestion } from "./
 import type { BuiltinCommandSuggestionOptions } from "./slash-command-suggestion";
 import { SuggestionTriggerArmingExtension } from "./suggestion-trigger-arming";
 import { PageHardBreakLinesExtension } from "./page-hard-break-lines";
+import { PageShortcutsExtension } from "./page-shortcuts";
 import { CodeBlockView } from "./code-block-view";
 import { PatchedListItem, PatchedTaskItem } from "./list-item";
 import { createMarkdownPasteExtension } from "./markdown-paste";
@@ -398,6 +399,7 @@ export function createPageDocumentExtensions(
     TableCell,
     SuggestionTriggerArmingExtension,
     PageHardBreakLinesExtension,
+    PageShortcutsExtension,
     PageMentionExtension.configure({
       HTMLAttributes: { class: "mention" },
       suggestion: options.mention ?? { allow: () => false },

@@ -74,8 +74,9 @@ func TestDocumentCreateVisibility(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if folder.Document.Visibility != documentVisibilityRestricted {
-			t.Fatalf("folder visibility = %q, want restricted", folder.Document.Visibility)
+		// ADR 0037 §1: a folder outside My Folder is the workspace's.
+		if folder.Document.Visibility != documentVisibilityWorkspace || folder.Document.WorkspaceLevel != string(DocumentLevelView) {
+			t.Fatalf("folder = %s/%s, want workspace/view", folder.Document.Visibility, folder.Document.WorkspaceLevel)
 		}
 		file := createFile(t, CreateFileDocumentInput{Title: "Tệp riêng", Filename: "rieng.pdf", Body: bytes.NewReader(pdfBody("t3-private"))})
 		if file.Document.Visibility != documentVisibilityRestricted {

@@ -359,6 +359,9 @@ func TestShelvedTrash(t *testing.T) {
 		// restricted child, member manages only the folder.
 		folder2 := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID, kind: DocumentKindFolder, title: "Thư mục leftover2"})
 		child2 := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: folder2.ID})
+		// Shared at view with the archiver: it reads and administers the child, so the
+		// trash of the workspace folder stamps it (ADR 0037 point 5) instead of relocating it.
+		f.share(t, child2, DocumentPrincipalUser, tn.owner.ID, DocumentLevelView, tn.aclOwner.ID)
 		if _, err := f.svc.ShelveDocument(f.ctx, owner, folder2.ID, ArchiveDocumentInput{}); err != nil {
 			t.Fatal(err)
 		}

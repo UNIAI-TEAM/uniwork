@@ -39,7 +39,7 @@ ra mạng.
 
 | Metric | Ý nghĩa | Ngưỡng |
 | --- | --- | --- |
-| `uniwork_ai_calls_total{capability,status}` | Lượt gọi theo trạng thái cuối (`succeeded`, `failed`, `rejected`) | `failed` > 5 % trong 10 phút = provider hoặc key hỏng; `rejected` tăng = tổ chức chạm quota, không phải lỗi |
+| `uniwork_ai_calls_total{capability,status}` | Lượt gọi theo trạng thái cuối (`succeeded`, `failed`, `rejected`, `cancelled`) | `failed` > 5 % trong 10 phút = provider hoặc key hỏng; `rejected` tăng = tổ chức chạm quota, không phải lỗi |
 | `uniwork_ai_latency_ms{capability}` | Vòng đi provider | p95 > 20 s = đổi model tier hoặc provider |
 | `ai_usage_events` `status='pending'` quá 5 phút | Tiến trình chết giữa lượt gọi | Có = điều tra; dòng này không tính tiền (cost 0) |
 
@@ -189,7 +189,7 @@ Hỏi UNI chạy như agent đọc (vòng model → tool → model) khi flag `as
 
 | Metric | Loại | Ý nghĩa |
 | --- | --- | --- |
-| `uniwork_ai_ask_runs_total{outcome}` | counter | Lượt agent theo `answered`, `agent_failed`, `refused`, `rate_limited`, `busy`, `timeout`. `rate_limited` gồm giới hạn của nhà cung cấp, trần lời gọi của tổ chức và hết hạn mức token. `timeout` là hết hạn 120 giây của lượt, hoặc một lời gọi model quá hạn của gateway (mặc định 60 giây). `agent_failed` còn gồm: lỗi hạ tầng (provider 5xx, lỗi DB, lưu lượt thất bại, panic), focus người hỏi không được đọc (`ai_context_forbidden`), và lần thử lại định dạng vẫn hỏng |
+| `uniwork_ai_ask_runs_total{outcome}` | counter | Lượt agent theo `answered`, `agent_failed`, `refused`, `rate_limited`, `busy`, `timeout`, `stopped`, `interrupted`. `stopped` là người hỏi bấm Dừng (hoặc đóng kết nối); `interrupted` là lượt bị cắt vì server tắt (xem "Hỏi UNI stream"). `rate_limited` gồm giới hạn của nhà cung cấp, trần lời gọi của tổ chức và hết hạn mức token. `timeout` là hết hạn 120 giây của lượt, hoặc một lời gọi model quá hạn của gateway (mặc định 60 giây). `agent_failed` còn gồm: lỗi hạ tầng (provider 5xx, lỗi DB, lưu lượt thất bại, panic), focus người hỏi không được đọc (`ai_context_forbidden`), và lần thử lại định dạng vẫn hỏng |
 | `uniwork_ai_ask_run_rounds` | histogram (0–4) | Số vòng tool mỗi lượt, trần 4; dồn về 4 = agent chạm trần vòng tool (lời gọi sau vòng cuối là vòng trả lời) |
 | `uniwork_ai_ask_run_seconds` | histogram (tới 150s) | Thời gian một lượt; hạn chót 120s nên bucket 120–150 là lượt chạm hạn |
 | `uniwork_ai_ask_tool_calls_total{tool,status}` | counter | Call tool theo 12 tên trong registry (tên khác gom về `other`) và `ok`, `error`, `truncated` |
@@ -200,6 +200,19 @@ Khi chi phí tăng đột biến:
 1. Xem `uniwork_ai_cost_usd_total{model}` để biết model nào đẩy chi phí, và `AiSumRunUsage` (sqlc, theo tổ chức + run id) để biết run nào.
 2. Hạ model Tự động (`AI_MODEL_COPILOT_AGENT`), hoặc tắt Opus của tổ chức bằng `PUT /api/v1/orgs/{org}/ai/ask-models`.
 3. Chưa đủ: tắt `ask_uni_agent` cho tổ chức đó bằng override.
+
+## Hỏi UNI stream (P2)
+
+Dock mới của Hỏi UNI nhận câu trả lời qua SSE thay vì chờ cả lượt.
+
+- **Route**: `POST /api/v1/workspaces/{workspaceID}/ai/ask/stream`, cùng body với `POST …/ai/ask`. Từ chối trước sự kiện đầu (không đăng nhập, không phải thành viên, hết hạn mức, rate limit…) trả JSON như route cũ; sau sự kiện đầu, lỗi là sự kiện `error` chỉ mang `code`. Route không bị chặn bởi flag.
+- **Khung SSE**: `event: <tên>` + `data: <json>`; các tên là `run`, `step`, `delta`, `citations`, `done`, `error`. Mỗi 15 giây có một dòng `: ping` để proxy không cắt kết nối rỗng. Header: `Content-Type: text/event-stream; charset=utf-8`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`.
+- **Proxy phía trước**: phải để SSE đi thẳng. Với nginx, `X-Accel-Buffering: no` đã tắt buffering cho route này; nếu cấu hình đè header đó thì đặt `proxy_buffering off` cho location `…/ai/ask/stream`. `proxy_read_timeout` ≥ 130 giây (hạn một lượt là 120 giây, cộng ping). Triệu chứng sai cấu hình: chữ không hiện dần mà đến một lúc rồi hiện hết, hoặc kết nối rớt đúng ở mốc timeout của proxy.
+- **Dừng**: client đóng kết nối (nút Dừng) hoặc writer chết thì lượt bị hủy. Lượt được lưu với notice `stopped` (câu hỏi và phần trả lời đã có); metric `uniwork_ai_ask_runs_total{outcome="stopped"}`.
+- **Dừng và tính tiền**: lời gọi model đang chạy khi bị dừng không biến mất. Dòng `ai_usage_events` có `status='cancelled'` với `reason_code` là `ai_cancelled` (người dùng dừng) hoặc `ai_provider_timeout` (hết `Options.StreamTimeout`, 120 giây). Dòng này được định giá và cộng meter `ai.tokens` như dòng `succeeded`; nếu provider chưa báo token thì ước lượng `ceil(số byte / 3)` (đầu ra từ chữ đã nhận, đầu vào từ request). Chưa nhận được gì (không chữ, không token) thì dòng ghi cost 0 và không trừ. `uniwork_ai_calls_total{status="cancelled"}` đếm các dòng này; `cancelled` nhiều là người dùng dừng nhiều, chỉ điều tra khi đi cùng `ai_provider_timeout`.
+- **Tắt server**: `main.go` gọi `askUNI.Shutdown()` trước khi dừng HTTP; các lượt đang chạy bị hủy và lưu với notice `interrupted` (client hiện "Câu trả lời bị gián đoạn nên chưa đầy đủ."), metric outcome `interrupted`. Một đợt deploy làm `interrupted` tăng một nhịp là bình thường; tăng khi không deploy = pod bị kill.
+- **Flag `ask_uni_stream`** (Public, mặc định tắt): bật thì client dùng dock mới và route stream, tắt thì giữ panel cũ và `POST …/ai/ask`. Đặt override theo tổ chức ở `/admin/flags`. Rollback: tắt flag (override hoặc `FF_ASK_UNI_STREAM`); route cũ vẫn chạy nguyên, không mất hội thoại hay dữ liệu. Flag chỉ đổi giao diện, nên tắt flag không cắt một lượt đang stream.
+- **Phản hồi và đổi tên**: `PUT`/`DELETE …/ai/conversations/{conversationID}/messages/{messageID}/feedback` và `PATCH …/ai/conversations/{conversationID}` ghi bảng `ai_message_feedback` và tiêu đề hội thoại; không có hàng audit.
 
 ## Không bao giờ
 

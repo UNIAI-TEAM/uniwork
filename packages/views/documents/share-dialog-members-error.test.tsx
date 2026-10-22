@@ -224,7 +224,7 @@ describe("ShareDialog member loading errors", () => {
     expect(page2Calls).toHaveLength(2);
     // Resuming does not restart from page 1.
     const page1Calls = requestMock.mock.calls.filter(
-      ([p]) => String(p).startsWith("/api/v1/orgs/acme/members") && !String(p).includes("cursor="),
+      ([p]) => String(p).startsWith("/api/v1/orgs/acme/members?") && !String(p).includes("cursor="),
     );
     expect(page1Calls).toHaveLength(1);
   });
@@ -245,6 +245,6 @@ describe("ShareDialog member loading errors", () => {
     const alert = await screen.findByRole("alert", undefined, { timeout: 8000 });
     expect(within(alert).getByText(t("documents.share.members_error_limit"))).toBeInTheDocument();
     expect(within(alert).queryByRole("button")).toBeNull();
-    expect(requestMock.mock.calls.filter(([p]) => String(p).startsWith("/api/v1/orgs/acme/members"))).toHaveLength(40);
+    expect(requestMock.mock.calls.filter(([p]) => String(p).startsWith("/api/v1/orgs/acme/members?"))).toHaveLength(40);
   });
 });

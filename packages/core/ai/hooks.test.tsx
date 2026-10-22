@@ -3,7 +3,17 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { setAccessToken } from "../api/session";
-import { aiKeys, useAiPanelStore, useAskUni, useDeleteAiConversation } from "./hooks";
+import {
+  aiKeys,
+  useAiPanelStore,
+  useAskModels,
+  useAskUni,
+  useClearAiFeedback,
+  useDeleteAiConversation,
+  useRenameAiConversation,
+  useSetAiFeedback,
+  useSetAskModels,
+} from "./hooks";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -99,5 +109,48 @@ describe("ai hooks", () => {
     expect(useAiPanelStore.getState()).toMatchObject({ open: true, conversationId: "c1" });
     useAiPanelStore.getState().setOpen(false);
     expect(useAiPanelStore.getState().open).toBe(false);
+  });
+  it("useAskModels is keyed by org; useSetAskModels writes the answer into it and refreshes capabilities", async () => {
+    const { qc, wrapper } = setup();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ models: ["a"] }));
+    const q = renderHook(() => useAskModels("o1"), { wrapper });
+    await waitFor(() => expect(q.result.current.data).toEqual(["a"]));
+    expect(qc.getQueryData(aiKeys.askModels("o1"))).toEqual(["a"]);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ models: ["a", "b"] }));
+    const m = renderHook(() => useSetAskModels("o1"), { wrapper });
+    await act(async () => {
+      await m.result.current.mutateAsync(["a", "b"]);
+    });
+    const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+    expect(qc.getQueryData(aiKeys.askModels("o1"))).toEqual(["a", "b"]);
+    expect(keys).toEqual(expect.arrayContaining([JSON.stringify(["ai", "capabilities"])]));
+  });
+
+  it("feedback hooks call the endpoints without touching the cache", async () => {
+    const { wrapper } = setup();
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json({})));
+    const up = renderHook(() => useSetAiFeedback(), { wrapper });
+    const clear = renderHook(() => useClearAiFeedback(), { wrapper });
+    await act(async () => {
+      await up.result.current.mutateAsync({ conversationId: "c1", messageId: "m1", body: { rating: "up" } });
+      await clear.result.current.mutateAsync({ conversationId: "c1", messageId: "m1" });
+    });
+    const calls = vi.mocked(fetch).mock.calls.map((c) => [(c[1] as RequestInit).method, String(c[0])]);
+    expect(calls).toEqual([
+      ["PUT", "http://api.test/api/v1/ai/conversations/c1/messages/m1/feedback"],
+      ["DELETE", "http://api.test/api/v1/ai/conversations/c1/messages/m1/feedback"],
+    ]);
+  });
+
+  it("useRenameAiConversation refreshes the conversation list", async () => {
+    const { qc, wrapper } = setup();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ id: "c1", title: "new" }));
+    const { result } = renderHook(() => useRenameAiConversation("ws1"), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ conversationId: "c1", title: "new" });
+    });
+    expect(invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))).toContain(JSON.stringify(aiKeys.conversations("ws1")));
   });
 });

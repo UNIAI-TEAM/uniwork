@@ -117,8 +117,11 @@ func TestAdminListingsHideForeignMyFolderSubtree(t *testing.T) {
 		t.Fatalf("MoveDocument(adminOwned into My Folder): %v", err)
 	}
 
+	// ADR 0037: a folder outside every My Folder is a workspace folder
+	// (workspace/view by location, whatever the request says), so it is the
+	// control the foreign My Folder rows are measured against.
 	ordinary, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
-		Title: "Ordinary Restricted Folder", Kind: DocumentKindFolder, Visibility: documentVisibilityRestricted,
+		Title: "Ordinary Workspace Folder", Kind: DocumentKindFolder,
 	})
 	if err != nil {
 		t.Fatalf("CreatePage(ordinary): %v", err)
@@ -239,13 +242,46 @@ func TestAdminListingsHideForeignMyFolderSubtree(t *testing.T) {
 			t.Errorf("folder-scoped export err=%v, want not found", err)
 		}
 	})
-	t.Run("ordinary restricted folder report", func(t *testing.T) {
+	t.Run("control workspace folder is listed and in the tree, not in the report", func(t *testing.T) {
+		wantWorkspaceFolder(t, ordinary.Document, "ordinary folder")
+		root := ""
+		top, err := env.svc.ListDocuments(ctx, admin, env.tn.wsA, ListDocumentsInput{ParentID: &root})
+		if err != nil {
+			t.Fatalf("ListDocuments(root): %v", err)
+		}
+		if !containsListID(top, ordinary.Document.ID) {
+			t.Error("admin root list misses a workspace folder created by a member")
+		}
+		if containsListID(top, mfA.Document.ID) {
+			t.Error("admin root list names A's My Folder next to the workspace folder")
+		}
+		nodes, err := env.svc.DocumentTree(ctx, admin, env.tn.wsA, "", true)
+		if err != nil {
+			t.Fatalf("DocumentTree: %v", err)
+		}
+		seen := map[string]DocumentTreeNode{}
+		wsrTreeIDs(nodes, seen)
+		if _, ok := seen[ordinary.Document.ID]; !ok {
+			t.Error("admin folders tree misses a workspace folder created by a member")
+		}
+		if _, ok := seen[privateFolder.Document.ID]; ok {
+			t.Error("admin folders tree names a folder inside A's My Folder")
+		}
+		report, err := env.svc.DocumentAccessReport(ctx, admin, env.tn.wsA, DocumentAccessReportQuery{})
+		if err != nil {
+			t.Fatalf("DocumentAccessReport: %v", err)
+		}
+		if reportHas(report, ordinary.Document.ID) != nil {
+			t.Error("the access report lists a folder: it reports documents only")
+		}
+	})
+	t.Run("workspace folder report", func(t *testing.T) {
 		page, err := env.svc.DocumentAccessReport(ctx, admin, env.tn.wsA, DocumentAccessReportQuery{FolderID: ordinary.Document.ID})
 		if err != nil {
-			t.Fatalf("ordinary restricted folder report: %v", err)
+			t.Fatalf("workspace folder report: %v", err)
 		}
 		if page.FolderID != ordinary.Document.ID || page.FolderTitle != ordinary.Document.Title {
-			t.Errorf("ordinary restricted folder scope = %q %q, want id+title", page.FolderID, page.FolderTitle)
+			t.Errorf("workspace folder scope = %q %q, want id+title", page.FolderID, page.FolderTitle)
 		}
 	})
 
