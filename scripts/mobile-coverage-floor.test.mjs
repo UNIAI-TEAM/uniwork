@@ -50,7 +50,6 @@ const BELOW_GLOBAL = new Set([
   "components/chat/reminder-sheet.tsx",
   "components/chat/room-list-parts.tsx",
   "components/chat/room-preview.tsx",
-  "components/chat/swipe-to-reply.tsx",
   "components/chat/task-card.tsx",
   "components/ui/card.tsx",
   "components/ui/separator.tsx",

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const fs = vi.hoisted(() => ({ written: new Map<string, string>(), fail: false }));
+const fs = vi.hoisted(() => ({ written: new Map<string, string>(), fail: false as false | "error" | "native" }));
 vi.mock("expo-file-system", () => ({
   Paths: { document: { uri: "file:///docs" } },
   File: class {
@@ -9,7 +9,7 @@ vi.mock("expo-file-system", () => ({
       this.uri = `${dir.uri}/${name}`;
     }
     write(text: string) {
-      if (fs.fail) throw new Error("disk full");
+      if (fs.fail) throw fs.fail === "native" ? "disk full" : new Error("disk full");
       fs.written.set(this.uri, text);
     }
   },
@@ -31,7 +31,10 @@ describe("writePerfMarks", () => {
   });
 
   it("logs a write that fails instead of throwing into the boot", () => {
-    fs.fail = true;
+    fs.fail = "error";
+    expect(() => writePerfMarks("x")).not.toThrow();
+    // A native module may reject with a bare string: still logged, still not thrown.
+    fs.fail = "native";
     expect(() => writePerfMarks("x")).not.toThrow();
     expect(fs.written.size).toBe(0);
   });

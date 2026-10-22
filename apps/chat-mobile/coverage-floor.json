@@ -157,10 +157,10 @@
       "lines": 73
     },
     "components/chat/forward-sheet.tsx": {
-      "statements": 66,
-      "branches": 50,
-      "functions": 44,
-      "lines": 81
+      "statements": 96,
+      "branches": 75,
+      "functions": 100,
+      "lines": 100
     },
     "components/chat/image-viewer.tsx": {
       "statements": 83,
@@ -207,7 +207,7 @@
     "components/chat/message-row.tsx": {
       "statements": 98,
       "branches": 89,
-      "functions": 92,
+      "functions": 93,
       "lines": 98
     },
     "components/chat/pinned-bar.tsx": {
@@ -215,6 +215,12 @@
       "branches": 20,
       "functions": 50,
       "lines": 70
+    },
+    "components/chat/recycled-message-list.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "components/chat/reminder-sheet.tsx": {
       "statements": 55,
@@ -259,6 +265,12 @@
       "lines": 100
     },
     "components/chat/room-info/quick-action.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/room-info/room-members-screen.tsx": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -313,16 +325,22 @@
       "lines": 100
     },
     "components/chat/swipe-to-reply.tsx": {
-      "statements": 76,
-      "branches": 83,
-      "functions": 71,
-      "lines": 73
+      "statements": 100,
+      "branches": 90,
+      "functions": 100,
+      "lines": 100
     },
     "components/chat/task-card.tsx": {
       "statements": 88,
       "branches": 100,
       "functions": 75,
       "lines": 88
+    },
+    "components/chat/timeline-list.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "components/chat/typing-bubble.tsx": {
       "statements": 100,
@@ -656,7 +674,7 @@
     },
     "components/ui/text.tsx": {
       "statements": 100,
-      "branches": 62,
+      "branches": 77,
       "functions": 100,
       "lines": 100
     },
