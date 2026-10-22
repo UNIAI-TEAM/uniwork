@@ -85,6 +85,22 @@ describe("RoomRow", () => {
     expect(row.props.accessibilityActions).toEqual([{ name: "longpress", label: viText("chat.settings_manage_room") }]);
   });
 
+  it("names its commands to a screen reader ahead of the menu, and runs the one picked", async () => {
+    const read = jest.fn();
+    const p = props({ unread: 2, actions: [{ name: "mark_read", label: "Đánh dấu đã đọc", run: read }] });
+    await render(<RoomRow {...p} />);
+    const row = screen.getByRole("button", { name: new RegExp("^Bình") });
+    expect(row.props.accessibilityActions).toEqual([
+      { name: "mark_read", label: "Đánh dấu đã đọc" },
+      { name: "longpress", label: viText("chat.settings_manage_room") },
+    ]);
+    await fireEvent(row, "accessibilityAction", { nativeEvent: { actionName: "mark_read" } });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(p.onLongPress).not.toHaveBeenCalled();
+    await fireEvent(row, "accessibilityAction", { nativeEvent: { actionName: "longpress" } });
+    expect(p.onLongPress).toHaveBeenCalledTimes(1);
+  });
+
   it("shows a draft left unsent in place of the last message, and reads it so", async () => {
     await render(<RoomRow {...props({ draft: "Mai họp lúc 9 giờ", prefix: "Bạn: " })} />);
     expect(screen.getByText(viText("chat.sidebar_draft_label"))).toBeOnTheScreen();

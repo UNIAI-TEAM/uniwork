@@ -28,12 +28,13 @@ import { useRoomDraftLines } from "@/components/chat/use-drafts";
 import { RoomPreview } from "@/components/chat/room-preview";
 import { useChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useDeepLinkTarget } from "@/components/chat/use-deep-link-target";
-import { ActionSheet, type SheetAction } from "@/components/ui/action-sheet";
+import { roomMenuActions, useRoomCommands } from "@/components/chat/use-room-commands";
+import { ActionSheet } from "@/components/ui/action-sheet";
 import { Header } from "@/components/ui/header";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { WorkspaceSwitchSheet } from "@/components/workspace/workspace-switch-sheet";
-import { useResolveDM, useSetRoomMuted } from "@/data/mutations/rooms";
+import { useResolveDM } from "@/data/mutations/rooms";
 import { nicknamesOptions, roomsOptions, unreadSummaryOptions, workspaceMembersOptions } from "@/data/queries/chat";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useChatPinsStore } from "@/data/stores/chat-pins-store";
@@ -55,7 +56,8 @@ export default function ChatTab() {
   const theme = THEME[colorScheme];
   const chat = useChatWorkspace();
   const resolveDM = useResolveDM(chat?.wsId ?? "").mutateAsync;
-  const setRoomMuted = useSetRoomMuted(chat?.wsId ?? "").mutateAsync;
+  // Mark read, pin and mute: the long-press menu, the rows' swipe and their screen-reader actions.
+  const commands = useRoomCommands(chat);
   const wsId = chat?.wsId ?? "";
   useDeepLinkTarget(chat);
 
@@ -138,25 +140,7 @@ export default function ChatTab() {
     [chat, resolveDM, t],
   );
 
-  const menuActions: SheetAction[] = [];
-  if (menuRow?.roomId && chat) {
-    const roomId = menuRow.roomId;
-    menuActions.push({
-      key: "pin",
-      label: menuRow.pinned ? t("chat.mobile.unpin_conversation") : t("chat.settings_pin_conversation"),
-      icon: menuRow.pinned ? "pin" : "pin-outline",
-      onPress: () => void useChatPinsStore.getState().toggle(roomId),
-    });
-    if (menuRow.room) {
-      const muted = menuRow.muted;
-      menuActions.push({
-        key: "mute",
-        label: muted ? t("chat.mobile.unmute_notifications") : t("chat.settings_mute_notifications"),
-        icon: muted ? "notifications-outline" : "notifications-off-outline",
-        onPress: () => void setRoomMuted({ roomId, muted: !muted }).catch(() => toast.error(t("common.error"))),
-      });
-    }
-  }
+  const menuActions = roomMenuActions(menuRow, commands, t);
 
   const pill = chat ? (
     <WorkspacePill
@@ -222,6 +206,7 @@ export default function ChatTab() {
             drafts={draftLines}
             onOpen={open}
             onMenu={setMenuRow}
+            commands={commands}
             ListHeaderComponent={
               catchUpPick.top && filter === "all" && filterText.trim() === "" ? (
                 <CatchUpBanner

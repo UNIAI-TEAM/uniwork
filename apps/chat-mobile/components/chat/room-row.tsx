@@ -2,7 +2,9 @@
 // message or who is typing, the mute and pin marks, and the unread and
 // mention badges with the web's rules (packages/views/chat/chat-sidebar-rows.tsx):
 // a mention is "@", a count past 99 is "99+", a muted room keeps its counts
-// but drops to neutral. One accessibility label reads the whole row.
+// but drops to neutral. One accessibility label reads the whole row, and its
+// actions run what the swipe does by touch (mark read, pin, mute) before the
+// long-press menu.
 import { Ionicons } from "@expo/vector-icons";
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +20,13 @@ import { RoomAvatar } from "./room-avatar";
 import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 
 const TABULAR = { fontVariant: ["tabular-nums" as const] };
+
+/** A command a screen reader runs from the row's actions (room-swipe.tsx does the same by touch). */
+export interface RoomRowAction {
+  name: string;
+  label: string;
+  run: () => void;
+}
 
 export interface RoomRowProps {
   title: string;
@@ -40,6 +49,8 @@ export interface RoomRowProps {
   pinned: boolean;
   onPress: () => void;
   onLongPress: () => void;
+  /** Named actions ahead of the menu, in order (mark read, pin, mute). */
+  actions?: readonly RoomRowAction[];
   /** For the Maestro flows (apps/chat-mobile/maestro): `room-row-<roomId>`. */
   testID?: string;
 }
@@ -63,6 +74,7 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
     pinned,
     onPress,
     onLongPress,
+    actions,
     testID,
   } = props;
   const { t } = useTranslation();
@@ -83,6 +95,11 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
     .filter(Boolean)
     .join(", ");
 
+  const a11yActions = [
+    ...(actions ?? []).map(({ name, label: actionLabel }) => ({ name, label: actionLabel })),
+    { name: "longpress", label: t("chat.settings_manage_room") },
+  ];
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -93,8 +110,12 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
         haptics.longPress();
         onLongPress();
       }}
-      accessibilityActions={[{ name: "longpress", label: t("chat.settings_manage_room") }]}
-      onAccessibilityAction={onLongPress}
+      accessibilityActions={a11yActions}
+      onAccessibilityAction={(event) => {
+        const action = actions?.find(({ name }) => name === event.nativeEvent.actionName);
+        if (action) action.run();
+        else onLongPress();
+      }}
       testID={testID}
       android_ripple={ripple}
       className="min-h-[76px] flex-row items-center gap-3 pl-4 active:bg-secondary"
