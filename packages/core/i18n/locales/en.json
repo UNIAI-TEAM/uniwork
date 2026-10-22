@@ -654,7 +654,7 @@
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
       "email_all": "Email for every eligible kind",
-      "push_unavailable_server": "This server has not set up push, so notifications arrive in the inbox and by email.",
+      "push_unavailable_server": "Push after closing the tab is not set up on this server. System notifications can still work while UniWork is open.",
       "push_unavailable_browser": "This browser cannot receive push, so notifications arrive in the inbox and by email.",
       "browser_banners_allow": "Alert me to new messages while the UniWork tab is hidden",
       "desktop_section": "Desktop notifications",
@@ -5600,6 +5600,16 @@
       "open_settings": "Open notification settings",
       "test_title": "Notifications are on",
       "test_body": "New messages will show up here."
+    },
+    "browser": {
+      "title": "System notifications",
+      "description": "Receive messages, meeting reminders and incoming calls outside the UniWork window while it is open.",
+      "prompt": "Turn on system notifications for new messages, meeting reminders and incoming calls.",
+      "check": "A test notification was sent. If you do not see it, check your browser's notification settings in Windows or macOS and turn off Do Not Disturb.",
+      "allowed": "This browser has permission. Send a test to check whether your computer displays notifications.",
+      "denied": "Notifications are not allowed yet. Open this site's permissions in your browser, allow notifications, then return here.",
+      "background_failed": "System notifications are allowed, but background push could not be connected. Retry push in Settings → Notifications.",
+      "call_hint": "Open UniWork to answer the call."
     },
     "filter": "Filter",
     "filter_all": "All",

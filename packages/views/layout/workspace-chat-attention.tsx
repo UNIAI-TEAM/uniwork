@@ -9,7 +9,7 @@ import { useChatDeviceNotificationStore } from "@uniwork/core/chat/device-notifi
 import { useNotifications } from "@uniwork/core/notifications";
 import { usePush } from "@uniwork/core/notifications/push";
 import { paths } from "@uniwork/core/paths";
-import { getWebNotificationPermission, showWebNotification, useHostFocus } from "@uniwork/core/platform";
+import { showWebNotification, useHostFocus, useWebNotificationPermission } from "@uniwork/core/platform";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { formatChatSidebarPreviewText } from "../chat/chat-sidebar-preview";
 import { notificationTitleKey } from "../notifications/notification-title";
@@ -18,7 +18,7 @@ import { useWorkspace } from "./workspace-context";
 
 const TITLE_COUNT = /^\(\d+\) /;
 /** Kinds worth a banner over whatever the person is doing in another tab or window (H1). */
-const BANNER_KINDS = new Set(["chat_dm", "chat_mentioned"]);
+const BANNER_KINDS = new Set(["chat_dm", "chat_mentioned", "chat_reminder", "meeting_starting", "meeting_invited", "task_assigned", "mentioned"]);
 
 /** Prefixes the tab title with the count, and keeps it there when the router rewrites the title. */
 function useTitleCount(count: number) {
@@ -68,7 +68,7 @@ export function WorkspaceChatAttention() {
   const focused = useHostFocus();
   const activeRoomId = useActiveChatRoomStore((s) => (s.workspaceId === workspace.id ? s.roomId : null));
   const push = usePush();
-  const banners = getWebNotificationPermission() === "granted" && !push.subscribed;
+  const banners = useWebNotificationPermission() === "granted" && !push.subscribed;
 
   /** Newest `last_message_at` seen in the room list; null before its first load. */
   const newestMessageSeen = useRef<number | null>(null);
