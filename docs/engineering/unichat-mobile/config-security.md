@@ -13,7 +13,12 @@
   project id trước khi nạp môi trường EAS chứa URL), `UNICHAT_EAS_PROJECT_ID`
   (ghi đè hằng `EAS_PROJECT_ID`), `GOOGLE_SERVICES_JSON` (biến EAS kiểu file →
   `android.googleServicesFile`; thiếu thì Android không lấy được push token),
-  `SENTRY_DSN` (→ `extra.sentryDsn`; thiếu thì không khởi động Sentry);
+  `SENTRY_DSN` (→ `extra.sentryDsn`; thiếu thì không khởi động Sentry), `UNICHAT_IOS_CALLS` (`1` thì bản iPhone
+  khai `UIBackgroundModes: audio` và hiện giao diện gọi; thiếu thì iPhone không bao giờ hiện gọi, dù flag
+  `unichat_mobile_calls_ios` bật; `app.config.ts › iosCallsBuilt` từ chối `1` khi `modules/unichat-calls` chưa có phần
+  iOS), `UNICHAT_CRITICAL_UPDATE` (chỉ workflow OTA đặt, xem `release.md`), `UNICHAT_PERF_MARKS`, `UNICHAT_TLS_PIN*`
+  (dưới), `EXPO_BUNDLE_IDENTIFIER_*`/`EXPO_APPLE_TEAM_ID` (ghi đè, hiếm dùng); mọi biến ấy có dòng trong khối "UniChat
+  mobile (build-time)" của `.env.example` (`app.config.test.ts › the build variables app.config.ts reads`);
   kết quả nằm ở `extra` (`apiUrl`,
   `appUrl`, `authClientId=uniwork-chat-mobile`, `deploymentId`, `eas.projectId`
   khi có dự án EAS, `sentryDsn`) và app gọi `configureRuntime()` lúc boot.

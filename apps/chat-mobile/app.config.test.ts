@@ -591,3 +591,32 @@ describe("the Android API the app targets", () => {
     expect(workflow).toMatch(new RegExp(`\\{ api: ${String(target)}, [^}]*profile: pixel_tablet, landscape: true \\}`));
   });
 });
+
+// Review finding: UNICHAT_IOS_CALLS shipped without a line in .env.example, so whoever set
+// FF_UNICHAT_MOBILE_CALLS_IOS read that the flag alone turns iPhone calling on. Every variable the
+// config reads is listed in the mobile build-time block, except EAS_BUILD, which the EAS builder sets.
+describe("the build variables app.config.ts reads", () => {
+  const source = fs.readFileSync(path.join(__dirname, "app.config.ts"), "utf8");
+  const example = fs.readFileSync(path.join(__dirname, "../../.env.example"), "utf8");
+  const block = example.slice(example.indexOf("# ==================== UniChat mobile (build-time)"));
+  const mobileBlock = block.slice(0, block.indexOf("\n# ====", 1));
+  const read = new Set([
+    ...[...source.matchAll(/process\.env\.([A-Z][A-Z0-9_]+)/g)].map((match) => match[1]!),
+    // serverUrl reads its two by name (process.env[name]).
+    ...[...source.matchAll(/name: ("UNICHAT_[A-Z_]+")(?: \| ("UNICHAT_[A-Z_]+"))*/g)].flatMap((match) => match.slice(1).filter(Boolean).map((n) => JSON.parse(n!) as string)),
+  ]);
+  read.delete("EAS_BUILD");
+
+  it("finds the variables it is about", () => {
+    expect([...read]).toEqual(expect.arrayContaining(["UNICHAT_ENV", "UNICHAT_API_URL", "UNICHAT_APP_URL", "UNICHAT_IOS_CALLS", "SENTRY_DSN"]));
+  });
+
+  it.each([...read].sort())("%s is listed in .env.example's mobile build-time block", (name) => {
+    expect(mobileBlock).toMatch(new RegExp(`^#\\s?${name}=`, "m"));
+  });
+
+  it("says the iPhone calls flag does nothing on a binary built without UNICHAT_IOS_CALLS", () => {
+    const flag = example.slice(example.indexOf("FF_UNICHAT_MOBILE_CALLS_IOS"), example.indexOf("FF_UNICHAT_MOBILE_TIMELINE_RECYCLED"));
+    expect(flag).toContain("UNICHAT_IOS_CALLS=1");
+  });
+});
