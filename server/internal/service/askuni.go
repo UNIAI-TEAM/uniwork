@@ -601,9 +601,27 @@ func history(rows []db.AiMessage) []provider.Message {
 		if r.Role == "assistant" {
 			src = "prior_answer"
 		}
-		out = append(out, provider.Message{Role: r.Role, Content: ai.WrapUntrusted(src, r.Content)})
+		out = append(out, provider.Message{Role: r.Role, Content: ai.WrapUntrusted(src, r.Content) + priorSources(r)})
 	}
 	return out
+}
+
+// priorSources lists what an earlier answer cited, so a follow-up trusts those
+// sources instead of calling its own answer unverified. Rows whose citations
+// do not decode get no block.
+func priorSources(r db.AiMessage) string {
+	if r.Role != "assistant" {
+		return ""
+	}
+	var cites []AskCitation
+	if json.Unmarshal([]byte(r.Citations), &cites) != nil || len(cites) == 0 {
+		return ""
+	}
+	lines := make([]string, len(cites))
+	for i, c := range cites {
+		lines[i] = c.SourceID + " " + c.Kind + " " + c.Title
+	}
+	return "\nSources cited in that answer, read with tools in that turn:\n" + ai.WrapUntrusted("prior_sources", strings.Join(lines, "\n"))
 }
 
 // AskContextRef names a task, document or meeting a question was asked about.
