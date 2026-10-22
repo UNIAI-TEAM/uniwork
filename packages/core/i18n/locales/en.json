@@ -5596,6 +5596,7 @@
       "prompt": "Turn on notifications so you don't miss new messages.",
       "enable": "Turn on notifications",
       "check": "When macOS asks, choose Allow. If no test notification appeared, turn UniChat on in your computer's notification settings.",
+      "check_windows": "No test notification? Open Windows Settings › System › Notifications, turn UniChat on, and turn off Focus assist if it is on.",
       "open_settings": "Open notification settings",
       "test_title": "Notifications are on",
       "test_body": "New messages will show up here."

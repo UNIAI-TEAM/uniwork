@@ -176,8 +176,13 @@ if (!app.requestSingleInstanceLock()) {
     void session.restore();
 
     const defaultSession = electronSession.defaultSession;
+    const grantWebPermission = (permission: string, requestingUrl: string, isMainFrame: boolean) =>
+      decidePermission(permission, requestingUrl, isMainFrame, config.appUrl);
     defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) =>
-      callback(decidePermission(permission, details.requestingUrl, details.isMainFrame, config.appUrl)),
+      callback(grantWebPermission(permission, details.requestingUrl, details.isMainFrame)),
+    );
+    defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) =>
+      grantWebPermission(permission, details.requestingUrl ?? "", details.isMainFrame ?? false),
     );
     installScreenShare(defaultSession, config.appUrl);
 
