@@ -46,6 +46,8 @@ type FakeProvider struct {
 	ScribeDispatches  []DispatchScribeRequest
 	ScribeRemovals    []RemoveScribeRequest
 	ScribeDispatchErr error
+	// ScribeUnassigned: no worker takes a dispatch (no capacity).
+	ScribeUnassigned bool
 	// LastJoin is the last join credential request (attributes included).
 	LastJoin IssueJoinCredentialRequest
 	// AttributeUpdates records SetParticipantAttributes calls (under permMu).
@@ -213,6 +215,12 @@ func (f *FakeProvider) RemoveScribe(_ context.Context, req RemoveScribeRequest) 
 	defer f.scribeMu.Unlock()
 	f.ScribeRemovals = append(f.ScribeRemovals, req)
 	return nil
+}
+
+func (f *FakeProvider) ScribeDispatchAssigned(context.Context, RemoveScribeRequest) (bool, error) {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	return !f.ScribeUnassigned, nil
 }
 
 func (f *FakeProvider) SetParticipantAttributes(_ context.Context, req SetParticipantAttributesRequest) error {

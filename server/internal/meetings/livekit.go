@@ -404,6 +404,26 @@ func (a *LiveKitAdapter) RemoveScribe(ctx context.Context, req RemoveScribeReque
 	return nil
 }
 
+// ScribeDispatchAssigned lists the dispatch: a job with a worker id means a
+// worker took it. A worker at its load_threshold is not offered the job, so a
+// dispatch at a capacity peak lists no assigned job.
+func (a *LiveKitAdapter) ScribeDispatchAssigned(ctx context.Context, req RemoveScribeRequest) (bool, error) {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	res, err := a.agents().ListDispatch(ctx, &livekit.ListAgentDispatchRequest{DispatchId: req.DispatchID, Room: req.RoomName})
+	if err != nil {
+		return false, fmt.Errorf("livekit list dispatch: %w", err)
+	}
+	for _, d := range res.GetAgentDispatches() {
+		for _, j := range d.GetState().GetJobs() {
+			if j.GetState().GetWorkerId() != "" {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
 func (a *LiveKitAdapter) sip() *lksdk.SIPClient {
 	a.sipOnce.Do(func() { a.sipCl = lksdk.NewSIPClient(a.URL, a.APIKey, a.APISecret) })
 	return a.sipCl

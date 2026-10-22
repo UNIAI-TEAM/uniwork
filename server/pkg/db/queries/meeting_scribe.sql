@@ -37,6 +37,30 @@ UPDATE meeting_scribe_runs SET
 WHERE id = sqlc.arg('id') AND status = 'DISPATCHED' AND failures = sqlc.arg('failures')
 RETURNING *;
 
+-- name: RequeueScribeRunDispatch :one
+-- tenant: by-id
+-- A dispatch no worker took (benchmark #13): the 60 s clock restarts without
+-- counting a miss. Guarded by the dispatch id the caller read, so two sweeps
+-- that saw the same dispatch send one new one.
+UPDATE meeting_scribe_runs SET dispatched_at = now(), updated_at = now()
+WHERE id = sqlc.arg('id') AND status = 'DISPATCHED' AND dispatch_id = sqlc.arg('dispatch_id')
+RETURNING *;
+
+-- name: ScribeRunHealth :one
+-- tenant: system
+-- Fleet-wide, for the sweep's gauge (benchmark #1): ACTIVE runs that started
+-- before since and have people in the room, and of those the ones no
+-- transcript line reached after since (idx_meeting_transcript_meeting_created).
+-- A device-caption line counts: the transcript still flows.
+SELECT
+  count(*)::int AS active,
+  (count(*) FILTER (WHERE NOT EXISTS (
+    SELECT 1 FROM meeting_transcript_segments s
+    WHERE s.meeting_id = r.meeting_id AND s.created_at > sqlc.arg('since')::timestamptz)))::int AS silent
+FROM meeting_scribe_runs r
+WHERE r.status = 'ACTIVE' AND r.started_at < sqlc.arg('since')::timestamptz
+  AND EXISTS (SELECT 1 FROM meeting_attendance_sessions a WHERE a.meeting_id = r.meeting_id AND a.left_at IS NULL);
+
 -- name: StartScribeRun :one
 -- tenant: by-id
 -- The agent's participant SID is the latest connection that reported in.
