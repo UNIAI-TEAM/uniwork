@@ -36,6 +36,7 @@ test.describe.configure({ timeout: 360_000, mode: "serial" });
 
 const tag = `mt2092-${Date.now().toString(36)}`;
 const BULK_KIND = "document_owners_bulk_transferred";
+const SINGLE_KIND = "document_owner_transferred";
 
 let s: ShareScene;
 /** The member whose documents move: a seat in W1 and in W2. */
@@ -58,6 +59,11 @@ async function createDocAs(request: APIRequestContext, token: string, wsId: stri
 /** The ACL owner of a document, as the organization owner (a manager of workspace-visible documents) reads it. */
 async function aclOwnerOf(request: APIRequestContext, docId: string): Promise<string | undefined> {
   return (await sharesOf(request, s.owner.token, docId)).acl_owner?.user_id;
+}
+
+/** The per-document notices a person holds: a bulk run must leave none (its grouped notice covers them). */
+async function singleNotices(request: APIRequestContext, token: string) {
+  return (await inboxOf(request, token)).filter((n) => n.kind === SINGLE_KIND);
 }
 
 /** The grouped notices a person holds for the source member. */
@@ -112,8 +118,10 @@ test("DOC6-W02 deactivating a member moves their documents where the recipient b
   const row = await openMembers(page);
   await row.getByRole("button", { name: "Vô hiệu hóa", exact: true }).click();
 
-  const dialog = page.getByRole("alertdialog", { name: `Vô hiệu hóa ${source.name}?` });
-  await expect(dialog).toBeVisible({ timeout: 30_000 });
+  // By role only: the dialog's accessible name is its title, which swaps to "… đã bị vô hiệu hóa"
+  // once the lock lands, so a name-based locator would stop matching mid-test. One is open at a time.
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog.getByRole("heading", { name: `Vô hiệu hóa ${source.name}?` })).toBeVisible({ timeout: 30_000 });
   // The count step names the member's three documents and where they live.
   await expect(dialog.getByText(`${source.name} đang là chủ sở hữu của 3 tài liệu.`)).toBeVisible({ timeout: 30_000 });
   await expect(dialog).toContainText(`A Two ${tag}: 1`);
@@ -142,6 +150,7 @@ test("DOC6-W02 deactivating a member moves their documents where the recipient b
   expect(notice?.params.actor).toBe(s.owner.name);
   expect(notice?.params.name).toBe(source.name);
   expect(await bulkNotices(request, s.owner.token), "the caller never hears their own transfer").toHaveLength(0);
+  expect(await singleNotices(request, recipient.token), "no per-document notice for a bulk-moved document").toHaveLength(0);
 
   const { context, page: inbox } = await openSession(browser, recipient.email);
   try {
@@ -181,6 +190,13 @@ test("DOC6-W02 the row action moves the rest to the owner, and a third open find
   await expect(empty.getByText(`${source.name} không còn sở hữu tài liệu nào.`)).toBeVisible({ timeout: 30_000 });
   await expect(empty.getByRole("button", { name: "Chuyển", exact: true })).toHaveCount(0);
 
-  // The owner took over their own run: no grouped notice for the caller.
-  expect(await bulkNotices(request, s.owner.token)).toHaveLength(0);
+  // The owner took over their own run: neither a grouped nor a per-document notice for the caller.
+  // The outbox consumer is asynchronous, so an immediate read proves nothing: poll for 3 s and require
+  // zero throughout (the Go test ...SkipsTheCallerAndMalformedFrames holds the rule itself).
+  const deadline = Date.now() + 3_000;
+  do {
+    expect(await bulkNotices(request, s.owner.token), "the caller never hears their own run").toHaveLength(0);
+    expect(await singleNotices(request, s.owner.token), "no per-document notice for a bulk-moved document").toHaveLength(0);
+    await page.waitForTimeout(500);
+  } while (Date.now() < deadline);
 });
