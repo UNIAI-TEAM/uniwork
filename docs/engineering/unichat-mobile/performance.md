@@ -16,6 +16,9 @@ Model hàng, danh sách tái chế, timeline dài, cửa sổ trượt, ảnh, b
   mới, tạo/thêm nhóm, chi tiết phòng; không màn nào đọc cả tập `onlineUserIds` trừ dải "đang hoạt động" của danh bạ),
   hàng so bằng `sameRoomListRow`, chạm vào hành động trên hàng mới
   nhất cùng key. Đừng truyền closure mới hay object dựng trong render vào một cell: test đếm render đỏ.
+  `Text` (`components/ui/text.tsx`) gộp lớp của biến thể, của `TextClassContext` và của chính nó (cva → clsx →
+  tailwind-merge) một lần cho mỗi bộ ba khác nhau rồi đọc lại từ một map giới hạn 1.000 mục (audit
+  nativewind-runtime-cost): một bong bóng vẽ nhiều `Text`, timeline mount hàng chục bong bóng, mà số bộ ba chỉ vài trăm.
   **Chi phí của một ô tin** (audit per-cell-gesture-and-entering-animations): vuốt để trả lời
   (`components/chat/swipe-to-reply.tsx`) là một `Gesture.Pan`, một shared value và một animated style mỗi ô — không
   còn `ReanimatedSwipeable` (hai ô hành động, tap + pan, nhiều shared value mỗi ô); mũi tên chỉ mount khi đang kéo,

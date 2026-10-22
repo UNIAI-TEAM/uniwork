@@ -41,6 +41,24 @@ const ARIA_LEVEL: Partial<Record<TextVariant, string>> = { h1: "1", h2: "2", h3:
 
 const TextClassContext = React.createContext<string | undefined>(undefined);
 
+// Every Text resolved its classes on every render: cva, then clsx and tailwind-merge over the result. A chat bubble
+// draws several Texts and a timeline mounts dozens of bubbles, while the distinct (variant, context class, className)
+// triples number a few hundred at most (audit nativewind-runtime-cost). Each triple is merged once and then read from
+// this map; the map empties itself past MERGED_MAX, so a stream of one-off classes cannot grow it.
+const MERGED_MAX = 1000;
+const merged = new Map<string, string>();
+
+/** The merged className of a Text: computed once per distinct triple. */
+export function textClassName(variant: TextVariant, textClass: string | undefined, className: string | undefined): string {
+  const key = `${variant}\u0000${textClass ?? ""}\u0000${className ?? ""}`;
+  const hit = merged.get(key);
+  if (hit !== undefined) return hit;
+  const value = cn(textVariants({ variant }), textClass, className);
+  if (merged.size >= MERGED_MAX) merged.clear();
+  merged.set(key, value);
+  return value;
+}
+
 function Text({
   className,
   asChild = false,
@@ -51,7 +69,7 @@ function Text({
   const Component = asChild ? Slot : RNText;
   return (
     <Component
-      className={cn(textVariants({ variant }), textClass, className)}
+      className={textClassName(variant ?? "default", textClass, className)}
       role={variant ? ROLE[variant] : undefined}
       aria-level={variant ? ARIA_LEVEL[variant] : undefined}
       {...props}
