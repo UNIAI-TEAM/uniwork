@@ -21,6 +21,7 @@ import { AI_PROVIDER, hasAiConsent } from "@/lib/ai-consent";
 import { legalLinks, legalLocale } from "@/lib/legal-links";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
+import { dateTimeFormat } from "@/lib/locale-format";
 import { cn } from "@/lib/utils";
 
 /** Whether the signed-in person agreed to the notice this build shows. */
@@ -141,7 +142,7 @@ export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose
           <View className="gap-2.5">
             {date && !Number.isNaN(date.getTime()) ? (
               <Text className="text-subhead text-muted-foreground">
-                {t("mobile.ai_consent.agreed_on", { date: date.toLocaleDateString(i18n.language === "en" ? "en-GB" : "vi-VN") })}
+                {t("mobile.ai_consent.agreed_on", { date: dateTimeFormat(i18n.language).format(date) })}
               </Text>
             ) : null}
             {failed ? (

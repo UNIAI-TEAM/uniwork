@@ -20,6 +20,7 @@ import { givenNameOf } from "@uniwork/core/chat/initials";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 import { displayLabelForChatContact, normalizeChatUserId, resolveChatNicknameForUser, type ChatContact } from "@uniwork/core/chat/contact-labels";
+import { dateTimeFormat } from "./locale-format";
 
 export type { ChatRoomPreview };
 
@@ -218,17 +219,9 @@ const SIDEBAR_TIME_OPTIONS: Record<SidebarTimeFormat, Intl.DateTimeFormatOptions
   date: { month: "numeric", day: "numeric", year: "numeric" },
 };
 
-// One formatter per locale and shape: building one is the expensive part.
-const sidebarTimeFormatters = new Map<string, Intl.DateTimeFormat>();
-
+// The app's language and the device's clock, one cached formatter per shape (lib/locale-format.ts).
 function sidebarTimeFormatter(locale: string | undefined, format: SidebarTimeFormat): Intl.DateTimeFormat {
-  const key = `${locale ?? ""}|${format}`;
-  let formatter = sidebarTimeFormatters.get(key);
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat(locale, SIDEBAR_TIME_OPTIONS[format]);
-    sidebarTimeFormatters.set(key, formatter);
-  }
-  return formatter;
+  return dateTimeFormat(locale, SIDEBAR_TIME_OPTIONS[format]);
 }
 
 export function formatChatSidebarTime(

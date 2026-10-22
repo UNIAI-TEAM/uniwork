@@ -7,6 +7,7 @@
 // row renders from `record` (a server message) or `pending` (a local send).
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { mergeOptimisticChatMessages, type PendingSend } from "./send-pipeline";
+import { dateTimeFormat } from "./locale-format";
 
 export interface TimelineMessage {
   id: string;
@@ -91,30 +92,14 @@ export function messageDayKey(ts: number): number {
   return key;
 }
 
-const timeFormatters = new Map<string, Intl.DateTimeFormat>();
-const dateTimeFormatters = new Map<string, Intl.DateTimeFormat>();
-
-function cachedFormatter(
-  cache: Map<string, Intl.DateTimeFormat>,
-  locale: string,
-  options: Intl.DateTimeFormatOptions,
-): Intl.DateTimeFormat {
-  let formatter = cache.get(locale);
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat(locale, options);
-    cache.set(locale, formatter);
-  }
-  return formatter;
-}
-
-/** "14:05" — the time printed on a message. */
+/** "14:05" (or "2:05 pm" on a 12-hour phone) — the time printed on a message; `locale` is the app's language. */
 export function formatMessageTime(ts: number, locale: string): string {
-  return cachedFormatter(timeFormatters, locale, { hour: "2-digit", minute: "2-digit" }).format(ts);
+  return dateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(ts);
 }
 
 /** Full date and time, for a screen reader's label of a message. */
 export function formatMessageDateTime(ts: number, locale: string): string {
-  return cachedFormatter(dateTimeFormatters, locale, { dateStyle: "full", timeStyle: "short" }).format(ts);
+  return dateTimeFormat(locale, { dateStyle: "full", timeStyle: "short" }).format(ts);
 }
 
 /** Day separator: today and yesterday by name, this week by weekday, older by date. */
@@ -128,12 +113,12 @@ export function formatMessageDay(
   const diff = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
   if (diff === 0) return labels.today;
   if (diff === 1) return labels.yesterday;
-  if (diff > 1 && diff < 7) return date.toLocaleDateString(locale, { weekday: "long" });
-  return date.toLocaleDateString(locale, {
+  if (diff > 1 && diff < 7) return dateTimeFormat(locale, { weekday: "long" }).format(date);
+  return dateTimeFormat(locale, {
     day: "numeric",
     month: "long",
     ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
-  });
+  }).format(date);
 }
 
 type GroupedMessage = Pick<TimelineMessage, "kind" | "sender" | "ts" | "voiceCall" | "voiceCallSummary">;

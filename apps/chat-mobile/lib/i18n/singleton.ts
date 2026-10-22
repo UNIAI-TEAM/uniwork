@@ -12,13 +12,17 @@ export type SupportedLocale = "vi" | "en";
 export const SUPPORTED_LOCALES: readonly SupportedLocale[] = ["vi", "en"];
 export const DEFAULT_LOCALE: SupportedLocale = "vi";
 
-/** The first device language tag that is vi or en; Vietnamese otherwise. */
+/**
+ * The first device language tag that is vi or en. A phone that lists only other languages reads English: a
+ * Japanese or Korean manager at a Vietnamese company reads English sooner than Vietnamese (audit
+ * "i18n-guard-scope-rtl"). No language at all (a headless runtime that cannot tell) keeps the default, Vietnamese.
+ */
 export function matchSupportedLocale(languageTags: readonly string[]): SupportedLocale {
   for (const tag of languageTags) {
     const language = tag.toLowerCase().split(/[-_]/)[0];
     if (language === "vi" || language === "en") return language;
   }
-  return DEFAULT_LOCALE;
+  return languageTags.length > 0 ? "en" : DEFAULT_LOCALE;
 }
 
 export const i18n: I18nInstance = createInstance();

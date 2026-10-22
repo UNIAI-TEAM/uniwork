@@ -1,17 +1,43 @@
 // Ported from usf apps/mobile/lib/i18n/config.tsx: the device language picks
-// the start locale, a Settings choice (data/device-preferences.ts) wins over it.
+// the start locale, a Settings choice (data/device-preferences.ts) wins over it
+// until the system's own language setting changes after it
+// (data/locale-preference.ts). The saved choice is read once per launch, from
+// boot (app/_layout.tsx › loadLocalePreference), and the splash waits for the
+// read (useLocaleReady), so the first frame is already in the right language.
+// The device's 12/24-hour clock reaches every date formatter
+// (lib/locale-format.ts) at start and each time the app comes back.
 import * as Localization from "expo-localization";
-import { createContext, use, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, use, useEffect, useMemo, type ReactNode } from "react";
 import { I18nextProvider } from "react-i18next";
+import { AppState } from "react-native";
+import { useStore } from "zustand";
 import { readDevicePreference, writeDevicePreference } from "@/data/device-preferences";
-import { bestEffort } from "@/data/report";
+import { createLocalePreference } from "@/data/locale-preference";
 import { DEFAULT_LOCALE, i18n, matchSupportedLocale, type SupportedLocale } from "@/lib/i18n/singleton";
+import { setDeviceClock } from "@/lib/locale-format";
 
 const SYSTEM_LOCALE = matchSupportedLocale(Localization.getLocales().map((locale) => locale.languageTag));
 void i18n.changeLanguage(SYSTEM_LOCALE);
 
-function isSupported(value: string | null): value is SupportedLocale {
-  return value === "vi" || value === "en";
+/** The phone's clock setting, for the formatters; unknown (no calendar) keeps each language's default. */
+function syncDeviceClock(): void {
+  setDeviceClock(Localization.getCalendars()[0]?.uses24hourClock);
+}
+syncDeviceClock();
+
+const preference = createLocalePreference({
+  system: SYSTEM_LOCALE,
+  read: () => readDevicePreference("locale"),
+  write: (value) => writeDevicePreference("locale", value),
+  apply: (locale) => void i18n.changeLanguage(locale),
+});
+
+/** Boot: the saved choice, once. */
+export const loadLocalePreference = preference.load;
+
+/** True once the saved choice has been read (or could not be): the splash waits for it. */
+export function useLocaleReady(): boolean {
+  return useStore(preference.store, (s) => s.ready);
 }
 
 interface LocaleContextValue {
@@ -22,34 +48,19 @@ interface LocaleContextValue {
 const LocaleContext = createContext<LocaleContextValue>({ locale: DEFAULT_LOCALE, setLocale: () => undefined });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<SupportedLocale>(SYSTEM_LOCALE);
+  const locale = useStore(preference.store, (s) => s.locale);
 
   useEffect(() => {
-    let cancelled = false;
-    readDevicePreference("locale")
-      .then((saved) => {
-        if (cancelled || !isSupported(saved)) return;
-        setLocaleState(saved);
-        void i18n.changeLanguage(saved);
-      })
-      // An unreadable preference leaves the device language in place.
-      .catch(bestEffort("i18n", "saved language not read", "breadcrumb"));
-    return () => {
-      cancelled = true;
-    };
+    // Boot already asked; this is the same read, for a provider mounted without that boot (tests, a remount).
+    void preference.load();
+    // The 12/24-hour switch can change while UniChat sits in the background.
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") syncDeviceClock();
+    });
+    return () => subscription.remove();
   }, []);
 
-  const value = useMemo<LocaleContextValue>(
-    () => ({
-      locale,
-      setLocale: (next) => {
-        setLocaleState(next);
-        void i18n.changeLanguage(next);
-        void writeDevicePreference("locale", next).catch(bestEffort("i18n", "language not saved", "breadcrumb"));
-      },
-    }),
-    [locale],
-  );
+  const value = useMemo<LocaleContextValue>(() => ({ locale, setLocale: preference.set }), [locale]);
 
   return (
     <LocaleContext.Provider value={value}>

@@ -674,7 +674,17 @@ một dòng thì ghi lý do ở dòng trên.
   `Intl.PluralRules` (Hermes) vẫn chọn one/other theo luật tiếng Anh. Ngôn ngữ app lên server (`users.locale`, push và
   email theo nó): `data/locale-sync.ts` gửi `PATCH /me` lần đăng nhập đầu của mỗi tài khoản trên máy và mỗi lần đổi
   ngôn ngữ trong app (khoá `locale_synced:<userId>` trong kho trên máy); đổi trên web sau đó thì giữ tới khi máy đổi lại.
-  Chuỗi của lát này ở `scripts/i18n-ux.mjs`.
+  Chuỗi của lát này ở `scripts/i18n-ux.mjs`. Máy chỉ có ngôn ngữ khác vi/en thì app nói tiếng Anh (`matchSupportedLocale`;
+  không biết ngôn ngữ nào thì tiếng Việt). Lựa chọn trong Cài đặt lưu kèm ngôn ngữ hệ thống lúc chọn (`en|vi`,
+  `data/locale-preference.ts`): đổi ngôn ngữ theo app của hệ thống sau đó (iOS Cài đặt › UniChat, Android 13+) thì hệ
+  thống thắng và lựa chọn cũ bị thay; đọc một lần lúc boot (`loadLocalePreference`), splash chờ (`useLocaleReady`) nên
+  khung hình đầu đã đúng ngôn ngữ; task không giao diện (`data/app-locale.ts`) theo cùng luật. Ngày giờ chỉ qua
+  `lib/locale-format.ts › dateTimeFormat`: ngôn ngữ của app (tiếng Anh viết `en-GB`, ngày trước tháng), giờ theo công tắc
+  12/24 giờ của máy (`expo-localization › getCalendars`, đọc lại mỗi lần app về foreground); đừng gọi
+  `toLocale*String`/`new Intl.DateTimeFormat` ở nơi khác. Luật lint chữ (`i18next/no-literal-string`, `jsx-only`) bắt cả
+  chuỗi trong biểu thức JSX và các prop người dùng đọc hay nghe (`accessibilityLabel`, `accessibilityHint`,
+  `placeholder`, `title`, `label`…; fixture `lib/lint-copy.test.ts`); `lib/i18n.test.ts` đỏ khi vi và en khác
+  `{{placeholder}}`.
 - `assets/icon.png`, `assets/adaptive-icon*.png` — icon UniChat 1024², sinh
   bởi `pnpm brand:build` từ `packages/ui/brand/svg/unichat-icon*.svg`; không
   sửa tay (`assets.lock.json` khoá hash nguồn). `icon.png` không có kênh alpha.

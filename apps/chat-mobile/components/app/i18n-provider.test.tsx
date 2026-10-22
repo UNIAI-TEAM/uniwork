@@ -1,115 +1,153 @@
 // The app's language: the device language starts it, a choice saved in Settings
-// wins once read, and a new choice is applied at once and saved for next time.
+// wins once read (data/locale-preference.ts holds the rules), a new choice is
+// applied at once and saved with the system language of the moment, and the
+// device's 12/24-hour clock reaches the formatters at start and on each return.
+// The provider module reads the saved choice once per launch, so each case
+// loads a fresh copy of it.
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
-import { Pressable, Text } from "react-native";
-import { readDevicePreference, writeDevicePreference } from "@/data/device-preferences";
-import { i18n } from "@/lib/i18n/singleton";
-import { I18nProvider, useLocalePreference } from "./i18n-provider";
+import * as React from "react";
+import * as ReactI18next from "react-i18next";
+import { AppState, Pressable, Text } from "react-native";
+import type * as ProviderModule from "./i18n-provider";
 
-jest.mock("expo-localization", () => ({ getLocales: () => [{ languageTag: "fr-FR" }, { languageTag: "vi-VN" }] }));
+const device = { tags: ["fr-FR", "vi-VN"], uses24hourClock: true as boolean | null };
+jest.mock("expo-localization", () => ({
+  getLocales: () => device.tags.map((languageTag) => ({ languageTag })),
+  getCalendars: () => [{ uses24hourClock: device.uses24hourClock }],
+}));
 jest.mock("@/data/device-preferences", () => ({ readDevicePreference: jest.fn(), writeDevicePreference: jest.fn() }));
 
-const read = jest.mocked(readDevicePreference);
-const write = jest.mocked(writeDevicePreference);
+// The registry's React Native (not a namespace import: the lint keeps Modal out of reach).
+const outerReactNative = jest.requireActual<typeof import("react-native")>("react-native");
 
-function Probe() {
-  const { locale, setLocale } = useLocalePreference();
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel="english" onPress={() => setLocale("en")}>
-      <Text>{locale}</Text>
-    </Pressable>
-  );
+type Modules = {
+  provider: typeof ProviderModule;
+  prefs: { readDevicePreference: jest.Mock; writeDevicePreference: jest.Mock };
+  i18n: typeof import("@/lib/i18n/singleton").i18n;
+  format: typeof import("@/lib/locale-format");
+};
+
+/** A fresh provider module (its once-per-launch read included) over the mocks the case set up. */
+function load(saved: () => Promise<string | null>): Modules {
+  let modules!: Modules;
+  jest.isolateModules(() => {
+    // One React (and React Native) for the renderer and the fresh module: hooks need the same copy.
+    jest.doMock("react", () => React);
+    jest.doMock("react-native", () => outerReactNative);
+    jest.doMock("react-i18next", () => ReactI18next);
+    const prefs = jest.requireMock<Modules["prefs"]>("@/data/device-preferences");
+    prefs.readDevicePreference.mockImplementation(saved);
+    prefs.writeDevicePreference.mockResolvedValue(undefined);
+    modules = {
+      provider: jest.requireActual("./i18n-provider"),
+      prefs,
+      i18n: jest.requireActual<typeof import("@/lib/i18n/singleton")>("@/lib/i18n/singleton").i18n,
+      format: jest.requireActual("@/lib/locale-format"),
+    };
+  });
+  return modules;
 }
 
-/** A promise the test settles by hand, so the order of the read and the unmount is the test's. */
-function deferred<T>() {
-  let resolve: (value: T) => void = () => undefined;
-  let reject: (error: unknown) => void = () => undefined;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
+async function mount({ provider }: Modules) {
+  function Probe() {
+    const { locale, setLocale } = provider.useLocalePreference();
+    const ready = provider.useLocaleReady();
+    return (
+      <Pressable accessibilityRole="button" accessibilityLabel="english" onPress={() => setLocale("en")}>
+        <Text>{`${locale}${ready ? " ready" : ""}`}</Text>
+      </Pressable>
+    );
+  }
+  // render() from RNTL directly: test/render's wrapper brings its own i18n instance.
+  return render(
+    <provider.I18nProvider>
+      <Probe />
+    </provider.I18nProvider>,
+  );
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
-  write.mockResolvedValue(undefined);
+  device.tags = ["fr-FR", "vi-VN"];
+  device.uses24hourClock = true;
 });
 
-afterAll(() => {
-  void i18n.changeLanguage("vi");
+it("starts in the device language the app supports, and is ready once the read answers", async () => {
+  const modules = load(() => Promise.resolve(null));
+  await mount(modules);
+  expect(await screen.findByText("vi ready")).toBeTruthy();
+  expect(modules.i18n.language).toBe("vi");
+  expect(modules.prefs.readDevicePreference).toHaveBeenCalledWith("locale");
 });
 
-it("starts in the device language the app supports", async () => {
-  read.mockResolvedValue(null);
-  await render(
-    <I18nProvider>
-      <Probe />
-    </I18nProvider>,
-  );
-  expect(screen.getByText("vi")).toBeTruthy();
-  expect(i18n.language).toBe("vi");
-  expect(read).toHaveBeenCalledWith("locale");
+it("reads English on a phone that speaks neither language", async () => {
+  device.tags = ["ja-JP"];
+  const modules = load(() => Promise.resolve(null));
+  await mount(modules);
+  expect(await screen.findByText("en ready")).toBeTruthy();
+  expect(modules.i18n.language).toBe("en");
 });
 
 it("switches to the language saved in Settings once it is read", async () => {
-  read.mockResolvedValue("en");
-  await render(
-    <I18nProvider>
-      <Probe />
-    </I18nProvider>,
-  );
-  expect(await screen.findByText("en")).toBeTruthy();
-  expect(i18n.language).toBe("en");
-  await act(() => i18n.changeLanguage("vi"));
+  const modules = load(() => Promise.resolve("en|vi"));
+  await mount(modules);
+  expect(await screen.findByText("en ready")).toBeTruthy();
+  expect(modules.i18n.language).toBe("en");
 });
 
-it("ignores a saved value it does not know, and an unreadable store", async () => {
-  for (const outcome of [() => Promise.resolve("de"), () => Promise.reject(new Error("keystore"))]) {
-    read.mockImplementationOnce(outcome);
-    const { unmount } = await render(
-      <I18nProvider>
-        <Probe />
-      </I18nProvider>,
-    );
-    await act(async () => undefined);
-    expect(screen.getByText("vi")).toBeTruthy();
-    await unmount();
-  }
+it("waits for the read before it is ready, and an unreadable store leaves the device language", async () => {
+  let fail: (error: Error) => void = () => undefined;
+  const modules = load(() => new Promise((_, reject) => (fail = reject)));
+  await mount(modules);
+  expect(screen.getByText("vi")).toBeTruthy();
+  await act(async () => fail(new Error("keystore")));
+  expect(await screen.findByText("vi ready")).toBeTruthy();
 });
 
-it("does not apply a saved language read after the provider is gone", async () => {
-  const pending = deferred<string | null>();
-  read.mockReturnValueOnce(pending.promise);
-  const { unmount } = await render(
-    <I18nProvider>
-      <Probe />
-    </I18nProvider>,
-  );
-  await unmount();
-  await act(async () => pending.resolve("en"));
-  expect(i18n.language).toBe("vi");
-});
-
-it("applies a new choice at once and saves it, even when saving fails", async () => {
-  read.mockResolvedValue(null);
-  write.mockRejectedValueOnce(new Error("keystore"));
-  await render(
-    <I18nProvider>
-      <Probe />
-    </I18nProvider>,
-  );
+it("applies a new choice at once and saves it with the system language, even when saving fails", async () => {
+  const modules = load(() => Promise.resolve(null));
+  modules.prefs.writeDevicePreference.mockRejectedValueOnce(new Error("keystore"));
+  await mount(modules);
   await fireEvent.press(screen.getByRole("button", { name: "english" }));
-  expect(screen.getByText("en")).toBeTruthy();
-  expect(i18n.language).toBe("en");
-  expect(write).toHaveBeenCalledWith("locale", "en");
-  await act(() => i18n.changeLanguage("vi"));
+  expect(screen.getByText("en ready")).toBeTruthy();
+  expect(modules.i18n.language).toBe("en");
+  expect(modules.prefs.writeDevicePreference).toHaveBeenCalledWith("locale", "en|vi");
+});
+
+it("follows the device's clock at start and again when the app comes back", async () => {
+  const modules = load(() => Promise.resolve(null));
+  const at = new Date(2026, 9, 22, 21, 5).getTime();
+  const time = () => modules.format.dateTimeFormat("en", { hour: "2-digit", minute: "2-digit" }).format(at);
+  const listeners: ((state: string) => void)[] = [];
+  const remove = jest.fn();
+  jest.spyOn(AppState, "addEventListener").mockImplementation((_type, listener) => {
+    listeners.push(listener as (state: string) => void);
+    return { remove };
+  });
+  const { unmount } = await mount(modules);
+  expect(time()).toBe("21:05");
+  device.uses24hourClock = false;
+  await act(async () => listeners.forEach((listener) => listener("background")));
+  expect(time()).toBe("21:05");
+  await act(async () => listeners.forEach((listener) => listener("active")));
+  expect(time()).toMatch(/^0?9:05\s?pm$/i);
+  await unmount();
+  expect(remove).toHaveBeenCalled();
+  modules.format.setDeviceClock(null);
 });
 
 it("outside the provider reads the default language and ignores a choice", async () => {
+  const modules = load(() => Promise.resolve(null));
+  function Probe() {
+    const { locale, setLocale } = modules.provider.useLocalePreference();
+    return (
+      <Pressable accessibilityRole="button" accessibilityLabel="english" onPress={() => setLocale("en")}>
+        <Text>{locale}</Text>
+      </Pressable>
+    );
+  }
   await render(<Probe />);
   await fireEvent.press(screen.getByRole("button", { name: "english" }));
   expect(screen.getByText("vi")).toBeTruthy();
-  expect(write).not.toHaveBeenCalled();
+  expect(modules.prefs.writeDevicePreference).not.toHaveBeenCalled();
 });

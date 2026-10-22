@@ -38,7 +38,7 @@ describe("applyStoredLocale", () => {
     expect(await applyStoredLocale()).toBe("en");
     expect(i18n.language).toBe("en");
     store.fail = true;
-    device.tags = ["fr-FR"];
+    device.tags = ["vi-VN"];
     const changed = vi.spyOn(i18n, "changeLanguage");
     expect(await applyStoredLocale()).toBe("vi");
     expect(changed).toHaveBeenCalledWith("vi");
@@ -46,6 +46,15 @@ describe("applyStoredLocale", () => {
     changed.mockClear();
     expect(await applyStoredLocale()).toBe("vi");
     expect(changed).not.toHaveBeenCalled();
+  });
+
+  // The system's per-app language changed after the in-app choice: the headless task follows the system, as the UI does.
+  it("follows the phone once its language changed after the choice", async () => {
+    store.value = "vi|vi";
+    const { applyStoredLocale } = await load();
+    expect(await applyStoredLocale()).toBe("en");
+    store.value = "vi|en";
+    expect(await applyStoredLocale()).toBe("vi");
   });
 
   it("ignores a stored value that is not a language the app speaks", async () => {

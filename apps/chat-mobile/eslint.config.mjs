@@ -135,12 +135,24 @@ export default [
     rules: { "no-console": "error" },
   },
   // Every JSX text node goes through t(), as in packages/views: copy lives in
-  // locales/ (scripts/sync-i18n.mjs), in Vietnamese and English.
+  // locales/ (scripts/sync-i18n.mjs), in Vietnamese and English. So does every
+  // string in a JSX expression and every prop a person reads or hears: a
+  // screen reader's label and hint, a placeholder, a title, a label, a message
+  // (audit "i18n-guard-scope-rtl": jsx-text-only let those through). A prop
+  // not listed (testID, className, icon names, routes) is not copy.
   {
     files: ["**/*.tsx"],
     ignores: ["**/*.test.tsx", "test/**"],
     plugins: { i18next },
-    rules: { "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }] },
+    rules: {
+      "i18next/no-literal-string": [
+        "error",
+        {
+          mode: "jsx-only",
+          "jsx-attributes": { include: ["accessibilityLabel", "accessibilityHint", "placeholder", "title", "label", "subtitle", "hint", "message", "description"] },
+        },
+      ],
+    },
   },
   {
     files: ["**/*.{ts,tsx,js,mjs}"],

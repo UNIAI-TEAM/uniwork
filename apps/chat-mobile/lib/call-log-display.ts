@@ -6,6 +6,7 @@ import type { CallLog } from "@/data/queries/call-logs";
 import { resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { formatMessageDay } from "./timeline-display";
+import { dateTimeFormat } from "./locale-format";
 
 export interface CallLogView {
   /** the web row's i18n key, with its params */
@@ -53,16 +54,16 @@ export function callLogTitle(
 export function formatCallTime(iso: string, locale: string, now: Date = new Date()): string {
   const at = new Date(iso);
   if (!iso || Number.isNaN(at.getTime())) return "";
-  if (at.toDateString() === now.toDateString()) return at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  if (at.toDateString() === now.toDateString()) return dateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(at);
   const sameYear = at.getFullYear() === now.getFullYear();
-  return at.toLocaleDateString(locale, sameYear ? { day: "2-digit", month: "2-digit" } : { day: "2-digit", month: "2-digit", year: "numeric" });
+  return dateTimeFormat(locale, sameYear ? { day: "2-digit", month: "2-digit" } : { day: "2-digit", month: "2-digit", year: "numeric" }).format(at);
 }
 
 /** The clock time of a log; the day header above the row carries the date. Blank when unreadable. */
 export function formatCallClock(iso: string, locale: string): string {
   const at = new Date(iso);
   if (!iso || Number.isNaN(at.getTime())) return "";
-  return at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  return dateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(at);
 }
 
 export type CallLogFilter = "all" | "missed";

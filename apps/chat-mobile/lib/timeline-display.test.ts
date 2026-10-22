@@ -4,6 +4,7 @@
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PendingSend } from "./send-pipeline";
+import { setDeviceClock } from "./locale-format";
 import {
   buildMainTimelineMessages,
   buildThreadViewMessages,
@@ -27,11 +28,11 @@ describe("formatMessageDay", () => {
 
   it("uses the weekday within a week and the date beyond it", () => {
     expect(formatMessageDay(new Date(2026, 8, 18, 9, 0).getTime(), "en", labels, now)).toBe("Friday");
-    expect(formatMessageDay(new Date(2026, 7, 2, 9, 0).getTime(), "en", labels, now)).toBe("August 2");
+    expect(formatMessageDay(new Date(2026, 7, 2, 9, 0).getTime(), "en", labels, now)).toBe("2 August");
   });
 
   it("adds the year only for another year", () => {
-    expect(formatMessageDay(new Date(2025, 11, 31, 9, 0).getTime(), "en", labels, now)).toBe("December 31, 2025");
+    expect(formatMessageDay(new Date(2025, 11, 31, 9, 0).getTime(), "en", labels, now)).toBe("31 December 2025");
   });
 
   it("defaults now to the current time", () => {
@@ -54,7 +55,19 @@ describe("formatMessageTime", () => {
     const ts = new Date(2026, 8, 21, 9, 5).getTime();
     expect(formatMessageTime(ts, "vi")).toMatch(/09:05/);
     expect(formatMessageTime(ts, "vi")).toMatch(/09:05/);
-    expect(formatMessageDateTime(ts, "en")).toMatch(/September 21, 2026/);
+    expect(formatMessageDateTime(ts, "en")).toMatch(/21 September 2026/);
+  });
+
+  // The device's 12/24-hour setting wins over the language's default (lib/locale-format.ts).
+  it("follows the phone's 12-hour clock", () => {
+    const ts = new Date(2026, 8, 21, 21, 5).getTime();
+    setDeviceClock(false);
+    try {
+      expect(formatMessageTime(ts, "en")).toMatch(/^0?9:05\s?pm$/i);
+    } finally {
+      setDeviceClock(null);
+    }
+    expect(formatMessageTime(ts, "en")).toBe("21:05");
   });
 });
 

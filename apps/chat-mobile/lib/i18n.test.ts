@@ -36,6 +36,28 @@ describe("locales", () => {
     expect(stems(EN.keys())).toEqual(stems(VI.keys()));
   });
 
+  // A placeholder in one language only is a value the other never shows ("{{name}} blocked." vs "Đã chặn.").
+  // Plural forms share their stem's placeholders; an English _one may drop {{count}} ("1 reply" → "One reply").
+  it("interpolate the same {{placeholders}} in vi and en", () => {
+    const placeholders = (text: string) => [...new Set([...text.matchAll(/\{\{\s*([\w.]+)/g)].map((m) => m[1]!))].sort();
+    const byStem = (locale: Map<string, string>) => {
+      const stems = new Map<string, Set<string>>();
+      for (const [key, text] of locale) {
+        const set = stems.get(stem(key)) ?? new Set<string>();
+        for (const name of placeholders(text)) set.add(name);
+        stems.set(stem(key), set);
+      }
+      return stems;
+    };
+    const en = byStem(EN);
+    const vi = byStem(VI);
+    const mismatched = [...en].flatMap(([key, names]) => {
+      const other = [...(vi.get(key) ?? [])].sort().join();
+      return [...names].sort().join() === other ? [] : [`${key}: en {${[...names].sort().join()}} vi {${other}}`];
+    });
+    expect(mismatched).toEqual([]);
+  });
+
   it("give every English string that interpolates {{count}} a _one and an _other form", () => {
     const counted = [...EN].filter(([, text]) => text.includes("{{count}}")).map(([key]) => key);
     expect(counted.filter((key) => !PLURAL.test(key))).toEqual([]);
@@ -65,10 +87,11 @@ describe("i18n singleton", () => {
     expect(vi("chat.thread_replies", { count: 1 })).toBe(vi("chat.thread_replies", { count: 3 }).replace("3", "1"));
   });
 
-  it("matches the device language only between vi and en", () => {
+  it("matches the device language only between vi and en, and reads English on a phone that speaks neither", () => {
     expect(matchSupportedLocale(["fr-FR", "en-GB"])).toBe("en");
+    expect(matchSupportedLocale(["ja-JP", "vi_VN"])).toBe("vi");
     expect(matchSupportedLocale(["vi_VN"])).toBe("vi");
-    expect(matchSupportedLocale(["fr-FR", "de"])).toBe("vi");
+    expect(matchSupportedLocale(["fr-FR", "de"])).toBe("en");
     expect(matchSupportedLocale([])).toBe("vi");
   });
 });
