@@ -29,7 +29,7 @@ tags:
 - waitForAnimationToEnd
 - takeScreenshot: ${MAESTRO_SHOT_DIR}/2-conversation
 - tapOn: "Back|Quay lại"
-- tapOn: "Contacts|Danh bạ"
+- tapOn: "People|Danh bạ"
 - waitForAnimationToEnd
 - takeScreenshot: ${MAESTRO_SHOT_DIR}/3-contacts
 - runFlow:
