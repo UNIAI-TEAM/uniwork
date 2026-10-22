@@ -1,6 +1,6 @@
 # UniWork — Hỏi UNI v2: agent làm việc như ClickUp Brain
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-16; kế hoạch P0: `docs/superpowers/plans/2026-10-16-ask-uni-p0.md` (issue UNI-1818, đã merge, chờ ghi mức nền); kế hoạch P1: `docs/superpowers/plans/2026-10-19-ask-uni-p1.md` (issue UNI-1962, shipped: merge vào develop 2026-10-20 qua PR #364); P2, P3 chưa làm.
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-16; kế hoạch P0: `docs/superpowers/plans/2026-10-16-ask-uni-p0.md` (issue UNI-1818, đã merge, chờ ghi mức nền); kế hoạch P1: `docs/superpowers/plans/2026-10-19-ask-uni-p1.md` (issue UNI-1962, shipped: merge vào develop 2026-10-20 qua PR #364); kế hoạch P2: `docs/superpowers/plans/2026-10-20-ask-uni-p2.md` (issue UNI-2015, Task 1–15 xong sau cờ `ask_uni_stream`, PR #389 mở vào develop; Task 16 chờ bật cờ); P2b giao diện như ClickUp: `docs/superpowers/specs/2026-10-21-ask-uni-ui-parity-design.md` (duyệt 2026-10-21); P3 chưa làm.
 
 **Ngày:** 2026-10-16
 **Issue:** UNI-1818 (P0; sub-issue UNI-1819…1823).
@@ -74,6 +74,8 @@ Mọi luật trong `CLAUDE.md` áp dụng. Những luật chạm trực tiếp v
 ## 5. Quyết định của chủ sản phẩm
 
 ### 5.1 Giao diện (chủ sản phẩm chốt, tạm)
+
+> Ngày 2026-10-21, `2026-10-21-ask-uni-ui-parity-design.md` thay một số mục dưới đây: bỏ nút toàn trang, trích dẫn thành thẻ đối tượng trong câu, không có nút @, trang đang mở tự thành chip (xem §6 của file đó).
 
 Theo phác thảo đã duyệt trong buổi trao đổi:
 - Panel dock bên phải, **đẩy** nội dung sang trái (không phủ mờ), rộng 400–640px, kéo giãn được; nút mở **toàn trang**; mobile toàn màn hình.

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode, RefObject } from "react";
+import { useAskUniOpener } from "../ai/ask-uni-focus-button";
 import { ChatRoomComposer, type ChatComposerHandle, type ComposerAttachAction } from "./chat-composer";
 import { chatComposerBlockProps } from "./chat-composer-placeholder";
 import { ChatUnreadProvider } from "./chat-day-separator";
@@ -85,6 +86,7 @@ export function ChatPageConversation({
   const edit = useChatInlineEdit({ workspaceId, roomId: activeRoomId, nameContext });
   // Threads, mentions and sender names belong to rooms with more than two people.
   const many = target.kind !== "dm";
+  const askUni = useAskUniOpener({ kind: "room", id: activeRoomId, label: headerTitle }, workspaceId);
 
   return (
     <>
@@ -109,6 +111,7 @@ export function ChatPageConversation({
         onTogglePanel={onTogglePanel}
         onCatchUp={catchUp.onCatchUp}
         catchUpDisabled={catchUp.loading}
+        onAskUni={askUni}
         onVoiceCall={props.onVoiceCall}
         voiceCallDisabled={props.voiceCallDisabled}
         onVideoCall={props.onVideoCall}

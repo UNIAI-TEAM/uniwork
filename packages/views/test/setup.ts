@@ -35,12 +35,13 @@ installMediaStubs();
 // The edit-lock routes go to a default fake that grants the lock (test/edit-lock-fake.ts),
 // so an editable document stays editable in suites about something else.
 vi.mock("@uniwork/core/api/http", async (orig) => {
-  const { requestMock } = await import("./request-mock");
+  const { requestMock, requestStreamMock } = await import("./request-mock");
   const { editLockRoute, isEditLockPath } = await import("./edit-lock-fake");
   return {
     ...(await orig<typeof import("@uniwork/core/api/http")>()),
     request: (...a: unknown[]) =>
       isEditLockPath(a[0]) ? editLockRoute(a[0], a[1] as Parameters<typeof editLockRoute>[1]) : requestMock(...a),
+    requestStream: (...a: unknown[]) => requestStreamMock(...a),
   };
 });
 

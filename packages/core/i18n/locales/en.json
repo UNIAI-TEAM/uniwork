@@ -1651,7 +1651,12 @@
       "revokeTitle": "Revoke {{client}}?",
       "revokeBody": "{{user}}'s app loses access to the organization's data at once.",
       "revoked": "Revoked {{client}}",
-      "revokeFailed": "Could not revoke. Try again."
+      "revokeFailed": "Could not revoke. Try again.",
+      "askModelsTitle": "Ask UNI models",
+      "askModelsDescription": "Choose which models members may use when asking UNI. A model that is off does not appear in the model picker.",
+      "askModelsAuto": "Auto",
+      "askModelsAutoNote": "Always on: UNI picks a suitable model.",
+      "askModelsSaveFailed": "Could not save the change. Try again."
     },
     "state": {
       "load_error": "Couldn't load this section.",
@@ -5788,6 +5793,13 @@
     "new_conversation": "New chat",
     "conversations": "Recent",
     "untitled": "New chat",
+    "history": "Conversation history",
+    "history_with": "Conversation history: {{title}}",
+    "resize": "Resize Ask UNI",
+    "history_empty": "No conversations yet",
+    "rename_conversation": "Rename conversation",
+    "full_page": "Expand to full page",
+    "exit_full_page": "Back to the sidebar",
     "delete_conversation": "Delete conversation",
     "sources": "Sources",
     "you": "You",
@@ -5795,7 +5807,47 @@
     "usage_tokens": "{{in}} in · {{out}} out",
     "notice": {
       "no_sources": "Nothing you can see in this workspace matches this question yet.",
-      "unavailable": "UNI couldn't answer this one."
+      "unavailable": "UNI couldn't answer this one.",
+      "empty_answer": "UNI had nothing to say. Ask again or be more specific.",
+      "agent_failed": "UNI ran into a problem looking up your data. Try again.",
+      "refused": "UNI can't answer this question.",
+      "stopped": "Stopped before the answer was finished.",
+      "interrupted": "The answer was interrupted, so it is incomplete."
+    },
+    "steps": {
+      "seen": "Looked at {{list}}",
+      "task_one": "{{count}} task",
+      "task_other": "{{count}} tasks",
+      "meeting_one": "{{count}} meeting",
+      "meeting_other": "{{count}} meetings",
+      "document_one": "{{count}} document",
+      "document_other": "{{count}} documents",
+      "project_one": "{{count}} project",
+      "project_other": "{{count}} projects",
+      "chat_one": "{{count}} chat",
+      "chat_other": "{{count}} chats"
+    },
+    "cite": {
+      "label": "Source {{n}}",
+      "open": "Open"
+    },
+    "actions": {
+      "copy": "Copy",
+      "copied": "Copied",
+      "regenerate": "Regenerate",
+      "helpful": "Helpful",
+      "not_helpful": "Not right",
+      "feedback_title": "What was wrong with the answer?",
+      "reason": {
+        "wrong_facts": "Wrong facts",
+        "missing_sources": "Missing sources",
+        "not_helpful": "Not helpful",
+        "other": "Something else"
+      },
+      "note_label": "Note (optional)",
+      "note_placeholder": "Tell UNI more…",
+      "note_count": "{{count}}/{{max}}",
+      "send_feedback": "Send feedback"
     },
     "errors": {
       "ai_quota_exceeded": "The organization has used its AI token quota for this month.",
@@ -5816,7 +5868,77 @@
     "hint_send": "send",
     "hint_newline": "new line",
     "key_enter": "Enter",
-    "key_shift": "Shift"
+    "key_shift": "Shift",
+    "composer_label": "Question for UNI",
+    "stop": "Stop",
+    "mention": {
+      "people": "People",
+      "tasks": "Tasks",
+      "documents": "Documents",
+      "meetings": "Meetings",
+      "projects": "Projects",
+      "empty": "No results",
+      "list": "Mention suggestions",
+      "remove": "Remove {{name}}",
+      "limit": "A question can mention at most {{max}} items.",
+      "count": "{{count}} suggestions"
+    },
+    "scope": {
+      "add": "Add scope",
+      "title": "Limit the question to",
+      "search": "Search projects, meetings, documents, chat rooms",
+      "projects": "Projects",
+      "meetings": "Meetings",
+      "documents": "Documents",
+      "rooms": "Chat rooms",
+      "empty": "No results",
+      "remove": "Remove scope {{name}}",
+      "kind": {
+        "task": "Task",
+        "meeting": "Meeting",
+        "document": "Document",
+        "project": "Project",
+        "room": "Chat room",
+        "email_thread": "Email",
+        "thread": "Chat thread",
+        "message": "Message"
+      }
+    },
+    "ask_about_task": "Ask UNI about this task",
+    "ask_about_meeting": "Ask UNI about this meeting",
+    "ask_about_document": "Ask UNI about this document",
+    "ask_about_project": "Ask UNI about this project",
+    "ask_about_room": "Ask UNI about this chat",
+    "model": {
+      "label": "Choose a model",
+      "auto": "Auto",
+      "auto_current": "Auto · Currently: {{model}}",
+      "effort": "Effort",
+      "effort_auto": "Auto",
+      "effort_low": "Low",
+      "effort_medium": "Medium",
+      "effort_high": "High",
+      "speed": "Speed",
+      "intelligence": "Intelligence",
+      "cost": "Cost",
+      "bar": "{{label}} {{value}}/5",
+      "opus_note": "Opus uses more of your token quota than the other models.",
+      "label_with": "Choose a model: {{model}}"
+    },
+    "models": {
+      "haiku": {
+        "name": "Haiku 5.5",
+        "description": "The fastest and lightest, good for short questions and quick lookups."
+      },
+      "sonnet": {
+        "name": "Sonnet 5.5",
+        "description": "A balance of speed and quality; this is what Auto uses."
+      },
+      "opus": {
+        "name": "Opus 5.5",
+        "description": "The deepest reasoning, good for complex questions but slower and heavier on quota."
+      }
+    }
   },
   "admin": {
     "title": "Platform admin",

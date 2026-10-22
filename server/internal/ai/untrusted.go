@@ -35,16 +35,50 @@ const (
 
 func untrustedTagPattern() string {
 	var b strings.Builder
-	b.WriteString(`(?i)[` + tagBrackets + `]` + tagGap + `[` + tagSlashes + `]?` + tagGap)
-	for i, r := range "untrusted" {
+	b.WriteString(tagOpening)
+	for i, r := range tagWord {
 		if i > 0 {
 			b.WriteString(`\p{Cf}*`)
 		}
-		// The ASCII letter or its full-width form (U+FF41 is 'a'); (?i)
-		// folds the upper-case forms of both.
-		b.WriteString(`[` + string(r) + string(r-'a'+0xFF41) + `]`)
+		b.WriteString(tagLetter(r))
 	}
 	return b.String()
+}
+
+// tagOpening is a tag up to its word: the bracket, the gap and an optional
+// slash. tagWord is the word.
+const (
+	tagOpening = `(?i)[` + tagBrackets + `]` + tagGap + `[` + tagSlashes + `]?` + tagGap
+	tagWord    = "untrusted"
+)
+
+// tagLetter is a letter of tagWord: the ASCII letter or its full-width form
+// (U+FF41 is 'a'); (?i) folds the upper-case forms of both.
+func tagLetter(r rune) string { return `[` + string(r) + string(r-'a'+0xFF41) + `]` }
+
+// untrustedTagOpen matches the end of a text that may still grow into an
+// untrusted tag: tagOpening, then the word cut anywhere, or the whole word
+// and the rest of the tag short of its '>' or a newline.
+var untrustedTagOpen = regexp.MustCompile(untrustedTagOpenPattern())
+
+func untrustedTagOpenPattern() string {
+	word := []rune(tagWord)
+	rest := tagLetter(word[len(word)-1]) + `[^>\n]*`
+	for i := len(word) - 2; i >= 0; i-- {
+		rest = tagLetter(word[i]) + `\p{Cf}*(?:` + rest + `)?`
+	}
+	return tagOpening + `(?:` + rest + `)?$`
+}
+
+// UntrustedTagTail is the byte offset where s ends in text that may still
+// grow into an untrusted tag as more of it arrives, or -1. A caller stripping
+// tags from streamed text holds that tail back (ruling PF1b): any other tag
+// bracket is plain text.
+func UntrustedTagTail(s string) int {
+	if loc := untrustedTagOpen.FindStringIndex(s); loc != nil {
+		return loc[0]
+	}
+	return -1
 }
 
 // reservedHeaders are the plain-text headers of blocks only the system writes

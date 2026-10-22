@@ -63,6 +63,21 @@ type AiMessage struct {
 	Notice         pgtype.Text        `json:"notice"`
 }
 
+type AiMessageFeedback struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ConversationID string             `json:"conversation_id"`
+	MessageID      string             `json:"message_id"`
+	Rating         string             `json:"rating"`
+	Reason         string             `json:"reason"`
+	Note           string             `json:"note"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type AiModelRate struct {
 	ID                  string             `json:"id"`
 	Provider            string             `json:"provider"`

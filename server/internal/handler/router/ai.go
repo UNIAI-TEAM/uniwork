@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
@@ -11,9 +13,13 @@ import (
 //
 //	GET    /api/v1/workspaces/{workspaceID}/ai/capabilities
 //	POST   /api/v1/workspaces/{workspaceID}/ai/ask
+//	POST   /api/v1/workspaces/{workspaceID}/ai/ask/stream
 //	GET    /api/v1/workspaces/{workspaceID}/ai/conversations
 //	GET    /api/v1/ai/conversations/{conversationID}/messages
 //	DELETE /api/v1/ai/conversations/{conversationID}
+//	PATCH  /api/v1/ai/conversations/{conversationID}
+//	PUT    /api/v1/ai/conversations/{conversationID}/messages/{messageID}/feedback
+//	DELETE /api/v1/ai/conversations/{conversationID}/messages/{messageID}/feedback
 //	GET    /api/v1/workspaces/{workspaceID}/ai/usage
 //	GET    /api/v1/orgs/{orgID}/ai/usage
 //	GET    /api/v1/orgs/{org}/ai/ask-models
@@ -33,6 +39,15 @@ func registerAI(r api, h Routes) {
 		sdi:         sdi.AskUniSDI{},
 		sdo:         sdo.AskUniSDO{},
 		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/ai/ask/stream", h.AskUniStream, apiOp{
+		summary: "Ask UNI (stream)",
+		description: "Như Ask UNI nhưng trả text/event-stream. Frame: event run, step, delta, citations, done hoặc error (data chỉ có mã). " +
+			"Lỗi trước sự kiện đầu tiên trả JSON như POST …/ai/ask (402, 429 kèm Retry-After, 503); sau đó là event error. Cứ 15 giây có dòng `: ping`.",
+		tags:     []string{"ai"},
+		sdi:      sdi.AskUniSDI{},
+		produces: "text/event-stream",
+		auth:     true,
 	})
 	r.Post("/workspaces/{workspaceID}/ai/chat/catch-up", h.ChatCatchUp, apiOp{
 		summary:     "Chat CatchUp",
@@ -61,6 +76,29 @@ func registerAI(r api, h Routes) {
 		description: "Xóa hẳn hội thoại và tin nhắn; chủ hội thoại; người khác → 404.",
 		tags:        []string{"ai"},
 		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	r.Patch("/ai/conversations/{conversationID}", h.RenameAiConversation, apiOp{
+		summary:     "Rename conversation",
+		description: "Chủ hội thoại đổi tiêu đề (1–80 ký tự sau khi cắt khoảng trắng); người khác → 404, tiêu đề sai → 400. Không ghi audit: lịch sử hội thoại AI là dữ liệu riêng của người dùng.",
+		tags:        []string{"ai"},
+		sdi:         sdi.AiRenameConversationSDI{},
+		sdo:         sdo.AiConversationDTO{},
+		auth:        true,
+	})
+	r.Put("/ai/conversations/{conversationID}/messages/{messageID}/feedback", h.SetAiFeedback, apiOp{
+		summary:     "Rate an Ask UNI answer",
+		description: "Mỗi người một đánh giá cho mỗi câu trả lời; gửi lại thì thay đánh giá cũ. Chỉ chủ hội thoại, chỉ tin của trợ lý; ngoài ra → 404. rating không phải up/down, reason lạ hoặc note quá 500 ký tự → 400. Không ghi audit.",
+		tags:        []string{"ai"},
+		sdi:         sdi.AiFeedbackSDI{},
+		status:      http.StatusNoContent,
+		auth:        true,
+	})
+	r.Delete("/ai/conversations/{conversationID}/messages/{messageID}/feedback", h.ClearAiFeedback, apiOp{
+		summary:     "Withdraw my rating",
+		description: "Gỡ đánh giá của người gọi; chưa có đánh giá vẫn trả 204. Chủ hội thoại, tin của trợ lý; ngoài ra → 404.",
+		tags:        []string{"ai"},
+		status:      http.StatusNoContent,
 		auth:        true,
 	})
 	r.Get("/workspaces/{workspaceID}/ai/usage", h.WorkspaceAiUsage, apiOp{

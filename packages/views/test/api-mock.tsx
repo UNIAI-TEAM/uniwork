@@ -5,7 +5,19 @@ import { vi } from "vitest";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
 
-export { requestMock } from "./request-mock";
+export { requestMock, requestStreamMock } from "./request-mock";
+
+/** A `requestStream` answer: an SSE body that yields each frame as its own chunk. */
+export function streamResponse(frames: string[]): Response {
+  const enc = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const f of frames) controller.enqueue(enc.encode(f));
+      controller.close();
+    },
+  });
+  return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+}
 
 /** The adapter the web host provides; `persist` is a spy so a test can assert the switch. */
 export const localeAdapter = {

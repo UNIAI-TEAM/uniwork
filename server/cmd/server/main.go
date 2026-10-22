@@ -844,6 +844,9 @@ func main() {
 		log.Info("shutting down", "signal", sig.String())
 	}
 	signal.Stop(quit)
+	// Ask UNI runs first: each stores what it streamed as interrupted and
+	// ends its stream, so srv.Shutdown below does not wait on a model call.
+	askUNI.Shutdown()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

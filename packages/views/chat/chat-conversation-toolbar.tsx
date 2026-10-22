@@ -15,6 +15,7 @@ export type ChatToolbarCommonProps = {
   typingLabel?: string | null;
   onCatchUp?: () => void;
   catchUpDisabled?: boolean;
+  onAskUni?: () => void;
   onVoiceCall?: () => void;
   voiceCallDisabled?: boolean;
   onVideoCall?: () => void;
@@ -48,6 +49,7 @@ export function ChatConversationToolbar({
       sidebarToggleAriaLabel={sidebarCollapsed ? t("chat.show_conversations") : t("chat.hide_conversations")}
       panelAriaLabel={panelAriaLabel}
       catchUpAriaLabel={t("chat.ai.catch_up")}
+      askUniAriaLabel={t("ai.ask_about_room")}
       voiceCallAriaLabel={t("chat.voice_call_start")}
       videoCallAriaLabel={t("chat.video_call_start")}
       searchAriaLabel={t("chat.message_list.search_open")}
