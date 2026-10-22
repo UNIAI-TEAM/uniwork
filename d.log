@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+87e04c4d070051cf14fec6262aaf6ce2f26f757c
+87e04c4d0 test(notifications): check both locales of the owner-transfer titles
+8a738c250 test(documents): e2e for the document owner transfer dialog (DOC-06)
+8b8dc0660 chore: merge UNI-2084 fix1 (review r1 R1-1..R1-4) into the lane
+840c7431d fix(documents): an equal chat-origin share becomes manual on transfer (R1-3)

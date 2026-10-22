@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -5
+87e04c4d070051cf14fec6262aaf6ce2f26f757c
+87e04c4d0 test(notifications): check both locales of the owner-transfer titles
+8a738c250 test(documents): e2e for the document owner transfer dialog (DOC-06)
+8b8dc0660 chore: merge UNI-2084 fix1 (review r1 R1-1..R1-4) into the lane
+840c7431d fix(documents): an equal chat-origin share becomes manual on transfer (R1-3)
+40b28b3ba fix(documents): lock and lease consumers recheck on owner transfer (R1-2)
