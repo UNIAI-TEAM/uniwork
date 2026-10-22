@@ -1,5 +1,6 @@
 // Parity: packages/core/chat/room-timeline.test.ts, with the app's chat API
-// and query keys in place of the web's.
+// and query keys in place of the web's: core's timeline cache operations as
+// the phone binds them (data/chat-timeline.ts).
 import { InfiniteQueryObserver, QueryClient, QueryObserver } from "@tanstack/react-query";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,7 +12,7 @@ import { roomTimelineOptions } from "./queries/chat";
 import { chatKeys } from "./queries/chat-keys";
 import { olderThan } from "@uniwork/core/api/endpoints/chat-schemas";
 import { CHAT_HISTORY_PAGE_SIZE, CHAT_MESSAGE_CACHE_MAX, compareMessages, flattenRoomTimeline, insertCreatedTimelineMessage, keepRoomTimelineHead, olderRoomPageParam, replaceTimelineMessage, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
-import { catchUpOnChatSubscribeAck, catchUpRoomTimeline, markStaleUnlessObserved, refreshLoadedRoomTimelines, refreshRoomTimelineOnOpen, roomTimelineFetchInFlight } from "./chat-timeline";
+import { catchUpOnChatSubscribeAck, catchUpRoomTimeline, refreshLoadedRoomTimelines, refreshRoomTimelineOnOpen } from "./chat-timeline";
 
 const msg = (id: string, minute: number): ChatMessageRecord => ({
   id,
@@ -246,19 +247,6 @@ describe("timeline edges the core suite leaves out", () => {
     qc.setQueryData(key, timeline([msg("b", 2)], [msg("a", 1)]));
     refreshRoomTimelineOnOpen(qc, "ws1", "room1");
     expect(qc.getQueryData<RoomTimeline>(key)?.pages).toEqual([[msg("b", 2)]]);
-  });
-
-  it("waits out a failing fetch in flight without throwing (the query reports it)", async () => {
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const fetching = qc.fetchQuery({ queryKey: key, queryFn: () => Promise.reject(new Error("down")) }).catch(() => "reported");
-    await expect(roomTimelineFetchInFlight(qc, key)).resolves.toBeUndefined();
-    await expect(fetching).resolves.toBe("reported");
-    expect(roomTimelineFetchInFlight(qc, key)).toBeUndefined();
-  });
-
-  it("treats a key with no query as not shown", () => {
-    const qc = new QueryClient();
-    expect(markStaleUnlessObserved(qc, key)).toBe(false);
   });
 
   it("refetches the head when the newest message has no cursor or the read fails", async () => {

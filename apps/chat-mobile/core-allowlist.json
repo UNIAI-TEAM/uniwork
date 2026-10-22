@@ -40,5 +40,7 @@
   "api/endpoints/chat-media-api",
   "api/endpoints/chat-forward-api",
   "api/endpoints/chat-voice-api",
-  "chat/chat-mention-utils"
+  "chat/chat-mention-utils",
+  "chat/chat-cache-records",
+  "chat/room-timeline-cache"
 ]

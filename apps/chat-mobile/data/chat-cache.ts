@@ -1,14 +1,31 @@
 // How a server message, a realtime frame or a read lands in the query cache.
-// Copied from packages/core/chat/realtime-cache.ts and use-chat-room-read-sync.ts
-// (both read the web's auth and active-room stores); the viewer is a parameter
-// here. Left out: the legacy workspace message list and the task-link caches,
-// which the phone does not show. chat-cache.test.ts runs the core cases.
+// What a frame does to a record (the room list line, a thread root's count, a
+// reply's place) is core's (@uniwork/core/chat/chat-cache-records), shared with
+// the web. The query-cache wiring is copied from packages/core/chat/
+// realtime-cache.ts and use-chat-room-read-sync.ts (both read the web's auth
+// and active-room stores and keys); the viewer is a parameter here. Left out:
+// the legacy workspace message list and the task-link caches, which the phone
+// does not show. chat-cache.test.ts runs the core cases.
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import type { ChatMessageRecord, ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers";
 import { chatApi } from "./chat-api";
-import { compareMessages, insertCreatedTimelineMessage, mapRoomTimeline, replaceTimelineMessage, roomTimelineHas, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
-import { markStaleUnlessObserved, roomTimelineFetchInFlight } from "./chat-timeline";
+import {
+  bumpThreadRootReplyCount,
+  isChatThreadReply,
+  patchRoomSidebarFromMessage,
+  placeThreadReply,
+  removeMessageFromList,
+  shouldIncrementUnreadLocally,
+} from "@uniwork/core/chat/chat-cache-records";
+import {
+  insertCreatedTimelineMessage,
+  mapRoomTimeline,
+  replaceTimelineMessage,
+  roomTimelineHas,
+  type RoomTimeline,
+} from "@uniwork/core/chat/room-timeline-pages";
+import { markStaleUnlessObserved, roomTimelineFetchInFlight } from "@uniwork/core/chat/room-timeline-cache";
 import { chatKeys } from "./queries/chat-keys";
 import { dropCarriedTimeline } from "./query-persister";
 import { sameUser } from "@/lib/user-id";
@@ -19,61 +36,12 @@ export interface ChatViewer {
   activeRoomId: string | null;
 }
 
-export function removeMessageFromList(existing: ChatMessageRecord[] | undefined, messageId: string): ChatMessageRecord[] {
-  return (existing ?? []).filter((entry) => entry.id !== messageId);
-}
-
-export function patchRoomSidebarFromMessage(
-  rooms: ChatRoomRecord[] | undefined,
-  roomId: string,
-  message: ChatMessageRecord,
-  options?: { incrementUnread?: boolean },
-): ChatRoomRecord[] {
-  if (!rooms) return [];
-  const updated = rooms.map((room) => {
-    if (room.id !== roomId) return room;
-    return {
-      ...room,
-      last_message_body: message.body,
-      last_message_kind: message.kind,
-      last_message_sender_id: message.sender_id,
-      last_message_sender_name: message.sender_display_name,
-      last_message_at: message.created_at,
-      unread_count: options?.incrementUnread === true ? room.unread_count + 1 : room.unread_count,
-    };
-  });
-  return [...updated].sort((a, b) => {
-    const aTs = a.last_message_at ? Date.parse(a.last_message_at) : 0;
-    const bTs = b.last_message_at ? Date.parse(b.last_message_at) : 0;
-    return bTs - aTs;
-  });
-}
-
-/** Thread replies belong on the root's thread cache, never the main room timeline. */
-export function isChatThreadReply(message: ChatMessageRecord): boolean {
-  return Boolean(message.thread_root_id);
-}
-
-export function bumpThreadRootReplyCount(existing: ChatMessageRecord[], reply: ChatMessageRecord): ChatMessageRecord[] {
-  return existing.map((entry) => {
-    if (entry.id !== reply.thread_root_id) return entry;
-    // A root already past this reply has counted it: later frames for it (an edit, a reaction) bump nothing.
-    if (entry.last_reply_at && Date.parse(entry.last_reply_at) >= Date.parse(reply.created_at)) return entry;
-    return { ...entry, reply_count: entry.reply_count + 1, last_reply_at: reply.created_at };
-  });
-}
-
 /**
  * Patch a loaded room timeline. A patch that cannot keep it contiguous
  * returns null, and so does a timeline not loaded: both refetch (UNI-950).
  * While the timeline fetches, the patch waits for it (patches are idempotent).
  */
-function patchRoomTimelineIfLoaded(
-  qc: QueryClient,
-  wsId: string,
-  roomId: string,
-  patch: (existing: RoomTimeline) => RoomTimeline | null,
-): void {
+function patchRoomTimelineIfLoaded(qc: QueryClient, wsId: string, roomId: string, patch: (existing: RoomTimeline) => RoomTimeline | null): void {
   const key = chatKeys.roomMessages(wsId, roomId);
   const inFlight = roomTimelineFetchInFlight(qc, key);
   if (inFlight) {
@@ -87,18 +55,6 @@ function patchRoomTimelineIfLoaded(
     return;
   }
   if (next !== existing) qc.setQueryData<RoomTimeline>(key, next);
-}
-
-/**
- * The root heads a thread's first page, so the generic "newer than the head's
- * oldest row" test would take any reply. A reply older than the head's oldest
- * reply belongs on an older page: only a refetch places it without a hole.
- */
-function placeThreadReply(data: RoomTimeline, message: ChatMessageRecord): RoomTimeline | null {
-  if (roomTimelineHas(data, message.id)) return replaceTimelineMessage(data, message);
-  const oldestReply = data.pages[0]?.find((entry) => entry.thread_root_id);
-  if (oldestReply && compareMessages(message, oldestReply) < 0) return null;
-  return insertCreatedTimelineMessage(data, message);
 }
 
 function patchThreadReplyCaches(qc: QueryClient, wsId: string, roomId: string, message: ChatMessageRecord): void {
@@ -143,13 +99,7 @@ function patchMessageCaches(qc: QueryClient, wsId: string, roomId: string, messa
  * (UNI-1077). Without one, the room refetches. A send also moves the room's
  * preview in the list.
  */
-export function applyChatMessageResponse(
-  qc: QueryClient,
-  wsId: string,
-  roomId: string,
-  message: ChatMessageRecord | null,
-  created: boolean,
-): void {
+export function applyChatMessageResponse(qc: QueryClient, wsId: string, roomId: string, message: ChatMessageRecord | null, created: boolean): void {
   if (!message) {
     void qc.invalidateQueries({ queryKey: chatKeys.roomMessages(wsId, roomId) });
     return;
@@ -158,15 +108,6 @@ export function applyChatMessageResponse(
   if (created && !isChatThreadReply(message)) {
     qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) => old && patchRoomSidebarFromMessage(old, roomId, message));
   }
-}
-
-/**
- * DM/group/channel also emit `chat.room.activity`, which refetches rooms with
- * the server unread count; a local +1 there races into unread=2 for one
- * message. Only the default channel skips activity, so it counts locally.
- */
-function shouldIncrementUnreadLocally(room: ChatRoomRecord | undefined): boolean {
-  return room !== undefined && isDefaultWorkspaceChannel(room);
 }
 
 /**
@@ -187,14 +128,17 @@ function isRoomTimelineShown(qc: QueryClient, wsId: string, roomId: string): boo
 
 function bumpUnreadLocally(qc: QueryClient, wsId: string, roomId: string): void {
   qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) =>
-    old?.map((room) =>
-      room.id === roomId && shouldIncrementUnreadLocally(room) ? { ...room, unread_count: room.unread_count + 1 } : room,
-    ),
+    old?.map((room) => (room.id === roomId && shouldIncrementUnreadLocally(room) ? { ...room, unread_count: room.unread_count + 1 } : room)),
   );
 }
 
 function isRoomsListShown(qc: QueryClient, wsId: string): boolean {
-  return (qc.getQueryCache().find({ queryKey: chatKeys.rooms(wsId), exact: true })?.getObserversCount() ?? 0) > 0;
+  return (
+    (qc
+      .getQueryCache()
+      .find({ queryKey: chatKeys.rooms(wsId), exact: true })
+      ?.getObserversCount() ?? 0) > 0
+  );
 }
 
 /**
@@ -269,9 +213,7 @@ export function patchChatMentionCreated(qc: QueryClient, wsId: string, viewer: C
   if (viewer.userId == null || senderId === viewer.userId || viewer.activeRoomId === roomId) return;
   qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) =>
     old?.map((room) =>
-      room.id === roomId && shouldIncrementUnreadLocally(room)
-        ? { ...room, mention_unread_count: room.mention_unread_count + 1 }
-        : room,
+      room.id === roomId && shouldIncrementUnreadLocally(room) ? { ...room, mention_unread_count: room.mention_unread_count + 1 } : room,
     ),
   );
 }

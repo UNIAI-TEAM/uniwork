@@ -105,6 +105,8 @@
     "./chat/poll-utils": "./chat/poll-utils.ts",
     "./chat/search-fold": "./chat/search-fold.ts",
     "./chat/chat-mention-utils": "./chat/chat-mention-utils.ts",
+    "./chat/chat-cache-records": "./chat/chat-cache-records.ts",
+    "./chat/room-timeline-cache": "./chat/room-timeline-cache.ts",
     "./chat/initials": "./chat/initials.ts",
     "./chat/identity-tint": "./chat/identity-tint.ts",
     "./chat/voice-call-types": "./chat/voice-call-types.ts",

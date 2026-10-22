@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { appFiles, COPY_MARK, copiedLines, copyHeaderOf, drift, headerOf, MANIFEST, nextCeiling, pathsNamedIn, readManifest, scanCopies, sourcesIn } from "./mobile-web-copies.mjs";
+import { appFiles, codeChars, COPY_MARK, copiedCodeChars, copyHeaderOf, drift, headerOf, MANIFEST, nextCeiling, pathsNamedIn, readManifest, scanCopies, sourcesIn } from "./mobile-web-copies.mjs";
 
 // ADR 0011 keeps views and the stateful core modules out of the phone, so some
 // web logic is copied into apps/chat-mobile. A copy names its source in its
@@ -19,16 +19,23 @@ test("every copy in the app is recorded against the current hash of each web sou
   );
 });
 
-test("the copied lines never grow past the ratchet the manifest records", () => {
-  const { copiedLines: ceiling } = readManifest();
-  assert.equal(typeof ceiling, "number", `${MANIFEST} has no copiedLines ratchet: run node scripts/mobile-web-copies.mjs --write`);
-  const lines = copiedLines();
+test("the copies never grow past the ratchet the manifest records", () => {
+  const { copiedCodeChars: ceiling } = readManifest();
+  assert.equal(typeof ceiling, "number", `${MANIFEST} has no copiedCodeChars ratchet: run node scripts/mobile-web-copies.mjs --write`);
+  const size = copiedCodeChars();
   assert.ok(
-    lines <= ceiling,
-    `The phone's copies of web code grew to ${lines} lines, past the ratchet's ${ceiling}. Move the logic into a ` +
+    size <= ceiling,
+    `The phone's copies of web code grew to ${size} code characters, past the ratchet's ${ceiling}. Move the logic into a ` +
       "pure core module (an endpoint factory, a function taking its dependencies) and import it instead; raise " +
-      `copiedLines in ${MANIFEST} by hand only in a reviewed PR that says why it cannot be shared.`,
+      `copiedCodeChars in ${MANIFEST} by hand only in a reviewed PR that says why it cannot be shared.`,
   );
+});
+
+test("the ratchet counts code, not layout: wrapping a line or adding a comment does not move it", () => {
+  const packed = 'import { a, b } from "x";\nexport const f = (n: number) => a(n) + b(n);\n';
+  const wrapped = '// what f does\nimport {\n  a,\n  b\n} from "x";\n\nexport const f = (n: number) =>\n  a(n) + b(n);\n';
+  assert.equal(codeChars(wrapped), codeChars(packed));
+  assert.ok(codeChars(`${packed}export const g = 1;\n`) > codeChars(packed));
 });
 
 test("the ratchet only goes down", () => {

@@ -6,15 +6,17 @@ import { resetAuthStoreForTests, setSessionUser } from "../auth";
 import { chatKeys } from "./hooks";
 import {
   bumpThreadRootReplyCount,
-  fetchAndPatchChatMessage,
-  insertCreatedRoomMessage,
   isChatThreadReply,
   mergeMessageIntoList,
+  patchRoomSidebarFromMessage,
+  removeMessageFromList,
+} from "./chat-cache-records";
+import {
+  fetchAndPatchChatMessage,
+  insertCreatedRoomMessage,
   patchChatMessageDeleted,
   patchChatMessageLinked,
   patchChatThreadLinked,
-  patchRoomSidebarFromMessage,
-  removeMessageFromList,
 } from "./realtime-cache";
 import { CHAT_MESSAGE_CACHE_MAX, compareMessages, flattenRoomTimeline, type RoomMessagesPageParam, type RoomTimeline } from "./room-timeline-pages";
 

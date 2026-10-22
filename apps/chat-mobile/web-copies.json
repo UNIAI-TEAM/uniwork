@@ -1,6 +1,6 @@
 {
-  "$comment": "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedLines (the ratchet) in a reviewed PR.",
-  "copiedLines": 5488,
+  "$comment": "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedCodeChars (the ratchet) in a reviewed PR.",
+  "copiedCodeChars": 147181,
   "copies": {
     "apps/chat-mobile/components/chat/use-chat-media.ts": {
       "packages/views/chat/use-chat-media-url.ts": "f9ab781619ddc93ef6bc24b31bf1fba1db5d839a8e1148eb4b6b7404596b9afd"
@@ -28,7 +28,7 @@
       "packages/views/chat/use-native-voice-call.ts": "74bc928ec5f16f20ddf3cfdbd51bcc1f1da89f306ce86e9470bfb8c8b47ca7e1"
     },
     "apps/chat-mobile/data/chat-actions.ts": {
-      "packages/core/chat/chat-hooks-messages.ts": "bad524cfc6fa3cda99cb6153eb3b66381e8a6280db75c864380a7f5e91ff941e",
+      "packages/core/chat/chat-hooks-messages.ts": "92e668d2cca0d3f394000c44b56fd20b38cfc9e6522f00efc2d972137b98398e",
       "packages/core/chat/chat-hooks-rooms.ts": "ec2b45feb5aa25c928167c63453dab344bd65f8a4a20cac2ca04eeacfef38dc6",
       "packages/core/chat/thread-hooks.ts": "5bc995cb60f1b595b879ec635a88e236c60458976213e9a1573dbe39ab147e91"
     },
@@ -39,21 +39,18 @@
       "packages/core/api/endpoints/workspaces.ts": "9a01a8b55ffe7b3165cd67c7a1181a298838c1cfb4ee67acdfa688a200c32359"
     },
     "apps/chat-mobile/data/chat-cache.ts": {
-      "packages/core/chat/realtime-cache.ts": "51671370440377658ffdbaf8ccbdcf848d96aa1e52e27e95ce093f48f44ad58f"
+      "packages/core/chat/realtime-cache.ts": "730dc56d548c1ac6f663d0e2a32ce48db5707500b95aaba058ce06d7f3635d55"
     },
     "apps/chat-mobile/data/chat-send.ts": {
       "packages/core/chat/deliver-chat-text-message.ts": "8492a91fe558827741cad7ec0109769b8f3ebace6748c03fb2f4b057c4efcb8c",
       "packages/core/chat/send-retry.ts": "52b3a188a4394ab989b3bc519d99ef1fc9cf78739f4cc7912102adcd21250394"
-    },
-    "apps/chat-mobile/data/chat-timeline.ts": {
-      "packages/core/chat/room-timeline.ts": "8ab9748f43ad1506c16e2fb89ccbae4effa516b6151d5ee34ae596da52e648d9"
     },
     "apps/chat-mobile/data/queries/chat.ts": {
       "packages/core/chat/chat-hooks-rooms.ts": "ec2b45feb5aa25c928167c63453dab344bd65f8a4a20cac2ca04eeacfef38dc6",
       "packages/core/chat/thread-hooks.ts": "5bc995cb60f1b595b879ec635a88e236c60458976213e9a1573dbe39ab147e91"
     },
     "apps/chat-mobile/data/realtime/chat-realtime.ts": {
-      "packages/core/chat/realtime-cache.ts": "51671370440377658ffdbaf8ccbdcf848d96aa1e52e27e95ce093f48f44ad58f",
+      "packages/core/chat/realtime-cache.ts": "730dc56d548c1ac6f663d0e2a32ce48db5707500b95aaba058ce06d7f3635d55",
       "packages/core/realtime/use-realtime-sync.ts": "c084aa7dd868ced906fe4b4e9ed98fa983a77efc870264220d32ff7ec2dcc4f8"
     },
     "apps/chat-mobile/data/realtime/use-chat-scopes.ts": {

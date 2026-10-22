@@ -1,6 +1,7 @@
 // Parity: packages/core/chat/realtime-cache.test.ts, with the viewer passed
 // in (the web reads its auth store) and without the legacy workspace list and
-// task-link caches the phone does not keep.
+// task-link caches the phone does not keep. The record transforms themselves
+// (core's chat-cache-records.ts) are tested in core.
 import { InfiniteQueryObserver, QueryClient, QueryObserver, type QueryKey } from "@tanstack/react-query";
 import type { ChatMessageRecord, ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -10,16 +11,7 @@ vi.mock("./api", () => ({ api: { request: vi.fn() } }));
 vi.mock("./query-persister", () => ({ dropCarriedTimeline: vi.fn() }));
 
 import { chatApi } from "./chat-api";
-import {
-  applyChatMessageResponse,
-  bumpThreadRootReplyCount,
-  fetchAndPatchChatMessage,
-  isChatThreadReply,
-  patchChatMessageDeleted,
-  patchRoomSidebarFromMessage,
-  removeMessageFromList,
-  type ChatViewer,
-} from "./chat-cache";
+import { applyChatMessageResponse, fetchAndPatchChatMessage, patchChatMessageDeleted, type ChatViewer } from "./chat-cache";
 import { compareMessages, flattenRoomTimeline, type RoomMessagesPageParam, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { chatKeys } from "./queries/chat-keys";
 import { dropCarriedTimeline } from "./query-persister";
@@ -64,47 +56,6 @@ const threadIds = (qc: QueryClient) => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-});
-
-describe("removeMessageFromList", () => {
-  it("removes a message by id", () => {
-    const existing = [sampleMessage("m1", "2026-01-01T10:00:00Z"), sampleMessage("m2", "2026-01-01T10:01:00Z")];
-    expect(removeMessageFromList(existing, "m1").map((m) => m.id)).toEqual(["m2"]);
-  });
-});
-
-describe("patchRoomSidebarFromMessage", () => {
-  it("updates preview and moves room to top", () => {
-    const rooms: ChatRoomRecord[] = [
-      {
-        id: "room-a",
-        kind: "dm",
-        name: "A",
-        workspace_id: "ws1",
-        member_user_ids: [],
-        member_count: 0,
-        unread_count: 0,
-        mention_unread_count: 0,
-        last_message_at: "2026-01-01T09:00:00Z",
-      },
-      {
-        id: "room-b",
-        kind: "dm",
-        name: "B",
-        workspace_id: "ws1",
-        member_user_ids: [],
-        member_count: 0,
-        unread_count: 0,
-        mention_unread_count: 0,
-        last_message_at: "2026-01-01T10:00:00Z",
-      },
-    ];
-    const message = sampleMessage("m1", "2026-01-01T11:00:00Z");
-    const next = patchRoomSidebarFromMessage(rooms, "room-a", message, { incrementUnread: true });
-    expect(next[0]?.id).toBe("room-a");
-    expect(next[0]?.last_message_body).toBe(message.body);
-    expect(next[0]?.unread_count).toBe(1);
-  });
 });
 
 describe("fetchAndPatchChatMessage unread", () => {
@@ -517,27 +468,6 @@ describe("fetchAndPatchChatMessage for a timeline nobody shows", () => {
 });
 
 describe("thread reply cache patches", () => {
-  it("detects thread replies", () => {
-    expect(isChatThreadReply(sampleMessage("m1", "2026-01-01T10:00:00Z"))).toBe(false);
-    expect(
-      isChatThreadReply({
-        ...sampleMessage("m2", "2026-01-01T10:00:00Z"),
-        thread_root_id: "root1",
-      }),
-    ).toBe(true);
-  });
-
-  it("bumps reply_count on the root", () => {
-    const root = sampleMessage("root1", "2026-01-01T10:00:00Z");
-    const reply = {
-      ...sampleMessage("r1", "2026-01-01T10:01:00Z"),
-      thread_root_id: "root1",
-    };
-    const next = bumpThreadRootReplyCount([root], reply);
-    expect(next?.[0]?.reply_count).toBe(1);
-    expect(next?.[0]?.last_reply_at).toBe(reply.created_at);
-  });
-
   it("keeps thread replies off the main room list", async () => {
     const reply = {
       ...sampleMessage("r1", "2026-01-01T10:01:00Z"),
@@ -732,20 +662,6 @@ describe("the page around a jumped-to message", () => {
     qc.setQueryData(around, []);
     patchChatMessageDeleted(qc, "ws1", "room1", "m1");
     expect(qc.getQueryState(around)?.isInvalidated).toBe(true);
-  });
-});
-
-describe("list helpers at their edges", () => {
-  it("reads a missing list as empty and sorts rooms without a message last", () => {
-    expect(patchRoomSidebarFromMessage(undefined, "room1", sampleMessage("m1", "2026-01-01T10:00:00Z"))).toEqual([]);
-    expect(removeMessageFromList(undefined, "m1")).toEqual([]);
-    const next = patchRoomSidebarFromMessage([room("quiet"), room("room1"), room("quiet2")], "room1", sampleMessage("m1", "2026-01-01T10:00:00Z"));
-    expect(next.map((r) => r.id)).toEqual(["room1", "quiet", "quiet2"]);
-  });
-
-  it("bumps only the root of the reply", () => {
-    const other = sampleMessage("m0", "2026-01-01T09:00:00Z");
-    expect(bumpThreadRootReplyCount([other], threadReply("r1", "2026-01-01T10:00:00Z"))[0]).toBe(other);
   });
 });
 

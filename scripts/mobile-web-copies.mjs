@@ -10,12 +10,14 @@
 // (or a copy appeared or lost its header), so a web fix never silently skips
 // the phone.
 //
-// The manifest also holds a ratchet: `copiedLines`, the lines of every copy
-// together. It only goes down. --write lowers it to the current count when the
-// copies shrank (a group moved behind a core factory, a copy was deleted) and
-// never raises it; the test fails when the copies grow past it. Raising it is
-// a hand edit of the manifest in a reviewed PR that says why the new copy could
-// not be a shared core module.
+// The manifest also holds a ratchet: `copiedCodeChars`, the size of every copy
+// together, counted as the non-whitespace characters of its non-comment lines
+// so that reformatting (wrapping a long line, re-indenting) does not move it.
+// It only goes down. --write lowers it to the current size when the copies
+// shrank (a group moved behind a core factory, a copy was deleted) and never
+// raises it; the test fails when the copies grow past it. Raising it is a hand
+// edit of the manifest in a reviewed PR that says why the new copy could not
+// be a shared core module.
 //
 //   node scripts/mobile-web-copies.mjs          print what changed (exit 1 if anything did)
 //   node scripts/mobile-web-copies.mjs --write  record the current hashes, after reviewing each copy
@@ -102,13 +104,21 @@ export function scanCopies() {
 
 export const hashOf = (file) => createHash("sha256").update(fs.readFileSync(path.join(root, file))).digest("hex");
 
-/** The lines of every copy file together: what the ratchet counts. */
-export function copiedLines(copies = scanCopies()) {
+/** One file's code size: non-whitespace characters, comment-only lines left out. */
+export function codeChars(source) {
   let total = 0;
-  for (const file of Object.keys(copies)) {
-    const source = fs.readFileSync(path.join(root, file), "utf8");
-    total += source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\n").length;
+  for (const raw of source.split("\n")) {
+    const line = raw.trim();
+    if (line === "" || line.startsWith("//") || line.startsWith("/*") || line.startsWith("*")) continue;
+    total += line.replace(/\s+/g, "").length;
   }
+  return total;
+}
+
+/** The code size of every copy file together: what the ratchet counts. */
+export function copiedCodeChars(copies = scanCopies()) {
+  let total = 0;
+  for (const file of Object.keys(copies)) total += codeChars(fs.readFileSync(path.join(root, file), "utf8"));
   return total;
 }
 
@@ -147,26 +157,29 @@ export function drift(copies = scanCopies(), manifest = readManifest()) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const copies = scanCopies();
   if (process.argv.includes("--write")) {
-    const lines = copiedLines(copies);
+    const size = copiedCodeChars(copies);
     let recorded;
     try {
-      recorded = readManifest().copiedLines;
+      recorded = readManifest().copiedCodeChars;
     } catch {
       recorded = undefined;
     }
-    const ceiling = nextCeiling(lines, recorded);
-    if (lines > ceiling) {
-      console.error(`${MANIFEST}: the copies grew to ${lines} lines, past the ratchet's ${ceiling}. Share the new logic through a core module instead, or raise copiedLines by hand in a reviewed PR.`);
+    const ceiling = nextCeiling(size, recorded);
+    if (size > ceiling) {
+      console.error(
+        `${MANIFEST}: the copies grew to ${size} code characters, past the ratchet's ${ceiling}. ` +
+          "Share the new logic through a core module instead, or raise copiedCodeChars by hand in a reviewed PR.",
+      );
       process.exitCode = 1;
     }
     const manifest = {
       $comment:
-        "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedLines (the ratchet) in a reviewed PR.",
-      copiedLines: ceiling,
+        "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedCodeChars (the ratchet) in a reviewed PR.",
+      copiedCodeChars: ceiling,
       copies: Object.fromEntries(Object.entries(copies).sort().map(([file, sources]) => [file, Object.fromEntries(sources.map((s) => [s, hashOf(s)]))])),
     };
     fs.writeFileSync(path.join(root, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
-    console.log(`${MANIFEST}: ${Object.keys(copies).length} copies, ${lines} lines (ratchet ${ceiling})`);
+    console.log(`${MANIFEST}: ${Object.keys(copies).length} copies, ${size} code characters (ratchet ${ceiling})`);
   } else {
     const lines = drift(copies);
     for (const line of lines) console.log(line);
