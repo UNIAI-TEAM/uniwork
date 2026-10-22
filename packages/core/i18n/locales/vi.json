@@ -10874,6 +10874,7 @@
       "delete_documents_other": "{{count}} tài liệu",
       "delete_body": "{{subfolders}} và {{documents}} sẽ chuyển vào thùng rác, khôi phục được trong 30 ngày.",
       "delete_relocated": "Tài liệu của người khác trong thư mục này sẽ được trả về cho chủ sở hữu, giữ nguyên quyền truy cập.",
+      "archive_relocated": "Tài liệu của người khác bên trong trang này sẽ được trả về cho chủ sở hữu, giữ nguyên quyền truy cập.",
       "delete_loading": "Đang đếm nội dung thư mục…",
       "delete_impact_error": "Không đếm được nội dung thư mục. Thử lại trước khi xóa.",
       "delete_too_large": "Thư mục có hơn {{max}} mục nên chưa chuyển vào thùng rác được một lần. Hãy xóa từng phần bên trong trước.",
