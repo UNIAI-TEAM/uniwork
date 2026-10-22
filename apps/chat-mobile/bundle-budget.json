@@ -1,13 +1,13 @@
 {
-  "_": "Ceilings for the JS bundle of each platform (scripts/mobile-bundle-budget.mjs, mobile-verify.yml), on `expo export --platform android --platform ios` with UNICHAT_ENV=production. Set 2026-10-21 at 7683 KB Hermes bytecode, 3304 KB gzip, 2808 modules + 5 %, raised from 6843/2922/2514 by UNI-2053 for @sentry/react-native (~386 modules, about +1.1 MB bytecode, +0.5 MB gzip). Measured again with UNI-2053 S5 (performance): 7974 KB, 3424 KB gzip, 2919 modules (S2-S4's screens and native calls took most of the headroom; S5 adds 12 KB of row models and list cells and moves LiveKit's start to the first call). Lower one when the bundle shrinks; raise one only in the commit that adds the weight, saying why in its body. Measured again 2026-10-22 at 0eefe3767 (the branch's first real run of this gate: S3-S6's offline, realtime and native-call commits had taken the bundle to 8185 KB, 3504 KB gzip, 3041 modules, over every ceiling), then with @shopify/flash-list 2 for the recycling lists (audit P2 Perf, +95 KB, +47 KB gzip, +52 modules): 8281 KB, 3551 KB gzip, 3093 modules; ceilings set 1 % above. Then (same day) Sentry's includeWebReplay: false took the browser session-replay packages out (-182 KB bytecode): Android 8106 KB, 3462 KB gzip, 3092 modules; iOS budgeted from the same export, 7943 KB, 3378 KB gzip, 3008 modules; ceilings 2 % above (several workstreams land on this branch at once).",
+  "_": "Ceilings for the JS bundle of each platform (scripts/mobile-bundle-budget.mjs, mobile-verify.yml), on `expo export --platform android --platform ios` with UNICHAT_ENV=production. Set 2026-10-21 at 7683 KB Hermes bytecode, 3304 KB gzip, 2808 modules + 5 %, raised from 6843/2922/2514 by UNI-2053 for @sentry/react-native (~386 modules, about +1.1 MB bytecode, +0.5 MB gzip). Measured again with UNI-2053 S5 (performance): 7974 KB, 3424 KB gzip, 2919 modules (S2-S4's screens and native calls took most of the headroom; S5 adds 12 KB of row models and list cells and moves LiveKit's start to the first call). Lower one when the bundle shrinks; raise one only in the commit that adds the weight, saying why in its body. Measured again 2026-10-22 at 0eefe3767 (the branch's first real run of this gate: S3-S6's offline, realtime and native-call commits had taken the bundle to 8185 KB, 3504 KB gzip, 3041 modules, over every ceiling), then with @shopify/flash-list 2 for the recycling lists (audit P2 Perf, +95 KB, +47 KB gzip, +52 modules): 8281 KB, 3551 KB gzip, 3093 modules; ceilings set 1 % above. Then (same day) Sentry's includeWebReplay: false took the browser session-replay packages out (-182 KB bytecode): Android 8106 KB, 3462 KB gzip, 3092 modules; iOS budgeted from the same export, 7943 KB, 3378 KB gzip, 3008 modules; ceilings 2 % above (several workstreams land on this branch at once). Measured again 2026-10-23 on PR #404 (after the remediation rounds and the merge of develop): Android 8368 KB, 3573 KB gzip, 3214 modules; iOS 8205 KB, 3489 KB gzip, 3130 modules. The growth since 84cf8cacd is the app's own code (components +36 modules / +167 KB of source, data +32 / +114 KB, lib +29 / +74 KB: app lock, notification replies, drafts, the unread line, voice seek, the develop poll-vote kind) and @uniwork/core +15 / +78 KB (helpers moved from web), plus expo-local-authentication, expo-screen-capture and expo-image-manipulator; third-party packages are flat. Ceilings 2 % above; bundle-composition.json is now the baseline the job summary diffs against.",
   "android": {
-    "bundleKB": 8268,
-    "gzipKB": 3532,
-    "modules": 3154
+    "bundleKB": 8536,
+    "gzipKB": 3645,
+    "modules": 3279
   },
   "ios": {
-    "bundleKB": 8103,
-    "gzipKB": 3446,
-    "modules": 3069
+    "bundleKB": 8370,
+    "gzipKB": 3560,
+    "modules": 3193
   }
 }
