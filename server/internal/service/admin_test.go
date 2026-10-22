@@ -271,15 +271,22 @@ func TestAdminChatReportQueue(t *testing.T) {
 	f.addMember(t)
 	w := f.workspace
 	ctx := context.Background()
+	// The queue spans the platform and the test database keeps other tests' reports
+	// (some of organizations a fixture has since removed), so counts are deltas.
+	baseline, err := f.admin.ListChatReports(ctx, "open", 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	report, err := f.chat.ReportChat(ctx, f.owner.ID, w.ID, ReportChatInput{UserID: f.member.ID, Reason: "harassment", Details: "private words of the reporter"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	queue, err := f.admin.ListChatReports(ctx, "open", 0, 0)
-	if err != nil || queue.Total != 1 || queue.OpenCount != 1 || queue.OldestOpenAt == nil || len(queue.Reports) != 1 {
-		t.Fatalf("open queue: %v %+v", err, queue)
+	if err != nil || queue.Total != baseline.Total+1 || queue.OpenCount != baseline.OpenCount+1 || queue.OldestOpenAt == nil || len(queue.Reports) == 0 {
+		t.Fatalf("open queue: %v %+v (before: total %d, open %d)", err, queue, baseline.Total, baseline.OpenCount)
 	}
+	// Newest first: the report just made heads the page.
 	row := queue.Reports[0]
 	if row.ID != report.ID || row.OrganizationID != f.orgID || row.TargetUserID != f.member.ID || row.CreatedBy != f.owner.ID || row.Reason != "harassment" || row.Status != "open" || row.MessageID.Valid {
 		t.Fatalf("queue row: %+v", row)
@@ -312,8 +319,12 @@ func TestAdminChatReportQueue(t *testing.T) {
 		t.Fatalf("audit row in the report's organization: %v %+v", err, rows)
 	}
 
-	after, err := f.admin.ListChatReports(ctx, "", 0, 0)
-	if err != nil || after.Total != 1 || after.OpenCount != 0 || after.OldestOpenAt != nil || after.Reports[0].Status != "resolved" {
-		t.Fatalf("queue after resolve: %v %+v", err, after)
+	after, err := f.admin.ListChatReports(ctx, "open", 0, 0)
+	if err != nil || after.Total != baseline.Total || after.OpenCount != baseline.OpenCount || (after.OldestOpenAt == nil) != (baseline.OldestOpenAt == nil) {
+		t.Fatalf("open queue after resolve: %v %+v (before: total %d, open %d)", err, after, baseline.Total, baseline.OpenCount)
+	}
+	all, err := f.admin.ListChatReports(ctx, "", 0, 0)
+	if err != nil || len(all.Reports) == 0 || all.Reports[0].ID != report.ID || all.Reports[0].Status != "resolved" {
+		t.Fatalf("queue after resolve: %v %+v", err, all)
 	}
 }
