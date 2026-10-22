@@ -199,6 +199,31 @@ export function useUpdateChatRoomMember(workspaceId: string) {
   });
 }
 
+export function useUpdateChatRoomWallpaper(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { roomId: string; preset: string }) => {
+      await chat.patchChatRoom(workspaceId, input.roomId, { wallpaper: { preset: input.preset } });
+    },
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.roomDetail(workspaceId, variables.roomId) });
+    },
+  });
+}
+
+export function useUploadChatRoomWallpaper(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { roomId: string; file: File }) =>
+      chat.uploadChatRoomWallpaper(workspaceId, input.roomId, input.file),
+    onSuccess: (_room, variables) => {
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.roomDetail(workspaceId, variables.roomId) });
+    },
+  });
+}
+
 export function useUpdateChatRoomSettings(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({

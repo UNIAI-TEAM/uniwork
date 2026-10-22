@@ -323,8 +323,9 @@ type DocumentArchiveImpactSDO struct {
 	MaxNodes  int  `json:"max_nodes" description:"Trần số nút một lần lưu trữ nhận" example:"1000"`
 	TooLarge  bool `json:"too_large" description:"true = cây con vượt trần: không có số đếm, nút xác nhận bị khóa và thông báo folder_too_large" example:"false"`
 	// RelocatedCount is ADR 0037 point 5: documents the caller cannot manage
-	// leave a trashed workspace folder for the workspace root. A number only.
-	RelocatedCount int `json:"relocated_count" description:"Số tài liệu người gọi không quản lý được sẽ chuyển về gốc workspace thay vì vào thùng rác khi bỏ thư mục chung (giữ nguyên quyền); chỉ là con số, không lộ tài liệu nào; 0 với mọi gốc khác" example:"0"`
+	// leave a trashed root, whatever its kind, for the workspace root. A
+	// number only.
+	RelocatedCount int `json:"relocated_count" description:"Số trang/tệp người gọi không quản lý được (không thấy, hoặc thấy mà không quản lý) sẽ chuyển về gốc workspace kèm cây con thay vì vào thùng rác khi bỏ gốc này, dù gốc là thư mục, trang hay tệp (giữ nguyên quyền và tên); không tính vào total; chỉ là con số, không lộ tài liệu nào" example:"0"`
 }
 
 // DocumentAccessSourceDTO is one source entry on a user share row or in my_sources

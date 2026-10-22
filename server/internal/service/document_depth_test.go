@@ -10,7 +10,6 @@ package service
 // constant fails here instead of silently shrinking every shape.
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -161,27 +160,39 @@ func TestDocumentDepthBound(t *testing.T) {
 		}
 	})
 
-	t.Run("an unmanageable node deep in the chain refuses the whole archive", func(t *testing.T) {
+	t.Run("an unmanageable node deep in the chain leaves with its subtree", func(t *testing.T) {
 		// One restricted node at level 15 the member does not manage: the
-		// whole command must refuse, never leave it live under an archived
-		// parent.
+		// plan reaches it however deep it sits (UNI-2074, ADR 0037 point 5),
+		// so it moves to the workspace root with the levels below it, and
+		// only the 14 levels above go to the trash - never a live node under
+		// an archived parent.
 		member := Human(tn.member.ID)
 		chain := f.depthChain(t, tn, 14, treeDocSpec{aclOwner: tn.member.ID, createdBy: tn.member.ID})
 		blocked := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID,
 			createdBy: tn.aclOwner.ID, parent: chain[len(chain)-1].ID, title: "Cấp 15"})
-		chain = append(chain, blocked)
+		above := chain
+		var below []db.Document
 		prev := blocked.ID
 		for i := 16; i <= wantDepth; i++ {
 			d := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID,
 				createdBy: tn.member.ID, parent: prev, title: fmt.Sprintf("Cấp %d", i)})
-			chain = append(chain, d)
+			below = append(below, d)
 			prev = d.ID
 		}
-		_, err := f.svc.ArchiveDocument(f.ctx, member, chain[0].ID, ArchiveDocumentInput{})
-		if !errors.Is(err, ErrForbidden) {
-			t.Fatalf("archive over an unmanageable level-15 node = %v, want forbidden", err)
+		res, err := f.svc.ArchiveDocument(f.ctx, member, above[0].ID, ArchiveDocumentInput{})
+		if err != nil {
+			t.Fatalf("archive over an unmanageable level-15 node = %v, want it relocated", err)
 		}
-		for _, d := range chain {
+		if len(res.Affected) != len(above) {
+			t.Fatalf("archived %d rows, want the %d levels above", len(res.Affected), len(above))
+		}
+		for _, d := range above {
+			f.archived(t, d.ID)
+		}
+		if d := f.live(t, blocked.ID); d.ParentID.Valid {
+			t.Fatalf("level 15 = parent %q, want the workspace root", d.ParentID.String)
+		}
+		for _, d := range below {
 			f.live(t, d.ID)
 		}
 	})
