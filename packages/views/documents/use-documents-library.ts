@@ -14,7 +14,6 @@ import {
   useTrashedDocuments,
 } from "@uniwork/core/documents/hooks-collections";
 import { isEndpointMissing, useDocumentSources } from "@uniwork/core/documents/hooks-library";
-import type { DocumentSourceType } from "@uniwork/core/documents/sources-schema";
 import type { DocumentList, DocumentTreeNode } from "@uniwork/core/types/document";
 import { myFolderFirst } from "./document-tree-model";
 import type { LibraryView } from "./documents-sidebar";
@@ -28,7 +27,7 @@ import {
 } from "./doclist/filters";
 import { docListSpec } from "./doclist/columns";
 import { docListScreenOfView } from "./doclist/live-screen";
-import { documentRow, matchesTypes, sourceRow, type DocumentTypeFilter, type LibraryRow } from "./library-rows";
+import { documentRow, sourceRow, type DocumentTypeFilter, type LibraryRow } from "./library-rows";
 import {
   mergeSorted,
   nextSort,
@@ -108,8 +107,6 @@ function documentState(q: InfiniteLike<DocumentList>): LibraryState {
   };
 }
 
-const SOURCE_TYPES = new Set<string>(["docx", "xlsx", "pptx", "pdf", "md", "html", "txt"]);
-
 export interface UseDocumentsLibraryInput {
   wsId: string;
   orgId: string;
@@ -138,11 +135,11 @@ export interface UseDocumentsLibraryInput {
  */
 export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, types, editorNames = NO_EDITOR_NAMES }: UseDocumentsLibraryInput) {
   const home = view.kind === "home";
-  // The Type picks go to every list route as the repeated `type` parameter (UNI-2113). The
-  // sources route takes one `type`, so two or more picks are narrowed on its rows only (below).
+  // The Type picks go to every list route, the sources route included, as the repeated `type`
+  // parameter (UNI-2113): the server filters, no row is narrowed on the client.
   const typeParam = types.length > 0 ? types : undefined;
-  const sourceType = types.length === 1 && SOURCE_TYPES.has(types[0]!) ? (types[0] as DocumentSourceType) : undefined;
-  const sourcesWanted = (types.length === 0 || types.some((type) => type !== "page")) && ((home && !folderId) || view.kind === "sources");
+  const sourcesShown = (home && !folderId) || view.kind === "sources";
+  const sourcesWanted = (types.length === 0 || types.some((type) => type !== "page")) && sourcesShown;
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const [lastUserId, setLastUserId] = useState<string | null>(userId);
   const [editor, setEditor] = useState<EditorFilter>("any");
@@ -270,10 +267,11 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
   const sourceFilter = useMemo(
     () => ({
       ...(view.kind === "sources" && view.source ? { source: view.source } : {}),
-      ...(sourceType ? { type: sourceType } : {}),
+      // A page-only pick sends type=page too: sources hold no page, so the answer is empty.
+      ...(sourcesShown && typeParam ? { types: typeParam } : {}),
       ...(sourcesWanted ? sourcesSortParams(sort) : {}),
     }),
-    [view, sourceType, sourcesWanted, sort],
+    [view, sourcesShown, typeParam, sourcesWanted, sort],
   );
   // Probe once even when the view does not list sources: the sidebar section
   // shows only after the API has answered.
@@ -359,9 +357,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
   // (an open folder, Có gắn sao) and the sources view run the Người sửa and
   // Cập nhật predicates on every row, and a merged home on its source rows
   // only — a document row there is the server's answer. The Type picks are the
-  // server's everywhere except two or more of them on source rows (the sources
-  // route takes one `type`): those rows are narrowed here, and the empty state
-  // says "in what is loaded". A merged home counts only while source rows
+  // server's everywhere, source rows included. A merged home counts only while source rows
   // actually merged — an empty sources answer leaves the doc list fully server-filtered.
   const mergedHome = Boolean(homeRoot && sourcesWanted && sourcesAvailable && sourceRows.length > 0);
   const loadedInFull = view.kind === "starred" || view.kind === "sources" || folderView;
@@ -371,8 +367,6 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
   const clientFiltered = loadedInFull || mergedHome || memberFiltered;
   const filtered = state.rows.filter((row) => {
     if (memberFiltered && (row.type !== "document" || (row.doc.shelved_by ?? SHELVED_BY_SYSTEM) !== shelvedBy)) return false;
-    // Two or more picks: the sources route took none, so its rows are narrowed here.
-    if (row.type === "source" && !matchesTypes(row, types)) return false;
     const clientSide = loadedInFull || (mergedHome && row.type === "source");
     return !clientSide || matchesMeta(row, editorId, updated.since);
   });

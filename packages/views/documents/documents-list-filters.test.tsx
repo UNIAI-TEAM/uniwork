@@ -392,21 +392,49 @@ describe("server-side type and editor filters (UNI-1868, UNI-2113, UNI-2045 W10)
     expect(listCalls().some((path) => queryOf(path).get("type") === "docx")).toBe(true);
   });
 
-  it("narrows merged source rows on the client for two picks: the sources route takes one type", async () => {
+  it("sends every picked type to the sources route and shows what it answers, no client narrowing", async () => {
     route({
       list: (path) => (queryOf(path).getAll("type").length ? [file("f1", "Báo giá.docx")] : [summary(), file("f1", "Báo giá.docx")]),
-      sources: () => [source(), source({ id: "chat:m2", name: "Bản chiếu.pptx", extension: "pptx" })],
+      // The server's answer for two picks: a row the client would not have kept
+      // (pptx) proves the rows are shown as answered, not narrowed again.
+      sources: (path) =>
+        queryOf(path).getAll("type").length
+          ? [source(), source({ id: "chat:m2", name: "Bản chiếu.pptx", extension: "pptx" })]
+          : [source(), source({ id: "chat:m2", name: "Bản chiếu.pptx", extension: "pptx" }), source({ id: "chat:m3", name: "Ảnh.png", extension: "png" })],
     });
     renderView();
     await screen.findByText("Đề xuất ngân sách.pdf");
-    expect(screen.getByText("Bản chiếu.pptx")).toBeInTheDocument();
+    expect(await screen.findByText("Ảnh.png")).toBeInTheDocument();
 
     await pickTypeFilter("docx", "pdf");
+    await waitFor(() => expect(screen.queryByText("Ảnh.png")).toBeNull());
     expect(await screen.findByText("Đề xuất ngân sách.pdf")).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByText("Bản chiếu.pptx")).toBeNull());
+    expect(screen.getByText("Bản chiếu.pptx")).toBeInTheDocument();
     const last = requestMock.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith(`${LIST_BASE}/sources`)).at(-1)!;
-    expect(queryOf(last).has("type")).toBe(false);
+    expect(queryOf(last).getAll("type")).toEqual(["docx", "pdf"]);
     expect(listCalls().some((path) => queryOf(path).getAll("type").join() === "docx,pdf")).toBe(true);
+  });
+
+  it("sends UniNote beside a format to the sources route, and a UniNote-only pick shows no source row", async () => {
+    // Sources hold no page: the server answers a page-only pick with an empty page.
+    route({ list: () => [summary()], sources: (path) => (queryOf(path).getAll("type").join() === "page" ? [] : [source()]) });
+    renderView(`/org/${WS}/documents?view=sources`);
+    await screen.findByText("Đề xuất ngân sách.pdf");
+
+    await pickTypeFilter("page", "docx");
+    await waitFor(() =>
+      expect(
+        requestMock.mock.calls.some(
+          ([path]) => String(path).startsWith(`${LIST_BASE}/sources`) && queryOf(String(path)).getAll("type").join() === "page,docx",
+        ),
+      ).toBe(true),
+    );
+    expect(await screen.findByText("Đề xuất ngân sách.pdf")).toBeInTheDocument();
+
+    await pickTypeFilter("docx");
+    await waitFor(() => expect(screen.queryByText("Đề xuất ngân sách.pdf")).toBeNull());
+    const last = requestMock.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith(`${LIST_BASE}/sources`)).at(-1)!;
+    expect(queryOf(last).getAll("type")).toEqual(["page"]);
   });
 
   it("sends the type to the starred route and shows what it answers", async () => {

@@ -61,7 +61,7 @@ describe("documents-sources endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: [item()], next_cursor: "c2" }));
     const out = await listDocumentSources("w1", {
       source: "chat",
-      type: "docx",
+      types: ["docx"],
       q: "hợp đồng",
       cursor: "c1",
       limit: 50,
@@ -79,6 +79,22 @@ describe("documents-sources endpoints", () => {
     expect(out.items[0]?.parent.kind).toBe("chat_channel");
     expect(out.items[0]?.can_save).toBe(true);
     expect(out.next_cursor).toBe("c2");
+  });
+
+  it("listDocumentSources sends one type= per picked type", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [], next_cursor: null }));
+    await listDocumentSources("w1", { types: ["page", "docx", "pdf"], limit: 50 });
+    const u = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(u.searchParams.getAll("type")).toEqual(["page", "docx", "pdf"]);
+    expect(u.search).toBe("?type=page&type=docx&type=pdf&limit=50");
+  });
+
+  it("listDocumentSources sends no type= for an empty pick", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [], next_cursor: null }));
+    await listDocumentSources("w1", { types: [] });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/sources",
+    );
   });
 
   it("listDocumentSources sends sort and order when asked", async () => {

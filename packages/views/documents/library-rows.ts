@@ -6,9 +6,8 @@ import { documentIconFormat, fileExtension } from "./document-type-icon";
 // lives in another module (chat, task, meeting, email) and is listed here as
 // a link (sorting lives in library-sort.ts, the date groups in
 // doclist/date-groups.ts); nothing here invents a row or a count. The Type
-// picks are the repeated `type` query parameter of every document list
-// (UNI-2113), so `matchesTypes` remains only for what the server cannot
-// filter: two or more picks on the merged source rows.
+// picks are the repeated `type` query parameter of every list, the sources
+// route included (UNI-2113): the server filters, no row is narrowed here.
 export type DocumentSummaryRow = DocumentList["documents"][number];
 
 export type LibraryRow =
@@ -91,19 +90,6 @@ export function rowTypeKey(row: LibraryRow): string {
     default:
       return "documents.file_types.file";
   }
-}
-
-/**
- * A row passes when any picked type matches it; none picked passes every row.
- * Folders stay visible (they are how one gets to the files) unless every pick
- * is "page", like the server's `type`. Document lists send the picks to the
- * server; this predicate remains only for the merged source files, whose route
- * takes one `type`.
- */
-export function matchesTypes(row: LibraryRow, selected: readonly DocumentTypeFilter[]): boolean {
-  if (selected.length === 0) return true;
-  if (isFolderRow(row)) return selected.some((type) => type !== "page");
-  return (selected as readonly string[]).includes(rowFormat(row));
 }
 
 /** The translation key for a row's visibility, or null when it carries none this client knows. */
