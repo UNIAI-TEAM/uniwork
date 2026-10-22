@@ -312,7 +312,10 @@ jobs:
     needs: scope
     if: needs.scope.outputs.native == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    # The first cold run on PR #404 (no Gradle cache; release build, the calls module's Robolectric
+    # tests, then a debug build for its instrumented test, with expo-notifications built from source)
+    # was cancelled at 75 minutes while still compiling. Warm runs reuse setup-gradle's cache.
+    timeout-minutes: 120
     env:
       # Same release configuration as doctor-bundle.
       UNICHAT_ENV: production
