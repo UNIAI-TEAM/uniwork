@@ -31,7 +31,7 @@ export function CopyButton({ value, label, text, className }: { value: string; l
   const { state, copy } = useCopy(value);
   const Icon = state === "copied" ? Check : Copy;
   return <>
-    <Button type="button" variant="ghost" size={text ? "sm" : "icon-sm"} className={cn("ver-copy", className)} data-copied={state === "copied" || undefined} aria-label={text ? undefined : label} onClick={copy}>
+    <Button type="button" variant="ghost" size={text ? "sm" : "icon-sm"} className={cn("office-dl-copy", className)} data-copied={state === "copied" || undefined} aria-label={label} onClick={copy}>
       <Icon aria-hidden />{text && <span>{state === "copied" ? t("office.desktop.install.copied") : text}</span>}
     </Button>
     <CopyStatus state={state} />

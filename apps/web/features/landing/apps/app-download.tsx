@@ -9,6 +9,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { MarketingLink as Link } from "../../../platform/marketing-link";
 import { APP_CATALOG, otherPhone, PHONE_ORDER, type PhoneOS } from "./catalog";
 import { useAppInstallers, useStoreLinks, type AppOsGroup, type StoreLink } from "./installers";
+import { OsMark } from "./os-marks";
 import { useVisitorDevice } from "./visitor-device";
 
 type DownloadApp = "office" | "unichat";
@@ -63,7 +64,8 @@ function FeaturedCard({ featured, app, copy, version, certain, guessed }: { feat
   const own = featured.kind === "missing" || featured.own;
   const os = featured.kind === "desktop" ? featured.group.os : featured.kind === "phone" ? featured.link.os : featured.os;
   const phone = os === "ios" || os === "android";
-  const Glyph = phone ? Smartphone : Monitor;
+  // A desktop system shows its own logo; a phone keeps the generic glyph (UNI-2098 r2).
+  const glyph = phone ? <Smartphone /> : featured.kind === "missing" ? <Monitor /> : <OsMark os={os as DesktopOS} />;
   let title = t("landing.apps.download.title", { app: name, os: osName(t, os) });
   let sub: string;
   let actions: ReactNode;
@@ -86,7 +88,7 @@ function FeaturedCard({ featured, app, copy, version, certain, guessed }: { feat
   }
   return <section className={cn("app-dl-featured", featured.kind === "missing" && "is-missing")} aria-label={title} data-featured={os}>
     <div className="app-dl-featured-copy">
-      <span className="app-dl-os" aria-hidden><Glyph /></span>
+      <span className="app-dl-os" aria-hidden>{glyph}</span>
       <div>
         {own && <p className="app-dl-own">{t("landing.apps.download.device")}</p>}
         <h3>{title}</h3>
@@ -132,7 +134,7 @@ export function AppDownload({ app, copy }: { app: DownloadApp; copy: DownloadCop
   const desktopChips = groups.filter((group) => !(featured?.kind === "desktop" && featured.group === group));
   const phoneChips = phones.filter((link) => !(featured?.kind === "phone" && featured.link === link));
   const desktopChipNodes = desktopChips.flatMap(({ os, installers }) => installers.map((installer) => <a key={installer.platform} className="app-dl-chip" href={installer.url} download data-office-os={os}>
-    <Monitor aria-hidden /><strong>{osName(t, os)}</strong><span>{t(`office.desktop.install.fmt.${DESKTOP_INSTALLER_KINDS[installer.platform].format}`)}</span>
+    <OsMark os={os} /><strong>{osName(t, os)}</strong><span>{t(`office.desktop.install.fmt.${DESKTOP_INSTALLER_KINDS[installer.platform].format}`)}</span>
   </a>));
   const phoneChipNodes = phoneChips.map((link) => <a key={link.os} className="app-dl-chip" href={link.href} data-unichat-store={link.os}>
     <Smartphone aria-hidden /><strong>{osName(t, link.os)}</strong><span>{t(`landing.apps.store.${link.label}`)}</span>{link.pilot && <em className="app-tag is-pilot">{t("landing.apps.status.pilot")}</em>}

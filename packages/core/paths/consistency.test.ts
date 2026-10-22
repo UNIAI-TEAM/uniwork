@@ -72,7 +72,6 @@ function builderTemplates(): string[] {
     paths.requestDemo(),
     paths.apps.root(),
     paths.apps.office(),
-    paths.apps.officeVersions(),
     paths.apps.unichat(),
     paths.about(),
     paths.security(),

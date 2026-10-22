@@ -1,5 +1,5 @@
 /**
- * DESIGN-ONLY (UNI-2098 Step 1): a fixture of the release manifest, schema v1,
+ * DESIGN-ONLY (UNI-2098 Step 1, r2): a fixture of the release manifest, schema v1,
  * and the `?state=` switch that screenshots use. Step 2 deletes this file and
  * `manifest-source.ts` reads `/downloads/office/releases.json` instead.
  */
@@ -40,13 +40,13 @@ function assets(version: string, channel: string): ReleaseAsset[] {
 
 const NOTES = {
   vi: {
-    a: "### Mới\n- **Tab Phiên bản** trong trình soạn thảo: xem, so sánh và khôi phục bản cũ của tài liệu.\n- Mở file `.xlsx` lớn nhanh hơn, không còn khựng khi cuộn.\n\n### Đã sửa\n- Lưu lại tài liệu DOCX không còn mất định dạng bảng lồng nhau.\n- Chữ ký PDF hiện đúng tên người ký.\n\nChi tiết xem tại [trang Phiên bản](/apps/office/versions).",
+    a: "### Mới\n- **Tab Phiên bản** trong trình soạn thảo: xem, so sánh và khôi phục bản cũ của tài liệu.\n- Mở file `.xlsx` lớn nhanh hơn, không còn khựng khi cuộn.\n\n### Đã sửa\n- Lưu lại tài liệu DOCX không còn mất định dạng bảng lồng nhau.\n- Chữ ký PDF hiện đúng tên người ký.\n\n### Cải tiến\n- Khởi động nhanh hơn trên máy cấu hình thấp.\n- Hộp thoại lưu gọn hơn, nhớ thư mục lần trước.",
     b: "### Mới\n- Bảng tính: lọc theo nhiều điều kiện cùng lúc.\n\n### Đã sửa\n- Sửa lỗi đóng ứng dụng khi mở PDF có mật khẩu.",
     c: "### Mới\n- Thanh trạng thái hiển thị tiến độ đồng bộ với workspace.\n- Thêm phím tắt `Ctrl+Shift+V` để dán không định dạng.",
     d: "### Mới\n1. Trợ lý AI nhớ ngữ cảnh của tài liệu đang mở.\n2. Xuất DOCX sang PDF qua dịch vụ Office của UniWork.\n\n### Đã sửa\n- Con trỏ nhảy về đầu dòng khi gõ tiếng Việt có dấu.",
   },
   en: {
-    a: "### New\n- **Versions tab** in the editors: see, compare and restore earlier versions of a document.\n- Large `.xlsx` files open faster and no longer stutter while scrolling.\n\n### Fixed\n- Saving a DOCX no longer drops the formatting of nested tables.\n- PDF signatures show the signer's name correctly.\n\nSee the [Versions page](/apps/office/versions) for the full list.",
+    a: "### New\n- **Versions tab** in the editors: see, compare and restore earlier versions of a document.\n- Large `.xlsx` files open faster and no longer stutter while scrolling.\n\n### Fixed\n- Saving a DOCX no longer drops the formatting of nested tables.\n- PDF signatures show the signer's name correctly.\n\n### Improved\n- Faster start-up on low-spec machines.\n- A tidier save dialog that remembers the last folder.",
     b: "### New\n- Spreadsheets: filter by several conditions at once.\n\n### Fixed\n- Fixed a crash when opening a password-protected PDF.",
     c: "### New\n- The status bar shows workspace sync progress.\n- New `Ctrl+Shift+V` shortcut to paste without formatting.",
     d: "### New\n1. The AI assistant remembers the context of the open document.\n2. Export DOCX to PDF through the UniWork Office service.\n\n### Fixed\n- The caret no longer jumps to the line start while typing accented Vietnamese.",

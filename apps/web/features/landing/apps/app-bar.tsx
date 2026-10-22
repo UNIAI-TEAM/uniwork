@@ -10,8 +10,6 @@ import { Container } from "../layout-primitives";
 import { AppIcon } from "./app-icon";
 
 export interface AppBarSection { id: string; labelKey: string }
-/** A page of the app (UNI-2098): a real route, so the current one carries aria-current="page". */
-export interface AppBarPage { href: string; labelKey: string; current: boolean }
 
 /** The section the reader is in: the one whose top passed 45% of the viewport most recently; the first at the very top. */
 function useActiveSection(ids: readonly string[]): string | undefined {
@@ -46,7 +44,7 @@ function useActiveSection(ids: readonly string[]): string | undefined {
  * the download action, sticky under the site header so the download is always
  * in reach. On a phone it folds to the app's name, which opens the sections.
  */
-export function AppBar({ app, sections, pages, cta }: { app: "office" | "unichat"; sections: readonly AppBarSection[]; pages?: readonly AppBarPage[]; cta: { href: string; label: string; short: string } }) {
+export function AppBar({ app, sections, cta }: { app: "office" | "unichat"; sections: readonly AppBarSection[]; cta: { href: string; label: string; short: string } }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const sheet = useId();
@@ -70,10 +68,7 @@ export function AppBar({ app, sections, pages, cta }: { app: "office" | "unichat
       <button type="button" className="app-bar-toggle" aria-expanded={open} aria-controls={sheet} onClick={() => setOpen((value) => !value)}>
         <AppIcon app={app} size={24} />{name}<span className="sr-only">{t("landing.apps.bar.sections")}</span><ChevronDown aria-hidden />
       </button>
-      {pages && <nav className="app-bar-pages" aria-label={t("landing.apps.bar.pages", { app: name })}>
-        {pages.map((page) => <Link key={page.href} href={page.href} aria-current={page.current ? "page" : undefined}>{t(page.labelKey)}</Link>)}
-      </nav>}
-      {links.length > 0 && <nav className="app-bar-links" aria-label={t("landing.apps.bar.label", { app: name })}>{links}</nav>}
+      <nav className="app-bar-links" aria-label={t("landing.apps.bar.label", { app: name })}>{links}</nav>
       <MarketingAnchor className={cn(buttonVariants({ variant: "brand", size: "lg" }), "app-bar-cta")} href={cta.href}>
         <Download aria-hidden /><span className="app-bar-cta-long">{cta.label}</span><span className="app-bar-cta-short">{cta.short}</span>
       </MarketingAnchor>

@@ -7,7 +7,7 @@ export type MarketingGuideKey = typeof MARKETING_GUIDE_KEYS[number];
 export const MARKETING_ROUTES = [
   { path: "/", key: "home" },
   // Every app of the ecosystem lives under one reserved slug (UNI-1913); /office and /unichat redirect here.
-  { path: "/apps", key: "apps" }, { path: "/apps/office", key: "office" }, { path: "/apps/office/versions", key: "office-versions" }, { path: "/apps/unichat", key: "unichat" },
+  { path: "/apps", key: "apps" }, { path: "/apps/office", key: "office" }, { path: "/apps/unichat", key: "unichat" },
   { path: "/features", key: "features" },
   ...MARKETING_FEATURE_KEYS.map(key => ({ path: `/features/${key}`, key })),
   { path: "/solutions", key: "solutions" },

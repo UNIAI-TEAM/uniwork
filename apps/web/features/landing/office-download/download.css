@@ -1,0 +1,150 @@
+/*
+ * The Download section of /apps/office (UNI-2098 r2). Tokens only; selectors carry
+ * .office-site .office-dl so they outrank marketing-pages.css's page-wide heading,
+ * paragraph and list rules. It extends office.css / apps.css (.app-dl-*), it adds no new look.
+ */
+.office-site .office-dl { display: flex; flex-direction: column; }
+.office-site .office-dl-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 32px; margin-bottom: 32px; }
+.office-site .office-dl-head .office-heading { margin-bottom: 0; gap: 8px; }
+.office-site .office-dl-head .office-heading p { margin: 0; font-size: var(--text-body); color: var(--muted-foreground); }
+.office-site .office-dl-panel { display: flex; flex-direction: column; gap: 16px; }
+.office-site .office-dl-muted { margin: 0; font-size: var(--text-body); color: var(--muted-foreground); }
+
+/* Channel switch: the overview's tab look, on the heading line. */
+.office-site .office-dl-channels { width: auto; flex-wrap: nowrap; gap: 6px; padding: 4px; border-radius: 14px; background: var(--muted); }
+.office-site .office-dl-channel { min-height: 44px; padding-inline: 18px; border-radius: 10px; font-weight: 600; }
+.office-site .office-dl-channel small { padding: 1px 8px; border-radius: 999px; background: var(--background); font-size: var(--text-caption); font-weight: 500; color: var(--muted-foreground); }
+.office-site .office-dl-channel[data-active] small { background: color-mix(in srgb, var(--brand) 14%, var(--background)); color: var(--brand); }
+.office-site .office-dl-hint-skeleton { width: 240px; max-width: 70%; height: 22px; }
+.office-site .office-dl-channels-skeleton { display: flex; gap: 6px; }
+.office-site .office-dl-channel-skeleton { width: 104px; height: 52px; border-radius: 12px; }
+
+/* Device card: the shared featured card, with the system's logo and a version line. */
+.office-site .office-dl-eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 4px; min-height: 22px; }
+.office-site .office-dl-eyebrow .app-dl-own { margin: 0; }
+.office-site .office-dl-eyebrow:empty { display: none; }
+.office-site .office-dl-badge { height: 22px; padding-inline: 9px; font-size: var(--text-caption); font-weight: 600; background: var(--info-soft); color: var(--info-soft-foreground); }
+.office-site .office-dl-lead { min-width: 0; }
+.office-site .office-dl-lead.has-caption { min-height: 60px; padding-block: 8px; }
+.office-site .office-dl-lead-text { display: flex; flex-direction: column; align-items: flex-start; text-align: left; line-height: 1.25; }
+.office-site .office-dl-lead-text small { font-size: var(--text-caption); font-weight: 400; opacity: .85; }
+.office-site .office-dl-chips { gap: 10px; }
+.office-site .office-dl-chip svg { width: 18px; height: 18px; flex: none; color: var(--foreground); }
+.office-site .office-dl-chip strong { line-height: 1.25; }
+.office-site .office-dl-quiet { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-body); color: var(--muted-foreground); }
+.office-site .office-dl-quiet svg { width: 16px; height: 16px; flex: none; }
+
+/* What's new: short, folded when long. */
+.office-site .office-dl-whatsnew { margin-top: 16px; padding: 24px 28px; border-radius: 20px; background: var(--muted); }
+.office-site .office-dl-whatsnew h3, .office-site .office-dl-history > h3 { margin: 0 0 14px; font-size: var(--text-title-sm); font-weight: 700; letter-spacing: -.015em; }
+.office-site .office-dl-notes-body[data-folded] { position: relative; max-height: 9.5em; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent); mask-image: linear-gradient(to bottom, #000 55%, transparent); }
+.office-site .office-dl-more { margin: 8px 0 -6px -12px; font-weight: 600; color: var(--brand); }
+.office-site .office-dl-notes-md { display: flex; flex-direction: column; gap: 10px; font-size: var(--text-body); line-height: 1.6; }
+.office-site .office-dl-notes-md h4 { margin: 8px 0 0; font-size: var(--text-body); font-weight: 700; }
+.office-site .office-dl-notes-md h4:first-child { margin-top: 0; }
+.office-site .office-dl-notes-md p { margin: 0; font-size: inherit; color: var(--muted-foreground); }
+.office-site .office-dl-notes-md ul, .office-site .office-dl-notes-md ol { display: flex; flex-direction: column; gap: 6px; margin: 0; padding-left: 20px; }
+.office-site .office-dl-notes-md ul { list-style: disc; }
+.office-site .office-dl-notes-md ol { list-style: decimal; }
+.office-site .office-dl-notes-md li { color: var(--foreground); }
+.office-site .office-dl-notes-md li::marker { color: var(--faint-foreground); }
+.office-site .office-dl-notes-md code { padding: 1px 6px; border-radius: 6px; background: var(--background); font-family: var(--font-mono); font-size: .88em; }
+.office-site .office-dl-notes-md a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+
+/* apt: compact, one command, the manual steps folded. */
+.office-site .office-dl-apt { display: flex; flex-direction: column; gap: 14px; padding: 22px 28px; border-radius: 20px; border: 1px solid var(--input); background: var(--surface-raised); }
+.office-site .office-dl-apt-head { display: flex; align-items: flex-start; gap: 14px; }
+.office-site .office-dl-apt-head h3 { margin: 0; font-size: var(--text-body-lg); font-weight: 700; }
+.office-site .office-dl-apt-head p { margin: 2px 0 0; max-width: 72ch; font-size: var(--text-body); line-height: 1.55; color: var(--muted-foreground); }
+.office-site .office-dl-tile { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 11px; background: var(--brand-subtle); color: var(--brand-subtle-foreground); }
+.office-site .office-dl-tile svg { width: 20px; height: 20px; }
+.office-site .office-dl-apt-cmd { display: flex; align-items: stretch; gap: 8px; }
+.office-site .office-dl-apt-cmd .office-dl-code { flex: 1; min-width: 0; }
+.office-site .office-dl-code { margin: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--muted); font-family: var(--font-mono); font-size: var(--text-caption); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.office-site .office-dl-code code { font: inherit; }
+.office-site .office-dl-copy-cmd, .office-site .office-dl-copy-all { flex: none; min-height: 44px; border: 1px solid var(--input); background: var(--background); }
+.office-site .office-dl-copy svg { width: 15px; height: 15px; }
+.office-site .office-dl-copy[data-copied] { color: var(--success-soft-foreground); }
+.office-site .office-dl-manual-trigger { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-height: 44px; margin: -6px 0 -6px -8px; padding: 0 8px; border: 0; background: none; color: var(--brand); font-size: var(--text-body); font-weight: 600; cursor: pointer; }
+.office-site .office-dl-manual-trigger svg { width: 16px; height: 16px; transition: transform .2s; }
+.office-site .office-dl-manual-trigger[data-panel-open] svg { transform: rotate(180deg); }
+.office-site .office-dl-manual-panel { display: flex; flex-direction: column; gap: 16px; padding-top: 12px; }
+.office-site .office-dl-apt-steps { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.office-site .office-dl-apt-step-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.office-site .office-dl-apt-step-head h4 { margin: 0 auto 0 0; font-size: var(--text-body); font-weight: 600; }
+.office-site .office-dl-apt-n { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 999px; background: var(--brand-subtle); color: var(--brand-subtle-foreground); font-size: var(--text-caption); font-weight: 700; }
+.office-site .office-dl-apt-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; font-size: var(--text-body); }
+.office-site .office-dl-apt-foot a { color: var(--brand); font-weight: 500; }
+.office-site .office-dl-apt-foot a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Earlier versions: one line each until opened. */
+.office-site .office-dl-history { margin-top: 16px; }
+.office-site .office-dl-history-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; overflow: hidden; border: 1px solid var(--input); border-radius: 20px; background: var(--surface-raised); }
+.office-site .office-dl-history-item + .office-dl-history-item { border-top: 1px solid var(--border); }
+.office-site .office-dl-history-trigger { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 20px; align-items: center; gap: 16px; width: 100%; min-height: 60px; padding: 0 24px; border: 0; background: none; color: var(--foreground); text-align: left; cursor: pointer; font-size: var(--text-body); }
+.office-site .office-dl-history-trigger:hover { background: var(--surface-hover); }
+.office-site .office-dl-history-trigger strong { font-size: var(--text-body-lg); font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.office-site .office-dl-history-trigger time { color: var(--muted-foreground); }
+.office-site .office-dl-history-trigger > svg { width: 18px; height: 18px; color: var(--muted-foreground); transition: transform .2s; }
+.office-site .office-dl-history-trigger[data-panel-open] > svg { transform: rotate(180deg); }
+.office-site .office-dl-history-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px 32px; padding: 4px 24px 24px; }
+.office-site .office-dl-history-files h4 { margin: 0 0 10px; font-size: var(--text-body); font-weight: 700; }
+
+/* States. */
+.office-site .office-dl-quiet-alert { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border: 1px solid var(--input); border-radius: 16px; background: var(--surface-raised); }
+.office-site .office-dl-quiet-alert > svg { width: 20px; height: 20px; flex: none; color: var(--destructive-soft-foreground); }
+.office-site .office-dl-quiet-alert > div { flex: 1; }
+.office-site .office-dl-quiet-alert p { margin: 0; font-size: var(--text-body); line-height: 1.55; color: var(--foreground); }
+.office-site .office-dl-quiet-alert .office-dl-muted { color: var(--muted-foreground); }
+.office-site .office-dl-state { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 56px 24px; border: 1px solid var(--input); border-radius: 24px; background: var(--surface-raised); text-align: center; }
+.office-site .office-dl-state h3 { margin: 0; font-size: var(--text-title-lg); font-weight: 700; }
+.office-site .office-dl-state p { margin: 0; max-width: 52ch; font-size: var(--text-body-lg); line-height: 1.6; color: var(--muted-foreground); }
+.office-site .office-dl-state-icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; background: var(--muted); color: var(--muted-foreground); }
+.office-site .office-dl-state-icon svg { width: 26px; height: 26px; }
+
+/* Loading: same boxes as the loaded section. */
+.office-site .office-dl-skeleton { display: flex; flex-direction: column; gap: 16px; }
+.office-site .office-dl-loading { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-body); color: var(--muted-foreground); }
+.office-site .office-dl-card-skeleton { min-height: 132px; }
+.office-site .office-dl-chip-skeleton { width: 150px; height: 48px; border-radius: 12px; }
+
+/* New-version notice: fixed, non-modal, never shifts the page. */
+.office-site .office-dl-notice { position: fixed; z-index: 60; inset-inline: 0; bottom: 24px; display: flex; align-items: center; gap: 14px; width: fit-content; max-width: calc(100vw - 32px); margin-inline: auto; padding: 10px 10px 10px 20px; border: 1px solid var(--input); border-radius: 16px; background: var(--surface-raised); box-shadow: 0 18px 40px -16px color-mix(in srgb, var(--foreground) 45%, transparent); }
+.office-site .office-dl-notice p { margin: 0; font-size: var(--text-body); font-weight: 500; color: var(--foreground); }
+.office-site .office-dl-notice-dot { width: 10px; height: 10px; flex: none; border-radius: 999px; background: var(--brand); }
+.office-site .office-dl-notice button { flex: none; }
+
+@media (max-width: 1099px) {
+  .office-site .office-dl-history-panel { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 767px) {
+  .office-site .office-dl-head { align-items: stretch; margin-bottom: 24px; }
+  .office-site .office-dl-channels { width: 100%; }
+  .office-site .office-dl-channel { flex: 1; flex-direction: column; gap: 0; min-width: 0; min-height: 52px; padding-inline: 6px; }
+  .office-site .office-dl-channel small { padding: 0; background: none; font-size: var(--text-caption); }
+  .office-site .office-dl-channel[data-active] small { background: none; }
+  .office-site .office-dl-channels-skeleton { width: 100%; }
+  .office-site .office-dl-channel-skeleton { flex: 1; width: auto; }
+  .office-site .office-dl-whatsnew, .office-site .office-dl-apt { padding: 18px; border-radius: 18px; }
+  .office-site .office-dl-lead { width: 100%; justify-content: flex-start; }
+  .office-site .office-dl-apt-cmd { flex-direction: column; }
+  .office-site .office-dl-chip { flex: 1 1 calc(50% - 10px); min-width: 0; }
+  /* A chip with a size puts it under the name. */
+  .office-site .office-dl-chip:has(span) { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-content: center; }
+  .office-site .office-dl-chip:has(span) svg { grid-row: 1 / span 2; align-self: center; }
+  .office-site .office-dl-chip:has(span) strong, .office-site .office-dl-chip:has(span) span { grid-column: 2; }
+  .office-site .office-dl-history-trigger { grid-template-columns: minmax(0, 1fr) 20px; grid-template-rows: auto auto; row-gap: 2px; min-height: 68px; padding: 10px 16px; }
+  .office-site .office-dl-history-trigger strong { grid-column: 1; }
+  .office-site .office-dl-history-trigger time { grid-column: 1; grid-row: 2; }
+  .office-site .office-dl-history-trigger > svg { grid-column: 2; grid-row: 1 / span 2; }
+  .office-site .office-dl-history-panel { padding: 4px 16px 20px; }
+  .office-site .office-dl-quiet-alert { flex-wrap: wrap; }
+  .office-site .office-dl-quiet-alert > button { width: 100%; }
+  .office-site .office-dl-state { padding: 40px 18px; }
+  .office-site .office-dl-notice { inset-inline: 12px; bottom: 12px; width: auto; max-width: none; flex-wrap: wrap; padding: 14px; }
+  .office-site .office-dl-notice p { flex: 1 1 calc(100% - 32px); }
+  .office-site .office-dl-notice > button:nth-of-type(1) { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .office-site .office-dl-history-trigger > svg, .office-site .office-dl-manual-trigger svg { transition: none; }
+}

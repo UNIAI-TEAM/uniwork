@@ -51,5 +51,5 @@ export function ReleaseNotes({ markdown, className }: { markdown: string; classN
     else { if (list) flush(); paragraph.push(line.trim()); }
   }
   flush();
-  return <div className={className ? `ver-notes ${className}` : "ver-notes"}>{blocks}</div>;
+  return <div className={className ? `office-dl-notes-md ${className}` : "office-dl-notes-md"}>{blocks}</div>;
 }
