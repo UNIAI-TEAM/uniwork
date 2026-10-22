@@ -1,4 +1,4 @@
-// The one place that decides how the app writes a date or a time:
+// The one place that decides how the app writes a date, a time or a number:
 // the app's own language, never the device's region (a phone set to English shows English dates, written
 // day first — en-GB, as people in Vietnam read them), and the device's 12- or 24-hour clock, which the
 // person chose in the system settings. lib/ stays free of native modules, so the clock arrives through
@@ -30,6 +30,25 @@ export function dateTimeFormat(language: string | undefined, options: Intl.DateT
     if (formatters.size >= FORMATTERS_MAX) formatters.clear();
     formatter = new Intl.DateTimeFormat(locale, { ...options, ...clock });
     formatters.set(key, formatter);
+  }
+  return formatter;
+}
+
+const numberFormatters = new Map<string, Intl.NumberFormat>();
+
+/**
+ * A cached Intl.NumberFormat in the app's language: Vietnamese groups with "." and decimals with "," ("1.500",
+ * "1,4"), English the other way round. Every count and size the app writes goes through it, never toFixed or
+ * String(n) (audit "number-format-and-server-copy"); i18next formats each {{count}} with it (lib/i18n/singleton.ts).
+ */
+export function numberFormat(language: string | undefined, options: Intl.NumberFormatOptions = {}): Intl.NumberFormat {
+  const locale = formatLocale(language);
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let formatter = numberFormatters.get(key);
+  if (!formatter) {
+    if (numberFormatters.size >= FORMATTERS_MAX) numberFormatters.clear();
+    formatter = new Intl.NumberFormat(locale, options);
+    numberFormatters.set(key, formatter);
   }
   return formatter;
 }

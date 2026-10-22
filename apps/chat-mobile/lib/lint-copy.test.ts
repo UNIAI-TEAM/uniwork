@@ -8,9 +8,11 @@ import { describe, expect, it } from "vitest";
 
 const appRoot = path.resolve(__dirname, "..");
 const FIXTURE = "components/__copy_fixture__.tsx";
+// The copy rule for plain modules and the number rule (below); one project service serves both fixtures.
+const TS_FIXTURE = "data/__copy_fixture__.ts";
 const eslint = new ESLint({
   cwd: appRoot,
-  overrideConfig: [{ files: [FIXTURE], languageOptions: { parserOptions: { projectService: { allowDefaultProject: [FIXTURE] } } } }],
+  overrideConfig: [{ files: [FIXTURE, TS_FIXTURE], languageOptions: { parserOptions: { projectService: { allowDefaultProject: [FIXTURE, TS_FIXTURE] } } } }],
 });
 
 async function copyMessages(jsx: string): Promise<string[]> {
@@ -38,4 +40,36 @@ describe("the copy rule", { timeout: 60_000 }, () => {
   ])("%s is green", async (jsx) => {
     expect(await copyMessages(jsx)).toEqual([]);
   });
+});
+
+// The same rule for copy built in plain modules (audit "copy lint does not cover .ts modules"), and the number and date
+// rule (audit "number-format-and-server-copy"): only lib/locale-format.ts builds an Intl formatter.
+
+async function restricted(body: string): Promise<string[]> {
+  const code = `declare const toast: { error(m: string): void };\ndeclare const Alert: { alert(m: string): void };\ndeclare const Notifications: { scheduleNotificationAsync(r: unknown): void };\ndeclare const t: (key: string) => string;\nexport function f(n: number): void {\n  ${body};\n}\n`;
+  const [result] = await eslint.lintText(code, { filePath: path.join(appRoot, TS_FIXTURE) });
+  const messages = result?.messages ?? [];
+  expect(messages.filter((m) => m.fatal)).toEqual([]);
+  return messages.filter((m) => m.ruleId === "no-restricted-syntax").map((m) => m.message);
+}
+
+describe("copy and formatting in .ts modules", { timeout: 60_000 }, () => {
+  it.each([
+    ['toast.error("Không gửi được")'],
+    ["toast.error(`Failed ${n}`)"],
+    ['Alert.alert("Delete?")'],
+    ['Notifications.scheduleNotificationAsync({ content: { title: "Cuộc gọi nhỡ", body: t("x") } })'],
+    ["void n.toFixed(1)"],
+    ['void n.toLocaleString("vi")'],
+    ['void new Intl.NumberFormat("vi").format(n)'],
+  ])("%s is red", async (body) => {
+    expect(await restricted(body)).toHaveLength(1);
+  });
+
+  it.each([['toast.error(t("chat.send_failed"))'], ['Notifications.scheduleNotificationAsync({ identifier: "call-ring:1", content: { title: t("x") } })'], ["toast.error(`${t(\"a\")}: ${n}`)"]])(
+    "%s is green",
+    async (body) => {
+      expect(await restricted(body)).toEqual([]);
+    },
+  );
 });

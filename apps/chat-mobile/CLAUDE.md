@@ -48,7 +48,9 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
 - Không `any`, không `x!` trong `app/`/`components/`; dòng mã nguồn ≤ 150 ký tự (`max-len`); file ≤ 500 dòng.
 - Mọi chữ người dùng đọc hay nghe đi qua `t()` (`i18next/no-literal-string`); chuỗi viết ở nguồn i18n rồi chạy
   `scripts/sync-i18n.mjs` (vi và en đủ, `lib/i18n.test.ts`; commit chạm locale của core mà bản copy của app cũ thì
-  `.githooks/pre-commit` chặn ở mọi `GATE_LEVEL`); ngày giờ chỉ qua `lib/locale-format.ts`.
+  `.githooks/pre-commit` chặn ở mọi `GATE_LEVEL`); toast, alert, lời đọc cho trình đọc màn hình và chữ của thông báo
+  trong file `.ts` cũng vậy (`copySyntax` của `eslint.config.mjs`); ngày giờ và số (`{{count}}`, cỡ tệp) chỉ qua
+  `lib/locale-format.ts` (`formatSyntax`: không `toFixed`/`toLocale*`/`new Intl` ở nơi khác).
 - Vùng chạm 44 pt / 48 dp qua `useTapTarget` / `hitSlopFor`; tương phản AA ở cả hai chế độ (`lib/theme-contrast.test.ts`);
   cỡ chữ theo vai trò (`lib/type-scale.test.ts`); hàng đặt tên, dấu và giờ cạnh nhau thì xếp chồng ở cỡ chữ trợ năng
   (`useLargeText`), menu/sheet dài thì cuộn trong chiều cao còn lại (`lib/action-menu-layout.ts`, `ActionSheet`).

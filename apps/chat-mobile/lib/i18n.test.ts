@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES, i18n, matchSupportedLocale } from "./i18n/singleton";
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, countFormatter, i18n, matchSupportedLocale } from "./i18n/singleton";
 
 const appRoot = path.resolve(__dirname, "..");
 
@@ -93,5 +93,29 @@ describe("i18n singleton", () => {
     expect(matchSupportedLocale(["vi_VN"])).toBe("vi");
     expect(matchSupportedLocale(["fr-FR", "de"])).toBe("en");
     expect(matchSupportedLocale([])).toBe("vi");
+  });
+});
+
+describe("numbers in the copy", () => {
+  it("write every {{count}} in the language's number format", async () => {
+    const key = "chat.message_list.search_results_total";
+    expect(i18n.getFixedT("vi")(key, { count: 1500 })).toBe("1.500 kết quả");
+    expect(i18n.getFixedT("en")(key, { count: 1500 })).toBe("1,500 results");
+    expect(i18n.getFixedT("en")(key, { count: 1 })).toBe("1 result");
+    await i18n.changeLanguage(DEFAULT_LOCALE);
+  });
+
+  it("leave any other value as given", () => {
+    expect(countFormatter.format(2026, undefined, "vi", { interpolationkey: "year" })).toBe(2026);
+    expect(countFormatter.format("12", undefined, "vi", { interpolationkey: "count" })).toBe("12");
+    expect(countFormatter.format(1500, "number", "vi", { interpolationkey: "count" })).toBe(1500);
+    expect(countFormatter.format(1500, undefined, "vi")).toBe(1500);
+    expect(countFormatter.init()).toBeUndefined();
+    expect(countFormatter.add()).toBeUndefined();
+    expect(countFormatter.addCached()).toBeUndefined();
+  });
+
+  it("never use i18next's own formats, which countFormatter replaces", () => {
+    for (const [key, text] of [...EN, ...VI]) expect(text, key).not.toMatch(/\{\{[^}]*,[^}]*\}\}/);
   });
 });

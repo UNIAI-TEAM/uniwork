@@ -89,9 +89,15 @@ describe("labels", () => {
     expect(formatVoiceCallDuration(65)).toBe("1:05");
     expect(formatVoiceCallDuration(3_725)).toBe("1:02:05");
     expect(formatVoiceCallDuration(-3)).toBe("0:00");
-    expect(formatFileSize(900)).toBe("900 B");
-    expect(formatFileSize(820 * 1024)).toBe("820 KB");
-    expect(formatFileSize(1.44 * 1024 * 1024)).toBe("1.4 MB");
+    expect(formatFileSize(900, "en")).toBe("900 B");
+    expect(formatFileSize(-3, "en")).toBe("0 B");
+    expect(formatFileSize(820 * 1024, "en")).toBe("820 KB");
+    expect(formatFileSize(1.44 * 1024 * 1024, "en")).toBe("1.4 MB");
+    // Vietnamese writes the decimal with a comma and groups thousands with a dot.
+    expect(formatFileSize(1.44 * 1024 * 1024, "vi")).toBe("1,4 MB");
+    expect(formatFileSize(2 * 1024 * 1024, "vi")).toBe("2,0 MB");
+    expect(formatFileSize(1500 * 1024 * 1024, "vi")).toBe("1.500,0 MB");
+    expect(formatFileSize(1500 * 1024 * 1024, "en")).toBe("1,500.0 MB");
   });
 
   it("hides a poll's counts until the reader voted, when the poll says so", () => {

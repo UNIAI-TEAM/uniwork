@@ -68,7 +68,13 @@ Trình đọc màn hình, cảm giác, chuyển động, quy ước Android, c�
   công tắc 12/24 giờ), vì Android 13+ đổi ngôn ngữ theo app mà không khởi động lại tiến trình (iOS thì có); task không giao diện (`data/app-locale.ts`) theo cùng luật. Ngày giờ chỉ qua
   `lib/locale-format.ts › dateTimeFormat`: ngôn ngữ của app (tiếng Anh viết `en-GB`, ngày trước tháng), giờ theo công tắc
   12/24 giờ của máy (`expo-localization › getCalendars`, đọc lại mỗi lần app về foreground); đừng gọi
-  `toLocale*String`/`new Intl.DateTimeFormat` ở nơi khác. Luật lint chữ (`i18next/no-literal-string`, `jsx-only`) bắt cả
+  `toLocale*String`/`new Intl.DateTimeFormat` ở nơi khác. Số cũng vậy: `numberFormat` (vi nhóm bằng ".", thập phân
+  bằng ","; en ngược lại) — cỡ tệp trên thẻ tệp (`lib/message-display.ts › formatFileSize`) và mọi `{{count}}` của chuỗi
+  dịch (`countFormatter` của `lib/i18n/singleton.ts`, `interpolation.alwaysFormat`; chuỗi không dùng định dạng
+  `{{x, number}}` của i18next, `lib/i18n.test.ts` giữ). `formatSyntax` của `eslint.config.mjs` đỏ khi `toFixed`,
+  `toLocale*` hay `new Intl.*` xuất hiện ngoài `lib/locale-format.ts`. Chữ dựng ngoài JSX (toast, `Alert`, lời đọc
+  `announceForAccessibility*`, title/body/name của thông báo và kênh) cũng phải qua `t()` (`copySyntax`, fixture
+  `lib/lint-copy.test.ts`). Luật lint chữ (`i18next/no-literal-string`, `jsx-only`) bắt cả
   chuỗi trong biểu thức JSX và các prop người dùng đọc hay nghe (`accessibilityLabel`, `accessibilityHint`,
   `placeholder`, `title`, `label`…; fixture `lib/lint-copy.test.ts`); `lib/i18n.test.ts` đỏ khi vi và en khác
   `{{placeholder}}`.

@@ -74,6 +74,37 @@ const restrictedSyntax = [
   },
 ];
 
+// Production code only (a test drives the toast store with any string it likes).
+const copySyntax = [
+  {
+    // Copy built outside JSX, where the JSX copy rule below does not look (audit "copy lint does not cover .ts
+    // modules"): a toast, an alert or a screen-reader announcement is read or heard by a person, in .ts modules too.
+    selector:
+      "CallExpression:matches([callee.object.name='toast'], [callee.object.name='Alert'], [callee.property.name=/^announceForAccessibility/]) > :matches(Literal[value=/[A-Za-z]/], TemplateLiteral[quasis.0.value.raw=/[A-Za-z]/])",
+    message: "Copy goes through t(): a toast, an alert or an announcement is read by a person (locales/, scripts/sync-i18n.mjs).",
+  },
+  {
+    // A notification, its channel and its actions are drawn by the system from what the app hands it.
+    selector:
+      "CallExpression[callee.property.name=/^(scheduleNotificationAsync|setNotificationChannelAsync|setNotificationCategoryAsync|showIncomingCall|showOngoingCall)$/] Property[key.name=/^(title|body|subtitle|name|description|buttonTitle)$/] > :matches(Literal[value=/[A-Za-z]/], TemplateLiteral[quasis.0.value.raw=/[A-Za-z]/])",
+    message: "Notification copy goes through t() (locales/, scripts/sync-i18n.mjs): the system shows it as the app hands it.",
+  },
+];
+
+// Numbers and dates are written in the app's language through lib/locale-format.ts (numberFormat, dateTimeFormat),
+// never the device's region or a fixed format (audit "number-format-and-server-copy"). lib/locale-format.ts is the one
+// place that builds an Intl formatter; tests and Node scripts may format as they like.
+const formatSyntax = [
+  {
+    selector: "CallExpression[callee.property.name=/^(toFixed|toLocaleString|toLocaleDateString|toLocaleTimeString)$/]",
+    message: "Write a number or a date through lib/locale-format.ts (numberFormat, dateTimeFormat): the app's language, not a fixed format.",
+  },
+  {
+    selector: "NewExpression[callee.object.name='Intl']",
+    message: "Build Intl formatters only in lib/locale-format.ts (cached, in the app's language).",
+  },
+];
+
 // The mutation layer (data/mutations/command.ts): screens and components
 // change server state through its hooks, never by calling an endpoint or a
 // command themselves, nor reach the transport (data/api.ts). Types stay importable.
@@ -189,6 +220,11 @@ export default [
       "@typescript-eslint/no-restricted-imports": ["error", { paths: restrictedPaths, patterns: restrictedPatterns }],
     },
   },
+  {
+    files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "data/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.{ts,tsx}", "lib/locale-format.ts"],
+    rules: { "no-restricted-syntax": ["error", ...restrictedSyntax, ...copySyntax, ...formatSyntax] },
+  },
   // A sheet that slides up is a BottomSheet (components/ui/bottom-sheet.tsx): its grabber drags it closed,
   // VoiceOver's escape closes it, reduce motion fades it. A raw CallAwareModal slide would bring back a
   // grabber that does nothing. Replaces the rule's options for app/ and components/, so it restates them.
@@ -199,6 +235,8 @@ export default [
       "no-restricted-syntax": [
         "error",
         ...restrictedSyntax,
+        ...copySyntax,
+        ...formatSyntax,
         {
           selector: "JSXOpeningElement[name.name='CallAwareModal']:has(JSXAttribute[name.name='animationType'][value.value='slide'])",
           message: "A sliding sheet is a <BottomSheet> (components/ui/bottom-sheet.tsx): draggable, escapable, reduce-motion aware.",

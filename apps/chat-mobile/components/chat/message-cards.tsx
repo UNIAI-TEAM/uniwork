@@ -213,7 +213,7 @@ function FileCard({
   own: boolean;
   onLongPress: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const theme = useTheme();
   const longPress = useLongPressProps(onLongPress);
   const freshUrl = useFreshChatMediaUrl(ctx.wsId, ctx.roomId);
@@ -244,7 +244,7 @@ function FileCard({
           {name}
         </Text>
         <Text className={cn("text-caption", ink(own).meta)}>
-          {formatFileSize(file.size_bytes)} · {t("chat.file_open")}
+          {formatFileSize(file.size_bytes, i18n.language)} · {t("chat.file_open")}
         </Text>
       </View>
       <View className={cn("h-9 w-9 items-center justify-center rounded-full", own ? "bg-chat-bubble-own-foreground/15" : "bg-muted")}>

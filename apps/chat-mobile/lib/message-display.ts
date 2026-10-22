@@ -7,6 +7,7 @@ import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas
 import { isPollExpired } from "@uniwork/core/chat/poll-utils";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { isChatImageContentType, resolveChatFileContentType } from "./file-accept";
+import { numberFormat } from "./locale-format";
 import { parseChatMediaMessageBody } from "./media-body";
 import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { formatChatSidebarPreviewText } from "./rooms-display";
@@ -100,11 +101,13 @@ export function voiceCallLogLabel(call: ChatMessageRecord["voice_call"], current
   }
 }
 
-/** "820 KB", "1.4 MB" — the size on a file card. */
-export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${Math.max(0, Math.round(bytes))} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+const ONE_DECIMAL = { minimumFractionDigits: 1, maximumFractionDigits: 1 } as const;
+
+/** "820 KB", "1,4 MB" (vi) / "1.4 MB" (en) — the size on a file card, in the app's language. */
+export function formatFileSize(bytes: number, language: string | undefined): string {
+  if (bytes < 1024) return `${numberFormat(language).format(Math.max(0, Math.round(bytes)))} B`;
+  if (bytes < 1024 * 1024) return `${numberFormat(language).format(Math.round(bytes / 1024))} KB`;
+  return `${numberFormat(language, ONE_DECIMAL).format(bytes / (1024 * 1024))} MB`;
 }
 
 type Poll = NonNullable<ChatMessageRecord["poll"]>;

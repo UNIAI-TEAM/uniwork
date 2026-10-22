@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { dateTimeFormat, formatLocale, setDeviceClock } from "./locale-format";
+import { dateTimeFormat, formatLocale, numberFormat, setDeviceClock } from "./locale-format";
 
 const AT = new Date(2026, 9, 22, 14, 5).getTime();
 const TIME = { hour: "2-digit", minute: "2-digit" } as const;
@@ -37,5 +37,21 @@ describe("locale-format", () => {
     // Intl ignores a property it does not know; the cache keys on every one, so each is a new formatter.
     for (let shape = 0; shape < 70; shape += 1) dateTimeFormat("vi", { year: "numeric", [`shape${shape}`]: true } as Intl.DateTimeFormatOptions);
     expect(dateTimeFormat("vi", { year: "numeric" })).not.toBe(first);
+  });
+});
+
+describe("numberFormat", () => {
+  it("groups and writes decimals the way the app's language does", () => {
+    expect(numberFormat("vi").format(1500)).toBe("1.500");
+    expect(numberFormat("en").format(1500)).toBe("1,500");
+    expect(numberFormat(undefined, { maximumFractionDigits: 1 }).format(1.44)).toBe("1,4");
+    expect(numberFormat("en", { maximumFractionDigits: 1 }).format(1.44)).toBe("1.4");
+  });
+
+  it("reuses a formatter, and starts over past its cap", () => {
+    expect(numberFormat("vi")).toBe(numberFormat("vi"));
+    const first = numberFormat("vi", { style: "percent" });
+    for (let shape = 0; shape < 70; shape += 1) numberFormat("vi", { [`shape${shape}`]: true } as Intl.NumberFormatOptions);
+    expect(numberFormat("vi", { style: "percent" })).not.toBe(first);
   });
 });
