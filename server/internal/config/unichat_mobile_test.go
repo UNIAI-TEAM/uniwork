@@ -41,3 +41,21 @@ func TestLoadRefusesAMalformedMobileMinVersion(t *testing.T) {
 		t.Fatalf("UniChatMobileMinVersion = %q, want 0.3.0", cfg.UniChatMobileMinVersion)
 	}
 }
+
+// The soft nudge has the same shape as the gate: a typo would quietly stop telling people a new version is out.
+func TestLoadRefusesAMalformedMobileRecommendedVersion(t *testing.T) {
+	setRequired(t)
+	t.Setenv("UNICHAT_MOBILE_RECOMMENDED_VERSION", "latest")
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "UNICHAT_MOBILE_RECOMMENDED_VERSION") {
+		t.Fatalf("Load() error = %v, want one naming UNICHAT_MOBILE_RECOMMENDED_VERSION", err)
+	}
+	t.Setenv("UNICHAT_MOBILE_RECOMMENDED_VERSION", " 0.3.1 ")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.UniChatMobileRecommendedVersion != "0.3.1" {
+		t.Fatalf("UniChatMobileRecommendedVersion = %q, want 0.3.1", cfg.UniChatMobileRecommendedVersion)
+	}
+}

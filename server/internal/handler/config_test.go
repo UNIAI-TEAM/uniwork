@@ -291,32 +291,36 @@ func TestConfigPublishesUniChatCatalogue(t *testing.T) {
 // public config: the minimum as configured, every mobile flag at its value.
 func TestConfigPublishesTheMobileGateAndKillSwitches(t *testing.T) {
 	for _, tc := range []struct {
-		name, min string
-		calls     bool
+		name, min, recommended string
+		calls                  bool
 	}{
-		{name: "no gate, calls on by default", min: "", calls: true},
-		{name: "a minimum and calls switched off", min: "0.3.0", calls: false},
+		{name: "no gate, calls on by default", min: "", recommended: "", calls: true},
+		{name: "a minimum, a newer version to nudge to, and calls switched off", min: "0.3.0", recommended: "0.3.2", calls: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if !tc.calls {
 				t.Setenv("FF_UNICHAT_MOBILE_CALLS", "false")
 			}
-			h := New(Deps{Cfg: config.Config{UniChatMobileMinVersion: tc.min}, FeatureFlags: featureflag.NewService(featureflag.NewEnvProvider("FF_")), Log: slog.Default()})
+			h := New(Deps{Cfg: config.Config{UniChatMobileMinVersion: tc.min, UniChatMobileRecommendedVersion: tc.recommended}, FeatureFlags: featureflag.NewService(featureflag.NewEnvProvider("FF_")), Log: slog.Default()})
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/config", nil))
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d", rec.Code)
 			}
 			var out struct {
-				Min   *string         `json:"min_supported_mobile_version"`
-				Flags map[string]bool `json:"mobile_flags"`
-				Web   map[string]bool `json:"flags"`
+				Min         *string         `json:"min_supported_mobile_version"`
+				Recommended *string         `json:"recommended_mobile_version"`
+				Flags       map[string]bool `json:"mobile_flags"`
+				Web         map[string]bool `json:"flags"`
 			}
 			if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 				t.Fatal(err)
 			}
 			if out.Min == nil || *out.Min != tc.min {
 				t.Fatalf("min_supported_mobile_version = %v, want %q (always present)", out.Min, tc.min)
+			}
+			if out.Recommended == nil || *out.Recommended != tc.recommended {
+				t.Fatalf("recommended_mobile_version = %v, want %q (always present)", out.Recommended, tc.recommended)
 			}
 			if got, ok := out.Flags["unichat_mobile_calls"]; !ok || got != tc.calls {
 				t.Fatalf("mobile_flags.unichat_mobile_calls = %v (present %v), want %v", got, ok, tc.calls)

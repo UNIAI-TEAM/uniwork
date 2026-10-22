@@ -1527,7 +1527,10 @@
       "body": "Version {{version}} is no longer supported. Update to {{min}} or later to keep messaging and calling.",
       "open_store": "Update",
       "no_store": "The new version is not in the app store yet. Ask your organization's admin how to install it.",
-      "check_again": "Check again"
+      "check_again": "Check again",
+      "nudge_title": "UniChat {{version}} is out",
+      "nudge_body": "Update to get the latest fixes and features.",
+      "nudge_dismiss": "Not now"
     },
     "about": {
       "title": "About",

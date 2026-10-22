@@ -58,6 +58,7 @@ type ConfigSDO struct {
 	// UniChat mobile (UNI-2053): the phone reads these at boot and on every
 	// return to the foreground.
 	MinSupportedMobileVersion string          `json:"min_supported_mobile_version" description:"Phiên bản UniChat mobile thấp nhất còn được phục vụ (MAJOR.MINOR.PATCH); app thấp hơn hiện màn Cần cập nhật. Chuỗi rỗng là không chặn" example:"0.3.0"`
+	RecommendedMobileVersion  string          `json:"recommended_mobile_version" description:"Phiên bản UniChat mobile nên dùng (MAJOR.MINOR.PATCH); app thấp hơn hiện một dải báo có bản mới, đóng được, không chặn. Chuỗi rỗng là không nhắc" example:"0.3.1"`
 	MobileFlags               map[string]bool `json:"mobile_flags" description:"Công tắc tính năng của UniChat mobile theo ngữ cảnh người gọi (kill switch từ xa); flag chỉ ẩn năng lực, không cấp quyền" example:"{\"unichat_mobile_calls\":true}"`
 }
 

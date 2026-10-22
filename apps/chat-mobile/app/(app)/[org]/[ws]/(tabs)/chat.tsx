@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl, View } from "react-native";
 import { CatchUpBanner, CatchUpSheet, type CatchUpTarget } from "@/components/chat/catch-up-sheet";
+import { UpdateNudge } from "@/components/app/update-nudge";
 import { ConnectionBanner } from "@/components/chat/connection-banner";
 import {
   FilterChips,
@@ -192,6 +193,7 @@ export default function ChatTab() {
         />
       </Header>
       <ConnectionBanner />
+      <UpdateNudge />
       {!chat || rooms.isPending ? (
         <RoomListSkeleton />
       ) : rooms.isError && !rooms.data ? (

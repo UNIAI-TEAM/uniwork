@@ -44,6 +44,7 @@ func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 		UniChatInstallers:          installerChannels(h.Cfg.UniChatInstallers),
 		UniChatStores:              h.Cfg.UniChatStores(),
 		MinSupportedMobileVersion:  h.Cfg.UniChatMobileMinVersion,
+		RecommendedMobileVersion:   h.Cfg.UniChatMobileRecommendedVersion,
 		MobileFlags:                featureflags.MobileFlagsFor(ctx, h.FeatureFlags, clientOS),
 		Documents: sdo.DocumentsConfigSDO{
 			Limits: sdo.DocumentLimitsSDO{

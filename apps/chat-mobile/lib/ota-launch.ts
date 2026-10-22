@@ -6,7 +6,7 @@
 // update's id, which scripts/mobile-release-health.mjs counts against that update, and one anonymous counter.
 import { isRecord } from "./unknown-shape";
 
-export type OtaLaunchFailureKind = "emergency" | "failed_update";
+type OtaLaunchFailureKind = "emergency" | "failed_update";
 
 export interface OtaLaunchFailure {
   kind: OtaLaunchFailureKind;

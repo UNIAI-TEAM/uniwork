@@ -42,7 +42,9 @@
   `data/remote-config.ts` đọc `GET /api/v1/config` lúc mở và mỗi lần
   foreground (`min_supported_mobile_version`, `mobile_flags`, link store);
   `components/app/update-gate.tsx` chặn cả app (cả màn đăng nhập) khi version
-  dưới mức tối thiểu; `useMobileFlag(name)` / `readMobileFlag(qc, name)` cho
+  dưới mức tối thiểu; `recommended_mobile_version` (server `UNICHAT_MOBILE_RECOMMENDED_VERSION`) là lời nhắc mềm:
+  `components/app/update-nudge.tsx` trên danh sách chat, `lib/build-info.ts › updateNudgeFor` quyết định, bản đã "Để sau"
+  giữ ở device store (`data/release/update-nudge.ts`), không bao giờ cùng lúc với màn chặn; `useMobileFlag(name)` / `readMobileFlag(qc, name)` cho
   công tắc (`unichat_mobile_calls`: tắt thì ẩn nút gọi, không đổ chuông — cả màn đổ chuông
   native của Android, push cuộc gọi mở phòng; server cũng không gửi push cuộc gọi hay push kết thúc cho người đó —
   `PushConsumer.SetMobileCalls`; cuộc gọi đang diễn ra không bị cắt và giữ dịch vụ cuộc gọi;

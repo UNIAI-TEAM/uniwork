@@ -47,16 +47,24 @@ export type MobileFlag = keyof typeof MOBILE_FLAG_DEFAULTS;
 export interface MobileRemoteConfig {
   /** "" when the server sets no minimum */
   minSupportedVersion: string;
+  /** The version phones should be on: below it, a dismissible "new version" banner (components/app/update-nudge.tsx); "" for none. */
+  recommendedVersion: string;
   flags: Partial<Record<string, boolean>>;
   /** The store page per platform; "" when that store has nothing published. */
   storeUrl: { ios: string; android: string };
 }
 
-export const REMOTE_CONFIG_FALLBACK: MobileRemoteConfig = { minSupportedVersion: "", flags: {}, storeUrl: { ios: "", android: "" } };
+export const REMOTE_CONFIG_FALLBACK: MobileRemoteConfig = {
+  minSupportedVersion: "",
+  recommendedVersion: "",
+  flags: {},
+  storeUrl: { ios: "", android: "" },
+};
 
 const text = z.string().catch("");
 export const RemoteConfigSchema = z.object({
   min_supported_mobile_version: text.optional(),
+  recommended_mobile_version: text.optional(),
   mobile_flags: z.record(z.string(), z.boolean().catch(true)).catch({}).optional(),
   unichat_stores: z
     .object({ ios: text.optional(), android: text.optional(), testflight: text.optional(), play_internal: text.optional() })
@@ -78,6 +86,7 @@ export async function fetchRemoteConfig(client: Pick<ApiClient, "request">, sign
   const stores = parsed.unichat_stores ?? {};
   return {
     minSupportedVersion: (parsed.min_supported_mobile_version ?? "").trim(),
+    recommendedVersion: (parsed.recommended_mobile_version ?? "").trim(),
     flags: parsed.mobile_flags ?? {},
     // The pilot links stand in while the public store page is empty (the server's own rule for /unichat).
     storeUrl: { ios: stores.ios || stores.testflight || "", android: stores.android || stores.play_internal || "" },
@@ -161,6 +170,8 @@ const StoredRemoteConfigSchema = z.object({
   savedAt: z.number(),
   config: z.object({
     minSupportedVersion: z.string(),
+    // Absent in a copy kept by a build from before the nudge: no nudge until the server answers.
+    recommendedVersion: z.string().catch(""),
     flags: z.record(z.string(), z.boolean()),
     storeUrl: z.object({ ios: z.string(), android: z.string() }),
   }),

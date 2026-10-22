@@ -187,6 +187,11 @@ type Config struct {
 	// GET /api/v1/config: a phone below it shows "Update required". Empty
 	// means no gate. Always MAJOR.MINOR.PATCH (Load refuses anything else).
 	UniChatMobileMinVersion string
+	// UniChatMobileRecommendedVersion is the version UniChat mobile should be
+	// on, published as recommended_mobile_version: a phone below it shows a
+	// dismissible "a new version is out" banner, never a block. Empty means no
+	// nudge. Always MAJOR.MINOR.PATCH (Load refuses anything else).
+	UniChatMobileRecommendedVersion string
 	// AdminRateLimitPerMin bounds /api/v1/admin/* per IP (spec §5.2).
 	AdminRateLimitPerMin int
 	// HTTPMaxInFlight bounds the HTTP requests served at once; past it the
@@ -366,6 +371,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("UNICHAT_MOBILE_MIN_SUPPORTED_VERSION %w", err)
 	}
+	mobileRecommendedVersion, err := parseMobileVersion(os.Getenv("UNICHAT_MOBILE_RECOMMENDED_VERSION"))
+	if err != nil {
+		return Config{}, fmt.Errorf("UNICHAT_MOBILE_RECOMMENDED_VERSION %w", err)
+	}
 	c := Config{
 		Port:                          getenv("PORT", "8080"),
 		DatabaseURL:                   os.Getenv("DATABASE_URL"),
@@ -463,6 +472,7 @@ func Load() (Config, error) {
 		RealtimeRelay:                 !strings.EqualFold(strings.TrimSpace(os.Getenv("REALTIME_RELAY")), "false"),
 		FileGCMode:                    strings.ToLower(strings.TrimSpace(getenv("FILE_GC_MODE", "destructive"))),
 	}
+	c.UniChatMobileRecommendedVersion = mobileRecommendedVersion
 	switch c.FileGCMode {
 	case "destructive", "dry_run", "off":
 	default:

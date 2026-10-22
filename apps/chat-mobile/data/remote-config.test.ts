@@ -60,12 +60,14 @@ describe("fetchRemoteConfig", () => {
     apiMock.request.mockResolvedValueOnce({
       flags: { rum_sampling: true },
       min_supported_mobile_version: " 0.3.0 ",
+      recommended_mobile_version: " 0.3.2 ",
       mobile_flags: { unichat_mobile_calls: false },
       unichat_stores: { ios: "https://apps.apple.com/app/id1", android: "https://play.google.com/store/apps/details?id=x", testflight: "", play_internal: "" },
     });
     const signal = new AbortController().signal;
     expect(await fetchRemoteConfig(apiMock, signal)).toEqual({
       minSupportedVersion: "0.3.0",
+      recommendedVersion: "0.3.2",
       flags: { unichat_mobile_calls: false },
       storeUrl: { ios: "https://apps.apple.com/app/id1", android: "https://play.google.com/store/apps/details?id=x" },
     });
@@ -81,8 +83,13 @@ describe("fetchRemoteConfig", () => {
     // An older server (no mobile fields) and garbage in each field.
     apiMock.request.mockResolvedValueOnce({ flags: {} });
     expect(await fetchRemoteConfig(apiMock)).toEqual(REMOTE_CONFIG_FALLBACK);
-    apiMock.request.mockResolvedValueOnce({ min_supported_mobile_version: 3, mobile_flags: { unichat_mobile_calls: "no" }, unichat_stores: [] });
-    expect(await fetchRemoteConfig(apiMock)).toEqual({ minSupportedVersion: "", flags: { unichat_mobile_calls: true }, storeUrl: { ios: "", android: "" } });
+    apiMock.request.mockResolvedValueOnce({
+      min_supported_mobile_version: 3,
+      recommended_mobile_version: ["0.4.0"],
+      mobile_flags: { unichat_mobile_calls: "no" },
+      unichat_stores: [],
+    });
+    expect(await fetchRemoteConfig(apiMock)).toEqual({ ...REMOTE_CONFIG_FALLBACK, flags: { unichat_mobile_calls: true } });
     apiMock.request.mockResolvedValueOnce({ mobile_flags: "off" });
     expect((await fetchRemoteConfig(apiMock)).flags).toEqual({});
     apiMock.request.mockResolvedValueOnce("<html>");
@@ -173,7 +180,12 @@ describe("clearAccountCache (sign-out)", () => {
 // Audit (Release, missed): the kill switch and the minimum version failed open on every cold start without a network,
 // because the last answer lived only in memory. It is kept on the device and seeded at the next launch.
 describe("the last answer kept on the device", () => {
-  const killed: MobileRemoteConfig = { minSupportedVersion: "0.4.0", flags: { unichat_mobile_calls: false }, storeUrl: { ios: "", android: "https://play.example/uc" } };
+  const killed: MobileRemoteConfig = {
+    minSupportedVersion: "0.4.0",
+    recommendedVersion: "0.4.1",
+    flags: { unichat_mobile_calls: false },
+    storeUrl: { ios: "", android: "https://play.example/uc" },
+  };
   const NOW = 1_800_000_000_000;
 
   it("keeps each answer the server gives, and seeds it, stale, at the next launch", async () => {
@@ -181,7 +193,12 @@ describe("the last answer kept on the device", () => {
     const open = vi.fn(async () => store);
     const first = new QueryClient();
     const stop = persistRemoteConfig(first, open, () => NOW - 60_000);
-    apiMock.request.mockResolvedValueOnce({ min_supported_mobile_version: "0.4.0", mobile_flags: { unichat_mobile_calls: false }, unichat_stores: { android: "https://play.example/uc" } });
+    apiMock.request.mockResolvedValueOnce({
+      min_supported_mobile_version: "0.4.0",
+      recommended_mobile_version: "0.4.1",
+      mobile_flags: { unichat_mobile_calls: false },
+      unichat_stores: { android: "https://play.example/uc" },
+    });
     await first.fetchQuery({ queryKey: remoteConfigKey, queryFn: () => fetchRemoteConfig(apiMock) });
     await vi.waitFor(() => expect(store.getString(REMOTE_CONFIG_STORE_KEY)).toBeDefined());
     expect(JSON.parse(store.getString(REMOTE_CONFIG_STORE_KEY) ?? "")).toEqual({ savedAt: NOW - 60_000, config: killed });
@@ -201,6 +218,15 @@ describe("the last answer kept on the device", () => {
     await Promise.resolve();
     expect(JSON.parse(store.getString(REMOTE_CONFIG_STORE_KEY) ?? "").savedAt).toBe(NOW - 60_000);
     keeping();
+  });
+
+  it("reads a copy kept by a build from before the nudge as one without it", async () => {
+    const store = memoryDeviceStore();
+    const { recommendedVersion: _dropped, ...older } = killed;
+    store.set(REMOTE_CONFIG_STORE_KEY, JSON.stringify({ savedAt: NOW, config: older }));
+    const client = new QueryClient();
+    expect(await restoreRemoteConfig(client, async () => store, NOW)).toBe(true);
+    expect(client.getQueryData(remoteConfigKey)).toEqual({ ...killed, recommendedVersion: "" });
   });
 
   it("lets an answer that arrived first win, and seeds nothing without a copy", async () => {

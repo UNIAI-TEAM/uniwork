@@ -317,6 +317,9 @@ const RELEASE_ONLY = {
       open_store: "Cập nhật",
       no_store: "Bản mới chưa có trên cửa hàng ứng dụng. Hãy hỏi quản trị viên của tổ chức cách cài bản mới.",
       check_again: "Kiểm tra lại",
+      nudge_title: "Đã có UniChat {{version}}",
+      nudge_body: "Cập nhật để nhận các bản sửa lỗi và tính năng mới nhất.",
+      nudge_dismiss: "Để sau",
     },
     about: {
       title: "Giới thiệu",
@@ -348,6 +351,9 @@ const RELEASE_ONLY = {
       open_store: "Update",
       no_store: "The new version is not in the app store yet. Ask your organization's admin how to install it.",
       check_again: "Check again",
+      nudge_title: "UniChat {{version}} is out",
+      nudge_body: "Update to get the latest fixes and features.",
+      nudge_dismiss: "Not now",
     },
     about: {
       title: "About",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildInfoFrom, clientHeaders, compareVersions, isUpdateRequired, sentryRelease, shortUpdateId, type BuildInputs } from "./build-info";
+import { buildInfoFrom, clientHeaders, compareVersions, isUpdateRequired, sentryRelease, shortUpdateId, updateNudgeFor, type BuildInputs } from "./build-info";
 
 const inputs = (over: Partial<BuildInputs> = {}): BuildInputs => ({
   configVersion: "0.3.0",
@@ -117,5 +117,27 @@ describe("isUpdateRequired", () => {
     expect(isUpdateRequired("0.2.0", "  ")).toBe(false);
     // a malformed minimum never locks anyone out
     expect(isUpdateRequired("0.2.0", "latest")).toBe(false);
+  });
+});
+
+// Audit "remote-config-restart-bound": the only way to move people to a new version was the blocking gate; a soft
+// nudge comes first, once per version, and never on top of the gate.
+describe("updateNudgeFor", () => {
+  const nudge = (over: Partial<Parameters<typeof updateNudgeFor>[0]> = {}) =>
+    updateNudgeFor({ version: "0.3.0", minimum: "", recommended: "0.3.2", dismissed: null, ...over });
+
+  it("names the recommended version to a phone below it", () => {
+    expect(nudge()).toBe("0.3.2");
+    // Dismissing an older nudge does not hide a newer one.
+    expect(nudge({ dismissed: "0.3.1" })).toBe("0.3.2");
+  });
+
+  it("says nothing on that version or above, once dismissed, without a recommendation, or when the gate already blocks", () => {
+    expect(nudge({ version: "0.3.2" })).toBeNull();
+    expect(nudge({ version: "0.4.0" })).toBeNull();
+    expect(nudge({ dismissed: "0.3.2" })).toBeNull();
+    expect(nudge({ recommended: " " })).toBeNull();
+    expect(nudge({ recommended: "latest" })).toBeNull();
+    expect(nudge({ minimum: "0.3.1" })).toBeNull();
   });
 });

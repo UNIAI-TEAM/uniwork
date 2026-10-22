@@ -1471,7 +1471,10 @@
       "body": "Phiên bản {{version}} không còn được hỗ trợ. Cập nhật lên bản {{min}} trở lên để tiếp tục nhắn tin và gọi.",
       "open_store": "Cập nhật",
       "no_store": "Bản mới chưa có trên cửa hàng ứng dụng. Hãy hỏi quản trị viên của tổ chức cách cài bản mới.",
-      "check_again": "Kiểm tra lại"
+      "check_again": "Kiểm tra lại",
+      "nudge_title": "Đã có UniChat {{version}}",
+      "nudge_body": "Cập nhật để nhận các bản sửa lỗi và tính năng mới nhất.",
+      "nudge_dismiss": "Để sau"
     },
     "about": {
       "title": "Giới thiệu",

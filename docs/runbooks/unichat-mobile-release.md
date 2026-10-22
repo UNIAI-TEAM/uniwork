@@ -451,6 +451,11 @@ biến thể và ký giống CI (thiếu `UNICHAT_ENV` là cấu hình dev: khô
 `mobile_flags`; app đọc lúc mở và mỗi lần quay lại foreground, và giữ câu trả lời cuối trên máy (tối đa 30 ngày):
 máy mở lạnh không có mạng vẫn theo công tắc và mức tối thiểu lần cuối nó nghe được.
 
+- Nhắc cập nhật (không chặn, làm trước): đặt `UNICHAT_MOBILE_RECOMMENDED_VERSION=<MAJOR.MINOR.PATCH>` trên server (sai
+  dạng thì server không khởi động) khi bản đó đã có trên store/track người dùng thấy. Máy dưới mức đó thấy một dải "Đã có
+  UniChat x.y.z" trên danh sách chat (`components/app/update-nudge.tsx`) với nút mở store; "Để sau" ẩn nó tới khi server
+  nhắc một bản mới hơn. Không hiện khi store của nền tảng đó chưa có link, hay khi máy đã dưới mức tối thiểu (màn chặn
+  thay nó). Đặt mức tối thiểu chỉ sau vài ngày nhắc, cho bản thật sự không được dùng nữa.
 - Bắt cập nhật: đặt `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION=<MAJOR.MINOR.PATCH>` trên server (sai dạng thì server không
   khởi động) và khởi động lại. Máy dưới mức đó chỉ còn màn "Cần cập nhật UniChat" với link store (`UNICHAT_STORE_*`,
   hoặc link thử nghiệm khi store chưa có). Chỉ đặt sau khi bản mới đã có trên store/track mà người dùng thấy.

@@ -105,3 +105,24 @@ export function compareVersions(a: string, b: string): -1 | 0 | 1 | null {
 export function isUpdateRequired(version: string, minimum: string): boolean {
   return minimum.trim() !== "" && compareVersions(version, minimum) === -1;
 }
+
+export interface NudgeInputs {
+  /** The running version. */
+  version: string;
+  /** The server's minimum ("" for none): below it the blocking gate shows instead. */
+  minimum: string;
+  /** The server's recommended version ("" for none). */
+  recommended: string;
+  /** The recommended version the person last dismissed the nudge for, kept on the device. */
+  dismissed: string | null;
+}
+
+/**
+ * The version a soft "new version" banner points at, or null for no banner: only below the recommended version,
+ * never with the gate up, and not again for a version the person dismissed (a newer one shows again).
+ */
+export function updateNudgeFor({ version, minimum, recommended, dismissed }: NudgeInputs): string | null {
+  const target = recommended.trim();
+  if (!isUpdateRequired(version, target) || isUpdateRequired(version, minimum)) return null;
+  return dismissed === target ? null : target;
+}
