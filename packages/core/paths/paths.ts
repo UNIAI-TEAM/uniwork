@@ -152,10 +152,15 @@ export const paths = {
   },
 };
 
+const SAME_ORIGIN_PROBE = "https://app.invalid";
+
 /** Chỉ cho phép path cùng origin: bắt đầu bằng "/" và không phải "//". */
 export function sanitizeNextUrl(raw: string | null | undefined): string | null {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return null;
-  return raw;
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null;
+  // Browsers drop tab/CR/LF and read "\" as "/" before parsing, so "/\t/x.com"
+  // would navigate to "//x.com"; refuse any whitespace, control or backslash.
+  if (/[\s\p{Cc}\\]/u.test(raw)) return null;
+  return new URL(raw, SAME_ORIGIN_PROBE).origin === SAME_ORIGIN_PROBE ? raw : null;
 }
 
 /**
