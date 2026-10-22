@@ -503,8 +503,10 @@ từng mục khi đã nộp:
   `contact@unicomhub.com`), xoá tài khoản trong app, 18+. `apps/web/features/landing/privacy-content.test.ts` giữ hai
   câu đó.
 - [ ] **Data safety** (Play) / **App Privacy** (Apple): điền theo bảng "Quyền riêng tư" của `store/listing.md`, gồm
-  dòng "Xử lý AI" (chia sẻ với nhà cung cấp dịch vụ Anthropic khi người dùng **hoặc một thành viên khác** dùng tính
-  năng AI — đừng khai "chỉ theo yêu cầu người dùng") và "Báo cáo vi phạm". Mã hoá
+  dòng "Xử lý AI" (thu thập khi người dùng **hoặc một thành viên khác** dùng tính năng AI — đừng khai "chỉ theo yêu cầu
+  người dùng") và "Báo cáo vi phạm". Câu "Shared" theo một luật (đoạn dưới bảng của listing, `store-listing.test.ts`):
+  Expo/APNs/FCM, Sentry và Anthropic là nhà cung cấp dịch vụ, nên Data safety khai "không chia sẻ" ở mọi dòng; chính
+  sách vẫn nêu tên từng bên. Mã hoá
   khi truyền: có. Người dùng yêu cầu xoá dữ liệu được: có.
 - [ ] **Terms of use / EULA**: `https://app.uniworkos.com/terms` (`/vi/terms`), luật sư của chủ sở hữu đã duyệt chữ
   (`apps/web/features/landing/terms-content.ts`; `terms-content.test.ts` giữ mục cấm nội dung phản cảm `#acceptable-use`,

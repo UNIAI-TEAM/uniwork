@@ -148,3 +148,23 @@ describe("the listing's on-device paragraph", () => {
     for (const kept of ["lượt đọc", "biểu cảm", "bình chọn", "sửa", "xoá tin", "bản nháp"]) expect(onDevice, kept).toContain(kept);
   });
 });
+
+// Audit "datasafety-shared-inconsistent": push previews and AI answered "Shared" while Sentry answered "not shared",
+// for the same kind of transfer. Google counts a transfer to a service provider acting on UniWork's behalf as not
+// sharing; every row answers by that one rule and names the provider, so the form, the policy and Apple's label agree.
+describe("the Data safety column's Shared answers", () => {
+  const rows = tableRows("## Quyền riêng tư");
+  const PROVIDERS = ["Expo", "Sentry", "Anthropic"];
+
+  it("answer every row with one rule, naming the service provider the data passes through", () => {
+    expect(rows.length).toBeGreaterThan(0);
+    for (const [name, when, apple, google] of rows) {
+      expect(google, name).toMatch(/; Shared: không( \(nhà cung cấp dịch vụ: [^)]+\))?$/);
+      expect(google!.match(/Shared/g), name).toHaveLength(1);
+      const named = google!.match(/nhà cung cấp dịch vụ: ([^)]+)\)$/)?.[1] ?? "";
+      for (const provider of PROVIDERS) {
+        if (`${name} ${when} ${apple}`.includes(`(${provider}`) || name!.includes(provider)) expect(named, `${name}: ${provider}`).toContain(provider);
+      }
+    }
+  });
+});
