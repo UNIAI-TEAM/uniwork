@@ -294,6 +294,8 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	res := AskResult{ConversationID: conv.ID, RunID: util.NewID()}
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
 	started := s.now()
+	// ranFor is the run's own time, taken before the title call that follows it.
+	var ranFor time.Duration
 	calls, rounds, outcome := 0, 0, ""
 	// The outcome is read once the run has returned, after the store, so a
 	// turn that failed to store is never reported answered.
@@ -318,7 +320,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		}
 		slog.Info("ask uni: agent run", "run_id", res.RunID, "organization_id", w.OrganizationID, "workspace_id", w.ID, "calls", calls, "rounds", rounds, "outcome", outcome)
 		if s.agentMetrics != nil {
-			s.agentMetrics.ObserveAskRun(outcome, rounds, s.now().Sub(started).Seconds())
+			s.agentMetrics.ObserveAskRun(outcome, rounds, ranFor.Seconds())
 		}
 		if p != nil {
 			panic(p)
@@ -328,6 +330,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	// reverse): a slow title call never keeps an organization's slot.
 	var nameWith string
 	defer func() {
+		ranFor = s.now().Sub(started)
 		if nameWith == "" || err != nil || ctx.Err() != nil {
 			return
 		}
