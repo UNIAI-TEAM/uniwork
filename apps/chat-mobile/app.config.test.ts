@@ -523,7 +523,15 @@ describe("fingerprint.config.js", () => {
   // with and without src/test (and src/androidTest) is the same under these patterns.
   it("leaves the local modules' JVM unit and instrumented tests out of the runtime fingerprint", async () => {
     const { default: fingerprint } = (await import("./fingerprint.config.js")) as { default: { ignorePaths?: string[] } };
-    expect(fingerprint.ignorePaths).toEqual(["modules/*/android/src/test/**", "modules/*/android/src/androidTest/**"]);
+    expect(fingerprint.ignorePaths).toEqual(expect.arrayContaining(["modules/*/android/src/test/**", "modules/*/android/src/androidTest/**"]));
+  });
+
+  // EAS PR #404 build 1dba0b89 stopped on "Runtime version mismatch": on the builder the fingerprint
+  // hashed the prebuilt android/ dir and the GOOGLE_SERVICES_JSON secret file, which no local or CI
+  // computation can see. Both are named so the two sides agree.
+  it("leaves the generated native dirs and EAS file secrets out of the runtime fingerprint", async () => {
+    const { default: fingerprint } = (await import("./fingerprint.config.js")) as { default: { ignorePaths?: string[] } };
+    expect(fingerprint.ignorePaths).toEqual(expect.arrayContaining(["android/**/*", "ios/**/*", "**/eas-environment-secrets/**"]));
   });
 });
 
