@@ -555,7 +555,10 @@ từng mục khi đã nộp:
 - [ ] **Store listing**: chữ của Play (main store listing, vi và en) dán từ `apps/chat-mobile/store/play/<locale>/*.txt`,
   feature graphic `store/play/feature-graphic.png`; App Store: `eas metadata:push` (đường dẫn ở `eas.json ›
   submit.production.ios.metadataPath`, sinh bởi `node apps/chat-mobile/scripts/store-metadata.mjs` từ `listing.md`).
-  Icon hi-res của Play: `store/play/icon-512.png`. Ảnh chụp: mục "Ảnh chụp và đồ hoạ" của `listing.md` — chụp bằng
+  Icon hi-res của Play: `store/play/icon-512.png`. Ảnh chụp: mục "Ảnh chụp và đồ hoạ" của `listing.md` — bấm chạy
+  `.github/workflows/chat-mobile-store-screenshots.yml` (emulator Pixel 2 1080 × 1920 và simulator iPhone Pro Max
+  1320 × 2868, vi và en, rồi `check`; cần các biến `MAESTRO_*` của `chat-mobile-verify.yml` trỏ tới workspace dữ liệu
+  review), tải artifact, xem từng ảnh rồi commit vào `apps/chat-mobile/store/`; trên máy thì
   `node apps/chat-mobile/scripts/store-screenshots.mjs capture …` cho vi và en trên mỗi nền tảng, rồi `… check`;
   `chat-mobile-promote.yml` từ chối lên production khi `check` đỏ. Support URL hiện là trang chính sách (có địa chỉ liên hệ);
   có trang hỗ trợ riêng thì đổi trong script.

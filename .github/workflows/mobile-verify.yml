@@ -103,6 +103,7 @@ on:
       - ".github/workflows/chat-mobile-release-health.yml"
       - ".github/workflows/chat-mobile-rollback.yml"
       - ".github/workflows/chat-mobile-device-farm.yml"
+      - ".github/workflows/chat-mobile-store-screenshots.yml"
       - "docs/runbooks/unichat-mobile-release.md"
       - "docs/events/CATALOGUE.md"
       - "server/internal/handler/dto/sdo/**"

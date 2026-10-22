@@ -1,7 +1,7 @@
 # The store screenshots (store/listing.md › Ảnh chụp và đồ hoạ): the conversation list, a conversation, the
 # directory and, where calling ships, the calls tab, signed in to the "UniChat Review" organization on staging
-# (no customer data). Not in any workflow: scripts/store-screenshots.mjs runs it once per language on a phone-sized
-# simulator or emulator, after setting the app's language and a clean status bar, and files the PNGs where the
+# (no customer data). scripts/store-screenshots.mjs runs it (by hand, or in chat-mobile-store-screenshots.yml) once per
+# language on a phone-sized simulator or emulator, after setting the app's language and a clean status bar, and files the PNGs where the
 # stores' upload tools read them. MAESTRO_SHOT_DIR is the absolute folder the shots go to; MAESTRO_CALLS=1 adds the
 # calls tab (Play only while calling is off on iPhone).
 appId: com.uniworkos.chat.staging

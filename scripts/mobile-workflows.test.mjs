@@ -556,6 +556,7 @@ const WORKFLOWS = [
   "chat-mobile-release-health.yml",
   "chat-mobile-rollback.yml",
   "chat-mobile-device-farm.yml",
+  "chat-mobile-store-screenshots.yml",
 ];
 
 /** The workflow-level env block and each job's text, by job id. */

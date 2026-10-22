@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parse } from "yaml";
 import {
   LOCALES,
   MIN_SHOTS,
@@ -87,4 +88,33 @@ test("a release reaches production only with the store's pictures in place", () 
   const wf = fs.readFileSync(path.join(root, ".github/workflows/chat-mobile-promote.yml"), "utf8");
   assert.match(wf, /node apps\/chat-mobile\/scripts\/store-screenshots\.mjs check --platform "\$PLATFORM"/);
   assert.match(wf, /if: \$\{\{ inputs\.action == 'promote' && \(inputs\.to_track == 'production' \|\| inputs\.platform == 'ios'\) \}\}/);
+});
+
+// Review finding: the capture tool ran only on a laptop with an Android SDK, an iOS simulator and the staging
+// credentials. chat-mobile-store-screenshots.yml takes the pictures on CI with one click: both languages on a
+// 1080 x 1920 emulator and a 6.9" iPhone simulator, the check over what it filed, and the folders as an artifact.
+test("one workflow takes, checks and hands over the store's pictures for every language", () => {
+  const file = path.join(root, ".github/workflows/chat-mobile-store-screenshots.yml");
+  assert.ok(fs.existsSync(file), "chat-mobile-store-screenshots.yml exists");
+  const wf = parse(fs.readFileSync(file, "utf8"));
+  assert.ok("workflow_dispatch" in wf.on, "runs on demand");
+  assert.deepEqual(wf.permissions, { contents: "read" });
+  const jobs = { android: wf.jobs.android, ios: wf.jobs.ios };
+  for (const [platform, job] of Object.entries(jobs)) {
+    assert.ok(job, `${platform} job`);
+    const text = JSON.stringify(job);
+    for (const locale of Object.keys(LOCALES)) {
+      assert.ok(text.includes(`store-screenshots.mjs capture --platform ${platform} --locale ${locale}`), `${platform} captures ${locale}`);
+    }
+    assert.ok(text.includes(`store-screenshots.mjs check --platform ${platform}`), `${platform} checks what it filed`);
+    const upload = job.steps.find((step) => String(step.uses ?? "").startsWith("actions/upload-artifact@"));
+    assert.ok(upload, `${platform} uploads the pictures`);
+    assert.match(upload.with.path, platform === "android" ? /store\/play\/\*\/images/ : /store\/apple\/screenshots/);
+    assert.ok(text.includes("secrets.MAESTRO_TEST_PASSWORD"), `${platform} signs in with the test account`);
+  }
+  assert.match(JSON.stringify(jobs.android), /"profile":"pixel_2"/, "a 1080 x 1920 emulator");
+  assert.match(JSON.stringify(jobs.ios), /Pro Max/, "a 6.9-inch iPhone simulator");
+  for (const doc of ["apps/chat-mobile/store/listing.md", "docs/runbooks/unichat-mobile-release.md"]) {
+    assert.match(fs.readFileSync(path.join(root, doc), "utf8"), /chat-mobile-store-screenshots\.yml/, `${doc} names the workflow`);
+  }
 });

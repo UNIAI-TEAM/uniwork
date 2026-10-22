@@ -249,7 +249,10 @@ bản release do `android-manifest.test.ts` giữ.
 **Icon hi-res của Play** (512 × 512, PNG 32-bit): `store/play/icon-512.png`, sinh bởi `pnpm brand:build` từ
 `packages/ui/brand/svg/unichat-icon.svg` (khoá trong `assets.lock.json`); không sửa tay.
 
-**Ảnh chụp màn hình** (chưa chụp — cần simulator/emulator chạy bản staging với org "UniChat Review"; owner action):
+**Ảnh chụp màn hình** (chưa chụp; owner action một cú bấm: chạy workflow `chat-mobile-store-screenshots.yml` (Actions ›
+"UniChat mobile store screenshots"), xem từng ảnh trong artifact `unichat-store-screenshots-play` /
+`unichat-store-screenshots-app-store` rồi commit vào `store/`; workflow đọc các biến `MAESTRO_*` của
+`chat-mobile-verify.yml`, nên chúng phải trỏ tới workspace có dữ liệu review, không dữ liệu khách hàng). Trên máy:
 `node apps/chat-mobile/scripts/store-screenshots.mjs capture --platform android|ios --locale vi|en` đặt ngôn ngữ của app,
 thanh trạng thái sạch (9:41, pin đầy), chạy `maestro/flows/store-screenshots.yaml` (danh sách hội thoại, một cuộc trò
 chuyện, danh bạ, và tab cuộc gọi cho Play khi iPhone còn tắt gọi) và lưu vào `store/play/<vi-VN|en-US>/images/phoneScreenshots/`
