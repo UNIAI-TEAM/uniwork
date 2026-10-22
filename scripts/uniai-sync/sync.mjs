@@ -1,9 +1,12 @@
 import { execFile } from "node:child_process";
-import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { loadConfig } from "./config.mjs";
+import { attachmentIdsIn, collectAttachmentIds, rewriteAttachmentUrls } from "./files.mjs";
 import { createLock } from "./lock.mjs";
 import {
   COMMENT_LIMIT,
@@ -150,6 +153,8 @@ async function run(config, uniai, uniwork) {
   for (const issue of issues) {
     if (issue.metadata?.uniwork_task) taskIds.set(issue.id, issue.metadata.uniwork_task);
   }
+  const skippedIds = new Set();
+  const reviving = new Set();
 
   let projectTasks = null;
   async function findByTitle(title) {
@@ -249,6 +254,8 @@ async function run(config, uniai, uniwork) {
     const hash = syncHash(issue, commentsByIssue.get(issue.id) ?? []);
     if (issue.metadata?.uniwork_sync === hash && taskIds.has(issue.id)) {
       skipped += 1;
+      skippedIds.add(issue.id);
+      await copyFiles(issue, taskIds.get(issue.id), liveComments);
       return;
     }
 
@@ -282,7 +289,18 @@ async function run(config, uniai, uniwork) {
         if (want.due_date) args.due_date = want.due_date;
         if (want.assignee_id) args.assignee_id = want.assignee_id;
         if (want.parent_task_id) args.parent_task_id = want.parent_task_id;
-        const made = await uniwork.createTask(args);
+        let made;
+        try {
+          made = await uniwork.createTask(args);
+        } catch (error) {
+          // The stored parent id belongs to another workspace. Drop it and create the parent here.
+          if (!isMissingTask(error) || !parentIssue) throw error;
+          await reviveParent(parentIssue);
+          const recovered = taskIds.get(parentIssue);
+          if (!recovered) throw error;
+          args.parent_task_id = recovered;
+          made = await uniwork.createTask(args);
+        }
         taskId = made.id;
         partial = String(made.note ?? "");
         fresh = true;
@@ -311,7 +329,88 @@ async function run(config, uniai, uniwork) {
       lines.push(`waiting comment ${issue.id}`);
       return;
     }
+    await copyFiles(issue, taskId, liveComments);
     await uniai.setMetadata(issue.id, "uniwork_sync", hash);
+  }
+
+  function storedFiles(issue) {
+    try {
+      const parsed = JSON.parse(issue.metadata?.uniwork_files ?? "");
+      if (parsed && parsed.map && typeof parsed.map === "object") return parsed;
+    } catch {
+      // A missing or broken record means the files still need copying.
+    }
+    return { map: {}, clean: false };
+  }
+
+  async function rememberFiles(issue, map, clean) {
+    const record = JSON.stringify({ map, clean });
+    await uniai.setMetadata(issue.id, "uniwork_files", record);
+    if (!issue.metadata) issue.metadata = {};
+    issue.metadata.uniwork_files = record;
+  }
+
+  async function copyFiles(issue, taskId, liveComments) {
+    const sourceIds = collectAttachmentIds(issue, liveComments);
+    if (sourceIds.length === 0 || !taskId) return;
+    const stored = storedFiles(issue);
+    if (stored.clean && sourceIds.every((id) => stored.map[id])) return;
+
+    const map = { ...stored.map };
+    let uploaded = false;
+    for (const id of sourceIds) {
+      if (map[id]) continue;
+      const file = await uniai.downloadAttachment(id);
+      const saved = await uniwork.uploadAttachment(taskId, file, "task_attachment");
+      map[id] = saved.id;
+      uploaded = true;
+    }
+    if (uploaded) await rememberFiles(issue, map, false);
+
+    const current = await uniwork.getTask(taskId);
+    const source = descriptionParts(issue.description).body;
+    const basis = current?.description_truncated ? source : (current?.description ?? "");
+    if (attachmentIdsIn(basis).length > 0) {
+      const rewritten = rewriteAttachmentUrls(basis, map);
+      if (rewritten !== (current?.description ?? "")) {
+        await uniwork.updateTask({ task_id: taskId, revision: current.revision, description: rewritten });
+      }
+    }
+    const comments = await uniwork.listTaskComments(taskId);
+    for (const row of comments) {
+      if (attachmentIdsIn(row.body).length === 0) continue;
+      const body = rewriteAttachmentUrls(row.body ?? "", map);
+      if (body !== (row.body ?? "")) await uniwork.updateComment(row.id, body);
+    }
+    await rememberFiles(issue, map, true);
+  }
+
+  function isMissingTask(error) {
+    return error instanceof Error && error.message === "not found or not accessible";
+  }
+
+  async function forgetStoredTask(issue) {
+    taskIds.delete(issue.id);
+    if (issue.metadata) {
+      delete issue.metadata.uniwork_task;
+      delete issue.metadata.uniwork_sync;
+    }
+    await uniai.deleteMetadata(issue.id, "uniwork_task");
+    await uniai.deleteMetadata(issue.id, "uniwork_sync");
+  }
+
+  async function reviveParent(parentId) {
+    if (reviving.has(parentId)) throw new Error("not found or not accessible");
+    const parent = issueById.get(parentId);
+    if (!parent) throw new Error("not found or not accessible");
+    reviving.add(parentId);
+    try {
+      await forgetStoredTask(parent);
+      if (skippedIds.delete(parentId)) skipped -= 1;
+      await processIssue(parent);
+    } finally {
+      reviving.delete(parentId);
+    }
   }
 
   for (const id of order) {
@@ -335,6 +434,61 @@ async function run(config, uniai, uniwork) {
 
 const execFileAsync = promisify(execFile);
 const PAGE = 100;
+const UNIAI_ATTEMPTS = 3;
+const UNIAI_TIMEOUT_CAP_MS = 60_000;
+
+export function isUniaiTimeout(error) {
+  const stderr = Buffer.isBuffer(error?.stderr) ? error.stderr.toString("utf8") : String(error?.stderr ?? "");
+  return `${error?.message ?? ""}\n${stderr}`.includes("Request timed out");
+}
+
+// A bare integer is seconds, matching the CLI. Values above 60s are capped:
+// a hung `issue comment list` was blocking for the whole budget, then succeeding
+// immediately on a later attempt.
+export function boundedUniaiTimeout(raw) {
+  const value = String(raw ?? "").trim();
+  if (!value) return null;
+  let ms;
+  if (/^\d+$/.test(value)) {
+    ms = Number(value) * 1000;
+  } else {
+    const match = /^(\d+(?:\.\d+)?)(ms|s|m|h)$/.exec(value);
+    if (!match) return value;
+    const amount = Number(match[1]);
+    const unit = match[2];
+    ms = unit === "ms" ? amount : unit === "s" ? amount * 1000 : unit === "m" ? amount * 60_000 : amount * 3_600_000;
+  }
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  if (ms > UNIAI_TIMEOUT_CAP_MS) return "60s";
+  if (/^\d+$/.test(value)) return `${value}s`;
+  return value;
+}
+
+export async function withUniaiRetries(run, { attempts = UNIAI_ATTEMPTS, pause = async () => {} } = {}) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      if (attempt >= attempts || !isUniaiTimeout(error)) throw error;
+      await pause(attempt);
+    }
+  }
+}
+
+function uniaiChildEnv() {
+  const timeout = boundedUniaiTimeout(process.env.MULTICA_HTTP_TIMEOUT);
+  if (!timeout) return process.env;
+  return { ...process.env, MULTICA_HTTP_TIMEOUT: timeout };
+}
+
+async function uniaiExec(args) {
+  const env = uniaiChildEnv();
+  return withUniaiRetries(
+    () => execFileAsync("uniai", args, { maxBuffer: 256 * 1024 * 1024, env }),
+    { pause: (attempt) => sleep(1000 * attempt) },
+  );
+}
+
 const MCP_PER_MINUTE = 100;
 // The server allows 30 writes a minute per grant (write_rate_limited); stay under it.
 const MCP_WRITES_PER_MINUTE = 25;
@@ -343,7 +497,7 @@ const MCP_RATE_RETRIES = 3;
 const WRITE_TOOLS = new Set(["create_task", "update_task", "add_comment"]);
 
 async function uniaiJson(args) {
-  const { stdout } = await execFileAsync("uniai", args, { maxBuffer: 256 * 1024 * 1024 });
+  const { stdout } = await uniaiExec(args);
   return JSON.parse(stdout);
 }
 
@@ -380,9 +534,24 @@ function makeUniai() {
       return pickRows(json, "agents", "items", "data");
     },
     async setMetadata(id, key, value) {
-      await execFileAsync("uniai", [
+      await uniaiExec([
         "issue", "metadata", "set", id, "--key", key, "--type", "string", "--value", value,
       ]);
+    },
+    async deleteMetadata(id, key) {
+      await uniaiExec(["issue", "metadata", "delete", id, "--key", key]);
+    },
+    async downloadAttachment(id) {
+      const dir = mkdtempSync(join(tmpdir(), "uniai-file-"));
+      try {
+        await uniaiExec(["attachment", "download", id, "-o", dir]);
+        const names = readdirSync(dir);
+        if (names.length === 0) throw new Error(`empty download ${id}`);
+        const filename = names[0];
+        return { filename, bytes: readFileSync(join(dir, filename)), contentType: "application/octet-stream" };
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     },
   };
 }
@@ -520,6 +689,29 @@ export function makeUniwork(config, env = {}) {
     },
     async listTaskComments(id) {
       return pickRows(await rest("GET", `/api/v1/tasks/${id}/comments`), "comments", "items", "data");
+    },
+    async updateComment(id, body) {
+      await rest("PUT", `/api/v1/comments/${encodeURIComponent(id)}`, { body });
+    },
+    async uploadAttachment(taskId, file, purpose) {
+      const form = new FormData();
+      if (purpose) form.append("purpose", purpose);
+      const type = file.contentType || "application/octet-stream";
+      form.append("file", new Blob([file.bytes], { type }), file.filename || "file");
+      const response = await doFetch(`${config.origin}/api/v1/tasks/${encodeURIComponent(taskId)}/attachments`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.sessionToken}`,
+          Accept: "application/json",
+        },
+        body: form,
+      });
+      const raw = await response.text();
+      if (!response.ok) throw httpError(response, raw);
+      const json = raw ? JSON.parse(raw) : {};
+      const id = json.id ?? json.attachment?.id;
+      if (!id) throw new Error("upload missing id");
+      return { id };
     },
     async addComment(args) {
       const json = await mcp("add_comment", args);

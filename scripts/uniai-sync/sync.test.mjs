@@ -13,7 +13,7 @@ import {
 import { orderIssues } from "./order.mjs";
 import { createLock } from "./lock.mjs";
 import { loadConfig } from "./config.mjs";
-import { makeUniwork, syncRun } from "./sync.mjs";
+import { boundedUniaiTimeout, isUniaiTimeout, makeUniwork, syncRun, withUniaiRetries } from "./sync.mjs";
 
 test("taskTitle prefixes the key once and cuts at 500 runes", () => {
   assert.equal(taskTitle("UNI-423", "Sửa cổng"), "UNI-423: Sửa cổng");
@@ -218,6 +218,10 @@ function world(issues, comments = {}) {
           const row = metadata.get(id) ?? {};
           row[key] = value;
           metadata.set(id, row);
+        },
+        deleteMetadata: async (id, key) => {
+          const row = metadata.get(id);
+          if (row) delete row[key];
         },
       },
       uniwork: {
@@ -566,6 +570,90 @@ test("a reply listed before its live parent is posted after it with reply_to", a
   assert.ok(box.metadata.get("order").uniwork_sync);
 });
 
+test("a synced task rehosts a UniAI image and rewrites the link", async () => {
+  const image = "https://uniai.unicomhub.com/api/attachments/01a139b4-050f-709d-91a1-e4018b8ee2fd/download";
+  const row = issue({
+    id: "pic",
+    identifier: "UNI-9",
+    title: "Ảnh",
+    description: `Xem ![image.png](${image})`,
+    attachments: [{ id: "01a139b2-da35-7a74-9e83-3a1463486b95", filename: "note.pdf", content_type: "application/pdf" }],
+  });
+  row.metadata = { uniwork_task: "task-pic", uniwork_sync: syncHash(row, []) };
+  const box = world([row]);
+  box.tasks.push({
+    id: "task-pic",
+    title: "UNI-9: Ảnh",
+    revision: 2,
+    description: row.description,
+    labels: [],
+    description_truncated: false,
+    status: "todo",
+    priority: "none",
+  });
+  const downloads = [];
+  box.deps.uniai.downloadAttachment = async (id) => {
+    downloads.push(id);
+    return { filename: id.endsWith("2fd") ? "image.png" : "note.pdf", bytes: Buffer.from(id), contentType: "application/octet-stream" };
+  };
+  const uploads = [];
+  box.deps.uniwork.uploadAttachment = async (taskId, file, purpose) => {
+    uploads.push({ taskId, filename: file.filename, purpose });
+    return { id: `att-${uploads.length}` };
+  };
+  let comment = { id: "c1", body: `<!-- uniai-comment:n1 -->\nAn (a@b.c)\n\n![shot.png](${image})` };
+  box.deps.uniwork.listTaskComments = async () => [comment];
+  box.deps.uniwork.updateComment = async (id, body) => {
+    comment = { id, body };
+  };
+
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 0);
+  assert.deepEqual(downloads, [
+    "01a139b4-050f-709d-91a1-e4018b8ee2fd",
+    "01a139b2-da35-7a74-9e83-3a1463486b95",
+  ]);
+  assert.equal(uploads[0].purpose, "task_attachment");
+  assert.equal(uploads[1].purpose, "task_attachment");
+  const task = box.tasks.find((item) => item.id === "task-pic");
+  assert.match(task.description, /\/api\/v1\/attachments\/att-1\/download/);
+  assert.doesNotMatch(task.description, /uniai\.unicomhub\.com/);
+  assert.match(comment.body, /\/api\/v1\/attachments\/att-1\/download/);
+  assert.match(comment.body, /uniai-comment:n1/);
+  const files = JSON.parse(box.metadata.get("pic").uniwork_files);
+  assert.equal(files.clean, true);
+  assert.equal(files.map["01a139b4-050f-709d-91a1-e4018b8ee2fd"], "att-1");
+
+  downloads.length = 0;
+  const again = await syncRun(box.deps);
+  assert.equal(again.code, 0);
+  assert.deepEqual(downloads, []);
+});
+
+test("a child recreates a parent whose stored task is not in this workspace", async () => {
+  const parent = issue({ id: "parent", identifier: "UNI-1", title: "Cha" });
+  parent.metadata = { uniwork_task: "stale", uniwork_sync: syncHash(parent, []) };
+  const box = world([
+    parent,
+    issue({ id: "child", identifier: "UNI-2", title: "Con", parent_issue_id: "parent" }),
+  ]);
+  const create = box.deps.uniwork.createTask;
+  box.deps.uniwork.createTask = async (args) => {
+    if (args.parent_task_id === "stale") throw new Error("not found or not accessible");
+    return create(args);
+  };
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 0);
+  const creates = box.mcp.filter((call) => call[0] === "create_task");
+  assert.equal(creates.length, 2);
+  assert.equal(creates[0][1].title, "UNI-1: Cha");
+  assert.equal(creates[0][1].parent_task_id, undefined);
+  const parentTask = box.metadata.get("parent").uniwork_task;
+  assert.notEqual(parentTask, "stale");
+  assert.equal(creates[1][1].parent_task_id, parentTask);
+  assert.match(result.lines.at(-1), /created 2, updated 0, skipped 0/);
+});
+
 test("a parent that fails in the same run leaves the child waiting without a second failure", async () => {
   const box = world([
     issue({ id: "parent", identifier: "UNI-40", title: "Cha", status: "triage" }),
@@ -797,4 +885,55 @@ test("writes stay at 25 per minute and all calls at 100", async () => {
     readStamps.push(reads.clock.at);
   }
   for (let i = 100; i < readStamps.length; i += 1) assert.ok(readStamps[i] - readStamps[i - 100] >= 60_000);
+});
+
+function timeoutError(stderr = "Request timed out: the server did not respond in time.") {
+  return Object.assign(new Error(`Command failed: uniai issue comment list\n${stderr}`), {
+    stderr: Buffer.from(stderr),
+  });
+}
+
+test("boundedUniaiTimeout caps a long wait and keeps a short one", () => {
+  assert.equal(boundedUniaiTimeout(""), null);
+  assert.equal(boundedUniaiTimeout("1000"), "60s");
+  assert.equal(boundedUniaiTimeout("2m"), "60s");
+  assert.equal(boundedUniaiTimeout("45"), "45s");
+  assert.equal(boundedUniaiTimeout("30s"), "30s");
+  assert.equal(boundedUniaiTimeout("not-a-duration"), "not-a-duration");
+});
+
+test("isUniaiTimeout reads the CLI timeout text from stderr", () => {
+  assert.equal(isUniaiTimeout(timeoutError()), true);
+  assert.equal(isUniaiTimeout(new Error("unauthorized")), false);
+});
+
+test("a timed out uniai call is retried and then kept", async () => {
+  let calls = 0;
+  const pauses = [];
+  const value = await withUniaiRetries(async () => {
+    calls += 1;
+    if (calls < 3) throw timeoutError();
+    return "ok";
+  }, { pause: async (attempt) => pauses.push(attempt) });
+  assert.equal(value, "ok");
+  assert.equal(calls, 3);
+  assert.deepEqual(pauses, [1, 2]);
+});
+
+test("a non-timeout uniai failure is not retried", async () => {
+  let calls = 0;
+  await assert.rejects(withUniaiRetries(async () => {
+    calls += 1;
+    throw new Error("unauthorized");
+  }), /unauthorized/);
+  assert.equal(calls, 1);
+});
+
+test("three timeouts surface the last CLI error", async () => {
+  let calls = 0;
+  await assert.rejects(withUniaiRetries(async () => {
+    calls += 1;
+    throw timeoutError();
+  }), /Request timed out/);
+  assert.equal(calls, 3);
 });
