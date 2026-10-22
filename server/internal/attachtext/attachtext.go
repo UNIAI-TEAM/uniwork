@@ -2,7 +2,8 @@
 // the model can read: Word, PowerPoint, Excel, ODT and plain-text files. The
 // server re-reads each file on every turn and never stores what it extracts.
 //
-// It is a leaf: standard library only, nothing from the rest of the repo.
+// It is a leaf: nothing from the rest of the repo, and outside the standard
+// library only pdfcpu (pure Go, for counting and trimming PDF pages).
 package attachtext
 
 import (
