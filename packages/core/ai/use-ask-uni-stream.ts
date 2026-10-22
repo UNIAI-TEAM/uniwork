@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { askUniStream, type AskUniStreamEvent } from "../api/endpoints/ai-stream";
 import { errorCode } from "../api/http";
-import type { AiCitation, AiMessage, AskUniInput } from "../types/ai";
+import type { AiCitation, AiMessage, AiStep, AskUniInput } from "../types/ai";
 import { aiKeys } from "./hooks";
 import { useAiPanelStore } from "./store";
 
@@ -17,8 +17,13 @@ export interface AskStreamState {
   conversationId: string | null;
   /** Text of the current model call; cleared on every step. */
   draft: string;
-  /** Summed step counts by tool kind. */
-  counts: Record<string, number>;
+  /** One entry per tool step, in arrival order; a step with tool "" is the server's malformed-answer retry. */
+  steps: AiStep[];
+  /** Sources found so far, by source_id. */
+  sources: Record<string, AiCitation>;
+  followups: string[];
+  /** The answer being regenerated, or null for a fresh question. */
+  regenerateOf: string | null;
   citations: AiCitation[];
   message: AiMessage | null;
   errorCode: string | null;
@@ -29,7 +34,10 @@ const IDLE: AskStreamState = {
   question: "",
   conversationId: null,
   draft: "",
-  counts: {},
+  steps: [],
+  sources: {},
+  followups: [],
+  regenerateOf: null,
   citations: [],
   message: null,
   errorCode: null,
@@ -74,7 +82,8 @@ export function useAskUniStream(wsId: string) {
       const controller = new AbortController();
       ctrl.current = controller;
       turnConversation.current = input.conversation_id ?? null;
-      setState({ ...IDLE, status: "streaming", question: input.question, conversationId: input.conversation_id ?? null });
+      const regenerateOf = input.regenerate_message_id ?? null;
+      setState({ ...IDLE, status: "streaming", question: input.question, conversationId: input.conversation_id ?? null, regenerateOf });
       let finished = false;
       const current = () => seq.current === mySeq && !controller.signal.aborted;
 
@@ -87,11 +96,17 @@ export function useAskUniStream(wsId: string) {
             if (useAiPanelStore.getState().conversationId === null) useAiPanelStore.getState().select(e.conversationId);
             break;
           case "step":
-            setState((s) => {
-              const counts = { ...s.counts };
-              for (const [k, n] of Object.entries(e.counts)) counts[k] = (counts[k] ?? 0) + n;
-              return { ...s, draft: "", counts };
-            });
+            setState((s) => ({ ...s, draft: "", steps: [...s.steps, { tool: e.tool, label: e.label, counts: e.counts }] }));
+            break;
+          case "sources":
+            setState((s) => ({ ...s, sources: { ...s.sources, ...Object.fromEntries(e.sources.map((x) => [x.source_id, x])) } }));
+            break;
+          case "followups":
+            setState((s) => ({ ...s, followups: e.followups }));
+            break;
+          case "title":
+            // The title lands after done; the list and an open detail refetch rather than take the frame's payload.
+            void qc.invalidateQueries({ queryKey: aiKeys.conversations(wsId) });
             break;
           case "delta":
             setState((s) => ({ ...s, draft: s.draft + e.text }));
@@ -102,13 +117,23 @@ export function useAskUniStream(wsId: string) {
           case "done": {
             finished = true;
             const conversationId = turnConversation.current ?? useAiPanelStore.getState().conversationId;
-            if (conversationId) {
+            if (conversationId && regenerateOf) {
+              // The question is already stored; the new answer takes the old one's place.
+              qc.setQueryData<AiMessage[]>(aiKeys.messages(conversationId), (old) =>
+                old?.map((m) => (m.id === regenerateOf ? e.message : m)),
+              );
+              void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
+            } else if (conversationId) {
               const userEcho: AiMessage = {
                 id: `pending-${e.message.id}`,
                 role: "user",
                 content: input.question,
                 citations: [],
                 notice: "",
+                steps: [],
+                followups: [],
+                focus: null,
+                mentions: [],
                 created_at: e.message.created_at,
               };
               qc.setQueryData<AiMessage[]>(aiKeys.messages(conversationId), (old) => [...(old ?? []), userEcho, e.message]);

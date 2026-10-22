@@ -111,6 +111,20 @@ describe("ai endpoints", () => {
     expect((vi.mocked(fetch).mock.calls[4]![1] as RequestInit).method).toBe("DELETE");
   });
 
+  it("listAiConversations sends q and degrades on a malformed answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ conversations: [{ id: "c1" }] }));
+    await listAiConversations("ws1", "viec tre");
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toMatch(/\/ai\/conversations\?q=viec%20tre$/);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ conversations: 5 }));
+    expect(await listAiConversations("ws1", "x")).toEqual([]);
+  });
+
+  it("listAiMessages defaults malformed steps, followups, focus and mentions", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [{ ...message, steps: "x", followups: 3, focus: 1, mentions: {} }] }));
+    const [m] = await listAiMessages("c1");
+    expect(m).toMatchObject({ steps: [], followups: [], focus: null, mentions: [] });
+  });
+
   it("listAiMessages keeps a message whose notice is malformed and defaults it to empty", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [{ ...message, notice: 42 }, { ...message, id: "m2", content: "", notice: "no_sources" }] }));
     const msgs = await listAiMessages("c1");

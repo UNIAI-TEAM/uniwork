@@ -9,10 +9,10 @@ import { AskUniThread, type AskUniStream } from "./ask-uni-thread";
 
 initI18n();
 
-const IDLE: AskStreamState = { status: "idle", question: "", conversationId: null, draft: "", counts: {}, citations: [], message: null, errorCode: null };
+const IDLE: AskStreamState = { status: "idle", question: "", conversationId: null, draft: "", steps: [], sources: {}, followups: [], regenerateOf: null, citations: [], message: null, errorCode: null };
 const history = [
-  { id: "u1", role: "user", content: "Task nào quá hạn?", notice: "", citations: [], created_at: "" },
-  { id: "a1", role: "assistant", content: "Có 3 task quá hạn.", notice: "", citations: [], created_at: "" },
+  { id: "u1", role: "user", content: "Task nào quá hạn?", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" },
+  { id: "a1", role: "assistant", content: "Có 3 task quá hạn.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" },
 ];
 
 function stream(state: Partial<AskStreamState> = {}): AskUniStream {
@@ -48,21 +48,21 @@ describe("AskUniThread", () => {
     const m = mount(s);
     expect(await screen.findByText("Họp tuần?")).toBeInTheDocument();
     expect(screen.getByText("Đang viết")).toBeInTheDocument();
-    m.update(stream({ status: "streaming", question: "Họp tuần?", draft: "", counts: { task: 2 } }));
+    m.update(stream({ status: "streaming", question: "Họp tuần?", draft: "", steps: [{ tool: "search", label: "", counts: { task: 2 } }] }));
     expect(screen.queryByText("Đang viết")).toBeNull();
     expect(screen.getByRole("button", { name: /Đã xem 2 task/ })).toBeInTheDocument();
   });
 
   it("shows the finished turn once and keeps its steps line", async () => {
-    const answer = { id: "a2", role: "assistant", content: "Xong rồi.", notice: "", citations: [], created_at: "" };
+    const answer = { id: "a2", role: "assistant", content: "Xong rồi.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" };
     requestMock.mockImplementation((path: string) =>
       Promise.resolve(
         path === "/api/v1/ai/conversations/c1/messages"
-          ? { messages: [...history, { id: "pending-a2", role: "user", content: "Còn gì nữa?", notice: "", citations: [], created_at: "" }, answer] }
+          ? { messages: [...history, { id: "pending-a2", role: "user", content: "Còn gì nữa?", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" }, answer] }
           : {},
       ),
     );
-    mount(stream({ status: "done", question: "Còn gì nữa?", message: answer, counts: { meeting: 3 } }));
+    mount(stream({ status: "done", question: "Còn gì nữa?", message: answer, steps: [{ tool: "search", label: "", counts: { meeting: 3 } }] }));
     expect(await screen.findByText("Xong rồi.")).toBeInTheDocument();
     expect(screen.getAllByText("Xong rồi.")).toHaveLength(1);
     expect(screen.getAllByText("Còn gì nữa?")).toHaveLength(1);
@@ -70,7 +70,7 @@ describe("AskUniThread", () => {
   });
 
   it("shows the finished answer from the stream until the cache has it", async () => {
-    const answer = { id: "a2", role: "assistant", content: "Chưa có trong cache.", notice: "", citations: [], created_at: "" };
+    const answer = { id: "a2", role: "assistant", content: "Chưa có trong cache.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" };
     mount(stream({ status: "done", question: "Hỏi mới?", message: answer }));
     expect(await screen.findByText("Chưa có trong cache.")).toBeInTheDocument();
     expect(screen.getByText("Hỏi mới?")).toBeInTheDocument();

@@ -13,6 +13,12 @@ import { AskUniMessageTurn, type AskUniTurnMessage } from "./ask-uni-answer";
 export type AskUniStream = ReturnType<typeof useAskUniStream>;
 
 const NEAR_BOTTOM_PX = 80;
+// Temporary bridge until the steps list renders: sum step counts by kind.
+const sumCounts = (steps: { counts: Record<string, number> }[]) => {
+  const out: Record<string, number> = {};
+  for (const st of steps) for (const [k, n] of Object.entries(st.counts)) out[k] = (out[k] ?? 0) + n;
+  return out;
+};
 const SAFE_CODE = /^[a-z_]+$/;
 
 /** How many turns the cache held when the live turn started; null until the history has loaded. */
@@ -84,7 +90,8 @@ export function AskUniThread({
     citations: state.message?.citations ?? state.citations,
     notice: state.message?.notice ?? (state.status === "stopped" ? "stopped" : ""),
   };
-  const waiting = streaming && state.draft === "" && Object.keys(state.counts).length === 0;
+  const counts = sumCounts(state.steps);
+  const waiting = streaming && state.draft === "" && Object.keys(counts).length === 0;
 
   // Follow the answer as it grows, but only while the reader is at the bottom.
   const onScroll = () => {
@@ -94,7 +101,7 @@ export function AskUniThread({
   useEffect(() => {
     const el = scroller.current;
     if (el && pinned.current) el.scrollTop = el.scrollHeight;
-  }, [stored.length, state.draft, state.status, state.counts]);
+  }, [stored.length, state.draft, state.status, state.steps]);
 
   return (
     <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
@@ -104,7 +111,7 @@ export function AskUniThread({
             key={m.id}
             message={m}
             conversationId={conversationId}
-            counts={state.message?.id === m.id ? state.counts : undefined}
+            counts={state.message?.id === m.id ? counts : undefined}
             onRegenerate={m.id === lastAssistant?.id ? regenerate : undefined}
             regenerateDisabled={streaming}
           />
@@ -120,7 +127,7 @@ export function AskUniThread({
                 {t("asking")}
               </li>
             ) : (
-              <AskUniMessageTurn message={liveAnswer} streaming={streaming} counts={state.counts} />
+              <AskUniMessageTurn message={liveAnswer} streaming={streaming} counts={counts} />
             )}
           </>
         ) : null}

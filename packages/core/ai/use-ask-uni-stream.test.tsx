@@ -21,6 +21,10 @@ const msg = (over: Record<string, unknown> = {}) => ({
   content: "answer",
   citations: [],
   notice: "",
+  steps: [],
+  followups: [],
+  focus: null,
+  mentions: [],
   created_at: "t",
   ...over,
 });
@@ -58,10 +62,46 @@ describe("useAskUniStream", () => {
     emit({ type: "delta", text: "hel" });
     emit({ type: "delta", text: "lo" });
     expect(result.current.state.draft).toBe("hello");
-    emit({ type: "step", round: 1, phase: "tool", tool: "search", counts: { tasks: 2 } });
-    emit({ type: "step", round: 2, phase: "tool", tool: "search", counts: { tasks: 1, docs: 1 } });
+    emit({ type: "step", round: 1, phase: "tool", tool: "search", label: "late", counts: { tasks: 2 } });
+    emit({ type: "step", round: 2, phase: "retry", tool: "", label: "", counts: {} });
     expect(result.current.state.draft).toBe("");
-    expect(result.current.state.counts).toEqual({ tasks: 3, docs: 1 });
+    expect(result.current.state.steps).toEqual([
+      { tool: "search", label: "late", counts: { tasks: 2 } },
+      { tool: "", label: "", counts: {} },
+    ]);
+  });
+
+  it("sources merge by source_id and followups land in state", () => {
+    const { result } = setup();
+    act(() => result.current.ask({ question: "q" }));
+    emit({ type: "sources", sources: [{ source_id: "S1", quote: "", kind: "task", title: "a", href: "" }] });
+    emit({ type: "sources", sources: [{ source_id: "S2", quote: "", kind: "task", title: "b", href: "" }, { source_id: "S1", quote: "", kind: "task", title: "a2", href: "" }] });
+    expect(Object.keys(result.current.state.sources)).toEqual(["S1", "S2"]);
+    expect(result.current.state.sources.S1?.title).toBe("a2");
+    emit({ type: "followups", followups: ["next?"] });
+    expect(result.current.state.followups).toEqual(["next?"]);
+  });
+
+  it("regenerate replaces the old answer and echoes no question", () => {
+    const { result, qc } = setup();
+    qc.setQueryData(aiKeys.messages("c1"), [msg({ id: "u1", role: "user", content: "q" }), msg({ id: "old" })]);
+    act(() => result.current.ask({ question: "q", conversation_id: "c1", regenerate_message_id: "old" }));
+    expect(result.current.state.regenerateOf).toBe("old");
+    emit({ type: "done", message: msg({ id: "new" }), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
+    expect(qc.getQueryData<{ id: string }[]>(aiKeys.messages("c1"))?.map((m) => m.id)).toEqual(["u1", "new"]);
+  });
+
+  it("a title after done invalidates every conversation list and the turn stays finished", () => {
+    const { result, qc } = setup();
+    act(() => result.current.ask({ question: "q", conversation_id: "c1" }));
+    emit({ type: "done", message: msg(), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
+    expect(result.current.state.status).toBe("done");
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    emit({ type: "title", conversationId: "c1", title: "T" });
+    expect(result.current.state.status).toBe("done");
+    expect(invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))).toEqual([JSON.stringify(aiKeys.conversations("ws1"))]);
+    act(() => finish());
+    expect(result.current.state.status).toBe("done");
   });
 
   it("run selects the conversation of a new thread", () => {
