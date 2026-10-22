@@ -21,6 +21,8 @@ export const JOBS = {
   "doctor-bundle": "mobile",
   "android-release": "native",
   "android-smoke": "native",
+  // The signed-in flows on the hermetic server: whenever the binary is built.
+  "android-e2e": "native",
   // Its own output: the Android-only callers (the store release, the OTA update)
   // force the native build without iOS (mobile-verify.yml › inputs.ios).
   "ios-release": "ios",

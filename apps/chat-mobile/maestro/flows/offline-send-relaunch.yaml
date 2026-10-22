@@ -17,7 +17,8 @@ tags:
 - launchApp:
     clearState: true
 - runFlow: ../subflows/sign-in.yaml
-- openLink: uniworkchat://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat')}
+- runScript: ../scripts/app-scheme.js
+- openLink: ${output.scheme}://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat')}
 - extendedWaitUntil:
     visible:
       id: room-row-${MAESTRO_ROOM_ID}

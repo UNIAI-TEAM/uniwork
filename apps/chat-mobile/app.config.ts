@@ -336,6 +336,10 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
             enableMinifyInReleaseBuilds: true,
             enableShrinkResourcesInReleaseBuilds: true,
             extraProguardRules: ANDROID_KEEP_RULES,
+            // A dev build's servers are plain http: a laptop on the LAN, or the PR's hermetic server the emulator
+            // reaches through adb reverse (mobile-verify.yml › android-e2e builds a Release APK of this variant).
+            // Staging and production keep Android's default (no cleartext) and their fingerprint.
+            ...(env === "dev" ? { usesCleartextTraffic: true } : {}),
           },
         },
       ],

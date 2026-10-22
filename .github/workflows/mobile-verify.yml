@@ -38,6 +38,16 @@ name: Mobile Verify
 #                   apps/chat-mobile/perf-budget.json (scripts/mobile-perf.mjs);
 #                   then runs the calls module's instrumented test APK
 #                   (modules/unichat-calls/android/src/androidTest).
+#   android-e2e     the signed-in golden flows on every PR that reaches the
+#                   binary, against a hermetic UniWork started in the job (the
+#                   Go server on Postgres and Redis service containers, the
+#                   production web build for the sign-in pages), seeded through
+#                   the API (scripts/mobile-e2e-seed.mjs): sign in through the
+#                   system browser, read and send; offline sends that survive
+#                   a kill and land once and in order; what a second account
+#                   writes while the app is in the background is on screen when
+#                   it comes back. A dev-variant Release APK (plain http to the
+#                   runner), so no secret and no staging server is involved.
 #   ios-release     `expo prebuild -p ios`, CocoaPods, an ad-hoc signed Release
 #                   build for the simulator (no Apple account) on the Xcode
 #                   XCODE_VERSION names (scripts/select-xcode.sh), then
@@ -53,8 +63,9 @@ name: Mobile Verify
 #
 # Every check here blocks at every GATE_LEVEL (ADR 0037) once branch protection
 # requires the gate (scripts/branch-protection.mjs --apply; until then a red
-# run is advisory: runbook › Branch protection). No secret is read:
-# the server URLs are placeholders (the app is built, never run), and EAS, the
+# run is advisory: runbook › Branch protection). No secret is read: the
+# release builds use placeholder server URLs (built, never signed in), the
+# signed-in flows run against the server this workflow starts, and EAS, the
 # stores and Sentry are not reached. chat-mobile-release.yml calls this
 # workflow on the SHA it releases, chat-mobile-update.yml on the SHA it
 # publishes as an OTA update.
@@ -231,7 +242,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/ktlint"
           "$RUNNER_TEMP/ktlint" "apps/chat-mobile/modules/**/*.kt"
       - name: Mobile repo contracts
-        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-bundle-composition.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/maestro-retry.test.mjs scripts/mobile-canary.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs scripts/mobile-play-release.test.mjs scripts/mobile-release-notes.test.mjs scripts/mobile-release-health.test.mjs scripts/mobile-docs.test.mjs scripts/mobile-data-layout.test.mjs scripts/mobile-apk-scan.test.mjs
+        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-bundle-composition.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/mobile-e2e-seed.test.mjs scripts/maestro-retry.test.mjs scripts/mobile-canary.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs scripts/mobile-play-release.test.mjs scripts/mobile-release-notes.test.mjs scripts/mobile-release-health.test.mjs scripts/mobile-docs.test.mjs scripts/mobile-data-layout.test.mjs scripts/mobile-apk-scan.test.mjs
 
   doctor-bundle:
     name: expo-doctor and JS bundle budget
@@ -440,6 +451,164 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  android-e2e:
+    # Audit "nightly-never-scheduled": the only device flows a PR ran stopped at the sign-in screen, and the nightly's
+    # signed-in ones need a staging server and settings no PR job may read. Here the whole stack is started in the job,
+    # as ci.yml's e2e job does for the web, so sending, receiving and the outbox block a merge.
+    name: Android signed-in flows (hermetic server)
+    needs: scope
+    if: needs.scope.outputs.native == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: uniwork
+          POSTGRES_USER: uniwork
+          POSTGRES_PASSWORD: uniwork
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U uniwork -d uniwork"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # The server, as ci.yml › e2e starts it, minus what the app never reaches (the Office frames, MinIO: files go to
+      # local disk). DEV_VERIFICATION_CODE lets the seed verify its accounts' email; the UniChat client accepts the
+      # dev build's redirect.
+      DATABASE_URL: postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: ci-mobile-e2e-secret
+      PORT: "8080"
+      FRONTEND_ORIGIN: http://localhost:3000
+      API_PUBLIC_URL: http://localhost:8080
+      PREVIEW_ORIGIN: http://localhost:3001
+      PREVIEW_CAPABILITY_SECRET: ci-mobile-e2e-preview-capability-secret-0000
+      PREVIEW_ASSET_TTL: 10m
+      PREVIEW_ASSET_MAX_BYTES: "10485760"
+      APP_ENV: development
+      DEV_VERIFICATION_CODE: "123456"
+      STORAGE_BACKEND: local
+      LOCAL_UPLOAD_DIR: /tmp/uniwork-uploads
+      DESKTOP_AUTH_CLIENTS: uniwork-chat-mobile=uniworkchat://auth/callback|uniworkchat-dev://auth/callback
+      DESKTOP_AUTH_DEPLOYMENT_IDS: default
+      # The web's sign-in and consent pages, opened in the emulator's Chrome at localhost:3000 (adb reverse), a secure
+      # context as on the real site; the pages call the API at localhost:8080 the same way.
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_WS_URL: ws://localhost:8080
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      # The app: the dev variant (plain http allowed: app.config.ts), under the staging id the flows name. It reaches
+      # the API at 10.0.2.2, the emulator's address for this runner, and not through adb reverse, so Maestro's airplane
+      # mode really cuts it off (offline-send-relaunch.yaml). No EAS project: no update server, no push token.
+      UNICHAT_ENV: dev
+      UNICHAT_API_URL: http://10.0.2.2:8080
+      UNICHAT_APP_URL: http://localhost:3000
+      EXPO_BUNDLE_IDENTIFIER_DEV: com.uniworkos.chat.staging
+      UNICHAT_EAS_PROJECT_ID: ""
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      # The dev build's link scheme, for the flows' openLink (maestro/scripts/app-scheme.js).
+      MAESTRO_APP_SCHEME: uniworkchat-dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      # Gradle and Maestro both want JDK 17.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@v4
+      # The whole workspace: the web build needs its own packages, not only the app's.
+      - run: pnpm install --frozen-lockfile
+      - name: Build the dev-variant release APK
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          pnpm exec expo prebuild -p android --no-install --clean
+          (cd android && ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64)
+      - name: Migrate and start the server
+        working-directory: server
+        run: |
+          set -euo pipefail
+          mkdir -p "$LOCAL_UPLOAD_DIR"
+          go run ./cmd/migrate up
+          go build -o bin/server ./cmd/server
+          nohup bin/server > "$RUNNER_TEMP/server.log" 2>&1 &
+      - name: Build and start the web app
+        run: |
+          set -euo pipefail
+          pnpm --filter @uniwork/web build
+          # PORT above is the Go server's; `next start` reads the same variable.
+          PORT=3000 nohup pnpm --filter @uniwork/web start > "$RUNNER_TEMP/web.log" 2>&1 &
+      - name: Wait for both
+        run: |
+          for i in $(seq 1 60); do curl -sf http://localhost:8080/healthz > /dev/null && break; sleep 1; done
+          for i in $(seq 1 90); do curl -sf http://localhost:3000 > /dev/null && break; sleep 1; done
+          curl -sf http://localhost:8080/readyz && curl -sf http://localhost:3000 > /dev/null
+      - name: Seed the accounts, the workspace and the rooms
+        run: node scripts/mobile-e2e-seed.mjs --api http://localhost:8080 --app http://localhost:3000 --github-env "$GITHUB_ENV"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - name: Signed-in flows on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          # google_apis carries Chrome, which hosts the sign-in Custom Tab.
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            adb reverse tcp:3000 tcp:3000
+            adb reverse tcp:8080 tcp:8080
+            adb install apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
+            adb shell am set-debug-app --persistent com.android.chrome
+            adb shell 'echo "chrome --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/chat-read-send.yaml
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/offline-send-relaunch.yaml
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/background-resume.yaml
+      - if: failure()
+        run: tail -n 150 "$RUNNER_TEMP/server.log" "$RUNNER_TEMP/web.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maestro-e2e
+          # Screenshots and the server logs only: Maestro's command log records the typed test password.
+          path: |
+            ~/.maestro/tests/**/*.png
+            ${{ runner.temp }}/server.log
+            ${{ runner.temp }}/web.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   ios-release:
     # Audit P1 "ios-never-built": iOS had no build anywhere a PR could see. A
     # Release build for the simulator needs no Apple account (ad-hoc signed),
@@ -549,7 +718,7 @@ jobs:
   gate:
     # The required status check (scripts/branch-protection.json): keep the name.
     name: UniChat mobile gate
-    needs: [scope, checks, doctor-bundle, android-release, android-smoke, ios-release]
+    needs: [scope, checks, doctor-bundle, android-release, android-smoke, android-e2e, ios-release]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

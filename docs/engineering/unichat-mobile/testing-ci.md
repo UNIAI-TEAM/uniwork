@@ -120,6 +120,12 @@ matrix theo profile `android-2gb`; nightly đo thêm mở lạnh tới `inbox` v
 `data/perf/marks-file.ts`, mỗi tên một lần mỗi tiến trình), chỉ bản build với
 `UNICHAT_PERF_MARKS=1` (`extra.perfMarks`) mới ghi; mốc mới thì thêm vào `scripts/mobile-perf.mjs`. Thêm gói làm bundle nặng hơn trần thì nâng trần cùng
 commit, ghi lý do; bundle nhỏ đi thì hạ trần. Không có script `build`.
+Cùng điều kiện native, `android-e2e` chạy các luồng đã đăng nhập trên một UniWork dựng ngay trong job (server Go trên
+service container Postgres/Redis, bản build Next production cho trang đăng nhập), seed qua API bằng
+`scripts/mobile-e2e-seed.mjs`: đăng nhập qua trình duyệt hệ thống, đọc và gửi (`chat-read-send.yaml`), gửi offline sống
+qua kill (`offline-send-relaunch.yaml`), tin người khác viết lúc app ở nền (`background-resume.yaml`). APK là biến thể
+dev build Release (cleartext chỉ ở biến thể này, `app.config.test.ts`), API ở `10.0.2.2`, trang web qua `adb reverse`;
+không secret. Chi tiết và cách đọc khi đỏ: runbook › Luồng đã đăng nhập trên PR.
 Thêm gói native bằng `pnpm --filter @uniwork/chat-mobile exec expo install <pkg>`;
 nếu Metro kẹt vì layout isolated của pnpm thì dừng và báo, không thêm
 `.npmrc` hoist.

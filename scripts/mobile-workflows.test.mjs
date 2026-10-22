@@ -360,6 +360,31 @@ test("the gate needs every job, always runs, and each job runs exactly when the 
   }
 });
 
+// Audit "nightly-never-scheduled": no signed-in device flow gated a merge. android-e2e starts the stack itself, so a
+// PR proves sign-in, send/receive, the outbox across a kill and a second account's message after a background, with
+// nothing but what the workflow brings.
+test("every PR that reaches the binary runs the signed-in flows against a server it starts, reading no secret", () => {
+  const { jobs } = jobsOf(read("mobile-verify.yml"));
+  const job = jobs.get("android-e2e") ?? "";
+  assert.match(job, /^ {4}if: needs\.scope\.outputs\.native == 'true'$/m);
+  assert.match(job, /^ {6}postgres:$/m, "Postgres as a service container");
+  assert.match(job, /^ {6}redis:$/m, "Redis as a service container");
+  assert.doesNotMatch(job, /secrets\./, "a PR job reads no secret");
+  assert.match(job, /UNICHAT_ENV: dev$/m, "the variant that may talk plain http");
+  // The API by the emulator's host address (airplane mode cuts it); the web pages through adb reverse (a secure context).
+  assert.match(job, /UNICHAT_API_URL: http:\/\/10\.0\.2\.2:8080$/m);
+  assert.match(job, /adb reverse tcp:3000 tcp:3000/);
+  assert.match(job, /DEV_VERIFICATION_CODE: "123456"/);
+  assert.match(job, /uniwork-chat-mobile=[^\n]*uniworkchat-dev:\/\/auth\/callback/, "the server accepts the dev build's redirect");
+  assert.match(job, /run: node scripts\/mobile-e2e-seed\.mjs --api http:\/\/localhost:8080 --app http:\/\/localhost:3000 --github-env "\$GITHUB_ENV"/);
+  assert.match(job, /MAESTRO_APP_SCHEME: uniworkchat-dev$/m);
+  for (const flow of ["chat-read-send", "offline-send-relaunch", "background-resume"]) {
+    assert.match(job, new RegExp(`maestro-retry\\.sh test flows/${flow}\\.yaml`), `${flow} runs on every PR`);
+  }
+  // Screenshots and server logs only: Maestro's own log holds the typed password.
+  assert.match(job, /~\/\.maestro\/tests\/\*\*\/\*\.png/);
+});
+
 test("mobile-verify declares the force_native input the release passes", () => {
   const wf = read("mobile-verify.yml");
   assert.match(wf, /^ {2}workflow_call:\n {4}inputs:\n(?: {6}#.*\n)* {6}force_native:\n(?: {8}\S.*\n)*? {8}type: boolean\n/m);

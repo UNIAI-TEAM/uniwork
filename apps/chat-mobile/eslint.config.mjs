@@ -95,7 +95,17 @@ export default [
     files: ["maestro/scripts/*.js"],
     languageOptions: {
       sourceType: "script",
-      globals: { http: "readonly", output: "writable", MAESTRO_API_URL: "readonly", MAESTRO_CALLER_TOKEN: "readonly", MAESTRO_CALLER_WS_ID: "readonly", MAESTRO_DM_ROOM_ID: "readonly" },
+      globals: {
+        http: "readonly",
+        json: "readonly",
+        output: "writable",
+        MAESTRO_API_URL: "readonly",
+        MAESTRO_APP_SCHEME: "readonly",
+        MAESTRO_CALLER_EMAIL: "readonly",
+        MAESTRO_CALLER_PASSWORD: "readonly",
+        MAESTRO_CALLER_WS_ID: "readonly",
+        MAESTRO_DM_ROOM_ID: "readonly",
+      },
     },
   },
   // Node scripts (scripts/sync-i18n.mjs) run outside the bundle.

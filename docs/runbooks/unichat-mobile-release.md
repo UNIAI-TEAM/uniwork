@@ -80,21 +80,25 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   `offline-send-relaunch.yaml` trên Android (chế độ máy bay: ba tin viết offline sống qua kill, mở lạnh offline vào
   inbox và phòng từ cache, bật mạng thì tới đúng thứ tự, mỗi tin một lần); thiếu biến `MAESTRO_*` thì run theo lịch
   **đỏ**, không xanh. `background-resume.yaml` (người khác viết lúc app ở nền, trong và quá cửa sổ ân hạn 25 s của
-  socket) chạy tay: cần tài khoản thứ hai (`MAESTRO_CALLER_TOKEN`, `MAESTRO_CALLER_WS_ID`, `MAESTRO_DM_ROOM_ID`,
-  `MAESTRO_API_URL`) như `call-answer-incoming.yaml`.
-- **Chưa có: luồng đã đăng nhập trên PR** (review P2, hoãn có lý do). PR chỉ chạy `smoke-launch.yaml` (mở lạnh tới
-  màn đăng nhập); `chat-read-send.yaml` chỉ chạy hằng đêm với staging. Câu hỏi thiết kế cần chốt trước khi viết job
-  `android-signed-in` (native scope, qua `scripts/maestro-retry.sh`, thêm vào `JOBS` của
-  `scripts/mobile-verify-gate.mjs`): job đó phải dựng server trong job như job `e2e` của `ci.yml` (binary server +
-  `postgres:16` + `redis:7` + bản build Next production, vì đăng nhập đi qua trang web trong trình duyệt hệ thống —
-  `maestro/subflows/sign-in.yaml` đã viết sẵn), rồi app trên emulator phải tới được nó. Bản Release staging/production
-  chỉ nhận `https://` (`app.config.ts`) và Android từ chối cleartext. Hai đường: (a) một biến thể thử nghiệm build
-  Release với `UNICHAT_ENV=dev` trỏ `http://10.0.2.2:<port>`, cộng một network security config chỉ cho phép cleartext
-  tới đúng `10.0.2.2` — đổi tư thế TLS của binary nên cần test chứng minh không profile EAS nào bật nó; (b) proxy TLS tự
-  ký trong job với CA cài vào emulator — Android 7+ không tin CA người dùng nếu app không khai, CA hệ thống cần
-  emulator `-writable-system`, nặng và giòn. Hướng nghiêng về (a). Đường gọi đến (`call-answer-incoming.yaml`) vẫn
-  chỉ chạy tay: cần FCM thật và tài khoản thứ hai. Hoãn vì: job này không chạy được trên máy làm (không Docker,
-  không emulator), mà một job bắt buộc sai sẽ chặn mọi PR native; cần một lượt thử trên CI trước khi gate đòi nó.
+  socket) chạy ở mọi PR chạm binary trên server dựng trong job (mục dưới). Tài khoản thứ hai đăng nhập ngay trong
+  flow (`maestro/scripts/peer-session.js`, `MAESTRO_CALLER_EMAIL` + `MAESTRO_CALLER_PASSWORD`): access token sống 15
+  phút, nên không giữ token trong secret.
+- **Luồng đã đăng nhập trên PR** (`mobile-verify.yml` › `android-e2e`, audit "nightly-never-scheduled"; mỗi PR chạm
+  binary, trong `JOBS` của `scripts/mobile-verify-gate.mjs`). Job dựng cả hệ thống trong runner như job `e2e` của
+  `ci.yml`: `postgres:16` và `redis:7` là service container, server Go (migrate rồi chạy, `APP_ENV=development`,
+  `DEV_VERIFICATION_CODE=123456`, file vào đĩa local, `DESKTOP_AUTH_CLIENTS` nhận redirect `uniworkchat-dev://`), bản
+  build Next production cho trang đăng nhập và đồng ý. `scripts/mobile-e2e-seed.mjs` tạo qua API (đúng đường onboarding
+  của web) ba tài khoản, một tổ chức và workspace, nhóm "UniChat Maestro" và DM của tài khoản thứ hai với tài khoản thử,
+  rồi ghi các biến `MAESTRO_*` vào `$GITHUB_ENV` (mật khẩu được `::add-mask::`). App là biến thể dev build Release
+  (`UNICHAT_ENV=dev`, id `com.uniworkos.chat.staging` để các flow dùng chung, không dự án EAS): chỉ biến thể này được
+  cleartext (`app.config.ts`; `app.config.test.ts` giữ để không profile EAS nào ngoài development client build nó). App
+  gọi API ở `10.0.2.2:8080` (địa chỉ của runner nhìn từ emulator, nên chế độ máy bay cắt được thật), Chrome mở trang web
+  ở `localhost:3000` qua `adb reverse` (secure context như site thật). Chạy `chat-read-send.yaml`,
+  `offline-send-relaunch.yaml` và `background-resume.yaml` qua `scripts/maestro-retry.sh`; không đọc secret nào. Artifact
+  `maestro-e2e`: ảnh chụp và log server/web (không log Maestro: nó ghi mật khẩu được gõ). Đỏ ở đây mà nightly xanh:
+  thường là seed lệch API (log server trong artifact) hay trang web đổi chữ mà `lib/maestro-flows.test.ts` chưa thấy.
+  Lần chạy xanh đầu tiên trên GitHub là việc owner xem trước khi bật branch protection (mục trên): job chưa từng chạy
+  trên runner thật.
 - **Đo hiệu năng trên thiết bị** (`scripts/mobile-perf.mjs`, trần ở `apps/chat-mobile/perf-budget.json`; chặn ở mọi
   `GATE_LEVEL`). `android-smoke` mỗi PR chạm binary: kích thước APK x86_64, rồi 5 lần mở lạnh (`am force-stop` →
   `am start -W`), trung vị của `TotalTime` (Android tới khung đầu — splash) và của thời gian từ lúc khởi chạy tới

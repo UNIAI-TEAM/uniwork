@@ -86,7 +86,13 @@ describe("app.config per UNICHAT_ENV", () => {
           "expo-build-properties",
           {
             ios: { enableSceneSupport: true },
-            android: { enableMinifyInReleaseBuilds: true, enableShrinkResourcesInReleaseBuilds: true, extraProguardRules: ANDROID_KEEP_RULES },
+            android: {
+              enableMinifyInReleaseBuilds: true,
+              enableShrinkResourcesInReleaseBuilds: true,
+              extraProguardRules: ANDROID_KEEP_RULES,
+              // Only a dev build talks to plain http (a laptop on the LAN, the PR's hermetic server through adb reverse).
+              ...(env === "staging" || env === "production" ? {} : { usesCleartextTraffic: true }),
+            },
           },
         ],
         "@livekit/react-native-expo-plugin",
@@ -192,6 +198,39 @@ describe("app.config per UNICHAT_ENV", () => {
     const config = build();
     expect(config.ios).toMatchObject({ bundleIdentifier: appId, appleTeamId: "ABCDE12345" });
     expect(config.android?.package).toBe(appId);
+  });
+});
+
+// The dev variant may talk plain http (a laptop on the LAN; the PR's hermetic server, mobile-verify.yml › android-e2e).
+// That changes the binary's network posture, so it must never be what a tester or a store gets: every EAS profile but
+// the development client resolves to staging or production, and those builds keep Android's no-cleartext default.
+describe("plain http is a dev build's only", () => {
+  type Profile = { extends?: string; env?: Record<string, string>; developmentClient?: boolean };
+  const profiles = (JSON.parse(fs.readFileSync(path.join(__dirname, "eas.json"), "utf8")) as { build: Record<string, Profile> }).build;
+  const envOf = (name: string): Record<string, string> => {
+    const profile = profiles[name] ?? {};
+    return { ...(profile.extends ? envOf(profile.extends) : {}), ...profile.env };
+  };
+  const cleartextOf = () => {
+    const plugin = build().plugins?.find((p) => Array.isArray(p) && p[0] === "expo-build-properties") as [string, { android: Record<string, unknown> }];
+    return plugin[1].android.usesCleartextTraffic;
+  };
+
+  it.each(Object.keys(profiles).filter((name) => name !== "base"))("EAS profile %s", (name) => {
+    const env = envOf(name).UNICHAT_ENV;
+    if (profiles[name]?.developmentClient) {
+      expect(env).toBe("dev");
+      return;
+    }
+    expect(["staging", "production"]).toContain(env);
+    vi.stubEnv("UNICHAT_ENV", env);
+    stubServers();
+    expect(cleartextOf()).toBeUndefined();
+  });
+
+  it("is allowed for the dev variant", () => {
+    vi.stubEnv("UNICHAT_ENV", "dev");
+    expect(cleartextOf()).toBe(true);
   });
 });
 
