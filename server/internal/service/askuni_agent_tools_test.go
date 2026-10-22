@@ -393,8 +393,19 @@ func TestAskAgentToolsReadEveryKind(t *testing.T) {
 	if items := runAgentTool(t, s, tc, "list_projects", `{"query":"","include_closed":false}`); len(items) != 1 || items[0].Title != pr.Title || !strings.Contains(items[0].Text, "ID: "+pr.ID) {
 		t.Errorf("list_projects = %+v", items)
 	}
-	if items := runAgentTool(t, s, tc, "get_project", `{"project_id":"`+pr.ID+`"}`); len(items) != 1 || !strings.Contains(items[0].Text, "Dựng trang chủ") || !strings.Contains(items[0].Text, "Task count: 1") {
-		t.Errorf("get_project = %+v", items)
+	gp := runAgentTool(t, s, tc, "get_project", `{"project_id":"`+pr.ID+`"}`)
+	if len(gp) != 2 || gp[0].Kind != "project" || !strings.Contains(gp[0].Text, "Task count: 1") || strings.Contains(gp[0].Text, "Dựng trang chủ") || !strings.Contains(gp[0].Text, "Its first 1 tasks follow as their own sources.") {
+		t.Fatalf("get_project = %+v", gp)
+	}
+	if gp[1].Kind != "task" || gp[1].Title != "Dựng trang chủ" || gp[1].Key != gp[1].Href || gp[1].Key == "" || !strings.Contains(gp[1].Text, "Project: Website mới ("+pr.ID+")") {
+		t.Errorf("get_project task item = %+v", gp[1])
+	}
+	empty, err := s.tasks.CreateProject(ctx, Human(x.ua.ID), x.w.ID, CreateProjectInput{Title: "Dự án trống"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if items := runAgentTool(t, s, tc, "get_project", `{"project_id":"`+empty.ID+`"}`); len(items) != 1 || strings.Contains(items[0].Text, "follow") {
+		t.Errorf("get_project without tasks = %+v", items)
 	}
 	tasks := runAgentTool(t, s, tc, "list_tasks", `{"status":"","project_id":"`+pr.ID+`","assignee_id":"","priority":"","due_from":"","due_to":"","overdue":false,"limit":0}`)
 	if len(tasks) != 1 || !strings.Contains(tasks[0].Text, "Project: Website mới ("+pr.ID+")") {

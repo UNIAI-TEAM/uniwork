@@ -170,7 +170,7 @@ func (s *AskUNIService) agentTools() []agentTool {
 				"query":          strArg("Words in the title or description; \"\" lists all."),
 				"include_closed": boolArg("true to include completed and cancelled projects."),
 			}, s.needsReads(s.agentListProjects)),
-		readTool("get_project", "One project with its description and its first 20 tasks.",
+		readTool("get_project", "One project with its description; its first 20 tasks follow as their own sources.",
 			map[string]agentProp{"project_id": strArg("The project's id.")}, s.needsReads(s.agentGetProject)),
 		readTool("get_document", "One document: a page as Markdown, a text file's text, or another file's name and type.",
 			map[string]agentProp{"document_id": strArg("The document's id.")}, s.needsReads(s.agentGetDocument)),
@@ -471,6 +471,8 @@ func (s *AskUNIService) agentGetProject(ctx context.Context, tc ai.ToolContext, 
 	if err != nil {
 		return nil, err
 	}
+	// The project's own title names its tasks' Project line; no ListProjects needed.
+	l.projects[p.ID] = p.Title
 	var b strings.Builder
 	if p.Description != nil {
 		b.WriteString(*p.Description)
@@ -479,12 +481,16 @@ func (s *AskUNIService) agentGetProject(ctx context.Context, tc ai.ToolContext, 
 		if b.Len() > 0 {
 			b.WriteString("\n")
 		}
-		b.WriteString("Tasks:")
-		for _, t := range p.Tasks {
-			fmt.Fprintf(&b, "\n- %s %s (%s)", l.ref(t), t.Title, t.Status)
-		}
+		fmt.Fprintf(&b, "Its first %d tasks follow as their own sources.", len(p.Tasks))
 	}
-	return []agentItem{s.projectItem(l.names, p, b.String())}, nil
+	out := []agentItem{s.projectItem(l.names, p, b.String())}
+	for _, t := range p.Tasks {
+		out = append(out, s.taskItem(l, t, t.Excerpt))
+	}
+	if p.TaskCount > int64(len(p.Tasks)) {
+		out = append(out, moreNote("The project has more tasks than are listed; use list_tasks with project_id for the rest."))
+	}
+	return out, nil
 }
 
 func (s *AskUNIService) agentGetDocument(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {
