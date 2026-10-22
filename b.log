@@ -1,0 +1,19 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/handler -count=1 -timeout 60m -v -run '^(TestIsolationMatrix|TestEveryBodyIDFieldHasAReferenceCase|TestIsolationRealtime|TestIsolationMCP|TestDocumentOwnerTransfer\w*|TestDocumentAdminSummary\w*|TestDocumentBreakGlass\w*|TestSwaggerSpecFollowsChiRoutesAndSDI)$' > /tmp/h.log 2>&1); rc=$?; grep -E "^--- (PASS|FAIL|SKIP): " /tmp/h.log; grep -E "^\s*--- (FAIL|SKIP)|^(ok|FAIL)\s|panic:" /tmp/h.log | tail -15; echo; echo "TEST_GO_HANDLER_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- PASS: TestDocumentBreakGlassRoutes (0.78s)
+--- PASS: TestDocumentOwnerTransferRoute (0.21s)
+--- PASS: TestDocumentAdminSummaryOwnerKindAndRevision (0.21s)
+--- PASS: TestDocumentAdminSummaryOwnerKindForAWorkProductDocument (0.20s)
+--- FAIL: TestIsolationMatrix (729.85s)
+--- PASS: TestIsolationMCP (3.01s)
+--- PASS: TestIsolationRealtime (4.30s)
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.00s)
+--- PASS: TestSwaggerSpecFollowsChiRoutesAndSDI (0.69s)
+--- FAIL: TestIsolationMatrix (729.85s)
+    --- FAIL: TestIsolationMatrix/cross-tenant (204.98s)
+    --- FAIL: TestIsolationMatrix/mixed (70.69s)
+    --- FAIL: TestIsolationMatrix/member-of-both (175.58s)
+FAIL	github.com/unicomhub/uniwork/server/internal/handler	739.280s
+
+TEST_GO_HANDLER_EXIT=1

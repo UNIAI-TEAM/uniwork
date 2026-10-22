@@ -1,0 +1,7 @@
+$ (cd packages/views && pnpm exec vitest run notifications/ settings/components/notifications-tab.test.tsx documents/owner-transfer-dialog.test.tsx > /tmp/vv.log 2>&1); rc=$?; grep -E "Test Files|Tests |FAIL" /tmp/vv.log | tail -8; echo; echo "VITEST_VIEWS_EXIT=$rc"
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  settings/components/notifications-tab.test.tsx > NotificationsTab > renders every kind, hides the push column when the server cannot push, and saves a toggle
+ Test Files  1 failed | 17 passed (18)
+      Tests  1 failed | 266 passed (267)
+
+VITEST_VIEWS_EXIT=1

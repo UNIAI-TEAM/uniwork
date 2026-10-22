@@ -1,0 +1,7 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/core typecheck > /tmp/tc-core.log 2>&1; rc=$?; grep -E "error TS" /tmp/tc-core.log | head -10; tail -15 /tmp/tc-core.log; echo; echo "TYPECHECK_CORE_EXIT=$rc"
+
+> @uniwork/core@0.0.0 typecheck /workspace/packages/core
+> tsc --noEmit
+
+
+TYPECHECK_CORE_EXIT=0
