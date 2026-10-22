@@ -5,11 +5,13 @@
 // no email, token, URL query or chat text; the user is an opaque id. No
 // screenshots, view hierarchy or session replay: a chat screen is private.
 //
-// Release and dist name the native build (`<appId>@<version>+<build>`, the
-// build number), the tags the update that runs on it: an OTA crash is told
-// apart by update_id and channel. Source maps carry Sentry debug ids
-// (metro.config.js › getSentryExpoConfig), so an update's map matches without
-// a release of its own (docs/runbooks/unichat-mobile-release.md).
+// Release and dist name the native build and its platform
+// (`<appId>@<version>+<build>.<os>`, the build number) and the OTA it runs
+// (`….ota.<id>`, lib/build-info.ts › sentryRelease), the tags the update too:
+// crash-free sessions are counted per platform and per update. Source maps
+// carry Sentry debug ids (metro.config.js › getSentryExpoConfig), so an
+// update's map matches whatever the release is called
+// (docs/runbooks/unichat-mobile-release.md).
 import * as Sentry from "@sentry/react-native";
 import { sentryRelease, type BuildInfo } from "@/lib/build-info";
 import { scrubBreadcrumb, scrubEvent, scrubTransaction } from "@/lib/redact";
@@ -31,9 +33,12 @@ interface SentryStart {
   info: BuildInfo;
 }
 
+let started = false;
+
 /** Starts the SDK and installs it as the report sink; false (and nothing started) without a DSN. */
 export function initSentry({ dsn, environment, info }: SentryStart): boolean {
   if (!dsn) return false;
+  started = true;
   Sentry.init({
     dsn,
     environment,
@@ -75,4 +80,13 @@ export function initSentry({ dsn, environment, info }: SentryStart): boolean {
     setTag: (key, value) => Sentry.setTag(key, value),
   });
   return true;
+}
+
+/**
+ * Whether the run before this one ended in a crash the SDK recorded (native, or a fatal JS error that took the app
+ * down); null without a DSN or when the SDK cannot tell. data/release/launch-health.ts counts it for the server's
+ * crash alert, which pages without waiting for Sentry (deploy/alerts.yml › UniChatMobileCrashes).
+ */
+export async function crashedLastRun(): Promise<boolean | null> {
+  return started ? Sentry.crashedLastRun() : null;
 }

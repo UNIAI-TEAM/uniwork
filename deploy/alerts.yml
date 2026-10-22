@@ -378,6 +378,38 @@ groups:
           summary: "Một bản UniChat Android không đổ chuông cuộc gọi bằng màn native"
           description: "Bản {{ $labels.client_version }}: {{ $value | humanizePercentage }} push cuộc gọi trong 1 giờ chỉ thành thông báo thường hoặc không hiện gì."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatCallRingsDegraded.md
+      # An OTA update of UniChat mobile that phones cannot launch: they fall back to the binary's bundle (an emergency
+      # launch) or skip it for the update before it, quietly, so without this the update looks healthy. The phones tell
+      # it on the launch after (apps/chat-mobile/data/release/launch-health.ts, event ota_launch); three in an hour on one
+      # build keep a single phone with a full disk from paging. scripts/mobile-release-health.mjs stops the update.
+      - alert: UniChatMobileUpdateLaunchFailures
+        expr: |
+          sum by (os, client_version) (increase(uniwork_mobile_events_total{event="ota_launch"}[1h])) >= 3
+        for: 5m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Máy UniChat mobile không khởi động được một bản OTA"
+          description: "{{ $value | humanize }} lần trong 1 giờ, máy {{ $labels.os }} bản {{ $labels.client_version }} không chạy được một bản OTA và quay về bản trước."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatMobileUpdateLaunchFailures.md
+      # UniChat mobile crashing, told without waiting for Sentry: the run after a crash says so (event app_crash, from
+      # Sentry's crashedLastRun, so only builds with a DSN count). Against cold opens of the same build, which is roughly
+      # one per session: over 2 % is four times the crash-free floor the rollouts are held to (99.5 %), paged here even
+      # when the hourly release-health run has not read Sentry yet. Fifty opens keep a pilot of five phones quiet.
+      - alert: UniChatMobileCrashes
+        expr: |
+          (
+            sum by (os, client_version) (increase(uniwork_mobile_events_total{event="app_crash"}[1h]))
+              / sum by (os, client_version) (increase(uniwork_mobile_events_total{event="app_open",result="cold"}[1h]))
+          ) > 0.02
+          and sum by (os, client_version) (increase(uniwork_mobile_events_total{event="app_open",result="cold"}[1h])) >= 50
+        for: 15m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Một bản UniChat mobile crash nhiều"
+          description: "Bản {{ $labels.client_version }} ({{ $labels.os }}): {{ $value | humanizePercentage }} lần mở lạnh trong 1 giờ đến sau một lần crash."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatMobileCrashes.md
       # A member reported a message or a person in UniChat (store UGC policy, Apple 1.2): the terms of use promise the
       # operator acts on every report within 24 hours. Both rules read queue state (metrics.ChatReportQueueCollector, the
       # open rows of chat_reports at scrape time), never the chat.report.created counter: that series is born at 1 with

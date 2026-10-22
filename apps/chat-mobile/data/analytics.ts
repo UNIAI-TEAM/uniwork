@@ -24,7 +24,10 @@ export type ProductEvent =
   | { name: "call_connect"; result: "connected"; duration_ms: number }
   | { name: "call_connect"; result: "failed" }
   // What a call push did on the phone (data/calls/call-push.ts › CallPushOutcome): ring delivery, measured in the field.
-  | { name: "call_push"; result: "shown" | "fallback" | "in_app" | "ignored" | "cleared" | "lost" };
+  | { name: "call_push"; result: "shown" | "fallback" | "in_app" | "ignored" | "cleared" | "lost" }
+  // How a launch went (data/release/launch-health.ts): an OTA update that failed to launch, and a run that crashed.
+  | { name: "ota_launch"; result: "emergency" | "failed_update" }
+  | { name: "app_crash"; result: "last_run" };
 
 /** The most events kept between two flushes; older ones are dropped first. */
 export const MAX_QUEUE = 60;

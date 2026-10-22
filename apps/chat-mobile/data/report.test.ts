@@ -84,6 +84,17 @@ describe("with a sink", () => {
     expect(sink.captureException).toHaveBeenLastCalledWith(bare, expect.objectContaining({ level: "error", fingerprint: ["api-error", "GET /api/v1/x", "400", ""] }));
   });
 
+  it("groups by the caller's fingerprint when the error names no endpoint", () => {
+    const sink = fakeSink();
+    installReportSink(sink);
+    const failure = new Error("an OTA update failed to launch");
+    reportError(failure, { source: "updates", fingerprint: ["ota-launch-failure", "android", "u1"] });
+    expect(sink.captureException).toHaveBeenCalledWith(failure, expect.objectContaining({ fingerprint: ["ota-launch-failure", "android", "u1"] }));
+    const routed = apiError(500, { endpoint: "GET /api/v1/x" });
+    reportError(routed, { source: "query", fingerprint: ["ignored"] });
+    expect(sink.captureException).toHaveBeenLastCalledWith(routed, expect.objectContaining({ fingerprint: ["api-error", "GET /api/v1/x", "500", ""] }));
+  });
+
   it("skips expected errors unless forced, and wraps a thrown non-Error with its text redacted", () => {
     const sink = fakeSink();
     installReportSink(sink);

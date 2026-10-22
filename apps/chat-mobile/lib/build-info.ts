@@ -55,16 +55,19 @@ export function shortUpdateId(updateId: string | null): string {
 }
 
 /**
- * Sentry's release: `<appId>@<version>+<build>` for the bundle embedded in the binary (the name its Gradle upload
- * gives the source maps), and `<appId>@<version>+<build>.ota.<update id>` while an OTA runs, so release health
- * (crash-free sessions) is counted per update and a bad one can be stopped on its own numbers
- * (scripts/mobile-release-health.mjs). Semver build metadata: dot-separated [0-9A-Za-z-]. Source maps match by
- * debug id, whatever the release is called.
+ * Sentry's release: `<appId>@<version>+<build>.<os>` for the bundle embedded in the binary, and
+ * `<appId>@<version>+<build>.<os>.ota.<update id>` while an OTA runs, so release health (crash-free sessions) is
+ * counted per platform and per update, and a bad one is stopped on its own numbers in its own store
+ * (scripts/mobile-release-health.mjs). The OS is there because EAS counts iOS build numbers and Android version codes
+ * apart: `0.3.0+5` can name both (audit "health-gate-platform-blind"). Semver build metadata: dot-separated
+ * [0-9A-Za-z-]. Source maps and native symbols match by debug id, whatever the release is called; the Gradle upload's
+ * own release (`<appId>@<version>+<version code>`) only proves the upload (chat-mobile-production.yml).
  */
 export function sentryRelease(info: BuildInfo): string {
   const id = info.appId || "unichat";
-  const ota = info.updateId ? info.updateId.replace(/[^0-9A-Za-z-]/g, "") : "";
-  const build = [info.build, ota && `ota.${ota}`].filter(Boolean).join(".");
+  const segment = (value: string) => value.replace(/[^0-9A-Za-z-]/g, "");
+  const ota = info.updateId ? segment(info.updateId) : "";
+  const build = [info.build, segment(info.os), ota && `ota.${ota}`].filter(Boolean).join(".");
   return build ? `${id}@${info.version}+${build}` : `${id}@${info.version}`;
 }
 

@@ -29,6 +29,8 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `UniChatReportFiled` | 3 | có báo cáo tin nhắn hoặc người trong UniChat đang chờ (bật tới khi mọi báo cáo được đóng); điều khoản hứa xử lý trong 24 giờ | [UniChatReportFiled.md](UniChatReportFiled.md) |
 | `UniChatReportOverdue` | 2 | báo cáo UniChat mở lâu nhất đã chờ quá 20 giờ (hạn 24 giờ) | [UniChatReportOverdue.md](UniChatReportOverdue.md) |
 | `UniChatCallRingsDegraded` | 3 | một bản UniChat Android: > 10 % push cuộc gọi trong 1 giờ (≥ 20) không thành màn đổ chuông native | [UniChatCallRingsDegraded.md](UniChatCallRingsDegraded.md) |
+| `UniChatMobileUpdateLaunchFailures` | 2 | ≥ 3 lần trong 1 giờ máy UniChat mobile (một OS, một version) không khởi động được một bản OTA và quay về bản trước | [UniChatMobileUpdateLaunchFailures.md](UniChatMobileUpdateLaunchFailures.md) |
+| `UniChatMobileCrashes` | 2 | một bản UniChat mobile: > 2 % lần mở lạnh trong 1 giờ (≥ 50) đến sau một lần crash | [UniChatMobileCrashes.md](UniChatMobileCrashes.md) |
 | `OfficeChangeFeedLagHigh` | 2 | change feed Office trễ > 300 s trong 10 phút (pending G7-D1) | [OfficeChangeFeedLagHigh.md](OfficeChangeFeedLagHigh.md) |
 | `OfficeLeaseRevokeFailed` | 2 | revoke lease offline fail-closed không ghi được (pending G7-D1) | [OfficeLeaseRevokeFailed.md](OfficeLeaseRevokeFailed.md) |
 | `UniworkAiModelErrors` | 2 | > 10 % lượt model `office_uniwork_ai` lỗi trong 10 phút (pending G7-D1) | [UniworkAiModelErrors.md](UniworkAiModelErrors.md) |

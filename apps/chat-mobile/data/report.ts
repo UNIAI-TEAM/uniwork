@@ -17,6 +17,8 @@ export interface ReportContext {
   force?: boolean;
   /** Server error codes the caller turns into its own words (lib/account-deletion.ts…): an answer, not drift. */
   handledCodes?: readonly string[];
+  /** One issue per what this names, not per stack (an ApiError's endpoint grouping wins). */
+  fingerprint?: string[];
 }
 
 interface CaptureContext {
@@ -111,7 +113,11 @@ export function reportError(error: unknown, context: ReportContext): void {
     tags,
     extra: redactData(context.extra),
     level: kind === "contract" && !context.force ? "warning" : "error",
-    ...(api?.endpoint ? { fingerprint: ["api-error", api.endpoint, String(api.status), api.code ?? ""] } : {}),
+    ...(api?.endpoint
+      ? { fingerprint: ["api-error", api.endpoint, String(api.status), api.code ?? ""] }
+      : context.fingerprint
+        ? { fingerprint: context.fingerprint }
+        : {}),
   });
 }
 

@@ -30,6 +30,12 @@ var mobileEventResults = map[string]map[string]bool{
 	// a plain fallback, rung in the app already, ignored (switch off, over, busy), an end that cleared a ring, or a
 	// ring lost (neither notification could be posted). Ring delivery is judged by these, not by a device farm.
 	"call_push": {"shown": true, "fallback": true, "in_app": true, "ignored": true, "cleared": true, "lost": true},
+	// How a launch went (apps/chat-mobile/data/release/launch-health.ts): an OTA update that could not launch (the
+	// phone fell back to the binary's bundle, or skipped an update that failed to load), and a run that ended in a
+	// crash, told by the next one. Counted against the build that tells it; the alerts page on them without waiting
+	// for Sentry (deploy/alerts.yml › UniChatMobileUpdateLaunchFailures, UniChatMobileCrashes).
+	"ota_launch": {"emergency": true, "failed_update": true},
+	"app_crash":  {"last_run": true},
 }
 
 // mobileEventTimed are the events whose duration is observed.

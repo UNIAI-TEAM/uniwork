@@ -17,6 +17,12 @@ func TestMobileEventsKeepTheirLabelsClosed(t *testing.T) {
 	if m.Observe("first_screen", "slow", "ios", "0.3.0", "embedded", nil) || m.Observe("room_opened", "ok", "ios", "0.3.0", "embedded", nil) {
 		t.Fatal("unknown results and events are dropped")
 	}
+	if !m.Observe("ota_launch", "emergency", "android", "0.3.0", "embedded", nil) || !m.Observe("app_crash", "last_run", "ios", "0.3.0", "embedded", nil) {
+		t.Fatal("a failed OTA launch and a crashed last run are events")
+	}
+	if m.Observe("ota_launch", "ok", "android", "0.3.0", "embedded", nil) || m.Observe("app_crash", "now", "ios", "0.3.0", "embedded", nil) {
+		t.Fatal("their results are closed too")
+	}
 	m.Observe("app_open", "warm", "windows", "0.3.0-beta", "not-an-update", ms(5))
 	if got := testutil.ToFloat64(m.Events.WithLabelValues("app_open", "warm", "other", "other", "other")); got != 1 {
 		t.Fatalf("an unknown OS, a malformed version and a malformed update are other: %v", got)

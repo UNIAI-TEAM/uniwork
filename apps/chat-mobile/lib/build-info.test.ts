@@ -53,15 +53,24 @@ describe("shortUpdateId", () => {
 });
 
 describe("sentryRelease", () => {
-  it("is <appId>@<version>+<build> for the embedded bundle, without the build when unknown", () => {
-    expect(sentryRelease(buildInfoFrom(inputs({ isEmbeddedLaunch: true })))).toBe("com.uniworkos.chat@0.3.0+42");
-    expect(sentryRelease(buildInfoFrom(inputs({ isEmbeddedLaunch: true, nativeBuild: null, appId: null })))).toBe("unichat@0.3.0");
+  it("is <appId>@<version>+<build>.<os> for the embedded bundle, without the build when unknown", () => {
+    expect(sentryRelease(buildInfoFrom(inputs({ isEmbeddedLaunch: true })))).toBe("com.uniworkos.chat@0.3.0+42.android");
+    expect(sentryRelease(buildInfoFrom(inputs({ isEmbeddedLaunch: true, nativeBuild: null, appId: null, os: "ios" })))).toBe("unichat@0.3.0+ios");
+    expect(sentryRelease(buildInfoFrom(inputs({ isEmbeddedLaunch: true, nativeBuild: null, os: "" })))).toBe("com.uniworkos.chat@0.3.0");
+  });
+
+  // Audit "health-gate-platform-blind": EAS counts iOS build numbers and Android version codes apart, so 0.3.0+5
+  // can be both; the OS in the name keeps their crash-free sessions (and the store each one halts) apart.
+  it("tells the two platforms apart when their build numbers collide", () => {
+    const android = sentryRelease(buildInfoFrom(inputs({ isEmbeddedLaunch: true, nativeBuild: "5" })));
+    const ios = sentryRelease(buildInfoFrom(inputs({ isEmbeddedLaunch: true, nativeBuild: "5", os: "ios" })));
+    expect([android, ios]).toEqual(["com.uniworkos.chat@0.3.0+5.android", "com.uniworkos.chat@0.3.0+5.ios"]);
   });
 
   // Audit "rollout-gating-manual": crash-free sessions per OTA, so the release-health job can stop one update.
   it("names the update an OTA run is on, as semver build metadata", () => {
-    expect(sentryRelease(buildInfoFrom(inputs()))).toBe("com.uniworkos.chat@0.3.0+42.ota.0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b");
-    expect(sentryRelease(buildInfoFrom(inputs({ nativeBuild: null, updateId: "ab_c/1" })))).toBe("com.uniworkos.chat@0.3.0+ota.abc1");
+    expect(sentryRelease(buildInfoFrom(inputs()))).toBe("com.uniworkos.chat@0.3.0+42.android.ota.0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b");
+    expect(sentryRelease(buildInfoFrom(inputs({ nativeBuild: null, updateId: "ab_c/1", os: "i_os" })))).toBe("com.uniworkos.chat@0.3.0+ios.ota.abc1");
   });
 });
 

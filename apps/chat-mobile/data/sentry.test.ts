@@ -11,11 +11,12 @@ const sdk = vi.hoisted(() => ({
   addBreadcrumb: vi.fn(),
   reactNavigationIntegration: vi.fn(() => ({ name: "ReactNavigation" })),
   TimeToFullDisplay: () => null,
+  crashedLastRun: vi.fn(async () => true),
 }));
 vi.mock("@sentry/react-native", () => sdk);
 
 import { breadcrumb, installReportSink, isReporting, reportError, setReportTag, setReportUser } from "./report";
-import { initSentry, ScreenFullyDrawn, sentryNavigation } from "./sentry";
+import { crashedLastRun, initSentry, ScreenFullyDrawn, sentryNavigation } from "./sentry";
 
 const info = (over: Partial<BuildInfo> = {}): BuildInfo => ({
   version: "0.3.0",
@@ -40,10 +41,18 @@ describe("ScreenFullyDrawn", () => {
 });
 
 describe("initSentry", () => {
-  it("starts nothing without a DSN", () => {
+  it("starts nothing without a DSN, and cannot say whether the last run crashed", async () => {
     expect(initSentry({ dsn: undefined, environment: "production", info: info() })).toBe(false);
     expect(sdk.init).not.toHaveBeenCalled();
     expect(isReporting()).toBe(false);
+    await expect(crashedLastRun()).resolves.toBeNull();
+    expect(sdk.crashedLastRun).not.toHaveBeenCalled();
+  });
+
+  it("asks the started SDK whether the last run crashed", async () => {
+    initSentry({ dsn: "https://k@o1.ingest.sentry.io/1", environment: "production", info: info() });
+    sdk.crashedLastRun.mockResolvedValueOnce(true);
+    await expect(crashedLastRun()).resolves.toBe(true);
   });
 
   it("starts the SDK named after the native build, private by default, and tags the update", () => {
@@ -53,7 +62,7 @@ describe("initSentry", () => {
       dsn: "https://k@o1.ingest.sentry.io/1",
       environment: "production",
       // The OTA it runs is part of the release: crash-free sessions per update (lib/build-info.ts).
-      release: "com.uniworkos.chat@0.3.0+42.ota.0193a1b2-c3d4",
+      release: "com.uniworkos.chat@0.3.0+42.android.ota.0193a1b2-c3d4",
       dist: "42",
       sendDefaultPii: false,
       enableAutoSessionTracking: true,

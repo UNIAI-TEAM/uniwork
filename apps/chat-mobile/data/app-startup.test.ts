@@ -13,6 +13,7 @@ const calls = vi.hoisted(() => ({
   setLocale: vi.fn(),
   startLocaleSync: vi.fn(),
   dismissRoomNotifications: vi.fn<(roomId: string) => Promise<number>>(async () => 1),
+  reportLaunchHealth: vi.fn<() => Promise<void>>(async () => undefined),
 }));
 
 vi.mock("./updates-controller", () => ({ startUpdatesController: calls.startUpdatesController }));
@@ -27,6 +28,7 @@ vi.mock("./auth/store", () => ({ useAuthStore: { getState: () => ({ user: calls.
 vi.mock("./account-api", () => ({ accountApi: { setLocale: calls.setLocale } }));
 vi.mock("./locale-sync", () => ({ startLocaleSync: calls.startLocaleSync }));
 vi.mock("./notification-tray", () => ({ dismissRoomNotifications: calls.dismissRoomNotifications }));
+vi.mock("./release/launch-health", () => ({ reportLaunchHealth: calls.reportLaunchHealth }));
 vi.mock("./storage/device-store", () => ({ openDeviceStore: vi.fn() }));
 vi.mock("./report", () => ({ bestEffort: (_scope: string, what: string) => () => void calls.crumbs.push(what) }));
 
@@ -60,6 +62,14 @@ describe("startAppServices", () => {
     expect(calls.persistRemoteConfig).toHaveBeenCalledWith(queryClient, openDeviceStore);
     expect(calls.restoreRemoteConfig).toHaveBeenCalledWith(queryClient, openDeviceStore);
     await vi.waitFor(() => expect(calls.crumbs).toEqual(["kept answer not read"]));
+  });
+
+  it("tells how the launch went, and a launch report that fails is only a breadcrumb", async () => {
+    calls.restoreRemoteConfig.mockResolvedValueOnce(true);
+    calls.reportLaunchHealth.mockRejectedValueOnce(new Error("store locked"));
+    startAppServices({ queryClient: {} as QueryClient, usageStatsEnabled: () => true });
+    expect(calls.reportLaunchHealth).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(calls.crumbs).toEqual(["launch health not told"]));
   });
 
   it("takes a read room's notifications out of the tray, and a tray that fails is only a breadcrumb", async () => {

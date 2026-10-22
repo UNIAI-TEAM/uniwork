@@ -2,7 +2,8 @@
 // (app/_layout.tsx composes; the wiring lives here so it is tested): critical
 // OTAs applied away from the person (updates-controller.ts), the anonymous
 // product counters (analytics.ts), and the server's last kill switches and
-// minimum version kept on the device (remote-config.ts), and the app's language
+// minimum version kept on the device (remote-config.ts), how the launch went (a crashed last run, an OTA that
+// failed to launch: release/launch-health.ts), and the app's language
 // sent to the server, which writes pushes and emails in it (locale-sync.ts), and the tray following reads
 // (notification-tray.ts). Plus the two events
 // the root layout reports: the first screen drawn, and a notification opened.
@@ -13,6 +14,7 @@ import { accountApi } from "./account-api";
 import { useAuthStore } from "./auth/store";
 import { startLocaleSync } from "./locale-sync";
 import { dismissRoomNotifications } from "./notification-tray";
+import { reportLaunchHealth } from "./release/launch-health";
 import { persistRemoteConfig, restoreRemoteConfig } from "./remote-config";
 import { bestEffort } from "./report";
 import { onRoomRead } from "./room-read-signal";
@@ -35,6 +37,8 @@ export function startAppServices({ queryClient, usageStatsEnabled }: AppServices
   startUpdatesController();
   // Anonymous product counters (opens, sends, push opens, call connects), off when the person says so.
   startAnalytics({ enabled: usageStatsEnabled, signedIn: () => useAuthStore.getState().user !== null });
+  // A crashed last run and an OTA update that failed to launch: a counter each, and a crash report naming the update.
+  void reportLaunchHealth().catch(bestEffort("updates", "launch health not told", "breadcrumb"));
   // The server's last kill switches and minimum version, kept on the device: they hold through an offline cold start.
   persistRemoteConfig(queryClient, openDeviceStore);
   void restoreRemoteConfig(queryClient, openDeviceStore).catch(bestEffort("remote-config", "kept answer not read", "breadcrumb"));
