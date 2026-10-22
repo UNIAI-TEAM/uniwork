@@ -47,7 +47,11 @@ export function composerRoutes(path: string, init?: { body?: { query?: { search?
   }
   if (path.endsWith("/tasks/table/rows")) {
     const q = init?.body?.query?.search?.toLowerCase() ?? "";
-    const rows = q.startsWith("la") ? [{ task: task("t1", "Lập kế hoạch"), direct_child_count: 0, labels: [] }] : [];
+    const rows = q.startsWith("la")
+      ? [{ task: task("t1", "Lập kế hoạch"), direct_child_count: 0, labels: [] }]
+      : q.startsWith("ori")
+        ? [{ task: task("t2", "Origami kế hoạch"), direct_child_count: 0, labels: [] }]
+        : [];
     return Promise.resolve({ query_fingerprint: "f", group_key: null, parent_id: null, total: rows.length, rows, next_cursor: null });
   }
   // A query nothing matches ("zz") finds nothing anywhere.

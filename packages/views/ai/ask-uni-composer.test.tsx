@@ -129,7 +129,7 @@ describe("AskUniComposer", () => {
   it("plus sets the scope as focus and the chip removes it", async () => {
     const { onSend, box } = mount();
     fireEvent.click(screen.getByRole("button", { name: "Thêm phạm vi" }));
-    fireEvent.click(await screen.findByRole("button", { name: /Website/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Website/ }));
     expect(screen.getByText("Dự án: Website")).toBeInTheDocument();
     type(box(), "Tiến độ?");
     fireEvent.keyDown(box(), { key: "Enter" });
@@ -139,6 +139,18 @@ describe("AskUniComposer", () => {
     type(box(), "Còn gì nữa?");
     fireEvent.keyDown(box(), { key: "Enter" });
     expect(onSend.mock.calls[1]![0].focus).toBeUndefined();
+  });
+
+  it("plus finds a task and the picked task becomes the focus", async () => {
+    const { onSend, box } = mount();
+    fireEvent.click(screen.getByRole("button", { name: "Thêm phạm vi" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: /Tìm/ }), { target: { value: "ori" } });
+    expect(await screen.findByRole("tab", { name: "Task" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("option", { name: /gami kế hoạch/ }));
+    expect(screen.getByText("Task: Origami kế hoạch")).toBeInTheDocument();
+    type(box(), "Còn gì?");
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(onSend.mock.calls[0]![0].focus).toEqual({ kind: "task", id: "t2" });
   });
 
   it("shows the focus chip an entry point asked for once, and it is removable", async () => {
@@ -199,7 +211,7 @@ describe("AskUniComposer", () => {
     act(() => useAiPanelStore.getState().openWithFocus({ kind: "meeting", id: "m9" }));
     await screen.findByRole("button", { name: "Bỏ phạm vi Cuộc họp" });
     fireEvent.click(screen.getByRole("button", { name: "Thêm phạm vi" }));
-    fireEvent.click(await screen.findByRole("button", { name: /Website/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Website/ }));
     expect(screen.queryByRole("button", { name: "Bỏ phạm vi Cuộc họp" })).toBeNull();
     expect(screen.getByText("Dự án: Website")).toBeInTheDocument();
     await waitFor(() => expect(box()).toHaveFocus());

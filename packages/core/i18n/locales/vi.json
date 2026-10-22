@@ -5951,15 +5951,25 @@
       "limit": "Chỉ nhắc được tối đa {{max}} đối tượng trong một câu hỏi.",
       "count": "{{count}} gợi ý"
     },
+    "picker": {
+      "list": "Chọn đối tượng",
+      "tabs_label": "Loại đối tượng",
+      "tabs": {
+        "all": "Tất cả",
+        "task": "Task",
+        "document": "Tài liệu",
+        "meeting": "Cuộc họp",
+        "project": "Dự án",
+        "member": "Người",
+        "room": "Phòng chat"
+      },
+      "empty": "Không có kết quả",
+      "enter_hint": "Chọn"
+    },
     "scope": {
       "add": "Thêm phạm vi",
       "title": "Giới hạn câu hỏi vào",
-      "search": "Tìm dự án, cuộc họp, tài liệu, phòng chat",
-      "projects": "Dự án",
-      "meetings": "Cuộc họp",
-      "documents": "Tài liệu",
-      "rooms": "Phòng chat",
-      "empty": "Không có kết quả",
+      "search": "Tìm task, dự án, cuộc họp, tài liệu, phòng chat",
       "remove": "Bỏ phạm vi {{name}}",
       "kind": {
         "task": "Task",

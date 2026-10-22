@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AiCitation } from "@uniwork/core/types";
-import { answerPlainText } from "./ask-uni-text";
+import { answerPlainText, foldText, matchRange } from "./ask-uni-text";
 
 const src = (id: string, title: string): AiCitation => ({ source_id: id, kind: "project", title, quote: "", href: "/a/b/projects/1" });
 const map = new Map([["S3", src("S3", "Ra mắt Q4")]]);
@@ -21,5 +21,28 @@ describe("answerPlainText", () => {
   ])("joins an adjacent run of names: %s", (input, out) => expect(answerPlainText(input, two)).toBe(out));
   it("keeps text without markers as is", () => {
     expect(answerPlainText("Không có nguồn.", map)).toBe("Không có nguồn.");
+  });
+});
+
+describe("foldText", () => {
+  it("drops marks, folds đ and lowercases", () => {
+    expect(foldText("Việc Trễ Đ")).toBe("viec tre d");
+  });
+});
+
+describe("matchRange", () => {
+  it("returns indices into the original title", () => {
+    expect(matchRange("Hoàn thiện", "hoan")).toEqual([0, 4]);
+    expect(matchRange("Nộp app", "xyz")).toBeNull();
+    expect(matchRange("Nộp app", "")).toBeNull();
+    expect(matchRange("Việc đỏ", "đo")).toEqual([5, 7]);
+  });
+  it("keeps indices right on decomposed input", () => {
+    const nfd = "Hoàn thiện".normalize("NFD");
+    const r = matchRange(nfd, "hoan");
+    expect(r).not.toBeNull();
+    expect(nfd.slice(r![0], r![1]).normalize("NFC")).toBe("Hoàn");
+    // A query that is itself decomposed matches the precomposed title too.
+    expect(matchRange("Hoàn thiện", "hoàn".normalize("NFD"))).toEqual([0, 4]);
   });
 });

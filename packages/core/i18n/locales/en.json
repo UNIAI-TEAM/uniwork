@@ -5957,15 +5957,25 @@
       "limit": "A question can mention at most {{max}} items.",
       "count": "{{count}} suggestions"
     },
+    "picker": {
+      "list": "Pick an item",
+      "tabs_label": "Kind of item",
+      "tabs": {
+        "all": "All",
+        "task": "Task",
+        "document": "Documents",
+        "meeting": "Meetings",
+        "project": "Projects",
+        "member": "People",
+        "room": "Chat rooms"
+      },
+      "empty": "No results",
+      "enter_hint": "Select"
+    },
     "scope": {
       "add": "Add scope",
       "title": "Limit the question to",
-      "search": "Search projects, meetings, documents, chat rooms",
-      "projects": "Projects",
-      "meetings": "Meetings",
-      "documents": "Documents",
-      "rooms": "Chat rooms",
-      "empty": "No results",
+      "search": "Search tasks, projects, meetings, documents, chat rooms",
       "remove": "Remove scope {{name}}",
       "kind": {
         "task": "Task",
