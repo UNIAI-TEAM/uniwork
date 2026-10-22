@@ -150,11 +150,23 @@ export async function mfaDisable(code: string): Promise<User | null> {
 
 const SessionListSchema = z.object({ sessions: z.array(UserSessionSchema) });
 
+function dedupeSessionsById(sessions: UserSession[]): UserSession[] {
+  const byId = new Map<string, UserSession>();
+  for (const session of sessions) {
+    const prev = byId.get(session.id);
+    if (!prev || session.current || (!prev.current && (session.last_seen_at ?? "") > (prev.last_seen_at ?? ""))) {
+      byId.set(session.id, session);
+    }
+  }
+  return [...byId.values()];
+}
+
 export async function listSessions(): Promise<UserSession[]> {
   const raw = await request("/api/v1/me/sessions");
-  return parseWithFallback<{ sessions: UserSession[] }>(raw, SessionListSchema, { sessions: [] }, {
+  const parsed = parseWithFallback<{ sessions: UserSession[] }>(raw, SessionListSchema, { sessions: [] }, {
     endpoint: "GET /api/v1/me/sessions",
-  }).sessions;
+  });
+  return dedupeSessionsById(parsed.sessions);
 }
 
 export async function revokeSession(id: string): Promise<void> {
