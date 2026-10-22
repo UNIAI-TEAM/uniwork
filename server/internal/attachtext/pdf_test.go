@@ -244,3 +244,31 @@ func TestPDFWorkWritesNoFilesAndPrintsNothing(t *testing.T) {
 		t.Errorf("pdfcpu left files in the home directory: %v", entries)
 	}
 }
+
+func TestPDFWithNoPagesIsUnreadable(t *testing.T) {
+	// A valid file whose page tree is empty: nothing for the model to read.
+	var b bytes.Buffer
+	offs := map[int]int{}
+	obj := func(n int, body string) {
+		offs[n] = b.Len()
+		fmt.Fprintf(&b, "%d 0 obj\n%s\nendobj\n", n, body)
+	}
+	b.WriteString("%PDF-1.4\n")
+	obj(1, "<< /Type /Catalog /Pages 2 0 R >>")
+	obj(2, "<< /Type /Pages /Kids [] /Count 0 >>")
+	xref := b.Len()
+	b.WriteString("xref\n0 3\n0000000000 65535 f \n")
+	for n := 1; n <= 2; n++ {
+		fmt.Fprintf(&b, "%010d 00000 n \n", offs[n])
+	}
+	fmt.Fprintf(&b, "trailer\n<< /Size 3 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref)
+
+	n, err := PDFPages(bytes.NewReader(b.Bytes()))
+	if !errors.Is(err, ErrUnreadable) {
+		t.Errorf("PDFPages = %d, %v, want ErrUnreadable", n, err)
+	}
+	out, err := TrimPDF(bytes.NewReader(b.Bytes()), 1)
+	if !errors.Is(err, ErrUnreadable) {
+		t.Errorf("TrimPDF = %d bytes, %v, want ErrUnreadable", len(out), err)
+	}
+}

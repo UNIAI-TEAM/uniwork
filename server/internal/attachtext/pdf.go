@@ -3,6 +3,7 @@ package attachtext
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -25,12 +26,20 @@ const (
 	pdfTimeout = 30 * time.Second
 )
 
-// PDFPages counts the pages of a PDF. A PDF that is damaged, needs a password
-// to open, or is too large or complex to open safely returns ErrUnreadable. A
-// PDF with only an owner password opens without one and is counted.
+// errNoPages: a PDF whose page tree is empty is valid but has nothing to read.
+var errNoPages = errors.New("PDF has no pages")
+
+// PDFPages counts the pages of a PDF. A PDF that is damaged, has no pages,
+// needs a password to open, or is too large or complex to open safely returns
+// ErrUnreadable. A PDF with only an owner password opens without one and is
+// counted.
 func PDFPages(r io.ReadSeeker) (int, error) {
 	return pdfWork(func(ctx context.Context, conf *model.Configuration) (int, error) {
-		return api.PageCount(ctx, r, conf)
+		n, err := api.PageCount(ctx, r, conf)
+		if err == nil && n < 1 {
+			return 0, errNoPages
+		}
+		return n, err
 	})
 }
 
@@ -48,6 +57,9 @@ func TrimPDF(r io.ReadSeeker, keep int) ([]byte, error) {
 		src, err := api.ReadValidateAndOptimize(ctx, r, conf, nil)
 		if err != nil {
 			return nil, err
+		}
+		if src.PageCount < 1 {
+			return nil, errNoPages
 		}
 		if src.PageCount <= keep {
 			// pdfcpu has already refused anything over maxPDFBytes.
