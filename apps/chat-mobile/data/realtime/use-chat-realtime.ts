@@ -48,21 +48,22 @@ function useChatPresenceHeartbeat(wsId: string, userId: string | null) {
       beat();
       timer = setInterval(beat, HEARTBEAT_MS);
     };
-    const stop = (leave: boolean) => {
+    // Stopping always leaves: the background and the workspace closing are the only two stops.
+    const stop = () => {
       if (timer) clearInterval(timer);
       timer = null;
-      if (leave) void chatApi.leavePresence(wsId).catch(bestEffort("presence", "presence not left", "report"));
+      void chatApi.leavePresence(wsId).catch(bestEffort("presence", "presence not left", "report"));
     };
     if (AppState.currentState === "active") start();
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") start();
-      else if (state === "background") stop(true);
+      else if (state === "background") stop();
     });
     const prune = setInterval(() => usePresenceStore.getState().prune(), PRESENCE_PRUNE_MS);
     return () => {
       sub.remove();
       clearInterval(prune);
-      stop(true);
+      stop();
     };
   }, [wsId, userId]);
 }
