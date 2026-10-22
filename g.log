@@ -1,0 +1,102 @@
+$ G706_CAPTURES=.g7-06-captures node scripts/office/g5g6g7/g7-06/job.mjs --update-goldens --out .g7-06-run/update; rc=$?; echo; echo "G706_UPDATE_EXIT=$rc"; cat scripts/office/g5g6g7/g7-06/goldens/manifest.json; ls -la scripts/office/g5g6g7/g7-06/goldens/desktop scripts/office/g5g6g7/g7-06/goldens/web; true
+g7-06 job: fork 59defc1, pin 0.1.0-59defc1
+  golden    PASS
+g7-06 job: PASS (0 fail, 0 blocked, 1 pass, 0 note) — artifacts in /workspace/.g7-06-run/update
+
+G706_UPDATE_EXIT=0
+{
+  "schema": 1,
+  "pinVersion": "0.1.0-59defc1",
+  "forkSha": "59defc1",
+  "capturedOn": "2026-10-22T00:52:21.434Z",
+  "viewport": {
+    "desktop": {
+      "w": 1440,
+      "h": 900
+    },
+    "web": {
+      "w": 1720,
+      "h": 980
+    }
+  },
+  "deviceScaleFactor": 1,
+  "tolerance": {
+    "channel": 16,
+    "ratio": 0.001
+  },
+  "maskLimits": {
+    "maxAreaSharePerMask": 0.05,
+    "maxAreaSharePerEntry": 0.1
+  },
+  "entries": {
+    "desktop/fx-xlsx-revenue-xyz": {
+      "sha256": "3c3689e38ad78257ca76d45d2a7bb51d51f2b3571501a0bbeb6b906d72478a74",
+      "masks": []
+    },
+    "desktop/fx-docx-report-vi": {
+      "sha256": "b7e4b5a94eac7d4be3ca47afec5d45d89c91858b1e96042267760be6f69002d0",
+      "masks": []
+    },
+    "desktop/fx-pptx-deck-vi": {
+      "sha256": "a86c32412970cf7cb35ffcc5f8922e82dd4febcc902d97911ea9afb383a87e1a",
+      "masks": []
+    },
+    "desktop/fx-pdf-invoice-vi": {
+      "sha256": "a0797063c79e0533f68e5b1f9119603d5636610f15f535d30f365690e4682b41",
+      "masks": []
+    },
+    "desktop/fx-md-notes-vi": {
+      "sha256": "04a3feb2da47dec8f3d018ecaf9f125bcae638a52c52a08ebfe14122c686b36a",
+      "masks": []
+    },
+    "desktop/fx-html-page-vi": {
+      "sha256": "be0599cdb7718f1c687d80e4272e1c36aebb43fdc7806199338982957e08e7ae",
+      "masks": []
+    },
+    "web/fx-xlsx-revenue-xyz": {
+      "sha256": "3e111c8600f601ef9fc179dee52d41adca43f979de7347abb1603c0d63453dfb",
+      "masks": []
+    },
+    "web/fx-docx-report-vi": {
+      "sha256": "4632aaa4950726577a63425bb791d03960424406537da3c253f2b805aec919f5",
+      "masks": []
+    },
+    "web/fx-pptx-deck-vi": {
+      "sha256": "9780b8c59cabb741286793c458011d90b47903790123dd6909b27f12a2c227e0",
+      "masks": []
+    },
+    "web/fx-pdf-invoice-vi": {
+      "sha256": "b4e9c806161c537800a33c591df51bc2222c3ed4afc4ddd09c73243bbb2de919",
+      "masks": []
+    },
+    "web/fx-md-notes-vi": {
+      "sha256": "76d5ebda6544fea4c992b2a39522060087f72ba5137fb38dd42dce07b1f73535",
+      "masks": []
+    },
+    "web/fx-html-page-vi": {
+      "sha256": "25f0097597f9a3fc868871cae9a0a3d66b32ba4a83b2b1ec9021985bd5d7acae",
+      "masks": []
+    }
+  }
+}
+scripts/office/g5g6g7/g7-06/goldens/desktop:
+total 752
+drwxr-xr-x 2 ubuntu ubuntu   4096 Oct 22 00:45 .
+drwxr-xr-x 4 ubuntu ubuntu   4096 Oct 22 00:45 ..
+-rw-r--r-- 1 ubuntu ubuntu 165434 Oct 22 00:53 fx-docx-report-vi.png
+-rw-r--r-- 1 ubuntu ubuntu  98049 Oct 22 00:53 fx-html-page-vi.png
+-rw-r--r-- 1 ubuntu ubuntu 119398 Oct 22 00:53 fx-md-notes-vi.png
+-rw-r--r-- 1 ubuntu ubuntu 117807 Oct 22 00:53 fx-pdf-invoice-vi.png
+-rw-r--r-- 1 ubuntu ubuntu 121674 Oct 22 00:53 fx-pptx-deck-vi.png
+-rw-r--r-- 1 ubuntu ubuntu 130664 Oct 22 00:53 fx-xlsx-revenue-xyz.png
+
+scripts/office/g5g6g7/g7-06/goldens/web:
+total 792
+drwxr-xr-x 2 ubuntu ubuntu   4096 Oct 22 00:45 .
+drwxr-xr-x 4 ubuntu ubuntu   4096 Oct 22 00:45 ..
+-rw-r--r-- 1 ubuntu ubuntu 170010 Oct 22 00:53 fx-docx-report-vi.png
+-rw-r--r-- 1 ubuntu ubuntu 105053 Oct 22 00:53 fx-html-page-vi.png
+-rw-r--r-- 1 ubuntu ubuntu 122790 Oct 22 00:53 fx-md-notes-vi.png
+-rw-r--r-- 1 ubuntu ubuntu 130002 Oct 22 00:53 fx-pdf-invoice-vi.png
+-rw-r--r-- 1 ubuntu ubuntu 133249 Oct 22 00:53 fx-pptx-deck-vi.png
+-rw-r--r-- 1 ubuntu ubuntu 131276 Oct 22 00:53 fx-xlsx-revenue-xyz.png

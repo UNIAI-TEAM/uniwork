@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -5; node -p "require('./apps/web/platform/office-frame/docs.pin.json').version"
+b3f2cc008aa850acbdb6bb059f028b40c62245ea
+b3f2cc008 docs(office): name the web-0.1.0-59defc1 pin as the REPIN-8 pin
+924e7e584 chore(office): re-pin the six office frames to web-0.1.0-59defc1
+84a1e3da1 fix(chat-mobile): regenerate the mobile locales from packages/core
+150714c67 chore: merge UNI-2055 e2e ADR 0037 (92363e2b2) into the G5-G7 root
+92363e2b2 test(e2e): cover the member, My Folder and workspace-folder-path sides of ADR 0037
+0.1.0-59defc1
