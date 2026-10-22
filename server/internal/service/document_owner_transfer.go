@@ -167,8 +167,10 @@ func (s *DocumentService) requireOwnerTarget(ctx context.Context, q *db.Queries,
 }
 
 // keepPreviousOwnerAccess writes the previous owner's share after the slot
-// moved, and returns the share they keep. It only raises: a live user share
-// at or above the asked level is left as it is and named in the answer. It
+// moved, and returns the share they keep. It only raises: a live manual user
+// share at or above the asked level is left as it is and named in the answer,
+// and so is a chat-origin one above it; an equal chat-origin one is taken over
+// as manual. It
 // writes nothing for none, for a document that had no ACL owner, for a
 // folder (folders are never shared) and for a previous owner who is no
 // longer an active member of the organization - granting access to a closed
@@ -193,9 +195,21 @@ func (s *DocumentService) keepPreviousOwnerAccess(ctx context.Context, q *db.Que
 	})
 	switch {
 	case err == nil:
-		if DocumentLevel(prev.Level).rank() >= keep.rank() {
+		have := DocumentLevel(prev.Level).rank()
+		switch {
+		case !prev.SourceKind.Valid && have >= keep.rank():
+			return prev.ID, nil
+		case prev.SourceKind.Valid && have > keep.rank():
+			// A chat-origin share above the asked level stays as it is: a
+			// manual grant at the asked level would take it over and lower
+			// it. It can still go when the person leaves the room; the
+			// transfer never lowers what they hold.
 			return prev.ID, nil
 		}
+		// A manual share below the asked level is raised, and a chat-origin
+		// one at or below it falls through to the share path, whose
+		// keepsLiveShare takes an equal one over as manual so leaving the
+		// room does not revoke what the transfer promised.
 	case errors.Is(err, pgx.ErrNoRows):
 	default:
 		return "", err
