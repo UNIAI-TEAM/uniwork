@@ -6,6 +6,12 @@ import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers"
 import type { RoomMark } from "./room-list";
 import type { TimelineRow } from "./timeline-display";
 
+/** Horizontal inset for message rows (parity `CHAT_CONVERSATION_GUTTER` on web). */
+export const CHAT_CONVERSATION_ROW_INSET = "px-3";
+
+/** Max bubble width on screen — web uses 85% on coarse/mobile (`chat-message-row.tsx`). */
+export const CHAT_BUBBLE_MAX_WIDTH_CLASS = "max-w-[85%]";
+
 /** 18 outside, 6 where a bubble joins the one above or below, 4 on the tail of a run's last bubble. */
 export function bubbleCorners(own: boolean, first: boolean, last: boolean) {
   const top = first ? 18 : 6;

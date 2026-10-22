@@ -57,6 +57,8 @@ func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 					XLSX: sdo.DocumentFormatOpenLimitSDO{WarnBytes: 5 << 20},
 				},
 				ChunkedUploadThresholdBytes: h.chunkedUploadThresholdBytes(),
+				FolderUpload:                h.folderUploadLimits(),
+				UploadExtensions:            service.DocumentUploadExtensions(),
 			},
 		},
 	})
@@ -87,6 +89,21 @@ func (h *handlers) chunkedUploadThresholdBytes() *int64 {
 	}
 	threshold := service.UploadSessionThresholdBytes
 	return &threshold
+}
+
+// folderUploadLimits is the folder upload block (UNI-2052 §8): the limits the
+// wired DocumentService enforces, or the defaults when none is wired.
+func (h *handlers) folderUploadLimits() sdo.FolderUploadLimitsSDO {
+	var l service.FolderUploadLimits
+	if h.Documents != nil {
+		l = h.Documents.FolderUploadLimits()
+	} else {
+		l = (*service.DocumentService)(nil).FolderUploadLimits()
+	}
+	return sdo.FolderUploadLimitsSDO{
+		MaxFiles: l.MaxFiles, MaxFolders: l.MaxFolders, MaxTotalBytes: l.MaxTotalBytes,
+		MaxDepth: l.MaxDepth, CompleteBatch: l.CompleteBatch, Parallel: l.Parallel,
+	}
 }
 
 // officeAPIOrigin is the public deployment origin the web hands to the

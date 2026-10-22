@@ -3,7 +3,7 @@
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { useDocumentSettings, useDocumentShares } from "@uniwork/core/documents/hooks-sharing";
-import { useOrgWorkspaces } from "@uniwork/core/organizations";
+import { useOrgMembership, useOrgWorkspaces } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
 import { canAdministerDocument } from "@uniwork/core/permissions";
 import { isShelved } from "@uniwork/core/types/document";
@@ -90,8 +90,12 @@ export function ShareDialog({
   const access = useDocumentShares(wsId, doc.id, { enabled: open && !owned });
   const members = useShareMembers(workspace.organization_slug, open && canAdminister);
   const orgWorkspaces = useOrgWorkspaces(doc.organization_id);
+  // The organization switch is readable by owners/admins only (G1-08): a
+  // document manager who is a plain member would get a 403 on every open.
+  const orgMembership = useOrgMembership(workspace.organization_slug);
+  const orgAdmin = orgMembership.data?.role === "owner" || orgMembership.data?.role === "admin";
   const docSettings = useDocumentSettings(doc.organization_id, {
-    enabled: open && canAdminister && !owned && !!doc.organization_id,
+    enabled: open && canAdminister && orgAdmin && !owned && !!doc.organization_id,
   });
 
   if (owned) return null;

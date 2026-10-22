@@ -36,14 +36,15 @@ var chatAttachmentShareBeforeLock func()
 //  3. L1 replay: if already converted to kind='document', return 200 with the
 //     same message + document (whatever client_msg_id or share_level)
 //  4. kind='file' (404 otherwise), type on L8's subset and saveable (422
-//     source_not_saveable otherwise), recipients within the batch cap (422
-//     share_batch_too_large otherwise)
+//     source_not_saveable otherwise); a room of any size converts (UNI-2012
+//     S1c removed the recipient cap)
 //  5. open the attachment bytes via OpenChatFileMessage and upload a copy as a
 //     new document_file object
 //  6. one transaction: lock the message row (replay if another call converted
-//     it meanwhile), create the Document in the sender's My Folder, grant the
-//     room's current human members, flip the message in place to
-//     kind='document' and metadata={"document_id"} keeping body and
+//     it meanwhile), create the Document at the root of the workspace the
+//     sender stands in, grant the room's current human members, flip the
+//     message in place to
+//     kind='document' and metadata={"document_id","share_level"} keeping body and
 //     client_msg_id untouched, and release the old chat_attachment reference
 //     only after the document holds its own object
 //  7. publish chat.message.updated after commit.
@@ -104,9 +105,6 @@ func (s *ChatService) ShareAttachmentAsDocument(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	if len(recipients) > maxDocumentShareBatch {
-		return ChatMessageRow{}, shareBatchTooLargeError()
-	}
 
 	_, rd, err := s.OpenChatFileMessage(ctx, userID, workspaceID, room.ID, messageID, false)
 	if err != nil {
@@ -117,7 +115,7 @@ func (s *ChatService) ShareAttachmentAsDocument(
 		return ChatMessageRow{}, errSourceNotSaveable()
 	}
 
-	scope := documentScope(room.OrganizationID, anchorWS)
+	scope := documentScope(room.OrganizationID, workspaceID)
 	actor := Human(userID)
 	up, err := s.files.Upload(ctx, files.UploadInput{
 		Actor:          actor,
@@ -149,7 +147,7 @@ func (s *ChatService) ShareAttachmentAsDocument(
 	}
 
 	updated, converted, err := s.commitAttachmentAsDocument(
-		ctx, userID, room, messageID, fileInfo.Filename, level, recipients, up.File, actor,
+		ctx, userID, workspaceID, room, messageID, fileInfo.Filename, level, recipients, up.File, actor,
 	)
 	if err != nil {
 		s.cancelStagedUpload(ctx, actor, scope, up.File.ID)
@@ -166,6 +164,7 @@ func (s *ChatService) ShareAttachmentAsDocument(
 func (s *ChatService) commitAttachmentAsDocument(
 	ctx context.Context,
 	userID string,
+	workspaceID string,
 	room db.ChatRoom,
 	messageID string,
 	filename string,
@@ -209,16 +208,16 @@ func (s *ChatService) commitAttachmentAsDocument(
 	if locked.Kind != "file" {
 		return db.ChatMessage{}, false, ErrNotFound
 	}
-	if _, err := s.ws.RequireMemberQ(ctx, q, anchorWS, userID); err != nil {
+	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, userID); err != nil {
 		return db.ChatMessage{}, false, err
 	}
-	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+	if err := s.requireCanSendInRoomQ(ctx, q, userID, room.ID, room); err != nil {
 		return db.ChatMessage{}, false, err
 	}
 
 	docRes, _, err := s.docs.createFileDocumentFromStagedUploadInTx(
-		ctx, tx, q, s.files, actor, room.OrganizationID, anchorWS,
-		file.ID, filename, "", "", DocumentSystemKindMyFolder, "",
+		ctx, tx, q, s.files, actor, room.OrganizationID, workspaceID,
+		file.ID, filename, "", "", "", "",
 	)
 	if err != nil {
 		return db.ChatMessage{}, false, err
@@ -228,11 +227,12 @@ func (s *ChatService) commitAttachmentAsDocument(
 			return db.ChatMessage{}, false, err
 		}
 	}
-	if err := s.grantDocumentToRoomMembers(ctx, q, actor, docRes, recipients, level); err != nil {
+	audience, err := s.grantDocumentToRoomMembers(ctx, q, actor, docRes, recipients, level, room.ID, locked.ID)
+	if err != nil {
 		return db.ChatMessage{}, false, err
 	}
 
-	meta, err := attachmentToDocumentMetadata(locked.Metadata, docRes.Document.ID)
+	meta, err := attachmentToDocumentMetadata(locked.Metadata, docRes.Document.ID, level)
 	if err != nil {
 		return db.ChatMessage{}, false, err
 	}
@@ -251,14 +251,15 @@ func (s *ChatService) commitAttachmentAsDocument(
 	if err := tx.Commit(ctx); err != nil {
 		return db.ChatMessage{}, false, err
 	}
+	s.recheckChatGrantAudience(ctx, audience)
 	return updated, true, nil
 }
 
 // attachmentToDocumentMetadata keeps everything on the message but the file
 // block: reactions and the pin live in the same metadata and belong to other
 // people's input, so a conversion drops only the five file keys and adds the
-// document id.
-func attachmentToDocumentMetadata(raw []byte, documentID string) ([]byte, error) {
+// document id and the level the conversion granted (S1-fix-2 SF3).
+func attachmentToDocumentMetadata(raw []byte, documentID string, level DocumentLevel) ([]byte, error) {
 	meta := raw
 	for _, key := range []string{"filename", "file_id", "object_key", "content_type", "size_bytes"} {
 		var err error
@@ -266,7 +267,11 @@ func attachmentToDocumentMetadata(raw []byte, documentID string) ([]byte, error)
 			return nil, err
 		}
 	}
-	return patchMetadataKey(meta, "document_id", documentID)
+	meta, err := patchMetadataKey(meta, "document_id", documentID)
+	if err != nil {
+		return nil, err
+	}
+	return patchMetadataKey(meta, "share_level", string(level))
 }
 
 func (s *ChatService) resolvedChatDocumentMessageRow(

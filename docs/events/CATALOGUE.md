@@ -18,7 +18,11 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
   frame của nó được mang thêm những trường đó và cặp `revision_before`/`revision` giữ
   guard vá; xem mục dưới. Hàng hạ tầng (phạm vi `-`) không có client nào nghe nên không
   bị luật id: `provider.*` gọi phòng và người tham gia bằng tên phía nhà cung cấp
-  (`room_name`, `identity`). Ở mọi hàng, kể cả hàng hạ tầng, cặp revision chỉ đứng cạnh
+  (`room_name`, `identity`); `document.change_noticed` (UNI-2056) mang `verb` của thông
+  báo đổi tài liệu — lệnh ghi nó cùng lần Record với topic frame, để tám topic frame
+  (`document.updated`, `.restored`, `.shelved`, `.unshelved`, `.workspace_access_changed`,
+  `.link_created`, `.link_revoked`, `.version_created`) không có consumer ở lane notify và
+  vẫn chạy ở lane realtime. Ở mọi hàng, kể cả hàng hạ tầng, cặp revision chỉ đứng cạnh
   **Patch**.
 - **Phạm vi** quyết định ai nhận: `workspace` (mọi người trong workspace),
   `organization` (mọi kết nối trong tổ chức, dù đang ở workspace nào — danh bạ
@@ -73,6 +77,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `audit.export_requested` | 1 | `export_id`, `organization_id` | — | - | outbox |
 | `file.thumbnail_requested` | 1 | `file_id`, `organization_id` | — | - | outbox |
 | `chat.link_preview.requested` | 1 | `room_id`, `message_id`, `organization_id` | — | - | outbox |
+| `document.download_job_requested` | 1 | `job_id`, `organization_id`, `workspace_id` | — | - | outbox |
 | `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | — | user | outbox |
 | `chat.mention.created` | 1 | `room_id`, `message_id`, `sender_id`, `thread_root_id` | — | user | ephemeral |
 | `chat.message` | 1 | `meeting_id` | — | meeting | ephemeral |
@@ -151,6 +156,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `department.updated` | 1 | `organization_id`, `department_id` | — | organization | outbox |
 | `department.archived` | 1 | `organization_id`, `department_id` | — | organization | outbox |
 | `document.created` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `document.batch_uploaded` | 1 | `batch_id`, `workspace_id`, `root_folder_id` | — | workspace | outbox |
 | `document.version_created` | 1 | `document_id`, `version_id`, `workspace_id` | — | workspace | outbox |
 | `document.shared` | 1 | `document_id`, `workspace_id`, `share_id`, `notify_user_id` | — | workspace | outbox |
 | `document.share_revoked` | 1 | `document_id`, `workspace_id`, `share_id` | — | workspace | outbox |
@@ -183,6 +189,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.shelved` | 1 | `document_id`, `workspace_id`, `shelve_batch_id` | — | workspace | outbox |
 | `document.unshelved` | 1 | `document_id`, `workspace_id`, `shelve_batch_id` | — | workspace | outbox |
 | `document.deleted` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `document.change_noticed` | 1 | `document_id`, `workspace_id`, `verb` | — | - | outbox |
 | `office_lease.granted` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
 | `office_lease.renewed` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
 | `office_lease.released` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |

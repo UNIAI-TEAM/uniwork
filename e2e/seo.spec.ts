@@ -1,6 +1,24 @@
 import { expect, test } from "@playwright/test";
 import { landingReady } from "./landing-ready";
 
+test("Office links to its localized guide and the walkthrough is readable without JavaScript", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+  const page = await context.newPage();
+  for (const prefix of ["", "/vi"]) {
+    await page.goto(`${prefix}/apps/office`);
+    const link = page.locator(`.office-connection a[href="${prefix}/learn/office-files-and-ai"]`);
+    await expect(link).toBeVisible();
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`${prefix}/learn/office-files-and-ai$`));
+    await expect(page.locator('#first-document ol li')).toHaveCount(5);
+    await expect(page.locator('#first-document .public-guide-example')).toBeVisible();
+    await expect(page.locator('#troubleshooting')).toContainText('API');
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'index, follow');
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', new RegExp(`${prefix}/learn/office-files-and-ai$`));
+  }
+  await context.close();
+});
+
 test("public locale follows URLs even when the cookie asks for the other language", async ({ page, context, baseURL }) => {
   await context.addCookies([{ name: "uniwork-locale", value: "vi", url: baseURL! }]);
   const hydrationErrors: string[] = [];

@@ -48,7 +48,8 @@ const (
 	// the next call is the answer round.
 	askAgentDeadline     = 120 * time.Second
 	askAgentFinalReserve = 40 * time.Second
-	// askAgentStoreTimeout bounds storing a failed run past its deadline.
+	// askAgentStoreTimeout bounds storing a turn past its deadline or its
+	// request: a failed, stopped or interrupted run, and a stopped P0 turn.
 	askAgentStoreTimeout = 5 * time.Second
 	// Runs in flight per pod, per organization and across the deployment,
 	// leased like UniWork AI's turns.
@@ -79,7 +80,8 @@ const (
 // AskAgentMetrics is the agent's run and tool surface; nil reports nothing.
 type AskAgentMetrics interface {
 	// ObserveAskRun reports a run: outcome is answered, agent_failed,
-	// refused, rate_limited (a vendor or quota limit too), busy or timeout;
+	// refused, rate_limited (a vendor or quota limit too), busy, timeout,
+	// stopped (by the asker) or interrupted (by Shutdown);
 	// rounds counts its tool rounds, at most askAgentMaxToolRounds.
 	ObserveAskRun(outcome string, rounds int, seconds float64)
 	// ObserveAskTool reports one tool call: status is ok, error or truncated.
@@ -91,6 +93,19 @@ func (s *AskUNIService) SetAgentMetrics(m AskAgentMetrics) { s.agentMetrics = m 
 
 // sourceRef is an inline citation in an answer.
 var sourceRef = regexp.MustCompile(`\[(S\d+)\]`)
+
+// mdMarks are Markdown heading, emphasis and code marks; mdEscape is a
+// backslash escape. A quote shows neither.
+var (
+	mdMarks  = regexp.MustCompile("(?m)^#{1,6}[ \t]+|\\*\\*|__|[*`]")
+	mdEscape = regexp.MustCompile(`\\([\\*_{}\[\]()#+\-.!|>~])`)
+)
+
+// quoteText is a source's body as one line of plain text for the hover card.
+func quoteText(body string) string {
+	s := mdEscape.ReplaceAllString(mdMarks.ReplaceAllString(body, ""), "$1")
+	return strings.Join(strings.Fields(s), " ")
+}
 
 // agentOn reports whether this turn runs as the agent: the flag on for the
 // asker and their organization, the read tools wired, and a copilot_agent
@@ -113,13 +128,15 @@ type sourceBook struct {
 	next  int
 	byKey map[string]string
 	byID  map[string]AskCitation
+	// counted holds the keys this run's steps already counted.
+	counted map[string]bool
 }
 
 // newSourceBook rebuilds the numbers from the citations the conversation's
 // answers stored, oldest first. A P0 turn numbered from S1 again, so a number
 // that names another object later is that later object's.
 func newSourceBook(cited [][]AskCitation) *sourceBook {
-	b := &sourceBook{next: 1, byKey: map[string]string{}, byID: map[string]AskCitation{}}
+	b := &sourceBook{next: 1, byKey: map[string]string{}, byID: map[string]AskCitation{}, counted: map[string]bool{}}
 	for _, cs := range cited {
 		for _, c := range cs {
 			n := sourceNum(c.SourceID)
@@ -161,7 +178,7 @@ func (b *sourceBook) source(it agentItem) {
 		b.next++
 		b.byKey[it.Key] = id
 	}
-	quote := strings.TrimSpace(it.Text)
+	quote := quoteText(it.Body)
 	if quote == "" {
 		quote = it.Title
 	}
@@ -260,7 +277,7 @@ func (s *AskUNIService) agentCallOver(ctx context.Context, orgID string) bool {
 // asker and inside the asked workspace, until it answers or a bound of R10
 // makes the next call the answer round; the answer and its citations are
 // stored like P0's.
-func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question string, in AskInput) (out AskResult, err error) {
+func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question string, in AskInput, ctxItems []agentItem, emit AskSink) (out AskResult, err error) {
 	res := AskResult{ConversationID: conv.ID, RunID: util.NewID()}
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
 	started := s.now()
@@ -298,9 +315,12 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		return AskResult{}, ai.RateLimited(5 * time.Second)
 	}
 	defer release()
-	// The run's calls and tools stop at the deadline; the store uses ctx, so
-	// an answer that arrived in time is kept.
-	runCtx, cancel := context.WithTimeout(ctx, askAgentDeadline)
+	// The run's calls and tools stop at the deadline or on Shutdown, which
+	// cancels the run with errAskShutdown as its cause; the store uses ctx,
+	// so an answer that arrived in time is kept.
+	runCtx, done := s.runContext(ctx)
+	defer done()
+	runCtx, cancel := context.WithTimeout(runCtx, askAgentDeadline)
 	defer cancel()
 	deadline := started.Add(askAgentDeadline)
 
@@ -322,10 +342,19 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		cited = append(cited, cs)
 	}
 	book := newSourceBook(cited)
-	focus, err := s.agentFocus(runCtx, tc, in.Focus, book)
-	if err != nil {
-		return AskResult{}, err
+	// The focus and mentions were read before the run, in AskStream; here they
+	// are numbered and rendered for the prompt's focus block, capped like a
+	// tool result (ruling P11).
+	focus, _ := book.render(ctxItems, askAgentToolResultMax)
+
+	// The first call's organization budget is counted here, before run, so a
+	// refusal comes before any event (R5); the loop reuses the count.
+	firstOver := s.agentCallOver(runCtx, w.OrganizationID)
+	if firstOver {
+		outcome = "rate_limited"
+		return AskResult{}, ai.RateLimited(askRateWindow)
 	}
+	emit.emit(AskEvent{Name: "run", Run: &AskRunEvent{RunID: res.RunID, ConversationID: conv.ID}})
 
 	vars := map[string]any{"locale": in.Locale, "today": s.now().Format("2006-01-02"), "focus": focus, "question": question}
 	prompt, _ := ai.LookupPrompt(ai.PromptCopilotAnswerV3)
@@ -340,31 +369,57 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		Capability: ai.CapCopilotAgent, PromptID: ai.PromptCopilotAnswerV3, Vars: vars, History: hist,
 		Tools: agentRegistry(tools), FilterToolCalls: true, RunID: res.RunID, Model: model, Effort: effort,
 	}
+	// Every call streams its text to the asker as it arrives (R2); without a
+	// sink nothing streams.
+	draft := &askDraft{emit: emit}
+	if emit != nil {
+		req.OnDelta = draft.add
+	}
 	spentInput := 0 // the input budget's count, cached tokens included (P12)
 	billed := ""    // the usage row of the last call that answered
 	call := func() (ai.Response, error) {
+		draft.reset()
 		req.MeterKey = "ask-uni:" + res.RunID + ":" + strconv.Itoa(calls)
 		r, err := s.gw.Complete(runCtx, req)
 		calls++
 		res.InputTokens += r.InputTokens
 		res.OutputTokens += r.OutputTokens
+		res.Usage.add(r.InputTokens, r.OutputTokens, r.CacheReadTokens, r.CacheWriteTokens)
 		spentInput += r.InputTokens + r.CacheReadTokens + r.CacheWriteTokens
 		if err == nil {
 			billed = r.UsageEventID
 		}
 		return r, err
 	}
-	// A refusal on any call stores the notice. The gateway hands back no
-	// Response with it, so the refused call's billed tokens are read from its
-	// usage row.
+	// The gateway hands back no Response with an error, so a call that was
+	// billed and failed has its tokens read from its usage row.
+	rowUsage := func(ctx context.Context, id string) {
+		if row, rerr := s.q.AiGetUsageEvent(ctx, id); rerr == nil && row.OrganizationID == w.OrganizationID {
+			res.InputTokens += int(row.InputTokens)
+			res.OutputTokens += int(row.OutputTokens)
+			res.Usage.add(int(row.InputTokens), int(row.OutputTokens), 0, 0)
+		}
+	}
+	// A refusal on any call stores the notice.
 	refused := func(err error) (AskResult, error) {
 		var e *ai.Error
 		errors.As(err, &e)
-		if row, rerr := s.q.AiGetUsageEvent(ctx, e.UsageEventID); rerr == nil && row.OrganizationID == w.OrganizationID {
-			res.InputTokens += int(row.InputTokens)
-			res.OutputTokens += int(row.OutputTokens)
+		rowUsage(ctx, e.UsageEventID)
+		return s.finishAgent(ctx, emit, res, w, conv, question, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID)
+	}
+	// A stop (askStopNotice) stores the text the asker saw streamed for the
+	// last call, with what it cites, on a context that outlives the request,
+	// and ends with done (the asker may be gone; the next read shows the turn).
+	stop := func(notice string, err error) (AskResult, error) {
+		sctx, cancel := outliving(ctx)
+		defer cancel()
+		usage := billed
+		var e *ai.Error
+		if errors.As(err, &e) && e.UsageEventID != "" {
+			usage = e.UsageEventID
+			rowUsage(sctx, usage)
 		}
-		return s.finishAgent(ctx, res, w, conv, question, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID)
+		return s.finishAgent(sctx, emit, res, w, conv, question, draft.sent, notice, agentCitations(draft.sent, book), usage)
 	}
 	// Any other error after a call was billed stores the turn with
 	// agent_failed (ruling P19), on a context that outlives the run's
@@ -386,17 +441,16 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			usage = e.UsageEventID
 		}
 		slog.Warn("ask uni: agent run failed", "run_id", res.RunID, "organization_id", w.OrganizationID, "err", err)
-		sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), askAgentStoreTimeout)
+		sctx, cancel := outliving(ctx)
 		defer cancel()
-		return s.finishAgent(sctx, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, usage)
+		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, usage)
 	}
 
 	var resp ai.Response
 	for final := false; ; {
-		over := s.agentCallOver(runCtx, w.OrganizationID)
-		if over && calls == 0 {
-			outcome = "rate_limited"
-			return AskResult{}, ai.RateLimited(askRateWindow)
+		over := firstOver
+		if calls > 0 {
+			over = s.agentCallOver(runCtx, w.OrganizationID)
 		}
 		if calls > 0 {
 			final = over || rounds == askAgentMaxToolRounds || spentInput >= askAgentInputBudget ||
@@ -410,6 +464,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			return refused(err)
 		}
 		if err != nil {
+			if n := askStopNotice(ctx, runCtx, err); n != "" {
+				return stop(n, err)
+			}
 			return failed(err)
 		}
 		if len(resp.ToolCalls) == 0 || final {
@@ -422,10 +479,17 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		// the next call far past it.
 		room := min(askAgentToolResultMax, max(0, (askAgentInputBudget-spentInput)*3))
 		for i, c := range resp.ToolCalls {
-			content, err := s.agentToolCall(runCtx, tools, tc, c, book, i, room)
+			content, step, err := s.agentToolCall(runCtx, tools, tc, c, book, i, room)
 			if err != nil {
+				if n := askStopNotice(ctx, runCtx, err); n != "" {
+					return stop(n, err)
+				}
 				return failed(err)
 			}
+			// The step follows its tool, which supplies the counts; the client
+			// clears the text of the call that asked for it.
+			step.Round = rounds
+			draft.step(step)
 			room = max(0, room-len(content))
 			msgs = append(msgs, provider.Message{Role: "tool", ToolCallID: c.ID, Content: content})
 		}
@@ -438,36 +502,47 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		msgs = append(msgs, provider.Message{Role: "user", Content: askAgentFormatReminder})
 		req.History, req.Vars, req.ToolResultTurn, req.Continuation = msgs, nil, false, true
 		s.agentCallOver(runCtx, w.OrganizationID)
+		draft.step(AskStepEvent{Round: rounds + 1, Phase: "retry", Counts: map[string]int{}})
 		resp, err = call()
 		if errors.Is(err, ai.ErrRefused) {
 			return refused(err)
 		}
 		if err != nil {
+			if n := askStopNotice(ctx, runCtx, err); n != "" {
+				return stop(n, err)
+			}
 			return failed(err)
 		}
-		if agentMalformed(resp) {
-			return s.finishAgent(ctx, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID)
-		}
+	}
+	// The final call answered and was charged: a Stop from here on keeps it
+	// (R6), so the store outlives the request.
+	sctx, cancelStore := outliving(ctx)
+	defer cancelStore()
+	if agentMalformed(resp) {
+		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID)
 	}
 	answer := strings.TrimSpace(ai.StripUntrustedTags(resp.Text))
-	return s.finishAgent(ctx, res, w, conv, question, answer, "", agentCitations(answer, book), resp.UsageEventID)
+	return s.finishAgent(sctx, emit, res, w, conv, question, answer, "", agentCitations(answer, book), resp.UsageEventID)
 }
 
-// finishAgent stores the turn with the last call's usage row.
-func (s *AskUNIService) finishAgent(ctx context.Context, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question, answer, notice string, citations []AskCitation, usageEventID string) (AskResult, error) {
+// finishAgent stores the turn with the last call's usage row. Its text
+// already streamed, so it ends with citations and done.
+func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question, answer, notice string, citations []AskCitation, usageEventID string) (AskResult, error) {
 	msg, err := s.store(ctx, w.OrganizationID, conv.ID, question, answer, notice, citations, usageEventID)
 	if err != nil {
 		return AskResult{}, err
 	}
 	res.Message, res.Citations = msg, citations
+	emit.emitDone(res)
 	return res, nil
 }
 
 // agentToolCall answers the i-th tool call of a reply: past
 // askAgentMaxCallsPerRound it is refused unrun, a tool the agent lacks is
 // answered unrun, and any other call runs and is rendered within limit bytes.
-// A Go error is the server's and ends the run.
-func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc ai.ToolContext, c provider.ToolCall, b *sourceBook, i, limit int) (string, error) {
+// The step reports it, counting the sources it found by kind (errors and
+// notes carry no Key). A Go error is the server's and ends the run.
+func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc ai.ToolContext, c provider.ToolCall, b *sourceBook, i, limit int) (string, AskStepEvent, error) {
 	started := s.now()
 	j := slices.IndexFunc(tools, func(t agentTool) bool { return t.Name == c.Name })
 	name := "unknown" // the model's own name would be an unbounded metric label
@@ -475,6 +550,7 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 		name = c.Name
 	}
 	content, status := "error: too_many_calls", "error"
+	step := AskStepEvent{Phase: "tool", Tool: name, Counts: map[string]int{}}
 	var err error
 	switch {
 	case i >= askAgentMaxCallsPerRound:
@@ -485,6 +561,12 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 		if items, err = tools[j].run(ctx, tc, c.Input); err == nil {
 			content, status = b.toolResult(items, limit)
 		}
+		for _, it := range items {
+			if it.Key != "" && !b.counted[it.Key] {
+				b.counted[it.Key] = true
+				step.Counts[it.Kind]++
+			}
+		}
 		// The run's deadline reached inside a tool is the same refusal as one
 		// reached inside a model call.
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -494,38 +576,5 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 	if s.agentMetrics != nil {
 		s.agentMetrics.ObserveAskTool(name, status, s.now().Sub(started).Seconds())
 	}
-	return content, err
-}
-
-// agentFocus reads the object the asker is looking at, numbers it, and
-// renders it for the prompt's focus block, capped like a tool result (ruling
-// P11); "" without one.
-func (s *AskUNIService) agentFocus(ctx context.Context, tc ai.ToolContext, focus *ai.Focus, b *sourceBook) (string, error) {
-	if focus == nil {
-		return "", nil
-	}
-	var read func(context.Context, ai.ToolContext, string) ([]ai.Source, error)
-	switch focus.Kind {
-	case "task":
-		read = s.taskContext
-	case "meeting":
-		read = s.meetingContext
-	case "email_thread":
-		read = s.emailThreadContext
-	default:
-		return "", nil
-	}
-	found, err := read(ctx, tc, focus.ID)
-	if errors.Is(err, ErrForbidden) {
-		return "", ai.ErrContextForbidden
-	}
-	if err != nil {
-		return "", err
-	}
-	items := make([]agentItem, 0, len(found))
-	for _, src := range found {
-		items = append(items, sourceItem(src))
-	}
-	out, _ := b.render(items, askAgentToolResultMax)
-	return out, nil
+	return content, step, err
 }

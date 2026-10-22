@@ -197,9 +197,22 @@ SELECT r.avatar_file_id AS file_id, r.organization_id
 FROM chat_rooms r
 WHERE r.avatar_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
+-- name: FileGCChatRoomWallpaperRefTenants :many
+-- tenant: system
+SELECT r.wallpaper_file_id AS file_id, r.organization_id
+FROM chat_rooms r
+WHERE r.wallpaper_file_id = ANY(sqlc.arg('file_ids')::text[]);
+
 -- name: FileGCChatLinkPreviewRefTenants :many
 -- tenant: system
 -- chat_link_previews.image_file_id: a link preview's picture (ADR 0035).
 SELECT p.image_file_id AS file_id, p.organization_id
 FROM chat_link_previews p
 WHERE p.image_file_id = ANY(sqlc.arg('file_ids')::text[]);
+
+-- name: FileGCDocumentDownloadJobRefTenants :many
+-- tenant: system
+-- document_download_jobs.file_id: the row carries its tenant.
+SELECT j.file_id, j.organization_id
+FROM document_download_jobs j
+WHERE j.file_id = ANY(sqlc.arg('file_ids')::text[]);

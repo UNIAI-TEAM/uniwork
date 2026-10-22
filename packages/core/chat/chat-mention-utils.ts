@@ -172,10 +172,6 @@ export function buildChatMentionCandidates(
   return out;
 }
 
-export function messageBodyHasMention(body: string): boolean {
-  return body.includes("mention://") || body.includes("[@ ");
-}
-
 /** Active @-query at cursor when user is typing a mention (not inside an existing token). */
 export function getActiveMentionQuery(
   text: string,
@@ -254,18 +250,23 @@ export function insertMentionToken(
   return { nextDraft, nextCursor: before.length + token.length + 1 };
 }
 
+/** Enough to pick from; typing more letters narrows the rest (UNI-1732). */
+export const MENTION_CANDIDATE_LIMIT = 20;
+
 export function filterMentionCandidates(
   candidates: ChatMentionCandidate[],
   query: string,
   options: { allLabel: string; includeAll?: boolean },
 ): ChatMentionCandidate[] {
   const q = query.trim();
-  const filtered = candidates.filter((candidate) => {
-    if (candidate.kind === "all") return false;
-    if (!q) return true;
-    // Accent-insensitive, so "tuan" finds "Tuấn".
-    return foldedIncludes(candidate.label, q) || foldedIncludes(candidate.email ?? "", q);
-  });
+  const filtered = candidates
+    .filter((candidate) => {
+      if (candidate.kind === "all") return false;
+      if (!q) return true;
+      // Accent-insensitive, so "tuan" finds "Tuấn".
+      return foldedIncludes(candidate.label, q) || foldedIncludes(candidate.email ?? "", q);
+    })
+    .slice(0, MENTION_CANDIDATE_LIMIT);
 
   const includeAll = options.includeAll !== false;
 
@@ -273,10 +274,4 @@ export function filterMentionCandidates(
     return [{ kind: "all", label: options.allLabel }, ...filtered];
   }
   return filtered;
-}
-
-export function messageMentionsUser(message: { mentionedUserIds?: string[] }, userId: string): boolean {
-  if (!message.mentionedUserIds?.length) return false;
-  const normalized = userId.trim().toUpperCase();
-  return message.mentionedUserIds.some((id) => id.trim().toUpperCase() === normalized);
 }

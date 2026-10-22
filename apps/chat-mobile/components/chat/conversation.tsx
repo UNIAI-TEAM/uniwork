@@ -215,6 +215,8 @@ export function Conversation(props: Props) {
     composer: { reply: replyTo, edit: editOf },
   });
   const { votePoll, react } = actions;
+  // A poll vote's notice scrolls to its poll as a quote does; stable, so the cards' context keeps its identity.
+  const jumpTo = useStableHandlers({ onJumpToMessage: (messageId: string) => props.onQuoteJump(messageId) });
 
   const ctx: MessageCardContext = useMemo(
     () => ({
@@ -230,8 +232,9 @@ export function Conversation(props: Props) {
         haptics.longPress();
         sheets({ type: "open", sheet: { kind: "link", url } });
       },
+      onJumpToMessage: jumpTo.onJumpToMessage,
     }),
-    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, votePoll, openLink],
+    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, votePoll, openLink, jumpTo],
   );
 
   // The tasks made from the messages on screen, one request per window of lib/link-windows.ts (the web's

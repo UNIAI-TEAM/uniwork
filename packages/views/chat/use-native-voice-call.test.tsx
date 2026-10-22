@@ -26,9 +26,18 @@ function paths(fragment: string): string[] {
 
 const allowed = new Set(["room-dm", "room-other"]);
 
-function renderCall(mintToken = vi.fn().mockResolvedValue({ token: "tok", url: "wss://lk" })) {
+function renderCall(
+  mintToken = vi.fn().mockResolvedValue({ token: "tok", url: "wss://lk" }),
+  mutedRoomIds?: ReadonlySet<string>,
+) {
   return renderHook(() =>
-    useNativeVoiceCall({ workspaceId: "ws1", currentUserId: "me", mintToken, allowedRoomIds: allowed }),
+    useNativeVoiceCall({
+      workspaceId: "ws1",
+      currentUserId: "me",
+      mintToken,
+      allowedRoomIds: allowed,
+      mutedRoomIds,
+    }),
   );
 }
 
@@ -269,5 +278,42 @@ describe("useNativeVoiceCall", () => {
     const first = result.current;
     rerender();
     expect(result.current).toBe(first);
+  });
+
+  it("ignores a group or channel invite in a muted room", async () => {
+    const { result } = renderCall(undefined, new Set(["room-other"]));
+    await act(async () => {
+      wsHandlers.get("chat.voice.invite")?.({
+        room_id: "room-other",
+        call_id: "c-muted",
+        caller_id: "peer",
+        call_kind: "channel",
+      });
+    });
+    expect(result.current.voiceCall.status).toBe("idle");
+  });
+
+  it("still rings for a dm invite when that room is muted", async () => {
+    pendingInvites = [
+      {
+        room_id: "room-dm",
+        call_id: "c-dm",
+        caller_id: "peer",
+        caller_name: "Long",
+        call_kind: "dm",
+        invited_at: new Date().toISOString(),
+      },
+    ];
+    const { result } = renderCall(undefined, new Set(["room-dm"]));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+      wsHandlers.get("chat.voice.invite")?.({
+        room_id: "room-dm",
+        call_id: "c-dm",
+        caller_id: "peer",
+        target_user_id: "me",
+      });
+    });
+    expect(result.current.voiceCall.status).toBe("incoming");
   });
 });

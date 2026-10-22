@@ -9,7 +9,7 @@ import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { ChatNameContextEntry, GroupMemberProfile } from "./chat-page-utils";
 import type { ChatMessage } from "./chat-messages";
-import type { ChatDocumentDesktopOpen } from "./chat-document-message-row";
+import type { ChatDocumentDesktopOpen } from "./chat-document-menu";
 import type { ChatMentionCandidate } from "@uniwork/core/chat/chat-mention-utils";
 import type { ChatScope } from "./chat-scope";
 
@@ -27,7 +27,6 @@ export type ChatPageContentProps = {
   activeGroup: GroupChat | null;
   activeChannel: ChatRoomRecord | null;
   workspaceId: string;
-  messageRefreshKey?: number;
   activeRoomId: string | null;
   showLoading: boolean;
   connectError: string | null;
@@ -63,7 +62,7 @@ export type ChatPageContentProps = {
   onSendDocument?: (file: File, shareLevel: ChatDocumentShareLevel) => Promise<void>;
   /** The room detail's can_send_document flag; absent/false hides the picker. */
   canSendDocument?: boolean;
-  /** Host wiring for a document card's "Mở bằng UniWork Office"; absent → hidden (UNI-1966). */
+  /** Host wiring for a document card's "Chỉnh sửa trong UniWork Office" menu entry; absent → hidden (UNI-1966, UNI-2012). */
   desktopOpen?: ChatDocumentDesktopOpen;
   groupSettingsOpen: boolean;
   onGroupSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
+import enLocale from "@uniwork/core/i18n/locales/en.json";
+import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
@@ -148,10 +150,11 @@ describe("home layout (Main.dc)", () => {
     // No My Folder root-create hint line under Tạo nhanh (user 2026-10-19).
     expect(screen.queryByText(/Thư mục của tôi \(chỉ bạn thấy\)/)).toBeNull();
 
-    // The greeting, the create card grid, the scope tabs and the old chips are gone.
+    // The greeting, the create card grid and the scope tabs are gone; the type chips are the
+    // filter bar every screen shares (UNI-2045 W10), with no Group by (Q6).
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
-    expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
+    expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+    expect(screen.queryByText("Nhóm theo")).toBeNull();
     expect(screen.queryByText(/Chào buổi/)).toBeNull();
   });
 
@@ -159,7 +162,7 @@ describe("home layout (Main.dc)", () => {
     route({ list: () => [] });
     renderView();
     const strip = await screen.findByRole("region", { name: t("documents.home.quick_create.label") });
-    const chipTypes = ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"] as const;
+    const chipTypes = ["page", "docx", "xlsx", "pptx"] as const;
     for (const type of chipTypes) {
       expect(within(strip).getByRole("button", { name: new RegExp(t(`documents.home.create.${type}.chip`)) })).toBeInTheDocument();
     }
@@ -276,6 +279,32 @@ describe("folder layout (Folder.dc)", () => {
         : [],
   });
 
+  // UNI-2009 addendum: the folder report lives in the breadcrumb ⋯ menu (the same item as the
+  // tree row menu); the header has no second overflow beside it.
+  it("offers the folder access report in the breadcrumb menu and opens the folder-scoped report", async () => {
+    route(folderRoutes());
+    const adapter = renderView(`/acme/doi/documents?folder=fo1`);
+    await screen.findByText("Báo giá.docx");
+    expect(screen.queryByRole("button", { name: t("documents.actions.menu_label") })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.folder.menu") }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.accessReport.menu_folder") }));
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/documents/access-report?folder=fo1");
+  });
+
+  it("keeps the folder report out of the menu for a reader who does not manage the folder", async () => {
+    route({ ...folderRoutes(), detail: (id: string) => (id === "fo1" ? folderDetail({ my_level: "edit", breadcrumbs: [] }) : null) });
+    renderView(`/acme/doi/documents?folder=fo1`);
+    await screen.findByText("Báo giá.docx");
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.folder.menu") }));
+    await screen.findByRole("menuitem", { name: t("documents.home.row.new_subfolder") });
+    expect(screen.queryByRole("menuitem", { name: t("documents.accessReport.menu_folder") })).toBeNull();
+  });
+
+  it("words the folder item apart from the sub-nav entry in both languages", () => {
+    expect(viLocale.documents.accessReport.menu_folder).toBe("Báo cáo quyền truy cập thư mục");
+    expect(enLocale.documents.accessReport.menu_folder).toBe("Folder access report");
+  });
+
   it("shows the breadcrumb, the folder name with its menu, in-folder search and the info line", async () => {
     route(folderRoutes());
     renderView(`/acme/doi/documents?folder=fo1`);
@@ -302,12 +331,14 @@ describe("folder layout (Folder.dc)", () => {
     );
     expect(screen.queryByText(/Dự án CCB”/)).toBeNull();
 
-    // No Tạo nhanh strip, no scope tabs, no chip group, no filters inside a folder.
+    // No Tạo nhanh strip and no scope tabs inside a folder; the filter bar is
+    // the one every list screen carries (UNI-2045 W10), filtering on the client.
     expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
-    expect(screen.queryByRole("combobox", { name: new RegExp(t("documents.home.filters.editor")) })).toBeNull();
-    expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: new RegExp(t("documents.home.filters.editor")) })).toBeInTheDocument();
+    // Sorting lives in the table headers now (UNI-2038): no sort Select in a folder.
+    expect(screen.queryByRole("combobox", { name: /^Sắp xếp|^Sort/ })).toBeNull();
   });
 
   it("gives up space in order on the header row: ancestors and home crumb first, the folder name last (UNI-1977 fix)", async () => {
@@ -399,12 +430,13 @@ describe("trash view (Trash.dc)", () => {
 
     expect(await screen.findByRole("heading", { level: 1, name: t("documents.trash.title") })).toBeInTheDocument();
     await screen.findByText("Cũ");
-    expect(screen.getByRole("columnheader", { name: t("documents.trash.columns.deleted_by") })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: t("documents.trash.columns.purge_in") })).toBeInTheDocument();
+    // UNI-2045 W2: the shared columns, the Đã xóa screen column right after Tên.
+    expect(screen.getByRole("columnheader", { name: t("documents.list.screen_column.deleted") })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).toBeInTheDocument();
-    // The old scope tabs / chips / group-by never appear here.
+    // The old scope tabs never appear here, and Thùng rác has no filter bar (UNI-2045 W10).
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
+    expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
+    expect(screen.queryByText("Nhóm theo")).toBeNull();
     expect(screen.queryByRole("heading", { level: 2, name: t("documents.home.views.archived") })).toBeNull();
     expect(screen.queryByRole("heading", { level: 1, name: t("documents.home.sidebar.home") })).toBeNull();
   });

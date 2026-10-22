@@ -210,6 +210,24 @@ describe("MessageRow", () => {
     expect(screen.queryByLabelText(new RegExp(`^${viText("chat.message_list.label", { sender: "Bình", time: TIME })}`))).toBeNull();
   });
 
+  it("draws a poll vote as a notice on the wall that jumps to its poll, not a bubble", async () => {
+    const vote = sent({ kind: "poll_vote", body: "Ăn trưa?", poll_vote: { poll_message_id: "p1", question: "Ăn trưa?" } });
+    const onJumpToMessage = jest.fn();
+    const p = props(vote);
+    await render(<MessageRow {...p} ctx={{ ...p.ctx, onJumpToMessage }} />);
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.poll_vote_activity_view") }));
+    expect(onJumpToMessage).toHaveBeenCalledWith("p1");
+    expect(screen.queryByLabelText(new RegExp(`^${viText("chat.message_list.label", { sender: "Bình", time: TIME })}`))).toBeNull();
+  });
+
+  it.each(["sent", "delivered", "seen"] as const)("lays a bare photo's time and %s receipt over its corner", async (receipt) => {
+    const file = { filename: "IMG_1.jpg", content_type: "image/jpeg", size_bytes: 1, url: "", download_url: "", thumb_url: "", url_expires_at: "" };
+    const photo = sent({ sender_id: "u1", kind: "file", body: "", file });
+    await render(<MessageRow {...props(photo, { own: true, senderName: viText("chat.you"), receipt })} />);
+    expect(screen.getByText(TIME)).toBeOnTheScreen();
+    expect(screen.getByRole("imagebutton", { name: viText("chat.message_list.file_open_named", { name: "IMG_1.jpg" }) })).toBeOnTheScreen();
+  });
+
   it("draws a system line as one centred, readable chip", async () => {
     await render(<MessageRow {...props(sent({ kind: "system", body: "An đã thêm Bình vào nhóm" }))} />);
     expect(screen.getByLabelText("An đã thêm Bình vào nhóm")).toBeOnTheScreen();

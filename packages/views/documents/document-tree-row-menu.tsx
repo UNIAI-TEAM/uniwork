@@ -10,6 +10,7 @@ import { useFavoriteDocument, useUnfavoriteDocument } from "@uniwork/core/docume
 import { useDocument } from "@uniwork/core/documents/hooks";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { paths } from "@uniwork/core/paths";
+import { canCreateInsideFolder, useCurrentMember } from "@uniwork/core/permissions";
 import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -22,6 +23,7 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useOptionalNavigation } from "../navigation";
+import { newFolderIsWorkspaceVisible } from "./document-tree-model";
 import { FolderNameDialog } from "./folder-name-dialog";
 import type { DocumentSummaryRow } from "./library-rows";
 import { canArchiveRow, canMoveRow, rowLevel } from "./row-level";
@@ -122,7 +124,15 @@ export function DocumentTreeRowMenu({
     myLevel ?? nodeLevelField ?? (detail.isError ? undefined : detail.data?.my_level) ?? knownLevel;
   const level = rowLevel({ my_level: resolvedLevel });
   const myFolder = isMyFolder(node);
+  const { userId, role: wsRole } = useCurrentMember(wsId);
+  // Rename and move need edit on the folder; creating inside it is wider on a workspace folder (UNI-2055 W3/W4).
   const canEdit = canMoveRow(level);
+  const canCreateInside =
+    canEdit ||
+    canCreateInsideFolder(
+      { kind: node.kind, visibility: node.visibility, system_kind: node.system_kind, my_level: level },
+      { userId, orgRole: null, wsRole },
+    ).allowed;
   const canDelete = !myFolder && canArchiveRow(level);
   // The report lists grants, which only a manager may read (the server decides again).
   const canReport = canArchiveRow(level) && Boolean(actions?.onAccessReport);
@@ -168,33 +178,31 @@ export function DocumentTreeRowMenu({
             {starred ? t("documents.home.row.unstar") : t("documents.home.row.star")}
           </DropdownMenuItem>
         ) : null}
-        {canEdit ? (
+        {canCreateInside ? (
+          <DropdownMenuItem
+            className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
+            onClick={() => actions?.onNewSubfolder(node)}
+          >
+            <FolderPlus aria-hidden className="size-3.5" />
+            {t("documents.tree.menu.new_subfolder")}
+          </DropdownMenuItem>
+        ) : null}
+        {canEdit && !myFolder ? (
           <>
             <DropdownMenuItem
               className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
-              onClick={() => actions?.onNewSubfolder(node)}
+              onClick={() => actions?.onRename(node)}
             >
-              <FolderPlus aria-hidden className="size-3.5" />
-              {t("documents.tree.menu.new_subfolder")}
+              <Pencil aria-hidden className="size-3.5" />
+              {t("documents.tree.menu.rename")}
             </DropdownMenuItem>
-            {!myFolder ? (
-              <>
-                <DropdownMenuItem
-                  className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
-                  onClick={() => actions?.onRename(node)}
-                >
-                  <Pencil aria-hidden className="size-3.5" />
-                  {t("documents.tree.menu.rename")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
-                  onClick={() => actions?.onMoveTo(node)}
-                >
-                  <FolderInput aria-hidden className="size-3.5" />
-                  {t("documents.tree.menu.move_to")}
-                </DropdownMenuItem>
-              </>
-            ) : null}
+            <DropdownMenuItem
+              className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
+              onClick={() => actions?.onMoveTo(node)}
+            >
+              <FolderInput aria-hidden className="size-3.5" />
+              {t("documents.tree.menu.move_to")}
+            </DropdownMenuItem>
           </>
         ) : null}
         {canReport ? (
@@ -295,6 +303,7 @@ export function useTreeRowMenuDialogs({
         mode="create"
         wsId={wsId}
         parentId={creatingUnder?.id ?? null}
+        workspaceNote={creatingUnder !== null && newFolderIsWorkspaceVisible(tree, creatingUnder.id, creatingUnder)}
         parentTitle={(creatingUnder && isMyFolder(creatingUnder) ? t("documents.home.my_folder.label") : creatingUnder?.title) ?? ""}
         onSuccess={() => {
           if (creatingUnder) onCreatedSubfolder?.(creatingUnder.id);

@@ -22,9 +22,10 @@ import { documentErrorMessage } from "./document-error-message";
 import { TreeRowItem } from "./document-tree-row";
 import { useTreeRowMenuDialogs } from "./document-tree-row-menu";
 import {
-  findTreeNode, flattenTree, foldersOnly, loadMoveRevision, moveRefused, moveTooDeep,
-  myFolderFirst, siblingMovePosition, siblingsOf, subtreeIds, type TreeRow,
+  findTreeNode, flattenTree, folderLeavesMyFolder, foldersOnly, loadMoveRevision, moveRefused, moveTooDeep,
+  myFolderFirst, siblingMovePosition, siblingsOf, subtreeIds, workspaceFolderIntoMyFolder, type TreeRow,
 } from "./document-tree-model";
+import { MoveOutConfirmDialog } from "./move-out-confirm-dialog";
 import { knownDocuments } from "./starred-rows";
 import { useTreeReveal } from "./use-tree-reveal";
 
@@ -79,6 +80,8 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [dragRow, setDragRow] = useState<TreeRow | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
+  // A folder leaving My Folder waits here for the person's yes (UNI-2055 W3).
+  const [confirmOut, setConfirmOut] = useState<{ id: string; parentId: string | null; position?: number } | null>(null);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
 
   const starredIds = useMemo(
@@ -139,10 +142,23 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
     }
   };
 
-  /** Refusals that need no request: a cycle or a move past the depth limit. */
+  /** A move that leaves My Folder asks first; every other move goes straight to the server. */
+  const requestMove = (documentId: string, parentId: string | null, position?: number) => {
+    if (folderLeavesMyFolder(nodes, [documentId], parentId)) {
+      setConfirmOut({ id: documentId, parentId, position });
+      return;
+    }
+    void moveTo(documentId, parentId, position);
+  };
+
+  /** Refusals that need no request: a cycle, a workspace folder into My Folder, or a move past the depth limit. */
   const refuseMove = (draggedId: string, targetId: string): boolean => {
     if (moveRefused(nodes, draggedId, targetId)) {
       toast.error(t("documents.tree.cycle_blocked"));
+      return true;
+    }
+    if (workspaceFolderIntoMyFolder(nodes, [draggedId], targetId)) {
+      toast.error(t("documents.home.move.reason_workspace_folder"));
       return true;
     }
     if (moveTooDeep(nodes, draggedId, targetId)) {
@@ -166,7 +182,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
     const draggedId = dragged.node.id;
     setFocusedId(draggedId);
     if (refuseMove(draggedId, targetId)) return;
-    void moveTo(draggedId, targetId);
+    requestMove(draggedId, targetId);
   };
 
   const rowKeyDown =
@@ -189,7 +205,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
         if (event.key === "ArrowUp" || event.key === "ArrowDown") {
           event.preventDefault();
           const position = siblingMovePosition(siblings, siblingIndex, event.key === "ArrowUp" ? -1 : 1);
-          if (position !== null) void moveTo(id, row.parentId, position);
+          if (position !== null) requestMove(id, row.parentId, position);
           return;
         }
         if (event.key === "ArrowRight") {
@@ -197,7 +213,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
           if (!previous) return;
           event.preventDefault();
           if (refuseMove(id, previous.id)) return;
-          void moveTo(id, previous.id);
+          requestMove(id, previous.id);
           return;
         }
         if (event.key === "ArrowLeft") {
@@ -209,7 +225,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
           const uncles = siblingsOf(nodes, parent.parent_id ?? null);
           const next = uncles[uncles.findIndex((uncle) => uncle.id === parent.id) + 1];
           const position = next ? (parent.position + next.position) / 2 : parent.position + 1;
-          void moveTo(id, parent.parent_id ?? null, position);
+          requestMove(id, parent.parent_id ?? null, position);
           return;
         }
         return;
@@ -343,6 +359,15 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
         </p>
       ) : null}
       {rowMenu.dialogs}
+      <MoveOutConfirmDialog
+        open={confirmOut !== null}
+        onCancel={() => setConfirmOut(null)}
+        onConfirm={() => {
+          const pending = confirmOut;
+          setConfirmOut(null);
+          if (pending) void moveTo(pending.id, pending.parentId, pending.position);
+        }}
+      />
     </div>
   );
 }

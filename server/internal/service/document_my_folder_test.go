@@ -135,11 +135,17 @@ func TestEnsureMyFolder(t *testing.T) {
 	if userFolder.Document.SystemKind.Valid {
 		t.Fatalf("user folder should have NULL system_kind, got %+v", userFolder.Document.SystemKind)
 	}
-	// A second user-created root folder named "My Folder" is still refused by folder_name_taken.
-	_, err = env.svc.CreatePage(ctx, owner, env.tn.wsA, CreatePageInput{
+	// A second user-created root folder named "My Folder" is suffixed (ADR
+	// 0037 §7): the name is taken by the first user folder, never by a My Folder.
+	userFolder2, err := env.svc.CreatePage(ctx, owner, env.tn.wsA, CreatePageInput{
 		Kind: DocumentKindFolder, Title: "my folder",
 	})
-	wantCode(t, err, "folder_name_taken")
+	if err != nil {
+		t.Fatalf("second user root folder named 'my folder': %v", err)
+	}
+	if userFolder2.Document.Title != "my folder (1)" {
+		t.Fatalf("second user folder title = %q, want my folder (1)", userFolder2.Document.Title)
+	}
 
 	// MF-2: agent -> ErrForbidden; outsider -> ErrNotFound; deactivated member -> 403 member_deactivated.
 	if _, _, err := env.svc.EnsureMyFolder(ctx, agentActor(env.tn.agent), env.tn.wsA); !errors.Is(err, ErrForbidden) {

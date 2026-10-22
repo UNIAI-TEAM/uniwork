@@ -146,8 +146,10 @@ func TestDocumentFolderRefusesPublicLinks(t *testing.T) {
 	}
 }
 
-// UNI-1974: a folder is never shared. Every route that would open one answers
-// 422 folder_not_shareable, and the folder stays private.
+// UNI-1974: a folder is never shared. Every route that would hand out a grant
+// answers 422 folder_not_shareable. ADR 0037: the folder's own visibility is
+// its location's - workspace/view at the root - and a create's visibility is
+// ignored, never refused.
 func TestDocumentFolderIsNeverShared(t *testing.T) {
 	w := newDocsWorld(t)
 	base := "/api/v1/workspaces/" + w.wsID + "/documents"
@@ -158,17 +160,19 @@ func TestDocumentFolderIsNeverShared(t *testing.T) {
 		}
 	}
 
-	res, out := doJSON(t, w.srv, "POST", base, w.token, map[string]any{"title": "Mở sẵn", "kind": "folder", "visibility": "workspace"})
-	want(t, "create a workspace folder", res, out)
+	res, out := doJSON(t, w.srv, "POST", base, w.token, map[string]any{"title": "Mở sẵn", "kind": "folder", "visibility": "restricted"})
+	if res.StatusCode != http.StatusCreated || out["document"].(map[string]any)["visibility"] != "workspace" {
+		t.Fatalf("a folder create ignores the requested visibility: %d %v", res.StatusCode, out)
+	}
 
-	res, out = doJSON(t, w.srv, "POST", base, w.token, map[string]any{"title": "Riêng", "kind": "folder"})
+	res, out = doJSON(t, w.srv, "POST", base, w.token, map[string]any{"title": "Chung", "kind": "folder"})
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create folder: %d %v", res.StatusCode, out)
 	}
 	folder := out["document"].(map[string]any)
 	folderID := folder["id"].(string)
-	if folder["visibility"] != "restricted" {
-		t.Fatalf("a folder is private at create, got %v", folder["visibility"])
+	if folder["visibility"] != "workspace" {
+		t.Fatalf("a root folder is the workspace's, got %v", folder["visibility"])
 	}
 
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+folderID+"/shares", w.token, map[string]any{
@@ -182,9 +186,15 @@ func TestDocumentFolderIsNeverShared(t *testing.T) {
 	want(t, "share batch", res, out)
 
 	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+folderID, w.token, map[string]any{
-		"revision": folder["revision"], "visibility": "workspace",
+		"revision": folder["revision"], "visibility": "restricted",
 	})
 	want(t, "patch visibility", res, out)
+
+	// A clashing folder create takes " (1)" instead of a 409 (ADR 0037 §7).
+	res, out = doJSON(t, w.srv, "POST", base, w.token, map[string]any{"title": "Chung", "kind": "folder"})
+	if res.StatusCode != http.StatusCreated || out["document"].(map[string]any)["title"] != "Chung (1)" {
+		t.Fatalf("clashing folder create: %d %v", res.StatusCode, out)
+	}
 
 	// A page inside the folder is private: the folder passes nothing on.
 	res, out = doJSON(t, w.srv, "POST", base, w.token, map[string]any{"title": "Trang", "kind": "page", "parent_id": folderID})
@@ -193,6 +203,47 @@ func TestDocumentFolderIsNeverShared(t *testing.T) {
 	}
 	if v := out["document"].(map[string]any)["visibility"]; v != "restricted" {
 		t.Fatalf("a page in a folder is private, got %v", v)
+	}
+}
+
+// ADR 0037 §6: a workspace folder moved into My Folder answers 422
+// folder_into_my_folder, and the move route's spec says so.
+func TestFolderIntoMyFolderIsRefusedAndInTheSpec(t *testing.T) {
+	w := newDocsWorld(t)
+	base := "/api/v1/workspaces/" + w.wsID + "/documents"
+	res, out := doJSON(t, w.srv, "POST", base+"/my-folder", w.token, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("ensure My Folder: %d %v", res.StatusCode, out)
+	}
+	myFolderID := out["document"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, w.srv, "POST", base, w.token, map[string]any{"title": "Chung", "kind": "folder"})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("create folder: %d %v", res.StatusCode, out)
+	}
+	folder := out["document"].(map[string]any)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+folder["id"].(string)+"/move", w.token, map[string]any{
+		"parent_id": myFolderID, "revision": folder["revision"],
+	})
+	if code, _ := errCodeClass(out); res.StatusCode != http.StatusUnprocessableEntity || code != "folder_into_my_folder" {
+		t.Fatalf("move into My Folder: %d code=%q %v", res.StatusCode, code, out)
+	}
+
+	h := New(Deps{Cfg: config.Config{FrontendOrigin: "http://localhost:3000", EnableSwagger: true}})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/swagger/doc.json", nil))
+	var spec struct {
+		Paths map[string]map[string]struct {
+			Description string `json:"description"`
+		} `json:"paths"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+		t.Fatal(err)
+	}
+	if d := spec.Paths["/api/v1/documents/{documentID}/move"]["post"].Description; !strings.Contains(d, "folder_into_my_folder") {
+		t.Errorf("move does not document 422 folder_into_my_folder: %q", d)
+	}
+	if d := spec.Paths["/api/v1/workspaces/{workspaceID}/documents"]["post"].Description; strings.Contains(d, "folder_not_shareable") {
+		t.Errorf("create still documents folder_not_shareable, which it no longer emits: %q", d)
 	}
 }
 
@@ -218,7 +269,6 @@ func TestFolderNotShareableIsInTheSpec(t *testing.T) {
 		t.Fatal(err)
 	}
 	for path, method := range map[string]string{
-		"/api/v1/workspaces/{workspaceID}/documents":  "post",
 		"/api/v1/documents/{documentID}":              "patch",
 		"/api/v1/documents/{documentID}/shares":       "post",
 		"/api/v1/documents/{documentID}/shares/batch": "post",

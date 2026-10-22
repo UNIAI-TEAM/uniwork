@@ -195,7 +195,8 @@ export function buildMessageRowModels(input: MessageRowModelInput, previous?: Re
       threadReplies: root ? Math.max(message.record?.reply_count ?? 0, byId.size - 1) : 0,
       highlighted,
       showThread: !threadRootId,
-      swipeToReply: !threadRootId && Boolean(message.record),
+      // A vote's notice on the wall is not a message to answer.
+      swipeToReply: !threadRootId && Boolean(message.record) && message.record?.kind !== "poll_vote",
       taskIds,
     };
     models.set(row.key, before && sameRowModel(before, next) ? before : next);

@@ -1,4 +1,4 @@
-// The component layer (ADR 0037, audit T1): *.test.tsx under components/,
+// The component layer (ADR 0043, audit T1): *.test.tsx under components/,
 // rendered by jest-expo with React Native's own Jest preset and queried by
 // role and label with @testing-library/react-native, and the route layer
 // (test/routes/: route files through the real expo-router, test/route-render.tsx).
@@ -72,7 +72,7 @@ module.exports = {
  * route files (app/) together at the routes floor (a directory key: jest
  * aggregates it), and the files not recorded yet — a new component — together
  * at the global floor, so an untested one fails the run. Blocks at every
- * GATE_LEVEL (ADR 0037).
+ * GATE_LEVEL (ADR 0043).
  */
 function coverageThreshold() {
   const floor = require("./coverage-floor.json");

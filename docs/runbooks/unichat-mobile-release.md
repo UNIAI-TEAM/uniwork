@@ -24,7 +24,7 @@ scheme, tên app, tức phần native, nên mỗi biến thể có fingerprint r
 trong `extra`, bị loại khỏi hash (`fingerprint.config.js`), không đổi nó. Một bản OTA vì thế phải build đúng biến thể
 của bản store trên kênh đó (`staging` cho `internal`/`preview`, `production` cho `production`).
 
-**Cổng trước khi phát hành (CI, ADR 0037 — chặn ở mọi `GATE_LEVEL`)**
+**Cổng trước khi phát hành (CI, ADR 0043 — chặn ở mọi `GATE_LEVEL`)**
 
 - **Branch protection (owner, một lần — audit P0).** Chưa bật thì mọi cổng dưới đây chỉ là tư vấn: một run đỏ vẫn
   merge được. Check bắt buộc của `main` và `develop` nằm ở `scripts/branch-protection.json` (CI chính, `link` của UniAI

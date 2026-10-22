@@ -92,7 +92,7 @@ func TestCatchUpEmptyAndUnreadRoom(t *testing.T) {
 		t.Fatalf("empty catch-up must not call the provider: %d", fake.Calls)
 	}
 
-	sent, err := s.chat.SendWorkspaceMessage(ctx, ub.ID, w.ID, SendChatMessageInput{Body: "Nhắc hạn F-09"})
+	sent, err := s.chat.SendRoomMessage(ctx, ub.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "Nhắc hạn F-09"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestCatchUpEmptyAndUnreadRoom(t *testing.T) {
 
 	// Send advances the caller's last_read_at past earlier peer mail; CatchUp
 	// then sees an empty unread window (self is also filtered if still in range).
-	if _, err := s.chat.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "chỉ mình tôi"}); err != nil {
+	if _, err := s.chat.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "chỉ mình tôi"}); err != nil {
 		t.Fatal(err)
 	}
 	calls := fake.Calls
@@ -145,7 +145,7 @@ func TestCatchUpLeavesOutAMemberWhoDeclinedAI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.chat.SendWorkspaceMessage(ctx, ub.ID, w.ID, SendChatMessageInput{Body: "riêng tư của Bình"}); err != nil {
+	if _, err := s.chat.SendRoomMessage(ctx, ub.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "riêng tư của Bình"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.q.SetUserAIConsent(ctx, db.SetUserAIConsentParams{ID: ub.ID}); err != nil {
@@ -173,7 +173,7 @@ func TestCatchUpSummarisesTheBacklogSinceThePreOpenPointer(t *testing.T) {
 	}
 	before := time.Now().Add(-time.Second)
 	for i := 0; i < 30; i++ {
-		if _, err := s.chat.SendWorkspaceMessage(ctx, ub.ID, w.ID, SendChatMessageInput{Body: fmt.Sprintf("msg-%02d", i)}); err != nil {
+		if _, err := s.chat.SendRoomMessage(ctx, ub.ID, w.ID, room.RoomID, SendChatMessageInput{Body: fmt.Sprintf("msg-%02d", i)}); err != nil {
 			t.Fatal(err)
 		}
 	}

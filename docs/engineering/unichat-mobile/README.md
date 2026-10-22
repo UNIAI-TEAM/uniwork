@@ -4,7 +4,7 @@
 
 Thiết kế từng phần của `apps/chat-mobile`. Bản đồ tầng, ranh giới và luật có test giữ ở `apps/chat-mobile/CLAUDE.md`;
 mỗi file dưới đây là một phần, sửa hành vi phần nào thì sửa file đó cùng PR. Lý do của các quyết định lớn nằm ở ADR
-(`docs/adr/0011-*`, `docs/adr/0037-*`, `docs/adr/drafts/0038-*`), không lặp lại ở đây.
+(`docs/adr/0011-*`, `docs/adr/0043-*`, `docs/adr/drafts/0038-*`), không lặp lại ở đây.
 
 | File | Phần |
 | --- | --- |

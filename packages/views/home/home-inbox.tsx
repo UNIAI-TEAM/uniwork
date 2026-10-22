@@ -23,18 +23,23 @@ import { HomeInboxRowsSkeleton } from "./home-skeletons";
  * The newest unread notifications of this workspace, in the same rows the
  * inbox uses, without the unread bar that every row here would carry. Opening
  * one marks it read, which takes it off this list at once, and follows it to
- * its resource. Triage (read, archive) lives in the inbox, one link away.
+ * its resource. Triage (read, archive) lives in the inbox, one link away. The
+ * documents list dialog is hosted by the page: opening the last unread row
+ * turns Home quiet and this card unmounts.
  */
 export function HomeInbox({
   summary,
   loading,
   retrying,
   onRetry,
+  onOpenList,
 }: {
   summary: HomeSummary | undefined;
   loading: boolean;
   retrying: boolean;
   onRetry: () => void;
+  /** Opens the affected-documents list of a several-document row; the dialog lives in HomeView, which outlasts this card. */
+  onOpenList: (row: { id: string; workspace_id: string }) => void;
 }) {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
@@ -74,6 +79,7 @@ export function HomeInbox({
               compact
               // Every row here is unread, so the unread bar would mark them all.
               unreadBar={false}
+              onOpenList={onOpenList}
               onOpen={(row) => {
                 if (!row.read_at) read(row.id);
               }}

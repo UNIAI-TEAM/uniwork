@@ -152,50 +152,75 @@ func (h *handlers) patchMe(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]any{"user": toUserDTO(u)})
 }
 
-func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
+// serviceFailure is how a service error reaches the wire: the one
+// classification both the JSON mapping and the SSE error event read, so they
+// cannot drift.
+type serviceFailure struct {
+	status     int
+	code, msg  string
+	fields     map[string]any
+	retryAfter string
+	unexpected bool // an internal error: logged, never described
+}
+
+func classifyServiceError(err error) serviceFailure {
 	var ve service.ValidationError
 	var ce service.CodedError
 	var aiErr *ai.Error
 	switch {
 	case errors.As(err, &ve):
-		respondError(w, 400, "invalid_request", ve.Msg)
+		return serviceFailure{status: 400, code: "invalid_request", msg: ve.Msg}
 	case errors.As(err, &ce):
+		f := serviceFailure{status: ce.Status, code: ce.Code, msg: ce.Msg, fields: ce.Fields}
 		if retry, ok := uniworkRetrySeconds(ce.Fields); ok {
-			w.Header().Set("Retry-After", retry)
+			f.retryAfter = retry
 		}
-		respondErrorFields(w, ce.Status, ce.Code, ce.Msg, ce.Fields)
+		return f
 	case errors.As(err, &aiErr):
-		respondError(w, aiErr.Status, aiErr.Code, aiErr.Msg)
+		return serviceFailure{status: aiErr.Status, code: aiErr.Code, msg: aiErr.Msg}
 	case errors.Is(err, service.ErrNotFound):
-		respondError(w, 404, "not_found", "not found")
+		return serviceFailure{status: 404, code: "not_found", msg: "not found"}
 	case errors.Is(err, service.ErrForbidden):
-		respondError(w, 403, "forbidden", "forbidden")
+		return serviceFailure{status: 403, code: "forbidden", msg: "forbidden"}
 	case errors.Is(err, service.ErrInvalidCredentials):
-		respondError(w, 401, "invalid_credentials", "invalid credentials")
+		return serviceFailure{status: 401, code: "invalid_credentials", msg: "invalid credentials"}
 	case errors.Is(err, service.ErrConflict):
-		respondError(w, 409, "conflict", "already exists")
+		return serviceFailure{status: 409, code: "conflict", msg: "already exists"}
 	case errors.Is(err, service.ErrMyFolderLocked):
-		respondError(w, http.StatusConflict, "my_folder_locked", "Thư mục của tôi là thư mục hệ thống cá nhân và không thể đổi tên, chia sẻ, di chuyển hoặc lưu trữ")
+		return serviceFailure{status: http.StatusConflict, code: "my_folder_locked", msg: "Thư mục của tôi là thư mục hệ thống cá nhân và không thể đổi tên, chia sẻ, di chuyển hoặc lưu trữ"}
 	case errors.Is(err, service.ErrIdempotencyInFlight):
-		respondError(w, 409, "idempotency_in_flight", "yêu cầu trùng đang được xử lý; thử lại sau")
+		return serviceFailure{status: 409, code: "idempotency_in_flight", msg: "yêu cầu trùng đang được xử lý; thử lại sau"}
 	case errors.Is(err, service.ErrRateLimited):
-		respondError(w, 429, "rate_limited", "too many requests")
+		return serviceFailure{status: 429, code: "rate_limited", msg: "too many requests"}
 	case errors.Is(err, service.ErrInvalidCode):
-		respondError(w, 400, "invalid_code", "invalid or expired code")
+		return serviceFailure{status: 400, code: "invalid_code", msg: "invalid or expired code"}
 	case errors.Is(err, service.ErrEmailUnverified):
-		respondError(w, 403, "email_unverified", "email address not verified")
+		return serviceFailure{status: 403, code: "email_unverified", msg: "email address not verified"}
 	case errors.Is(err, service.ErrInvalidToken):
-		respondError(w, 400, "invalid_token", "invalid or expired token")
+		return serviceFailure{status: 400, code: "invalid_token", msg: "invalid or expired token"}
 	case errors.Is(err, service.ErrEmailHubNotConfigured):
-		respondError(w, http.StatusServiceUnavailable, "email_hub_not_configured", "Email Hub is not configured")
+		return serviceFailure{status: http.StatusServiceUnavailable, code: "email_hub_not_configured", msg: "Email Hub is not configured"}
 	case errors.Is(err, service.ErrEmailHubReauthRequired):
-		respondError(w, http.StatusConflict, "email_hub_reauth_required", "Email Hub account needs to be reconnected")
+		return serviceFailure{status: http.StatusConflict, code: "email_hub_reauth_required", msg: "Email Hub account needs to be reconnected"}
 	case errors.Is(err, service.ErrEmailHubSMTPDisabled):
-		respondError(w, http.StatusBadRequest, "email_hub_smtp_disabled", "SMTP AUTH is disabled for this mailbox")
+		return serviceFailure{status: http.StatusBadRequest, code: "email_hub_smtp_disabled", msg: "SMTP AUTH is disabled for this mailbox"}
 	case errors.Is(err, service.ErrCalendarProviderNotConfigured):
-		respondError(w, http.StatusServiceUnavailable, "calendar_provider_not_configured", "Calendar provider is not configured")
-	default:
-		h.Log.Error("internal", "err", err)
-		respondError(w, 500, "internal", "internal error")
+		return serviceFailure{status: http.StatusServiceUnavailable, code: "calendar_provider_not_configured", msg: "Calendar provider is not configured"}
 	}
+	return serviceFailure{status: 500, code: "internal", msg: "internal error", unexpected: true}
+}
+
+func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
+	f := classifyServiceError(err)
+	if f.unexpected {
+		h.Log.Error("internal", "err", err)
+	}
+	if f.retryAfter != "" {
+		w.Header().Set("Retry-After", f.retryAfter)
+	}
+	if f.fields != nil {
+		respondErrorFields(w, f.status, f.code, f.msg, f.fields)
+		return
+	}
+	respondError(w, f.status, f.code, f.msg)
 }

@@ -10,6 +10,7 @@ import (
 // one by hand: rows come from the outbox consumer only.
 //
 //	GET    /api/v1/me/notifications
+//	GET    /api/v1/me/notifications/{notificationID}/documents
 //	GET    /api/v1/me/notifications/unread-count
 //	POST   /api/v1/me/notifications/read
 //	POST   /api/v1/me/notifications/unread
@@ -26,6 +27,14 @@ func registerNotifications(r api, h Routes) {
 		description: "Hộp việc của người gọi, mới nhất trước. Query: workspace_id, unread=1, before=<id>, limit (≤100).",
 		tags:        []string{"notifications"},
 		sdo:         sdo.NotificationListSDO{},
+		auth:        true,
+	})
+	r.Get("/me/notifications/{notificationID}/documents", h.ListNotificationDocuments, apiOp{
+		summary:     "List a notification's documents",
+		description: "Tài liệu của một thông báo document_changed mà người gọi đọc được TẠI LÚC ĐỌC (UNI-2056): tài liệu người đó không còn đọc được bị bỏ; tài liệu đã xóa hẳn là mục deleted=true không tiêu đề (chỉ động từ deleted có tiêu đề, từ ảnh chụp lúc xóa); tài liệu trong Thùng rác mà người gọi quản lý có trashed=true. Cursor niêm phong, keyset theo id tài liệu, ràng buộc thông báo và người gọi. Thông báo của người khác hoặc id không có -> 404.",
+		tags:        []string{"notifications"},
+		sdi:         sdi.NotificationDocumentsSDI{},
+		sdo:         sdo.NotificationDocumentsSDO{},
 		auth:        true,
 	})
 	r.Get("/me/notifications/unread-count", h.UnreadNotificationCount, apiOp{

@@ -285,7 +285,7 @@ export function ComposerReadOnlyBar({
   if (reason === "blocked") {
     // A white pill where the field was: who blocked whom, and the way back when it was me (canvas).
     return (
-      <div className="mx-auto flex min-h-13 w-full max-w-183 items-center gap-2.5 rounded-full bg-chat-bubble-other py-1.5 pr-2 pl-4 shadow-chat-bubble">
+      <div className="flex min-h-13 w-full items-center gap-2.5 rounded-full bg-chat-bubble-other py-1.5 pr-2 pl-4 shadow-chat-bubble">
         <Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
         <p role="status" className="min-w-0 flex-1 text-body text-chat-chip-foreground">
           {blockedByMe ? t("chat.block_active_banner") : t("chat.blocked_me_banner")}
@@ -309,7 +309,7 @@ export function ComposerReadOnlyBar({
     );
   }
   return (
-    <div className="mx-auto flex min-h-12 w-full max-w-183 items-center justify-center gap-2.5 rounded-3xl bg-chat-chip px-5 py-2 shadow-chat-bubble">
+    <div className="flex min-h-12 w-full items-center justify-center gap-2.5 rounded-3xl bg-chat-chip px-5 py-2 shadow-chat-bubble">
       <Icon className="size-4.5 shrink-0 text-muted-foreground" aria-hidden />
       {/* The hidden copy sizes the box the field fills, so the icon and the words centre together. */}
       <span className="relative min-w-0 text-center text-body">
@@ -391,7 +391,7 @@ export function ComposerVoiceBar({
   const limit = formatVoiceCallDuration(VOICE_MAX_SECONDS);
 
   return (
-    <div className="mx-auto flex w-full max-w-183 items-center gap-2">
+    <div className="flex w-full items-center gap-2">
       <div
         className={cn(
           "flex min-h-12 min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 rounded-3xl py-1.5 pr-1.5 pl-4.5 shadow-chat-bubble",

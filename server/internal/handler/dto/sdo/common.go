@@ -75,6 +75,19 @@ type DocumentLimitsSDO struct {
 	// backend has neither, so the field is absent there and the web keeps the
 	// one-request flow.
 	ChunkedUploadThresholdBytes *int64 `json:"chunked_upload_threshold_bytes,omitempty" description:"Ngưỡng để client chuyển sang phiên tải lên nhiều phần (byte); vắng mặt khi backend lưu trữ không hỗ trợ multipart + presign" example:"20971520"`
+	// Folder upload (UNI-2052): the limits a PLAN enforces, and the file
+	// extensions an upload accepts so the client can filter a folder first.
+	FolderUpload     FolderUploadLimitsSDO `json:"folder_upload" description:"Giới hạn của một lần tải thư mục"`
+	UploadExtensions []string              `json:"upload_extensions" description:"Đuôi tệp được tải lên (chữ thường, không dấu chấm); server vẫn kiểm lại" example:"[\"pdf\",\"docx\",\"xlsx\"]"`
+}
+
+type FolderUploadLimitsSDO struct {
+	MaxFiles      int   `json:"max_files" description:"Số tệp tối đa của một lần tải thư mục" example:"500"`
+	MaxFolders    int   `json:"max_folders" description:"Số thư mục tối đa một lần tải tạo ra, tính cả thư mục gốc" example:"500"`
+	MaxTotalBytes int64 `json:"max_total_bytes" description:"Tổng dung lượng tối đa của một lần tải (byte)" example:"2147483648"`
+	MaxDepth      int   `json:"max_depth" description:"Độ sâu tối đa của cây tài liệu, tính cả thư mục cha" example:"20"`
+	CompleteBatch int   `json:"complete_batch" description:"Số tệp tối đa trong một lần gọi complete" example:"50"`
+	Parallel      int   `json:"parallel" description:"Số tệp nên tải song song" example:"6"`
 }
 
 type DocumentWebOpenLimitsSDO struct {

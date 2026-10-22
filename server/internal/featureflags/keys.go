@@ -70,7 +70,6 @@ var catalogue = []Flag{
 	{Key: "office_ai_uniwork_pdf", Description: "UniWork AI per-format capability for PDF; needs office_ai_uniwork on. Hides the capability only; grants nothing", Default: false, Public: true, Owner: "office", ReviewAt: day(2027, 3, 31)},
 	{Key: "office_ai_uniwork_markdown", Description: "UniWork AI per-format capability for Markdown; needs office_ai_uniwork on. Hides the capability only; grants nothing", Default: false, Public: true, Owner: "office", ReviewAt: day(2027, 3, 31)},
 	{Key: "office_ai_uniwork_html", Description: "UniWork AI per-format capability for HTML; needs office_ai_uniwork on. Hides the capability only; grants nothing", Default: false, Public: true, Owner: "office", ReviewAt: day(2027, 3, 31)},
-	{Key: "office_txt_open", Description: "Open .txt files and other-source .txt files through the web markdown frame in plain mode (UNI-1813; default off until UNI-1905 lands in the frame pin). Hides the capability only; grants nothing", Default: false, Public: true, Owner: "office", ReviewAt: day(2027, 3, 31)},
 	{Key: "graph", Description: "Work Graph: marker đánh dấu node bẩn cho tổ chức này, worker chiếu (C-11). Bật rồi chạy graph-rebuild --org", Default: false, Public: false, Owner: "graph", ReviewAt: day(2027, 1, 31)},
 	{Key: "graph_ui", Description: "Work Graph: section Liên quan và dòng thời gian trên trang việc (C-11)", Default: false, Public: true, Owner: "graph", ReviewAt: day(2027, 1, 31)},
 	{Key: "mcp_connector", Description: "Connector MCP: client AI bên ngoài (Claude, ChatGPT, Gemini) đọc task và cuộc họp (UNI-1308)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 1, 31)},
@@ -98,6 +97,7 @@ var catalogue = []Flag{
 	// once when shown, so turning it off takes effect at the next room opened.
 	{Key: "unichat_mobile_timeline_recycled", Description: "UniChat mobile: danh sách tin của một phòng chạy trên FlashList 2 (tái chế ô, đo chiều cao từng ô); tắt (mặc định) giữ FlatList đảo ngược; bật theo % người dùng để A/B hiệu năng cuộn (UNI-2053)", Default: false, Mobile: true, Owner: "chat", ReviewAt: day(2027, 3, 31)},
 	{Key: "ask_uni_agent", Description: "Hỏi UNI chạy như agent tự tra cứu bằng tool chỉ đọc (UNI-1962, P1); tắt thì giữ luồng P0", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 1, 31)},
+	{Key: "ask_uni_stream", Description: "Hỏi UNI dùng dock mới và luồng stream SSE thay cho panel cũ (UNI-2015, P2); tắt thì giữ panel cũ và POST …/ai/ask. Chỉ chuyển giao diện, server không chặn route stream", Default: false, Public: true, Owner: "ai", ReviewAt: day(2027, 2, 28)},
 }
 
 // EvaluateMobileFlags evaluates every mobile key for the request's context,

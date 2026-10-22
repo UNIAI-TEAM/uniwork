@@ -57,7 +57,6 @@ export function useChatSendOutboxFlush(
     try {
       const { dropped } = await flushChatSendOutbox(workspaceId, senderId, deliver);
       if (dropped > 0) onDropped?.(dropped);
-      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     } finally {
       flushingRef.current = false;
@@ -94,7 +93,6 @@ export function useRetryChatSend(workspaceId: string): (clientMsgId: string) => 
         .entries.find((item) => item.client_msg_id === clientMsgId && item.workspaceId === workspaceId);
       if (!entry) return null;
       const result = await deliverChatOutboxEntry(entry, deliver);
-      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
       return result;
     },

@@ -36,12 +36,12 @@ function signature(op: MessageOp): string {
 }
 
 /** One message with its wishes on it; null when one of them deletes it. */
-function applied(record: ChatMessageRecord, ops: readonly MessageOp[], viewerId: string): ChatMessageRecord | null {
+function applied(record: ChatMessageRecord, ops: readonly MessageOp[]): ChatMessageRecord | null {
   let next = record;
   for (const op of ops) {
     if (op.kind === "delete") return null;
     if (op.kind === "reaction") next = withReaction(next, op.emoji, op.on);
-    else if (op.kind === "vote") next = withPollChoice(next, viewerId, op.optionIds);
+    else if (op.kind === "vote") next = withPollChoice(next, op.optionIds);
     else next = withEdit(next, op.body, new Date(op.createdAt).toISOString());
   }
   return next;
@@ -69,7 +69,7 @@ export function overlayPendingOps(records: ChatMessageRecord[], ops: readonly Ov
     if (!mine) return [record];
     const key = `${viewerId}\n${mine.map(signature).join("\n")}`;
     const cached = memo.get(record);
-    const out = cached?.key === key ? cached.out : applied(record, mine, viewerId);
+    const out = cached?.key === key ? cached.out : applied(record, mine);
     memo.set(record, { key, out });
     return out ? [out] : [];
   });

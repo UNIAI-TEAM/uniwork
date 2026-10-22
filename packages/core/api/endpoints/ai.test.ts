@@ -5,6 +5,11 @@ import {
   askUni,
   chatCatchUp,
   deleteAiConversation,
+  deleteAiFeedback,
+  getAskModels,
+  putAiFeedback,
+  putAskModels,
+  renameAiConversation,
   getAiCapabilities,
   getAiUsage,
   getOrgAiUsage,
@@ -127,5 +132,57 @@ describe("ai endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ rows: "many" }));
     expect((await getOrgAiUsage("o1")).rows).toEqual([]);
     expect(vi.mocked(fetch).mock.calls[1]![0]).toBe("http://api.test/api/v1/orgs/o1/ai/usage");
+  });
+
+  it("getAiCapabilities reads models and degrades a malformed model list without disabling AI", async () => {
+    const m = { key: "sonnet", speed: 4, intelligence: 4, cost: 3, enabled: true };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, models: [m], auto_model: "sonnet" }));
+    const caps = await getAiCapabilities("ws1");
+    expect(caps.models).toEqual([m]);
+    expect(caps.auto_model).toBe("sonnet");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true }));
+    expect((await getAiCapabilities("ws1")).models).toEqual([]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, models: "x", auto_model: 3 }));
+    const drifted = await getAiCapabilities("ws1");
+    expect(drifted.enabled).toBe(true);
+    expect(drifted.models).toEqual([]);
+    expect(drifted.auto_model).toBe("");
+  });
+
+  it("ask-models read and write degrade to the sent list on a malformed answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ models: ["haiku"] }));
+    expect(await getAskModels("o1")).toEqual(["haiku"]);
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/orgs/o1/ai/ask-models");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ models: 5 }));
+    expect(await getAskModels("o1")).toEqual([]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ models: ["opus"] }));
+    expect(await putAskModels("o1", ["opus"])).toEqual(["opus"]);
+    const init = vi.mocked(fetch).mock.calls[2]![1] as RequestInit;
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({ models: ["opus"] });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(await putAskModels("o1", ["haiku"])).toEqual(["haiku"]);
+  });
+
+  it("feedback puts and deletes on the message, ignoring the empty 204 body", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await putAiFeedback("c1", "m1", { rating: "down", reason: "wrong_facts", note: "n" });
+    const put = vi.mocked(fetch).mock.calls[0]!;
+    expect(put[0]).toBe("http://api.test/api/v1/ai/conversations/c1/messages/m1/feedback");
+    expect((put[1] as RequestInit).method).toBe("PUT");
+    expect(JSON.parse((put[1] as RequestInit).body as string)).toEqual({ rating: "down", reason: "wrong_facts", note: "n" });
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await deleteAiFeedback("c1", "m1");
+    expect((vi.mocked(fetch).mock.calls[1]![1] as RequestInit).method).toBe("DELETE");
+  });
+
+  it("renameAiConversation patches the title and degrades a malformed answer to null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ id: "c1", title: "Mới" }));
+    expect((await renameAiConversation("c1", "Mới"))?.title).toBe("Mới");
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ title: "Mới" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ title: 1 }));
+    expect(await renameAiConversation("c1", "x")).toBeNull();
   });
 });

@@ -116,20 +116,27 @@ function renderPanel(opts: { doc?: Document; search?: string; slugs?: boolean } 
       <DocumentCommentsPanel />
     </DocumentCommentsProvider>
   );
-  const view = render(
+  // A fresh adapter object per render, as a router hands one: the provider re-reads the URL only then.
+  const tree = () => (
     <QueryClientProvider client={client}>
       <FeatureFlagsProvider service={service}>
         <LocaleAdapterProvider adapter={localeAdapter}>
-          <NavigationProvider value={nav}>
+          <NavigationProvider value={{ ...nav }}>
             {opts.slugs ? (
               <WorkspaceProvider workspace={{ id: WS, organization_id: "org1", organization_slug: "acme", slug: "doi" } as never} user={{ id: ME } as never}>{body}</WorkspaceProvider>
             ) : body}
           </NavigationProvider>
         </LocaleAdapterProvider>
       </FeatureFlagsProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
-  return { client, doc, ...view };
+  const view = render(tree());
+  /** The page's URL changes (a link, back to current): the query string the pages now read. */
+  const goTo = (search: string) => {
+    nav.searchParams = new URLSearchParams(search);
+    view.rerender(tree());
+  };
+  return { client, doc, nav, goTo, ...view };
 }
 
 async function openPanel(name: string) {
@@ -324,6 +331,99 @@ describe("S12 anchored comments", () => {
     await waitFor(() => expect(within(pane).getByRole("tab", { name: discussionTitle() })).toHaveAttribute("aria-selected", "true"));
     // The resolved group opens so the thread is there to focus.
     await waitFor(() => expect(within(thread("d1x")).getByRole("heading")).toHaveFocus());
+  });
+
+  // UNI-2033: pptx and pdf have no frame comments, so D's own pane is where an Inbox `?comment=` link lands.
+  describe("the Inbox landing on a lost comment (the page's own pane)", () => {
+    const PPTX = { ...DOCX, version: 3, version_id: "v3", filename: "Deck.pptx", mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" };
+    const deck = () => docxDoc({ file: PPTX, current_version: 3 });
+    const slide = { format: "pptx", v: 1, slide_id: "257", slide_index: 2 };
+    const lostRow = (id: string, versionNo?: number) =>
+      row({ id, kind: "comment", type: "comment", anchor: slide, anchor_state: "lost", ...(versionNo ? { anchor_version_id: `v${versionNo}`, anchor_version_no: versionNo } : {}) });
+    const LANDED = `/acme/doi/documents/${DOC}?version=2&comment=lo`;
+
+    it("replaces `?comment=` alone with the lost comment's version, exactly once", async () => {
+      installApi({ comments: [lostRow("lo", 2)] });
+      const { nav, client } = renderPanel({ doc: deck(), search: "comment=lo", slugs: true });
+      await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(LANDED));
+      await client.invalidateQueries({ queryKey: documentKeys.comments(WS, DOC) });
+      await screen.findByTestId("document-thread-lo");
+      expect(nav.replace).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not land again when the link comes back to head after the panel is closed and opened", async () => {
+      installApi({ comments: [lostRow("lo", 2)] });
+      const { nav, goTo } = renderPanel({ doc: deck(), search: "comment=lo", slugs: true });
+      await waitFor(() => expect(nav.replace).toHaveBeenCalledTimes(1));
+      // "Về bản hiện tại": the same link on head.
+      goTo("comment=lo");
+      fireEvent.click(within(await screen.findByTestId("document-comments-pane")).getByRole("button", { name: t(K.collabClosePanel, { panel: commentsTitle() }) }));
+      fireEvent.click(screen.getByRole("button", { name: commentsTitle() }));
+      await screen.findByTestId("document-thread-lo");
+      expect(nav.replace).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves docx and xlsx to the frame: the pane never replaces for them", async () => {
+      const XLSX = { ...DOCX, filename: "Sheet.xlsx", mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+      for (const [file, anchor] of [[DOCX, { format: "docx", v: 1, path: [0], start: 0, end: 1, quote: "q", prefix: "", suffix: "" }], [XLSX, { format: "xlsx", v: 1, sheet: "S1", range: "A1" }]] as const) {
+        installApi({ comments: [row({ id: "lo", kind: "comment", type: "comment", anchor, anchor_state: "lost", anchor_version_id: "v2", anchor_version_no: 2 })] });
+        const { nav, unmount } = renderPanel({ doc: docxDoc({ file: { ...file, version: 3, version_id: "v3" }, current_version: 3 }), search: "comment=lo", slugs: true });
+        await screen.findByTestId("document-thread-lo");
+        await waitFor(() => expect(screen.queryByTestId("document-comments-loading")).toBeNull());
+        expect(nav.replace).not.toHaveBeenCalled();
+        unmount();
+      }
+    });
+
+    it("does not land on head after the pane was closed inside a version view and opened again", async () => {
+      const state = { comments: [lostRow("lo", 2)] };
+      let release: () => void = () => {};
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      let held = false;
+      installApi(state, (method, path) => {
+        if (method !== "GET" || path !== `/api/v1/documents/${DOC}/comments` || held) return undefined;
+        held = true;
+        return gate.then(() => ({ comments: state.comments, mentions: [], list_token: "lt1:x" }));
+      });
+      const { nav, goTo } = renderPanel({ doc: deck(), search: "version=2&comment=lo", slugs: true });
+      // Closed before its first list arrives, so the pane itself never saw the link in the version view.
+      fireEvent.click(within(await screen.findByTestId("document-comments-pane")).getByRole("button", { name: t(K.collabClosePanel, { panel: commentsTitle() }) }));
+      goTo("comment=lo");
+      fireEvent.click(screen.getByRole("button", { name: commentsTitle() }));
+      release();
+      await screen.findByTestId("document-thread-lo");
+      expect(nav.replace).not.toHaveBeenCalled();
+    });
+
+    it("waits for a list that names the comment before it decides", async () => {
+      const state = { comments: [lostRow("other", 2)] };
+      installApi(state);
+      const { nav, client } = renderPanel({ doc: deck(), search: "comment=lo", slugs: true });
+      await screen.findByTestId("document-thread-other");
+      expect(nav.replace).not.toHaveBeenCalled();
+      state.comments = [lostRow("other", 2), lostRow("lo", 2)];
+      await client.invalidateQueries({ queryKey: documentKeys.comments(WS, DOC) });
+      await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(LANDED));
+      await client.invalidateQueries({ queryKey: documentKeys.comments(WS, DOC) });
+      await screen.findByTestId("document-thread-lo");
+      expect(nav.replace).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["inside a version view", "version=2&comment=lo", [lostRow("lo", 2)]],
+      ["a comment that is not lost", "comment=lo", [row({ id: "lo", kind: "comment", type: "comment", anchor: slide, anchor_state: "exact" })]],
+      ["a lost comment without a version number", "comment=lo", [lostRow("lo")]],
+      ["a lost comment of the version already open", "comment=lo", [lostRow("lo", 3)]],
+      ["a link that names no comment of the list", "comment=gone", [lostRow("lo", 2)]],
+      ["a page without a deep link", "", [lostRow("lo", 2)]],
+    ])("does nothing for %s", async (_name, search, comments) => {
+      installApi({ comments });
+      const { nav } = renderPanel({ doc: deck(), search, slugs: true });
+      if (!search) fireEvent.click(screen.getByRole("button", { name: commentsTitle() }));
+      await screen.findByTestId("document-thread-lo");
+      await waitFor(() => expect(screen.queryByTestId("document-comments-loading")).toBeNull());
+      expect(nav.replace).not.toHaveBeenCalled();
+    });
   });
 
   // S15 / G8-07: a link that opens the panel beside a live editor must not take the editor's focus.

@@ -22,7 +22,7 @@ func setRequired(t *testing.T) {
 	t.Setenv("PREVIEW_ASSET_MAX_BYTES", "10485760")
 	// make check exports the app's .env; pin everything Load reads so a local
 	// value (API_PUBLIC_URL on another port, a dev code) cannot leak in.
-	for _, k := range []string{"APP_ENV", "EXPO_ACCESS_TOKEN", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK"} {
+	for _, k := range []string{"APP_ENV", "EXPO_ACCESS_TOKEN", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK", "FOLDER_UPLOAD_MAX_FILES", "FOLDER_UPLOAD_MAX_BYTES"} {
 		t.Setenv(k, "")
 	}
 }
@@ -597,5 +597,27 @@ func TestProductionWithoutAnExpoAccessTokenLoadsAndReportsIt(t *testing.T) {
 	t.Setenv("EXPO_ACCESS_TOKEN", "")
 	if c, err = Load(); err != nil || c.UnauthenticatedMobilePush() {
 		t.Fatalf("development without a token: %v", err)
+	}
+}
+
+func TestLoadFolderUploadLimits(t *testing.T) {
+	setRequired(t)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.FolderUploadMaxFiles != 500 || cfg.FolderUploadMaxBytes != 2<<30 {
+		t.Fatalf("defaults = %d files, %d bytes; want 500, 2 GiB", cfg.FolderUploadMaxFiles, cfg.FolderUploadMaxBytes)
+	}
+	t.Setenv("FOLDER_UPLOAD_MAX_FILES", "100")
+	t.Setenv("FOLDER_UPLOAD_MAX_BYTES", "1048576")
+	if cfg, err = Load(); err != nil || cfg.FolderUploadMaxFiles != 100 || cfg.FolderUploadMaxBytes != 1<<20 {
+		t.Fatalf("configured = %d, %d, %v", cfg.FolderUploadMaxFiles, cfg.FolderUploadMaxBytes, err)
+	}
+	for _, bad := range []string{"0", "-1", "many"} {
+		t.Setenv("FOLDER_UPLOAD_MAX_FILES", bad)
+		if _, err := Load(); err == nil {
+			t.Fatalf("FOLDER_UPLOAD_MAX_FILES=%q loaded", bad)
+		}
 	}
 }

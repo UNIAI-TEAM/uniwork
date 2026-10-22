@@ -13,8 +13,8 @@ import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-m
 import { formatChatSidebarPreviewText } from "./rooms-display";
 import type { PendingSend } from "./send-pipeline";
 
-/** Every `chat_messages.kind` the server writes (migration 181's check). */
-export const KNOWN_MESSAGE_KINDS = ["text", "system", "voice_call_log", "poll", "reminder", "note", "voice", "file", "post"] as const;
+/** Every `chat_messages.kind` the server writes (migration poll_vote_kind + document kinds). */
+export const KNOWN_MESSAGE_KINDS = ["text", "system", "voice_call_log", "poll", "poll_vote", "reminder", "note", "voice", "file", "post"] as const;
 
 type Payload<K extends keyof ChatMessageRecord> = NonNullable<ChatMessageRecord[K]>;
 
@@ -37,13 +37,14 @@ export type MessageContent =
   | { view: "reminder"; reminder: Payload<"reminder"> }
   | { view: "call-log" }
   | { view: "call-summary"; summary: Payload<"voice_call_summary"> }
+  | { view: "poll-vote-activity"; pollVote: Payload<"poll_vote"> }
   | { view: "unsupported" };
 
 export type MessageView = MessageContent["view"];
 
 type ContentFields = Pick<
   ChatMessageRecord,
-  "kind" | "body" | "file" | "voice" | "poll" | "note" | "post" | "reminder" | "voice_call" | "voice_call_summary"
+  "kind" | "body" | "file" | "voice" | "poll" | "poll_vote" | "note" | "post" | "reminder" | "voice_call" | "voice_call_summary"
 >;
 
 const UNSUPPORTED: MessageContent = { view: "unsupported" };
@@ -67,6 +68,10 @@ export function messageContent(record: ContentFields): MessageContent {
       return record.voice ? { view: "voice", voice: record.voice } : UNSUPPORTED;
     case "poll":
       return record.poll ? { view: "poll", poll: record.poll } : UNSUPPORTED;
+    case "poll_vote": {
+      const pollVote = record.poll_vote;
+      return pollVote?.poll_message_id && pollVote.question ? { view: "poll-vote-activity", pollVote } : UNSUPPORTED;
+    }
     case "note":
       return record.note ? { view: "note", note: record.note } : UNSUPPORTED;
     case "post":

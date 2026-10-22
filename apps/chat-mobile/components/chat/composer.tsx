@@ -221,7 +221,7 @@ export function Composer(props: Props) {
 
   if (!canSend) {
     return (
-      <View className="border-t border-border bg-background px-4 pt-3" style={{ paddingBottom: 12 + insets.bottom }}>
+      <View className="border-t border-border bg-background px-3 pt-3" style={{ paddingBottom: 12 + insets.bottom }}>
         <Text className="text-callout text-muted-foreground text-center">{t("chat.mute_composer_placeholder")}</Text>
       </View>
     );

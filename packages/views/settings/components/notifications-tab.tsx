@@ -6,12 +6,13 @@ import { BellOff, BellRing, TriangleAlert } from "lucide-react";
 import { useChatDeviceNotificationStore, type ChatDeviceNotificationPrefs } from "@uniwork/core/chat/device-notification-store";
 import { usePushConfig } from "@uniwork/core/notifications";
 import { usePush } from "@uniwork/core/notifications/push";
-import { getDesktopBridge, getWebNotificationPermission, requestWebNotificationPermission } from "@uniwork/core/platform";
+import { getDesktopBridge } from "@uniwork/core/platform";
 import { NOTIFICATION_KINDS } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { sendDesktopTestNotification } from "../../layout/desktop-notifications-prompt";
 import { NotificationsMatrix, type Channel } from "./notifications-matrix";
+import { BrowserNotificationSettings } from "./browser-notification-settings";
 import {
   SettingsCard,
   SettingsCardBody,
@@ -63,9 +64,6 @@ export function NotificationsTab({ scope }: { scope?: "chat" } = {}) {
   const [refused, setRefused] = useState(false);
   const deniedId = useId();
   const denied = push.permission === "denied" || refused;
-  // Without push, the browser can still show a chat banner while the tab is in
-  // the background (WorkspaceChatAttention); it asks only on this click.
-  const [bannerPermission, setBannerPermission] = useState(getWebNotificationPermission);
 
   const channels: Channel[] = push.available ? ["in_app", "push", "email"] : ["in_app", "email"];
   // Only say why once the config has answered; a guess would be a small lie.
@@ -110,23 +108,12 @@ export function NotificationsTab({ scope }: { scope?: "chat" } = {}) {
           <span className="text-pretty">{pushMissing}</span>
         </li>
       ) : null}
-      {!push.available && bannerPermission === "default" ? (
-        <li className="pl-5.5">
-          <Button
-            variant="link"
-            size="xs"
-            className="h-auto p-0"
-            onClick={() => void requestWebNotificationPermission().then(setBannerPermission)}
-          >
-            {t("browser_banners_allow")}
-          </Button>
-        </li>
-      ) : null}
     </ul>
   );
 
   return (
     <SettingsTab title={t("title")} description={chat ? tChat("notifications_description") : t("description")}>
+      {!desktop ? <BrowserNotificationSettings /> : null}
       {push.available ? (
         <SettingsSection
           title={t("push_section")}

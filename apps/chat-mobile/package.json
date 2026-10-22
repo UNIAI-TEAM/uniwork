@@ -110,6 +110,7 @@
     "jest-expo": "~57.0.6",
     "test-renderer": "^1.2.0",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }

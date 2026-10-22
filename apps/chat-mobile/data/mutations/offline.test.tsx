@@ -33,7 +33,7 @@ const message = (id: string, extra: Partial<ChatMessageRecord> = {}) =>
     mentioned_user_ids: [],
     ...extra,
   }) as unknown as ChatMessageRecord;
-const poll = message("p1", { kind: "poll", poll: { question: "?", options: [{ id: "a", label: "A", votes: 0 }], settings, viewer_option_ids: [], votes_by_user: {} } } as Partial<ChatMessageRecord>);
+const poll = message("p1", { kind: "poll", poll: { question: "?", options: [{ id: "a", label: "A", votes: 0 }], settings, viewer_option_ids: [] } } as Partial<ChatMessageRecord>);
 
 let qc: QueryClient;
 beforeEach(() => {

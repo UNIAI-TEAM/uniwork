@@ -259,7 +259,7 @@ function ChatImageAlbumRowImpl({
           <div
             role="group"
             aria-label={t("chat.album_aria", { count: album.length })}
-            className={cn("w-100 max-w-full p-0.75", chatBubbleShape(isOwn, !compactTop), isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER)}
+            className={cn("w-100 max-w-full overflow-hidden p-0", chatBubbleShape(isOwn, !compactTop), isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER)}
           >
             {showSenderName && !isOwn && showAvatar ? (
               <p className={cn("px-2 pt-1 pb-1 text-label font-semibold", senderNameClass(head.sender, isOwn))} aria-hidden>

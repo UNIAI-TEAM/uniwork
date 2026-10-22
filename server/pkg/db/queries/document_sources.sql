@@ -44,10 +44,14 @@ WITH base AS (
     r.name AS room_name,
     f.original_filename AS name,
     COALESCE(f.content_type, '')::text AS mime_type,
-    COALESCE(f.size_bytes, 0)::bigint AS size_bytes
+    COALESCE(f.size_bytes, 0)::bigint AS size_bytes,
+    (f.original_filename COLLATE "vi-x-icu")::text AS name_key,
+    COALESCE(eu.display_name COLLATE "vi-x-icu", '')::text AS editor_key,
+    (NULLIF(btrim(eu.display_name), '') IS NULL)::boolean AS editor_null
   FROM chat_messages m
   JOIN chat_rooms r ON r.id = m.room_id AND r.organization_id = m.organization_id
   JOIN files f ON f.id = m.file_id AND f.status = 'ready'
+  LEFT JOIN users eu ON eu.id = m.sender_id
   WHERE m.organization_id = sqlc.arg(organization_id)::text
     AND m.kind = 'file'
     AND m.deleted_at IS NULL
@@ -71,9 +75,30 @@ WITH base AS (
     )
     AND (sqlc.narg(row_id)::text IS NULL OR m.id = sqlc.narg(row_id)::text)
 ), page AS (
-  SELECT id, source_id, sort_at, sender_id, sender_kind, room_id, room_kind, room_name, name, mime_type, size_bytes
+  SELECT id, source_id, sort_at, sender_id, sender_kind, room_id, room_kind, room_name, name, mime_type, size_bytes, name_key, editor_key, editor_null
   FROM base
-  WHERE (sqlc.narg(cursor_at)::timestamptz IS NULL
+  WHERE -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+    -- requested direction; an editor-less row (editor_null) is always last.
+    (sqlc.narg(sort_cursor_id)::text IS NULL OR CASE sqlc.narg(sort_key)::text
+         WHEN 'updated' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (sort_at, source_id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (sort_at, source_id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+         WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (size_bytes, source_id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (size_bytes, source_id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+         WHEN 'name' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (name_key COLLATE "vi-x-icu", source_id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (name_key COLLATE "vi-x-icu", source_id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+         WHEN 'editor' THEN (editor_null::int > sqlc.narg(sort_cursor_null)::boolean::int
+              OR (editor_null = sqlc.narg(sort_cursor_null)::boolean
+                  AND CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END))
+         ELSE true END)
+    AND (sqlc.narg(sort_key)::text IS DISTINCT FROM 'updated' OR sqlc.narg(sort_cursor_id)::text IS NULL
+         OR CASE WHEN sqlc.arg(sort_desc)::boolean THEN sort_at <= sqlc.narg(sort_cursor_at)::timestamptz
+                 ELSE sort_at >= sqlc.narg(sort_cursor_at)::timestamptz END)
+  AND (sqlc.narg(cursor_at)::timestamptz IS NULL
       OR (sort_at <= sqlc.narg(cursor_at)::timestamptz
         AND (sort_at, source_id COLLATE "C") < (sqlc.narg(cursor_at)::timestamptz, sqlc.narg(cursor_id)::text COLLATE "C")))
     AND (sqlc.narg(q)::text IS NULL OR uw_fold_search(name) LIKE '%' || sqlc.narg(q)::text || '%')
@@ -84,7 +109,24 @@ WITH base AS (
         AND mime_type NOT LIKE 'image/%'
       ELSE true
     END
-  ORDER BY sort_at DESC, id COLLATE "C" DESC
+  -- UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
+  -- a sort_key orders by (key, id) in one direction. Every term is a CASE on a
+  -- bound parameter, so the planner folds the unused ones away and a plain
+  -- (key, id) order remains.
+  ORDER BY
+    (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN sort_at END) DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN id COLLATE "C" END) DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN editor_null END) ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND NOT sqlc.arg(sort_desc)::boolean THEN name_key
+          WHEN sqlc.narg(sort_key)::text = 'editor' AND NOT sqlc.arg(sort_desc)::boolean THEN editor_key END) COLLATE "vi-x-icu" ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND sqlc.arg(sort_desc)::boolean THEN name_key
+          WHEN sqlc.narg(sort_key)::text = 'editor' AND sqlc.arg(sort_desc)::boolean THEN editor_key END) COLLATE "vi-x-icu" DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND NOT sqlc.arg(sort_desc)::boolean THEN size_bytes END) ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN size_bytes END) DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND NOT sqlc.arg(sort_desc)::boolean THEN sort_at END) ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND sqlc.arg(sort_desc)::boolean THEN sort_at END) DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN id COLLATE "C" END) ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN id COLLATE "C" END) DESC
   LIMIT sqlc.arg(row_limit)::int
 )
 SELECT
@@ -100,7 +142,10 @@ SELECT
   p.size_bytes AS size_bytes,
   p.sender_id::text AS owner_id,
   p.sender_kind::text AS owner_kind,
-  COALESCE(su.display_name, ag.name, '')::text AS owner_name
+  COALESCE(su.display_name, ag.name, '')::text AS owner_name,
+  p.name_key AS name_key,
+  p.editor_key AS editor_key,
+  p.editor_null AS editor_null
 FROM page p
 LEFT JOIN users su ON su.id = p.sender_id
 LEFT JOIN agents ag ON ag.id = p.sender_id AND ag.organization_id = sqlc.arg(organization_id)::text
@@ -136,12 +181,16 @@ WITH base AS (
     COALESCE(f.content_type, a.content_type, '')::text AS mime_type,
     COALESCE(f.size_bytes, a.size_bytes, 0)::bigint AS size_bytes,
     a.uploader_id AS uploader_id,
-    a.uploader_type AS uploader_type
+    a.uploader_type AS uploader_type,
+    (COALESCE(f.original_filename, a.filename) COLLATE "vi-x-icu")::text AS name_key,
+    COALESCE(eu.display_name COLLATE "vi-x-icu", '')::text AS editor_key,
+    (NULLIF(btrim(eu.display_name), '') IS NULL)::boolean AS editor_null
   FROM attachments a
   LEFT JOIN task_comments c ON c.id = a.comment_id AND c.organization_id = a.organization_id
   JOIN tasks t ON t.id = COALESCE(a.task_id, c.task_id)
     AND t.organization_id = a.organization_id AND t.workspace_id = a.workspace_id
   LEFT JOIN files f ON f.id = a.file_id
+  LEFT JOIN users eu ON eu.id = a.uploader_id
   WHERE a.organization_id = sqlc.arg(organization_id)::text
     AND a.workspace_id = sqlc.arg(workspace_id)::text
     AND (a.task_id IS NOT NULL OR a.comment_id IS NOT NULL)
@@ -151,9 +200,30 @@ WITH base AS (
     AND (sqlc.narg(row_id)::text IS NULL OR a.id = sqlc.narg(row_id)::text)
 ), page AS (
   SELECT id, source_id, sort_at, parent_kind, parent_id, parent_title, parent_ref, name, mime_type, size_bytes,
-    uploader_id, uploader_type
+    uploader_id, uploader_type, name_key, editor_key, editor_null
   FROM base
-  WHERE (sqlc.narg(cursor_at)::timestamptz IS NULL
+  WHERE -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+    -- requested direction; an editor-less row (editor_null) is always last.
+    (sqlc.narg(sort_cursor_id)::text IS NULL OR CASE sqlc.narg(sort_key)::text
+         WHEN 'updated' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (sort_at, source_id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (sort_at, source_id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+         WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (size_bytes, source_id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (size_bytes, source_id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+         WHEN 'name' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (name_key COLLATE "vi-x-icu", source_id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (name_key COLLATE "vi-x-icu", source_id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+         WHEN 'editor' THEN (editor_null::int > sqlc.narg(sort_cursor_null)::boolean::int
+              OR (editor_null = sqlc.narg(sort_cursor_null)::boolean
+                  AND CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END))
+         ELSE true END)
+    AND (sqlc.narg(sort_key)::text IS DISTINCT FROM 'updated' OR sqlc.narg(sort_cursor_id)::text IS NULL
+         OR CASE WHEN sqlc.arg(sort_desc)::boolean THEN sort_at <= sqlc.narg(sort_cursor_at)::timestamptz
+                 ELSE sort_at >= sqlc.narg(sort_cursor_at)::timestamptz END)
+  AND (sqlc.narg(cursor_at)::timestamptz IS NULL
       OR (sort_at <= sqlc.narg(cursor_at)::timestamptz
         AND (sort_at, source_id COLLATE "C") < (sqlc.narg(cursor_at)::timestamptz, sqlc.narg(cursor_id)::text COLLATE "C")))
     AND (sqlc.narg(q)::text IS NULL OR uw_fold_search(name) LIKE '%' || sqlc.narg(q)::text || '%')
@@ -164,7 +234,24 @@ WITH base AS (
         AND mime_type NOT LIKE 'image/%'
       ELSE true
     END
-  ORDER BY sort_at DESC, id COLLATE "C" DESC
+  -- UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
+  -- a sort_key orders by (key, id) in one direction. Every term is a CASE on a
+  -- bound parameter, so the planner folds the unused ones away and a plain
+  -- (key, id) order remains.
+  ORDER BY
+    (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN sort_at END) DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN id COLLATE "C" END) DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN editor_null END) ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND NOT sqlc.arg(sort_desc)::boolean THEN name_key
+          WHEN sqlc.narg(sort_key)::text = 'editor' AND NOT sqlc.arg(sort_desc)::boolean THEN editor_key END) COLLATE "vi-x-icu" ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND sqlc.arg(sort_desc)::boolean THEN name_key
+          WHEN sqlc.narg(sort_key)::text = 'editor' AND sqlc.arg(sort_desc)::boolean THEN editor_key END) COLLATE "vi-x-icu" DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND NOT sqlc.arg(sort_desc)::boolean THEN size_bytes END) ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN size_bytes END) DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND NOT sqlc.arg(sort_desc)::boolean THEN sort_at END) ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND sqlc.arg(sort_desc)::boolean THEN sort_at END) DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN id COLLATE "C" END) ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN id COLLATE "C" END) DESC
   LIMIT sqlc.arg(row_limit)::int
 )
 SELECT
@@ -180,7 +267,10 @@ SELECT
   p.size_bytes AS size_bytes,
   p.uploader_id::text AS owner_id,
   p.uploader_type::text AS owner_kind,
-  COALESCE(uu.display_name, ag.name, '')::text AS owner_name
+  COALESCE(uu.display_name, ag.name, '')::text AS owner_name,
+  p.name_key AS name_key,
+  p.editor_key AS editor_key,
+  p.editor_null AS editor_null
 FROM page p
 LEFT JOIN users uu ON uu.id = p.uploader_id
 LEFT JOIN agents ag ON ag.id = p.uploader_id AND ag.organization_id = sqlc.arg(organization_id)::text
@@ -202,10 +292,14 @@ WITH base AS (
     f.original_filename AS name,
     COALESCE(f.content_type, '')::text AS mime_type,
     COALESCE(f.size_bytes, 0)::bigint AS size_bytes,
-    rec.started_by AS started_by
+    rec.started_by AS started_by,
+    (f.original_filename COLLATE "vi-x-icu")::text AS name_key,
+    COALESCE(eu.display_name COLLATE "vi-x-icu", '')::text AS editor_key,
+    (NULLIF(btrim(eu.display_name), '') IS NULL)::boolean AS editor_null
   FROM meeting_recordings rec
   JOIN meetings mt ON mt.id = rec.meeting_id AND mt.organization_id = rec.organization_id
   JOIN files f ON f.id = rec.file_id AND f.status = 'ready'
+  LEFT JOIN users eu ON eu.id = rec.started_by
   WHERE rec.organization_id = sqlc.arg(organization_id)::text
     AND mt.organization_id = sqlc.arg(organization_id)::text
     AND mt.workspace_id = sqlc.arg(workspace_id)::text
@@ -213,9 +307,30 @@ WITH base AS (
     AND rec.file_id IS NOT NULL
     AND (sqlc.narg(row_id)::text IS NULL OR rec.id = sqlc.narg(row_id)::text)
 ), page AS (
-  SELECT id, source_id, sort_at, parent_id, parent_title, name, mime_type, size_bytes, started_by
+  SELECT id, source_id, sort_at, parent_id, parent_title, name, mime_type, size_bytes, started_by, name_key, editor_key, editor_null
   FROM base
-  WHERE (sqlc.narg(cursor_at)::timestamptz IS NULL
+  WHERE -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+    -- requested direction; an editor-less row (editor_null) is always last.
+    (sqlc.narg(sort_cursor_id)::text IS NULL OR CASE sqlc.narg(sort_key)::text
+         WHEN 'updated' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (sort_at, source_id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (sort_at, source_id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+         WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (size_bytes, source_id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (size_bytes, source_id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+         WHEN 'name' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (name_key COLLATE "vi-x-icu", source_id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (name_key COLLATE "vi-x-icu", source_id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+         WHEN 'editor' THEN (editor_null::int > sqlc.narg(sort_cursor_null)::boolean::int
+              OR (editor_null = sqlc.narg(sort_cursor_null)::boolean
+                  AND CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END))
+         ELSE true END)
+    AND (sqlc.narg(sort_key)::text IS DISTINCT FROM 'updated' OR sqlc.narg(sort_cursor_id)::text IS NULL
+         OR CASE WHEN sqlc.arg(sort_desc)::boolean THEN sort_at <= sqlc.narg(sort_cursor_at)::timestamptz
+                 ELSE sort_at >= sqlc.narg(sort_cursor_at)::timestamptz END)
+  AND (sqlc.narg(cursor_at)::timestamptz IS NULL
       OR (sort_at <= sqlc.narg(cursor_at)::timestamptz
         AND (sort_at, source_id COLLATE "C") < (sqlc.narg(cursor_at)::timestamptz, sqlc.narg(cursor_id)::text COLLATE "C")))
     AND (sqlc.narg(q)::text IS NULL OR uw_fold_search(name) LIKE '%' || sqlc.narg(q)::text || '%')
@@ -226,7 +341,24 @@ WITH base AS (
         AND mime_type NOT LIKE 'image/%'
       ELSE true
     END
-  ORDER BY sort_at DESC, id COLLATE "C" DESC
+  -- UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
+  -- a sort_key orders by (key, id) in one direction. Every term is a CASE on a
+  -- bound parameter, so the planner folds the unused ones away and a plain
+  -- (key, id) order remains.
+  ORDER BY
+    (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN sort_at END) DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN id COLLATE "C" END) DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN editor_null END) ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND NOT sqlc.arg(sort_desc)::boolean THEN name_key
+          WHEN sqlc.narg(sort_key)::text = 'editor' AND NOT sqlc.arg(sort_desc)::boolean THEN editor_key END) COLLATE "vi-x-icu" ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND sqlc.arg(sort_desc)::boolean THEN name_key
+          WHEN sqlc.narg(sort_key)::text = 'editor' AND sqlc.arg(sort_desc)::boolean THEN editor_key END) COLLATE "vi-x-icu" DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND NOT sqlc.arg(sort_desc)::boolean THEN size_bytes END) ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN size_bytes END) DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND NOT sqlc.arg(sort_desc)::boolean THEN sort_at END) ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND sqlc.arg(sort_desc)::boolean THEN sort_at END) DESC,
+    (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN id COLLATE "C" END) ASC,
+    (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN id COLLATE "C" END) DESC
   LIMIT sqlc.arg(row_limit)::int
 )
 SELECT
@@ -242,7 +374,10 @@ SELECT
   p.size_bytes AS size_bytes,
   p.started_by::text AS owner_id,
   'member'::text AS owner_kind,
-  COALESCE(su.display_name, '')::text AS owner_name
+  COALESCE(su.display_name, '')::text AS owner_name,
+  p.name_key AS name_key,
+  p.editor_key AS editor_key,
+  p.editor_null AS editor_null
 FROM page p
 LEFT JOIN users su ON su.id = p.started_by
 ORDER BY p.sort_at DESC, p.id COLLATE "C" DESC;
@@ -267,7 +402,10 @@ WITH base AS (
     acc.id::text AS parent_ref,
     ea.filename::text AS name,
     ea.mime_type::text AS mime_type,
-    ea.size_bytes::bigint AS size_bytes
+    ea.size_bytes::bigint AS size_bytes,
+    (ea.filename COLLATE "vi-x-icu")::text AS name_key,
+    ''::text AS editor_key,
+    true AS editor_null
   FROM email_hub_attachments ea
   JOIN email_hub_threads th ON th.id = ea.thread_id
     AND th.account_id = ea.account_id AND th.organization_id = ea.organization_id
@@ -304,9 +442,33 @@ SELECT
   size_bytes AS size_bytes,
   ''::text AS owner_id,
   ''::text AS owner_kind,
-  ''::text AS owner_name
+  ''::text AS owner_name,
+  name_key AS name_key,
+  editor_key AS editor_key,
+  editor_null::boolean AS editor_null
 FROM base
-WHERE (sqlc.narg(cursor_at)::timestamptz IS NULL
+WHERE -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+    -- requested direction; an editor-less row (editor_null) is always last.
+    (sqlc.narg(sort_cursor_id)::text IS NULL OR CASE sqlc.narg(sort_key)::text
+         WHEN 'updated' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (sort_at, source_id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (sort_at, source_id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+         WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (size_bytes, source_id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (size_bytes, source_id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+         WHEN 'name' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (name_key COLLATE "vi-x-icu", source_id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (name_key COLLATE "vi-x-icu", source_id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+         WHEN 'editor' THEN (editor_null::int > sqlc.narg(sort_cursor_null)::boolean::int
+              OR (editor_null = sqlc.narg(sort_cursor_null)::boolean
+                  AND CASE WHEN sqlc.arg(sort_desc)::boolean
+              THEN (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+              ELSE (editor_key COLLATE "vi-x-icu", source_id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END))
+         ELSE true END)
+    AND (sqlc.narg(sort_key)::text IS DISTINCT FROM 'updated' OR sqlc.narg(sort_cursor_id)::text IS NULL
+         OR CASE WHEN sqlc.arg(sort_desc)::boolean THEN sort_at <= sqlc.narg(sort_cursor_at)::timestamptz
+                 ELSE sort_at >= sqlc.narg(sort_cursor_at)::timestamptz END)
+  AND (sqlc.narg(cursor_at)::timestamptz IS NULL
     OR (sort_at <= sqlc.narg(cursor_at)::timestamptz
       AND (sort_at, source_id COLLATE "C") < (sqlc.narg(cursor_at)::timestamptz, sqlc.narg(cursor_id)::text COLLATE "C")))
   AND (sqlc.narg(q)::text IS NULL OR uw_fold_search(name) LIKE '%' || sqlc.narg(q)::text || '%')
@@ -317,5 +479,30 @@ WHERE (sqlc.narg(cursor_at)::timestamptz IS NULL
       AND mime_type NOT LIKE 'image/%'
     ELSE true
   END
-ORDER BY sort_at DESC, id COLLATE "C" DESC
+-- UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
+-- a sort_key orders by (key, id) in one direction. Every term is a CASE on a
+-- bound parameter, so the planner folds the unused ones away and a plain
+-- (key, id) order remains.
+ORDER BY
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN sort_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN id COLLATE "C" END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN editor_null END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND NOT sqlc.arg(sort_desc)::boolean THEN name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND NOT sqlc.arg(sort_desc)::boolean THEN editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND sqlc.arg(sort_desc)::boolean THEN name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND sqlc.arg(sort_desc)::boolean THEN editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND NOT sqlc.arg(sort_desc)::boolean THEN size_bytes END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN size_bytes END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND NOT sqlc.arg(sort_desc)::boolean THEN sort_at END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND sqlc.arg(sort_desc)::boolean THEN sort_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN id COLLATE "C" END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN id COLLATE "C" END) DESC
 LIMIT sqlc.arg(row_limit)::int;
+
+-- UNI-2038 S3: the dense rank of a list of sort keys under the collation the
+-- sorted lists order by, so the four source pages can be merged in Go without
+-- Go knowing the Vietnamese collation. Touches no table.
+-- name: RankDocumentSortKeys :many
+SELECT k.ord::int AS ord,
+       (dense_rank() OVER (ORDER BY k.t COLLATE "vi-x-icu"))::int AS rank
+FROM unnest(sqlc.arg(keys)::text[]) WITH ORDINALITY AS k(t, ord);

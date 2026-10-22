@@ -53,6 +53,7 @@ Runbook vận hành (không gắn alert, mở theo bước deploy):
 | Runbook | Dùng khi |
 | --- | --- |
 | [folders-unshare.md](folders-unshare.md) | Dọn thư mục đang chia sẻ sau khi tắt chia sẻ thư mục (`uniwork-admin folders-unshare`, UNI-1974) |
+| [folders-into-my-folder.md](folders-into-my-folder.md) | Đưa thư mục riêng cũ ngoài My Folder vào My Folder của chủ trước khi bật thư mục chung (`uniwork-admin folders-into-my-folder`, UNI-2055) |
 | [documents-folder-name-index.md](documents-folder-name-index.md) | Index unique tên thư mục (`idx_documents_folder_name_uidx`, FD-02/UNI-1462) INVALID hoặc không dựng được sau deploy |
 | [unichat-desktop-release.md](unichat-desktop-release.md) | Cắt, kiểm, rollback bản desktop UniChat (tag `chat-desktop-v*`, feed `chat-desktop-feed`, UNI-1835) |
 | [unichat-mobile-release.md](unichat-mobile-release.md) | Thiết lập, cắt, OTA, rollback bản mobile UniChat (tag `chat-mobile-v*`, EAS, nightly Maestro, UNI-1836) |

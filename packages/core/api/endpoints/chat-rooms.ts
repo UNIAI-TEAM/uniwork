@@ -44,3 +44,17 @@ export async function removeWorkspaceChatRoomMember(
 ): Promise<boolean> {
   return removeChatRoomMember(workspaceId, roomId, userId);
 }
+
+/** Sets the room's custom wallpaper image. A browser File, so it stays off the JSON factory. */
+export async function uploadChatRoomWallpaper(
+  workspaceId: string,
+  roomId: string,
+  file: File,
+): Promise<ChatRoomRecord | null> {
+  const form = new FormData();
+  form.append("file", file);
+  return readRoom(
+    request(`/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/wallpaper`, { method: "POST", body: form }),
+    "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/wallpaper",
+  );
+}

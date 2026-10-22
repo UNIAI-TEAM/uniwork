@@ -58,7 +58,7 @@ export function RoomPreview({ wsId, row, userId }: { wsId: string; row: RoomList
           return (
             <View
               key={message.id}
-              className={cn("max-w-[82%] px-[11px] pb-[7px] pt-1.5", own ? "self-end bg-chat-bubble-own" : "self-start bg-chat-bubble-other")}
+              className={cn("max-w-[85%] px-[11px] pb-[7px] pt-1.5", own ? "self-end bg-chat-bubble-own" : "self-start bg-chat-bubble-other")}
               style={bubbleCorners(own, true, true)}
             >
               {named ? (

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -48,6 +49,8 @@ type ChatService struct {
 	// resolves each message's block against it. nil until SetDocuments.
 	docs        *DocumentService
 	TenorAPIKey string
+	// featuredCache holds Tenor "featured" responses (UNI-1750); zero value is fine.
+	featuredCache sync.Map // key string -> tenorCacheEntry
 	// presenceTracker is installed by SetPresenceStore (chat_presence.go).
 	presenceTracker atomic.Pointer[presenceTracker]
 }
@@ -318,28 +321,6 @@ func (s *ChatService) addRoomMember(ctx context.Context, q *db.Queries, room db.
 	return err == nil, err
 }
 
-func (s *ChatService) authorizeWorkspaceRoom(ctx context.Context, userID, workspaceID string) (db.ChatRoom, error) {
-	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
-		return db.ChatRoom{}, err
-	}
-	room, err := s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return db.ChatRoom{}, ErrNotFound
-	}
-	if err != nil {
-		return db.ChatRoom{}, err
-	}
-	if _, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: room.ID, UserID: userID,
-	}); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return db.ChatRoom{}, ErrForbidden
-		}
-		return db.ChatRoom{}, err
-	}
-	return room, nil
-}
-
 // ListRoomMessages returns messages for any chat room the caller may access.
 func (s *ChatService) ListRoomMessages(
 	ctx context.Context, userID, workspaceID, roomID string, in ListChatMessagesInput,
@@ -398,31 +379,6 @@ func (s *ChatService) SendRoomMessage(
 		return ChatMessageRow{}, err
 	}
 	return s.sendMessage(ctx, userID, room, in)
-}
-
-// ListWorkspaceMessages returns messages for the workspace channel.
-func (s *ChatService) ListWorkspaceMessages(
-	ctx context.Context, userID, workspaceID string, in ListChatMessagesInput,
-) ([]ChatMessageRow, error) {
-	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
-		return nil, err
-	}
-	room, err := s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return []ChatMessageRow{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if _, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: room.ID, UserID: userID,
-	}); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrForbidden
-		}
-		return nil, err
-	}
-	return s.listSignedMessages(ctx, userID, room, in)
 }
 
 // listSignedMessages is listMessages with the media URLs signed.
@@ -537,29 +493,6 @@ func (s *ChatService) MarkRoomRead(ctx context.Context, userID, workspaceID, roo
 		return err
 	}
 	return s.markChatRoomRead(ctx, room, userID, preview.CreatedAt)
-}
-
-// SendWorkspaceMessage posts a text message to the workspace channel.
-func (s *ChatService) SendWorkspaceMessage(
-	ctx context.Context, userID, workspaceID string, in SendChatMessageInput,
-) (ChatMessageRow, error) {
-	if err := validateChatMessageBody(in.Body); err != nil {
-		return ChatMessageRow{}, err
-	}
-	room, err := s.authorizeWorkspaceRoom(ctx, userID, workspaceID)
-	if errors.Is(err, ErrNotFound) {
-		ensured, ensureErr := s.EnsureWorkspaceRoom(ctx, userID, workspaceID)
-		if ensureErr != nil {
-			return ChatMessageRow{}, ensureErr
-		}
-		room, err = s.q.GetChatRoomByID(ctx, ensured.RoomID)
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
-	} else if err != nil {
-		return ChatMessageRow{}, err
-	}
-	return s.sendMessage(ctx, userID, room, in)
 }
 
 func (s *ChatService) sendMessage(

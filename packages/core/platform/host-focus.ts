@@ -11,7 +11,13 @@ function subscribe(onChange: () => void): () => void {
   const bridge = getDesktopBridge();
   if (!bridge) {
     document.addEventListener("visibilitychange", onChange);
-    return () => document.removeEventListener("visibilitychange", onChange);
+    window.addEventListener("focus", onChange);
+    window.addEventListener("blur", onChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onChange);
+      window.removeEventListener("focus", onChange);
+      window.removeEventListener("blur", onChange);
+    };
   }
   let seen = false;
   const off = bridge.onFocusChange((focused) => {
@@ -43,7 +49,7 @@ export function isHostFocused(): boolean {
   return getSnapshot();
 }
 
-/** Whether the person is looking at this app: the shell window's focus inside UniChat, the tab's visibility on web. */
+/** Browser: tab visible. UniChat: shell window focused (via desktop bridge). */
 export function useHostFocus(): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, () => true);
 }

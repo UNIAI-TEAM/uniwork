@@ -30,19 +30,6 @@ export function useChatChannels(
   });
 }
 
-export function useProjectChatChannels(
-  workspaceId: string,
-  projectId: string,
-  enabled = true,
-) {
-  const authReady = useAuthStore((s) => s.status === "authed");
-  return useQuery({
-    queryKey: chatKeys.projectChannels(workspaceId, projectId),
-    queryFn: () => chat.listProjectChatChannels(workspaceId, projectId),
-    enabled: !!workspaceId && !!projectId && authReady && enabled,
-  });
-}
-
 export function useCreateChatChannel(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({

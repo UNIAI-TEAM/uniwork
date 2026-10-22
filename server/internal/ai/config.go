@@ -12,6 +12,9 @@ import (
 // provider itself.
 type Options struct {
 	Timeout time.Duration
+	// StreamTimeout replaces Timeout for a streamed call (default 120s): the
+	// answer arrives over time, so the whole-call budget is longer.
+	StreamTimeout time.Duration
 	// Env resolves AI_MODEL_<CAPABILITY> overrides; nil means no overrides.
 	Env func(string) string
 	// ExtraAllow extends the model allowlist (AI_MODEL_ALLOW, comma-separated).

@@ -65,7 +65,7 @@ name: Mobile Verify
 #                   required status check (scripts/branch-protection.json), so
 #                   a skipped or crashed job can never pass for a green one.
 #
-# Every check here blocks at every GATE_LEVEL (ADR 0037) once branch protection
+# Every check here blocks at every GATE_LEVEL (ADR 0043) once branch protection
 # requires the gate (scripts/branch-protection.mjs --apply; until then a red
 # run is advisory: runbook › Branch protection). No secret is read: the
 # release builds use placeholder server URLs (built, never signed in), the

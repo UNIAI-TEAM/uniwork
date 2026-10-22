@@ -79,12 +79,12 @@ func TestWorkspaceChatRoomAndMessages(t *testing.T) {
 		t.Fatalf("ensure room: err=%v room=%+v", err, room)
 	}
 
-	msgs, err := s.ListWorkspaceMessages(ctx, ua.ID, w.ID, ListChatMessagesInput{})
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, room.RoomID, ListChatMessagesInput{})
 	if err != nil || len(msgs) != 0 {
 		t.Fatalf("empty list: err=%v len=%d", err, len(msgs))
 	}
 
-	sent, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "Xin chào team"})
+	sent, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "Xin chào team"})
 	if err != nil || sent.Body != "Xin chào team" {
 		t.Fatalf("send: err=%v msg=%+v", err, sent)
 	}
@@ -105,12 +105,12 @@ func TestWorkspaceChatRoomAndMessages(t *testing.T) {
 		t.Fatalf("remove reaction: err=%v msg=%+v", err, reacted)
 	}
 
-	msgs, err = s.ListWorkspaceMessages(ctx, ua.ID, w.ID, ListChatMessagesInput{})
+	msgs, err = s.ListRoomMessages(ctx, ua.ID, w.ID, room.RoomID, ListChatMessagesInput{})
 	if err != nil || len(msgs) != 1 || msgs[0].Body != "Xin chào team" {
 		t.Fatalf("list after send: err=%v msgs=%+v", err, msgs)
 	}
 
-	if _, err := s.ListWorkspaceMessages(ctx, ub.ID, w.ID, ListChatMessagesInput{}); err != ErrForbidden {
+	if _, err := s.ListRoomMessages(ctx, ub.ID, w.ID, room.RoomID, ListChatMessagesInput{}); err != ErrForbidden {
 		t.Fatalf("non-member list: %v", err)
 	}
 }
@@ -153,7 +153,7 @@ func TestWorkspaceRoomMemberRolesAndKick(t *testing.T) {
 	}); err == nil {
 		t.Fatal("kicked member still active in chat room")
 	}
-	if _, err := s.ListWorkspaceMessages(ctx, ub.ID, w.ID, ListChatMessagesInput{}); err != ErrForbidden {
+	if _, err := s.ListRoomMessages(ctx, ub.ID, w.ID, room.RoomID, ListChatMessagesInput{}); err != ErrForbidden {
 		t.Fatalf("kicked member still reads workspace chat: %v", err)
 	}
 }
@@ -184,10 +184,10 @@ func TestChatRoomModerationPromoteMuteAndGroupKick(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("mute member: %v", err)
 	}
-	if _, err := s.SendWorkspaceMessage(ctx, uc.ID, w.ID, SendChatMessageInput{Body: "blocked"}); err == nil {
+	if _, err := s.SendRoomMessage(ctx, uc.ID, w.ID, wsRoom.RoomID, SendChatMessageInput{Body: "blocked"}); err == nil {
 		t.Fatal("muted member should not send in workspace room")
 	}
-	if _, err := s.ListWorkspaceMessages(ctx, uc.ID, w.ID, ListChatMessagesInput{}); err != nil {
+	if _, err := s.ListRoomMessages(ctx, uc.ID, w.ID, wsRoom.RoomID, ListChatMessagesInput{}); err != nil {
 		t.Fatalf("muted member should still read: %v", err)
 	}
 
@@ -252,7 +252,11 @@ func TestChatMessageEditDeletePin(t *testing.T) {
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
 
-	sent, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "Original"})
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatalf("ensure room: %v", err)
+	}
+	sent, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "Original"})
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -292,7 +296,7 @@ func TestChatMessageEditDeletePin(t *testing.T) {
 		t.Fatalf("delete publish: %+v", pub.events[len(pub.events)-1])
 	}
 
-	msgs, err := s.ListWorkspaceMessages(ctx, ua.ID, w.ID, ListChatMessagesInput{})
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, room.RoomID, ListChatMessagesInput{})
 	if err != nil || len(msgs) != 0 {
 		t.Fatalf("list after delete: err=%v len=%d", err, len(msgs))
 	}
@@ -1555,16 +1559,17 @@ func TestSendRoomMessageRejectsLongBody(t *testing.T) {
 	}
 }
 
-func TestSendWorkspaceMessageRejectsLongBody(t *testing.T) {
+func TestSendRoomMessageRejectsLongBodyInWorkspaceChannel(t *testing.T) {
 	s, _, _, ua, _, w := chatFixture(t)
 	ctx := context.Background()
 
-	if _, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID); err != nil {
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	longBody := strings.Repeat("a", maxChatMessageBodyLen+1)
-	_, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: longBody})
+	_, err = s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: longBody})
 	var ve ValidationError
 	if !errors.As(err, &ve) || ve.Msg != "tin nhắn quá dài" {
 		t.Fatalf("expected validation error, got %v", err)

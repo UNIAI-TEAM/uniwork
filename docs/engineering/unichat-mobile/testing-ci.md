@@ -16,7 +16,7 @@ pnpm --filter @uniwork/chat-mobile test:unit         # vitest, node: lib/ data/ 
 pnpm --filter @uniwork/chat-mobile test:components   # jest-expo + RNTL: components/**/*.test.tsx, data/**/*.test.tsx
 ```
 
-Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_LEVEL`):
+Hai lớp test, không chung file (ADR 0043 — cả hai chặn ở mọi `GATE_LEVEL`):
 
 - `vitest.config.ts` — `*.test.ts` trong `lib/`, `data/`, môi trường node, sàn
   100/100/100/100 cứng (không qua `scripts/coverage-gate.ts`); không loại file để

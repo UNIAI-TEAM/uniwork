@@ -10,8 +10,6 @@ import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
 import type { ReactNode } from "react";
-
-type ChatFile = NonNullable<ChatMessageRecord["file"]>;
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
@@ -25,10 +23,13 @@ import { formatMessageDateTime, formatMessageTime } from "@/lib/timeline-display
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { useChatImageSrc, useFreshChatMediaUrl } from "./use-chat-media";
+import { PollVoteActivityChip } from "./poll-vote-activity-chip";
 import { VoiceCard } from "./voice-card";
 import { toast } from "@/data/stores/toast-store";
 import { sameUser } from "@/lib/user-id";
 import { bubbleImageSize, chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
+
+type ChatFile = NonNullable<ChatMessageRecord["file"]>;
 
 export interface MessageCardContext {
   wsId: string;
@@ -44,6 +45,8 @@ export interface MessageCardContext {
   onOpenLink: (url: string) => void;
   /** A long press on a link (or a screen reader's link action): open, copy or share it (link-sheet.tsx). */
   onLinkMenu: (url: string) => void;
+  /** Scroll the conversation to a message (poll vote activity → original poll). */
+  onJumpToMessage?: (messageId: string) => void;
 }
 
 /** The views whose card is a button of its own (the row then is not one accessible element). */
@@ -163,11 +166,14 @@ function ImageCard({
   file,
   ctx,
   onLongPress,
+  flush,
 }: {
   record: ChatMessageRecord;
   file: ChatFile;
   ctx: MessageCardContext;
   onLongPress: () => void;
+  /** The photo fills a bare bubble: no rounded rim of its own (message-row.tsx › bareImage). */
+  flush: boolean;
 }) {
   const { t } = useTranslation();
   const longPress = useLongPressProps(onLongPress);
@@ -188,11 +194,11 @@ function ImageCard({
     >
       {src ? (
         // The grey box shows behind a photo still on its way (or waiting for a fresh URL).
-        <View className="overflow-hidden rounded-[14px] bg-muted" style={box}>
+        <View className={cn("overflow-hidden bg-muted", !flush && "rounded-[14px]")} style={box}>
           <Image source={chatMediaSource(src, record.id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={box} />
         </View>
       ) : (
-        <View className="items-center justify-center rounded-[14px] bg-muted" style={box}>
+        <View className={cn("items-center justify-center bg-muted", !flush && "rounded-[14px]")} style={box}>
           <Text className="text-caption text-muted-foreground">{t("chat.message_list.image_preview_loading")}</Text>
         </View>
       )}
@@ -473,11 +479,16 @@ export function MessageContent({
   own,
   ctx,
   onLongPress,
+  senderLabel,
+  flushMedia = false,
 }: {
   record: ChatMessageRecord;
   own: boolean;
   ctx: MessageCardContext;
   onLongPress: () => void;
+  senderLabel?: string;
+  /** Photo fills the bubble run with no coloured rim (canvas bare media). */
+  flushMedia?: boolean;
 }) {
   const { t } = useTranslation();
   const body = cn("text-subhead", ink(own).text);
@@ -496,7 +507,7 @@ export function MessageContent({
         />
       );
     case "image":
-      return <ImageCard record={record} file={content.file} ctx={ctx} onLongPress={onLongPress} />;
+      return <ImageCard record={record} file={content.file} ctx={ctx} onLongPress={onLongPress} flush={flushMedia} />;
     case "file":
       return <FileCard record={record} file={content.file} ctx={ctx} own={own} onLongPress={onLongPress} />;
     case "voice":
@@ -524,6 +535,10 @@ export function MessageContent({
       );
     case "reminder":
       return <ReminderCard record={record} reminder={content.reminder} own={own} />;
+    case "poll-vote-activity":
+      return (
+        <PollVoteActivityChip pollVote={content.pollVote} senderLabel={senderLabel ?? record.sender_display_name} onJump={ctx.onJumpToMessage} />
+      );
     case "call-log":
       return <CallLogChip record={record} ctx={ctx} />;
     case "call-summary":

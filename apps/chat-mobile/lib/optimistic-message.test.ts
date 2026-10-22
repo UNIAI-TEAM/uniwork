@@ -12,7 +12,6 @@ const poll = (viewer: string[], allowMultiple = true): Poll => ({
   ],
   settings: { ...settings, allow_multiple: allowMultiple },
   viewer_option_ids: viewer,
-  votes_by_user: undefined,
 });
 const message = (extra: Partial<ChatMessageRecord> = {}) => ({ id: "m1", reactions: {}, my_reactions: undefined, ...extra }) as unknown as ChatMessageRecord;
 
@@ -36,16 +35,14 @@ describe("optimistic poll votes", () => {
     expect(toggledPollChoice(poll(["a"], false), "a")).toEqual([]);
   });
 
-  it("sets the viewer's choice and the counts, and the viewer's row when the voters are shown", () => {
-    const record = message({ poll: { ...poll(["a"]), votes_by_user: { U1: ["a"] } } });
-    const next = withPollChoice(record, "u1", ["b"]);
+  it("sets the viewer's choice and the counts", () => {
+    const record = message({ poll: poll(["a"]) });
+    const next = withPollChoice(record, ["b"]);
     expect(next.poll?.viewer_option_ids).toEqual(["b"]);
     expect(next.poll?.options.map((o) => o.votes)).toEqual([0, 3]);
-    expect(next.poll?.votes_by_user).toEqual({ U1: ["b"] });
-    expect(withPollChoice(message({ poll: poll(["a"]) }), "u1", []).poll?.votes_by_user).toBeUndefined();
-    expect(withPollChoice(record, "u1", ["a"])).toBe(record);
+    expect(withPollChoice(record, ["a"])).toBe(record);
     const none = message();
-    expect(withPollChoice(none, "u1", ["a"])).toBe(none);
+    expect(withPollChoice(none, ["a"])).toBe(none);
   });
 
   it("works out the taps that take the server to the wish", () => {

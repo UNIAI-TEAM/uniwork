@@ -59,7 +59,8 @@ type oaiToolCall struct {
 	} `json:"function"`
 }
 
-func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (CompletionResponse, error) {
+// body builds the chat-completions request shared by Complete and Stream.
+func (o *OpenAI) body(req CompletionRequest) (map[string]any, error) {
 	// stream is explicit: an upstream that reads a missing field as true
 	// answers in SSE, which this JSON reader cannot parse (spike G6-02 §8.1).
 	body := map[string]any{"model": req.Model, "max_tokens": req.MaxTokens, "stream": false}
@@ -89,7 +90,7 @@ func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (Completio
 		for _, p := range m.Parts {
 			c, err := openAIPart(p)
 			if err != nil {
-				return CompletionResponse{}, err
+				return nil, err
 			}
 			content = append(content, c)
 		}
@@ -119,6 +120,14 @@ func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (Completio
 			tools = append(tools, map[string]any{"type": "function", "function": fn})
 		}
 		body["tools"] = tools
+	}
+	return body, nil
+}
+
+func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (CompletionResponse, error) {
+	body, err := o.body(req)
+	if err != nil {
+		return CompletionResponse{}, err
 	}
 	var out struct {
 		Model   string `json:"model"`

@@ -5,9 +5,10 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Easing, View } from "react-native";
 import { useAnnounce, useReduceMotion } from "@/components/ui/a11y";
-import { bubbleCorners } from "@/lib/conversation-display";
+import { bubbleCorners, CHAT_CONVERSATION_ROW_INSET } from "@/lib/conversation-display";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
+import { cn } from "@/lib/utils";
 
 function Dot({ delay, reduced, color }: { delay: number; reduced: boolean; color: string }) {
   const opacity = useRef(new Animated.Value(0.25)).current;
@@ -36,7 +37,12 @@ export function TypingBubble({ label, avatar }: { label: string; avatar?: ReactN
   // TalkBack reads the live region; VoiceOver hears who started typing.
   useAnnounce(label);
   return (
-    <View className="flex-row items-end gap-1.5 px-2.5 pt-2" accessible accessibilityLabel={label} accessibilityLiveRegion="polite">
+    <View
+      className={cn("flex-row items-end gap-1.5 pt-2", CHAT_CONVERSATION_ROW_INSET)}
+      accessible
+      accessibilityLabel={label}
+      accessibilityLiveRegion="polite"
+    >
       {avatar}
       <View className="h-9 flex-row items-center gap-1 bg-chat-bubble-other px-3.5" style={bubbleCorners(false, true, true)}>
         {[0, 150, 300].map((delay) => (

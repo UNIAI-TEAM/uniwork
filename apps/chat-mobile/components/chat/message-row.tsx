@@ -18,7 +18,7 @@ import Animated, { FadeIn, LayoutAnimationConfig, ZoomIn } from "react-native-re
 import { useRipple } from "@/components/ui/ripple";
 import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
-import { bubbleCorners } from "@/lib/conversation-display";
+import { bubbleCorners, CHAT_BUBBLE_MAX_WIDTH_CLASS, CHAT_CONVERSATION_ROW_INSET } from "@/lib/conversation-display";
 import { createFirstSight } from "@/lib/first-sight";
 import { senderNameClass } from "@/lib/sender-colors";
 import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
@@ -53,6 +53,10 @@ const firstSend = createFirstSight(200);
  */
 const LIFT_IOS = { borderWidth: StyleSheet.hairlineWidth, borderColor: THEME.light.border };
 const LIFT_ANDROID = { shadowColor: THEME.light.foreground, elevation: 1 };
+
+/** A bare photo's foot sits on a dark scrim over the picture, whatever the theme. */
+const ON_PHOTO = "#fff";
+const ON_PHOTO_META = "rgba(255,255,255,0.75)";
 
 export interface MessageRowProps {
   message: TimelineMessage;
@@ -133,6 +137,8 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   // already has stand still; one added while the cell is on screen still pops (LayoutAnimationConfig skips only at mount).
   const [fresh] = useState(() => message.pending !== undefined && firstSend(message.id));
 
+  const longPress = () => props.onLongPress(message);
+
   if (record && messageView(record) === "system") {
     return (
       <View className="items-center px-6 py-1.5" accessible accessibilityLabel={record.body}>
@@ -147,12 +153,22 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   if (record && messageView(record) === "call-log") {
     return (
       <View className="items-center px-6 py-1.5">
-        <MessageContent record={record} own={own} ctx={ctx} onLongPress={() => props.onLongPress(message)} />
+        <MessageContent record={record} own={own} ctx={ctx} onLongPress={longPress} />
       </View>
     );
   }
 
-  const interactive = album ? true : record ? INTERACTIVE_VIEWS.has(messageView(record)) : false;
+  if (record && messageView(record) === "poll-vote-activity") {
+    return (
+      <View className="items-center px-3 py-1.5" accessible accessibilityLabel={messagePreviewText(record, t)}>
+        <MessageContent record={record} own={false} ctx={ctx} senderLabel={senderName} onLongPress={longPress} />
+      </View>
+    );
+  }
+
+  const view = record ? messageView(record) : null;
+  const bareImage = view === "image" && !quote && !album;
+  const interactive = album ? true : view ? INTERACTIVE_VIEWS.has(view) : false;
   const footTs = album?.at(-1)?.ts ?? message.ts;
   // A pending message has no record yet: its own text, with mentions as names, or its file's name.
   const preview = record ? messagePreviewText(record, t) : message.pending ? pendingPreviewText(message.pending, t) : "";
@@ -166,7 +182,6 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   const hint = message.pending
     ? t(message.pending.status === "sending" ? "mobile.a11y.bubble_sending_hint" : "mobile.a11y.bubble_retry_hint")
     : undefined;
-  const longPress = () => props.onLongPress(message);
   // The links of a text message, each a screen-reader action that opens its open / copy / share sheet (link-sheet.tsx).
   const links = record && messageView(record) === "text" ? messageLinks(record.body).slice(0, MAX_LINK_ACTIONS) : [];
   // Every long-press action reachable without a long press: reply and a quick reaction first (iMessage and WhatsApp
@@ -199,13 +214,14 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   const reactions = Object.entries(record?.reactions ?? {}).filter(([, count]) => count > 0);
   const mine = new Set(record?.my_reactions ?? []);
   const meta = own ? "text-chat-bubble-own-meta" : "text-muted-foreground";
+  const tickMeta = bareImage ? ON_PHOTO_META : theme.chatBubbleOwnMeta;
   // Inline styles win over className, so the iOS hairline would replace a thread root's 2 pt ring: a ringed bubble's
   // ring is its edge.
   const lift = own || scheme === "dark" ? null : Platform.OS === "ios" ? (ringed ? null : LIFT_IOS) : LIFT_ANDROID;
 
   const body = (
     <View
-      className={cn("px-2.5", compactTop ? "pt-0.5" : "pt-2.5", own ? "items-end" : "items-start", highlighted && "bg-primary/10")}
+      className={cn(CHAT_CONVERSATION_ROW_INSET, compactTop ? "pt-0.5" : "pt-2.5", own ? "items-end" : "items-start", highlighted && "bg-primary/10")}
       // The message a jump landed on, for the nightly's jump flow (maestro/flows/perf-jump-quote.yaml).
       testID={highlighted ? "message-highlighted" : undefined}
     >
@@ -221,9 +237,9 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
           onPress={message.pending ? () => props.onPressPending(message) : undefined}
           delayLongPress={200}
           className={cn(
-            album ? "gap-1 p-[3px]" : "gap-1 px-3 pb-2 pt-1.5",
-            album ? null : "max-w-[72%]",
-            own ? "bg-chat-bubble-own" : "bg-chat-bubble-other",
+            album ? "gap-1 p-[3px]" : bareImage ? "overflow-hidden p-0" : "gap-1 px-3 pb-2 pt-1.5",
+            album || bareImage ? null : CHAT_BUBBLE_MAX_WIDTH_CLASS,
+            !bareImage && (own ? "bg-chat-bubble-own" : "bg-chat-bubble-other"),
             ringed && "border-2 border-primary/25",
           )}
           style={[bubbleCorners(own, !compactTop, !continued), lift]}
@@ -260,28 +276,38 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
           {album ? (
             <AlbumGrid photos={album} ctx={ctx} onLongPress={longPress} />
           ) : record ? (
-            <MessageContent record={record} own={own} ctx={ctx} onLongPress={longPress} />
+            <MessageContent record={record} own={own} ctx={ctx} onLongPress={longPress} flushMedia={bareImage} />
           ) : (
             <Text className="text-body text-chat-bubble-own-foreground">{preview}</Text>
           )}
           <View
-            className={cn("flex-row items-center gap-1 self-end", album && "px-2 pb-1")}
+            className={cn(
+              "flex-row items-center gap-1",
+              // A bare photo carries its time on a scrim in its corner (the canvas's bare media).
+              bareImage ? "absolute bottom-2 right-2 rounded-md bg-black/55 px-1.5 py-0.5" : "self-end",
+              album && "px-2 pb-1",
+            )}
             accessible={interactive}
             accessibilityLabel={footLabel}
           >
             {record ? (
               <>
-                <Text className={cn("text-meta", meta)} style={{ fontVariant: ["tabular-nums"] }}>
+                <Text className={cn("text-meta", bareImage ? "text-white/90" : meta)} style={{ fontVariant: ["tabular-nums"] }}>
                   {[record.edited_at ? t("chat.edited_label") : null, album ? formatMessageTime(footTs, i18n.language) : time]
                     .filter(Boolean)
                     .join(" · ")}
                 </Text>
                 {/* Seen is a filled badge in the bubble's ink, not only a lighter tint of delivered's two ticks. */}
                 {receipt === "seen" ? (
-                  <Ionicons name="checkmark-done-circle" size={16} color={theme.chatBubbleOwnForeground} testID="receipt-seen" />
+                  <Ionicons
+                    name="checkmark-done-circle"
+                    size={16}
+                    color={bareImage ? ON_PHOTO : theme.chatBubbleOwnForeground}
+                    testID="receipt-seen"
+                  />
                 ) : null}
-                {receipt === "delivered" ? <Ionicons name="checkmark-done" size={15} color={theme.chatBubbleOwnMeta} /> : null}
-                {receipt === "sent" ? <Ionicons name="checkmark" size={15} color={theme.chatBubbleOwnMeta} /> : null}
+                {receipt === "delivered" ? <Ionicons name="checkmark-done" size={15} color={tickMeta} /> : null}
+                {receipt === "sent" ? <Ionicons name="checkmark" size={15} color={tickMeta} /> : null}
               </>
             ) : message.pending ? (
               <PendingMeta pending={message.pending} scheme={scheme} />

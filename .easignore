@@ -9,6 +9,8 @@ dist/
 .turbo/
 *.tsbuildinfo
 .env
+scripts/uniai-sync/config.json
+scripts/uniai-sync/.sync.lock
 *.local
 server/bin/
 # Ad-hoc builds land beside the source on Windows; `make` never produces these.
@@ -77,6 +79,7 @@ server/internal/handler/data/
 !.github/workflows/chat-mobile-release-health.yml
 !.github/workflows/chat-mobile-rollback.yml
 !.github/workflows/chat-mobile-device-farm.yml
+!.github/workflows/chat-mobile-store-screenshots.yml
 .codex/
 .pnpm-store/
 .uniwork-dev/
@@ -117,6 +120,14 @@ packages/office-upstream/upstream/packages/pdf2docx/ocr-helper/vision-ocr
 packages/office-upstream/upstream/packages/pdf2docx/ocr-helper/vision-ocr.arm64
 packages/office-upstream/upstream/packages/pdf2docx/ocr-helper/vision-ocr.x86_64
 packages/office-upstream/upstream/packages/pdf2docx/ocr-helper/win-ocr.exe
+
+# --- reports/shortcuts_local/raw/.gitignore
+# Raw Microsoft help pages stay local: they embed public MS telemetry keys that
+# gitleaks flags. Refetch from the URLs in ms-fetch-log.tsv / ms-fetch-web-log.tsv.
+reports/shortcuts_local/raw/**/ms-html/
+reports/shortcuts_local/raw/**/ms-html-web/
+# Library sources checked out for the inventory (157 MB, nested .git).
+reports/shortcuts_local/raw/**/lib-src/
 
 # --- EAS only: the CodeGraph index (its .gitignore keeps itself in git) holds a live daemon socket the archive cannot copy.
 .codegraph/

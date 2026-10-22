@@ -36,6 +36,7 @@ interface EmailHubThreadDetailProps {
   actions: EmailHubThreadActions;
   pending: EmailHubThreadPending;
   aiOpen: boolean;
+  shortcutsOn: boolean;
 }
 
 function BodySkeleton({
@@ -76,6 +77,7 @@ export function EmailHubThreadDetail({
   actions,
   pending,
   aiOpen,
+  shortcutsOn,
 }: EmailHubThreadDetailProps) {
   const { t, i18n } = useTranslation();
   const locale = emailHubLocale(i18n.language);
@@ -113,6 +115,7 @@ export function EmailHubThreadDetail({
         actions={actions}
         pending={pending}
         aiOpen={aiOpen}
+        shortcutsOn={shortcutsOn}
       />
 
       <div className="@container min-h-0 flex-1 overflow-y-auto overscroll-contain">

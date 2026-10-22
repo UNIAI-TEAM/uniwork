@@ -17,14 +17,15 @@ export const {
   searchChatMessages,
   listChatRoomMessagesAround,
   sendChatRoomMessage,
+  sendChatDocumentLink,
   shareChatMessageAsDocument,
   voteChatPollMessage,
+  getChatPollVoters,
+  addChatPollOptionMessage,
   toggleChatMessageReaction,
   editChatRoomMessage,
   deleteChatRoomMessage,
   toggleChatMessagePin,
-  listWorkspaceChatMessages,
-  sendWorkspaceChatMessage,
 } = createChatMessagesApi(webChatRequest);
 
 // The multipart sends below carry a browser Blob, so they stay on the web's own transport.

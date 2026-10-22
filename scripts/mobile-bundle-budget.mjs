@@ -5,7 +5,7 @@
 // (iOS since 2026-10-22: Metro builds its bundle on any OS): the Hermes bytecode
 // the binary embeds, its gzip size (what an OTA update downloads) and the
 // module count from the source map (a dependency that drags a tree in shows
-// up here first). Blocks at every GATE_LEVEL (ADR 0037): mobile-verify.yml
+// up here first). Blocks at every GATE_LEVEL (ADR 0043): mobile-verify.yml
 // runs only for PRs that reach the app.
 //
 //   node scripts/mobile-bundle-budget.mjs <export-dir>

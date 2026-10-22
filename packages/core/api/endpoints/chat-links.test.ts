@@ -4,7 +4,6 @@ import {
   createChatMessageLink,
   createTaskFromChatMessage,
   deleteChatMessageLink,
-  listChatMessageLinks,
   listChatRoomLinkedTasks,
   listChatRoomMessageLinks,
   syncChatThreadTask,
@@ -27,11 +26,6 @@ describe("chat link endpoints", () => {
   it("createTaskFromChatMessage degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ task: 1 }));
     await expect(createTaskFromChatMessage("w1", "m1", { title: "Hi" })).resolves.toBeNull();
-  });
-
-  it("listChatMessageLinks degrades on malformed response", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ links: "nope" }));
-    await expect(listChatMessageLinks("w1", "m1")).resolves.toEqual([]);
   });
 
   it("listChatRoomMessageLinks degrades on malformed response", async () => {

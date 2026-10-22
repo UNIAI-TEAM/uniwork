@@ -70,14 +70,13 @@ export type PollVisibilityInput = {
     hide_results_until_vote: boolean;
   };
   viewer_option_ids?: string[];
-  votes_by_user?: PollVotesByUser;
 };
 
 export function canViewPollVoters(poll: PollVisibilityInput): boolean {
   if (poll.settings.hide_voters) return false;
   const hasVoted = (poll.viewer_option_ids?.length ?? 0) > 0;
   if (poll.settings.hide_results_until_vote && !hasVoted) return false;
-  return poll.votes_by_user != null;
+  return true;
 }
 
 export function groupPollVotersByOption(

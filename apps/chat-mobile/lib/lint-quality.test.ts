@@ -1,4 +1,4 @@
-// Fixture test for the app's quality rules in eslint.config.mjs (ADR 0037):
+// Fixture test for the app's quality rules in eslint.config.mjs (ADR 0043):
 // no `any`, the React Native accessibility rules, no JSX literal text, no
 // console call outside data/logger.ts, no react-native Modal outside
 // components/ui/call-aware-modal.tsx, and no endpoint or command called from

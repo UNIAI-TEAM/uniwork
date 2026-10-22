@@ -18,7 +18,7 @@ func TestChatSyncReplaysWhatChangedSinceTheClientsHead(t *testing.T) {
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
 
-	m1, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "một"})
+	m1, err := sendInWorkspaceRoom(ctx, s, ua.ID, w.ID, SendChatMessageInput{Body: "một"})
 	if err != nil {
 		t.Fatalf("send m1: %v", err)
 	}
@@ -31,14 +31,14 @@ func TestChatSyncReplaysWhatChangedSinceTheClientsHead(t *testing.T) {
 	if _, err := s.EditChatMessage(ctx, ua.ID, w.ID, m1.RoomID, m1.ID, "một (sửa)"); err != nil {
 		t.Fatalf("edit m1: %v", err)
 	}
-	m2, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "hai"})
+	m2, err := sendInWorkspaceRoom(ctx, s, ua.ID, w.ID, SendChatMessageInput{Body: "hai"})
 	if err != nil {
 		t.Fatalf("send m2: %v", err)
 	}
 	if err := s.DeleteChatMessage(ctx, ua.ID, w.ID, m1.RoomID, m1.ID); err != nil {
 		t.Fatalf("delete m1: %v", err)
 	}
-	m3, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "ba"})
+	m3, err := sendInWorkspaceRoom(ctx, s, ua.ID, w.ID, SendChatMessageInput{Body: "ba"})
 	if err != nil {
 		t.Fatalf("send m3: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestChatSyncKeepsToTheRoomsTheCallerReads(t *testing.T) {
 	if _, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{Body: "riêng"}); err != nil {
 		t.Fatalf("send dm: %v", err)
 	}
-	public, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "chung"})
+	public, err := sendInWorkspaceRoom(ctx, s, ua.ID, w.ID, SendChatMessageInput{Body: "chung"})
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestChatSyncTellsAClientTooFarBehindToReload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "x"})
+	m, err := sendInWorkspaceRoom(ctx, s, ua.ID, w.ID, SendChatMessageInput{Body: "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestChatSyncDoesNotCountRoomsTheCallerCannotRead(t *testing.T) {
 	for i := 0; i < ChatSyncMaxChanges+50; i++ {
 		s.recordChatChange(ctx, db.ChatRoom{ID: dm.ID, OrganizationID: w.OrganizationID}, private.ID, ChatChangeUpdated)
 	}
-	public, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "chung"})
+	public, err := sendInWorkspaceRoom(ctx, s, ua.ID, w.ID, SendChatMessageInput{Body: "chung"})
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestChatChangeIsRecordedAfterTheRequestIsGone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "x"})
+	m, err := sendInWorkspaceRoom(ctx, s, ua.ID, w.ID, SendChatMessageInput{Body: "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,4 +229,16 @@ func TestChatChangeIsRecordedAfterTheRequestIsGone(t *testing.T) {
 	if err != nil || page.Head != start.Head+2 {
 		t.Fatalf("the change of a cancelled request is in the log: err=%v page=%+v", err, page)
 	}
+}
+
+// sendInWorkspaceRoom posts to the workspace channel, creating it on first
+// use, as the removed SendWorkspaceMessage did (UNI-1718).
+func sendInWorkspaceRoom(
+	ctx context.Context, s *ChatService, userID, workspaceID string, in SendChatMessageInput,
+) (ChatMessageRow, error) {
+	room, err := s.EnsureWorkspaceRoom(ctx, userID, workspaceID)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	return s.SendRoomMessage(ctx, userID, workspaceID, room.RoomID, in)
 }

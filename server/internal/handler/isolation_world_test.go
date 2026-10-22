@@ -195,6 +195,8 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	docs.SetEditLockConfig(service.DocumentEditLockConfig{TTL: time.Hour})
 	docs.SetAccessRequestSources(d.Tasks, d.Meetings)
 	d.Documents = docs
+	// As main.go wires it: the inbox names a document only through the read gate.
+	d.Notifications.SetDocumentReaders(docs)
 	// The chat document send files its bytes into the same Documents service
 	// (UNI-1966): without it the route answers 501 and the isolation row
 	// proves nothing.
@@ -677,7 +679,10 @@ func (w *isoWorld) buildChat(t *testing.T, tn *isoTenant) {
 	out = w.call(t, "POST", rp+"/threads/"+tn.ids["message"]+"/messages", tn.peerToken, map[string]any{"body": m + " thread reply", "client_msg_id": util.NewID()})
 	tn.ids["peerMessage"] = isoID(t, out, "message")
 	out = w.call(t, "POST", rp+"/messages", tn.token, map[string]any{
-		"client_msg_id": util.NewID(), "poll": map[string]any{"question": m + " poll", "options": []string{"Canteen", "Outside"}},
+		"client_msg_id": util.NewID(), "poll": map[string]any{
+			"question": m + " poll", "options": []string{"Canteen", "Outside"},
+			"settings": map[string]any{"allow_add_options": true},
+		},
 	})
 	tn.ids["pollMessage"] = isoID(t, out, "message")
 	tn.ids["pollOption"] = isoString(t, out["message"].(map[string]any)["poll"].(map[string]any)["options"].([]any)[0].(map[string]any), "id")
@@ -715,6 +720,13 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		"title": m + " Folder", "kind": "folder",
 	})
 	tn.ids["folder"] = isoID(t, out, "document")
+	// UNI-2055 (ADR 0037): that folder sits outside every My Folder, so it is a
+	// workspace folder every member of the tenant reads; a page inside it keeps
+	// its own access (restricted), and the other tenant still gets a refusal.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Folder page", "kind": "page", "parent_id": tn.ids["folder"],
+	})
+	tn.ids["folderChild"] = isoID(t, out, "document")
 	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
 		"title": m + " Trash folder", "kind": "folder",
 	})
@@ -732,6 +744,14 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 	})
 	tn.ids["unshelveDocument"] = isoID(t, out, "document")
 	w.call(t, "POST", "/api/v1/documents/"+tn.ids["unshelveDocument"]+"/shelve", tn.token, nil)
+	// UNI-2012 D5: the chat link send gets its own page. Sending "document" at
+	// comment into the room raises the peer's seeded view share there (D2a: the
+	// manual row ends, a chat row remembering it takes over), so the revoke
+	// control later in the pass would name an ended share and see 404.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Chat link page", "kind": "page",
+	})
+	tn.ids["chatLinkDocument"] = isoID(t, out, "document")
 	dp := "/api/v1/documents/" + tn.ids["document"]
 	out = w.call(t, "POST", dp+"/comments", tn.token, map[string]any{"body": m + " doc comment", "type": "comment"})
 	tn.ids["docComment"] = isoID(t, out, "comment")
@@ -784,6 +804,35 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		content: []byte("# " + m + " file body\n"),
 	})
 	tn.ids["fileDocument"] = isoID(t, out, "document")
+	// A zip download job (UNI-2045 SV-9) the tenant's owner created and nobody
+	// built: the poll answers it, the download route has no file yet.
+	tn.ids["downloadJob"] = util.NewID()
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO document_download_jobs
+		(id, organization_id, workspace_id, created_by, created_by_kind, document_ids)
+		VALUES ($1, $2, $3, $4, 'human', ARRAY[$5]::text[])`,
+		tn.ids["downloadJob"], tn.orgID, tn.wsID, tn.userID, tn.ids["fileDocument"]); err != nil {
+		t.Fatalf("download job: %v", err)
+	}
+	// A folder upload batch (UNI-2052) of the tenant's owner with one file row.
+	// It is seeded settled (completed) so it does not count toward the owner's
+	// two open batches, which the PLAN route's control and its isoReferences
+	// control each take one of.
+	tn.ids["folderUpload"] = util.NewID()
+	tn.ids["folderUploadFileKey"] = "iso-file-" + tn.tag
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO document_folder_uploads
+		(id, organization_id, workspace_id, created_by, created_by_kind, root_folder_id, root_title,
+		 status, file_count, total_bytes, folders, expires_at, finished_at)
+		VALUES ($1, $2, $3, $4, 'human', $5, $6, 'completed', 1, 3, jsonb_build_object('', $5::text),
+		        now() + interval '24 hours', now())`,
+		tn.ids["folderUpload"], tn.orgID, tn.wsID, tn.userID, tn.ids["folder"], m+" Upload root"); err != nil {
+		t.Fatalf("folder upload: %v", err)
+	}
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO document_folder_upload_files
+		(id, file_key, organization_id, workspace_id, batch_id, folder_id, path, filename, size_bytes, target_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, '', $7, 3, 'put')`,
+		util.NewID(), tn.ids["folderUploadFileKey"], tn.orgID, tn.wsID, tn.ids["folderUpload"], tn.ids["folder"], strings.ToLower(m)+"-upload.md"); err != nil {
+		t.Fatalf("folder upload file: %v", err)
+	}
 	// A comment on the file document itself: the office launch session's
 	// own-rows control must name a comment of the document its path names
 	// (R1-1 binds the ticket's comment to its document).
@@ -865,6 +914,8 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	}
 	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/ai/ask", tn.token, map[string]any{"question": m + " question"})
 	tn.ids["conversation"] = isoString(t, out, "conversation_id")
+	tn.ids["aiAnswer"] = out["message"].(map[string]any)["id"].(string)
+	w.call(t, "PUT", "/api/v1/ai/conversations/"+tn.ids["conversation"]+"/messages/"+tn.ids["aiAnswer"]+"/feedback", tn.token, map[string]any{"rating": "up"}, http.StatusNoContent)
 }
 
 // buildSeeded writes the rows only a provider, a worker or a mailbox would
@@ -971,6 +1022,13 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		t.Fatalf("notification: %v", err)
 	}
 	tn.ids["notification"] = n.ID
+	// One document row of that notification (UNI-2056), as the consumer
+	// writes it for a document_changed notice.
+	if _, err := w.q.InsertNotificationDocument(ctx, db.InsertNotificationDocumentParams{
+		OrganizationID: tn.orgID, NotificationID: n.ID, DocumentID: tn.ids["document"],
+	}); err != nil {
+		t.Fatalf("notification document: %v", err)
+	}
 
 	// The comment orbit G8-03 added (UNI-1398): one edit-history row and one
 	// mention row of the document comment. Revisions are written by the edit

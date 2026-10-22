@@ -282,3 +282,21 @@ describe("MessageContent › a kind this build does not know", () => {
     expect([...INTERACTIVE_VIEWS].sort()).toEqual(["file", "image", "poll", "unsupported", "voice"]);
   });
 });
+
+describe("MessageContent › poll vote", () => {
+  const vote = { kind: "poll_vote", body: "Ăn trưa?", poll_vote: { poll_message_id: "p1", question: "Ăn trưa?" } };
+
+  it("names who voted and offers a jump to the poll when the conversation can scroll to it", async () => {
+    const onJumpToMessage = jest.fn();
+    await render(<MessageContent record={message(vote)} own={false} ctx={{ ...ctx, onJumpToMessage }} onLongPress={jest.fn()} senderLabel="Chi" />);
+    expect(screen.getByText(/Chi/)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.poll_vote_activity_view") }));
+    expect(onJumpToMessage).toHaveBeenCalledWith("p1");
+  });
+
+  it("falls back to the sender's name and has no jump without a way to scroll", async () => {
+    await show(vote);
+    expect(screen.getByText(/Bình/)).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: viText("chat.poll_vote_activity_view") })).toBeNull();
+  });
+});

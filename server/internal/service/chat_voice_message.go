@@ -3,17 +3,11 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-
-	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/files"
-	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -22,7 +16,7 @@ const (
 	maxVoiceDurationMS       = 120_000
 )
 
-var supportedVoiceContentTypes = map[string]struct{}{
+var storedVoiceContentTypes = map[string]struct{}{
 	"audio/webm": {},
 	"audio/ogg":  {},
 	"audio/mp4":  {},
@@ -43,27 +37,6 @@ type VoiceMessageInfo struct {
 	URLExpiresAt time.Time
 }
 
-type PrepareVoiceMessageInput struct {
-	DurationMS       int
-	ContentType      string
-	SizeBytes        int64
-	ReplyToMessageID *string
-	ClientMsgID      string
-}
-
-// VoiceMessagePreparation carries authorization and validation from the
-// multipart preflight to the insert, without exposing a storage URL.
-type VoiceMessagePreparation struct {
-	OrganizationID string
-	Existing       *ChatMessageRow
-	room           db.ChatRoom
-	actorID        string
-	senderName     string
-	replyTo        pgtype.Text
-	clientMsg      pgtype.Text
-	input          PrepareVoiceMessageInput
-}
-
 func validateVoiceDurationMS(durationMS int) error {
 	if durationMS < 1 || durationMS > maxVoiceDurationMS {
 		return Invalid("duration_ms phải từ 1 đến 120000")
@@ -71,133 +44,17 @@ func validateVoiceDurationMS(durationMS int) error {
 	return nil
 }
 
-func validateVoiceMessageInput(in PrepareVoiceMessageInput) error {
-	if err := validateVoiceDurationMS(in.DurationMS); err != nil {
-		return err
+func validStoredVoiceMetadata(durationMS int, contentType string, sizeBytes int64, clientMsgID string) bool {
+	if durationMS < 1 || durationMS > maxVoiceDurationMS {
+		return false
 	}
-	if in.SizeBytes < 1 || in.SizeBytes > MaxChatVoiceMessageBytes {
-		return Invalid("tệp thoại phải có kích thước từ 1 byte đến 4 MiB")
+	if sizeBytes < 1 || sizeBytes > MaxChatVoiceMessageBytes {
+		return false
 	}
-	if _, ok := supportedVoiceContentTypes[strings.ToLower(strings.TrimSpace(in.ContentType))]; !ok {
-		return Invalid("định dạng âm thanh không được hỗ trợ")
+	if _, ok := storedVoiceContentTypes[strings.ToLower(strings.TrimSpace(contentType))]; !ok {
+		return false
 	}
-	return validateClientMsgID(strings.TrimSpace(in.ClientMsgID))
-}
-
-// PrepareVoiceMessage validates the upload and authorizes the room before any
-// bytes are persisted. An idempotent retry returns Existing and needs no upload.
-func (s *ChatService) PrepareVoiceMessage(
-	ctx context.Context,
-	userID, workspaceID, roomID string,
-	in PrepareVoiceMessageInput,
-) (VoiceMessagePreparation, error) {
-	in.ContentType = strings.ToLower(strings.TrimSpace(in.ContentType))
-	in.ClientMsgID = strings.TrimSpace(in.ClientMsgID)
-	if err := validateVoiceMessageInput(in); err != nil {
-		return VoiceMessagePreparation{}, err
-	}
-	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
-	if err != nil {
-		return VoiceMessagePreparation{}, err
-	}
-	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
-		return VoiceMessagePreparation{}, err
-	}
-	prep := VoiceMessagePreparation{
-		OrganizationID: room.OrganizationID,
-		room:           room,
-		actorID:        userID,
-		input:          in,
-	}
-	if in.ClientMsgID != "" {
-		existing, found, lookupErr := s.existingMessageByClientMsgID(ctx, room.ID, userID, in.ClientMsgID)
-		if lookupErr != nil {
-			return VoiceMessagePreparation{}, lookupErr
-		}
-		if found {
-			row, rowErr := s.chatMessageRowForExisting(ctx, existing)
-			if rowErr != nil {
-				return VoiceMessagePreparation{}, rowErr
-			}
-			if row.Kind != "voice" {
-				return VoiceMessagePreparation{}, Invalid("client_msg_id đã được dùng")
-			}
-			prep.Existing = &row
-			return prep, nil
-		}
-		prep.clientMsg = pgtype.Text{String: in.ClientMsgID, Valid: true}
-	}
-	if in.ReplyToMessageID != nil && strings.TrimSpace(*in.ReplyToMessageID) != "" {
-		replyID := strings.TrimSpace(*in.ReplyToMessageID)
-		if _, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{
-			ID: replyID, RoomID: room.ID, WorkspaceID: roomAnchorWorkspaceID(room),
-		}); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return VoiceMessagePreparation{}, Invalid("tin nhắn trả lời không hợp lệ")
-			}
-			return VoiceMessagePreparation{}, err
-		}
-		prep.replyTo = pgtype.Text{String: replyID, Valid: true}
-	}
-	user, err := s.q.GetUserByID(ctx, userID)
-	if err != nil {
-		return VoiceMessagePreparation{}, err
-	}
-	prep.senderName = user.DisplayName
-	return prep, nil
-}
-
-// CreateVoiceMessage inserts metadata after storage succeeds. created=false
-// means a concurrent idempotent request won and the caller should delete its object.
-func (s *ChatService) CreateVoiceMessage(
-	ctx context.Context,
-	userID, objectKey string,
-	prep VoiceMessagePreparation,
-) (row ChatMessageRow, created bool, err error) {
-	objectKey = strings.TrimSpace(objectKey)
-	if objectKey == "" || prep.room.ID == "" || prep.actorID != userID {
-		return ChatMessageRow{}, false, Invalid("object_key không hợp lệ")
-	}
-	meta, err := json.Marshal(map[string]any{
-		"duration_ms":  prep.input.DurationMS,
-		"object_key":   objectKey,
-		"content_type": prep.input.ContentType,
-		"size_bytes":   prep.input.SizeBytes,
-	})
-	if err != nil {
-		return ChatMessageRow{}, false, err
-	}
-	msg, err := s.q.CreateChatVoiceMessage(ctx, db.CreateChatVoiceMessageParams{
-		ID:               util.NewID(),
-		RoomID:           prep.room.ID,
-		OrganizationID:   prep.room.OrganizationID,
-		WorkspaceID:      roomAnchorWorkspaceID(prep.room),
-		SenderID:         userID,
-		SenderKind:       string(audit.KindHuman),
-		Metadata:         meta,
-		ReplyToMessageID: prep.replyTo,
-		ClientMsgID:      prep.clientMsg,
-	})
-	if err != nil {
-		if prep.input.ClientMsgID != "" && isUniqueViolation(err) {
-			existing, found, lookupErr := s.existingMessageByClientMsgID(ctx, prep.room.ID, userID, prep.input.ClientMsgID)
-			if lookupErr != nil {
-				return ChatMessageRow{}, false, lookupErr
-			}
-			if found && existing.Kind == "voice" {
-				row, rowErr := s.chatMessageRowForExisting(ctx, existing)
-				return row, false, rowErr
-			}
-		}
-		return ChatMessageRow{}, false, err
-	}
-	_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
-		RoomID: prep.room.ID, UserID: userID,
-		LastReadAt: pgtype.Timestamptz{Time: msg.CreatedAt.Time, Valid: true},
-	})
-	_ = s.q.TouchChatRoomUpdatedAt(ctx, prep.room.ID)
-	s.publishCreatedChatMessage(ctx, prep.room, msg.ID, msg.SenderID, "")
-	return chatMessageRowFromDB(msg, prep.senderName), true, nil
+	return validateClientMsgID(strings.TrimSpace(clientMsgID)) == nil
 }
 
 // publishCreatedChatMessage carries the sender so a client can tell its own
@@ -271,21 +128,6 @@ func (s *ChatService) OpenChatVoiceMessage(
 	return s.openChatMediaMessage(ctx, userID, workspaceID, roomID, messageID, "voice", "")
 }
 
-// GetVoiceMessage authorizes both room and message and returns private object metadata.
-func (s *ChatService) GetVoiceMessage(
-	ctx context.Context,
-	userID, workspaceID, roomID, messageID string,
-) (ChatMessageRow, error) {
-	row, err := s.GetRoomMessage(ctx, userID, workspaceID, roomID, messageID)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	if row.Kind != "voice" || row.Voice == nil || (row.Voice.ObjectKey == "" && row.Voice.FileID == "") {
-		return ChatMessageRow{}, ErrNotFound
-	}
-	return row, nil
-}
-
 // voiceMessageFromMetadata reads rows written by either path: a
 // post-migration row references the file by file_id, a pre-migration row by
 // object_key; both carry duration and the verified type/size snapshot.
@@ -305,9 +147,8 @@ func voiceMessageFromMetadata(kind string, raw []byte) *VoiceMessageInfo {
 	}
 	objectKey := strings.TrimSpace(meta.ObjectKey)
 	fileID := strings.TrimSpace(meta.FileID)
-	if validateVoiceMessageInput(PrepareVoiceMessageInput{
-		DurationMS: meta.DurationMS, ContentType: meta.ContentType, SizeBytes: meta.SizeBytes,
-	}) != nil || (objectKey == "" && fileID == "") {
+	if !validStoredVoiceMetadata(meta.DurationMS, meta.ContentType, meta.SizeBytes, "") ||
+		(objectKey == "" && fileID == "") {
 		return nil
 	}
 	return &VoiceMessageInfo{

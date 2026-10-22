@@ -10,7 +10,7 @@ import { ABI } from "./mobile-ftl-devices.mjs";
 import { JOBS as GATE_JOBS } from "./mobile-verify-gate.mjs";
 
 // The release path of UniChat mobile (docs/runbooks/unichat-mobile-release.md,
-// ADR 0037): what the four workflows promise, held so an edit cannot quietly
+// ADR 0043): what the four workflows promise, held so an edit cannot quietly
 // drop it.
 const root = path.resolve(import.meta.dirname, "..");
 const read = (f) => fs.readFileSync(path.join(root, ".github/workflows", f), "utf8");

@@ -37,7 +37,9 @@ const record = (id: string, sender: string, minute: number, body = `message ${id
 
 const history = Array.from({ length: 6 }, (_, i) => record(`m0${i}`, i % 2 ? "ME" : "U2", i * 10));
 
-function Screen({ records, onJumpToLatest, unread }: { records: ChatMessageRecord[]; onJumpToLatest?: () => void; unread?: { since: string; count: number } }) {
+type ScreenProps = { records: ChatMessageRecord[]; onJumpToLatest?: () => void; onQuoteJump?: (messageId: string) => void; unread?: { since: string; count: number } };
+
+function Screen({ records, onJumpToLatest, onQuoteJump, unread }: ScreenProps) {
   const room = useRoomContext(chat, "r1");
   // The screen owns whether the list shows its newest message, as the room and thread screens do.
   const [atLatest, setAtLatest] = useState(true);
@@ -52,7 +54,7 @@ function Screen({ records, onJumpToLatest, unread }: { records: ChatMessageRecor
       loading={false}
       loadingOlder={false}
       jumpTo={null}
-      onQuoteJump={jest.fn()}
+      onQuoteJump={onQuoteJump ?? jest.fn()}
       atLatest={atLatest}
       onAtLatestChange={setAtLatest}
       onJumpToLatest={onJumpToLatest}
@@ -260,6 +262,21 @@ describe("a link in a message", () => {
     await fireEvent(link, "longPress");
     expect(Haptics.impactAsync).toHaveBeenCalledWith("medium");
     expect(screen.getByRole("button", { name: viText("mobile.conversation.link_copy") })).toBeOnTheScreen();
+  });
+});
+
+describe("a poll vote's notice", () => {
+  it("takes the reader to the poll it voted on", async () => {
+    const onQuoteJump = jest.fn();
+    const vote = ChatMessageSchema.parse({
+      ...record("m10", "U2", 100, "Ăn trưa?"),
+      kind: "poll_vote",
+      poll_vote: { poll_message_id: "m02", question: "Ăn trưa?" },
+    });
+    await render(<Screen records={[...history, vote]} onQuoteJump={onQuoteJump} />);
+    await settle();
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.poll_vote_activity_view") }));
+    expect(onQuoteJump).toHaveBeenCalledWith("m02");
   });
 });
 

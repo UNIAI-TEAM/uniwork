@@ -32,12 +32,27 @@ const DocumentPurgeResponseSchema = z.undefined();
 
 const enc = encodeURIComponent;
 
+/** The columns the document tables sort by on the server. */
+export type DocumentSortColumn = "updated" | "name" | "size" | "editor";
+/** A screen's own order (UNI-2045 W11, W12): Recent by its last activity
+ *  (SV-1), the two Shared lists by the share date (SV-3, SV-4), Lưu trữ by the
+ *  shelve date (SV-0). Starred sorts on the client, the trash is fixed. */
+export type DocumentScreenSort = "activity" | "shared" | "shelved";
+
+/** Recent's Tất cả / Đã mở / Đã sửa segment (UNI-2045 SV-1b); left out is every activity. */
+export type DocumentRecentActivity = "opened" | "edited";
+export type DocumentSortOrder = "asc" | "desc";
+
 /** Filters of GET /workspaces/{ws}/documents. `parentId: ""` lists the
  *  workspace roots; leaving it undefined is the flat list. `sharedByMe: true`
  *  lists documents the caller owns and has shared (`parent_id` + `shared_by_me`
  *  is rejected with 400 `invalid_filter`, so the union forbids passing both). */
 export interface ListDocumentsBaseOpts {
   q?: string;
+  /** The column the tables sort by (UNI-2038); left out keeps the list's own
+   *  fixed order. The trash takes only its own order (listTrashedDocuments). */
+  sort?: DocumentSortColumn | DocumentScreenSort;
+  order?: DocumentSortOrder;
   /** "document" is every kind but folder (folders contract v1.0). */
   kind?: DocumentKind | "document";
   /** The library's type chip: the file format of the row's current version
@@ -53,12 +68,16 @@ export interface ListDocumentsBaseOpts {
    *  left out, the search keeps its old behaviour. */
   match?: "title";
   archived?: boolean;
+  /** The editor filter (Người sửa): rows whose last editor is this user. */
   updatedBy?: string;
-  /** RFC3339 lower/upper bound on updated_at. */
+  /** RFC3339 lower/upper bound on updated_at (on shelved: shelved_at). */
   updatedFrom?: string;
   updatedTo?: string;
   cursor?: string;
   limit?: number;
+  /** `/documents/recent` only: also list the documents the caller owns (at their
+   *  last change) after somebody else edits them. Other lists ignore it. */
+  includeOwned?: boolean;
 }
 
 export type ListDocumentsOpts = ListDocumentsBaseOpts &
@@ -67,16 +86,26 @@ export type ListDocumentsOpts = ListDocumentsBaseOpts &
     | { sharedByMe: true; parentId?: never }
   );
 
-function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean }): string {
+/** `trash` is the Thùng rác list: archived=1 in its one fixed order (see listTrashedDocuments). */
+function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean; trash?: boolean; activity?: DocumentRecentActivity }): string {
   if (!opts) return "";
   const p = new URLSearchParams();
+  if (opts.trash) {
+    p.set("archived", "1");
+    p.set("sort", "deleted");
+    p.set("order", "asc");
+  }
   if (opts.parentId !== undefined) p.set("parent_id", opts.parentId);
   if (opts.sharedByMe) p.set("shared_by_me", "true");
   if (opts.q) p.set("q", opts.q);
   if (opts.kind) p.set("kind", opts.kind);
   if (opts.format) p.set("format", opts.format);
   if (opts.access) p.set("access", opts.access);
+  if (opts.sort) p.set("sort", opts.sort);
+  if (opts.order) p.set("order", opts.order);
   if (opts.match) p.set("match", opts.match);
+  if (opts.includeOwned) p.set("include_owned", "true");
+  if (opts.activity) p.set("activity", opts.activity);
   if (opts.archived !== undefined) p.set("archived", opts.archived ? "1" : "0");
   if (opts.shelved === true) p.set("shelved", "true");
   if (opts.updatedBy) p.set("updated_by", opts.updatedBy);
@@ -106,12 +135,21 @@ export async function listDocuments(
   return parsed;
 }
 
+/** The filters every collection list takes besides the cursor (UNI-1868
+ *  chips, UNI-2045 SV-7/SV-8 editor and updated window). */
+type CollectionListOpts = Pick<
+  ListDocumentsBaseOpts,
+  "cursor" | "limit" | "format" | "access" | "updatedBy" | "updatedFrom" | "updatedTo"
+>;
+
 /** GET /api/v1/workspaces/{workspaceID}/documents/recent — what the person
- *  opened or last edited. Humans only; an agent token answers 403. Takes the
- *  same `format`/`access` filters as the flat list. */
+ *  opened or last edited; `includeOwned` adds what they own. Humans only; an
+ *  agent token answers 403. Takes the flat list's `format`/`access`/`updated_*`
+ *  filters, `activity` (SV-1b) and `sort=activity` (SV-1). */
 export async function listRecentDocuments(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
+  opts?: CollectionListOpts &
+    Pick<ListDocumentsBaseOpts, "sort" | "order" | "includeOwned"> & { activity?: DocumentRecentActivity },
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/recent${listQuery(opts)}`, { signal });
@@ -128,7 +166,7 @@ export async function listRecentDocuments(
  *  the page (default 50, max 100), and a denied candidate never takes a slot. */
 export async function listSharedWithMe(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
+  opts?: CollectionListOpts & Pick<ListDocumentsBaseOpts, "sort" | "order">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(
@@ -137,6 +175,23 @@ export async function listSharedWithMe(
   );
   const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
     endpoint: "GET /api/v1/workspaces/{ws}/documents/shared-with-me",
+  });
+  if (!parsed) throw new Error("document_list_invalid");
+  return parsed;
+}
+
+/** GET /api/v1/workspaces/{workspaceID}/documents/favorites (UNI-2045 SV-2) —
+ *  the caller's starred documents in the workspace as list rows, each with its
+ *  `favorited_at`, newest star first; keyset paging on `cursor`. The org-wide
+ *  favorites route (document-favorites.ts) stays for the star toggles. */
+export async function listFavoriteDocuments(
+  wsId: string,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit">,
+  signal?: AbortSignal,
+): Promise<DocumentList> {
+  const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/favorites${listQuery(opts)}`, { signal });
+  const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
+    endpoint: "GET /api/v1/workspaces/{ws}/documents/favorites",
   });
   if (!parsed) throw new Error("document_list_invalid");
   return parsed;
@@ -151,7 +206,7 @@ export async function listSharedWithMe(
  */
 export async function listSharedByMe(
   wsId: string,
-  cursorOrOpts?: string | Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
+  cursorOrOpts?: string | (CollectionListOpts & Pick<ListDocumentsBaseOpts, "sort" | "order">),
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const opts = typeof cursorOrOpts === "string" ? { cursor: cursorOrOpts } : cursorOrOpts;
@@ -162,6 +217,11 @@ export async function listSharedByMe(
       limit: opts?.limit,
       format: opts?.format,
       access: opts?.access,
+      updatedBy: opts?.updatedBy,
+      updatedFrom: opts?.updatedFrom,
+      updatedTo: opts?.updatedTo,
+      sort: opts?.sort,
+      order: opts?.order,
     })}`,
     { signal },
   );
@@ -175,14 +235,15 @@ export async function listSharedByMe(
 /**
  * GET /api/v1/workspaces/{workspaceID}/documents?shelved=true — the "Lưu trữ"
  * list (ARCHIVE-01 §4): a flat keyset-paged view of what the caller may see,
- * ordered shelved_at DESC. Combines with the LISTFILTER `format`/`access`
+ * ordered shelved_at DESC unless `sort`/`order` say otherwise (SV-0: `shelved`
+ * or one of the S3 columns). Combines with the LISTFILTER `format`/`access`
  * chips; never sends `parent_id` or `archived` (shelved+archived answers 400).
  * Uses the same list schema and cursor contract as the flat list; an
  * untrusted answer throws rather than render an empty shelf.
  */
 export async function listShelvedDocuments(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
+  opts?: CollectionListOpts & Pick<ListDocumentsBaseOpts, "sort" | "order">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(
@@ -192,11 +253,49 @@ export async function listShelvedDocuments(
       limit: opts?.limit,
       format: opts?.format,
       access: opts?.access,
+      updatedBy: opts?.updatedBy,
+      updatedFrom: opts?.updatedFrom,
+      updatedTo: opts?.updatedTo,
+      sort: opts?.sort,
+      order: opts?.order,
     })}`,
     { signal },
   );
   const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
     endpoint: "GET /api/v1/workspaces/{ws}/documents?shelved=true",
+  });
+  if (!parsed) throw new Error("document_list_invalid");
+  return parsed;
+}
+
+/**
+ * GET /api/v1/workspaces/{workspaceID}/documents?archived=1 — the Thùng rác
+ * list, always `sort=deleted&order=asc` (UNI-2045 Q2): the items purged first
+ * lead, so the "Sắp xóa vĩnh viễn" group holds under paging. The order is not a
+ * parameter, the screen has no header sort. Same schema and cursor contract as
+ * the flat list; an untrusted answer throws rather than render an empty trash.
+ */
+export async function listTrashedDocuments(
+  wsId: string,
+  opts?: CollectionListOpts & Pick<ListDocumentsBaseOpts, "kind">,
+  signal?: AbortSignal,
+): Promise<DocumentList> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(wsId)}/documents${listQuery({
+      trash: true,
+      kind: opts?.kind,
+      format: opts?.format,
+      access: opts?.access,
+      updatedBy: opts?.updatedBy,
+      updatedFrom: opts?.updatedFrom,
+      updatedTo: opts?.updatedTo,
+      cursor: opts?.cursor,
+      limit: opts?.limit,
+    })}`,
+    { signal },
+  );
+  const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
+    endpoint: "GET /api/v1/workspaces/{ws}/documents?archived=1",
   });
   if (!parsed) throw new Error("document_list_invalid");
   return parsed;

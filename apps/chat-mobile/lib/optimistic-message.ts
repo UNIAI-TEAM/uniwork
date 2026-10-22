@@ -42,7 +42,7 @@ export function toggledPollChoice(poll: Poll, optionId: string): string[] {
 const sameChoice = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id) => b.includes(id));
 
 /** The poll with the viewer's choice set to `choice`, counts moved by the difference. */
-export function withPollChoice(record: ChatMessageRecord, viewerId: string, choice: readonly string[]): ChatMessageRecord {
+export function withPollChoice(record: ChatMessageRecord, choice: readonly string[]): ChatMessageRecord {
   const poll = record.poll;
   if (!poll || sameChoice(poll.viewer_option_ids, choice)) return record;
   const before = new Set(poll.viewer_option_ids);
@@ -51,8 +51,7 @@ export function withPollChoice(record: ChatMessageRecord, viewerId: string, choi
     ...option,
     votes: Math.max(0, option.votes + (after.has(option.id) ? 1 : 0) - (before.has(option.id) ? 1 : 0)),
   }));
-  const votesByUser = poll.votes_by_user ? { ...poll.votes_by_user, [viewerId.trim().toUpperCase()]: [...choice] } : undefined;
-  return { ...record, poll: { ...poll, options, viewer_option_ids: [...choice], votes_by_user: votesByUser } };
+  return { ...record, poll: { ...poll, options, viewer_option_ids: [...choice] } };
 }
 
 /**

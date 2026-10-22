@@ -89,6 +89,11 @@ describe("buildMessageRowModels", () => {
     expect(models.get("m1")).toMatchObject({ swipeToReply: true, taskIds: ["t1"] });
   });
 
+  it("does not let a poll vote's notice swipe to reply", () => {
+    const vote = record("v1", "an", { kind: "poll_vote", poll_vote: { poll_message_id: "p1", question: "Ăn trưa?" } });
+    expect(buildMessageRowModels(input([vote])).get("v1")).toMatchObject({ swipeToReply: false });
+  });
+
   it("hands back last time's object for a row that draws the same, a new one for a row that changed", () => {
     const a1 = at("a1", "an", 0);
     const a2 = at("a2", "an", 1);

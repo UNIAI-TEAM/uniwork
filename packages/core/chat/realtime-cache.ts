@@ -2,9 +2,9 @@
 
 // The web's binding of chat-message-cache.ts (shared with the phone): its keys,
 // its transport, its viewer (the auth and active-room stores), and what it
-// keeps beside the timelines — the info panel's shared-media summary, the
-// legacy workspace message list and the task/doc link lookups.
-import type { QueryClient, QueryKey } from "@tanstack/react-query";
+// keeps beside the timelines — the info panel's shared-media summary and the
+// task/doc link lookups.
+import type { QueryClient } from "@tanstack/react-query";
 import { getChatRoomMessage } from "../api/endpoints/chat";
 import { useAuthStore } from "../auth/store";
 import { useActiveChatRoomStore } from "./active-chat-room-store";
@@ -18,12 +18,6 @@ function invalidateRoomSharedSummary(qc: QueryClient, wsId: string, roomId: stri
   // Only a summary someone loaded can be stale; skipping the rest keeps message frames to their timeline patch.
   if (!qc.getQueryState(queryKey)) return;
   void qc.invalidateQueries({ queryKey });
-}
-
-/** The legacy workspace message list mirrors the workspace room's timeline. */
-function workspaceMessageList(qc: QueryClient, wsId: string, roomId: string): QueryKey[] {
-  const wsRoom = qc.getQueryData<{ room_id?: string }>(chatKeys.room(wsId));
-  return wsRoom?.room_id === roomId ? [chatKeys.messages(wsId)] : [];
 }
 
 /**
@@ -46,7 +40,6 @@ const cache = createChatMessageCache({
     roomThreads: (wsId, roomId) => ["chat", "thread-messages", wsId, roomId],
   },
   getMessage: (wsId, roomId, messageId) => getChatRoomMessage(wsId, roomId, messageId),
-  mirroredLists: workspaceMessageList,
   onMessagePlaced: (qc, wsId, roomId, message, created) => {
     if (created && !isChatThreadReply(message)) invalidateRoomSharedSummary(qc, wsId, roomId);
   },

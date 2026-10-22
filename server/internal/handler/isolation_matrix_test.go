@@ -510,6 +510,9 @@ var isoTenantParams = map[string]bool{
 	// An edit lock tenure and an edit request are rows of one organization
 	// (UNI-1645 §6 step 3).
 	"{lockID}": true, "{requestID}": true,
+	// An inbox row carries the organization and belongs to one person
+	// (UNI-2056): the documents route reads through it.
+	"{notificationID}": true,
 }
 
 func isoUnclassified(routes []isoRoute) []string {
@@ -628,7 +631,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "room")
 	case "{messageID}":
 		switch {
-		case strings.HasSuffix(pattern, "/poll/vote"):
+		case strings.Contains(pattern, "/ai/conversations/"):
+			return tn.get(t, "aiAnswer")
+		case strings.HasSuffix(pattern, "/poll/vote"), strings.HasSuffix(pattern, "/poll/options"), strings.HasSuffix(pattern, "/poll/voters"):
 			return tn.get(t, "pollMessage")
 		case strings.HasSuffix(pattern, "/task-sync"):
 			// A group thread cannot sync to a task (H12); a public channel's can.
@@ -754,7 +759,17 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{versionNo}":
 		return tn.get(t, "version")
 	case "{jobID}":
+		// The zip download job (UNI-2045) lives under the workspace's documents
+		// collection; the office job under a document.
+		if under("/documents/download-jobs/") {
+			return tn.get(t, "downloadJob")
+		}
 		return tn.get(t, "officeJob")
+	case "{batchID}":
+		// The folder upload batch (UNI-2052) of the tenant's owner.
+		return tn.get(t, "folderUpload")
+	case "{fileKey}":
+		return tn.get(t, "folderUploadFileKey")
 	case "{exportID}":
 		return tn.get(t, "auditExport")
 	case "{privacyExportID}":
@@ -870,6 +885,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return "0af7651916cd43dd8448eb211c80319c"
 	case "{sessionId}":
 		return tn.get(t, "session")
+	case "{notificationID}":
+		return tn.get(t, "notification")
 	case "{quickActionID}", "{agentTaskID}", "{connectionID}":
 		// Stubbed routes: no row exists for anyone.
 		return "01J8X4STUB0N1P2Q3R4S5T6U7V"
@@ -1012,7 +1029,7 @@ func (w *isoWorld) referencesTo(t *testing.T, in, of *isoTenant) []string {
 			if _, skip := isoDigestSkip[name]; skip {
 				continue
 			}
-			parts = append(parts, fmt.Sprintf(`SELECT %s, count(*) FROM %q x WHERE organization_id = $1 AND lower(x::text) ~ $2`, isoSQLString(name), name))
+			parts = append(parts, fmt.Sprintf(`SELECT %s, count(*) FROM %q x WHERE organization_id = $1 AND lower(%s) ~ $2`, isoSQLString(name), name, isoRowText(name)))
 		}
 		rows.Close()
 		w.refSQL = strings.Join(parts, "\nUNION ALL\n")
@@ -1043,6 +1060,39 @@ func (w *isoWorld) referencesTo(t *testing.T, in, of *isoTenant) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// isoRowEchoColumns are columns that echo what the caller typed, so a request
+// that names another tenant's id is answered, never refused, and the row keeps
+// the id the person sent: the zip download job (UNI-2045 SV-9) keeps the ids it
+// was asked for and the ones it skipped as not_found - the same answer an
+// unknown id gets, so the echo tells nothing about the other tenant. Only the
+// ULID-shaped tokens of these columns are exempt (isoRowText strips them): any
+// other text in them, and every other column of the row, is still searched, and
+// no other table is exempt.
+var isoRowEchoColumns = map[string][]string{
+	"document_download_jobs": {"document_ids", "skipped"},
+}
+
+// isoULIDToken matches a lowercased ULID (Crockford base32, 26 characters).
+const isoULIDToken = `[0-9a-hjkmnp-tv-z]{26}`
+
+// isoRowText is the SQL text the reference search reads for one table's row.
+// The echo columns stay in it with their ULID-shaped tokens removed.
+func isoRowText(table string) string {
+	cols := isoRowEchoColumns[table]
+	if len(cols) == 0 {
+		return "x::text"
+	}
+	expr := "(to_jsonb(x)"
+	for _, c := range cols {
+		expr += " - " + isoSQLString(c)
+	}
+	expr += ")::text"
+	for _, c := range cols {
+		expr += " || ' ' || regexp_replace(lower(x.\"" + c + "\"::text), " + isoSQLString(isoULIDToken) + ", '', 'g')"
+	}
+	return expr
 }
 
 func isoValues(m map[string]string) []string {
@@ -1277,5 +1327,26 @@ func (w *isoWorld) sharedByMeChecks(t *testing.T) {
 	_, raw := w.do(t, http.MethodGet, pathFor(w.bravo), w.bravo.token, isoBody{})
 	if leak := w.alpha.leakIn(raw, ""); leak != "" {
 		t.Errorf("GET %s: B's own view carries A's %s: %s", pathFor(w.bravo), leak, isoClip(raw))
+	}
+}
+
+// The echo exemption hides only the ids a caller typed: other text in an echo
+// column (a title or marker of A's written into skipped) still trips the search.
+func TestIsoRowTextStripsOnlyULIDsFromEchoColumns(t *testing.T) {
+	const ulid = "01J8X4DKJ0N1P2Q3R4S5T6V7W8"
+	_, pool := newTestDeps(t, nil, discardOutbox{})
+	row := `SELECT lower(` + isoRowText("document_download_jobs") + `) FROM (SELECT
+		ARRAY['` + ulid + `']::text[] AS document_ids,
+		'[{"document_id":"` + ulid + `","reason":"not_found"},{"document_id":"x","reason":"Quarterly Secret Title"}]'::jsonb AS skipped,
+		'plain' AS status) x`
+	var text string
+	if err := pool.QueryRow(context.Background(), row).Scan(&text); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(text, strings.ToLower(ulid)) {
+		t.Fatalf("echoed id still searched: %s", text)
+	}
+	if !strings.Contains(text, "quarterly secret title") || !strings.Contains(text, "plain") {
+		t.Fatalf("other text no longer searched: %s", text)
 	}
 }

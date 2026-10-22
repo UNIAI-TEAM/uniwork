@@ -33,5 +33,6 @@ export function OfficeConnection() {
       <AccordionItem value="files"><AccordionTrigger>{t("landing.office.connection.details.files")}</AccordionTrigger><AccordionContent className="office-connection-details-copy"><p>{t("landing.office.ai.files.description")}</p></AccordionContent></AccordionItem>
     </Accordion>
     <Link className="chapter-link" href={paths.enterprise()}>{t("landing.office.ai.link")}<ArrowRight aria-hidden /></Link>
+    <p><Link className="chapter-link" href={paths.guide("office-files-and-ai")}>{t("marketingSeo.officeGuide")}<ArrowRight aria-hidden /></Link></p>
   </section>;
 }

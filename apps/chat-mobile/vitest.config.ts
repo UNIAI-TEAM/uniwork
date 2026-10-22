@@ -17,7 +17,7 @@ export default defineConfig({
       // realtime-provider and use-ws-subscriptions are React (AppState/NetInfo/Platform, the
       // socket's context), and query-client wires AppState / NetInfo into TanStack at module
       // load. lib/ has no such file: it is pure by lint (eslint.config.mjs › lib/), so all of it
-      // is measured. Never exclude a file to pass the floor (ADR 0037); component code is
+      // is measured. Never exclude a file to pass the floor (ADR 0043); component code is
       // covered by the jest-expo layer (jest.config.js), not here.
       exclude: [
         "**/*.test.ts",
@@ -38,7 +38,7 @@ export default defineConfig({
         "data/mutations/**",
       ],
       reporter: ["text-summary"],
-      // Blocks at every GATE_LEVEL (ADR 0037): not routed through scripts/coverage-gate.ts.
+      // Blocks at every GATE_LEVEL (ADR 0043): not routed through scripts/coverage-gate.ts.
       thresholds: { statements: 100, branches: 100, functions: 100, lines: 100 },
     },
   },

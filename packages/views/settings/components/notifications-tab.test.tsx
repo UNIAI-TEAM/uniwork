@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { useChatDeviceNotificationStore } from "@uniwork/core/chat/device-notification-store";
 import { registerPushAdapter } from "@uniwork/core/platform";
 import { NOTIFICATION_KINDS } from "@uniwork/core/types/notification";
@@ -80,7 +80,7 @@ describe("NotificationsTab", () => {
     expect(await screen.findByText("Đã lưu")).toBeInTheDocument();
     expect(toastSuccess).not.toHaveBeenCalled();
     // Without push, one quiet line says why the column is missing.
-    expect(screen.getByText(/Máy chủ này chưa bật thông báo đẩy/)).toBeInTheDocument();
+    expect(screen.getByText(/Máy chủ chưa bật thông báo đẩy khi đóng tab/)).toBeInTheDocument();
   });
 
   it("in UniChat keeps only the chat kinds and puts this device's chat cues in the desktop card", async () => {
@@ -138,11 +138,13 @@ describe("NotificationsTab", () => {
     const sentOf = (call: RequestCall | undefined) => call?.[1]?.body?.preferences ?? [];
 
     // Mixed turns everything on: only the kinds that were off are written, all of
-    // them switched on. The omitted trash kind defaults email off (Q-R2) but can
-    // never hold it, so the bulk control does not claim it (BE-TN-11).
+    // them switched on - "mentioned" and the omitted document change notice,
+    // whose email starts off but may be on (UNI-2056). The omitted trash kind
+    // defaults email off (Q-R2) but can never hold it, so the bulk control does
+    // not claim it (BE-TN-11).
     fireEvent.click(screen.getByRole("checkbox", { name: "Email cho mọi loại phù hợp" }));
     await waitFor(() => expect(puts()).toHaveLength(1));
-    expect(sentOf(puts()[0]).map((p) => p.kind)).toEqual(["mentioned"]);
+    expect(sentOf(puts()[0]).map((p) => p.kind).sort()).toEqual(["document_changed", "mentioned"]);
     expect(sentOf(puts()[0]).every((p) => p.email)).toBe(true);
     expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại phù hợp" })).toHaveAttribute("aria-checked", "true");
 
@@ -255,6 +257,64 @@ describe("NotificationsTab", () => {
     expect(await sw("Hộp việc")).toHaveAttribute("aria-checked", "true");
     expect(await sw("Đẩy")).toHaveAttribute("aria-checked", "false");
     expect(await sw("Email")).toHaveAttribute("aria-checked", "false");
+  });
+
+  // UNI-2056: the document_changed digest starts with email off, like
+  // DefaultPrefs, but the server allows it, so the switch still turns it on.
+  it("fills the document change notice with email off and lets it be switched on", async () => {
+    mockApi(false);
+    render(wrap(<NotificationsTab />));
+    const label = t("settings.notifications.kinds.document_changed");
+    expect(label).not.toBe("settings.notifications.kinds.document_changed");
+    const email = await screen.findByRole("switch", { name: `${label} · Email` });
+    expect(email).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(email);
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/me/notification-preferences",
+        expect.objectContaining({
+          method: "PUT",
+          body: { preferences: [{ kind: "document_changed", in_app: true, push: false, email: true }] },
+        }),
+      ),
+    );
+  });
+
+  // UNI-2056: one switch row for every verb of the folded document-change notification.
+  it("labels the document-change row and fills in-app on, push off and email off when the server omitted it", async () => {
+    mockApi(true);
+    registerPushAdapter({
+      permission: () => "default",
+      requestPermission: () => Promise.resolve("granted"),
+      current: () => Promise.resolve(null),
+      subscribe: () => Promise.reject(new Error("unreachable")),
+      unsubscribe: () => Promise.resolve(null),
+    });
+    render(wrap(<NotificationsTab />));
+    const label = t("settings.notifications.kinds.document_changed");
+    expect(label).toBe("Thay đổi trên tài liệu của bạn hoặc được chia sẻ với bạn");
+    const sw = (channel: string) => screen.findByRole("switch", { name: `${label} · ${channel}` });
+    expect(await sw("Hộp việc")).toHaveAttribute("aria-checked", "true");
+    expect(await sw("Đẩy")).toHaveAttribute("aria-checked", "false");
+    expect(await sw("Email")).toHaveAttribute("aria-checked", "false");
+    // Turning in-app off writes the effective row back, email still off.
+    fireEvent.click(await sw("Hộp việc"));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/me/notification-preferences",
+        expect.objectContaining({
+          method: "PUT",
+          body: { preferences: [{ kind: "document_changed", in_app: false, push: false, email: false }] },
+        }),
+      ),
+    );
+  });
+
+  it("words the document-change row in English", async () => {
+    await setLocale("en");
+    expect(t("settings.notifications.kinds.document_changed")).toBe("Changes to your documents and documents shared with you");
+    await setLocale("vi");
   });
 
   it("shows a load error with retry instead of a guessed matrix, and writes nothing", async () => {

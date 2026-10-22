@@ -15,7 +15,7 @@ const archiveChatChannel = `-- name: ArchiveChatChannel :one
 UPDATE chat_rooms
 SET archived_at = now(), archived_by = $2, updated_at = now()
 WHERE id = $1 AND kind = 'channel' AND is_default = false AND archived_at IS NULL
-RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id
+RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id, wallpaper_preset, wallpaper_file_id
 `
 
 type ArchiveChatChannelParams struct {
@@ -47,6 +47,8 @@ func (q *Queries) ArchiveChatChannel(ctx context.Context, arg ArchiveChatChannel
 		&i.ArchivedAt,
 		&i.ArchivedBy,
 		&i.AvatarFileID,
+		&i.WallpaperPreset,
+		&i.WallpaperFileID,
 	)
 	return i, err
 }
@@ -520,7 +522,7 @@ INSERT INTO chat_rooms (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, $11, $12, $13, now(), now()
-) RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id
+) RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id, wallpaper_preset, wallpaper_file_id
 `
 
 type CreateChatRoomParams struct {
@@ -576,6 +578,8 @@ func (q *Queries) CreateChatRoom(ctx context.Context, arg CreateChatRoomParams) 
 		&i.ArchivedAt,
 		&i.ArchivedBy,
 		&i.AvatarFileID,
+		&i.WallpaperPreset,
+		&i.WallpaperFileID,
 	)
 	return i, err
 }
@@ -943,7 +947,7 @@ func (q *Queries) GetChatRoomAvatarFileIDForUpdate(ctx context.Context, arg GetC
 }
 
 const getChatRoomByID = `-- name: GetChatRoomByID :one
-SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id FROM chat_rooms WHERE id = $1
+SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id, wallpaper_preset, wallpaper_file_id FROM chat_rooms WHERE id = $1
 `
 
 // tenant: by-id
@@ -970,12 +974,14 @@ func (q *Queries) GetChatRoomByID(ctx context.Context, id string) (ChatRoom, err
 		&i.ArchivedAt,
 		&i.ArchivedBy,
 		&i.AvatarFileID,
+		&i.WallpaperPreset,
+		&i.WallpaperFileID,
 	)
 	return i, err
 }
 
 const getChatRoomByKindAndMemberSet = `-- name: GetChatRoomByKindAndMemberSet :one
-SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id FROM chat_rooms
+SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id, wallpaper_preset, wallpaper_file_id FROM chat_rooms
 WHERE organization_id = $1 AND kind = $2 AND member_set_key = $3
 LIMIT 1
 `
@@ -1009,6 +1015,8 @@ func (q *Queries) GetChatRoomByKindAndMemberSet(ctx context.Context, arg GetChat
 		&i.ArchivedAt,
 		&i.ArchivedBy,
 		&i.AvatarFileID,
+		&i.WallpaperPreset,
+		&i.WallpaperFileID,
 	)
 	return i, err
 }
@@ -1127,6 +1135,29 @@ func (q *Queries) GetChatRoomSharedSummary(ctx context.Context, arg GetChatRoomS
 	return items, nil
 }
 
+const getChatRoomWallpaperForUpdate = `-- name: GetChatRoomWallpaperForUpdate :one
+SELECT wallpaper_preset, wallpaper_file_id FROM chat_rooms
+WHERE id = $1 AND organization_id = $2
+FOR UPDATE
+`
+
+type GetChatRoomWallpaperForUpdateParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+type GetChatRoomWallpaperForUpdateRow struct {
+	WallpaperPreset string      `json:"wallpaper_preset"`
+	WallpaperFileID pgtype.Text `json:"wallpaper_file_id"`
+}
+
+func (q *Queries) GetChatRoomWallpaperForUpdate(ctx context.Context, arg GetChatRoomWallpaperForUpdateParams) (GetChatRoomWallpaperForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getChatRoomWallpaperForUpdate, arg.ID, arg.OrganizationID)
+	var i GetChatRoomWallpaperForUpdateRow
+	err := row.Scan(&i.WallpaperPreset, &i.WallpaperFileID)
+	return i, err
+}
+
 const getChatThreadFollower = `-- name: GetChatThreadFollower :one
 SELECT id, organization_id, workspace_id, room_id, thread_root_id, user_id, reason, muted, last_read_at, created_at, updated_at FROM chat_thread_followers
 WHERE thread_root_id = $1 AND user_id = $2
@@ -1207,7 +1238,7 @@ func (q *Queries) GetLatestChatMessageByRoom(ctx context.Context, arg GetLatestC
 }
 
 const getWorkspaceChatRoom = `-- name: GetWorkspaceChatRoom :one
-SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id FROM chat_rooms
+SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id, wallpaper_preset, wallpaper_file_id FROM chat_rooms
 WHERE workspace_id = $1 AND is_default = true AND archived_at IS NULL
 LIMIT 1
 `
@@ -1236,6 +1267,8 @@ func (q *Queries) GetWorkspaceChatRoom(ctx context.Context, workspaceID pgtype.T
 		&i.ArchivedAt,
 		&i.ArchivedBy,
 		&i.AvatarFileID,
+		&i.WallpaperPreset,
+		&i.WallpaperFileID,
 	)
 	return i, err
 }
@@ -1382,6 +1415,50 @@ type LeaveChatRoomsInWorkspaceForUserParams struct {
 func (q *Queries) LeaveChatRoomsInWorkspaceForUser(ctx context.Context, arg LeaveChatRoomsInWorkspaceForUserParams) error {
 	_, err := q.db.Exec(ctx, leaveChatRoomsInWorkspaceForUser, arg.WorkspaceID, arg.UserID)
 	return err
+}
+
+const listActiveChatRoomMembersForGrant = `-- name: ListActiveChatRoomMembersForGrant :many
+SELECT id, user_id FROM chat_room_members
+WHERE room_id = $1
+  AND user_id = ANY($2::text[])
+  AND status IN ('invited', 'active')
+`
+
+type ListActiveChatRoomMembersForGrantParams struct {
+	RoomID  string   `json:"room_id"`
+	UserIds []string `json:"user_ids"`
+}
+
+type ListActiveChatRoomMembersForGrantRow struct {
+	ID     string `json:"id"`
+	UserID string `json:"user_id"`
+}
+
+// tenant: parent room_id
+// Which of a chat document grant's recipients are still invited or active
+// members of the room, with the member row that is their current membership
+// (UNI-2012 S1-fix B1, S1-fix-2 SF2). Read without a row lock, inside the
+// grant's transaction to drop who already left and again after its commit to
+// find who left (or left and rejoined: another row id) meanwhile. A lock here
+// would stall every read/delivered cursor update of the room for the send.
+func (q *Queries) ListActiveChatRoomMembersForGrant(ctx context.Context, arg ListActiveChatRoomMembersForGrantParams) ([]ListActiveChatRoomMembersForGrantRow, error) {
+	rows, err := q.db.Query(ctx, listActiveChatRoomMembersForGrant, arg.RoomID, arg.UserIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveChatRoomMembersForGrantRow{}
+	for rows.Next() {
+		var i ListActiveChatRoomMembersForGrantRow
+		if err := rows.Scan(&i.ID, &i.UserID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listChatChannelsByProject = `-- name: ListChatChannelsByProject :many
@@ -1599,6 +1676,8 @@ SELECT
   r.topic,
   r.is_default,
   r.member_permissions,
+  r.wallpaper_preset,
+  r.wallpaper_file_id,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
   mem.notifications_muted,
@@ -1691,6 +1770,8 @@ type ListChatChannelsMineRow struct {
 	Topic                  string             `json:"topic"`
 	IsDefault              bool               `json:"is_default"`
 	MemberPermissions      []byte             `json:"member_permissions"`
+	WallpaperPreset        string             `json:"wallpaper_preset"`
+	WallpaperFileID        pgtype.Text        `json:"wallpaper_file_id"`
 	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
 	MyLastReadAt           pgtype.Timestamptz `json:"my_last_read_at"`
 	NotificationsMuted     bool               `json:"notifications_muted"`
@@ -1725,6 +1806,8 @@ func (q *Queries) ListChatChannelsMine(ctx context.Context, arg ListChatChannels
 			&i.Topic,
 			&i.IsDefault,
 			&i.MemberPermissions,
+			&i.WallpaperPreset,
+			&i.WallpaperFileID,
 			&i.UpdatedAt,
 			&i.MyLastReadAt,
 			&i.NotificationsMuted,
@@ -2225,6 +2308,32 @@ func (q *Queries) ListChatRoomMembers(ctx context.Context, roomID string) ([]Lis
 	return items, nil
 }
 
+const listChatRoomWallpaperFileIDs = `-- name: ListChatRoomWallpaperFileIDs :many
+SELECT wallpaper_file_id FROM chat_rooms
+WHERE wallpaper_file_id = ANY($1::text[])
+`
+
+// tenant: system
+func (q *Queries) ListChatRoomWallpaperFileIDs(ctx context.Context, fileIds []string) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listChatRoomWallpaperFileIDs, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var wallpaper_file_id pgtype.Text
+		if err := rows.Scan(&wallpaper_file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, wallpaper_file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChatRoomsForMember = `-- name: ListChatRoomsForMember :many
 SELECT
   r.id,
@@ -2234,6 +2343,8 @@ SELECT
   r.member_set_key,
   r.member_permissions,
   r.avatar_file_id,
+  r.wallpaper_preset,
+  r.wallpaper_file_id,
   r.topic,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
@@ -2351,6 +2462,8 @@ type ListChatRoomsForMemberRow struct {
 	MemberSetKey           pgtype.Text        `json:"member_set_key"`
 	MemberPermissions      []byte             `json:"member_permissions"`
 	AvatarFileID           pgtype.Text        `json:"avatar_file_id"`
+	WallpaperPreset        string             `json:"wallpaper_preset"`
+	WallpaperFileID        pgtype.Text        `json:"wallpaper_file_id"`
 	Topic                  string             `json:"topic"`
 	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
 	MyLastReadAt           pgtype.Timestamptz `json:"my_last_read_at"`
@@ -2389,6 +2502,8 @@ func (q *Queries) ListChatRoomsForMember(ctx context.Context, arg ListChatRoomsF
 			&i.MemberSetKey,
 			&i.MemberPermissions,
 			&i.AvatarFileID,
+			&i.WallpaperPreset,
+			&i.WallpaperFileID,
 			&i.Topic,
 			&i.UpdatedAt,
 			&i.MyLastReadAt,
@@ -3065,6 +3180,29 @@ func (q *Queries) SetChatRoomMemberNotificationsMuted(ctx context.Context, arg S
 	return result.RowsAffected(), nil
 }
 
+const setChatRoomWallpaper = `-- name: SetChatRoomWallpaper :exec
+UPDATE chat_rooms
+SET wallpaper_preset = $1, wallpaper_file_id = $2, updated_at = now()
+WHERE id = $3 AND organization_id = $4
+`
+
+type SetChatRoomWallpaperParams struct {
+	WallpaperPreset string      `json:"wallpaper_preset"`
+	WallpaperFileID pgtype.Text `json:"wallpaper_file_id"`
+	ID              string      `json:"id"`
+	OrganizationID  string      `json:"organization_id"`
+}
+
+func (q *Queries) SetChatRoomWallpaper(ctx context.Context, arg SetChatRoomWallpaperParams) error {
+	_, err := q.db.Exec(ctx, setChatRoomWallpaper,
+		arg.WallpaperPreset,
+		arg.WallpaperFileID,
+		arg.ID,
+		arg.OrganizationID,
+	)
+	return err
+}
+
 const softDeleteChatMessage = `-- name: SoftDeleteChatMessage :one
 UPDATE chat_messages
 SET deleted_at = now()
@@ -3200,7 +3338,7 @@ const unarchiveChatChannel = `-- name: UnarchiveChatChannel :one
 UPDATE chat_rooms
 SET archived_at = NULL, archived_by = NULL, updated_at = now()
 WHERE id = $1 AND kind = 'channel' AND archived_at IS NOT NULL
-RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id
+RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id, wallpaper_preset, wallpaper_file_id
 `
 
 // tenant: by-id
@@ -3227,6 +3365,8 @@ func (q *Queries) UnarchiveChatChannel(ctx context.Context, id string) (ChatRoom
 		&i.ArchivedAt,
 		&i.ArchivedBy,
 		&i.AvatarFileID,
+		&i.WallpaperPreset,
+		&i.WallpaperFileID,
 	)
 	return i, err
 }
@@ -3263,7 +3403,7 @@ SET
 WHERE id = $6
   AND kind = 'channel'
   AND archived_at IS NULL
-RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id
+RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id, wallpaper_preset, wallpaper_file_id
 `
 
 type UpdateChatChannelParams struct {
@@ -3306,6 +3446,8 @@ func (q *Queries) UpdateChatChannel(ctx context.Context, arg UpdateChatChannelPa
 		&i.ArchivedAt,
 		&i.ArchivedBy,
 		&i.AvatarFileID,
+		&i.WallpaperPreset,
+		&i.WallpaperFileID,
 	)
 	return i, err
 }

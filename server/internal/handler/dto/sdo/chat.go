@@ -166,7 +166,11 @@ type ChatPollDTO struct {
 	Options         []ChatPollOptionDTO `json:"options" description:"Poll options"`
 	Settings        ChatPollSettingsDTO `json:"settings" description:"Poll settings"`
 	ViewerOptionIDs []string            `json:"viewer_option_ids,omitempty" description:"Option ids selected by the caller" example:"[\"01J8X4OPT0N1P2Q3R4S5T6U7V8\"]"`
-	VotesByUser     map[string][]string `json:"votes_by_user,omitempty" description:"User id to selected option ids when voter list is visible"`
+}
+
+// ChatPollVotersSDO is GET .../messages/{messageID}/poll/voters.
+type ChatPollVotersSDO struct {
+	VotesByUser map[string][]string `json:"votes_by_user" description:"User id to selected option ids" example:"{\"01J8X4USER0N1P2Q3R4S5T6U7V8\":[\"01J8X4OPT0N1P2Q3R4S5T6U7V8\"]}"`
 }
 
 // ChatReminderDTO is reminder metadata attached to a reminder message.
@@ -207,6 +211,8 @@ type DocumentMessageDTO struct {
 	Revision               string `json:"revision,omitempty" description:"Current revision, the base for a version commit; omitted without access" example:"41"`
 	CanOpenInApp           bool   `json:"can_open_in_app,omitempty" description:"The document opens in UniWork Office for the caller; omitted without access" example:"true"`
 	RecipientCount         *int   `json:"recipient_count,omitempty" description:"Live share count, present only for the sender" example:"4"`
+	Origin                 string `json:"origin,omitempty" description:"How the document message was made: upload (created from chat; deleting the message moves the document to the trash for 30 days and revokes every chat grant) or link (an existing document attached; deleting the message revokes only the grants this message gave). Present on kind document only" example:"upload"`
+	OtherEditorsCount      *int   `json:"other_editors_count,omitempty" description:"People other than the sender who committed a version; present only for the sender on their own upload-origin message, for the delete confirmation" example:"2"`
 }
 
 // ChatMessageDTO is a stored chat message.
@@ -279,9 +285,16 @@ type ChatRoomDTO struct {
 	IsDefault              bool                          `json:"is_default,omitempty" description:"Default workspace channel"`
 	NotificationsMuted     bool                          `json:"notifications_muted" description:"The caller muted this room's chat notifications on every device" example:"false"`
 	AvatarURL              string                        `json:"avatar_url,omitempty" description:"Signed URL of a group's uploaded avatar; absent when the group shows its members" example:"https://storage.example.com/chat/avatars/01J8X4FILE?sig=abc"`
-	CanSendDocument        bool                          `json:"can_send_document,omitempty" description:"The caller may send a document here and the grantable recipients are within the share batch cap (L5); absent means false" example:"true"`
+	CanSendDocument        bool                          `json:"can_send_document,omitempty" description:"The caller may send a document here: the room's send permission (L5). There is no recipient cap since UNI-2012 S1c; absent means false" example:"true"`
+	Wallpaper              *ChatRoomWallpaperDTO         `json:"wallpaper,omitempty" description:"Shared wallpaper every member sees in this room"`
 
 	PeerLastDeliveredAt string `json:"peer_last_delivered_at,omitempty" description:"RFC3339 (sub-second) DM peer delivered cursor: how far the peer's devices hold the room" example:"2026-03-26T10:00:00.123456Z"`
+}
+
+// ChatRoomWallpaperDTO is the room's shared chat background.
+type ChatRoomWallpaperDTO struct {
+	Preset string `json:"preset" description:"default, a built-in preset id, or custom" example:"sky"`
+	URL    string `json:"url,omitempty" description:"Signed image URL when preset is custom" example:"https://storage.example.com/chat/wallpapers/01J8X4FILE?sig=abc"`
 }
 
 // ChatChannelListSDO is GET .../chat/channels.
@@ -438,8 +451,7 @@ type ChatMessageLinkDTO struct {
 	CreatedAt  string `json:"created_at" description:"RFC3339 timestamp" example:"2026-09-10T10:00:00Z"`
 }
 
-// ChatMessageLinkListSDO is GET .../chat/messages/{messageID}/links and
-// GET .../chat/rooms/{roomID}/message-links.
+// ChatMessageLinkListSDO is GET .../chat/rooms/{roomID}/message-links.
 type ChatMessageLinkListSDO struct {
 	Links []ChatMessageLinkDTO `json:"links"`
 }

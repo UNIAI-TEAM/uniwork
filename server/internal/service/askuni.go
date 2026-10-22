@@ -41,6 +41,9 @@ type AskUNIService struct {
 	// agent's run and tool surface, nil reporting nothing.
 	agentRuns    *uniworkConcurrency
 	agentMetrics AskAgentMetrics
+	// life ends when Shutdown runs; every agent run is cancelled with it.
+	life     context.Context
+	shutdown context.CancelCauseFunc
 }
 
 // SetEmailHub wires Email Hub for focus reads (optional; set from main after construction).
@@ -63,10 +66,12 @@ func (s *AskUNIService) SetReadTools(m *McpToolService) { s.reads = m }
 type taskRow = db.Task
 
 func NewAskUNIService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, orgs *OrganizationService, tasks *TaskService, meetings *MeetingService, chat *ChatService, gw *ai.Gateway, rdb *redis.Client) *AskUNIService {
+	life, shutdown := context.WithCancelCause(context.Background())
 	return &AskUNIService{
 		pool: pool, q: q, ws: ws, orgs: orgs, tasks: tasks, meetings: meetings, chat: chat, gw: gw,
 		ent: NewEntitlementService(pool, q), rdb: rdb, now: time.Now,
 		agentRuns: newUniworkConcurrency(rdb, "ai:ask:", askAgentPodMax, askAgentOrgMax, askAgentGlobalMax, askAgentDeadline+10*time.Second),
+		life:      life, shutdown: shutdown,
 	}
 }
 
@@ -88,7 +93,10 @@ type AskInput struct {
 	ConversationID string
 	Question       string
 	Focus          *ai.Focus
-	Locale         string
+	// Mentions are up to five more objects the asker named; each is a source
+	// they must be able to read (R9).
+	Mentions []ai.Focus
+	Locale   string
 	// Model is "" (Auto) or a key of askModels; Effort is "low", "medium" or
 	// "high". Both only count behind ask_uni_agent; an unusable value falls back.
 	Model, Effort string
@@ -113,6 +121,8 @@ type AskResult struct {
 	// RunID is the agent run's id, the run_id on its usage rows; empty on
 	// the P0 path.
 	RunID string
+	// Usage sums the turn's model calls.
+	Usage AskUsage
 }
 
 const (
@@ -190,15 +200,21 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 	return out, nil
 }
 
-// Ask is one turn: membership → rate limit → conversation → permitted
-// sources → gateway → validated citations → two message rows.
-func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in AskInput) (AskResult, error) {
+// AskStream is one turn: membership → rate limit → conversation → permitted
+// sources → gateway → validated citations → two message rows. Every refusal
+// comes before emit is first called; the events then run, delta, citations,
+// done (R5).
+func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID string, in AskInput, emit AskSink) (AskResult, error) {
 	question := strings.TrimSpace(in.Question)
 	if question == "" {
 		return AskResult{}, Invalid("câu hỏi không được để trống")
 	}
 	if len([]rune(question)) > 2000 {
 		return AskResult{}, Invalid("câu hỏi tối đa 2000 ký tự")
+	}
+	mentions, err := askMentions(in.Focus, in.Mentions)
+	if err != nil {
+		return AskResult{}, err
 	}
 	w, err := s.requireMember(ctx, userID, workspaceID)
 	if err != nil {
@@ -210,14 +226,28 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 	if err := s.rateLimit(ctx, userID); err != nil {
 		return AskResult{}, err
 	}
+	// An exhausted quota is a refusal, not a stream that fails after run.
+	// Only a streaming turn asks: without a sink the first model call checks.
+	if emit != nil {
+		if err := s.gw.CheckQuota(ctx, w.OrganizationID); err != nil {
+			return AskResult{}, err
+		}
+	}
 	conv, err := s.conversation(ctx, userID, w, in.ConversationID)
+	if err != nil {
+		return AskResult{}, err
+	}
+	// The focus and mentions must be readable by the asker on both paths,
+	// before anything streams (R9).
+	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}
+	ctxItems, err := s.askContext(ctx, tc, in.Focus, mentions)
 	if err != nil {
 		return AskResult{}, err
 	}
 	// Behind ask_uni_agent the model looks its sources up itself; P0's
 	// lookup below does not run.
-	if s.agentOn(ctx, ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}) {
-		return s.askAgent(ctx, userID, w, conv, question, in)
+	if s.agentOn(ctx, tc) {
+		return s.askAgent(ctx, userID, w, conv, question, in, ctxItems, emit)
 	}
 	sources, err := s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, Question: question, Focus: in.Focus})
 	if err != nil {
@@ -236,13 +266,16 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 		}
 	}
 	pack, truncated := ai.BuildContext(sources)
+	emit.emit(AskEvent{Name: "run", Run: &AskRunEvent{ConversationID: conv.ID}})
 
 	answer := ai.Answer{Citations: []ai.Citation{}}
 	notice := ai.NoticeNoSources
 	var resp ai.Response
 	if len(pack) > 0 {
 		notice = ""
-		resp, err = s.gw.Complete(ctx, ai.Request{
+		callCtx, done := s.runContext(ctx)
+		defer done()
+		resp, err = s.gw.Complete(callCtx, ai.Request{
 			Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: workspaceID,
 			Capability: ai.CapCopilotAnswer, PromptID: ai.PromptCopilotAnswer,
 			Vars: map[string]any{
@@ -251,16 +284,33 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 			},
 			History: history(rows), Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
 		})
+		stopped := ""
 		if err != nil {
-			return AskResult{}, err
+			stopped = askStopNotice(ctx, callCtx, err)
 		}
-		answer, err = ai.ParseAnswer(resp.Text, pack)
-		if err != nil {
+		switch {
+		case stopped != "":
+			// The asker left mid-call, or Shutdown cut it. P0 streams no
+			// text, so the turn is kept empty, stored past the request (R6, R7).
+			notice = stopped
+			var e *ai.Error
+			if errors.As(err, &e) {
+				resp.UsageEventID = e.UsageEventID
+			}
+			var cancel context.CancelFunc
+			ctx, cancel = outliving(ctx)
+			defer cancel()
+		case err != nil:
 			return AskResult{}, err
-		}
-		answer.Answer = ai.StripUntrustedTags(answer.Answer)
-		if strings.TrimSpace(answer.Answer) == "" {
-			answer.Answer, notice = "", ai.NoticeEmptyAnswer
+		default:
+			answer, err = ai.ParseAnswer(resp.Text, pack)
+			if err != nil {
+				return AskResult{}, err
+			}
+			answer.Answer = ai.StripUntrustedTags(answer.Answer)
+			if strings.TrimSpace(answer.Answer) == "" {
+				answer.Answer, notice = "", ai.NoticeEmptyAnswer
+			}
 		}
 	}
 	citations := make([]AskCitation, 0, len(answer.Citations))
@@ -275,7 +325,10 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 	if err != nil {
 		return AskResult{}, err
 	}
-	return AskResult{ConversationID: conv.ID, Message: msg, Citations: citations, InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens}, nil
+	res := AskResult{ConversationID: conv.ID, Message: msg, Citations: citations, InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens}
+	res.Usage.add(resp.InputTokens, resp.OutputTokens, resp.CacheReadTokens, resp.CacheWriteTokens)
+	emit.emitAnswer(res)
+	return res, nil
 }
 
 func (s *AskUNIService) conversation(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, id string) (db.AiConversation, error) {
@@ -608,6 +661,9 @@ func (s *AskUNIService) DeleteConversation(ctx context.Context, userID, conversa
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.q.WithTx(tx)
 	if err := q.AiDeleteMessages(ctx, conversationID); err != nil {
+		return err
+	}
+	if err := q.AiDeleteConversationFeedback(ctx, conversationID); err != nil {
 		return err
 	}
 	if err := q.AiDeleteConversation(ctx, conversationID); err != nil {

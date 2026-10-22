@@ -5,13 +5,13 @@ bản nháp (job `gate` của `mobile-verify.yml`, `scripts/branch-protection.js
 owner bật branch protection (`node scripts/branch-protection.mjs --apply`). Chấp nhận thì chuyển ra `docs/adr/`,
 thêm vào bảng của `README.md`, đưa luật vào `CLAUDE.md` kèm test giữ luật.
 **Liên quan:** [0011](../0011-mobile-la-app-expo-doc-lap.md) §6 (mobile không chặn PR web/backend),
-[0037](../0037-cong-chat-luong-mobile-chan-o-moi-muc.md) (cổng mobile chặn ở mọi `GATE_LEVEL`).
+[0043](../0043-cong-chat-luong-mobile-chan-o-moi-muc.md) (cổng mobile chặn ở mọi `GATE_LEVEL`).
 
 ## Bối cảnh
 
 Bản audit mobile 2026-10-22 (chiều "Kiểm thử & quality gates", 5.5/10) tìm ra ba lỗ:
 
-1. `main` và `develop` không có branch protection (`gh api …/protection` trả 404, rulesets rỗng). ADR 0037 nói cổng
+1. `main` và `develop` không có branch protection (`gh api …/protection` trả 404, rulesets rỗng). ADR 0043 nói cổng
    mobile "chặn ở mọi mức", nhưng không gì bắt một run đỏ phải xanh trước khi merge.
 2. Require từng job không đủ: GitHub coi job bị skip (vì `if:`) là thành công, nên một job `scope` hỏng làm skip bản
    build native và PR vẫn xanh; còn workflow bị path filter chặn không chạy thì check bắt buộc treo `pending` mãi.
@@ -37,4 +37,4 @@ Bản audit mobile 2026-10-22 (chiều "Kiểm thử & quality gates", 5.5/10) t
 
 Mất: điểm 3 thu hẹp §6 của ADR 0011. PR backend chỉ chạm catalogue hay SDO giờ chạy typecheck, lint và test của app
 (khoảng 10 phút) và có thể bị chặn bởi chúng; PR không chạm `MOBILE_PATHS` chỉ trả hai job nhỏ (`scope`, `gate`). Giá
-này đúng chỗ như ADR 0037 đã nói về `packages/core`: PR làm lệch hai bên là PR phải sửa.
+này đúng chỗ như ADR 0043 đã nói về `packages/core`: PR làm lệch hai bên là PR phải sửa.

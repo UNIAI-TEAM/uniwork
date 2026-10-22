@@ -123,7 +123,7 @@ export function formatMessageDay(
 
 type GroupedMessage = Pick<TimelineMessage, "kind" | "sender" | "ts" | "voiceCall" | "voiceCallSummary">;
 
-const CARD_KINDS = new Set(["voice_call_log", "poll", "reminder", "note", "post", "file"]);
+const CARD_KINDS = new Set(["voice_call_log", "poll", "poll_vote", "reminder", "note", "post", "file"]);
 
 function isBubbleMessage(message: GroupedMessage): boolean {
   return !CARD_KINDS.has(message.kind ?? "") && !message.voiceCall && !message.voiceCallSummary;

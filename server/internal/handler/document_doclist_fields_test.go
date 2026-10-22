@@ -1,0 +1,305 @@
+package handler
+
+// UNI-2045 DOCLIST-UNIFIED (server w1): the per-row fields every list branch
+// of the documents table carries (is_owner) and the txt
+// format. Amendment 1 of the contract: the folder level (parent_id) and the
+// root are list branches too, so each field has a test on that branch.
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+)
+
+// dlRows reads one list answer as title -> row, failing on a non-200.
+func dlRows(t *testing.T, w *docsWorld, token, path string) map[string]map[string]any {
+	t.Helper()
+	sep := "?"
+	for _, c := range path {
+		if c == '?' {
+			sep = "&"
+		}
+	}
+	res, out := dlGet(t, w, token, path+sep+"limit=100")
+	if res.StatusCode != 200 {
+		t.Fatalf("GET %s: %d %v", path, res.StatusCode, out)
+	}
+	rows := map[string]map[string]any{}
+	raw, _ := out["documents"].([]any)
+	for _, item := range raw {
+		m := item.(map[string]any)
+		rows[m["title"].(string)] = m
+	}
+	return rows
+}
+
+// dlShelve shelves (or un-shelves) documents by SQL with the whole attribution
+// the shape check wants.
+func dlShelve(t *testing.T, w *docsWorld, ids []string, on bool) {
+	t.Helper()
+	if on {
+		dlExec(t, `UPDATE documents SET shelved_at = now(), shelved_by = $2, shelved_by_kind = 'human', shelve_batch_id = $3 WHERE id = ANY($1)`, ids, w.userID, newTestID())
+		return
+	}
+	dlExec(t, `UPDATE documents SET shelved_at = NULL, shelved_by = NULL, shelved_by_kind = NULL, shelve_batch_id = NULL WHERE id = ANY($1)`, ids)
+}
+
+// dlArchive sends documents to the trash through the API.
+func dlArchive(t *testing.T, w *docsWorld, ids []string) {
+	t.Helper()
+	for _, id := range ids {
+		if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+id+"/archive", w.token, nil); res.StatusCode != 200 {
+			t.Fatalf("archive %s: %d %v", id, res.StatusCode, out)
+		}
+	}
+}
+
+// dlWantOwner asserts is_owner is a present boolean on each named row.
+func dlWantOwner(t *testing.T, w *docsWorld, what, token, path string, want map[string]bool) {
+	t.Helper()
+	rows := dlRows(t, w, token, path)
+	for title, owner := range want {
+		row := rows[title]
+		if row == nil {
+			t.Errorf("%s: row %q missing from %s (%d rows)", what, title, path, len(rows))
+			continue
+		}
+		got, ok := row["is_owner"].(bool)
+		if !ok {
+			t.Errorf("%s: row %q has no boolean is_owner: %v", what, title, row["is_owner"])
+			continue
+		}
+		if got != owner {
+			t.Errorf("%s: row %q is_owner = %v, want %v", what, title, got, owner)
+		}
+	}
+}
+
+// SV-5: every list row says whether the caller is the ACL owner of the
+// document, on every branch: the folder level, the root, recent, favorites,
+// shared with me, the trash and the shelf.
+func TestDoclistIsOwner(t *testing.T) {
+	w := newDocsWorld(t)
+	memberTok, memberID := docsJoinWorkspace(t, w, "dl-owner-member@example.com")
+	base := dlBase(w)
+	_, folder := docsCreatePageBody(t, w, w.token, map[string]any{"title": "F", "kind": "folder"})
+	// a folder takes no visibility through the API; open it to the workspace
+	// so the member can create inside it.
+	dlExec(t, `UPDATE documents SET visibility = 'workspace', workspace_level = 'edit' WHERE id = $1`, folder)
+	_, mine := docsCreatePageBody(t, w, w.token, map[string]any{"title": "mine", "parent_id": folder, "visibility": "workspace"})
+	_, theirs := docsCreatePageBody(t, w, memberTok, map[string]any{"title": "theirs", "parent_id": folder, "visibility": "workspace"})
+	both := map[string]bool{"mine": true, "theirs": false}
+	flipped := map[string]bool{"mine": false, "theirs": true}
+
+	// the folder level (parent_id) and the root, for each person.
+	dlWantOwner(t, w, "parent_id branch", w.token, base+"?parent_id="+folder, both)
+	dlWantOwner(t, w, "parent_id branch (member)", memberTok, base+"?parent_id="+folder, flipped)
+	dlWantOwner(t, w, "flat branch", w.token, base, both)
+	dlWantOwner(t, w, "flat branch (member)", memberTok, base, flipped)
+	dlWantOwner(t, w, "search branch", w.token, base+"?q=mine", map[string]bool{"mine": true})
+
+	now := time.Now().UTC().Add(-time.Hour)
+	dlLog(t, w, theirs, w.userID, "view", now) // mine is recent by being the caller's edit
+	dlWantOwner(t, w, "recent", w.token, base+"/recent", both)
+	dlFavorite(t, w, w.token, mine)
+	dlFavorite(t, w, w.token, theirs)
+	dlWantOwner(t, w, "favorites", w.token, base+"/favorites", both)
+
+	// shared with me: the document is the sharer's, never the caller's.
+	_, secret := docsCreatePageBody(t, w, w.token, map[string]any{"title": "secret", "visibility": "restricted"})
+	dlShare(t, w, secret, "user", memberID, w.userID, "human", now)
+	dlWantOwner(t, w, "shared-with-me", memberTok, base+"/shared-with-me", map[string]bool{"secret": false})
+
+	// the shelf, then the trash.
+	dlShelve(t, w, []string{mine, theirs}, true)
+	dlWantOwner(t, w, "shelf", w.token, base+"?shelved=1", both)
+	dlShelve(t, w, []string{mine, theirs}, false)
+	dlArchive(t, w, []string{mine, theirs})
+	dlWantOwner(t, w, "trash", w.token, base+"?archived=1", both)
+}
+
+// dlCreateFile uploads one small file document, optionally into a folder, and
+// returns its id.
+func dlCreateFile(t *testing.T, w *docsWorld, filename, parent string, body []byte) string {
+	t.Helper()
+	fields := map[string]string{"title": filename}
+	if parent != "" {
+		fields["parent_id"] = parent
+	}
+	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token, fields, filename, body, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("create file %s: %d %s", filename, res.StatusCode, raw)
+	}
+	var out struct {
+		Document struct {
+			ID string `json:"id"`
+		} `json:"document"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	return out.Document.ID
+}
+
+// SV-7: format=txt filters every list route that takes format (text/plain, or a
+// title ending in .txt), rows report format "txt", and any other unknown value
+// is still 400.
+func TestDoclistFormatTxt(t *testing.T) {
+	w := newDocsWorld(t)
+	memberTok, memberID := docsJoinWorkspace(t, w, "dl-txt-member@example.com")
+	base := dlBase(w)
+	_, folder := docsCreatePageBody(t, w, w.token, map[string]any{"title": "F", "kind": "folder"})
+	txt := dlCreateFile(t, w, "notes.txt", folder, []byte("plain notes\n"))
+	other := dlCreateFile(t, w, "readme.md", folder, []byte("# readme\n"))
+	now := time.Now().UTC().Add(-time.Hour)
+	dlLog(t, w, txt, w.userID, "view", now)
+	dlLog(t, w, other, w.userID, "view", now)
+	dlFavorite(t, w, w.token, txt)
+	dlFavorite(t, w, w.token, other)
+	// both shared with the member, who then reads shared-with-me.
+	dlExec(t, `UPDATE documents SET visibility = 'restricted' WHERE id = ANY($1)`, []string{txt, other})
+	dlShare(t, w, txt, "user", memberID, w.userID, "human", now)
+	dlShare(t, w, other, "user", memberID, w.userID, "human", now)
+
+	only := func(what, token, path string) {
+		t.Helper()
+		rows := dlRows(t, w, token, path)
+		row := rows["notes.txt"]
+		if row == nil {
+			t.Errorf("%s: format=txt lost notes.txt (rows %d)", what, len(rows))
+			return
+		}
+		if rows["readme.md"] != nil {
+			t.Errorf("%s: format=txt kept readme.md", what)
+		}
+		if row["format"] != "txt" {
+			t.Errorf("%s: notes.txt format = %v, want txt", what, row["format"])
+		}
+		for _, bad := range []string{"rtf", "TXT", "text"} {
+			res, out := dlGet(t, w, token, strings.Replace(path, "format=txt", "format="+bad, 1))
+			wantErr(t, res, out, 400, "invalid_filter", "")
+		}
+	}
+	only("parent_id branch", w.token, base+"?parent_id="+folder+"&format=txt")
+	only("flat branch", w.token, base+"?format=txt")
+	only("recent", w.token, base+"/recent?format=txt")
+	only("favorites", w.token, base+"/favorites?format=txt")
+	only("shared-with-me", memberTok, base+"/shared-with-me?format=txt")
+	dlShelve(t, w, []string{txt, other}, true)
+	only("shelf", w.token, base+"?shelved=1&format=txt")
+	dlShelve(t, w, []string{txt, other}, false)
+	dlArchive(t, w, []string{txt, other})
+	only("trash", w.token, base+"?archived=1&format=txt")
+}
+
+// SV-8: updated_by, updated_from and updated_to narrow recent, shared-with-me,
+// Shared by me, the trash and the shelf the way they narrow the flat list.
+func TestDoclistUpdatedFilters(t *testing.T) {
+	w := newDocsWorld(t)
+	_, ann := docsJoinWorkspace(t, w, "dl-filter-ann@example.com")
+	readerTok, readerID := docsJoinWorkspace(t, w, "dl-filter-reader@example.com")
+	base := dlBase(w)
+	now := time.Now().UTC().Truncate(time.Second)
+	day := func(n int) time.Time { return now.Add(-time.Duration(n) * 24 * time.Hour) }
+	stamp := func(tm time.Time) string { return tm.Format(time.RFC3339) }
+
+	editors := map[string]string{"d1": w.userID, "d2": ann, "d3": ann}
+	updated := map[string]time.Time{"d1": day(3), "d2": day(2), "d3": day(1)}
+	ids := map[string]string{}
+	all := []string{}
+	for _, title := range []string{"d1", "d2", "d3"} {
+		_, id := docsCreatePageBody(t, w, w.token, map[string]any{"title": title, "visibility": "restricted"})
+		ids[title] = id
+		all = append(all, id)
+		dlShare(t, w, id, "user", readerID, w.userID, "human", now.Add(-time.Hour))
+		dlLog(t, w, id, w.userID, "view", now.Add(-time.Hour))
+	}
+	// archiving and shelving touch the row, so the editor and time are
+	// written again whenever a state changes.
+	seed := func() {
+		for title, id := range ids {
+			dlExec(t, `UPDATE documents SET updated_by = $1, updated_by_kind = 'human', updated_at = $2 WHERE id = $3`, editors[title], updated[title], id)
+		}
+	}
+	seed()
+
+	check := func(what, token, path string) {
+		t.Helper()
+		sep := "?"
+		if strings.Contains(path, "?") {
+			sep = "&"
+		}
+		for _, c := range []struct {
+			query string
+			want  []string
+		}{
+			{"updated_by=" + ann, []string{"d2", "d3"}},
+			{"updated_by=" + w.userID, []string{"d1"}},
+			{"updated_from=" + stamp(day(2).Add(-time.Hour)), []string{"d2", "d3"}},
+			{"updated_to=" + stamp(day(2).Add(time.Hour)), []string{"d1", "d2"}},
+			{"updated_from=" + stamp(day(2).Add(-time.Hour)) + "&updated_to=" + stamp(day(2).Add(time.Hour)), []string{"d2"}},
+			{"updated_by=" + ann + "&updated_to=" + stamp(day(2).Add(time.Hour)), []string{"d2"}},
+		} {
+			rows := dlRows(t, w, token, path+sep+c.query)
+			got := map[string]bool{}
+			for title := range rows {
+				if _, ok := ids[title]; ok {
+					got[title] = true
+				}
+			}
+			if len(got) != len(c.want) {
+				t.Errorf("%s ?%s: rows = %v, want %v", what, c.query, got, c.want)
+				continue
+			}
+			for _, title := range c.want {
+				if !got[title] {
+					t.Errorf("%s ?%s: rows = %v, want %v", what, c.query, got, c.want)
+				}
+			}
+		}
+		for _, bad := range []string{"updated_from=yesterday", "updated_to=2026-13-40"} {
+			res, out := dlGet(t, w, token, path+sep+bad)
+			wantErr(t, res, out, 400, "invalid_request", "")
+		}
+	}
+	check("recent", w.token, base+"/recent")
+	check("shared-with-me", readerTok, base+"/shared-with-me")
+	check("shared_by_me", w.token, base+"?shared_by_me=true")
+	// On the shelf and in the trash the window is the time the row was
+	// shelved or deleted, as it has always been there (the flat list's is
+	// updated_at); the last editor is the same everywhere.
+	dlShelve(t, w, all, true)
+	seed()
+	for title, id := range ids {
+		dlExec(t, `UPDATE documents SET shelved_at = $1 WHERE id = $2`, updated[title], id)
+	}
+	check("shelf", w.token, base+"?shelved=1")
+	dlShelve(t, w, all, false)
+	dlArchive(t, w, all)
+	seed()
+	for title, id := range ids {
+		dlExec(t, `UPDATE documents SET archived_at = $1 WHERE id = $2`, updated[title], id)
+	}
+	check("trash", w.token, base+"?archived=1")
+}
+
+// An empty page of any list is `[]`, never null, on every route this task
+// touches.
+func TestDoclistEmptyListsAreArrays(t *testing.T) {
+	w := newDocsWorld(t)
+	base := dlBase(w)
+	for _, q := range []string{
+		"/favorites", "/recent", "/shared-with-me", "?archived=1", "?shelved=1", "?shared_by_me=true",
+		"?format=txt", "/favorites?format=txt", "/shared-with-me?format=txt", "/recent?activity=opened",
+	} {
+		res, out := dlGet(t, w, w.token, base+q)
+		if res.StatusCode != 200 {
+			t.Errorf("GET %s: %d %v", q, res.StatusCode, out)
+			continue
+		}
+		if docs, ok := out["documents"].([]any); !ok || len(docs) != 0 {
+			t.Errorf("GET %s: documents = %#v, want an empty array", q, out["documents"])
+		}
+	}
+}

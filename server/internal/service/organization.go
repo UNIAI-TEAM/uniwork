@@ -180,6 +180,29 @@ func normalizeOrgMemberIDs(userIDs []string) []string {
 	return out
 }
 
+// AdmittedMemberIDsQ is RequireMemberQ for many users at once, read through
+// q: the set of userIDs RequireMemberQ would admit to orgID (active
+// organization, member not deactivated, only the owner while a deletion is
+// scheduled), in one query. A chat document grant to a large room and a
+// Documents batch share gate every recipient with it instead of a round trip
+// each (UNI-2012 S1c). Every id it leaves out is one RequireMemberQ refuses.
+func (s *OrganizationService) AdmittedMemberIDsQ(ctx context.Context, q *db.Queries, orgID string, userIDs []string) (map[string]bool, error) {
+	out := make(map[string]bool, len(userIDs))
+	if len(userIDs) == 0 {
+		return out, nil
+	}
+	ids, err := q.FilterAdmittedOrganizationMemberUserIDs(ctx, db.FilterAdmittedOrganizationMemberUserIDsParams{
+		OrganizationID: orgID, UserIds: userIDs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		out[id] = true
+	}
+	return out, nil
+}
+
 // RequireMemberQ is RequireMember read through q, for a caller inside a
 // transaction (see WorkspaceService.RequireMemberQ). Same decision, same errors.
 func (s *OrganizationService) RequireMemberQ(ctx context.Context, q *db.Queries, orgID, userID string) (db.OrganizationMember, error) {

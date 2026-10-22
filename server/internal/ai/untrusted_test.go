@@ -210,3 +210,38 @@ func TestOtherPromptsEscapeUntrusted(t *testing.T) {
 		t.Errorf("email @2 must keep its headers inside a tag:\n%s", out)
 	}
 }
+
+// UntrustedTagTail finds a tail that may still grow into an untrusted tag
+// (ruling PF1b): any tag bracket, look-alikes included, then a prefix of the
+// tag. Any other bracket is plain text.
+func TestUntrustedTagTail(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		held string // the tail held back, "" for none
+	}{
+		{"Còn < 3 ngày", ""},
+		{"Còn <", "<"},
+		{"Còn < ", "< "},
+		{"a <untru", "<untru"},
+		{"a </ UNTRUS", "</ UNTRUS"},
+		{"a <\t/\nuntr", "<\t/\nuntr"}, // the gap may hold a newline, as in a real tag
+		{"a <u\u200bntrus", "<u\u200bntrus"},
+		{"a ＜untruste", "＜untruste"},
+		{"a ‹ｕｎｔｒ", "‹ｕｎｔｒ"},
+		{"a <untrusted source=\"x", "<untrusted source=\"x"},
+		{"a <untrusted>", ""},
+		{"a <untrusted x\ny", ""},
+		{"a <b", ""},
+		{"a <untrx", ""},
+		{"x << y", ""},
+		{"no bracket", ""},
+	} {
+		want := -1
+		if tc.held != "" {
+			want = strings.LastIndex(tc.in, tc.held)
+		}
+		if got := UntrustedTagTail(tc.in); got != want {
+			t.Errorf("UntrustedTagTail(%q) = %d, want %d", tc.in, got, want)
+		}
+	}
+}

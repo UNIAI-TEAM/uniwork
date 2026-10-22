@@ -198,6 +198,7 @@ Proxy TLS nằm ngoài Compose. Nó đã có trên host: `https://uniwork.unicom
 |---|---|
 | `BRANCH` | `develop` |
 | `DEPLOY_HOST` | `113.20.107.188` |
+| `DEPLOY_SSH_PORT` | `2232` |
 | `DEPLOY_USER` | `root` |
 | `DEPLOY_DIR` | `/home/devops/uniwork` |
 | `SSH_CREDENTIALS_ID` | `ssh-107.188` |
@@ -208,7 +209,7 @@ Proxy TLS nằm ngoài Compose. Nó đã có trên host: `https://uniwork.unicom
 
 **Build** trên agent `107.188`. Đọc `uniwork-fe.build.env`, build ba ảnh, push tag `dev-…`. Không push `:latest`. Ghi `UNIWORK_IMAGE_TAG` ra file để stage sau copy thành `env/image.env`.
 
-**Deploy** không có bước duyệt tay. Từ agent build, SSH tới `root@113.20.107.188` bằng credential `ssh-107.188` (SSH Username with private key). Agent `107.188` đã có host key của `113.20.107.188` trong `known_hosts`. Pipeline không tắt kiểm tra host key. Copy đúng các file sau vào `$DEPLOY_DIR`, không `rsync --delete` cả thư mục, không copy `.env`:
+**Deploy** không có bước duyệt tay. Từ agent build, SSH tới `root@113.20.107.188` cổng `2232` bằng credential `ssh-107.188` (SSH Username with private key). Agent `107.188` đã có host key của `113.20.107.188` trong `known_hosts`. Pipeline không tắt kiểm tra host key. Copy đúng các file sau vào `$DEPLOY_DIR`, không `rsync --delete` cả thư mục, không copy `.env`:
 
 - `docker-compose.yml`
 - `docker-compose.secrets.yml`
@@ -254,7 +255,7 @@ docker compose \
 - `uniwork-fe.build.env` có đúng ba URL `https://uniwork.unicomhub.com` và `wss://uniwork.unicomhub.com`.
 - `docker-compose.yml` không có `build:`, không có service `postgres`, `redis`, `minio`, và có `name: uniwork-app-dev`.
 - `docker-compose.secrets.yml` nêu tên hai token office và không chứa giá trị của chúng.
-- `ci/Jenkinsfile.app-dev.groovy` chứa default `113.20.107.188`, `root`, `/home/devops/uniwork`, `ssh-107.188`, và không có lệnh `docker tag` hay `docker push` tới `:latest`.
+- `ci/Jenkinsfile.app-dev.groovy` chứa default `113.20.107.188`, `2232`, `root`, `/home/devops/uniwork`, `ssh-107.188`, và không có lệnh `docker tag` hay `docker push` tới `:latest`.
 
 ## 8. Ngoài phạm vi
 

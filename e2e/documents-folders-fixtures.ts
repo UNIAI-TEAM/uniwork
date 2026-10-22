@@ -379,6 +379,8 @@ export async function apiCreateDocument(
     title: string;
     kind?: "page" | "folder";
     parent_id?: string | null;
+    /** "my_folder" creates in the caller's My Folder; exclusive with parent_id. */
+    destination?: "my_folder";
     visibility?: "workspace" | "restricted";
     content?: unknown;
   },
@@ -411,7 +413,8 @@ export async function apiCreateDocument(
  * child created under it inherits both, so only roots need the call. The
  * share bumps the revision, so the returned document is read again: the
  * callers pass its revision to move and rename. A folder is never opened this
- * way: it cannot be shared (UNI-1974, 422 folder_not_shareable) and stays private.
+ * way: it cannot be shared (UNI-1974, 422 folder_not_shareable), and its
+ * visibility follows its location (ADR 0037).
  */
 async function openRootDocumentToWorkspace(
   page: Page,
@@ -442,8 +445,9 @@ export async function createFolder(
   parentId?: string | null,
   visibility?: "workspace" | "restricted",
 ): Promise<DocumentDTO> {
-  // A folder is never shared (UNI-1974): "workspace" would be refused with 422
-  // folder_not_shareable, so the visibility argument is accepted and not sent.
+  // A folder's visibility follows its location (ADR 0037): the server ignores
+  // a client visibility on create, so the argument is accepted and not sent.
+  // A private folder is made with createMyFolderFolder.
   void visibility;
   const res = await apiCreateDocument(page, token, wsId, {
     title,
@@ -453,6 +457,29 @@ export async function createFolder(
   expect(
     res.ok && res.data,
     `createFolder(${title}) failed: ${res.status} ${JSON.stringify(res.error)} ${res.rawText ?? ""}`,
+  ).toBeTruthy();
+  return res.data!;
+}
+
+/**
+ * A folder inside the caller's My Folder: the only place a folder is private
+ * (restricted, ADR 0037). Nothing outside the owner reads it, its name
+ * included.
+ */
+export async function createMyFolderFolder(
+  page: Page,
+  token: string,
+  wsId: string,
+  title: string,
+): Promise<DocumentDTO> {
+  const res = await apiCreateDocument(page, token, wsId, {
+    title,
+    kind: "folder",
+    destination: "my_folder",
+  });
+  expect(
+    res.ok && res.data,
+    `createMyFolderFolder(${title}) failed: ${res.status} ${JSON.stringify(res.error)} ${res.rawText ?? ""}`,
   ).toBeTruthy();
   return res.data!;
 }

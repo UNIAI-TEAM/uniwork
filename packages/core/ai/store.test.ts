@@ -24,3 +24,22 @@ describe("ai panel store", () => {
     expect(useAiPanelStore.getState()).toMatchObject({ workspaceId: "w1", conversationId: "c1" });
   });
 });
+
+describe("ai panel full page", () => {
+  afterEach(() => useAiPanelStore.setState({ open: false, fullPage: false }));
+
+  it("closing the panel leaves full-page mode", () => {
+    const s = useAiPanelStore.getState();
+    s.setOpen(true);
+    s.setFullPage(true);
+    expect(useAiPanelStore.getState().fullPage).toBe(true);
+    s.setOpen(false);
+    expect(useAiPanelStore.getState().fullPage).toBe(false);
+  });
+
+  it("toggling closed also leaves full-page mode", () => {
+    useAiPanelStore.setState({ open: true, fullPage: true });
+    useAiPanelStore.getState().toggle();
+    expect(useAiPanelStore.getState().fullPage).toBe(false);
+  });
+});

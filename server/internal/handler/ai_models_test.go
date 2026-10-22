@@ -24,6 +24,12 @@ func (agentFlagOn) IsEnabled(_ context.Context, key string, def bool) bool {
 // switched on, with one owner, a workspace and a plain organization member.
 func askWorld(t *testing.T, fake *provider.Fake) (srv *httptest.Server, owner, member, wsID string) {
 	t.Helper()
+	return askWorldWith(t, fake)
+}
+
+// askWorldWith is askWorld on any provider.
+func askWorldWith(t *testing.T, fake provider.Provider) (srv *httptest.Server, owner, member, wsID string) {
+	t.Helper()
 	t.Setenv("AI_PROVIDER", "fake")
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	q := db.New(pool)

@@ -156,6 +156,8 @@ export function createChatRoomsApi(request: ChatRequest) {
         /** The room's description; "" clears it. */
         topic?: string;
         member_permissions?: Partial<ChatRoomMemberPermissions>;
+        /** A preset wallpaper for every member; a custom image goes through uploadChatRoomWallpaper. */
+        wallpaper?: { preset: string };
       },
     ): Promise<ChatRoomMemberPermissions> {
       const raw = await request(room(workspaceId, roomId), { method: "PATCH", body });

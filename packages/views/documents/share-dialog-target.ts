@@ -1,4 +1,5 @@
-import type { Document, DocumentAccessLevel } from "@uniwork/core/types/document";
+import { DOCUMENT_ACCESS_LEVELS, type Document, type DocumentAccessLevel } from "@uniwork/core/types/document";
+import type { DocumentSummaryRow } from "./library-rows";
 
 /**
  * What the share dialog reads of a document (access addendum §2.5, N-01).
@@ -21,3 +22,25 @@ export type ShareDialogTarget = Pick<
   revision?: string;
   admin_scope?: boolean;
 };
+
+/**
+ * A list row is the dialog's target: the summary carries every field it reads,
+ * with `my_level` and `admin_scope` as the row's own. The wire strings narrow
+ * the way the detail read does: an unknown visibility reads as the default
+ * workspace one, an unknown level as none, and any owner is the work product.
+ */
+export function rowShareTarget(row: DocumentSummaryRow): ShareDialogTarget {
+  return {
+    id: row.id,
+    workspace_id: row.workspace_id,
+    organization_id: row.organization_id,
+    visibility: row.visibility === "restricted" ? "restricted" : "workspace",
+    owner_kind: row.owner_kind ? "work_product" : null,
+    archived_at: row.archived_at,
+    shelved_at: row.shelved_at,
+    my_level: DOCUMENT_ACCESS_LEVELS.find((level) => level === row.my_level) ?? "",
+    title: row.title,
+    revision: row.revision,
+    admin_scope: row.admin_scope,
+  };
+}

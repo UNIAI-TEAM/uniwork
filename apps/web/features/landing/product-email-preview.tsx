@@ -101,7 +101,8 @@ function EmailWorkspace({ step }: { step?: number }) {
   const bulkPatch = (change: Partial<EmailHubThread>) => { checked.forEach(id => patch(id, change)); setChecked(new Set()); };
   const handleKey = (event: KeyboardEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
-    if (!shortcuts || event.ctrlKey || event.metaKey || event.altKey || target.closest("input,textarea,[contenteditable=true],[role=dialog],[role=menu]")) return;
+    // Off, Escape still goes back: the reader keeps announcing it (as the application view does).
+    if ((!shortcuts && event.key !== "Escape") || event.ctrlKey || event.metaKey || event.altKey || target.closest("input,textarea,[contenteditable=true],[role=dialog],[role=menu]")) return;
     const key = event.key.toLowerCase();
     const commands: Record<string, () => void> = { c: onCompose, "/": () => searchRef.current?.focus(), "?": onOpenShortcuts, escape: back, u: back };
     if (selected) Object.assign(commands, { r: actions.onReply, a: actions.onReplyAll, f: actions.onForward, e: actions.onArchive, "#": actions.onTrash, s: actions.onToggleStar, ...(event.shiftKey ? { u: actions.onMarkUnread } : {}) });
@@ -114,7 +115,7 @@ function EmailWorkspace({ step }: { step?: number }) {
   return <section ref={root} className="product-email-workspace" aria-label={t("email_hub.title")} onKeyDownCapture={handleKey}>
     <EmailHubFolderSidebar {...nav} composeDisabled={false} onCompose={onCompose} accountMenu={accountMenu} shortcutsOn={shortcuts} onOpenShortcuts={onOpenShortcuts} />
     <div className="product-email-main">
-      {selected ? <ProductEmailReader thread={selected} folder={folder} actions={actions} aiOpen={aiOpen} /> : <>
+      {selected ? <ProductEmailReader thread={selected} folder={folder} actions={actions} aiOpen={aiOpen} shortcutsOn={shortcuts} /> : <>
         <EmailHubListHeader headingAs="h2" nav={nav} accountMenu={accountMenu} isScheduledFolder={false} searchInput={search} onSearchInputChange={setSearch} searchRef={searchRef} refreshDisabled={false} refreshing={false} onRefresh={() => setSynced(true)} unreadOnly={unread} onToggleUnreadOnly={() => setUnread(value => !value)} hasAttachmentsOnly={files} onToggleAttachmentsOnly={() => setFiles(value => !value)} countText={t("email_hub.list_count", { count: folderRows.length, unread: folderRows.filter(row => !row.is_read).length })} lastSyncText={t("email_hub.last_sync", { when: synced ? new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "11:10 AM" })} composeDisabled={false} onCompose={onCompose} onOpenShortcuts={onOpenShortcuts} shortcutsOn={shortcuts} bulk={checked.size ? { count: checked.size, allChecked: rows.every(row => checked.has(row.id)), onToggleAll: value => setChecked(value ? new Set(rows.map(row => row.id)) : new Set()), onClear: () => setChecked(new Set()), onMarkRead: value => bulkPatch({ is_read: value }), onArchive: () => bulkPatch({ folder: "ARCHIVE" }), onTrash: () => bulkPatch({ folder: "TRASH" }), pending: false } : null} />
         <div className="product-email-list @container">
           {rows.length ? <ul>{rows.map(row => <EmailHubThreadListItem key={row.id} row={row} listFolder={folder} checked={checked.has(row.id)} selectionMode={checked.size > 0} onCheckedChange={value => setChecked(current => { const next = new Set(current); if (value) next.add(row.id); else next.delete(row.id); return next; })} onSelect={() => openThread(row.id)} onPrefetch={() => {}} onToggleStar={() => toggleStar(row)} />)}</ul> : <EmailHubEmptyState icon={search || unread || files ? SearchX : Inbox} message={t(search || unread || files ? "email_hub.search_empty" : `email_hub.empty.${folder.toLowerCase()}`)} />}

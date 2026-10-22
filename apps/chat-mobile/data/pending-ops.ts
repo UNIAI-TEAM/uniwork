@@ -304,7 +304,7 @@ export async function votePoll(
   const existing = find(key);
   const choice = toggledPollChoice(record.poll, optionId);
   const base = existing?.kind === "vote" ? existing.base : record.poll.viewer_option_ids;
-  applyChatMessageResponse(qc, wsId, roomId, withPollChoice(record, userId, choice), false);
+  applyChatMessageResponse(qc, wsId, roomId, withPollChoice(record, choice), false);
   // As for reactions: only a wish no delivery was tried for may be dropped (some taps may have landed).
   const nothingToSend = existing !== undefined && !existing.attempted && sameChoice(choice, base);
   const op: PendingOp | null = nothingToSend

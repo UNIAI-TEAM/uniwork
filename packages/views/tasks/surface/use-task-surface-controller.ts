@@ -118,12 +118,7 @@ export function useTaskSurfaceController({
   const setViewModeStore = useViewStore((s) => s.setViewMode);
   const queryClient = useQueryClient();
 
-  // My-scope must never mount workspace table groups/rows (no relation filter).
-  const allowedModes = useMemo(() => {
-    const next = new Set<TaskSurfaceMode>(modes);
-    if (scope.type === "my") next.delete("table");
-    return next;
-  }, [modes, scope.type]);
+  const allowedModes = useMemo(() => new Set<TaskSurfaceMode>(modes), [modes]);
   const fallbackMode =
     (modes.find((mode) => allowedModes.has(mode)) as TaskSurfaceMode | undefined) ??
     "list";
@@ -162,23 +157,19 @@ export function useTaskSurfaceController({
   );
 
   const boardEnabled = effectiveViewMode === "board";
-  const tableEnabled = effectiveViewMode === "table" && scope.type !== "my";
+  const tableEnabled = effectiveViewMode === "table";
   const ganttEnabled = effectiveViewMode === "gantt";
   const swimlaneEnabled = effectiveViewMode === "swimlane";
-  // My-scope board has no relation-aware table API (query-plan.ts) — feed the
-  // board from listMyTasks so columns never show other people's work.
-  const myBoardUsesList = boardEnabled && scope.type === "my";
-  // Every other board pages each status column through the table API.
-  const tableBoardEnabled = boardEnabled && scope.type !== "my";
+  // Every board pages each status column through the table API; the my scope
+  // sends its relation in the filter so columns hold only the viewer's work.
   const tableFilter: TableFilter | undefined =
-    tableEnabled || tableBoardEnabled
+    tableEnabled || boardEnabled
       ? (queryPlan.tableBody?.filter ?? mappedTableFilter)
       : undefined;
   const listQueryEnabled =
     (effectiveViewMode === "list" ||
       swimlaneEnabled ||
-      ganttEnabled ||
-      myBoardUsesList) &&
+      ganttEnabled) &&
     queryPlan.kind !== "table";
 
   const data = useTaskSurfaceData({
@@ -244,9 +235,9 @@ export function useTaskSurfaceController({
 
   const board = useBoardColumnsData({
     workspaceId,
-    filter: tableBoardEnabled ? tableFilter : undefined,
+    filter: boardEnabled ? tableFilter : undefined,
     categories: boardCategories,
-    enabled: tableBoardEnabled,
+    enabled: boardEnabled,
   });
 
   const projectsCapability = capabilityState(
@@ -420,30 +411,23 @@ export function useTaskSurfaceController({
   );
 
   const isLoading = boardEnabled
-    ? scope.type === "my"
-      ? data.isLoading || statusesQuery.isLoading
-      : statusesQuery.isLoading || board.isLoading
+    ? statusesQuery.isLoading || board.isLoading
     : tableEnabled
       ? false
       : data.isLoading;
   const isError = boardEnabled
-    ? scope.type === "my"
-      ? data.isError || statusesQuery.isError
-      : statusesQuery.isError || board.isError
+    ? statusesQuery.isError || board.isError
     : tableEnabled
       ? false
       : data.isError;
   const isRefreshing = boardEnabled
-    ? scope.type === "my"
-      ? data.isRefreshing ||
-        (statusesQuery.isFetching && !statusesQuery.isLoading)
-      : (statusesQuery.isFetching && !statusesQuery.isLoading) ||
-        board.isRefreshing
+    ? (statusesQuery.isFetching && !statusesQuery.isLoading) ||
+      board.isRefreshing
     : tableEnabled
       ? false
       : data.isRefreshing;
-  const rawSurfaceTasks = tableBoardEnabled ? board.tasks : data.surfaceTasks;
-  const pagination = tableBoardEnabled ? board.pagination : data.pagination;
+  const rawSurfaceTasks = boardEnabled ? board.tasks : data.surfaceTasks;
+  const pagination = boardEnabled ? board.pagination : data.pagination;
   const surfaceTasks = useMemo(() => {
     if (tableEnabled) return rawSurfaceTasks;
     return projectSurfaceTasks(rawSurfaceTasks, {
@@ -453,7 +437,7 @@ export function useTaskSurfaceController({
       taskFilters: clientFilterState,
       filterContext: { runningTaskIds },
       // Table-backed board already filtered on the server — only agentRunning.
-      clientOnlyFilterDimensions: tableBoardEnabled,
+      clientOnlyFilterDimensions: boardEnabled,
     });
   }, [
     clientFilterState,
@@ -462,7 +446,7 @@ export function useTaskSurfaceController({
     showSubTasks,
     sortBy,
     sortDirection,
-    tableBoardEnabled,
+    boardEnabled,
     tableEnabled,
   ]);
   const ganttTasks = useMemo(
@@ -492,7 +476,7 @@ export function useTaskSurfaceController({
     setViewMode,
     surfaceTasks,
     pagination,
-    boardColumns: tableBoardEnabled ? board.columns : undefined,
+    boardColumns: boardEnabled ? board.columns : undefined,
     ganttTasks,
     boardCategories,
     tableFilter,

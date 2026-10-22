@@ -191,6 +191,15 @@ type Provider interface {
 	Embed(ctx context.Context, req EmbedRequest) (EmbedResponse, error)
 }
 
+// Streamer is a provider that hands out answer text while it is written.
+// onDelta gets text in order (never tool input or thinking). On success the
+// response equals what Complete returns. When ctx ends early it returns the
+// partial response (text so far, usage the vendor already reported,
+// UsagePresent false unless complete) together with ctx.Err().
+type Streamer interface {
+	Stream(ctx context.Context, req CompletionRequest, onDelta func(text string)) (CompletionResponse, error)
+}
+
 // schemaParts splits a JSON Schema object into the pieces vendor APIs ask
 // for separately. A schema that is not an object yields empty parts.
 func schemaParts(schema json.RawMessage) (properties map[string]any, required []string) {

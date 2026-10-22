@@ -25,8 +25,9 @@ env:
   NODE_VERSION: "22"
   GO_VERSION: "1.27.0"
   # The toolchain server/Dockerfile ships; govulncheck runs on it (see the
-  # rest shard). GO-2026-6612 / 6613 are fixed in net/http from go1.27.2.
-  GOVULN_GO_VERSION: "1.27.2"
+  # rest shard). GO-2026-6612 / 6613 are fixed in net/http from go1.27.2,
+  # GO-2026-6809 in crypto/x509 from go1.27.3.
+  GOVULN_GO_VERSION: "1.27.3"
   PNPM_VERSION: "10.28.2"
   # apps/chat-desktop: CI only typechecks, lints, tests (node env) and
   # electron-vite-builds the shell; nothing runs the Electron binary.

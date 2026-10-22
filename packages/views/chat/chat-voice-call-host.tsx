@@ -10,8 +10,10 @@ import {
   type ReactNode,
 } from "react";
 import { useChatRooms, useChatVoiceToken } from "@uniwork/core/chat";
+import { paths } from "@uniwork/core/paths";
 import { useWorkspace } from "../layout/workspace-context";
 import { useNativeVoiceCall } from "./use-native-voice-call";
+import { useCallNotification } from "./use-call-notification";
 import type { VoiceCallPanelMode } from "./voice-call-floating-panel";
 import { voiceCallPrimaryLeaveEndsForAll } from "@uniwork/core/chat/voice-call-kind";
 import { prepareVideoCapture, prepareVoiceCapture } from "./voice-call-media";
@@ -95,6 +97,10 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
     roomKindById,
   });
   const { startCall: ringCall, acceptCall: answerCall, reportStartFailure } = voice;
+  const incoming = voice.voiceCall.status === "incoming" ? voice.voiceCall : null;
+  useCallNotification(voice.voiceCall, incoming
+    ? `${paths.workspace(workspace.organization_slug, workspace.slug).chatConversation(incoming.roomId)}&call=${encodeURIComponent(incoming.callId)}`
+    : "");
   // A device that would not start while answering: the call keeps ringing
   // and the panel says which device and why, so answering again is the retry.
   const [acceptError, setAcceptError] = useState<{ callId: string; device: VoiceCallDeviceError } | null>(null);

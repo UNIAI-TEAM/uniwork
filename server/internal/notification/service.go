@@ -83,6 +83,10 @@ type Item struct {
 	// longer exists (hard-deleted or tombstoned). The document link still
 	// opens when the document is readable.
 	CommentDeleted bool
+	// SampleDocuments names the documents of a document_changed row the
+	// reader can read now, resolved at read time (UNI-2056); nil for every
+	// other kind.
+	SampleDocuments []SampleDocument
 }
 
 // snippetKeys are the params keys that carry content the recipient may not
@@ -191,7 +195,7 @@ func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item
 	var docIDs, commentIDs []string
 	commentOf := make(map[string]string, len(rows))
 	for _, n := range rows {
-		if n.ResourceType != "document" {
+		if n.ResourceType != "document" || n.Kind == KindDocumentChanged {
 			continue
 		}
 		docIDs = append(docIDs, n.ResourceID)
@@ -227,7 +231,16 @@ func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item
 			parent = roomOf[n.ResourceID]
 		}
 		item := Item{Notification: n, ResourceDeleted: deleted, ResourceParentID: parent}
-		if n.ResourceType == "document" {
+		// document_changed is exempt from the single-document gate, like
+		// document_trashed_by_other is from its trashed arm: its resource_id
+		// is only the FIRST document of the notice, and under the verbs
+		// trashed and deleted that document is in the trash or gone by
+		// design, so judging the row by it would make every such notice look
+		// dead. The row's readability comes from its documents instead:
+		// attachSampleDocuments names only the samples the reader can read
+		// and rewrites sample_document_ids to match, and the row is kept
+		// even when none is left (the documents route shows the rest).
+		if n.ResourceType == "document" && n.Kind != KindDocumentChanged {
 			// Unwired or unknown state fails closed: the recipient might no
 			// longer read the document, so the snippet is hidden.
 			state := docState[n.ResourceID]
@@ -261,6 +274,9 @@ func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item
 			}
 		}
 		out = append(out, item)
+	}
+	if err := s.attachSampleDocuments(ctx, userID, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

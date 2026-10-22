@@ -41,6 +41,19 @@ SELECT id FROM chat_rooms WHERE id = $1 FOR UPDATE;
 SELECT user_id FROM chat_room_members
 WHERE room_id = $1 AND status IN ('invited', 'active');
 
+-- name: ListActiveChatRoomMembersForGrant :many
+-- tenant: parent room_id
+-- Which of a chat document grant's recipients are still invited or active
+-- members of the room, with the member row that is their current membership
+-- (UNI-2012 S1-fix B1, S1-fix-2 SF2). Read without a row lock, inside the
+-- grant's transaction to drop who already left and again after its commit to
+-- find who left (or left and rejoined: another row id) meanwhile. A lock here
+-- would stall every read/delivered cursor update of the room for the send.
+SELECT id, user_id FROM chat_room_members
+WHERE room_id = sqlc.arg(room_id)
+  AND user_id = ANY(sqlc.arg(user_ids)::text[])
+  AND status IN ('invited', 'active');
+
 -- name: UpdateChatRoomMemberLastRead :exec
 -- tenant: parent room_id
 -- A read implies delivered: the delivered cursor never trails the read one.
@@ -285,6 +298,8 @@ SELECT
   r.member_set_key,
   r.member_permissions,
   r.avatar_file_id,
+  r.wallpaper_preset,
+  r.wallpaper_file_id,
   r.topic,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
@@ -492,6 +507,21 @@ FOR UPDATE;
 SELECT avatar_file_id FROM chat_rooms
 WHERE avatar_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
+-- name: SetChatRoomWallpaper :exec
+UPDATE chat_rooms
+SET wallpaper_preset = sqlc.arg(wallpaper_preset), wallpaper_file_id = sqlc.narg(wallpaper_file_id), updated_at = now()
+WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id);
+
+-- name: GetChatRoomWallpaperForUpdate :one
+SELECT wallpaper_preset, wallpaper_file_id FROM chat_rooms
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+FOR UPDATE;
+
+-- name: ListChatRoomWallpaperFileIDs :many
+-- tenant: system
+SELECT wallpaper_file_id FROM chat_rooms
+WHERE wallpaper_file_id = ANY(sqlc.arg('file_ids')::text[]);
+
 -- name: UpdateChatRoomMemberPermissions :exec
 -- tenant: by-id
 UPDATE chat_rooms SET member_permissions = $2, updated_at = now() WHERE id = $1;
@@ -539,6 +569,8 @@ SELECT
   r.topic,
   r.is_default,
   r.member_permissions,
+  r.wallpaper_preset,
+  r.wallpaper_file_id,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
   mem.notifications_muted,

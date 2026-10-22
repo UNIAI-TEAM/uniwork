@@ -285,6 +285,7 @@ type Routes struct {
 	WorkManagementCapabilityStub http.HandlerFunc
 
 	ListNotifications          http.HandlerFunc
+	ListNotificationDocuments  http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc
 	MarkNotificationsRead      http.HandlerFunc
 	MarkNotificationsUnread    http.HandlerFunc
@@ -300,10 +301,14 @@ type Routes struct {
 	GetOrgAskModels      http.HandlerFunc
 	SetOrgAskModels      http.HandlerFunc
 	AskUni               http.HandlerFunc
+	AskUniStream         http.HandlerFunc
 	ChatCatchUp          http.HandlerFunc
 	ListAiConversations  http.HandlerFunc
 	ListAiMessages       http.HandlerFunc
 	DeleteAiConversation http.HandlerFunc
+	RenameAiConversation http.HandlerFunc
+	SetAiFeedback        http.HandlerFunc
+	ClearAiFeedback      http.HandlerFunc
 	WorkspaceAiUsage     http.HandlerFunc
 	OrganizationAiUsage  http.HandlerFunc
 
@@ -462,7 +467,6 @@ type Routes struct {
 	CreateTaskFromChatMessage        http.HandlerFunc
 	CreateChatMessageLink            http.HandlerFunc
 	ForwardChatMessage               http.HandlerFunc
-	ListChatMessageLinks             http.HandlerFunc
 	ListChatRoomMessageLinks         http.HandlerFunc
 	ListChatRoomLinkPreviews         http.HandlerFunc
 	ListChatRoomLinkedTasks          http.HandlerFunc
@@ -480,6 +484,7 @@ type Routes struct {
 	PatchChatRoomMember              http.HandlerFunc
 	PatchChatRoom                    http.HandlerFunc
 	UploadChatRoomAvatar             http.HandlerFunc
+	UploadChatRoomWallpaper          http.HandlerFunc
 	RemoveChatRoomAvatar             http.HandlerFunc
 	RemoveChatRoomMember             http.HandlerFunc
 	LeaveChatRoom                    http.HandlerFunc
@@ -487,8 +492,6 @@ type Routes struct {
 	AckChatDelivered                 http.HandlerFunc
 	MuteChatRoom                     http.HandlerFunc
 	UnmuteChatRoom                   http.HandlerFunc
-	ListWorkspaceChatMessages        http.HandlerFunc
-	SendWorkspaceChatMessage         http.HandlerFunc
 	ListChatRoomMessages             http.HandlerFunc
 	GetChatRoomMessage               http.HandlerFunc
 	SearchChatRoomMessages           http.HandlerFunc
@@ -498,9 +501,12 @@ type Routes struct {
 	SendChatVoiceMessage             http.HandlerFunc
 	SendChatFileMessage              http.HandlerFunc
 	SendChatDocumentMessage          http.HandlerFunc
+	SendChatDocumentLink             http.HandlerFunc
 	ShareChatMessageAsDocument       http.HandlerFunc
 	GetChatRoomDetail                http.HandlerFunc
+	GetChatPollVoters                http.HandlerFunc
 	VoteChatPollMessage              http.HandlerFunc
+	AddChatPollOptionMessage         http.HandlerFunc
 	ToggleChatMessageReaction        http.HandlerFunc
 	EditChatMessage                  http.HandlerFunc
 	DeleteChatMessage                http.HandlerFunc
@@ -560,6 +566,14 @@ type Routes struct {
 	UploadDocumentAsset         http.HandlerFunc
 	GetDocumentAsset            http.HandlerFunc
 	DownloadDocument            http.HandlerFunc
+	CreateDocumentDownloadJob   http.HandlerFunc
+	CreateFolderUpload          http.HandlerFunc
+	GetFolderUpload             http.HandlerFunc
+	CancelFolderUpload          http.HandlerFunc
+	PutFolderUploadContent      http.HandlerFunc
+	CompleteFolderUpload        http.HandlerFunc
+	GetDocumentDownloadJob      http.HandlerFunc
+	DownloadDocumentDownloadJob http.HandlerFunc
 	CreatePreviewScope          http.HandlerFunc
 	GetPreviewAsset             http.HandlerFunc
 
@@ -637,7 +651,9 @@ type Routes struct {
 	// §5.3, §5.4; UNI-679, G1-05b).
 	ListDocuments       http.HandlerFunc
 	ListRecentDocuments http.HandlerFunc
-	ListDocumentChanges http.HandlerFunc
+	// ListFavoriteDocuments is GET /workspaces/{workspaceID}/documents/favorites (UNI-2045).
+	ListFavoriteDocuments http.HandlerFunc
+	ListDocumentChanges   http.HandlerFunc
 	// Offline lease of one desktop device on one document (G5-08s).
 	PutOfficeOfflineLease    http.HandlerFunc
 	DeleteOfficeOfflineLease http.HandlerFunc
@@ -654,15 +670,17 @@ type Routes struct {
 	AnswerDocumentEditRequest http.HandlerFunc
 	CancelDocumentEditRequest http.HandlerFunc
 
-	ListSharedWithMe           http.HandlerFunc
-	DocumentAccessReport       http.HandlerFunc
-	ExportDocumentAccessReport http.HandlerFunc
-	DocumentTree               http.HandlerFunc
-	MoveDocument               http.HandlerFunc
-	ArchiveDocument            http.HandlerFunc
-	ArchiveImpact              http.HandlerFunc
-	RestoreDocument            http.HandlerFunc
-	PurgeDocument              http.HandlerFunc
+	ListSharedWithMe               http.HandlerFunc
+	DocumentAccessReport           http.HandlerFunc
+	ExportDocumentAccessReport     http.HandlerFunc
+	DocumentAccessReportSummary    http.HandlerFunc
+	DocumentAccessReportPrincipals http.HandlerFunc
+	DocumentTree                   http.HandlerFunc
+	MoveDocument                   http.HandlerFunc
+	ArchiveDocument                http.HandlerFunc
+	ArchiveImpact                  http.HandlerFunc
+	RestoreDocument                http.HandlerFunc
+	PurgeDocument                  http.HandlerFunc
 	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, read-only and
 	// kept forever - "archive" is the trash.
 	ShelveDocument              http.HandlerFunc

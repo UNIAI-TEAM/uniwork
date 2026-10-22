@@ -3,8 +3,8 @@
 // on its core allowlist). Each host keys its own cache, reaches the server
 // through its own transport and knows who is looking, so all three come in:
 // realtime-cache.ts binds the web's, the phone's data/chat-cache.ts its own.
-// What a host keeps beside the timelines (the web's shared-media summary and
-// legacy workspace list, the phone's around pages and disk copy) it refreshes
+// What a host keeps beside the timelines (the web's shared-media summary, the
+// phone's around pages and disk copy) it refreshes
 // from the hooks below. What a frame does to one record is
 // chat-cache-records.ts; the timeline pages are room-timeline-pages.ts.
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
@@ -12,11 +12,9 @@ import type { ChatMessageRecord, ChatRoomRecord } from "../api/endpoints/chat-sc
 import {
   bumpThreadRootReplyCount,
   isChatThreadReply,
-  mergeMessageIntoList,
   patchRoomSidebarFromMessage,
   placeThreadReply,
   removeMessageFromList,
-  replaceMessageInList,
   shouldIncrementUnreadLocally,
 } from "./chat-cache-records";
 import { isDefaultWorkspaceChannel } from "./chat-room-helpers";
@@ -45,8 +43,6 @@ export interface ChatMessageCacheKeys {
 export interface ChatMessageCacheHost {
   keys: ChatMessageCacheKeys;
   getMessage(wsId: string, roomId: string, messageId: string): Promise<ChatMessageRecord | null>;
-  /** Flat message lists that mirror one room's main timeline (the web's legacy workspace list). */
-  mirroredLists?(qc: QueryClient, wsId: string, roomId: string): QueryKey[];
   /** A message was placed in, or replaced in, this room's caches. */
   onMessagePlaced?(qc: QueryClient, wsId: string, roomId: string, message: ChatMessageRecord, created: boolean): void;
   /** A frame for a room nobody here shows: nothing was fetched. */
@@ -86,18 +82,6 @@ export function createChatMessageCache(host: ChatMessageCacheHost) {
     if (next !== existing) qc.setQueryData<RoomTimeline>(key, next);
   }
 
-  function patchMirroredLists(
-    qc: QueryClient,
-    wsId: string,
-    roomId: string,
-    patch: (existing: ChatMessageRecord[]) => ChatMessageRecord[],
-  ): void {
-    for (const key of host.mirroredLists?.(qc, wsId, roomId) ?? []) {
-      const existing = qc.getQueryData<ChatMessageRecord[]>(key);
-      if (existing !== undefined) qc.setQueryData<ChatMessageRecord[]>(key, patch(existing));
-    }
-  }
-
   function patchThreadReplyCaches(qc: QueryClient, wsId: string, roomId: string, message: ChatMessageRecord, rootId: string): void {
     const threadKey = keys.threadMessages(wsId, roomId, rootId);
     const prior = qc.getQueryData<RoomTimeline>(threadKey);
@@ -113,7 +97,6 @@ export function createChatMessageCache(host: ChatMessageCacheHost) {
       return alreadyPresent ? withoutReply : bumpThreadRootReplyCount(withoutReply, message);
     };
     patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) => mapRoomTimeline(existing, patchMainList));
-    patchMirroredLists(qc, wsId, roomId, patchMainList);
   }
 
   /** `created` places a new message; anything else only replaces a loaded one (H4). */
@@ -127,9 +110,6 @@ export function createChatMessageCache(host: ChatMessageCacheHost) {
     patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) =>
       created ? insertCreatedTimelineMessage(existing, message) : replaceTimelineMessage(existing, message),
     );
-    patchMirroredLists(qc, wsId, roomId, (existing) =>
-      created ? mergeMessageIntoList(existing, message) : replaceMessageInList(existing, message),
-    );
   }
 
   /**
@@ -139,7 +119,6 @@ export function createChatMessageCache(host: ChatMessageCacheHost) {
   function isRoomTimelineShown(qc: QueryClient, wsId: string, roomId: string): boolean {
     const shownKeys: QueryKey[] = [
       keys.roomMessages(wsId, roomId),
-      ...(host.mirroredLists?.(qc, wsId, roomId) ?? []),
       ...qc.getQueriesData({ queryKey: keys.roomThreads(wsId, roomId) }).map(([key]) => key),
     ];
     let shown = false;
@@ -240,7 +219,6 @@ export function createChatMessageCache(host: ChatMessageCacheHost) {
       patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) =>
         roomTimelineHas(existing, messageId) ? mapRoomTimeline(existing, (page) => removeMessageFromList(page, messageId)) : existing,
       );
-      patchMirroredLists(qc, wsId, roomId, (existing) => removeMessageFromList(existing, messageId));
       // Thread caches are keyed by root; drop the id from every loaded page of each.
       qc.setQueriesData<RoomTimeline>({ queryKey: keys.roomThreads(wsId, roomId) }, (old) =>
         old && roomTimelineHas(old, messageId) ? mapRoomTimeline(old, (page) => removeMessageFromList(page, messageId)) : old,

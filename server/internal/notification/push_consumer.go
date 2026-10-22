@@ -283,8 +283,8 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	var failed error
 	phoneSent := false
 	for _, sub := range subs {
-		// A call rings web and desktop in the page (realtime); its push is for
-		// the backgrounded phone only (spec M3 §2), never a browser banner on top.
+		// Call invites are the phone's background path (spec M3 §2): open
+		// desktops ring through realtime; web push subscriptions are skipped.
 		if n.Kind == KindChatCallIncoming && !isExpoPushToken(sub.Endpoint) {
 			continue
 		}

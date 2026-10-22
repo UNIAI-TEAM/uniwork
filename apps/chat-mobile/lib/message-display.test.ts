@@ -23,7 +23,6 @@ const poll = {
   ],
   settings: { deadline_at: null, pin_to_top: false, allow_multiple: true, allow_add_options: true, hide_results_until_vote: false, hide_voters: false },
   viewer_option_ids: [] as string[],
-  votes_by_user: undefined,
 };
 
 /** One complete message per kind the server writes (spec §5: every kind has a row). */
@@ -32,6 +31,12 @@ const byKind: Record<(typeof KNOWN_MESSAGE_KINDS)[number], ChatMessageRecord> = 
   system: { ...base, kind: "system" },
   voice_call_log: { ...base, kind: "voice_call_log", voice_call: { outcome: "completed", caller_id: "u1", duration_seconds: 65 } },
   poll: { ...base, kind: "poll", poll },
+  poll_vote: {
+    ...base,
+    kind: "poll_vote",
+    body: "Ăn trưa?",
+    poll_vote: { poll_message_id: "poll1", question: "Ăn trưa?" },
+  },
   reminder: { ...base, kind: "reminder", reminder: { body: "Họp", remind_at: "2026-10-17T11:00:00Z", repeat: "none" } },
   note: { ...base, kind: "note", note: { body: "Ghi chú", pin_to_top: false } },
   voice: { ...base, kind: "voice", voice: { duration_ms: 4000, content_type: "audio/mp4", size_bytes: 1, url: "", url_expires_at: "" } },
@@ -58,6 +63,7 @@ describe("messageView", () => {
     expect(messageContent(byKind.note)).toEqual({ view: "note", note: byKind.note.note });
     expect(messageContent(byKind.post)).toEqual({ view: "post", post: byKind.post.post });
     expect(messageContent(byKind.reminder)).toEqual({ view: "reminder", reminder: byKind.reminder.reminder });
+    expect(messageContent(byKind.poll_vote)).toEqual({ view: "poll-vote-activity", pollVote: byKind.poll_vote.poll_vote });
     expect(messageContent({ ...base, body: "![sticker:vui](https://media.giphy.com/a.webp)" })).toMatchObject({ view: "media", media: { url: "https://media.giphy.com/a.webp" } });
     expect(messageContent(byKind.text)).toEqual({ view: "text" });
   });
@@ -66,7 +72,7 @@ describe("messageView", () => {
     // The schema keeps any kind string, so a newer server's kind reaches the list.
     const future = ChatMessageSchema.parse({ ...base, kind: "whiteboard" });
     expect(messageView(future)).toBe("unsupported");
-    for (const kind of ["file", "voice", "poll", "note", "post", "reminder"]) {
+    for (const kind of ["file", "voice", "poll", "poll_vote", "note", "post", "reminder"]) {
       expect(messageView({ ...base, kind }), kind).toBe("unsupported");
     }
   });

@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseWithFallback } from "../schema";
 import { queryString, readMessage, readMessages, readStatusOk } from "./chat-endpoint-kit";
 import { enc } from "./chat-schemas";
 import type { ChatMessageRecord, ChatRequest } from "./chat-schemas";
@@ -50,6 +52,14 @@ export interface ChatSendMessageInput {
   post?: { title: string; body: string; pin_to_top?: boolean };
   priority?: "important" | "urgent";
 }
+
+/** A poll's voters by option id; a drifted map reads as no voters. */
+const ChatPollVotersSchema = z.object({
+  votes_by_user: z
+    .record(z.string(), z.array(z.string()))
+    .nullish()
+    .transform((value) => value ?? {}),
+});
 
 export function createChatMessagesApi(request: ChatRequest) {
   const ws = (workspaceId: string) => `/api/v1/workspaces/${enc(workspaceId)}`;
@@ -131,6 +141,30 @@ export function createChatMessagesApi(request: ChatRequest) {
       );
     },
 
+    /**
+     * UNI-2012: sends a document that already exists; no bytes move. The server
+     * checks the sender may share it, grants the room's members `share_level`
+     * and writes the same kind "document" card the upload route does.
+     */
+    sendChatDocumentLink(
+      workspaceId: string,
+      roomId: string,
+      input: { document_id: string; share_level?: ChatDocumentShareLevel; client_msg_id: string; reply_to_message_id?: string },
+    ): Promise<ChatMessageRecord | null> {
+      return readMessage(
+        request(`${room(workspaceId, roomId)}/messages/document-link`, {
+          method: "POST",
+          body: {
+            document_id: input.document_id,
+            share_level: input.share_level ?? "comment",
+            client_msg_id: input.client_msg_id,
+            ...(input.reply_to_message_id ? { reply_to_message_id: input.reply_to_message_id } : {}),
+          },
+        }),
+        "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/document-link",
+      );
+    },
+
     /** Converts the caller's own file attachment into a shared document in place: the same id comes back as kind "document". */
     shareChatMessageAsDocument(
       workspaceId: string,
@@ -148,6 +182,22 @@ export function createChatMessagesApi(request: ChatRequest) {
       return readMessage(
         request(`${msg(workspaceId, roomId, messageId)}/poll/vote`, { method: "POST", body: { option_id: optionId } }),
         "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/poll/vote",
+      );
+    },
+
+    /** Who voted for what, read only when someone opens the voter list. */
+    async getChatPollVoters(workspaceId: string, roomId: string, messageId: string): Promise<Record<string, string[]>> {
+      const raw = await request(`${msg(workspaceId, roomId, messageId)}/poll/voters`);
+      const parsed = parseWithFallback(raw, ChatPollVotersSchema, { votes_by_user: {} }, {
+        endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/poll/voters",
+      });
+      return parsed.votes_by_user;
+    },
+
+    addChatPollOptionMessage(workspaceId: string, roomId: string, messageId: string, label: string): Promise<ChatMessageRecord | null> {
+      return readMessage(
+        request(`${msg(workspaceId, roomId, messageId)}/poll/options`, { method: "POST", body: { label } }),
+        "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/poll/options",
       );
     },
 
@@ -178,18 +228,6 @@ export function createChatMessagesApi(request: ChatRequest) {
         request(`${msg(workspaceId, roomId, messageId)}/pin`, { method: "POST", body: {} }),
         "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/pin",
       );
-    },
-
-    listWorkspaceChatMessages(workspaceId: string, options: { before?: string; limit?: number } = {}): Promise<ChatMessageRecord[]> {
-      const qs = queryString({ before: options.before, limit: options.limit || undefined });
-      return readMessages(request(`${ws(workspaceId)}/chat/messages${qs}`), "GET /api/v1/workspaces/{ws}/chat/messages");
-    },
-
-    sendWorkspaceChatMessage(
-      workspaceId: string,
-      input: { body: string; client_msg_id?: string; reply_to_message_id?: string },
-    ): Promise<ChatMessageRecord | null> {
-      return readMessage(request(`${ws(workspaceId)}/chat/messages`, { method: "POST", body: input }), "POST /api/v1/workspaces/{ws}/chat/messages");
     },
   };
 }

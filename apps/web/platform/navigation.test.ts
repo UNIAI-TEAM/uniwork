@@ -97,6 +97,20 @@ describe("web navigation adapter inside the UniChat shell", () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
+  it("opens a chat document card's page entries in the browser, query included (UNI-2012 D7)", async () => {
+    const router = fakeRouter();
+    const policy = host();
+    const adapter = createWebNavigationAdapter(router, "/acme/team/chat", new URLSearchParams(), policy);
+    adapter.push("/acme/team/documents/doc1");
+    adapter.push("/acme/team/documents/doc1?panel=versions");
+    await flushed();
+    expect(policy.openExternal.mock.calls).toEqual([
+      ["http://localhost:3000/acme/team/documents/doc1"],
+      ["http://localhost:3000/acme/team/documents/doc1?panel=versions"],
+    ]);
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
   it("rewrites the tasks landing page to the chat screen", async () => {
     const router = fakeRouter();
     createWebNavigationAdapter(router, PATH, new URLSearchParams(), host()).push("/acme/team/tasks");

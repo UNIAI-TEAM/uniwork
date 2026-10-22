@@ -125,6 +125,9 @@ export const paths = {
           ? `${base}/documents/access-report?folder=${encodeURIComponent(folderId)}`
           : `${base}/documents/access-report`,
       document: (id: string) => `${base}/documents/${id}`,
+      // The document page with its version history open (a chat card's
+      // "Lịch sử phiên bản"); the page drops the parameter once it opens.
+      documentVersions: (id: string) => `${base}/documents/${id}?panel=versions`,
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
       chat: () => `${base}/chat`,
@@ -151,10 +154,15 @@ export const paths = {
   },
 };
 
+const SAME_ORIGIN_PROBE = "https://app.invalid";
+
 /** Chỉ cho phép path cùng origin: bắt đầu bằng "/" và không phải "//". */
 export function sanitizeNextUrl(raw: string | null | undefined): string | null {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return null;
-  return raw;
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null;
+  // Browsers drop tab/CR/LF and read "\" as "/" before parsing, so "/\t/x.com"
+  // would navigate to "//x.com"; refuse any whitespace, control or backslash.
+  if (/[\s\p{Cc}\\]/u.test(raw)) return null;
+  return new URL(raw, SAME_ORIGIN_PROBE).origin === SAME_ORIGIN_PROBE ? raw : null;
 }
 
 /**
