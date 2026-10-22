@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -331,9 +330,8 @@ func TestDocumentSourceListsDocumentFilesOnly(t *testing.T) {
 
 	for _, typ := range []string{"image", "other"} {
 		_, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Types: []string{typ}})
-		var ve ValidationError
-		if !errors.As(err, &ve) {
-			t.Errorf("type=%s: err = %v, want a validation error (400)", typ, err)
+		if !codedIs(err, "invalid_type") {
+			t.Errorf("type=%s: err = %v, want 400 invalid_type", typ, err)
 		}
 	}
 
