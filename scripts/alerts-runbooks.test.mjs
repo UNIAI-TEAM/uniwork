@@ -50,8 +50,8 @@ test("every alert has a runbook_url whose file exists and is named after the ale
   const all = rules();
   assert.equal(
     all.length,
-    29,
-    "spec §6.5 + UNI-936 alerts; billing adds BILLING_VNPAY_WEBHOOK + C-11 graph lag; UNI-1087 RedisUnreachable; G7-07 adds 12 Office / UniWork AI alerts; UNI-2023 MeetingScribeCannotJoin",
+    31,
+    "spec §6.5 + UNI-936 alerts; billing adds BILLING_VNPAY_WEBHOOK + C-11 graph lag; UNI-1087 RedisUnreachable; G7-07 adds 12 Office / UniWork AI alerts; UNI-2023 MeetingScribeCannotJoin; UNI-1995 MeetingAutoSummaryFailing + MeetingScribeCapacityHigh",
   );
   for (const r of all) {
     assert.ok(r.runbook_url, `${r.alert} has no runbook_url`);

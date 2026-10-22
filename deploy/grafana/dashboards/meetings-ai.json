@@ -1,0 +1,609 @@
+{
+  "uid": "uniwork-meetings-ai",
+  "title": "UniWork · Meetings AI",
+  "tags": [
+    "uniwork",
+    "meetings",
+    "ai"
+  ],
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 0,
+      "type": "stat",
+      "title": "Cuộc họp đang ghi",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(scribe_jobs_running)",
+          "legendFormat": ""
+        }
+      ],
+      "description": "Job của thư ký AI đang chạy trên mọi worker."
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Worker ít tải nhất",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.6
+              },
+              {
+                "color": "red",
+                "value": 0.7
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "min(max by (nodename) (lk_agents_worker_load))",
+          "legendFormat": ""
+        }
+      ],
+      "description": "Worker từ chối job mới trên 70%; alert MeetingScribeCapacityHigh ở 60% suốt 10 phút."
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "p95 độ trễ bản chốt (15 phút)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 4
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(scribe_stt_final_latency_seconds_bucket[15m])))",
+          "legendFormat": ""
+        }
+      ],
+      "description": "Từ lúc VAD báo hết câu tới bản chốt của STT."
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Tóm tắt tự động thất bại (1 giờ)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(uniwork_meetings_total{event=\"auto_summary_failed\"}[1h])) / sum(increase(uniwork_meetings_total{event=~\"auto_summary_ok|auto_summary_failed\"}[1h]))",
+          "legendFormat": ""
+        }
+      ],
+      "description": "Alert MeetingAutoSummaryFailing ở 20% (≥ 5 lượt)."
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Lần chạy thư ký theo sự kiện",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (event) (increase(uniwork_meetings_total{event=~\"scribe_.*\"}[5m]))",
+          "legendFormat": "{{event}}"
+        }
+      ],
+      "description": "scribe_dispatched / scribe_active / scribe_failed / scribe_dispatch_failed / scribe_quota_refused (quota đếm mỗi vòng quét 15 s, không phải mỗi cuộc họp)."
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Tải worker theo pod",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.7
+              }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (nodename) (lk_agents_worker_load)",
+          "legendFormat": "{{nodename}}"
+        }
+      ],
+      "description": "Ngưỡng nhận job 0,7 (load_threshold). Mọi pod gần ngưỡng: HPA ở trần hoặc không theo kịp."
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Job đang chạy theo pod",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (nodename) (lk_agents_active_job_count)",
+          "legendFormat": "{{nodename}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Phiên STT lỗi mỗi phút",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(scribe_stt_errors_total[5m])) * 60",
+          "legendFormat": "lỗi/phút"
+        }
+      ],
+      "description": "Phiên STT bị bỏ (key sai, nhà cung cấp lỗi, 1008 vượt hạn mức phiên mới). Mỗi lỗi: track đó im tới lần thử lại."
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Độ trễ bản chốt STT",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 4
+              }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(scribe_stt_final_latency_seconds_bucket[5m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(scribe_stt_final_latency_seconds_bucket[5m])))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Đoạn chốt và phút nói",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(scribe_segments_total[5m])) * 60",
+          "legendFormat": "đoạn/phút"
+        }
+      ],
+      "description": "Đoạn final gửi về server. Phút nói (tính cho khách) ở panel dưới."
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Phút nói ghi được mỗi giờ",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(scribe_speech_seconds_total[1h])) / 60",
+          "legendFormat": "phút"
+        }
+      ],
+      "description": "Giây nói theo VAD; khách bị tính theo số này, nhà cung cấp tính theo thời gian mở phiên (đối chiếu hóa đơn: eval/README.md)."
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Tóm tắt tự động mỗi giờ",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (event) (increase(uniwork_meetings_total{event=~\"auto_summary_ok|auto_summary_failed\"}[1h]))",
+          "legendFormat": "{{event}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Lỗi tóm tắt theo nguyên nhân",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (reason) (increase(uniwork_meeting_summary_errors_total[1h]))",
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "description": "Cả tóm tắt bấm tay lẫn tự động: provider, timeout, rate_limited, quota, parse, empty, store, not_configured."
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Việc rút trong họp và phụ đề dịch",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 36,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (event) (increase(uniwork_meetings_total{event=~\"live_items_.*|caption_translate_.*\"}[1h]))",
+          "legendFormat": "{{event}}"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Lượt gọi model của Meetings",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 44,
+        "w": 24,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (capability, status) (rate(uniwork_ai_calls_total{capability=~\"meeting_.*\"}[5m]))",
+          "legendFormat": "{{capability}} {{status}}"
+        }
+      ]
+    }
+  ]
+}

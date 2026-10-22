@@ -134,6 +134,37 @@ groups:
           description: "{{ $value }} lần gọi thư ký AI thất bại hoặc lần chạy bị đánh FAILED trong 15 phút: các phòng đó quay về phụ đề Web Speech và không có transcript của thư ký."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingScribeCannotJoin.md
 
+      # An auto run that settles without a summary sends the host the reminder (auto_summary_failed):
+      # a model error, the plan, the quota or the switch. 20 % over an hour with a floor of 5 runs:
+      # a single org without the plan must not page; a provider outage fails nearly every run.
+      - alert: MeetingAutoSummaryFailing
+        expr: |
+          sum(increase(uniwork_meetings_total{event="auto_summary_failed"}[1h]))
+            / sum(increase(uniwork_meetings_total{event=~"auto_summary_ok|auto_summary_failed"}[1h])) > 0.2
+          and sum(increase(uniwork_meetings_total{event=~"auto_summary_ok|auto_summary_failed"}[1h])) >= 5
+        for: 15m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Tóm tắt tự động sau họp thất bại trên 20%"
+          description: "{{ $value | humanizePercentage }} cuộc họp kết thúc trong 1 giờ qua không có tóm tắt tự động; chủ trì chỉ nhận lời nhắc tự tóm tắt, việc cần làm không được rút."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingAutoSummaryFailing.md
+
+      # The worker refuses jobs past load_threshold 0.7 (apps/meeting-agent/agent.py). Every worker
+      # above 0.6 for 10 minutes means the HPA is at maxReplicas or not keeping up: the next
+      # meetings get no scribe (each dispatch misses its 60 s, the third miss fails the run for 10 min).
+      - alert: MeetingScribeCapacityHigh
+        expr: |
+          min(max by (nodename) (lk_agents_worker_load)) > 0.6
+          and on() sum(lk_agents_active_job_count) > 0
+        for: 10m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Worker thư ký AI gần hết sức chứa"
+          description: "Worker thư ký AI ít tải nhất cũng đang ở {{ $value | humanizePercentage }} tải (ngưỡng nhận job 70%) suốt 10 phút, với {{ with query \"sum(lk_agents_active_job_count)\" }}{{ . | first | value | printf \"%.0f\" }}{{ end }} cuộc họp đang ghi: cuộc họp mới sẽ không có thư ký."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingScribeCapacityHigh.md
+
       - alert: RealtimeSlowEvictions
         expr: sum(increase(uniwork_realtime_slow_evictions_total[10m])) > 25
         for: 5m
