@@ -183,7 +183,7 @@ func (h *handlers) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.Auth.DeleteAccount(r.Context(), middleware.UserID(r.Context()), service.DeleteAccountInput{
-		Password: in.Password, Code: in.Code, EmailConfirmation: in.EmailConfirmation,
+		Password: in.Password, Code: in.Code, EmailConfirmation: in.EmailConfirmation, CloseOrganization: in.CloseOrganization,
 	})
 	if err != nil {
 		h.mapServiceError(w, err)

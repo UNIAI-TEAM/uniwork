@@ -137,7 +137,10 @@ func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler
 		description: "Ẩn danh hóa tài khoản theo Nghị định 13: cần mật khẩu, hoặc mã MFA, hoặc gõ lại email. " +
 			"Sai bằng chứng không bao giờ là 401 (client sẽ làm mới phiên rồi gửi lại): 403 password_incorrect khi sai mật khẩu, " +
 			"403 mfa_code_incorrect khi sai mã MFA, 400 email_confirmation_mismatch khi email gõ lại không khớp. " +
-			"409 owner_must_transfer khi còn là chủ sở hữu tổ chức.",
+			"409 owner_must_transfer khi còn là chủ sở hữu tổ chức; error.fields nêu tổ chức đó (organization_name, organization_slug) " +
+			"và can_close khi chủ sở hữu là thành viên duy nhất của tổ chức đang hoạt động: gửi lại kèm close_organization = slug đó " +
+			"để đóng tổ chức và xóa tài khoản trong một giao dịch (400 close_confirm_mismatch khi slug không khớp, " +
+			"409 organization_has_members khi tổ chức vừa có thêm thành viên).",
 		tags: []string{"me"},
 		sdi:  sdi.DeleteAccountSDI{},
 		sdo:  sdo.StatusSDO{},

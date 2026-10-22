@@ -45,6 +45,12 @@ func (s *OrganizationMemberService) Close(ctx context.Context, actorID, orgID, c
 // caller cleans up the returned mailboxes after commit. meta joins the
 // organization.closed audit metadata (the invitation a switch closed for).
 func (s *OrganizationMemberService) closeQ(ctx context.Context, q *db.Queries, actorID, orgID, confirmSlug string, meta map[string]any) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
+	return closeOrganizationQ(ctx, q, actorID, orgID, confirmSlug, meta)
+}
+
+// closeOrganizationQ is closeQ without the service: account deletion closes the
+// sole owner's organization in its own transaction (AuthService.DeleteAccount).
+func closeOrganizationQ(ctx context.Context, q *db.Queries, actorID, orgID, confirmSlug string, meta map[string]any) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
 	m, err := q.LockOrganizationMemberForUpdate(ctx, db.LockOrganizationMemberForUpdateParams{
 		OrganizationID: orgID, UserID: actorID,
 	})

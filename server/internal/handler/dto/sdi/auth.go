@@ -72,6 +72,7 @@ type DeleteAccountSDI struct {
 	Password          string `json:"password" description:"Mật khẩu hiện tại (tài khoản có mật khẩu)" example:"password123"`
 	Code              string `json:"code" description:"Mã TOTP hoặc mã khôi phục (tài khoản chỉ Google, có MFA)" example:"123456"`
 	EmailConfirmation string `json:"email_confirmation" description:"Gõ lại email (tài khoản chỉ Google, không MFA)" example:"an@acme.vn"`
+	CloseOrganization string `json:"close_organization,omitempty" description:"Địa chỉ (slug) của tổ chức mà tài khoản là chủ sở hữu và thành viên duy nhất, gõ lại: tổ chức được đóng (lưu trữ) cùng giao dịch với việc xóa tài khoản" example:"cong-ty-mot-minh"`
 }
 
 // SetPushPreviewsSDI is PUT /api/v1/me/push-previews.
