@@ -42,14 +42,32 @@ type AiCitationDTO struct {
 	ObjectID string `json:"object_id,omitempty" description:"Mã của đối tượng nguồn trỏ tới; vắng khi nguồn không là một đối tượng" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
 }
 
+// AiStepDTO is one tool the agent ran for an answer.
+type AiStepDTO struct {
+	Tool   string         `json:"tool" description:"Tên tool đã chạy" example:"search"`
+	Label  string         `json:"label" description:"Từ khóa tìm hoặc tên đối tượng tool mở; rỗng nếu không có" example:"quá hạn"`
+	Counts map[string]int `json:"counts" description:"Số nguồn mới tìm thấy theo loại" example:"{\"task\":3}"`
+}
+
+// AiContextRefDTO is an object a question named: its focus or an @-mention.
+type AiContextRefDTO struct {
+	Kind  string `json:"kind" description:"task, meeting, email_thread, document, project, room hoặc member" example:"task"`
+	ID    string `json:"id" description:"Mã của đối tượng" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+	Title string `json:"title" description:"Tên đối tượng lúc hỏi" example:"Viết spec F-09"`
+}
+
 // AiMessageDTO is one turn of a conversation.
 type AiMessageDTO struct {
-	ID        string          `json:"id" example:"01K4AIMSG0000000000000001"`
-	Role      string          `json:"role" description:"user hoặc assistant" example:"assistant"`
-	Content   string          `json:"content" example:"Có 1 việc quá hạn: [S1] Viết spec F-09."`
-	Citations []AiCitationDTO `json:"citations"`
-	Notice    string          `json:"notice,omitempty" description:"Mã thông báo thay cho nội dung: no_sources, empty_answer" example:"no_sources"`
-	CreatedAt string          `json:"created_at" example:"2026-09-06T08:00:00Z"`
+	ID        string            `json:"id" example:"01K4AIMSG0000000000000001"`
+	Role      string            `json:"role" description:"user hoặc assistant" example:"assistant"`
+	Content   string            `json:"content" example:"Có 1 việc quá hạn: [S1] Viết spec F-09."`
+	Citations []AiCitationDTO   `json:"citations"`
+	Notice    string            `json:"notice,omitempty" description:"Mã thông báo thay cho nội dung: no_sources, empty_answer" example:"no_sources"`
+	Steps     []AiStepDTO       `json:"steps" description:"Các bước tool agent đã chạy cho câu trả lời, theo thứ tự"`
+	Followups []string          `json:"followups" description:"Câu hỏi gợi ý tiếp theo" example:"[\"Việc nào trễ nhất?\"]"`
+	Focus     *AiContextRefDTO  `json:"focus,omitempty" description:"Đối tượng câu hỏi đang xem; vắng khi không có"`
+	Mentions  []AiContextRefDTO `json:"mentions" description:"Các đối tượng người hỏi @-nhắc tới"`
+	CreatedAt string            `json:"created_at" example:"2026-09-06T08:00:00Z"`
 }
 
 // AiUsageDTO is what the call cost.
@@ -78,6 +96,7 @@ type AskStreamStepDTO struct {
 	Round  int            `json:"round" description:"Số thứ tự vòng gọi tool, từ 1" example:"1"`
 	Phase  string         `json:"phase" description:"tool hoặc retry" example:"tool"`
 	Tool   string         `json:"tool" description:"Tên tool vừa chạy; rỗng ở bước retry" example:"search_tasks"`
+	Label  string         `json:"label" description:"Từ khóa tìm hoặc tên đối tượng tool mở; rỗng nếu không có" example:"quá hạn"`
 	Counts map[string]int `json:"counts" description:"Số kết quả theo loại" example:"{\"task\":3}"`
 }
 
@@ -89,6 +108,12 @@ type AskStreamDeltaDTO struct {
 // AskStreamCitationsDTO is the data of event citations.
 type AskStreamCitationsDTO struct {
 	Citations []AiCitationDTO `json:"citations" description:"Nguồn trích dẫn đã kiểm của câu trả lời, theo thứ tự S1, S2…"`
+}
+
+// AskStreamSourcesDTO is the data of event sources: sources a step found
+// that had no S# before.
+type AskStreamSourcesDTO struct {
+	Sources []AiCitationDTO `json:"sources" description:"Nguồn mới của bước vừa chạy, mỗi nguồn một số S# mới"`
 }
 
 // AskStreamUsageDTO is the tokens of a streamed turn.

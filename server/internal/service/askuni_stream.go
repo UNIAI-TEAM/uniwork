@@ -12,13 +12,14 @@ import (
 type AskSink func(AskEvent)
 
 // AskEvent is one event of a streamed turn. Name selects the field that
-// carries it: run, step, delta, citations, done or error.
+// carries it: run, step, sources, delta, citations, done or error.
 type AskEvent struct {
 	Name      string
 	Run       *AskRunEvent
 	Step      *AskStepEvent
 	Delta     string
 	Citations []AskCitation
+	Sources   []AskCitation // the sources a step numbered for the first time
 	Done      *AskResult
 	Code      string
 }
@@ -30,6 +31,7 @@ type AskStepEvent struct {
 	Round  int
 	Phase  string // "tool" | "retry"
 	Tool   string
+	Label  string // the query or the one object the tool named; "" otherwise
 	Counts map[string]int
 }
 

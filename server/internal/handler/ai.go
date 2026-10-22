@@ -19,9 +19,39 @@ import (
 func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	var cites []service.AskCitation
 	_ = json.Unmarshal([]byte(m.Citations), &cites)
-	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: make([]sdo.AiCitationDTO, 0, len(cites)), Notice: m.Notice.String, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
+	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: citationDTOs(cites), Notice: m.Notice.String, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
+	out.Steps, out.Followups, out.Mentions = []sdo.AiStepDTO{}, []string{}, []sdo.AiContextRefDTO{}
+	// A column that is NULL or does not decode reads as empty, never an error.
+	var steps []service.AskStep
+	_ = json.Unmarshal([]byte(m.Steps), &steps)
+	for _, st := range steps {
+		counts := st.Counts
+		if counts == nil {
+			counts = map[string]int{}
+		}
+		out.Steps = append(out.Steps, sdo.AiStepDTO{Tool: st.Tool, Label: st.Label, Counts: counts})
+	}
+	_ = json.Unmarshal([]byte(m.Followups), &out.Followups)
+	if out.Followups == nil {
+		out.Followups = []string{}
+	}
+	var refs []service.AskContextRef
+	_ = json.Unmarshal([]byte(m.Mentions), &refs)
+	for _, r := range refs {
+		out.Mentions = append(out.Mentions, sdo.AiContextRefDTO{Kind: r.Kind, ID: r.ID, Title: r.Title})
+	}
+	var focus service.AskContextRef
+	if m.Focus.Valid && json.Unmarshal([]byte(m.Focus.String), &focus) == nil && focus.ID != "" {
+		out.Focus = &sdo.AiContextRefDTO{Kind: focus.Kind, ID: focus.ID, Title: focus.Title}
+	}
+	return out
+}
+
+// citationDTOs is cites as the API names them; never nil.
+func citationDTOs(cites []service.AskCitation) []sdo.AiCitationDTO {
+	out := make([]sdo.AiCitationDTO, 0, len(cites))
 	for _, c := range cites {
-		out.Citations = append(out.Citations, sdo.AiCitationDTO{SourceID: c.SourceID, Quote: c.Quote, Kind: c.Kind, Title: c.Title, Href: c.Href, ObjectID: c.ObjectID})
+		out = append(out, sdo.AiCitationDTO{SourceID: c.SourceID, Quote: c.Quote, Kind: c.Kind, Title: c.Title, Href: c.Href, ObjectID: c.ObjectID})
 	}
 	return out
 }

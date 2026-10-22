@@ -352,3 +352,35 @@ func TestAskUniStreamCancelledRunLogsNothing(t *testing.T) {
 		t.Fatal("a real failure must still log")
 	}
 }
+
+func TestAskUniStreamWritesSourcesAndStepLabel(t *testing.T) {
+	fake := &provider.Fake{}
+	n := 0
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		if n++; n == 1 {
+			return provider.CompletionResponse{UsagePresent: true, InputTokens: 5, StopReason: "tool_use",
+				ToolCalls: []provider.ToolCall{{ID: "c1", Name: "list_members", Input: json.RawMessage(`{"query":""}`)}}}
+		}
+		return provider.CompletionResponse{Text: "Xong", UsagePresent: true, InputTokens: 5, StopReason: "end_turn"}
+	}
+	srv, owner, _, wsID := askWorld(t, fake)
+	res := postStream(t, srv, wsID, owner, map[string]any{"question": "ai trong nhóm?", "locale": "vi"})
+	frames := collectFrames(readSSE(res.Body))
+	var step, sources, done string
+	for _, f := range frames {
+		switch f.event {
+		case "step":
+			step = f.data
+		case "sources":
+			sources = f.data
+		case "done":
+			done = f.data
+		}
+	}
+	if !strings.Contains(step, `"label"`) || !strings.Contains(sources, `"sources":[{`) || !strings.Contains(sources, `"object_id"`) {
+		t.Fatalf("events %v\nstep %s\nsources %s", eventsOf(frames), step, sources)
+	}
+	if !strings.Contains(done, `"steps":[{"tool":"list_members"`) {
+		t.Fatalf("done %s", done)
+	}
+}

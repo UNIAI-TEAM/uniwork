@@ -52,16 +52,14 @@ func writeAskEvent(sw *sseWriter, ev service.AskEvent) {
 			if counts == nil {
 				counts = map[string]int{}
 			}
-			sw.event("step", sdo.AskStreamStepDTO{Round: ev.Step.Round, Phase: ev.Step.Phase, Tool: ev.Step.Tool, Counts: counts})
+			sw.event("step", sdo.AskStreamStepDTO{Round: ev.Step.Round, Phase: ev.Step.Phase, Tool: ev.Step.Tool, Label: ev.Step.Label, Counts: counts})
 		}
+	case "sources":
+		sw.event("sources", sdo.AskStreamSourcesDTO{Sources: citationDTOs(ev.Sources)})
 	case "delta":
 		sw.event("delta", sdo.AskStreamDeltaDTO{Text: ev.Delta})
 	case "citations":
-		cites := make([]sdo.AiCitationDTO, 0, len(ev.Citations))
-		for _, c := range ev.Citations {
-			cites = append(cites, sdo.AiCitationDTO{SourceID: c.SourceID, Quote: c.Quote, Kind: c.Kind, Title: c.Title, Href: c.Href, ObjectID: c.ObjectID})
-		}
-		sw.event("citations", sdo.AskStreamCitationsDTO{Citations: cites})
+		sw.event("citations", sdo.AskStreamCitationsDTO{Citations: citationDTOs(ev.Citations)})
 	case "done":
 		if ev.Done != nil {
 			u := ev.Done.Usage

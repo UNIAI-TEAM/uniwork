@@ -188,6 +188,18 @@ func (b *sourceBook) source(it agentItem) {
 	b.byID[id] = AskCitation{SourceID: id, Quote: quote, Kind: it.Kind, Title: it.Title, Href: it.Href, ObjectID: it.ID}
 }
 
+// since is the citations of the numbers handed out from first on, in order:
+// the sources a step or the focus numbered for the first time.
+func (b *sourceBook) since(first int) []AskCitation {
+	var out []AskCitation
+	for n := first; n < b.next; n++ {
+		if c, ok := b.byID["S"+strconv.Itoa(n)]; ok {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // render is the numbered sources, then any note or error text (ruling P10),
 // within limit bytes: a source that does not fit is neither sent nor
 // numbered, nor is any after it, and the block ends askAgentTruncated.
@@ -345,6 +357,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	// The focus and mentions were read before the run, in AskStream; here they
 	// are numbered and rendered for the prompt's focus block, capped like a
 	// tool result (ruling P11).
+	firstNew := book.next
 	focus, _ := book.render(ctxItems, askAgentToolResultMax)
 
 	// The first call's organization budget is counted here, before run, so a
@@ -355,6 +368,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		return AskResult{}, ai.RateLimited(askRateWindow)
 	}
 	emit.emit(AskEvent{Name: "run", Run: &AskRunEvent{RunID: res.RunID, ConversationID: conv.ID}})
+	if cs := book.since(firstNew); len(cs) > 0 {
+		emit.emit(AskEvent{Name: "sources", Sources: cs})
+	}
 
 	vars := map[string]any{"locale": in.Locale, "today": s.now().Format("2006-01-02"), "focus": focus, "question": question}
 	prompt, _ := ai.LookupPrompt(ai.PromptCopilotAnswerV3)
@@ -375,8 +391,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	if emit != nil {
 		req.OnDelta = draft.add
 	}
-	spentInput := 0 // the input budget's count, cached tokens included (P12)
-	billed := ""    // the usage row of the last call that answered
+	var steps []AskStep // the tool steps so far, stored with the turn
+	spentInput := 0     // the input budget's count, cached tokens included (P12)
+	billed := ""        // the usage row of the last call that answered
 	call := func() (ai.Response, error) {
 		draft.reset()
 		req.MeterKey = "ask-uni:" + res.RunID + ":" + strconv.Itoa(calls)
@@ -405,7 +422,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		var e *ai.Error
 		errors.As(err, &e)
 		rowUsage(ctx, e.UsageEventID)
-		return s.finishAgent(ctx, emit, res, w, conv, question, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID)
+		return s.finishAgent(ctx, emit, res, w, conv, question, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID, steps)
 	}
 	// A stop (askStopNotice) stores the text the asker saw streamed for the
 	// last call, with what it cites, on a context that outlives the request,
@@ -419,7 +436,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			usage = e.UsageEventID
 			rowUsage(sctx, usage)
 		}
-		return s.finishAgent(sctx, emit, res, w, conv, question, draft.sent, notice, agentCitations(draft.sent, book), usage)
+		return s.finishAgent(sctx, emit, res, w, conv, question, draft.sent, notice, agentCitations(draft.sent, book), usage, steps)
 	}
 	// Any other error after a call was billed stores the turn with
 	// agent_failed (ruling P19), on a context that outlives the run's
@@ -443,7 +460,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		slog.Warn("ask uni: agent run failed", "run_id", res.RunID, "organization_id", w.OrganizationID, "err", err)
 		sctx, cancel := outliving(ctx)
 		defer cancel()
-		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, usage)
+		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, usage, steps)
 	}
 
 	var resp ai.Response
@@ -479,6 +496,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		// the next call far past it.
 		room := min(askAgentToolResultMax, max(0, (askAgentInputBudget-spentInput)*3))
 		for i, c := range resp.ToolCalls {
+			before := book.next
 			content, step, err := s.agentToolCall(runCtx, tools, tc, c, book, i, room)
 			if err != nil {
 				if n := askStopNotice(ctx, runCtx, err); n != "" {
@@ -490,6 +508,10 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			// clears the text of the call that asked for it.
 			step.Round = rounds
 			draft.step(step)
+			steps = append(steps, AskStep{Tool: step.Tool, Label: step.Label, Counts: step.Counts})
+			if cs := book.since(before); len(cs) > 0 {
+				emit.emit(AskEvent{Name: "sources", Sources: cs})
+			}
 			room = max(0, room-len(content))
 			msgs = append(msgs, provider.Message{Role: "tool", ToolCallID: c.ID, Content: content})
 		}
@@ -519,16 +541,16 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	sctx, cancelStore := outliving(ctx)
 	defer cancelStore()
 	if agentMalformed(resp) {
-		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID)
+		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID, steps)
 	}
 	answer := strings.TrimSpace(ai.StripUntrustedTags(resp.Text))
-	return s.finishAgent(sctx, emit, res, w, conv, question, answer, "", agentCitations(answer, book), resp.UsageEventID)
+	return s.finishAgent(sctx, emit, res, w, conv, question, answer, "", agentCitations(answer, book), resp.UsageEventID, steps)
 }
 
 // finishAgent stores the turn with the last call's usage row. Its text
 // already streamed, so it ends with citations and done.
-func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question, answer, notice string, citations []AskCitation, usageEventID string) (AskResult, error) {
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID})
+func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep) (AskResult, error) {
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps})
 	if err != nil {
 		return AskResult{}, err
 	}
@@ -560,6 +582,7 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 		var items []agentItem
 		if items, err = tools[j].run(ctx, tc, c.Input); err == nil {
 			content, status = b.toolResult(items, limit)
+			step.Label = stepLabel(name, c.Input, items)
 		}
 		for _, it := range items {
 			if it.Key != "" && !b.counted[it.Key] {
@@ -577,4 +600,27 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 		s.agentMetrics.ObserveAskTool(name, status, s.now().Sub(started).Seconds())
 	}
 	return content, step, err
+}
+
+// stepLabelMax is the longest step label, in runes.
+const stepLabelMax = 60
+
+// stepLabel names what a step looked at: the search's query, or the one
+// object a get_* tool opened; "" for any other step. It is object or query
+// text, one line, never a UI string.
+func stepLabel(tool string, args json.RawMessage, items []agentItem) string {
+	var label string
+	switch {
+	case tool == "search":
+		var a struct{ Query string }
+		_ = json.Unmarshal(args, &a)
+		label = a.Query
+	case strings.HasPrefix(tool, "get_") && len(items) == 1:
+		label = items[0].Title
+	}
+	label = oneLine(label)
+	if r := []rune(label); len(r) > stepLabelMax {
+		label = strings.TrimSpace(string(r[:stepLabelMax]))
+	}
+	return label
 }

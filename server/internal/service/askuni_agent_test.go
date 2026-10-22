@@ -1148,3 +1148,105 @@ func TestAgentSecondTurnSeesFirstTurnSources(t *testing.T) {
 		t.Fatalf("turn 2 request lacks turn 1 sources:\n%s", hist)
 	}
 }
+
+// getTaskCalls scripts a model that opens the task once per round for n
+// rounds, then answers.
+func getTaskCalls(fake *provider.Fake, taskID string, n int) {
+	rounds := 0
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		if req.Messages[len(req.Messages)-1].Role != "tool" || rounds < n {
+			rounds++
+			in, _ := json.Marshal(map[string]string{"task": taskID})
+			return provider.CompletionResponse{UsagePresent: true, InputTokens: 10, StopReason: "tool_use",
+				ToolCalls: []provider.ToolCall{{ID: fmt.Sprintf("call-%d", rounds), Name: "get_task", Input: in}}}
+		}
+		return provider.CompletionResponse{Text: "Xong [S1]", UsagePresent: true, InputTokens: 10, StopReason: "end_turn"}
+	}
+}
+
+func TestAgentEmitsSourcesWhenAToolFindsNewOnes(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	task := agentTask(t, s, ua, w, "Banner Tết")
+	getTaskCalls(fake, task.ID, 2)
+	var evs []AskEvent
+	if _, err := s.AskStream(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}, func(e AskEvent) { evs = append(evs, e) }); err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	var sources []AskEvent
+	for _, e := range evs {
+		if e.Name == "sources" {
+			sources = append(sources, e)
+		}
+		if e.Name == "run" || e.Name == "step" || e.Name == "sources" {
+			names = append(names, e.Name)
+		}
+	}
+	if want := []string{"run", "step", "sources", "step"}; !reflect.DeepEqual(names, want) {
+		t.Fatalf("events %v, want %v", names, want)
+	}
+	c := sources[0].Sources[0]
+	if len(sources[0].Sources) != 1 || c.SourceID != "S1" || c.Kind != "task" || c.ObjectID != task.ID || c.Title != "Banner Tết" || c.Href != "/org-alpha/alpha/tasks/"+task.ID {
+		t.Fatalf("sources %+v", sources[0].Sources)
+	}
+}
+
+func TestStepLabelNamesTheQueryOrTheObject(t *testing.T) {
+	one := []agentItem{{Kind: "task", Key: "/t/1", Title: "Banner Tết"}}
+	cases := []struct {
+		name, tool, args string
+		items            []agentItem
+		want             string
+	}{
+		{"search query", "search", `{"query":"quá hạn"}`, nil, "quá hạn"},
+		{"get_task title", "get_task", `{"task":"x"}`, one, "Banner Tết"},
+		{"list_members none", "list_members", `{"query":""}`, []agentItem{{Kind: "member", Key: "/m/1", Title: "An"}}, ""},
+		{"long query", "search", `{"query":"` + strings.Repeat("ế", 200) + `"}`, nil, strings.Repeat("ế", 60)},
+		{"newline", "search", `{"query":"a\nb\n\n  c"}`, nil, "a b c"},
+		{"get with no item", "get_task", `{"task":"x"}`, nil, ""},
+	}
+	for _, c := range cases {
+		if got := stepLabel(c.tool, json.RawMessage(c.args), c.items); got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+func TestAgentStoresItsSteps(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	task := agentTask(t, s, ua, w, "Banner Tết")
+	getTaskCalls(fake, task.ID, 2)
+	res, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var steps []AskStep
+	if err := json.Unmarshal([]byte(res.Message.Steps), &steps); err != nil || len(steps) != 2 {
+		t.Fatalf("steps %q (%v)", res.Message.Steps, err)
+	}
+	for _, st := range steps {
+		if st.Tool != "get_task" || st.Label != "Banner Tết" {
+			t.Fatalf("step %+v", st)
+		}
+	}
+
+	// Stop right after step 1: the stored row keeps that one step.
+	getTaskCalls(fake, task.ID, 2)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	res, err = s.AskStream(ctx, ua.ID, w.ID, AskInput{Question: "Lại?", Locale: "vi"}, func(e AskEvent) {
+		if e.Name == "step" {
+			cancel()
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Message.Notice.String != ai.NoticeStopped {
+		t.Fatalf("notice %q", res.Message.Notice.String)
+	}
+	steps = nil
+	if err := json.Unmarshal([]byte(res.Message.Steps), &steps); err != nil || len(steps) != 1 {
+		t.Fatalf("stopped steps %q (%v)", res.Message.Steps, err)
+	}
+}
