@@ -42,7 +42,7 @@ func TestCreateTaskFromMessageAndLink(t *testing.T) {
 	if task.Title == "" || task.OriginType.String != chatMessageOriginType {
 		t.Fatalf("task title/origin: %+v", task)
 	}
-	links, err := s.ListChatMessageLinks(ctx, ua.ID, w.ID, msg.ID)
+	links, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, room.RoomID, []string{msg.ID})
 	if err != nil || len(links) != 1 || links[0].Relation != chatLinkRelationCreated {
 		t.Fatalf("links: err=%v %+v", err, links)
 	}
@@ -60,7 +60,7 @@ func TestCreateTaskFromMessageAndLink(t *testing.T) {
 	if linked.Relation != chatLinkRelationMentions {
 		t.Fatalf("relation=%s", linked.Relation)
 	}
-	links, err = s.ListChatMessageLinks(ctx, ua.ID, w.ID, msg.ID)
+	links, err = s.ListRoomMessageLinks(ctx, ua.ID, w.ID, room.RoomID, []string{msg.ID})
 	if err != nil || len(links) != 2 {
 		t.Fatalf("links after mention: err=%v len=%d", err, len(links))
 	}
@@ -129,6 +129,49 @@ func TestSyncThreadTask(t *testing.T) {
 	}
 	if err := s.UnsyncThreadTask(ctx, ua.ID, w.ID, root.ID); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSyncThreadTaskRefusesASecondThreadForTheSameTask(t *testing.T) {
+	s, tasks, _, ua, w, pool := chatWithTasks(t)
+	ctx := context.Background()
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{Name: "sync-dup", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootA, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "thread A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootB, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "thread B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "one task two threads"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	linkA, err := s.SyncThreadTask(ctx, ua.ID, w.ID, rootA.ID, SyncThreadTaskInput{TaskID: task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SyncThreadTask(ctx, ua.ID, w.ID, rootB.ID, SyncThreadTaskInput{TaskID: task.ID}); !codedIs(err, "chat_task_already_synced") {
+		t.Fatalf("second thread: want chat_task_already_synced, got %v", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM chat_thread_task_links WHERE task_id = $1`, task.ID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("link rows = %d, want 1", count)
+	}
+	linkAgain, err := s.SyncThreadTask(ctx, ua.ID, w.ID, rootA.ID, SyncThreadTaskInput{TaskID: task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if linkAgain.ID != linkA.ID {
+		t.Fatalf("idempotent sync changed link id %s -> %s", linkA.ID, linkAgain.ID)
 	}
 }
 

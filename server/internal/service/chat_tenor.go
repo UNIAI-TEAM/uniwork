@@ -21,6 +21,13 @@ type tenorRequest struct {
 	fallback     []ChatGifItem
 }
 
+const tenorFeaturedTTL = 5 * time.Minute
+
+type tenorCacheEntry struct {
+	items   []ChatGifItem
+	expires time.Time
+}
+
 func (s *ChatService) fetchTenor(ctx context.Context, req tenorRequest) ([]ChatGifItem, error) {
 	apiKey, apiBase, ok := s.chatMediaAPIKeyAndBase()
 	if !ok {
@@ -42,6 +49,17 @@ func (s *ChatService) fetchTenor(ctx context.Context, req tenorRequest) ([]ChatG
 	params.Set("media_filter", req.mediaFilter)
 	if req.searchFilter != "" {
 		params.Set("searchfilter", req.searchFilter)
+	}
+
+	cacheKey := ""
+	if req.endpoint == "featured" {
+		cacheKey = req.mediaFilter + "|" + req.searchFilter + "|" + params.Encode()
+		if v, ok := s.featuredCache.Load(cacheKey); ok {
+			if e := v.(tenorCacheEntry); time.Now().Before(e.expires) {
+				return append([]ChatGifItem(nil), e.items...), nil
+			}
+			s.featuredCache.Delete(cacheKey)
+		}
 	}
 
 	path := "/v2/" + req.endpoint
@@ -77,6 +95,12 @@ func (s *ChatService) fetchTenor(ctx context.Context, req tenorRequest) ([]ChatG
 	}
 	if len(out) == 0 {
 		return appendFallback(req.fallback), nil
+	}
+	if cacheKey != "" {
+		s.featuredCache.Store(cacheKey, tenorCacheEntry{
+			items:   append([]ChatGifItem(nil), out...),
+			expires: time.Now().Add(tenorFeaturedTTL),
+		})
 	}
 	return out, nil
 }
