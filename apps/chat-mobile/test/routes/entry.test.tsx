@@ -16,6 +16,7 @@ import { api } from "@/data/api";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
+import { DISPLAY_MAX_FONT_SCALE } from "@/lib/type-scale";
 import { renderRoutes } from "@/test/route-render";
 import { viText } from "@/test/render";
 
@@ -65,6 +66,16 @@ describe("the entry gate", () => {
     const routes = await renderRoutes(ROUTES, "/");
     expect(await screen.findByTestId("login-screen")).toBeTruthy();
     expect(routes.pathname()).toBe("/login");
+  });
+
+  // iOS AX5 (a11y-large-text-dark.yaml): uncapped, the 28 pt title reached 100 pt and broke "Welcome" mid-word.
+  it("caps only the welcome title's growth with the text size: the hint and the button keep scaling", async () => {
+    useAuthStore.setState({ user: null, isLoading: false });
+    await renderRoutes(ROUTES, "/login");
+    const title = await screen.findByTestId("login-title");
+    expect(title.props.maxFontSizeMultiplier).toBe(DISPLAY_MAX_FONT_SCALE);
+    expect(screen.getByText(viText("mobile.login_hint")).props.maxFontSizeMultiplier).toBeUndefined();
+    expect(screen.getByText(viText("auth.desktop.unichat_login_button")).props.maxFontSizeMultiplier).toBeUndefined();
   });
 
   it("asks a signed-in person with no workspace yet to pick one, and opens the one picked", async () => {

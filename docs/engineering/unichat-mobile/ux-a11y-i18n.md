@@ -46,7 +46,9 @@ Trình đọc màn hình, cảm giác, chuyển động, quy ước Android, c�
   `text-sm`… hay `text-[13px]`. Phần tử chứa chữ dùng `min-h-*` + padding dọc, không `h-*` cố định (cả `Button`, ô tìm kiếm, ô nhập); cùng test đỏ
   khi một chuỗi class có `h-*` cố định mà không có chiều rộng cố định (ô icon/avatar), không phải đường kẻ ≤ 2 và không
   nằm trong `FIXED_HEIGHT_OK` (scrim, skeleton, sóng âm, minh hoạ — ghi lý do); chỉ huy hiệu chặn
-  cỡ chữ (`BADGE_MAX_FONT_SCALE` 1.4) và nhãn tab (`TAB_LABEL_MAX_FONT_SCALE` 1.3, như tab bar native giữ nhãn cố định).
+  cỡ chữ (`BADGE_MAX_FONT_SCALE` 1.4), nhãn tab (`TAB_LABEL_MAX_FONT_SCALE` 1.3, như tab bar native giữ nhãn cố định)
+  và tiêu đề display của màn đăng nhập (`DISPLAY_MAX_FONT_SCALE` 2: 28 → 56 pt, gần Title 1 của Apple ở AX5; để tự do
+  thì AX5 đưa nó lên 100 pt và iOS cắt "Welcome" giữa chữ).
   **Quyền**: `data/permissions.ts` (màn giải thích `components/ui/permission-primer.tsx`
   qua `stores/permission-primer-store.ts`, instance native `components/ui/permission-gate.ts`): đã cấp thì đi tiếp, hệ
   thống còn hỏi được thì giải thích rồi mới hỏi, không hỏi được nữa thì mở `Linking.openSettings`; `once` (thông báo lúc
@@ -93,7 +95,9 @@ Trình đọc màn hình, cảm giác, chuyển động, quy ước Android, c�
   chỉ kéo từ grabber (`dragFrom="handle"`), vừa thì kéo từ đâu cũng được. **Cỡ chữ trợ năng**: `useLargeText()`
   (`components/ui/a11y.ts`, `fontScale ≥ LARGE_TEXT_SCALE` 1.6 ở `lib/type-scale.ts`) — hàng phòng cho tên và dòng cuối
   hai dòng mỗi thứ, dấu/giờ/huy hiệu xuống dòng dưới; hàng nhật ký cuộc gọi đưa giờ xuống dưới kết quả; hàng Cài đặt
-  xuống dòng nhãn và đặt giá trị dưới nó. Preset Jest của React Native báo `fontScale` 2, nên `test/jest-setup.ts` đặt
+  xuống dòng nhãn và đặt giá trị dưới nó; minh hoạ của màn đăng nhập (`components/brand/login-hero.tsx`, ẩn với trình
+  đọc màn hình, chữ trong bong bóng mẫu không phóng theo cỡ chữ) nhường chỗ cho riêng logo, để lời chào, gợi ý và nút
+  có màn hình. Preset Jest của React Native báo `fontScale` 2, nên `test/jest-setup.ts` đặt
   về 1; test cỡ chữ lớn tự `jest.spyOn(Dimensions, "get")`. **Danh sách phụ** (Cuộc gọi, Danh bạ, Nhắn tin mới, Tạo
   nhóm, Kênh): `components/ui/list-states.tsx` — `ListSkeleton` (khung hàng, một phần tử progressbar) và
   `ListLoadError` (nói cái gì hỏng, gợi ý kiểm tra mạng, Thử lại; live region `assertive` trên Android, `useAnnounce`

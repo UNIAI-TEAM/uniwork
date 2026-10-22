@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { BADGE_MAX_FONT_SCALE, isLargeText, LARGE_TEXT_SCALE, TAB_LABEL_MAX_FONT_SCALE } from "./type-scale";
+import { BADGE_MAX_FONT_SCALE, DISPLAY_MAX_FONT_SCALE, isLargeText, LARGE_TEXT_SCALE, TAB_LABEL_MAX_FONT_SCALE } from "./type-scale";
 import typeScale from "./type-scale.json";
 import { cn } from "./utils";
 
@@ -36,6 +36,14 @@ describe("text roles", () => {
     expect(TAB_LABEL_MAX_FONT_SCALE).toBeLessThan(LARGE_TEXT_SCALE);
   });
 
+  it("let a display title grow into the accessibility sizes, but not past where one word fills a phone's line", () => {
+    expect(DISPLAY_MAX_FONT_SCALE).toBeGreaterThan(LARGE_TEXT_SCALE);
+    // 28 pt × the cap stays near Apple's Title 1 at AX5 (58 pt), well under AX5's own 3.57×.
+    const [display = 0] = typeScale.display;
+    expect(display).toBe(28);
+    expect(display * DISPLAY_MAX_FONT_SCALE).toBeLessThanOrEqual(58);
+  });
+
   it("are font sizes to cn(), so a role and a colour on one element both stay", () => {
     expect(cn("text-footnote font-semibold", "text-muted-foreground")).toBe("text-footnote font-semibold text-muted-foreground");
     expect(cn("text-footnote", "text-body")).toBe("text-body");
@@ -63,9 +71,10 @@ describe("text roles", () => {
  * system text size. Anything else that holds text takes `min-h-*` and vertical padding (S6 dynamic type).
  */
 const FIXED_HEIGHT_OK: Record<string, string[]> = {
-  // The decorative illustration (hidden from screen readers) is a fixed stage; its text bubbles are placed on it.
+  // The sign-in illustration (hidden from screen readers) is a fixed stage; its text bubbles are placed on it and their
+  // text does not scale (allowFontScaling={false}); at the accessibility sizes the stage is not drawn at all.
   // The wall's fade at its foot is an image.
-  "app/(auth)/login.tsx": ["relative h-[440px]", "absolute inset-x-0 bottom-0 h-[220px] w-full"],
+  "components/brand/login-hero.tsx": ["relative h-[440px]", "absolute inset-x-0 bottom-0 h-[220px] w-full"],
   // Scrims over the video: shading, no text.
   "components/calls/call-room.tsx": ["absolute inset-x-0 top-0 h-36", "absolute inset-x-0 bottom-0 h-48"],
   // A sheet's share of the screen, not a text box.

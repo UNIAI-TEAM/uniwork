@@ -2,32 +2,24 @@
 // button opens the system browser; the session store loads /me afterwards.
 // Laid out as canvas MobLogin: the mark and the welcome up top, the error and
 // the button at the thumb. At the largest text sizes the page scrolls instead
-// of pushing the button off the screen (Maestro's a11y-large-text-dark flow).
+// of pushing the button off the screen (Maestro's a11y-large-text-dark flow); there the illustration gives way
+// to the mark (components/brand/login-hero.tsx) and the display title stops growing at DISPLAY_MAX_FONT_SCALE,
+// so "Welcome" still fits one line instead of breaking mid-word, while the hint and the button keep scaling.
 import { Ionicons } from "@expo/vector-icons";
-import wallDotsDark from "@/assets/chat-wall-dots-dark.png";
-import wallDotsLight from "@/assets/chat-wall-dots-light.png";
-import wallFadeDark from "@/assets/wall-fade-dark.png";
-import wallFadeLight from "@/assets/wall-fade-light.png";
 import { Redirect } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Image, ImageBackground, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { UniChatLogo } from "@/components/brand/unichat-logo";
-import { PersonAvatar } from "@/components/people/person-avatar";
+import { LoginHero } from "@/components/brand/login-hero";
 import { SignInLegalNote } from "@/components/settings/sign-in-legal-note";
 import { useAnnounce } from "@/components/ui/a11y";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
-import { bubbleCorners } from "@/lib/conversation-display";
 import { THEME } from "@/lib/theme";
+import { DISPLAY_MAX_FONT_SCALE } from "@/lib/type-scale";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
-
-const WALL_DOTS = { light: wallDotsLight, dark: wallDotsDark };
-const WALL_FADE = { light: wallFadeLight, dark: wallFadeDark };
-/** The sample exchange of the MobLogin board; a name, not a string to translate. */
-const SAMPLE_PEER = "Nguyễn Thu Hà";
 
 export default function Login() {
   const { t } = useTranslation();
@@ -55,39 +47,12 @@ export default function Login() {
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerStyle={{ flexGrow: 1 }} bounces={false} testID="login-screen">
-      {/* The illustration of the MobLogin board: a wall of dots fading out, a sample exchange around the mark. Decorative. */}
-      <View className="relative h-[440px]" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <ImageBackground source={WALL_DOTS[colorScheme]} resizeMode="repeat" className="absolute inset-0 bg-chat-wall" />
-        {/* The wall fades into the page, as the board's mask does. */}
-        <Image source={WALL_FADE[colorScheme]} resizeMode="stretch" className="absolute inset-x-0 bottom-0 h-[220px] w-full" />
-        <SafeAreaView edges={["top"]} className="flex-1">
-          <View className="absolute right-10 top-[26px] min-h-7 flex-row items-center gap-1.5 rounded-full bg-chat-bubble-other/90 px-2.5 py-1">
-            <Ionicons name="videocam-outline" size={14} color={THEME[colorScheme].successSolid} />
-            <Text className="text-footnote font-semibold text-muted-foreground">{t("chat.video_call_log_completed", { duration: "3:05" })}</Text>
-          </View>
-          <View className="absolute left-6 top-[72px] flex-row items-end gap-1.5">
-            <PersonAvatar name={SAMPLE_PEER} size={30} />
-            <View className="max-w-[230px] bg-chat-bubble-other px-[11px] pb-[7px] pt-1.5" style={bubbleCorners(false, true, false)}>
-              <Text className="text-caption font-semibold text-chat-sender-8">{SAMPLE_PEER}</Text>
-              <Text className="text-subhead leading-[21px] text-foreground">{t("chat.mobile.login_sample_in")}</Text>
-            </View>
-          </View>
-          <View className="absolute left-0 right-0 top-[168px] items-center">
-            <UniChatLogo size={96} />
-          </View>
-          <View
-            className="absolute right-6 top-[300px] flex-row items-end gap-1 bg-chat-bubble-own px-[11px] pb-[7px] pt-1.5"
-            style={bubbleCorners(true, true, false)}
-          >
-            <Text className="text-subhead leading-[21px] text-chat-bubble-own-foreground">{t("chat.mobile.login_sample_out")}</Text>
-            <Text className="ps-2 text-meta text-chat-bubble-own-meta">10:31</Text>
-            <Ionicons name="checkmark-done" size={15} color={THEME[colorScheme].chatBubbleOwnMeta} />
-          </View>
-        </SafeAreaView>
-      </View>
+      <LoginHero />
       <View className="items-center gap-2.5 px-8">
         <Text
           accessibilityRole="header"
+          maxFontSizeMultiplier={DISPLAY_MAX_FONT_SCALE}
+          testID="login-title"
           className="text-center text-display font-display font-extrabold leading-[34px] tracking-tight text-foreground"
         >
           {t("auth.desktop.unichat_login_title")}
