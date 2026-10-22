@@ -26,7 +26,7 @@ import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { loadPrivacySettings } from "@/components/app/privacy";
+import { loadPrivacySettings, usageStatsEnabled } from "@/components/app/privacy";
 import { PrivacyGuard } from "@/components/app/privacy-guard";
 import { UpdateGate } from "@/components/app/update-gate";
 import { ErrorFallback } from "@/components/ui/error-fallback";
@@ -40,6 +40,7 @@ import { bootRuntime } from "@/data/boot";
 import { perfMark } from "@/data/logger";
 import { startNativeCalls } from "@/data/calls/call-wiring";
 import { startUpdatesController } from "@/data/updates-controller";
+import { pushOpenResult, startAnalytics, track } from "@/data/analytics";
 import { nativeCalls } from "@/data/calls/native-calls";
 import { runChatNotificationAction, registerChatMessageCategory } from "@/data/chat-notification-actions";
 import { ensureNotificationChannels } from "@/data/notification-channels";
@@ -70,6 +71,11 @@ void loadPrivacySettings();
 startNativeCalls();
 // An update marked critical is applied on the next trip to the background, not the next cold start (data/updates-controller.ts).
 startUpdatesController();
+// Anonymous product counters (opens, sends, push opens, call connects), off when the person says so (data/analytics.ts).
+startAnalytics({ enabled: usageStatsEnabled, signedIn: () => useAuthStore.getState().user !== null });
+/** When this JavaScript started: the first screen's time is measured from here. */
+const BOOTED_AT = Date.now();
+let firstScreenTracked = false;
 // The encrypted store the outbox and the cached rooms live in, before the session is restored.
 installDeviceStore(openNativeDeviceStore);
 installAccountCache({ queryClient, persister: createDevicePersister(openDeviceStore) });
@@ -156,6 +162,7 @@ function AuthInitializer({ children }: { children: ReactNode }) {
         void runChatNotificationAction(chatAction);
         return;
       }
+      track({ name: "push_open", result: pushOpenResult(response.notification.request.content.data) });
       const url: unknown = response.notification.request.content.data?.url;
       if (typeof url === "string") openUrl(url, true);
     });
@@ -182,6 +189,10 @@ function useSplashUntilReady() {
     const frame = requestAnimationFrame(() => {
       SplashScreen.hide();
       perfMark("first-screen");
+      if (!firstScreenTracked) {
+        firstScreenTracked = true;
+        track({ name: "first_screen", result: "ok", duration_ms: Date.now() - BOOTED_AT });
+      }
     });
     return () => cancelAnimationFrame(frame);
   }, [isLoading]);

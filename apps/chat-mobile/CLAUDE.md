@@ -274,7 +274,16 @@ một dòng thì ghi lý do ở dòng trên.
   `PushConsumer.SetMobileCalls`; cuộc gọi đang diễn ra không bị cắt và giữ dịch vụ cuộc gọi). Câu trả lời cuối của server được giữ trên máy
   (`remote-config/v1` trong device store, `persistRemoteConfig`, ≤ 30 ngày, ngoài mọi tài khoản) và gieo lại vào query
   lúc mở (`restoreRemoteConfig`, đề ngày lúc nhận nên query hỏi lại ngay): kill switch và mức tối thiểu giữ qua một lần
-  mở lạnh không mạng. Chưa từng có câu trả lời và server không tới được thì không chặn gì và mọi công tắc ở mặc định. Lỗi một thao tác → `toast.error(...)`
+  mở lạnh không mạng. Chưa từng có câu trả lời và server không tới được thì không chặn gì và mọi công tắc ở mặc định.
+  Thống kê sản phẩm (audit "no-product-analytics"): `data/analytics.ts` (khởi ở `app/_layout.tsx`) xếp hàng sự kiện
+  ẩn danh — `app_open` cold/warm, `first_screen` (ms từ lúc JS chạy), `message_send` sent/failed (`observeChatSends` của
+  `data/chat-send.ts`, ms từ lúc viết), `push_open` chat/call/other, `call_connect` connected/failed (từ store cuộc gọi)
+  — gửi theo lô ≤ 20 mỗi phút và khi vào nền tới `POST /api/v1/mobile/events` (server chỉ cộng bộ đếm
+  `uniwork_mobile_events_total` / histogram `uniwork_mobile_event_duration_seconds` theo OS và version; không lưu gì của
+  người hay nội dung); không thử lại, hàng tối đa 60. Tắt ở Cài đặt › Quyền riêng tư và bảo mật (`usageStats` trong
+  `lib/app-lock.ts`, mặc định bật; tắt thì hàng bị bỏ). Sự kiện mới thì thêm vào `ProductEvent` và vào tập đóng
+  `mobileEventResults` của `server/internal/metrics/mobile_events.go` cùng commit, và cập nhật bảng Quyền riêng tư của
+  `store/listing.md`. Lỗi một thao tác → `toast.error(...)`
   (`data/stores/toast-store.ts`, `components/ui/toast-host.tsx`); `Alert.alert`
   chỉ cho xác nhận thật (xoá, rời, thu hồi) và trong sheet là `Modal` (toast vẽ
   dưới cửa sổ Modal). Đăng xuất: `useAuthStore.logout()` tự gỡ push

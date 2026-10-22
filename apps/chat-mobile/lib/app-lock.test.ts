@@ -3,15 +3,18 @@ import { DEFAULT_PRIVACY_SETTINGS, RELOCK_AFTER_MS, coversWhenAway, parsePrivacy
 
 describe("parsePrivacySettings", () => {
   it("reads what was saved, and both protections off when nothing or nothing usable was", () => {
-    const saved = { appLock: true, relockAfterMs: 300_000, screenSecurity: true } as const;
+    const saved = { appLock: true, relockAfterMs: 300_000, screenSecurity: true, usageStats: false } as const;
     expect(parsePrivacySettings(serializePrivacySettings(saved))).toEqual(saved);
     for (const raw of [null, "", "not json", "[]", "null", '"on"']) expect(parsePrivacySettings(raw)).toEqual(DEFAULT_PRIVACY_SETTINGS);
-    expect(DEFAULT_PRIVACY_SETTINGS).toEqual({ appLock: false, relockAfterMs: 60_000, screenSecurity: false });
+    expect(DEFAULT_PRIVACY_SETTINGS).toEqual({ appLock: false, relockAfterMs: 60_000, screenSecurity: false, usageStats: true });
   });
 
   it("takes only a true as on and only an offered delay", () => {
     expect(parsePrivacySettings(JSON.stringify({ appLock: "yes", relockAfterMs: 42, screenSecurity: 1 }))).toEqual(DEFAULT_PRIVACY_SETTINGS);
-    expect(parsePrivacySettings(JSON.stringify({ appLock: true, relockAfterMs: 0 }))).toEqual({ appLock: true, relockAfterMs: 0, screenSecurity: false });
+    expect(parsePrivacySettings(JSON.stringify({ appLock: true, relockAfterMs: 0 }))).toEqual({ appLock: true, relockAfterMs: 0, screenSecurity: false, usageStats: true });
+    // The usage counters go off only on an explicit false (audit "no-product-analytics": the person's opt-out).
+    expect(parsePrivacySettings(JSON.stringify({ usageStats: false })).usageStats).toBe(false);
+    expect(parsePrivacySettings(JSON.stringify({ usageStats: "no" })).usageStats).toBe(true);
   });
 });
 

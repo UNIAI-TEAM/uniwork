@@ -6,7 +6,7 @@ import * as ScreenCapture from "expo-screen-capture";
 import { Platform } from "react-native";
 import { readDevicePreference, writeDevicePreference } from "@/data/device-preferences";
 import { ownerPromptOpen } from "./app-lock-state";
-import { authenticateOwner, deviceCanLock, loadPrivacySettings, updatePrivacySettings, usePrivacySettings } from "./privacy";
+import { authenticateOwner, deviceCanLock, loadPrivacySettings, updatePrivacySettings, usageStatsEnabled, usePrivacySettings } from "./privacy";
 
 jest.mock("@/data/device-preferences", () => ({
   readDevicePreference: jest.fn(async () => JSON.stringify({ appLock: false, relockAfterMs: 0, screenSecurity: true })),
@@ -24,7 +24,7 @@ describe("privacy settings on the phone", () => {
     await act(() => loadPrivacySettings());
     expect(readDevicePreference).toHaveBeenCalledWith("privacy");
     const { result } = await renderHook(() => usePrivacySettings());
-    expect(result.current).toEqual({ settings: { appLock: false, relockAfterMs: 0, screenSecurity: true }, loaded: true, restored: true });
+    expect(result.current).toEqual({ settings: { appLock: false, relockAfterMs: 0, screenSecurity: true, usageStats: true }, loaded: true, restored: true });
     await act(async () => undefined);
     expect(capture.preventScreenCaptureAsync).toHaveBeenCalledWith("unichat-screen-security");
     expect(capture.enableAppSwitcherProtectionAsync).toHaveBeenCalledTimes(1);
@@ -34,10 +34,14 @@ describe("privacy settings on the phone", () => {
     jest.replaceProperty(Platform, "OS", "android");
     await act(() => updatePrivacySettings({ screenSecurity: false }));
     await act(async () => undefined);
-    expect(writeDevicePreference).toHaveBeenCalledWith("privacy", JSON.stringify({ appLock: false, relockAfterMs: 0, screenSecurity: false }));
+    expect(writeDevicePreference).toHaveBeenCalledWith("privacy", JSON.stringify({ appLock: false, relockAfterMs: 0, screenSecurity: false, usageStats: true }));
     expect(capture.allowScreenCaptureAsync).toHaveBeenCalledWith("unichat-screen-security");
     expect(capture.enableAppSwitcherProtectionAsync).not.toHaveBeenCalled();
     expect(capture.disableAppSwitcherProtectionAsync).not.toHaveBeenCalled();
+    // The usage counters read the same store, at each event.
+    expect(usageStatsEnabled()).toBe(true);
+    await act(() => updatePrivacySettings({ usageStats: false }));
+    expect(usageStatsEnabled()).toBe(false);
   });
 
   it("on iOS keeps the app switcher protected while the lock is on, and lifts it when both are off", async () => {

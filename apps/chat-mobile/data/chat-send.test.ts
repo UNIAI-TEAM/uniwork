@@ -19,6 +19,7 @@ import {
   discardPendingSend,
   flushAllQueuedSends,
   flushQueuedSends,
+  observeChatSends,
   retryPendingSend,
   sendChatMessage,
   type ChatSendDeps,
@@ -351,6 +352,36 @@ describe("refusals and retries", () => {
     await sendChatMessage(qc, input, deps);
     expect(statuses()).toEqual([]);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.roomMessages("w1", "r1") });
+  });
+});
+
+// Audit "no-product-analytics": the product counters hear how each send ended (data/analytics.ts).
+describe("observeChatSends", () => {
+  it("hears a delivered send with its time since it was written, a refusal for good, and nothing for a transient failure", async () => {
+    const heard: [string, number][] = [];
+    const stop = observeChatSends((outcome, ms) => heard.push([outcome, ms]));
+    const qc = new QueryClient();
+    const wall = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    online = false;
+    await sendChatMessage(qc, { ...input, body: "later" }, deps);
+    expect(heard).toEqual([]);
+    wall.mockReturnValue(4_000);
+    online = true;
+    await flushQueuedSends(qc, "w1", "u1", deps);
+    expect(heard).toEqual([["sent", 3_000]]);
+    sendMessage.mockRejectedValueOnce(apiError(403));
+    await sendChatMessage(qc, { ...input, body: "refused" }, deps);
+    expect(heard.at(-1)).toEqual(["failed", 0]);
+    online = false;
+    await sendChatMessage(qc, { ...input, roomId: "r2", body: "", file: { uri: "file:///cache/gone.png", name: "gone.png" } }, deps);
+    files.resolve.mockReturnValueOnce(null);
+    online = true;
+    await flushQueuedSends(qc, "w1", "u1", deps);
+    expect(heard.filter(([outcome]) => outcome === "failed")).toHaveLength(2);
+    wall.mockRestore();
+    stop();
+    await sendChatMessage(qc, { ...input, body: "unheard" }, deps);
+    expect(heard).toHaveLength(3);
   });
 });
 

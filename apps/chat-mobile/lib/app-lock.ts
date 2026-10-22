@@ -20,13 +20,15 @@ export interface PrivacySettings {
   appLock: boolean;
   relockAfterMs: RelockAfterMs;
   screenSecurity: boolean;
+  /** Anonymous usage counters (data/analytics.ts): on unless the person turns them off. */
+  usageStats: boolean;
 }
 
-export const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = { appLock: false, relockAfterMs: 60_000, screenSecurity: false };
+export const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = { appLock: false, relockAfterMs: 60_000, screenSecurity: false, usageStats: true };
 
 const isRelock = (value: unknown): value is RelockAfterMs => RELOCK_AFTER_MS.some((option) => option === value);
 
-/** The saved choices; anything missing or unreadable reads as its default (both off). */
+/** The saved choices; anything missing or unreadable reads as its default (both protections off, usage counters on). */
 export function parsePrivacySettings(raw: string | null): PrivacySettings {
   let value: unknown = null;
   try {
@@ -39,6 +41,8 @@ export function parsePrivacySettings(raw: string | null): PrivacySettings {
     appLock: saved.appLock === true,
     relockAfterMs: isRelock(saved.relockAfterMs) ? saved.relockAfterMs : DEFAULT_PRIVACY_SETTINGS.relockAfterMs,
     screenSecurity: saved.screenSecurity === true,
+    // Only an explicit no turns the counters off: a choice saved before they existed keeps the default.
+    usageStats: saved.usageStats !== false,
   };
 }
 

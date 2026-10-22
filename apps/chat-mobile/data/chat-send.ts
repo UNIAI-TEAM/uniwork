@@ -107,6 +107,24 @@ const lineKey = (workspaceId: string, roomId: string, senderId: string, lane: La
 
 type Outcome = "sent" | "failed" | "transient";
 
+type SendObserver = (outcome: "sent" | "failed", msSinceWritten: number) => void;
+const sendObservers = new Set<SendObserver>();
+
+/**
+ * Hears every send that ends — delivered, with the time since it was written (offline waits included), or failed for
+ * good — for the product counters (data/analytics.ts). A transient failure is not an end. Returns the unsubscribe.
+ */
+export function observeChatSends(observer: SendObserver): () => void {
+  sendObservers.add(observer);
+  return () => void sendObservers.delete(observer);
+}
+
+// createdAt is the wall clock (sendChatMessage), so the time since is too.
+function ended(entry: PendingSend, outcome: "sent" | "failed"): void {
+  const ms = Math.max(0, Date.now() - entry.createdAt);
+  for (const observer of sendObservers) observer(outcome, ms);
+}
+
 /** When each upload in flight went on the wire, by clientMsgId. */
 const onWireSince = new Map<string, number>();
 /** Media lines waiting for their backoff after a transient failure: text behind them goes. */
@@ -123,6 +141,7 @@ async function deliverOnce(qc: QueryClient, entry: PendingSend, deps: ChatSendDe
   const file = entry.file ? deps.files.resolve(entry.clientMsgId, entry.file) : undefined;
   if (file === null) {
     useChatSendStore.getState().setStatus(entry.clientMsgId, "failed");
+    ended(entry, "failed");
     return "failed";
   }
   useChatSendStore.getState().setStatus(entry.clientMsgId, "sending");
@@ -133,10 +152,12 @@ async function deliverOnce(qc: QueryClient, entry: PendingSend, deps: ChatSendDe
     applyChatMessageResponse(qc, entry.workspaceId, entry.roomId, message, true);
     useChatSendStore.getState().remove(entry.clientMsgId);
     deps.files.release(entry.clientMsgId);
+    ended(entry, "sent");
     return "sent";
   } catch (err: unknown) {
     const permanent = isPermanentChatSendRefusal(err);
     useChatSendStore.getState().setStatus(entry.clientMsgId, permanent ? "failed" : "queued");
+    if (permanent) ended(entry, "failed");
     return permanent ? "failed" : "transient";
   } finally {
     onWireSince.delete(entry.clientMsgId);

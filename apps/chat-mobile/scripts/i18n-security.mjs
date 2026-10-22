@@ -1,6 +1,7 @@
 // Security and privacy (audit "Security & privacy"): a link that asks to open
 // a direct message, the privacy cover over the app switcher, the app lock, the
-// screen-capture block and whether a notification shows the message's words.
+// screen-capture block, whether a notification shows the message's words and
+// the anonymous usage counters (data/analytics.ts).
 // Merged into `mobile.security` by sync-i18n.mjs; keep vi and en aligned
 // (lib/i18n.test.ts compares the keys).
 export const SECURITY_ONLY = {
@@ -25,6 +26,8 @@ export const SECURITY_ONLY = {
       app_lock_after_15m: "15 phút",
       screen_security: "Chặn chụp màn hình",
       screen_security_hint: "Không cho chụp hay quay màn hình UniChat, và che nội dung trong trình chuyển ứng dụng.",
+      usage_stats: "Gửi thống kê sử dụng ẩn danh",
+      usage_stats_hint: "Đếm số lần mở app, gửi tin và nối cuộc gọi để UniChat tốt hơn. Không gửi tên, tin nhắn hay cuộc trò chuyện của bạn.",
       locked_title: "UniChat đang khoá",
       locked_body: "Mở khoá để xem tin nhắn của bạn.",
       unlock: "Mở khoá",
@@ -53,6 +56,8 @@ export const SECURITY_ONLY = {
       app_lock_after_15m: "15 minutes",
       screen_security: "Block screenshots",
       screen_security_hint: "Stops screenshots and screen recording of UniChat, and hides its content in the app switcher.",
+      usage_stats: "Share anonymous usage statistics",
+      usage_stats_hint: "Counts app opens, messages sent and calls connected to make UniChat better. Never your name, messages or conversations.",
       locked_title: "UniChat is locked",
       locked_body: "Unlock to see your messages.",
       unlock: "Unlock",

@@ -24,6 +24,7 @@ jest.mock("@/components/app/privacy", () => {
 
 const lockSwitch = () => screen.getByLabelText(viText("mobile.security.app_lock"));
 const securitySwitch = () => screen.getByLabelText(viText("mobile.security.screen_security"));
+const usageSwitch = () => screen.getByLabelText(viText("mobile.security.usage_stats"));
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -90,5 +91,17 @@ describe("PrivacySection", () => {
     expect(screen.getByText("row above")).toBeOnTheScreen();
     expect(lockSwitch()).toBeDisabled();
     expect(securitySwitch()).toBeDisabled();
+    expect(usageSwitch()).toBeDisabled();
+  });
+
+  // Audit "no-product-analytics": the counters are on by default and the person can turn them off, without a prompt.
+  it("shows the anonymous usage counters on, and turns them off at once", async () => {
+    mockPrivacy.setState({ settings: DEFAULT_PRIVACY_SETTINGS, loaded: true, restored: true });
+    await render(<PrivacySection />);
+    expect(usageSwitch()).toHaveProp("value", true);
+    expect(screen.getByText(viText("mobile.security.usage_stats_hint"))).toBeOnTheScreen();
+    await act(() => fireEvent(usageSwitch(), "valueChange", false));
+    expect(mockUpdate).toHaveBeenLastCalledWith({ usageStats: false });
+    expect(mockAuthenticate).not.toHaveBeenCalled();
   });
 });

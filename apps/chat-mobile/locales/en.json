@@ -1720,6 +1720,8 @@
       "app_lock_after_15m": "15 minutes",
       "screen_security": "Block screenshots",
       "screen_security_hint": "Stops screenshots and screen recording of UniChat, and hides its content in the app switcher.",
+      "usage_stats": "Share anonymous usage statistics",
+      "usage_stats_hint": "Counts app opens, messages sent and calls connected to make UniChat better. Never your name, messages or conversations.",
       "locked_title": "UniChat is locked",
       "locked_body": "Unlock to see your messages.",
       "unlock": "Unlock",

@@ -300,6 +300,15 @@ thiếu thiết lập là đỏ. Chạy tay ("Run workflow") mặc định `dry_
 99.5 %) vẫn nên đặt để báo trong giờ trước lượt chạy kế tiếp; server có thêm alert `UniChatMobileServerErrors` cho lỗi
 5xx theo bản app (mục Kiểm tra).
 
+**Thống kê sản phẩm theo bản (audit "no-product-analytics")**: ngoài crash-free, một bản được đánh giá theo cách
+người dùng dùng nó — `uniwork_mobile_events_total{event,result,os,client_version}` và
+`uniwork_mobile_event_duration_seconds{event,os}` (Prometheus, từ `data/analytics.ts`; ẩn danh, người dùng tắt được).
+So bản mới với bản trước trong cùng khung giờ: tỷ lệ gửi hỏng
+`sum by (client_version) (rate(uniwork_mobile_events_total{event="message_send",result="failed"}[1h])) / sum by
+(client_version) (rate(uniwork_mobile_events_total{event="message_send"}[1h]))`, tỷ lệ nối cuộc gọi được, số lần mở từ
+push, và p75 `first_screen`. Một bản làm tỷ lệ gửi hỏng hay nối cuộc gọi hỏng tăng rõ là lý do dừng mở rộng dù
+crash-free vẫn đạt. Số người dùng hằng ngày cho go/no-go lấy từ phiên đăng nhập phía server, không từ bộ đếm này.
+
 **Bản cài trực tiếp (chưa có store)**: `eas build -p android --profile preview` cho link tải APK. iOS ad hoc cần Apple
 Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios --profile preview`.
 

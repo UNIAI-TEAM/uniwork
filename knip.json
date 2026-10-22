@@ -25,7 +25,8 @@
         "awk",
         "go",
         "dbus-run-session",
-        "adb"
+        "adb",
+        "eas"
       ],
       "ignoreDependencies": [
         "@playwright/test",

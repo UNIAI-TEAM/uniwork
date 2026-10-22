@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { installReportSink } from "./report";
 import { PRIVACY_READ_CAP_MS, createPrivacySettings } from "./privacy-settings";
 
-const ON = { appLock: true, relockAfterMs: 0, screenSecurity: true } as const;
-const OFF = { appLock: false, relockAfterMs: 60_000, screenSecurity: false } as const;
+const ON = { appLock: true, relockAfterMs: 0, screenSecurity: true, usageStats: false } as const;
+const OFF = { appLock: false, relockAfterMs: 60_000, screenSecurity: false, usageStats: true } as const;
 
 function deps(saved: Promise<string | null>) {
   return {

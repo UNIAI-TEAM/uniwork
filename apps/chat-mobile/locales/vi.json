@@ -1663,6 +1663,8 @@
       "app_lock_after_15m": "15 phút",
       "screen_security": "Chặn chụp màn hình",
       "screen_security_hint": "Không cho chụp hay quay màn hình UniChat, và che nội dung trong trình chuyển ứng dụng.",
+      "usage_stats": "Gửi thống kê sử dụng ẩn danh",
+      "usage_stats_hint": "Đếm số lần mở app, gửi tin và nối cuộc gọi để UniChat tốt hơn. Không gửi tên, tin nhắn hay cuộc trò chuyện của bạn.",
       "locked_title": "UniChat đang khoá",
       "locked_body": "Mở khoá để xem tin nhắn của bạn.",
       "unlock": "Mở khoá",

@@ -38,6 +38,9 @@ export const loadPrivacySettings = privacy.load;
 /** Settings: a choice, applied and saved at once. */
 export const updatePrivacySettings = privacy.update;
 
+/** Whether the person lets UniChat send its anonymous usage counters (data/analytics.ts reads it at each event). */
+export const usageStatsEnabled = (): boolean => privacy.store.getState().settings.usageStats;
+
 export function usePrivacySettings(): PrivacyState {
   return useStore(privacy.store);
 }
