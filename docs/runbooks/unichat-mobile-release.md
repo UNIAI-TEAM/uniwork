@@ -101,7 +101,9 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   trên runner thật.
 - **Máy thật hằng tuần** (`chat-mobile-device-farm.yml`, Firebase Test Lab, audit "no-real-device-farm"): mỗi thứ Hai
   `scripts/mobile-ftl-devices.mjs` chọn máy từ danh mục của Test Lab (mỗi hãng Samsung, Xiaomi, Oppo, Vivo, Google một
-  máy ở Android mới nhất, cộng máy có Android cũ nhất từ API 24), rồi hai lượt: APK release arm64 cấu hình production
+  máy ở Android mới nhất, cộng máy có Android cũ nhất từ API 24; chỉ máy mà danh mục ghi `supportedAbis` có `arm64-v8a`,
+  vì APK chỉ build arm64 và máy cũ giá rẻ chỉ 32-bit sẽ cài lỗi `INSTALL_FAILED_NO_MATCHING_ABIS`), rồi hai lượt: APK
+  release arm64 cấu hình production
   (server placeholder, không tài khoản) mở lạnh và được Robo của Test Lab bò qua — crash, ANR hay không vẽ được màn đầu
   là đỏ; và APK test instrumented của module gọi (`modules/unichat-calls/android/src/androidTest`) — thông báo cuộc gọi
   đến hiện trong khay của từng hãng với Nghe/Từ chối. Không có ở đây: luồng đã đăng nhập (Maestro không chạy trên Test

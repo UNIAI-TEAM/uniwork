@@ -85,7 +85,7 @@ jobs:
         run: |
           set -euo pipefail
           pnpm exec expo prebuild -p android --no-install --clean
-          # arm64 only: every phone Test Lab offers at or above the app's floor is one.
+          # arm64 only: scripts/mobile-ftl-devices.mjs picks only phones whose catalogue entry lists arm64-v8a (its ABI).
           (cd android && ./gradlew :app:assembleRelease :unichat-calls:assembleDebugAndroidTest --no-daemon -PreactNativeArchitectures=arm64-v8a)
       - uses: google-github-actions/auth@v2
         with:

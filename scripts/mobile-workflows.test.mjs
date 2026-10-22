@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { parseAllDocuments } from "yaml";
 import { MOBILE_PATHS } from "./mobile-native-scope.mjs";
+import { ABI } from "./mobile-ftl-devices.mjs";
 import { JOBS as GATE_JOBS } from "./mobile-verify-gate.mjs";
 
 // The release path of UniChat mobile (docs/runbooks/unichat-mobile-release.md,
@@ -824,6 +825,7 @@ test("the device farm runs weekly on real OEM phones it picks itself, and fails 
   assert.match(wf, /node scripts\/mobile-ftl-devices\.mjs "\$RUNNER_TEMP\/models\.json"/, "phones from the catalogue, not hard-coded ids");
   assert.match(wf, /--type robo\s*\\\n\s+--app apps\/chat-mobile\/android\/app\/build\/outputs\/apk\/release\/app-release\.apk/);
   assert.match(wf, /--type instrumentation\s*\\\n\s+--app "\$test_apk" --test "\$test_apk"/, "the calls module's shade test on each maker");
-  assert.match(wf, /-PreactNativeArchitectures=arm64-v8a/, "real phones are arm64");
+  // The one ABI built is the one the phone picker requires of every phone it takes.
+  assert.match(wf, new RegExp(`-PreactNativeArchitectures=${ABI}(?![\\w,-])`), "real phones are arm64, and the picker takes only those");
   assert.match(wf, /SENTRY_DISABLE_AUTO_UPLOAD: "true"/);
 });

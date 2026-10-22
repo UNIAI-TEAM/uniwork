@@ -4,7 +4,9 @@
 // managers and notification shades are where Android apps break). Reads Firebase Test Lab's own catalogue
 // (`gcloud firebase test android models list --format=json`) instead of naming model ids that come and go: for each
 // maker, in the order below, the physical phone with the newest Android the catalogue runs, plus the phone with the
-// oldest Android at or above the app's floor, so a low-end, old-OS device is always in the set.
+// oldest Android at or above the app's floor, so a low-end, old-OS device is always in the set. Only phones whose
+// catalogue entry lists ABI below: the workflow builds the APKs for that one ABI, and the old, low-end slice of the
+// catalogue is where 32-bit-only phones live (an install there fails with INSTALL_FAILED_NO_MATCHING_ABIS).
 //
 //   gcloud firebase test android models list --format=json > models.json
 //   node scripts/mobile-ftl-devices.mjs models.json      one `--device model=…,version=…,locale=vi,orientation=portrait` per line
@@ -16,6 +18,8 @@ export const MAKERS = ["samsung", "xiaomi", "oppo", "vivo", "google"];
 /** React Native's minSdk (the matrix's oldest emulator leg). */
 export const MIN_API = 24;
 export const MAX_DEVICES = 6;
+/** The one ABI chat-mobile-device-farm.yml builds (-PreactNativeArchitectures). */
+export const ABI = "arm64-v8a";
 
 const versionsOf = (model) =>
   (model.supportedVersionIds ?? [])
@@ -23,7 +27,11 @@ const versionsOf = (model) =>
     .filter((v) => Number.isInteger(v) && v >= MIN_API)
     .sort((a, b) => a - b);
 
-const isPhone = (model) => model.form === "PHYSICAL" && (model.formFactor ?? "PHONE") === "PHONE" && !(model.tags ?? []).includes("deprecated");
+const isPhone = (model) =>
+  model.form === "PHYSICAL" &&
+  (model.formFactor ?? "PHONE") === "PHONE" &&
+  !(model.tags ?? []).includes("deprecated") &&
+  (model.supportedAbis ?? []).includes(ABI);
 
 /** The devices to run on, as {model, version, maker}; at most MAX_DEVICES, no model twice. */
 export function pickDevices(models) {
