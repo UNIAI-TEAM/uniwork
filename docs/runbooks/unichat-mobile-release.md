@@ -2,7 +2,7 @@
 
 > **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UniChat M4 (UNI-1836) · **Workflow:** `.github/workflows/chat-mobile-release.yml`, `.github/workflows/chat-mobile-update.yml`, `.github/workflows/mobile-verify.yml`, `.github/workflows/chat-mobile-verify.yml`
 
-App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Bốn profile:
+App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Năm profile:
 
 | Profile | `UNICHAT_ENV` | Phân phối | Kênh OTA | Môi trường EAS | Dùng khi |
 | --- | --- | --- | --- | --- | --- |
@@ -10,6 +10,7 @@ App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Bốn p
 | `preview` | `staging` | internal (APK / ad hoc, link cài) | `preview` | `preview` | Pilot trước khi có store, QA một nhánh |
 | `internal` | `staging` | store → Play internal (TestFlight khi có tài khoản Apple) | `internal` | `preview` | Mỗi tag `chat-mobile-v*` |
 | `production` | `production` | store (Play: bản nháp) | `production` | `production` | Sau quyết định Q1; phát hành theo giai đoạn (mục dưới) |
+| `production-check` | `production` | không phát hành | `production` | `production` | Chỉ nightly `eas-local`: đúng profile `production`, tắt `autoIncrement` để version code trên store không nhảy |
 
 `version` trong `apps/chat-mobile/app.config.ts` là version store (0.3.0 từ UNI-2053). `runtimeVersion` là
 `policy: fingerprint`: hash của phần native (gói có mã native, plugin, cấu hình trong `app.config.ts` trừ `extra`,
@@ -66,9 +67,14 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   `scripts/mobile-workflows.test.mjs` kiểm lời hứa của chúng.
 - `chat-mobile-verify.yml` hằng đêm: job `android-production` build AAB release mọi ABI từ profile production
   (không cần tài khoản), job `ios` build bản Release simulator kể cả khi thiếu biến `MAESTRO_*` (chỉ simulator và các
-  luồng chờ cổng), job `eas-local` (`eas build --local --platform android --profile preview`: đúng đường archive theo
-  `.easignore`, nhận diện pnpm và cài đặt của EAS mà PR #387 vấp hai lần; profile `preview` không `autoIncrement` nên
-  version code trên store không nhảy; cần environment `chat-mobile-nightly`, mục Thiết lập lần đầu), job
+  luồng chờ cổng), job `eas-local` (`eas build --local --platform android`, hai profile: `preview` và
+  `production-check`; đúng đường archive theo `.easignore`, nhận diện pnpm và cài đặt của EAS mà PR #387 vấp hai lần,
+  và với `production-check` cả cấu hình chỉ bản production chạm — môi trường EAS `production`, chứng chỉ ký OTA mà
+  `app.config.ts` đòi trên máy build EAS — nên một đêm đỏ ở đó là một tag sẽ đỏ; chưa commit
+  `certs/eas-update-certificate.pem` (bước Ký OTA) thì chân này đỏ mỗi đêm, đúng như tag sẽ đỏ. Không profile nào
+  `autoIncrement` nên version code trên store không nhảy; cần environment `chat-mobile-nightly`, mục Thiết lập lần
+  đầu. Không chạy trên PR, có chủ ý: job PR không đọc secret, và `EXPO_TOKEN` trong job của một nhánh PR đủ để phát
+  một bản OTA; đường EAS của PR được giữ tĩnh bằng `.easignore` sinh ra và `scripts/mobile-lockfiles.test.mjs`), job
   `android-matrix` (APK release x86_64 cấu hình production, `smoke-launch.yaml` trên API 24 — minSdk —, 29, 33 và API 35
   RAM 2 GB, ảnh màn đăng nhập sáng/tối của từng máy trong artifact `unichat-screens-*` để người xem so; máy OEM như
   Samsung/Xiaomi cần device farm, chưa có), và các luồng Maestro — ba luồng vàng trên cả hai nền tảng, thêm
@@ -77,6 +83,19 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   **đỏ**, không xanh. `background-resume.yaml` (người khác viết lúc app ở nền, trong và quá cửa sổ ân hạn 25 s của
   socket) chạy tay: cần tài khoản thứ hai (`MAESTRO_CALLER_TOKEN`, `MAESTRO_CALLER_WS_ID`, `MAESTRO_DM_ROOM_ID`,
   `MAESTRO_API_URL`) như `call-answer-incoming.yaml`.
+- **Chưa có: luồng đã đăng nhập trên PR** (review P2, hoãn có lý do). PR chỉ chạy `smoke-launch.yaml` (mở lạnh tới
+  màn đăng nhập); `chat-read-send.yaml` chỉ chạy hằng đêm với staging. Câu hỏi thiết kế cần chốt trước khi viết job
+  `android-signed-in` (native scope, qua `scripts/maestro-retry.sh`, thêm vào `JOBS` của
+  `scripts/mobile-verify-gate.mjs`): job đó phải dựng server trong job như job `e2e` của `ci.yml` (binary server +
+  `postgres:16` + `redis:7` + bản build Next production, vì đăng nhập đi qua trang web trong trình duyệt hệ thống —
+  `maestro/subflows/sign-in.yaml` đã viết sẵn), rồi app trên emulator phải tới được nó. Bản Release staging/production
+  chỉ nhận `https://` (`app.config.ts`) và Android từ chối cleartext. Hai đường: (a) một biến thể thử nghiệm build
+  Release với `UNICHAT_ENV=dev` trỏ `http://10.0.2.2:<port>`, cộng một network security config chỉ cho phép cleartext
+  tới đúng `10.0.2.2` — đổi tư thế TLS của binary nên cần test chứng minh không profile EAS nào bật nó; (b) proxy TLS tự
+  ký trong job với CA cài vào emulator — Android 7+ không tin CA người dùng nếu app không khai, CA hệ thống cần
+  emulator `-writable-system`, nặng và giòn. Hướng nghiêng về (a). Đường gọi đến (`call-answer-incoming.yaml`) vẫn
+  chỉ chạy tay: cần FCM thật và tài khoản thứ hai. Hoãn vì: job này không chạy được trên máy làm (không Docker,
+  không emulator), mà một job bắt buộc sai sẽ chặn mọi PR native; cần một lượt thử trên CI trước khi gate đòi nó.
 - **Đo hiệu năng trên thiết bị** (`scripts/mobile-perf.mjs`, trần ở `apps/chat-mobile/perf-budget.json`; chặn ở mọi
   `GATE_LEVEL`). `android-smoke` mỗi PR chạm binary: kích thước APK x86_64, rồi 5 lần mở lạnh (`am force-stop` →
   `am start -W`), trung vị của `TotalTime` (Android tới khung đầu — splash) và của thời gian từ lúc khởi chạy tới

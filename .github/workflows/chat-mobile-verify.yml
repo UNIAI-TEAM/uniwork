@@ -21,10 +21,14 @@ name: UniChat mobile verify
 # the Maestro settings are missing: no account or secret needed for either.
 # `android-matrix` runs the cold-start smoke on the oldest Android the app
 # supports, two middle releases and a 2 GB device, and keeps a screenshot of
-# each for review. `eas-local` builds the preview APK with `eas build --local`:
-# EAS's own archive (.easignore), package-manager detection and install, the
-# path only a release tag exercised before (PR #387 broke on it twice); it
-# needs EXPO_TOKEN in the `chat-mobile-nightly` environment (runbook).
+# each for review. `eas-local` builds with `eas build --local`, twice: the
+# preview APK, and the store AAB from `production-check` (the production
+# profile, its EAS environment and its config checks — the OTA certificate a
+# production EAS build refuses to go without — with autoIncrement off, so the
+# store's version code does not move). EAS's own archive (.easignore),
+# package-manager detection and install, the path only a release tag
+# exercised before (PR #387 broke on it twice); it needs EXPO_TOKEN in the
+# `chat-mobile-nightly` environment (runbook).
 #
 # Repository settings it reads (names only; Maestro picks up every MAESTRO_*
 # variable of its environment):
@@ -455,13 +459,23 @@ jobs:
 
   eas-local:
     # Audit P1 "eas-path-unexercised": the PR builds run Gradle on a pnpm checkout, which
-    # reproduces neither EAS's upload archive nor its package-manager detection. This builds the
-    # preview APK (no autoIncrement: the store's version code does not move) with EAS's own
-    # local build. Its own environment, limited to main and with no reviewers, so a scheduled
-    # run does not wait for an approval; without the token a scheduled run is red.
+    # reproduces neither EAS's upload archive nor its package-manager detection. This builds
+    # with EAS's own local build, never moving the store's version code (neither profile
+    # autoIncrements): `preview`, and `production-check` (review P2), the production profile
+    # whose config only a release tag reached before — a night it fails is a tag that would.
+    # Its own environment, limited to main and with no reviewers, so a scheduled run does not
+    # wait for an approval; without the token a scheduled run is red.
+    # Not on PRs (review P2, deferred): PR jobs read no secret (mobile-verify.yml), and an
+    # EXPO_TOKEN in a PR job could publish an OTA update; runbook › eas build --local.
     runs-on: ubuntu-latest
     timeout-minutes: 120
     environment: chat-mobile-nightly
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { profile: preview, artifact: unichat-preview.apk }
+          - { profile: production-check, artifact: unichat-production.aab }
     env:
       SENTRY_DISABLE_AUTO_UPLOAD: "true"
     steps:
@@ -504,12 +518,18 @@ jobs:
         with:
           eas-version: ${{ env.EAS_CLI_VERSION }}
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: eas build --local (preview APK)
+      - name: eas build --local (${{ matrix.profile }})
         if: steps.token.outputs.ready == 'true'
         working-directory: apps/chat-mobile
-        run: eas build --local --platform android --profile preview --non-interactive --output "$RUNNER_TEMP/unichat-preview.apk"
-      - name: APK size
+        env:
+          PROFILE: ${{ matrix.profile }}
+          ARTIFACT: ${{ matrix.artifact }}
+        run: eas build --local --platform android --profile "$PROFILE" --non-interactive --output "$RUNNER_TEMP/$ARTIFACT"
+      - name: Artifact size
         if: steps.token.outputs.ready == 'true'
+        env:
+          PROFILE: ${{ matrix.profile }}
+          ARTIFACT: ${{ matrix.artifact }}
         run: |
           set -euo pipefail
-          { echo "### UniChat preview APK from eas build --local"; echo; ls -l "$RUNNER_TEMP/unichat-preview.apk" | awk '{printf "- %.1f MB\n", $5/1048576}'; } | tee -a "$GITHUB_STEP_SUMMARY"
+          { echo "### UniChat $PROFILE build from eas build --local"; echo; ls -l "$RUNNER_TEMP/$ARTIFACT" | awk '{printf "- %.1f MB\n", $5/1048576}'; } | tee -a "$GITHUB_STEP_SUMMARY"

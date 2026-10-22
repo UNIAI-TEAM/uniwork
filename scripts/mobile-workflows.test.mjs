@@ -422,12 +422,22 @@ test("the nightly builds with eas build --local, fails a scheduled run without i
   assert.equal(envPin(wf, "EAS_CLI_VERSION"), envPin(read("chat-mobile-release.yml"), "EAS_CLI_VERSION"), "the same eas-cli as the store release");
   const job = jobsOf(wf).jobs.get("eas-local") ?? "";
   assert.match(job, /^ {4}environment: chat-mobile-nightly$/m, "its own environment: the OTA one wants reviewers");
-  assert.match(job, /eas build --local --platform android --profile preview --non-interactive/);
+  assert.match(job, /eas build --local --platform android --profile "\$PROFILE" --non-interactive/);
+  // Review P2: the production profile's config (the OTA certificate check, its EAS environment) is built by EAS
+  // each night, not first on a release tag.
+  const profiles = [...job.matchAll(/- \{ profile: ([\w-]+), artifact: [\w.-]+ \}/g)].map((m) => m[1]);
+  assert.deepEqual(profiles, ["preview", "production-check"]);
+  assert.match(job, /fail-fast: false/, "one red profile does not hide the other");
   assert.match(job, /::error::EXPO_TOKEN is not set[^\n]*\n\s+exit 1/, "a night without the token is red");
   assert.match(job, /WANTED: \$\{\{ github\.event_name == 'schedule' \|\| inputs\.eas_local \}\}/);
   const eas = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/eas.json"), "utf8"));
   assert.notEqual(eas.build.preview.autoIncrement, true, "the preview profile does not move the remote version code");
   assert.equal(eas.build.preview.distribution, "internal");
+  // production-check is production with only autoIncrement turned off: anything else would test another build.
+  assert.deepEqual(eas.build["production-check"], { extends: "production", autoIncrement: false });
+  assert.equal(eas.build.production.autoIncrement, true, "the store profile still bumps the version code");
+  // It is never released: no workflow submits or publishes it.
+  for (const file of WORKFLOWS.filter((f) => f !== "chat-mobile-verify.yml")) assert.doesNotMatch(read(file), /production-check/, file);
 });
 
 // Audit "no-visual-or-matrix": the oldest supported Android, middle releases and a low-RAM device.

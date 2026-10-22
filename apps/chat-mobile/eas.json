@@ -38,6 +38,10 @@
       "channel": "production",
       "environment": "production",
       "env": { "UNICHAT_ENV": "production", "SENTRY_ALLOW_FAILURE": "true" }
+    },
+    "production-check": {
+      "extends": "production",
+      "autoIncrement": false
     }
   },
   "submit": {
