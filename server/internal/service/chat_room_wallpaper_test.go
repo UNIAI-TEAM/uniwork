@@ -6,8 +6,10 @@ import (
 )
 
 func TestUpdateChatRoomWallpaperPreset_DMMemberAllowed(t *testing.T) {
-	s, _, _, ua, ub, w := chatFixture(t)
+	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
 	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -23,6 +25,7 @@ func TestUpdateChatRoomWallpaperPreset_DMMemberAllowed(t *testing.T) {
 func TestUpdateChatRoomWallpaperPreset_GroupMemberForbidden(t *testing.T) {
 	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
 	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{
 		Name:          "wallpaper group",
