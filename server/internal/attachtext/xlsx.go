@@ -8,9 +8,6 @@ import (
 	"strings"
 )
 
-// maxColumns is Excel's limit (XFD); a cell reference past it is not trusted.
-const maxColumns = 16384
-
 // xlsx reads every sheet in workbook order. A sheet with at least one row
 // becomes a heading Part (Label = sheet name) followed by one Part per
 // non-empty row, cells joined by " | " with empty cells kept so columns line
@@ -24,10 +21,11 @@ func (z *zipDoc) xlsx() (Doc, error) {
 	if err != nil {
 		return Doc{}, err
 	}
-	err = walkXML(wb, nil, func(tok xml.Token) {
+	err = walkXML(wb, nil, func(tok xml.Token) error {
 		if se, ok := tok.(xml.StartElement); ok && se.Name.Local == "sheet" {
 			refs = append(refs, sheetRef{attr(se, "name"), attr(se, "id")})
 		}
+		return nil
 	})
 	if err != nil {
 		return Doc{}, err
@@ -41,7 +39,7 @@ func (z *zipDoc) xlsx() (Doc, error) {
 		return Doc{}, err
 	}
 	targets := map[string]string{}
-	err = walkXML(relData, nil, func(tok xml.Token) {
+	err = walkXML(relData, nil, func(tok xml.Token) error {
 		if se, ok := tok.(xml.StartElement); ok && se.Name.Local == "Relationship" && attr(se, "TargetMode") != "External" {
 			t := attr(se, "Target")
 			if strings.HasPrefix(t, "/") {
@@ -50,6 +48,7 @@ func (z *zipDoc) xlsx() (Doc, error) {
 				targets[attr(se, "Id")] = path.Join("xl", t)
 			}
 		}
+		return nil
 	})
 	if err != nil {
 		return Doc{}, err
@@ -69,14 +68,16 @@ func (z *zipDoc) xlsx() (Doc, error) {
 		if err != nil {
 			return Doc{}, err
 		}
-		rows, err := sheetRows(data, shared)
+		rows, err := sheetRows(data, shared, &z.keep)
 		if err != nil {
 			return Doc{}, err
 		}
 		if len(rows) == 0 {
 			continue
 		}
-		doc.Parts = append(doc.Parts, Part{Label: ref.name})
+		if err := z.keep.add(&doc.Parts, Part{Label: ref.name}); err != nil {
+			return Doc{}, err
+		}
 		for _, r := range rows {
 			doc.Parts = append(doc.Parts, Part{Text: r})
 		}
@@ -85,7 +86,8 @@ func (z *zipDoc) xlsx() (Doc, error) {
 }
 
 // sharedStrings returns xl/sharedStrings.xml's strings by index; the part is
-// optional (a workbook may hold only inline strings and numbers).
+// optional (a workbook may hold only inline strings and numbers). Every string
+// is charged to the file's retained-bytes budget, empty ones included.
 func (z *zipDoc) sharedStrings() ([]string, error) {
 	const name = "xl/sharedStrings.xml"
 	if !z.has(name) {
@@ -100,7 +102,7 @@ func (z *zipDoc) sharedStrings() ([]string, error) {
 		cur        strings.Builder
 		inT, inRPh bool // rPh is a phonetic guide (furigana), not part of the text
 	)
-	err = walkXML(data, nil, func(tok xml.Token) {
+	err = walkXML(data, nil, func(tok xml.Token) error {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			switch t.Name.Local {
@@ -118,6 +120,9 @@ func (z *zipDoc) sharedStrings() ([]string, error) {
 			case "rPh":
 				inRPh = false
 			case "si":
+				if err := z.keep.spend(cur.Len() + stringOverhead); err != nil {
+					return err
+				}
 				out = append(out, cur.String())
 			}
 		case xml.CharData:
@@ -125,29 +130,33 @@ func (z *zipDoc) sharedStrings() ([]string, error) {
 				cur.Write(t)
 			}
 		}
+		return nil
 	})
 	return out, err
 }
 
-// sheetRows returns one string per row that has any text.
-func sheetRows(data []byte, shared []string) ([]string, error) {
+// sheetRows returns one string per row that has any text. A row may hold at
+// most maxColumns cells and no more text than the file's budget has left: a
+// shared string used by many cells would otherwise grow far past the size of
+// the sheet.
+func sheetRows(data []byte, shared []string, keep *budget) ([]string, error) {
 	var (
 		rows     []string
 		cells    []string
 		val      strings.Builder
 		typ      string
 		next     int // column of the next cell when its reference is missing
+		rowBytes int
 		inC      bool
 		inV, inT bool
 		inRPh    bool
-		bad      error
 	)
-	err := walkXML(data, nil, func(tok xml.Token) {
+	err := walkXML(data, nil, func(tok xml.Token) error {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			switch t.Name.Local {
 			case "row":
-				cells, next = cells[:0], 0
+				cells, next, rowBytes = cells[:0], 0, 0
 			case "c":
 				inC, typ = true, attr(t, "t")
 				val.Reset()
@@ -172,8 +181,14 @@ func sheetRows(data []byte, shared []string) ([]string, error) {
 			case "c":
 				inC = false
 				v, err := cellValue(typ, strings.TrimSpace(val.String()), shared)
-				if err != nil && bad == nil {
-					bad = err
+				if err != nil {
+					return err
+				}
+				if next >= maxColumns {
+					return unreadable(errTooWide)
+				}
+				if rowBytes += len(v); rowBytes > keep.left {
+					return unreadable(errTooMuchText)
 				}
 				for len(cells) <= next {
 					cells = append(cells, "")
@@ -186,7 +201,11 @@ func sheetRows(data []byte, shared []string) ([]string, error) {
 					n--
 				}
 				if n > 0 {
-					rows = append(rows, strings.Join(cells[:n], " | "))
+					row := strings.Join(cells[:n], " | ")
+					if err := keep.spend(len(row) + partOverhead); err != nil {
+						return err
+					}
+					rows = append(rows, row)
 				}
 			}
 		case xml.CharData:
@@ -194,10 +213,8 @@ func sheetRows(data []byte, shared []string) ([]string, error) {
 				val.Write(t)
 			}
 		}
+		return nil
 	})
-	if err == nil {
-		err = bad
-	}
 	return rows, err
 }
 

@@ -5,18 +5,19 @@ import "strings"
 // Fit renders the first parts of d that fit in maxTokens, whole parts only, and
 // reports how many parts it kept (read) out of all of them (total). Parts
 // without Text are not counted: a heading is written only when a part under it
-// fits, so a heading cut off from its rows is dropped.
+// fits, so a heading cut off from its rows is dropped. A Part with neither
+// Label nor Text is ignored.
 //
 // Format, one line break between parts: a heading is "## Label", a labelled
 // part is "Label" then its text on the next line, any other part is its text.
 func Fit(d Doc, maxTokens int) (text string, read, total int) {
 	var out strings.Builder
-	var pending []string // headings and blank lines waiting for the part under them
+	var pending []string // headings waiting for the part under them
 	used, full := 0, false
 	for _, p := range d.Parts {
 		if p.Text == "" {
-			if !full {
-				pending = append(pending, heading(p.Label))
+			if p.Label != "" && !full {
+				pending = append(pending, "## "+p.Label)
 			}
 			continue
 		}
@@ -39,13 +40,6 @@ func Fit(d Doc, maxTokens int) (text string, read, total int) {
 		pending = pending[:0]
 	}
 	return out.String(), read, total
-}
-
-func heading(label string) string {
-	if label == "" {
-		return ""
-	}
-	return "## " + label
 }
 
 func render(p Part) string {

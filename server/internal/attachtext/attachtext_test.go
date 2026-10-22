@@ -3,11 +3,16 @@ package attachtext
 import (
 	"archive/zip"
 	"bytes"
+	"compress/flate"
 	"errors"
+	"hash/crc32"
 	"io"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+const wNS = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"`
 
 func zipOf(t *testing.T, entries map[string]string) []byte {
 	t.Helper()
@@ -156,9 +161,9 @@ func TestExtractPlainReplacesInvalidUTF8(t *testing.T) {
 	}
 }
 
-func TestExtractPlainKeepsLinesWithoutTheBOMOrTrailingNewline(t *testing.T) {
+func TestExtractPlainKeepsNonBlankLinesWithoutTheBOM(t *testing.T) {
 	d := mustExtract(t, "text/markdown", []byte("\uFEFF# Một\r\n\r\n  hai\r\n"))
-	wantParts(t, d, "line", "|# Một", "|", "|  hai")
+	wantParts(t, d, "line", "|# Một", "|  hai") // the blank line is dropped, indentation kept
 	if d := mustExtract(t, "text/plain", nil); len(d.Parts) != 0 {
 		t.Errorf("empty file: %+v", d)
 	}
@@ -250,7 +255,7 @@ func TestExtractCountsDecompressedBytesAcrossEntries(t *testing.T) {
 		t.Fatalf("small pair: %v", err)
 	}
 	_, err := extract(mimeXLSX, build(40))
-	if !errors.Is(err, ErrUnreadable) || !strings.Contains(err.Error(), "limit") {
+	if !errors.Is(err, ErrUnreadable) || !strings.Contains(err.Error(), "decompressed") {
 		t.Fatalf("err = %v, want ErrUnreadable over the limit", err)
 	}
 }
@@ -304,6 +309,146 @@ func TestEstimateTokens(t *testing.T) {
 	for s, want := range map[string]int{"": 0, "a": 1, "abc": 1, "abcd": 2, "ắắắắắắ": 2} {
 		if got := EstimateTokens(s); got != want {
 			t.Errorf("EstimateTokens(%q) = %d, want %d", s, got, want)
+		}
+	}
+}
+
+// wantRefused checks an Office zip is refused as unreadable for the reason the
+// error text names.
+func wantRefused(t *testing.T, mime string, data []byte, reason string) {
+	t.Helper()
+	_, err := extract(mime, data)
+	if !errors.Is(err, ErrUnreadable) || !strings.Contains(err.Error(), reason) {
+		t.Fatalf("err = %v, want ErrUnreadable mentioning %q", err, reason)
+	}
+}
+
+func docxOf(t *testing.T, body string) []byte {
+	t.Helper()
+	return zipOf(t, map[string]string{"word/document.xml": `<w:document ` + wNS + `><w:body>` + body + `</w:body></w:document>`})
+}
+
+// The limits below stop a small file from blowing up in memory once parsed;
+// each test feeds the refusal a payload that is small itself.
+
+func TestExtractRefusesDeepXMLNesting(t *testing.T) {
+	wantRefused(t, mimeDOCX, docxOf(t, strings.Repeat("<w:sdt>", 1_000_000)), "nested")
+	// Real documents nest a few dozen levels at most.
+	ok := strings.Repeat("<w:sdt>", 50) + `<w:p><w:r><w:t>sâu</w:t></w:r></w:p>` + strings.Repeat("</w:sdt>", 50)
+	wantParts(t, mustExtract(t, mimeDOCX, docxOf(t, ok)), "paragraph", "|sâu")
+}
+
+func TestExtractRefusesAnOverLongTag(t *testing.T) {
+	for _, attrs := range []string{
+		strings.Repeat(` b=""`, 200_000),
+		strings.Repeat(` b=">"`, 200_000), // a '>' in a value must not end the tag early
+		` b='` + strings.Repeat("x", 100_000) + `'`,
+	} {
+		wantRefused(t, mimeDOCX, docxOf(t, `<w:p `+attrs+`/>`), "tag")
+	}
+	// '>' in a value and an odd quote in a comment or CDATA are fine in short tags.
+	ok := `<!-- don't --><w:p w:x="a>b"><w:r><w:t><![CDATA[it's "ok"]]></w:t></w:r></w:p>` +
+		`<w:p><w:r><w:t>sau</w:t></w:r></w:p>`
+	wantParts(t, mustExtract(t, mimeDOCX, docxOf(t, ok)), "paragraph", `|it's "ok"`, "|sau")
+}
+
+func TestExtractDocxRefusesWideTableRows(t *testing.T) {
+	row := `<w:tbl><w:tr>` + strings.Repeat("<w:tc/>", 20_000) + `</w:tr></w:tbl>`
+	wantRefused(t, mimeDOCX, docxOf(t, row), "wider")
+}
+
+func sheetOf(t *testing.T, sheetData string, files map[string]string) []byte {
+	t.Helper()
+	m := map[string]string{"xl/worksheets/sheet1.xml": `<worksheet><sheetData>` + sheetData + `</sheetData></worksheet>`}
+	for k, v := range files {
+		m[k] = v
+	}
+	return xlsxOf(t, m)
+}
+
+func TestExtractXlsxRefusesWideRows(t *testing.T) {
+	// Cells without a reference are placed one after another; no row is wider than Excel's.
+	wantRefused(t, mimeXLSX, sheetOf(t, `<row>`+strings.Repeat("<c/>", 20_000)+`</row>`, nil), "wider")
+}
+
+func TestExtractXlsxRefusesATooLargeSharedStringTable(t *testing.T) {
+	files := map[string]string{"xl/sharedStrings.xml": `<sst>` + strings.Repeat("<si/>", 5_000_000) + `</sst>`}
+	wantRefused(t, mimeXLSX, sheetOf(t, `<row><c><v>1</v></c></row>`, files), "limit")
+}
+
+func TestExtractXlsxCutsOffASharedStringRepeatedIntoAHugeRow(t *testing.T) {
+	files := map[string]string{"xl/sharedStrings.xml": `<sst><si><t>` + strings.Repeat("x", 100<<10) + `</t></si></sst>`}
+	const cell = `<c t="s"><v>0</v></c>`
+	data := sheetOf(t, `<row>`+strings.Repeat(cell, 1500)+`</row>`, files) // 150 MiB once expanded
+
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	wantRefused(t, mimeXLSX, data, "limit")
+	runtime.ReadMemStats(&after)
+	// The row is refused when it passes the budget, not after it is built.
+	if got := after.TotalAlloc - before.TotalAlloc; got > 100<<20 {
+		t.Errorf("allocated %d MiB before refusing the row", got>>20)
+	}
+	// One use of the same string is an ordinary cell.
+	d := mustExtract(t, mimeXLSX, sheetOf(t, `<row>`+cell+`</row>`, files))
+	if len(d.Parts) != 2 || len(d.Parts[1].Text) != 100<<10 {
+		t.Fatalf("one use: %+v", d.Parts)
+	}
+}
+
+func TestExtractPlainDropsBlankLinesInsteadOfKeepingThem(t *testing.T) {
+	blank := mustExtract(t, "text/plain", bytes.Repeat([]byte("\n"), 20<<20))
+	if len(blank.Parts) != 0 {
+		t.Fatalf("%d parts from a file of newlines", len(blank.Parts))
+	}
+	// A real CSV of 100k rows still reads whole.
+	var csv strings.Builder
+	for i := 0; i < 100_000; i++ {
+		csv.WriteString("2026-10-22,Khách hàng số 12345,1250000,đã thanh toán\n\n")
+	}
+	if d := mustExtract(t, "text/csv", []byte(csv.String())); len(d.Parts) != 100_000 {
+		t.Fatalf("%d parts, want 100000", len(d.Parts))
+	}
+}
+
+func TestExtractPlainRefusesMoreLinesThanItCanHold(t *testing.T) {
+	// 10 MB of one-character lines would be millions of Parts of 48+ bytes each.
+	_, err := extract("text/plain", bytes.Repeat([]byte("a\n"), 5_000_000))
+	if !errors.Is(err, ErrUnreadable) || !strings.Contains(err.Error(), "limit") {
+		t.Fatalf("err = %v, want ErrUnreadable over the limit", err)
+	}
+}
+
+func TestFitIgnoresPartsWithNothingToSay(t *testing.T) {
+	text, read, total := Fit(Doc{Parts: []Part{{}, {Text: "a"}, {}, {}, {Text: "b"}}}, 100)
+	if text != "a\nb" || read != 2 || total != 2 {
+		t.Fatalf("text, read, total = %q, %d, %d", text, read, total)
+	}
+}
+
+// An entry whose header understates or overstates its size is refused, not read
+// at a size the budget never saw; one that tells the truth is read.
+func TestExtractRefusesAnEntryThatLiesAboutItsSize(t *testing.T) {
+	body := []byte(`<w:document ` + wNS + `><w:body>` + strings.Repeat(" ", 5000) + `</w:body></w:document>`)
+	for name, declared := range map[string]uint64{"smaller": 10, "larger": uint64(len(body)) + 10, "exact": uint64(len(body))} {
+		var raw bytes.Buffer
+		fw, _ := flate.NewWriter(&raw, flate.BestSpeed)
+		_, _ = fw.Write(body)
+		_ = fw.Close()
+		var buf bytes.Buffer
+		w := zip.NewWriter(&buf)
+		f, err := w.CreateRaw(&zip.FileHeader{
+			Name: "word/document.xml", Method: zip.Deflate, CRC32: crc32.ChecksumIEEE(body),
+			CompressedSize64: uint64(raw.Len()), UncompressedSize64: declared,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = f.Write(raw.Bytes())
+		_ = w.Close()
+		_, err = extract(mimeDOCX, buf.Bytes())
+		if refused := errors.Is(err, ErrUnreadable); refused != (name != "exact") {
+			t.Errorf("%s: err = %v", name, err)
 		}
 	}
 }

@@ -6,6 +6,7 @@
 package attachtext
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -21,13 +22,9 @@ const (
 	mimeODT  = "application/vnd.oasis.opendocument.text"
 )
 
-// maxReadBytes bounds what one file may decompress to (all zip entries
-// together) or, for a plain-text file, how large it may be.
-const maxReadBytes = 64 << 20
-
 // Part is one paragraph, slide, row or line. Label names a sheet ("Doanh thu")
-// or a slide ("Slide 3"). A Part without Text is a heading (Label set) or a
-// blank line; only Parts with Text count as units of the document.
+// or a slide ("Slide 3"). A Part without Text is a heading; only Parts with
+// Text count as units of the document.
 type Part struct {
 	Label string
 	Text  string
@@ -44,8 +41,6 @@ type Doc struct {
 // carries its text, or too large to open safely. The caller should tell the
 // user and carry on without the file.
 var ErrUnreadable = errors.New("attachtext: unreadable file")
-
-var errOverLimit = errors.New("decompressed data over the 64 MiB limit")
 
 func unreadable(err error) error { return fmt.Errorf("%w: %v", ErrUnreadable, err) }
 
@@ -75,29 +70,35 @@ func Extract(mime string, r io.ReaderAt, size int64) (Doc, error) {
 	return read(z)
 }
 
-// plainDoc splits text into lines, one Part each. Blank lines stay (as Parts
-// without Text) so Markdown and CSV keep their shape; invalid UTF-8 becomes U+FFFD.
+// plainDoc reads text line by line, one Part per non-blank line (a blank line
+// carries nothing a reader needs, and a file of newlines must not become
+// millions of Parts). Invalid UTF-8 becomes U+FFFD; a leading BOM is dropped.
 func plainDoc(r io.ReaderAt, size int64) (Doc, error) {
 	if size < 0 || size > maxReadBytes {
 		return Doc{}, unreadable(errOverLimit)
 	}
-	b, err := io.ReadAll(io.NewSectionReader(r, 0, size))
-	if err != nil {
-		return Doc{}, unreadable(err)
-	}
-	s := strings.ToValidUTF8(string(b), "\uFFFD")
-	s = strings.TrimPrefix(s, "\uFEFF")
-	lines := strings.Split(s, "\n")
-	if lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-	d := Doc{Unit: "line", Parts: make([]Part, len(lines))}
-	for i, l := range lines {
-		if l = strings.TrimRight(l, "\r"); strings.TrimSpace(l) != "" {
-			d.Parts[i].Text = l
+	keep := budget{maxRetained}
+	br := bufio.NewReader(io.NewSectionReader(r, 0, size))
+	d := Doc{Unit: "line"}
+	for first := true; ; first = false {
+		line, err := br.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return Doc{}, unreadable(err)
+		}
+		if first {
+			line = strings.TrimPrefix(line, "\uFEFF")
+		}
+		line = strings.TrimRight(line, "\r\n")
+		if strings.TrimSpace(line) != "" {
+			text := strings.ToValidUTF8(line, "\uFFFD")
+			if err := keep.add(&d.Parts, Part{Text: text}); err != nil {
+				return Doc{}, err
+			}
+		}
+		if err == io.EOF {
+			return d, nil
 		}
 	}
-	return d, nil
 }
 
 // EstimateTokens is a cheap upper-ish bound on the model tokens of s: one per
