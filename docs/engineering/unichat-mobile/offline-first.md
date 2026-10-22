@@ -57,8 +57,14 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   request; tối đa `REFRESH_CONCURRENCY` = 4 request cùng lúc). `last_message_at` của danh sách tính cả trả lời chủ đề
   còn timeline thì không, nên timeline đã đọc theo một giá trị `last_message_at` không được đọc lại tới khi giá trị đó
   đổi (không thì phòng có tin mới nhất là trả lời chủ đề bị đọc lại mỗi lần rời app); push về một phòng, nhận lúc đang mở app hay khi chạm, đọc trang mới nhất của phòng đó và danh sách phòng
-  của workspace (workspace đó có thể không có socket trên máy). Timeline đang hiện là của socket, không đụng. Push nền
-  khi app đã đóng chưa nạp cache: cần push data/`content-available` (server) và task nền cho tin chat. **Đọc, biểu
+  của workspace (workspace đó có thể không có socket trên máy). Timeline đang hiện là của socket, không đụng. Push tin
+  chat tới app Android đã đóng (hay ở nền) cũng nạp cache: mọi push Expo trên Android đi qua task nền
+  (`calls/call-wiring.ts › runCallPushTask`), và với một tin chat (`chatPushTarget`) task khởi runtime, mở kho mã hoá,
+  khôi phục phiên và bản cache của người đó (chỉ khi chưa có màn nào làm), đọc trang mới nhất của phòng và danh sách
+  phòng (`timeline-refresh.ts › hydrateRoom`) rồi ghi đĩa ngay (`query-persister.ts › saveAccountCacheNow`), nên chạm
+  thông báo lúc offline mở đúng tin (`data/chat-sync/push-prefetch.ts`). Có hạn `PUSH_PREFETCH_BUDGET_MS` (15 s, hết
+  hạn vẫn ghi phần đã về), lỗi chỉ là breadcrumb, máy đã đăng xuất không đọc gì, app đang mở để listener lo. iOS chưa
+  có: push hiển thị không chạy task khi app đóng (cần `content-available` từ server và background task riêng). **Đọc, biểu
   cảm, bình chọn offline**: `data/pending-ops.ts` + `stores/pending-ops-store.ts` — cache hiện lựa chọn ngay (`lib/optimistic-message.ts`, luật toggle của server),
   mỗi thứ một mục giữ mong muốn cuối; endpoint của server là toggle nên lần giao có thể đã tới (mất câu trả lời,
   khởi động lại) và mọi phiếu bầu đều GET tin trước rồi chỉ chạm phần còn khác; từ chối hẳn thì bỏ, refetch phòng

@@ -715,6 +715,11 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
   không thấy JavaScript khởi động cho tới khi bấm Nghe.
 - [ ] B kill app; A nhắn DM cho B (thông báo hiện trên máy B); B đọc phòng đó trên web: trong vài phút (push ưu tiên
   thường, máy ngủ sâu thì lâu hơn) thông báo trên máy B biến mất và số trên biểu tượng giảm, app vẫn đóng.
+- [ ] B mở phòng DM với A trên web và chat qua lại vài tin (máy B không hiện thông báo vì B đang đọc): `adb logcat -s
+  ReactNativeJS` trên máy B (app đã kill) không thấy task nền chạy cho mỗi lần đọc (không có `room read elsewhere`).
+- [ ] B kill app, bật mạng; A nhắn DM cho B; đợi thông báo hiện rồi tắt mạng máy B (chế độ máy bay) và chạm thông báo:
+  phòng mở ngay trên tin mới của A, không quay vòng chờ (`chat push` `prefetched` trong log của task nền).
+- [ ] B gọi 1-1 cho C rồi bấm Home khi C còn đổ chuông; A gọi B: máy B không reo cuộc gọi của A, A nghe "bận".
 - [ ] B đang nghe một cuộc gọi điện thoại (hoặc cuộc gọi Zalo/WhatsApp); A gọi UniChat: B thấy thông báo cuộc gọi đến có
   Nghe / Từ chối (heads-up) nhưng không có nhạc chuông lặp đè lên cuộc gọi đang nghe — chỉ một tiếng bíp chờ cuộc gọi;
   app đang mở thì chỉ rung ngắn.

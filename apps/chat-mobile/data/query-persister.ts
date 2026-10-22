@@ -314,6 +314,23 @@ let generation = 0;
 let pending: { userId: string; run: Promise<void> } | null = null;
 // The running subscription's drop of a carried timeline; none while nothing writes.
 let forgetCarried: ((wsId: string, roomId: string) => void) | null = null;
+// The running subscription's person and its save run now; none while nothing writes.
+let live: { userId: string; saveNow: () => Promise<void> } | null = null;
+
+/** Whether boot installed the cache: a headless task, where no screen booted, installs it itself. */
+export function accountCacheInstalled(): boolean {
+  return installed !== null;
+}
+
+/** The person whose copy is restored and being saved, or null: a headless task restores it only when not. */
+export function accountCacheUser(): string | null {
+  return live?.userId ?? null;
+}
+
+/** What memory holds, saved now instead of a second later: a background task may be the runtime's last moment. */
+export function saveAccountCacheNow(): Promise<void> {
+  return live?.saveNow() ?? Promise.resolve();
+}
 
 /**
  * A frame changed or removed a message of this room (chat-cache.ts). When
@@ -378,12 +395,15 @@ async function restoreAndSubscribe(userId: string, { queryClient, persister }: I
     },
   };
   let timer: ReturnType<typeof setTimeout> | null = null;
-  const save = () => {
+  const saveNow = () => {
+    if (timer) clearTimeout(timer);
     timer = null;
-    persistQueryClientSave({ queryClient, persister: carrying, buster, dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery } }).catch(
+    return persistQueryClientSave({ queryClient, persister: carrying, buster, dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery } }).catch(
       (error: unknown) => log.warn("cached rooms not saved", { error: errorName(error) }),
     );
   };
+  const save = () => void saveNow();
+  live = { userId, saveNow };
   // Only new data in a kept query is worth a write: not a fetch starting, an observer, or memory letting a query go.
   const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
     if (event.type !== "updated" || event.action.type !== "success" || !isPersistedKey(event.query.queryKey)) return;
@@ -415,6 +435,7 @@ async function restoreAndSubscribe(userId: string, { queryClient, persister }: I
   stop = () => {
     unsubscribe();
     forgetCarried = null;
+    live = null;
     if (timer) clearTimeout(timer);
     if (laterTimer) clearTimeout(laterTimer);
     timer = null;

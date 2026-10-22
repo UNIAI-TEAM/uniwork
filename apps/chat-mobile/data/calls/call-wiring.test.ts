@@ -68,6 +68,8 @@ vi.mock("../notification-tray", () => ({ dismissRoomNotifications: tray.dismissR
 vi.mock("../badge", () => ({ setAppBadge: tray.setAppBadge }));
 const chatActions = vi.hoisted(() => ({ runChatNotificationAction: vi.fn(async () => undefined) }));
 vi.mock("../chat-notification-actions", () => chatActions);
+const prefetch = vi.hoisted(() => ({ prefetchChatPush: vi.fn(async (): Promise<string> => "not-chat"), appPushPrefetchEnv: { tag: "prefetch-env" } }));
+vi.mock("../chat-sync/push-prefetch", () => prefetch);
 
 const engine = vi.hoisted(() => ({
   ctx: "w-1" as string | null,
@@ -265,6 +267,20 @@ describe("runCallPushTask", () => {
   it("ignores a push that is not about a call, without booting anything", async () => {
     await wiring.runCallPushTask({ data: { body: JSON.stringify({ url: "https://x", tag: "t" }) } });
     expect(deps.bootRuntime).not.toHaveBeenCalled();
+  });
+
+  // Review "no-background-sync-from-push": a chat message push reads its room into the cache of a closed app.
+  it("hands a chat message push to the background prefetch, never to the call policy", async () => {
+    const chat = { workspace_id: "w-1", room_id: "r-1", message_id: "m-1", url: "https://app.test/acme/hq/chat?room=r-1" };
+    prefetch.prefetchChatPush.mockResolvedValueOnce("prefetched");
+    await wiring.runCallPushTask({ data: { body: JSON.stringify(chat) } });
+    expect(prefetch.prefetchChatPush).toHaveBeenCalledWith(chat, prefetch.appPushPrefetchEnv);
+    expect(native.showIncomingCall).not.toHaveBeenCalled();
+    expect(analytics.track).not.toHaveBeenCalled();
+    // A call push never reaches it.
+    prefetch.prefetchChatPush.mockClear();
+    await wiring.runCallPushTask({ data: INVITE });
+    expect(prefetch.prefetchChatPush).not.toHaveBeenCalled();
   });
 
   it("on screen in a workspace, asks its pending list first and rings natively only a call it does not know", async () => {

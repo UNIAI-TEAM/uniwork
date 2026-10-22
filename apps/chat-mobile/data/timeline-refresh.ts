@@ -3,9 +3,11 @@
 // loaded room was too many), and a push never touched the cache, so a room
 // the phone was told about could open offline on an older page than the
 // inbox's own preview. Two moments now read the newest page once, batched:
-//   - a push about a room, received in front or tapped (hydrateFromPush):
-//     that room's newest page and its workspace's list, before the person
-//     gets there — the workspace may have no socket on this phone;
+//   - a push about a room, received in front or tapped (hydrateFromPush),
+//     or reaching a closed Android app's background task
+//     (chat-sync/push-prefetch.ts): that room's newest page and its
+//     workspace's list (hydrateRoom), before the person gets there — the
+//     workspace may have no socket on this phone;
 //   - the app leaving the front (refreshStaleTimelines): the most recent
 //     rooms whose cached timeline is behind — marked stale by a frame, older
 //     than the list's preview, or never loaded while unread — so the copy the
@@ -104,10 +106,17 @@ export async function hydrateFromPush(qc: QueryClient, data: unknown, env: PushL
     .getQueryData<Workspace[]>(workspaceKeys.list())
     ?.find((ws) => ws.slug === link.wsSlug && ws.organization_slug === link.orgSlug);
   if (!workspace) return;
-  const rooms = chatKeys.rooms(workspace.id);
-  // The list is read too: the workspace may have no socket on this phone.
+  await hydrateRoom(qc, workspace.id, link.roomId);
+}
+
+/**
+ * A room a push named: its newest page and its workspace's list, each left alone while a screen shows it. The list
+ * is read too: the workspace may have no socket on this phone (chat-sync/push-prefetch.ts reads it for a closed app).
+ */
+export async function hydrateRoom(qc: QueryClient, wsId: string, roomId: string): Promise<void> {
+  const rooms = chatKeys.rooms(wsId);
   await Promise.all([
-    observed(qc, rooms) ? Promise.resolve() : qc.prefetchQuery({ ...roomsOptions(workspace.id), staleTime: 0 }),
-    refreshRoomHead(qc, workspace.id, link.roomId),
+    observed(qc, rooms) ? Promise.resolve() : qc.prefetchQuery({ ...roomsOptions(wsId), staleTime: 0 }),
+    refreshRoomHead(qc, wsId, roomId),
   ]);
 }

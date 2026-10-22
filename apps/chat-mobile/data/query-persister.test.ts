@@ -9,11 +9,14 @@ import {
   PERSISTED_CACHE_MAX_AGE_MS,
   PERSIST_THROTTLE_MS,
   RESTORE_LATER_MS,
+  accountCacheInstalled,
+  accountCacheUser,
   createDevicePersister,
   dropAccountCache,
   dropCarriedTimeline,
   installAccountCache,
   restoreAccountCache,
+  saveAccountCacheNow,
   shapePersistedClient,
   shouldPersistQuery,
   withEvicted,
@@ -234,6 +237,35 @@ describe("the account's cache", () => {
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
     expect(store.getString("query-cache")).toBeUndefined();
     await dropAccountCache();
+  });
+
+  // A push's background task (chat-sync/push-prefetch.ts) may be the runtime's last moment: it saves what it read at
+  // once rather than a second later, and boots the cache only where no screen did.
+  it("saves at once on demand, and says whether it is installed and whose copy is live", async () => {
+    vi.useFakeTimers();
+    expect(accountCacheInstalled()).toBe(false);
+    await saveAccountCacheNow();
+    const qc = new QueryClient();
+    installAccountCache({ queryClient: qc, persister });
+    expect(accountCacheInstalled()).toBe(true);
+    expect(accountCacheUser()).toBeNull();
+    // Nothing restored: nobody's copy to write.
+    await saveAccountCacheNow();
+    expect(store.getString("query-cache")).toBeUndefined();
+    await restoreAccountCache("u1");
+    expect(accountCacheUser()).toBe("u1");
+    // With no change waiting it writes the copy as it is.
+    await saveAccountCacheNow();
+    expect(store.getString("query-cache")).toBeDefined();
+    qc.setQueryData(chatKeys.rooms("w1"), room("new", null));
+    await saveAccountCacheNow();
+    expect((JSON.parse(store.getString("query-cache")!) as PersistedClient).buster).toBe(buster("u1"));
+    // The save it ran took the throttled one's place: no second write a second later.
+    store.remove("query-cache");
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(store.getString("query-cache")).toBeUndefined();
+    await dropAccountCache();
+    expect(accountCacheUser()).toBeNull();
   });
 
   // Review P1: a sign-in adopts the user twice at once (login() and the session's onChange);

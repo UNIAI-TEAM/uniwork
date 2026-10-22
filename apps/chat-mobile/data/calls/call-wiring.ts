@@ -36,6 +36,7 @@ import { authConfig, session } from "../auth/flow";
 import { setAppBadge } from "../badge";
 import { bootRuntime } from "../boot";
 import { runChatNotificationAction } from "../chat-notification-actions";
+import { appPushPrefetchEnv, prefetchChatPush } from "../chat-sync/push-prefetch";
 import { createLogger } from "../logger";
 import { callChannelNames } from "../notification-channels";
 import { dismissRoomNotifications } from "../notification-tray";
@@ -124,7 +125,8 @@ async function clearReadRoom(push: RoomReadPush): Promise<void> {
 }
 
 /**
- * The background notification task's body: a call push, a room read on another device, or a Reply / Mark as read
+ * The background notification task's body: a call push, a room read on another device, a chat message (its room
+ * read into the cache for a later tap, offline included: chat-sync/push-prefetch.ts), or a Reply / Mark as read
  * tapped on a chat notification while UniChat is closed (Android runs this task for an action too:
  * data/chat-notification-actions.ts), or nothing.
  */
@@ -135,7 +137,11 @@ export async function runCallPushTask(payload: unknown): Promise<void> {
   const roomRead = roomReadPushFromData(data);
   if (roomRead) return clearReadRoom(roomRead).catch(bestEffort("push", "read room's notifications not cleared", "breadcrumb"));
   const push = callPushFromData(data);
-  if (!push) return;
+  if (!push) {
+    const prefetched = await prefetchChatPush(data, appPushPrefetchEnv);
+    if (prefetched !== "not-chat") log.info("chat push", { prefetched });
+    return;
+  }
   bootRuntime();
   await applyStoredLocale();
   // A headless runtime has no screen that seeded the kept remote config: without it the calls switch would read
