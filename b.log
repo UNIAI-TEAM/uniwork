@@ -1,0 +1,2 @@
+$ npm ci >/dev/null 2>&1; rc=$?; echo "NPM_CI_EXIT=$rc"
+NPM_CI_EXIT=0

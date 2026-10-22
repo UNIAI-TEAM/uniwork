@@ -1,0 +1,3 @@
+$ cd apps/shell && npx tsc --noEmit -p tsconfig.json; rc=$?; echo; echo "SHELL_TSC_EXIT=$rc"
+
+SHELL_TSC_EXIT=0

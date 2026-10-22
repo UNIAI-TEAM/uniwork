@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+f53458d350d38a97ff05869d44400d17e2eebd6b
+f53458d3 fix(shell): use each shard's own word for workspace in the upload hint
+55d1beff feat(shell): translate the workspace upload hint in the home shards
+442c6233 fix(shell): pick the folder upload share hint by destination

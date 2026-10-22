@@ -1,0 +1,4 @@
+$ node tools/check-theme-colors.mjs; rc=$?; echo; echo "THEME_EXIT=$rc"
+No new raw colors in renderer CSS.
+
+THEME_EXIT=0
