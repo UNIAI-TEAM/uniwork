@@ -3,6 +3,8 @@
 # modules' own sources and are committed (native-modules.test.ts).
 /ios/
 /android/
+# What Gradle builds of a local module (its sources stay committed).
+/modules/*/android/build/
 .expo/
 dist/
 expo-env.d.ts

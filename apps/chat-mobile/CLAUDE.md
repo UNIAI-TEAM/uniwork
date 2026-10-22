@@ -468,9 +468,14 @@ một dòng thì ghi lý do ở dòng trên.
   đăng ký token với `call_ui: true` (`registerPushToken({ callUI: nativeCalls.available })`, mỗi lần mở app; server lưu
   user agent `expo/android; call-ui`), iOS và bản Android cũ giữ push hiển thị; `chat.voice.ring_closed` (outbox, cùng transaction đóng hàng ring) → push data-only "kết thúc"
   tới máy Android; cuộc gọi 1-1 nhỡ là "Cuộc gọi nhỡ từ X" trên `missed_calls`.
+  Kotlin có test JVM trên Robolectric (`modules/unichat-calls/android/src/test`, SDK 34 vì CI chạy JDK 17): token khởi
+  chạy (chỉ token của chính thông báo đó mới cho hiện trên màn khoá và Nghe, token thu hồi/hết hạn/giả thì không),
+  `PendingActions` (giữ 10 mục mới nhất, lấy một lần), và thông báo như hệ thống nhận (`CallStyle` thật, `FLAG_INSISTENT`,
+  full-screen intent, intent mang token, chỉ Nghe có `EXTRA_ANSWER`, Gác máy của cuộc gọi đang diễn ra); CI chạy
+  `:unichat-calls:testReleaseUnitTest` cùng lượt Gradle của `android-release`. Thư mục test nằm ngoài fingerprint
+  (`fingerprint.config.js › ignorePaths`): thêm test không tách runtime.
   **Chỉ máy thật kiểm được** (checklist ở runbook › Cuộc gọi native trên Android; luồng tay
-  `maestro/flows/call-answer-incoming.yaml`): Kotlin có biên dịch (máy dev không có Android SDK; CI
-  `android-release` build nó), push data-only tới khi app bị kill (cần FCM thật), màn toàn màn hình trên máy khoá, nhạc
+  `maestro/flows/call-answer-incoming.yaml`): push data-only tới khi app bị kill (cần FCM thật), màn toàn màn hình trên máy khoá, nhạc
   chuông theo công tắc chuông/DND, Nghe từ màn khoá (listener của `UniChatCallsPackage` đặt
   `showWhenLocked` khi activity được mở bởi cuộc gọi), micro còn sau khi khoá máy giữa cuộc gọi và khi người kia nối lúc
   app đã ở nền, Từ chối khi app đã kill (headless task, giới hạn

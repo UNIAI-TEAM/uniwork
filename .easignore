@@ -101,6 +101,8 @@ public-key.pem
 # modules' own sources and are committed (native-modules.test.ts).
 apps/chat-mobile/ios/
 apps/chat-mobile/android/
+# What Gradle builds of a local module (its sources stay committed).
+apps/chat-mobile/modules/*/android/build/
 apps/chat-mobile/**/.expo/
 apps/chat-mobile/**/dist/
 apps/chat-mobile/**/expo-env.d.ts

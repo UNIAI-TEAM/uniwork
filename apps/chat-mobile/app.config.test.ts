@@ -390,4 +390,12 @@ describe("fingerprint.config.js", () => {
     expect(fingerprint.sourceSkips & SourceSkips.PackageJsonAndroidAndIosScriptsIfNotContainRun).not.toBe(0);
     expect(fingerprint.sourceSkips & SourceSkips.ExpoConfigVersions).toBe(0);
   });
+
+  // The local modules' Robolectric tests never ship; a new test must not make every installed
+  // binary miss the next OTA. Checked with `expo-updates runtimeversion:resolve`: the hash with
+  // and without src/test is the same under this pattern.
+  it("leaves the local modules' JVM unit tests out of the runtime fingerprint", async () => {
+    const { default: fingerprint } = (await import("./fingerprint.config.js")) as { default: { ignorePaths?: string[] } };
+    expect(fingerprint.ignorePaths).toEqual(["modules/*/android/src/test/**"]);
+  });
 });

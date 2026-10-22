@@ -346,8 +346,12 @@ tên kênh "Miscellaneous"). Khi 0.3.0 đã có trên track người dùng thấ
 dần theo số máy đã cập nhật.
 
 **Cuộc gọi native trên Android (UNI-2053 S4, `docs/adr/drafts/0038-…`).** Test node/jest giữ chính sách (khi nào reo,
-khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ máy Android thật (bản `preview`/`internal` có
-`GOOGLE_SERVICES_JSON` và FCM) xác nhận phần Kotlin. Hai tài khoản, A gọi B (luồng có sẵn:
+khi nào dịch vụ chạy, ai được báo) với module native giả; test JVM Robolectric của module
+(`modules/unichat-calls/android/src/test`, chạy trong `android-release`) giữ token khởi chạy, hành động chờ và thông báo
+như hệ thống nhận; chỉ máy Android thật (bản `preview`/`internal` có `GOOGLE_SERVICES_JSON` và FCM) xác nhận phần còn
+lại — nhạc chuông, màn toàn màn hình, push khi app bị kill, OEM. Chạy test đó trên máy dev cần Android SDK:
+`cd apps/chat-mobile && pnpm exec expo prebuild -p android --no-install && (cd android && ./gradlew
+:unichat-calls:testReleaseUnitTest)`. Hai tài khoản, A gọi B (luồng có sẵn:
 `maestro/flows/call-answer-incoming.yaml`, chạy tay):
 
 - [ ] B kill app, khoá máy; A gọi 1-1: màn B sáng, màn đổ chuông toàn màn hình hiện trên màn khoá (tên A, "Cuộc gọi

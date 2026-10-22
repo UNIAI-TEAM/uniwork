@@ -15,6 +15,10 @@ android {
     versionCode 1
     versionName "0.1.0"
   }
+  // src/test: JVM tests on Robolectric (the notification builders need the framework's resources).
+  testOptions {
+    unitTests.includeAndroidResources = true
+  }
 }
 
 dependencies {
@@ -22,4 +26,11 @@ dependencies {
   implementation 'androidx.core:core:1.17.0'
   // HeadlessJsTaskService for the decline and hang-up actions; the app links React Native itself.
   compileOnly 'com.facebook.react:react-android'
+
+  // The launch tokens, the pending actions and the call notifications as the system receives
+  // them (src/test), run by mobile-verify › android-release. The versions expo-modules-core
+  // tests itself with, so one resolution serves both.
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.robolectric:robolectric:4.16.1'
+  testImplementation 'androidx.test:core:1.7.0'
 }

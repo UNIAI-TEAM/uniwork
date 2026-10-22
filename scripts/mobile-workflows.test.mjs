@@ -36,6 +36,9 @@ test("mobile-verify can be called and builds the release only through its jobs",
   assert.match(envPin(wf, "EXPO_DOCTOR_VERSION") ?? "", EXACT, "EXPO_DOCTOR_VERSION is an exact version");
   assert.match(wf, /node scripts\/mobile-bundle-budget\.mjs/);
   assert.match(wf, /\.\/gradlew :app:assembleRelease/);
+  // Audit "native-module-untested": the calls module's Kotlin is unit-tested in the same Gradle run.
+  assert.match(jobsOf(wf).jobs.get("android-release") ?? "", /\.\/gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest /);
+  assert.ok(fs.existsSync(path.join(root, "apps/chat-mobile/modules/unichat-calls/android/src/test/java/expo/modules/unichatcalls/CallLaunchTokensTest.kt")));
   assert.match(wf, /maestro test flows\/smoke-launch\.yaml/, "the cold-start smoke runs the release APK");
   // Audit "ios-never-built": every native PR compiles iOS too, for the simulator, without an Apple account.
   const ios = jobsOf(wf).jobs.get("ios-release") ?? "";

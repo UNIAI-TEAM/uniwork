@@ -15,7 +15,9 @@ name: Mobile Verify
 #                   bundles with the production config, held to
 #                   apps/chat-mobile/bundle-budget.json
 #   android-release `expo prebuild` + `./gradlew :app:assembleRelease` on the
-#                   production config: proves the native project still builds.
+#                   production config: proves the native project still builds;
+#                   the same Gradle run tests the calls module's Kotlin on
+#                   Robolectric (`:unichat-calls:testReleaseUnitTest`).
 #                   Only when the change reaches the binary
 #                   (scripts/mobile-native-scope.mjs): the app's code, config
 #                   or assets, the install graph, or a packages/core file the
@@ -259,11 +261,22 @@ jobs:
       - name: Prebuild the native project
         working-directory: apps/chat-mobile
         run: pnpm exec expo prebuild -p android --no-install --clean
-      - name: Assemble the release APK
+      - name: Assemble the release APK and run the calls module's JVM tests
         working-directory: apps/chat-mobile/android
         # One ABI, the emulator's: what can break is shared by all four, and it
         # halves the build. The nightly builds every ABI (android-production).
-        run: ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64
+        # The calls module's Robolectric tests (modules/unichat-calls/android/src/test)
+        # share the release compilation; Robolectric runs SDK 34 on this JDK 17.
+        run: ./gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest --no-daemon -PreactNativeArchitectures=x86_64
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: unichat-calls-unit-tests
+          path: |
+            apps/chat-mobile/modules/unichat-calls/android/build/reports/tests/**
+            apps/chat-mobile/android/**/unichat-calls/reports/tests/**
+          if-no-files-found: ignore
+          retention-days: 7
       - name: APK size
         working-directory: apps/chat-mobile/android/app/build/outputs/apk/release
         run: |
