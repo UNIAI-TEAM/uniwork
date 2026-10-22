@@ -126,6 +126,10 @@ service container Postgres/Redis, bản build Next production cho trang đăng n
 qua kill (`offline-send-relaunch.yaml`), tin người khác viết lúc app ở nền (`background-resume.yaml`). APK là biến thể
 dev build Release (cleartext chỉ ở biến thể này, `app.config.test.ts`), API ở `10.0.2.2`, trang web qua `adb reverse`;
 không secret. Chi tiết và cách đọc khi đỏ: runbook › Luồng đã đăng nhập trên PR.
+Ngoài PR: nightly `chat-mobile-verify.yml` (staging; thêm `android-two-party` — push FCM thật, cuộc gọi đến khi app ở
+nền và bị kill — và `android-upgrade` — cài đè bản đêm trước), và hằng tuần `chat-mobile-device-farm.yml` (máy thật
+của Test Lab theo hãng, `scripts/mobile-ftl-devices.mjs`). `node scripts/mobile-ci-provisioning.mjs --check` liệt kê
+biến, secret và environment mà các workflow mobile đọc nhưng GitHub chưa có.
 Thêm gói native bằng `pnpm --filter @uniwork/chat-mobile exec expo install <pkg>`;
 nếu Metro kẹt vì layout isolated của pnpm thì dừng và báo, không thêm
 `.npmrc` hoist.

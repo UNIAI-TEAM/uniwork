@@ -449,7 +449,16 @@ test("the scope job builds natively when the release calls it, even for a re-pus
   assert.equal(decide({ EVENT: "workflow_dispatch" }), all);
 });
 
-const WORKFLOWS = ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml", "chat-mobile-update.yml", "chat-mobile-production.yml", "chat-mobile-promote.yml", "chat-mobile-release-health.yml"];
+const WORKFLOWS = [
+  "mobile-verify.yml",
+  "chat-mobile-release.yml",
+  "chat-mobile-verify.yml",
+  "chat-mobile-update.yml",
+  "chat-mobile-production.yml",
+  "chat-mobile-promote.yml",
+  "chat-mobile-release-health.yml",
+  "chat-mobile-device-farm.yml",
+];
 
 /** The workflow-level env block and each job's text, by job id. */
 function jobsOf(wf) {
@@ -804,4 +813,17 @@ test("a commit that changes a core string cannot leave UniChat's locales stale",
   assert.match(step, /node apps\/chat-mobile\/scripts\/sync-i18n\.mjs --check/);
   assert.match(step, /fail=1/);
   assert.ok(hook.indexOf("UniChat mobile's copy") < hook.indexOf('if [ "$GATE_LEVEL" = fast ]'), "outside the GATE_LEVEL switch");
+});
+
+// Audit "no-real-device-farm": real phones of the makers the first market buys, weekly, picked from Test Lab's own
+// catalogue; a week without the project is red, not silently skipped.
+test("the device farm runs weekly on real OEM phones it picks itself, and fails without its project", () => {
+  const wf = read("chat-mobile-device-farm.yml");
+  assert.match(wf, /^ {2}schedule:\n {4}- cron: "[^"]+"/m);
+  assert.match(wf, /::error::The device farm cannot run, not set:/);
+  assert.match(wf, /node scripts\/mobile-ftl-devices\.mjs "\$RUNNER_TEMP\/models\.json"/, "phones from the catalogue, not hard-coded ids");
+  assert.match(wf, /--type robo\s*\\\n\s+--app apps\/chat-mobile\/android\/app\/build\/outputs\/apk\/release\/app-release\.apk/);
+  assert.match(wf, /--type instrumentation\s*\\\n\s+--app "\$test_apk" --test "\$test_apk"/, "the calls module's shade test on each maker");
+  assert.match(wf, /-PreactNativeArchitectures=arm64-v8a/, "real phones are arm64");
+  assert.match(wf, /SENTRY_DISABLE_AUTO_UPLOAD: "true"/);
 });

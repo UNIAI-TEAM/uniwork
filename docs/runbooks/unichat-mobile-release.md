@@ -76,7 +76,7 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   một bản OTA; đường EAS của PR được giữ tĩnh bằng `.easignore` sinh ra và `scripts/mobile-lockfiles.test.mjs`), job
   `android-matrix` (APK release x86_64 cấu hình production, `smoke-launch.yaml` trên API 24 — minSdk —, 29, 33 và API 35
   RAM 2 GB, ảnh màn đăng nhập sáng/tối của từng máy trong artifact `unichat-screens-*` để người xem so; máy OEM như
-  Samsung/Xiaomi cần device farm, chưa có), và các luồng Maestro — ba luồng vàng trên cả hai nền tảng, thêm
+  Samsung/Xiaomi chạy hằng tuần ở `chat-mobile-device-farm.yml`, mục dưới), và các luồng Maestro — ba luồng vàng trên cả hai nền tảng, thêm
   `offline-send-relaunch.yaml` trên Android (chế độ máy bay: ba tin viết offline sống qua kill, mở lạnh offline vào
   inbox và phòng từ cache, bật mạng thì tới đúng thứ tự, mỗi tin một lần); thiếu biến `MAESTRO_*` thì run theo lịch
   **đỏ**, không xanh. `background-resume.yaml` (người khác viết lúc app ở nền, trong và quá cửa sổ ân hạn 25 s của
@@ -99,6 +99,14 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   thường là seed lệch API (log server trong artifact) hay trang web đổi chữ mà `lib/maestro-flows.test.ts` chưa thấy.
   Lần chạy xanh đầu tiên trên GitHub là việc owner xem trước khi bật branch protection (mục trên): job chưa từng chạy
   trên runner thật.
+- **Máy thật hằng tuần** (`chat-mobile-device-farm.yml`, Firebase Test Lab, audit "no-real-device-farm"): mỗi thứ Hai
+  `scripts/mobile-ftl-devices.mjs` chọn máy từ danh mục của Test Lab (mỗi hãng Samsung, Xiaomi, Oppo, Vivo, Google một
+  máy ở Android mới nhất, cộng máy có Android cũ nhất từ API 24), rồi hai lượt: APK release arm64 cấu hình production
+  (server placeholder, không tài khoản) mở lạnh và được Robo của Test Lab bò qua — crash, ANR hay không vẽ được màn đầu
+  là đỏ; và APK test instrumented của module gọi (`modules/unichat-calls/android/src/androidTest`) — thông báo cuộc gọi
+  đến hiện trong khay của từng hãng với Nghe/Từ chối. Không có ở đây: luồng đã đăng nhập (Maestro không chạy trên Test
+  Lab) và push FCM tới app bị kill dưới trình quản lý pin của OEM (checklist máy thật ở mục Cuộc gọi native trên
+  Android). Đỏ: mở kết quả Test Lab (link trong log của bước) — video, logcat và ảnh từng máy.
 - **Đo hiệu năng trên thiết bị** (`scripts/mobile-perf.mjs`, trần ở `apps/chat-mobile/perf-budget.json`; chặn ở mọi
   `GATE_LEVEL`). `android-smoke` mỗi PR chạm binary: kích thước APK x86_64, rồi 5 lần mở lạnh (`am force-stop` →
   `am start -W`), trung vị của `TotalTime` (Android tới khung đầu — splash) và của thời gian từ lúc khởi chạy tới
@@ -270,7 +278,11 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    file với biến file EAS; thiếu thì APK nightly không đăng ký push token). Máy chủ staging phải gửi push qua Expo tới
    dự án EAS có khoá FCM V1. Job `android-upgrade` không cần gì thêm: nó cài APK đêm trước (artifact
    `unichat-staging-apk`, giữ 14 ngày), đêm đầu tiên ghi notice và bỏ qua.
-11. Kiểm cài đặt trước lần chạy theo lịch đầu tiên và trước tag đầu tiên: `gh auth login` bằng tài khoản admin rồi
+11. Máy thật (`chat-mobile-device-farm.yml`): một project Google Cloud bật Firebase Test Lab (Cloud Testing API và
+   Cloud Tool Results API), một service account có vai trò Firebase Test Lab Admin (và đọc bucket kết quả); variable
+   `FIREBASE_TEST_LAB_PROJECT` (id project), secret `FIREBASE_TEST_LAB_SA_KEY` (khoá JSON). Thiếu thì run theo lịch đỏ.
+   Hạn mức miễn phí của Test Lab không đủ cho sáu máy mỗi tuần: project cần gói Blaze.
+12. Kiểm cài đặt trước lần chạy theo lịch đầu tiên và trước tag đầu tiên: `gh auth login` bằng tài khoản admin rồi
    `node scripts/mobile-ci-provisioning.mjs --check`. Script đọc mọi `vars.X`, `secrets.X` và `environment:` mà các
    workflow mobile dùng (đọc từ chính file workflow, không có danh sách thứ hai), đối chiếu với repository và đúng
    environment của job, in từng tên `ok`/`MISSING` và thoát 1 khi thiếu tên bắt buộc (`OPTIONAL` trong script, mỗi tên
