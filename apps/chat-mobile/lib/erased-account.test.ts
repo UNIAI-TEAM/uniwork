@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { ERASED_ACCOUNT_NAME, relabelErasedAccounts } from "./erased-account";
+import { describe, expect, it, vi } from "vitest";
+import { ERASED_ACCOUNT_NAME, relabelErasedAccounts, relabelingErased } from "./erased-account";
+import { i18n } from "./i18n/singleton";
 
 describe("relabelErasedAccounts", () => {
   it("reads an erased account's name in the app's language wherever a name field holds it", () => {
@@ -27,5 +28,20 @@ describe("relabelErasedAccounts", () => {
     expect(relabelErasedAccounts(answer, "Deleted user")).toBe(answer);
     expect(relabelErasedAccounts("text", "Deleted user")).toBe("text");
     expect(relabelErasedAccounts(null, "Deleted user")).toBeNull();
+  });
+});
+
+describe("relabelingErased", () => {
+  it("relabels each answer in the language the app speaks when it arrives, passing the request through", async () => {
+    const send = vi.fn(async (_path: string, _init?: RequestInit) => ({ sender_display_name: ERASED_ACCOUNT_NAME }));
+    const request = relabelingErased(send);
+    await i18n.changeLanguage("en");
+    try {
+      expect(await request("/a", { method: "GET" })).toEqual({ sender_display_name: "Deleted user" });
+      expect(send).toHaveBeenCalledWith("/a", { method: "GET" });
+    } finally {
+      await i18n.changeLanguage("vi");
+    }
+    expect(await request("/b")).toEqual({ sender_display_name: ERASED_ACCOUNT_NAME });
   });
 });

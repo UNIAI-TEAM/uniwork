@@ -2,6 +2,7 @@
 // in Vietnamese for every reader (server/internal/service/account_deletion.go › deletedDisplayName). The app reads
 // it in its own language: every `display_name` / `…_display_name` field of a chat answer that holds that name is
 // relabelled once, where the answer arrives (data/chat-api.ts), so every screen that shows a name agrees.
+import { i18n } from "./i18n/singleton";
 
 /** The server's name for an erased account; data/server-contract.test.ts holds it to the Go constant. */
 export const ERASED_ACCOUNT_NAME = "Người dùng đã xóa";
@@ -29,4 +30,9 @@ export function relabelErasedAccounts(value: unknown, label: string): unknown {
     }
   }
   return out ?? value;
+}
+
+/** A transport whose every answer reads an erased account's name in the app's language at the time it arrives. */
+export function relabelingErased<Init>(send: (path: string, init?: Init) => Promise<unknown>) {
+  return async (path: string, init?: Init): Promise<unknown> => relabelErasedAccounts(await send(path, init), i18n.t("mobile.account.erased_name"));
 }

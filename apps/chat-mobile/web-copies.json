@@ -1,6 +1,6 @@
 {
   "$comment": "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedCodeChars (the ratchet) or move target in a reviewed PR.",
-  "copiedCodeChars": 138978,
+  "copiedCodeChars": 138901,
   "target": {
     "copiedCodeChars": 54000,
     "by": "2027-02-28",
@@ -67,7 +67,7 @@
       "packages/views/settings/components/delete-account-dialog.tsx": "2cc14fea7b44dfd08ce9c488a43b33949bd6fcbdec13bd9ed9bc4f8f210d34e2"
     },
     "apps/chat-mobile/lib/ai-consent.ts": {
-      "apps/web/features/landing/privacy-content.ts": "b03fd707297fa0b419ee546009065ca2dd74e7ca24c1ee734b0f9c6bf5bbefbe"
+      "apps/web/features/landing/privacy-content.ts": "3d03684b7e057a269caf0b590259a79578b43989d73052ba6ac54d00470cac4d"
     },
     "apps/chat-mobile/lib/album.ts": {
       "packages/views/chat/native-chat-message-grouping.ts": "1e784e27b31710190a89031d43875d9af3ac15f7d11c3b4610a34cd5099beb2f"
@@ -91,7 +91,7 @@
       "packages/views/chat/chat-file-accept.ts": "36eade4e1d09ea6598d5b3d12f12818e3497905402d690f098ef64880cd6bf29"
     },
     "apps/chat-mobile/lib/legal-links.ts": {
-      "apps/web/features/landing/privacy-content.ts": "b03fd707297fa0b419ee546009065ca2dd74e7ca24c1ee734b0f9c6bf5bbefbe",
+      "apps/web/features/landing/privacy-content.ts": "3d03684b7e057a269caf0b590259a79578b43989d73052ba6ac54d00470cac4d",
       "apps/web/platform/site-information.ts": "832076f4952d42644e7fa61d36d59bf576da93917bb4ce5f17f9891dbfe20d39"
     },
     "apps/chat-mobile/lib/media-body.ts": {

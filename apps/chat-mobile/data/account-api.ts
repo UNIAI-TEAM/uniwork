@@ -13,6 +13,7 @@ import { parseWithFallback } from "@uniwork/core/api/schema";
 import type { User } from "@uniwork/core/types/user";
 import { z } from "zod";
 import type { DeleteAccountBody } from "@/lib/account-deletion";
+import type { CloseOrganizationBody } from "@/lib/owned-organization";
 import { api } from "./api";
 import { MeResponseSchema } from "./schemas";
 
@@ -48,7 +49,7 @@ export function createAccountApi(request: Request) {
      * owner_must_transfer, the rate limit) is the ApiError. Any 2xx is the
      * erasure, a drifted body included: the session is gone either way.
      */
-    async deleteAccount(body: DeleteAccountBody): Promise<void> {
+    async deleteAccount(body: DeleteAccountBody & CloseOrganizationBody): Promise<void> {
       const raw = await request("/api/v1/me/delete", { method: "POST", body: JSON.stringify(body) });
       parseWithFallback(raw, StatusSchema, {}, { endpoint: "POST /api/v1/me/delete" });
     },

@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
-import type { OwnedOrganization } from "@/lib/account-deletion";
+import type { OwnedOrganization } from "@/lib/owned-organization";
 import type { TransferCandidate } from "@/lib/owner-transfer";
 import { continuousCorners } from "@/lib/radius";
 import { cn } from "@/lib/utils";

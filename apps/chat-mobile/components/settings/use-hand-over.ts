@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { useAuthStore } from "@/data/auth/store";
 import { useTransferOwnership } from "@/data/mutations/account";
 import { activeMembersOptions } from "@/data/queries/org-members";
-import type { OwnedOrganization } from "@/lib/account-deletion";
+import type { OwnedOrganization } from "@/lib/owned-organization";
 import { transferCandidates, type TransferCandidate } from "@/lib/owner-transfer";
 
 export function useHandOver(organization: OwnedOrganization | null) {

@@ -53,8 +53,7 @@ import {
   type WorkspaceMemberRecord,
 } from "./chat-api-schemas";
 import type { PendingFile } from "@/lib/send-pipeline";
-import { relabelErasedAccounts } from "@/lib/erased-account";
-import { i18n } from "@/lib/i18n/singleton";
+import { relabelingErased } from "@/lib/erased-account";
 
 type Request = (path: string, init?: RequestInit) => Promise<unknown>;
 
@@ -93,7 +92,7 @@ function multipart(file: { uri: string; name: string; type: string }, fields: Re
 
 export function createChatApi(send: Request) {
   // An erased account's name reads in the app's language on every screen (lib/erased-account.ts).
-  const request: Request = async (path, init) => relabelErasedAccounts(await send(path, init), i18n.t("mobile.account.erased_name"));
+  const request: Request = relabelingErased(send);
   const core = toChatRequest(request);
   const rooms = createChatRoomsApi(core);
   const messages = createChatMessagesApi(core);

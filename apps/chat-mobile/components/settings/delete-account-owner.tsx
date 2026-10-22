@@ -1,18 +1,83 @@
 // What Settings › Delete account (delete-account.tsx) shows an organization owner, from what the server's
-// owner_must_transfer names (lib/account-deletion.ts › ownedOrganization). The only active member closes the
-// organization together with the erasure, typing its address again (Apple 5.1.1(v): deletion completes in the
-// app); an owner whose organization has other members hands it over on the web first.
+// owner_must_transfer names (lib/owned-organization.ts › ownedOrganization; the state is use-owner-step.ts). The
+// only active member closes the organization together with the erasure, typing its address again (Apple 5.1.1(v):
+// deletion completes in the app); an owner whose organization has other members hands it over in the sheet
+// (delete-account-hand-over.tsx), or on the web when the account has no password.
 import { Ionicons } from "@expo/vector-icons";
 import type { Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, TextInput, View } from "react-native";
 import { Text } from "@/components/ui/text";
-import type { OwnedOrganization } from "@/lib/account-deletion";
+import type { OwnedOrganization } from "@/lib/owned-organization";
 import { continuousCorners } from "@/lib/radius";
 import { cn } from "@/lib/utils";
+import { HandOverPanel } from "./delete-account-hand-over";
+import type { Field, OwnerStep } from "./use-owner-step";
+
+/** Whichever owner panel the step is at: the address to close, the hand-over list, or the way out on the web. */
+export function OwnerStepPanel({
+  step,
+  error,
+  busy,
+  foreground,
+  placeholderColor,
+  onEdit,
+  onSubmit,
+  onOpenWeb,
+}: {
+  step: OwnerStep;
+  error: { message: string; field: Field } | null;
+  busy: boolean;
+  foreground: string;
+  placeholderColor: string;
+  /** The person typed or picked: the refusal on screen no longer applies. */
+  onEdit: () => void;
+  onSubmit: () => void;
+  onOpenWeb: () => void;
+}) {
+  const { closing, handingOver, handOver, owner } = step;
+  if (closing) {
+    return (
+      <CloseOrganizationField
+        organization={closing}
+        value={step.closeSlug}
+        onChangeText={(next) => {
+          step.setCloseSlug(next);
+          onEdit();
+        }}
+        error={error?.field === "slug" ? error.message : null}
+        busy={busy}
+        placeholderColor={placeholderColor}
+        onSubmit={onSubmit}
+        inputRef={step.slugInput}
+      />
+    );
+  }
+  if (handingOver) {
+    return (
+      <HandOverPanel
+        organization={handingOver}
+        notice={owner?.notice ?? null}
+        candidates={handOver.candidates}
+        loading={handOver.loading}
+        selected={handOver.heir}
+        onSelect={(heir) => {
+          handOver.choose(heir);
+          onEdit();
+        }}
+        onRetry={handOver.reload}
+        error={error?.field === "pick" ? error.message : null}
+        busy={busy}
+        foreground={foreground}
+        onOpenWeb={onOpenWeb}
+      />
+    );
+  }
+  return owner ? <OwnerTransferPanel organization={owner.organization} notice={owner.notice} foreground={foreground} onOpenWeb={onOpenWeb} /> : null;
+}
 
 /** An owner who cannot close: hand the organization over on the web (openWeb opens its settings there). */
-export function OwnerTransferPanel({
+function OwnerTransferPanel({
   organization,
   notice,
   foreground,
@@ -47,7 +112,7 @@ export function OwnerTransferPanel({
 }
 
 /** The only active member: what closing does, and the organization's address typed again to confirm it. */
-export function CloseOrganizationField({
+function CloseOrganizationField({
   organization,
   value,
   onChangeText,
