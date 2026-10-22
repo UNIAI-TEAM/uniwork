@@ -12,12 +12,12 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// Whether a chat push shows the message's words (audit "Security & privacy",
-// push-preview-plaintext). The text of a push passes through Expo, FCM and
-// APNs and sits on a lock screen, so a person may hide it for themselves and
-// an owner or admin for the whole organization; the organization's choice
-// wins. Hidden, the push still says who wrote and where, never what
-// (notification.PushConsumer).
+// Whether a push shows its content (audit "Security & privacy",
+// push-preview-plaintext). The title and text of a push pass through Expo, FCM
+// and APNs and sit on a lock screen, so a person may hide them for themselves
+// and an owner or admin for the whole organization; the organization's choice
+// wins. Hidden, a push says only what kind of thing happened, naming no one
+// and nothing; a ring keeps the caller's name (notification.PushConsumer).
 
 // SetPushPreviews records the person's own choice. Like the AI consent, it is
 // theirs, so the audit row sits on the credential sentinel, never on one
@@ -58,7 +58,7 @@ func (s *AuthService) SetPushPreviews(ctx context.Context, userID string, show b
 
 // PushPreviewPolicy is the organization's choice as a member sees it.
 type PushPreviewPolicy struct {
-	// Hidden: no chat push of the organization shows the message's words.
+	// Hidden: no push of the organization names anyone or anything (a ring keeps the caller).
 	Hidden   bool
 	HiddenAt *time.Time
 	// CanManage: the caller is an owner or admin, who may change it.

@@ -15,19 +15,47 @@ func isChatPushKind(kind string) bool {
 }
 
 var pushBodyLabels = map[string]map[string]string{
-	"vi": {"file": "[Tệp]", "image": "[Ảnh]", "voice": "[Tin thoại]", "hidden": "Tin nhắn mới"},
-	"en": {"file": "[File]", "image": "[Image]", "voice": "[Voice message]", "hidden": "New message"},
+	"vi": {"file": "[Tệp]", "image": "[Ảnh]", "voice": "[Tin thoại]"},
+	"en": {"file": "[File]", "image": "[Image]", "voice": "[Voice message]"},
 }
 
-// hiddenPushBody stands in for the preview when the recipient or their
-// organization hides message text in pushes (service.SetPushPreviews,
-// SetPushPreviewPolicy): it says a message arrived, never what or what kind.
-func hiddenPushBody(locale string) string {
-	labels, ok := pushBodyLabels[locale]
+// hiddenPushTitles stand in for the whole push when the recipient or their
+// organization hides previews (service.SetPushPreviews, SetPushPreviewPolicy).
+// A title passes through Expo, FCM and APNs and sits on a lock screen as the
+// body does, so these name no one and nothing: not the sender, the room, a
+// task or document, nor a reminder's words. They say only what kind of thing
+// happened. "" is every kind without a line of its own.
+var hiddenPushTitles = map[string]map[string]string{
+	"vi": {
+		KindChatDM:            "Tin nhắn riêng mới",
+		KindChatMentioned:     "Bạn được nhắc đến trong một cuộc trò chuyện",
+		KindChatThreadReplied: "Có trả lời mới trong một thread",
+		ChannelMissedCalls:    "Cuộc gọi nhỡ",
+		"":                    "Bạn có thông báo mới",
+	},
+	"en": {
+		KindChatDM:            "New direct message",
+		KindChatMentioned:     "You were mentioned in a conversation",
+		KindChatThreadReplied: "New reply in a thread",
+		ChannelMissedCalls:    "Missed call",
+		"":                    "You have a new notification",
+	},
+}
+
+// hiddenPushTitle is the title of a hidden push; the body is left empty. A
+// missed call is told by its channel, since its row is a chat_dm.
+func hiddenPushTitle(locale, kind, channel string) string {
+	titles, ok := hiddenPushTitles[locale]
 	if !ok {
-		labels = pushBodyLabels["en"]
+		titles = hiddenPushTitles["en"]
 	}
-	return labels["hidden"]
+	if channel == ChannelMissedCalls {
+		return titles[ChannelMissedCalls]
+	}
+	if title, ok := titles[kind]; ok {
+		return title
+	}
+	return titles[""]
 }
 
 var (

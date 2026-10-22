@@ -153,8 +153,8 @@ func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler
 		auth: true,
 	})
 	r.Put("/me/push-previews", h.SetPushPreviews, apiOp{
-		summary: "Show or hide message text in chat pushes",
-		description: "Người dùng chọn push tin chat có hiện nội dung tin hay không (show bắt buộc). Ẩn thì push chỉ nói có tin mới, ai gửi, ở đâu. " +
+		summary: "Show or hide previews in pushes",
+		description: "Người dùng chọn push có hiện nội dung hay không (show bắt buộc). Ẩn thì push chỉ nói loại việc vừa xảy ra (tin riêng, lượt nhắc tên, cuộc gọi nhỡ…), không tên người, phòng, việc, tài liệu hay chữ trong tin; chuông cuộc gọi đến vẫn hiện tên người gọi. " +
 			"Chính sách ẩn của tổ chức (PUT /orgs/{org}/push-preview-policy) thắng lựa chọn này. Không đổi gì thì không ghi audit; có đổi thì ghi user.push_previews_changed.",
 		tags: []string{"me"},
 		sdi:  sdi.SetPushPreviewsSDI{},

@@ -65,15 +65,15 @@ func registerOrganizations(r api, h Routes) {
 		auth:        true,
 	})
 	r.Get("/orgs/{org}/push-preview-policy", h.OrgPushPreviewPolicy, apiOp{
-		summary:     "Read whether chat pushes hide message text",
-		description: "Chính sách của tổ chức: push tin chat ẩn nội dung tin hay không. Mọi thành viên đọc được (điện thoại nói vì sao nội dung bị ẩn); can_manage cho owner/admin.",
+		summary:     "Read whether pushes hide previews",
+		description: "Chính sách của tổ chức: push ẩn nội dung hay không (tên người, phòng, việc, tài liệu và chữ trong tin). Mọi thành viên đọc được (điện thoại nói vì sao nội dung bị ẩn); can_manage cho owner/admin.",
 		tags:        []string{"organizations"},
 		sdo:         sdo.PushPreviewPolicySDO{},
 		auth:        true,
 	})
 	r.Put("/orgs/{org}/push-preview-policy", h.SetOrgPushPreviewPolicy, apiOp{
-		summary:     "Hide or show message text in every chat push of the organization",
-		description: "Owner/admin bật/tắt ẩn nội dung tin trong mọi push tin chat của tổ chức (hidden bắt buộc), thắng lựa chọn của từng người. Thành viên thường -> 403. Không đổi gì thì không ghi audit; có đổi thì ghi organization.push_preview_policy_changed.",
+		summary:     "Hide or show previews in every push of the organization",
+		description: "Owner/admin bật/tắt ẩn nội dung (tên người, phòng, việc, tài liệu, chữ trong tin) trong mọi push của tổ chức trừ chuông cuộc gọi đến (hidden bắt buộc), thắng lựa chọn của từng người. Thành viên thường -> 403. Không đổi gì thì không ghi audit; có đổi thì ghi organization.push_preview_policy_changed.",
 		tags:        []string{"organizations"},
 		sdi:         sdi.PushPreviewPolicySDI{},
 		sdo:         sdo.PushPreviewPolicySDO{},

@@ -28,10 +28,28 @@ func TestPushBody(t *testing.T) {
 	}
 }
 
-func TestHiddenPushBodySaysOnlyThatAMessageArrived(t *testing.T) {
-	for locale, want := range map[string]string{"vi": "Tin nhắn mới", "en": "New message", "fr": "New message"} {
-		if got := hiddenPushBody(locale); got != want {
-			t.Errorf("%s: %q, want %q", locale, got, want)
+// Hidden, a push names no one and nothing: not the sender, the room, the task
+// or document, nor a reminder's words (audit "Security & privacy": the title
+// passes through Expo, FCM and APNs as the body does). It still says what kind
+// of thing happened, so a person knows whether to open the app.
+func TestHiddenPushTitleNamesNoOneAndNothing(t *testing.T) {
+	cases := []struct{ locale, kind, channel, want string }{
+		{"vi", KindChatDM, ChannelMessages, "Tin nhắn riêng mới"},
+		{"vi", KindChatMentioned, ChannelMentions, "Bạn được nhắc đến trong một cuộc trò chuyện"},
+		{"vi", KindChatThreadReplied, ChannelMessages, "Có trả lời mới trong một thread"},
+		{"vi", KindChatDM, ChannelMissedCalls, "Cuộc gọi nhỡ"},
+		{"vi", KindTaskAssigned, ChannelGeneral, "Bạn có thông báo mới"},
+		{"vi", KindChatReminder, ChannelGeneral, "Bạn có thông báo mới"},
+		{"en", KindChatDM, ChannelMessages, "New direct message"},
+		{"en", KindChatMentioned, ChannelMentions, "You were mentioned in a conversation"},
+		{"en", KindChatThreadReplied, ChannelMessages, "New reply in a thread"},
+		{"en", KindChatDM, ChannelMissedCalls, "Missed call"},
+		{"en", KindDocumentShared, ChannelGeneral, "You have a new notification"},
+		{"fr", KindChatDM, ChannelMessages, "New direct message"},
+	}
+	for _, c := range cases {
+		if got := hiddenPushTitle(c.locale, c.kind, c.channel); got != c.want {
+			t.Errorf("%s %s %s: %q, want %q", c.locale, c.kind, c.channel, got, c.want)
 		}
 	}
 }

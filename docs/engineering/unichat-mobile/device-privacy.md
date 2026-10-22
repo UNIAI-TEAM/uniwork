@@ -6,11 +6,14 @@
 `scripts/` hay `.github/`.
 
 - Quyền riêng tư trên máy (audit "Security & privacy", no-app-switcher-privacy-or-lock). Cài đặt › Quyền riêng tư và
-  bảo mật (`components/settings/privacy-section.tsx`): **Hiện nội dung tin trong thông báo**
+  bảo mật (`components/settings/privacy-section.tsx`): **Hiện nội dung trong thông báo**
   (`push-previews-row.tsx`; lựa chọn của tài khoản ở server: `PUT /me/push-previews`, `user.push_previews` trên `/me`,
   `data/push-previews.ts`; tổ chức ẩn cho mọi người qua `GET/PUT /orgs/{org}/push-preview-policy` — owner/admin đổi ở web ›
-  Cài đặt › Tổ chức — thì công tắc tắt, khoá và nói lý do; ẩn thì push tin chat chỉ còn "Tin nhắn mới" kèm người gửi ở
-  tiêu đề, `PushConsumer` của server thay chữ), **Khoá UniChat** (`expo-local-authentication`: Face ID, vân tay
+  Cài đặt › Tổ chức — thì công tắc tắt, khoá và nói lý do; ẩn thì mọi push trừ chuông cuộc gọi đến chỉ nói loại việc —
+  "Tin nhắn riêng mới", "Bạn được nhắc đến trong một cuộc trò chuyện", "Cuộc gọi nhỡ", "Bạn có thông báo mới" — không
+  tên người gửi, phòng, việc, tài liệu hay chữ trong tin, thân trống: tiêu đề cũng đi qua Expo/FCM/APNs như thân;
+  `PushConsumer` của server thay cả hai, `hiddenPushTitle` ở `server/internal/notification/push_body.go`. Chuông giữ tên
+  người gọi vì nghe máy cần biết ai gọi), **Khoá UniChat** (`expo-local-authentication`: Face ID, vân tay
   hay mã khoá của máy — bật hay tắt đều phải chứng minh chủ máy trước, máy không có khoá màn hình thì nói vậy) với "Khoá lại
   sau khi rời app" (ngay, 1, 5, 15 phút) và **Chặn chụp màn hình** (`expo-screen-capture`: Android `FLAG_SECURE`, cũng
   xoá ảnh trong màn đa nhiệm; iOS chặn chụp/quay). Luật thuần ở `lib/app-lock.ts` (`shouldLock`: mở lạnh luôn khoá,

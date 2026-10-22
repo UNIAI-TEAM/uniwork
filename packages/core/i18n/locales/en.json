@@ -5280,8 +5280,8 @@
     "push_previews": {
       "title": "Push notifications",
       "description": "Push notifications travel through Expo, Google, Apple and browser push services, then show on lock screens.",
-      "hide": "Hide message text in notifications",
-      "hide_hint": "Applies to every member: a message notification only says that a message arrived, who sent it and where, never its words."
+      "hide": "Hide content in notifications",
+      "hide_hint": "Applies to every member: a notification only says that something new arrived, without the sender, the room, a task or document name, or the message's words. An incoming call still shows who is calling."
     }
   },
   "invitations": {

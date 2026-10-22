@@ -7,8 +7,8 @@ const toastError = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: toastError } }));
 
 // The host renders Vietnamese (test/api-mock.tsx › localeAdapter).
-const SWITCH = "Ẩn nội dung tin trong thông báo";
-const HINT = "Áp dụng cho mọi thành viên: thông báo tin nhắn chỉ nói có tin mới, ai gửi và ở đâu, không hiện chữ trong tin.";
+const SWITCH = "Ẩn nội dung trong thông báo";
+const HINT = "Áp dụng cho mọi thành viên: thông báo chỉ nói có tin hay việc mới, không hiện tên người gửi, tên phòng, tên công việc, tài liệu hay chữ trong tin. Chuông cuộc gọi đến vẫn hiện tên người gọi.";
 
 type Init = { method?: string; body?: { hidden?: boolean } };
 
