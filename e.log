@@ -1,0 +1,5 @@
+$ (cd packages/core && pnpm exec vitest run realtime/document-events.test.ts i18n/parity.test.ts api/endpoints/notifications.test.ts api/endpoints/documents-owner.test.ts documents/hooks-owner.test.tsx > /tmp/vc.log 2>&1); rc=$?; grep -E "Test Files|Tests |FAIL" /tmp/vc.log | tail -8; echo; echo "VITEST_CORE_EXIT=$rc"
+ Test Files  5 passed (5)
+      Tests  53 passed (53)
+
+VITEST_CORE_EXIT=0

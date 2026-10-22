@@ -1,0 +1,7 @@
+$ pnpm exec eslint --max-warnings 0 packages/core/realtime/document-events.ts packages/core/realtime/document-events.test.ts packages/core/types/events.ts packages/core/types/notification.ts packages/views/notifications/document-owner-kind.test.tsx packages/views/notifications/kind-icon.tsx packages/views/notifications/kind-tone.ts packages/views/notifications/notification-category.ts > /tmp/el.log 2>&1; rc=$?; tail -15 /tmp/el.log; echo; echo "ESLINT_EXIT=$rc"
+undefined
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "eslint" not found
+
+Did you mean "pnpm exec esbuild"?
+
+ESLINT_EXIT=254
