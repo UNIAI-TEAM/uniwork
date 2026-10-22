@@ -391,7 +391,12 @@ behind its own gate and never reaches content.
   `server/internal/service/admin_flags.go` call the queries in
   `server/pkg/db/queries/admin.sql` and `server/pkg/db/queries/feature_flags.sql`, and neither
   touches a content service
-  — `TestAdminQueriesStayInAdminService` in `server/internal/arch_test.go`.
+  — `TestAdminQueriesStayInAdminService` in `server/internal/arch_test.go`. One exception
+  (ADR 0042): the operator's takedown of a reported chat message goes through
+  `ReportedContentRemover.RemoveReportedMessageQ`, which `server/cmd/server/main.go` wires
+  to `ChatService`; it is the console's only content write, and it returns no content.
+  `TestReportedContentRemoverIsTheConsoleOnlyContentSeam` holds the interface to that one
+  method, `AdminService` to no other content service, and that wiring to the one call site.
 - Every admin write takes a `reason` (≥ 10 characters) and lands in
   `admin_actions` and `audit_events` in one transaction, sharing the trace id.
   A platform role is granted only by `server/cmd/uniwork-admin`; there is no UI.
