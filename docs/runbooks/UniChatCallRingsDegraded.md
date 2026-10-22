@@ -10,7 +10,8 @@
   không thông báo nào.
 - Người dùng bản đó kêu "gọi không đổ chuông", "chỉ thấy thông báo", hoặc người gọi thấy hết giờ dù máy kia có mạng.
 - Số đếm đến từ chính máy (`data/calls/call-push.ts` → `track({ name: "call_push" })`, gửi khi app ở foreground; một
-  lần đổ chuông lúc app đã bị kill mà người dùng không mở app thì không được đếm), nên tỷ lệ là cận dưới.
+  lần đổ chuông lúc app đã bị kill mà người dùng không mở app thì không được đếm), nên tỷ lệ là cận dưới. Chuông do
+  dịch vụ FCM đăng không qua JavaScript là `native` (đếm khi app chạy lại), tính cùng `shown` ở mẫu số.
 
 ## Kiểm tra
 

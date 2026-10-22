@@ -26,10 +26,16 @@ var mobileEventResults = map[string]map[string]bool{
 	"message_send": {"sent": true, "failed": true},
 	"push_open":    {"chat": true, "call": true, "other": true},
 	"call_connect": {"connected": true, "failed": true},
-	// What a call push did on an Android phone (apps/chat-mobile/data/calls/call-push.ts): the native ring shown,
-	// a plain fallback, rung in the app already, ignored (switch off, over, busy), an end that cleared a ring, or a
-	// ring lost (neither notification could be posted). Ring delivery is judged by these, not by a device farm.
-	"call_push": {"shown": true, "fallback": true, "in_app": true, "ignored": true, "cleared": true, "lost": true},
+	// What a call push did on an Android phone (apps/chat-mobile/data/calls/call-push.ts): the native ring shown
+	// by the JavaScript task, the native ring posted by the FCM service before any JavaScript ran ("native",
+	// modules/unichat-calls › NativeCallPush.kt, counted when the app next runs), a plain fallback, rung in the app
+	// already, ignored (switch off, over, busy), an end that cleared a ring, or a ring lost (neither notification
+	// could be posted). Ring delivery is judged by these, not by a device farm.
+	"call_push": {"shown": true, "native": true, "fallback": true, "in_app": true, "ignored": true, "cleared": true, "lost": true},
+	// How long after the server rang a call the phone rang it (from expires_at less the ring window, so the
+	// Expo and FCM hops and the phone's clock skew are in it): natively, or by the JavaScript task ("app").
+	// deploy/alerts.yml › UniChatCallRingSlow pages on its p95.
+	"call_ring": {"native": true, "app": true},
 	// How a launch went (apps/chat-mobile/data/release/launch-health.ts): an OTA update that could not launch (the
 	// phone fell back to the binary's bundle, or skipped an update that failed to load), and a run that ended in a
 	// crash, told by the next one. Counted against the build that tells it; the alerts page on them without waiting
@@ -39,7 +45,7 @@ var mobileEventResults = map[string]map[string]bool{
 }
 
 // mobileEventTimed are the events whose duration is observed.
-var mobileEventTimed = map[string]bool{"first_screen": true, "message_send": true, "call_connect": true}
+var mobileEventTimed = map[string]bool{"first_screen": true, "message_send": true, "call_connect": true, "call_ring": true}
 
 // maxMobileEventSeconds drops a duration no real step takes (a clock jump, a
 // phone asleep mid-send) instead of stretching the histogram.
@@ -54,7 +60,7 @@ func NewMobileEvents() *MobileEvents {
 	// would be the one label set that could grow past a few thousand series.
 	durations := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "uniwork_mobile_event_duration_seconds",
-		Help:    "How long UniChat mobile took to draw its first screen, send a message or connect a call, by OS and store version.",
+		Help:    "How long UniChat mobile took to draw its first screen, send a message, connect a call or ring one after the server did, by OS and store version.",
 		Buckets: []float64{0.1, 0.25, 0.5, 1, 1.5, 2, 3, 5, 8, 13, 21, 34, 60},
 	}, []string{"event", "os", "client_version"})
 	return &MobileEvents{

@@ -368,9 +368,9 @@ groups:
         expr: |
           (
             sum by (client_version) (rate(uniwork_mobile_events_total{event="call_push",result=~"fallback|lost"}[1h]))
-              / sum by (client_version) (rate(uniwork_mobile_events_total{event="call_push",result=~"shown|fallback|lost"}[1h]))
+              / sum by (client_version) (rate(uniwork_mobile_events_total{event="call_push",result=~"shown|native|fallback|lost"}[1h]))
           ) > 0.1
-          and sum by (client_version) (increase(uniwork_mobile_events_total{event="call_push",result=~"shown|fallback|lost"}[1h])) >= 20
+          and sum by (client_version) (increase(uniwork_mobile_events_total{event="call_push",result=~"shown|native|fallback|lost"}[1h])) >= 20
         for: 30m
         labels:
           severity: "3"
@@ -378,6 +378,21 @@ groups:
           summary: "Một bản UniChat Android không đổ chuông cuộc gọi bằng màn native"
           description: "Bản {{ $labels.client_version }}: {{ $value | humanizePercentage }} push cuộc gọi trong 1 giờ chỉ thành thông báo thường hoặc không hiện gì."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatCallRingsDegraded.md
+      # Calls that ring late: how long after the server rang a call the Android phone did (event call_ring, from the
+      # ring's expires_at less the 60 s window, so the Expo and FCM hops and clock skew are in it). A p95 over 5 s for
+      # half an hour means callers hang up before phones ring — FCM deprioritising the app, Expo's queue, or the
+      # JavaScript path standing in for the native one. Twenty rings keep one phone with a wrong clock from paging.
+      - alert: UniChatCallRingSlow
+        expr: |
+          histogram_quantile(0.95, sum by (client_version, le) (rate(uniwork_mobile_event_duration_seconds_bucket{event="call_ring",os="android"}[1h]))) > 5
+          and sum by (client_version) (increase(uniwork_mobile_event_duration_seconds_count{event="call_ring",os="android"}[1h])) >= 20
+        for: 30m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Máy Android của một bản UniChat đổ chuông chậm"
+          description: "Bản {{ $labels.client_version }}: 95 % cuộc gọi trong 1 giờ đổ chuông trên máy sau hơn {{ $value | humanize }} giây kể từ lúc server gọi."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatCallRingSlow.md
       # An OTA update of UniChat mobile that phones cannot launch: they fall back to the binary's bundle (an emergency
       # launch) or skip it for the update before it, quietly, so without this the update looks healthy. The phones tell
       # it on the launch after (apps/chat-mobile/data/release/launch-health.ts, event ota_launch); three in an hour on one

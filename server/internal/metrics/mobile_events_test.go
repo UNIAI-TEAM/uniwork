@@ -23,6 +23,13 @@ func TestMobileEventsKeepTheirLabelsClosed(t *testing.T) {
 	if m.Observe("ota_launch", "ok", "android", "0.3.0", "embedded", nil) || m.Observe("app_crash", "now", "ios", "0.3.0", "embedded", nil) {
 		t.Fatal("their results are closed too")
 	}
+	// A ring the FCM service posted before JavaScript ran, and how long after the server rang it the phone did.
+	if !m.Observe("call_push", "native", "android", "0.3.0", "embedded", nil) || !m.Observe("call_ring", "native", "android", "0.3.0", "embedded", ms(900)) {
+		t.Fatal("a native ring and its latency are events")
+	}
+	if m.Observe("call_ring", "slow", "android", "0.3.0", "embedded", ms(900)) {
+		t.Fatal("call_ring's results are closed")
+	}
 	m.Observe("app_open", "warm", "windows", "0.3.0-beta", "not-an-update", ms(5))
 	if got := testutil.ToFloat64(m.Events.WithLabelValues("app_open", "warm", "other", "other", "other")); got != 1 {
 		t.Fatalf("an unknown OS, a malformed version and a malformed update are other: %v", got)
@@ -30,8 +37,8 @@ func TestMobileEventsKeepTheirLabelsClosed(t *testing.T) {
 	// app_open is not timed; a duration past ten minutes or below zero is not a step.
 	m.Observe("message_send", "sent", "android", "0.3.0", "", ms(-1))
 	m.Observe("message_send", "sent", "android", "0.3.0", "", ms(601_000))
-	if n := testutil.CollectAndCount(m.Durations, "uniwork_mobile_event_duration_seconds"); n != 1 {
-		t.Fatalf("duration series = %d, want only first_screen's", n)
+	if n := testutil.CollectAndCount(m.Durations, "uniwork_mobile_event_duration_seconds"); n != 2 {
+		t.Fatalf("duration series = %d, want only first_screen's and call_ring's", n)
 	}
 	for i := 0; i < maxClientVersions+3; i++ {
 		m.Observe("app_open", "cold", "android", fmt.Sprintf("2.0.%d", i), "", nil)
