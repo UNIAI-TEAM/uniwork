@@ -10,6 +10,7 @@ import { useWorkspace } from "../layout/workspace-context";
 import { entityKindIcon } from "./ask-uni-entity";
 import { AskUniEditor, type AskUniEditorHandle, type AskUniQuestion } from "./ask-uni-editor";
 import { AskUniModelPicker, useAskModelSelection } from "./ask-uni-model-picker";
+import { useShownPage } from "./ask-uni-page-context";
 import { AskUniScopePicker } from "./ask-uni-scope-picker";
 
 const MAX_MENTIONS = 5;
@@ -45,8 +46,7 @@ export function AskUniComposer({
   const conversationId = useAiPanelStore((s) => s.conversationId);
   const pendingFocus = useAiPanelStore((s) => s.pendingFocus);
   const clearPendingFocus = useAiPanelStore((s) => s.clearPendingFocus);
-  const page = useAiPanelStore((s) => s.page);
-  const pageDismissed = useAiPanelStore((s) => s.pageDismissed);
+  const page = useShownPage();
   const dismissPage = useAiPanelStore((s) => s.dismissPage);
   const { model, effort } = useAskModelSelection(workspace.id);
 
@@ -85,7 +85,7 @@ export function AskUniComposer({
   }, [pendingFocus, clearPendingFocus]);
 
   // A hand-picked focus wins over the page; a removed page chip stays off until another page.
-  const shownPage = !focus && page && `${page.kind}:${page.id}` !== pageDismissed ? page : null;
+  const shownPage = focus ? null : page;
   const sent = focus ?? shownPage;
   const placeholderKind = sent?.kind;
   const pageLabel = shownPage ? t("page_chip", { label: shownPage.label || kindLabel(shownPage.kind) }) : "";

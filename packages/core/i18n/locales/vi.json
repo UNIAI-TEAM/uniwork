@@ -6014,6 +6014,45 @@
         "name": "Opus 5.5",
         "description": "Suy luận sâu nhất, hợp câu hỏi phức tạp nhưng chậm và tốn hạn mức hơn."
       }
+    },
+    "empty": {
+      "title": "Hỏi UNI về công việc",
+      "task": {
+        "1": "Tóm tắt task này",
+        "2": "Task này đang vướng ở đâu?",
+        "3": "Ai nên nhận task này?",
+        "4": "Việc nào liên quan đến task này?"
+      },
+      "project": {
+        "1": "Tóm tắt tiến độ dự án này",
+        "2": "Việc nào của dự án đang trễ?",
+        "3": "Ai đang làm nhiều việc nhất trong dự án?",
+        "4": "Việc nào chưa có người làm?"
+      },
+      "meeting": {
+        "1": "Tóm tắt cuộc họp này",
+        "2": "Cuộc họp này chốt những gì?",
+        "3": "Việc nào được giao trong cuộc họp?",
+        "4": "Cần chuẩn bị gì cho cuộc họp?"
+      },
+      "document": {
+        "1": "Tóm tắt tài liệu này",
+        "2": "Tài liệu này nói gì về hạn chót?",
+        "3": "Việc nào liên quan đến tài liệu này?",
+        "4": "Ai phụ trách nội dung này?"
+      },
+      "room": {
+        "1": "Tóm tắt trao đổi gần đây",
+        "2": "Có việc nào được nhắc mà chưa thành task?",
+        "3": "Ai đang chờ trả lời?",
+        "4": "Chốt được gì trong phòng này?"
+      },
+      "other": {
+        "1": "Việc nào của tôi sắp trễ?",
+        "2": "Hôm nay tôi nên làm gì trước?",
+        "3": "Tóm tắt các cuộc họp tuần này",
+        "4": "Việc nào đang chờ tôi duyệt?"
+      }
     }
   },
   "admin": {

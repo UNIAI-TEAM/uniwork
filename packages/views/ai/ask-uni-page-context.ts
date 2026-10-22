@@ -22,3 +22,10 @@ export function useAskUniPageContext(focus: PageFocus | null): void {
     };
   }, [kind, id]);
 }
+
+/** The open page as the composer's chip: null when none is open or the reader removed its chip. */
+export function useShownPage() {
+  const page = useAiPanelStore((s) => s.page);
+  const dismissed = useAiPanelStore((s) => s.pageDismissed);
+  return page && `${page.kind}:${page.id}` !== dismissed ? page : null;
+}

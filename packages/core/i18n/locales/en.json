@@ -6021,6 +6021,45 @@
         "name": "Opus 5.5",
         "description": "The deepest reasoning, good for complex questions but slower and heavier on quota."
       }
+    },
+    "empty": {
+      "title": "Ask UNI about your work",
+      "task": {
+        "1": "Summarize this task",
+        "2": "Where is this task stuck?",
+        "3": "Who should take this task?",
+        "4": "What work is related to this task?"
+      },
+      "project": {
+        "1": "Summarize this project's progress",
+        "2": "Which project tasks are late?",
+        "3": "Who has the most work in this project?",
+        "4": "Which tasks have no owner?"
+      },
+      "meeting": {
+        "1": "Summarize this meeting",
+        "2": "What did this meeting decide?",
+        "3": "What was assigned in this meeting?",
+        "4": "What should I prepare for this meeting?"
+      },
+      "document": {
+        "1": "Summarize this document",
+        "2": "What does this document say about the deadline?",
+        "3": "What work is related to this document?",
+        "4": "Who owns this content?"
+      },
+      "room": {
+        "1": "Summarize recent discussion",
+        "2": "Is anything mentioned that is not a task yet?",
+        "3": "Who is waiting for a reply?",
+        "4": "What was settled in this room?"
+      },
+      "other": {
+        "1": "Which of my tasks are due soon?",
+        "2": "What should I do first today?",
+        "3": "Summarize this week's meetings",
+        "4": "What is waiting for my approval?"
+      }
     }
   },
   "admin": {
