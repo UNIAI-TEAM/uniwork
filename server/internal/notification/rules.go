@@ -1213,7 +1213,10 @@ func ruleDocumentOwnersBulkTransferred(ctx context.Context, e env, ev outbox.Row
 		return nil, nil
 	}
 	if _, err := e.orgs.RequireMember(ctx, orgID, uid); err != nil {
-		return nil, nil
+		if refused(err) {
+			return nil, nil
+		}
+		return nil, err
 	}
 	name := ""
 	if u, err := e.q.GetUserByID(ctx, fromID); err == nil {
