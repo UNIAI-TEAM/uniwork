@@ -578,10 +578,21 @@ func (h *handlers) patchChatRoom(w http.ResponseWriter, r *http.Request) {
 		next := patchMemberPermissionsFromSDI(current, in.MemberPermissions)
 		merged = &next
 	}
-	perms, err := h.Chat.UpdateChatRoomSettings(
-		r.Context(), actorID, wsID, roomID,
-		service.UpdateChatRoomSettingsInput{Name: in.Name, Topic: in.Topic, MemberPermissions: merged},
-	)
+	settingsChange := in.Name != nil || in.Topic != nil || merged != nil
+	if in.Wallpaper == nil && !settingsChange {
+		respondError(w, http.StatusBadRequest, "invalid_request", "no fields to update")
+		return
+	}
+	var perms service.ChatRoomMemberPermissions
+	var err error
+	if settingsChange {
+		perms, err = h.Chat.UpdateChatRoomSettings(
+			r.Context(), actorID, wsID, roomID,
+			service.UpdateChatRoomSettingsInput{Name: in.Name, Topic: in.Topic, MemberPermissions: merged},
+		)
+	} else {
+		perms, err = h.Chat.GetRoomMemberPermissions(r.Context(), actorID, wsID, roomID)
+	}
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
