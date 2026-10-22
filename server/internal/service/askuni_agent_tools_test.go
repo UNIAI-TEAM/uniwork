@@ -397,6 +397,9 @@ func TestAskAgentToolsReadEveryKind(t *testing.T) {
 	if len(gp) != 2 || gp[0].Kind != "project" || !strings.Contains(gp[0].Text, "Task count: 1") || strings.Contains(gp[0].Text, "Dựng trang chủ") || !strings.Contains(gp[0].Text, "Its first 1 tasks follow as their own sources.") {
 		t.Fatalf("get_project = %+v", gp)
 	}
+	if strings.Contains(gp[0].Body, "follow") {
+		t.Errorf("project Body carries the model note: %q", gp[0].Body)
+	}
 	if gp[1].Kind != "task" || gp[1].Title != "Dựng trang chủ" || gp[1].Key != gp[1].Href || gp[1].Key == "" || !strings.Contains(gp[1].Text, "Project: Website mới ("+pr.ID+")") {
 		t.Errorf("get_project task item = %+v", gp[1])
 	}

@@ -477,13 +477,11 @@ func (s *AskUNIService) agentGetProject(ctx context.Context, tc ai.ToolContext, 
 	if p.Description != nil {
 		b.WriteString(*p.Description)
 	}
-	if len(p.Tasks) > 0 {
-		if b.Len() > 0 {
-			b.WriteString("\n")
-		}
-		fmt.Fprintf(&b, "Its first %d tasks follow as their own sources.", len(p.Tasks))
-	}
 	out := []agentItem{s.projectItem(l.names, p, b.String())}
+	if len(p.Tasks) > 0 {
+		// Text only: Body is what a citation quotes to the person.
+		out[0].Text = withText(out[0].Text, fmt.Sprintf("Its first %d tasks follow as their own sources.", len(p.Tasks)))
+	}
 	for _, t := range p.Tasks {
 		out = append(out, s.taskItem(l, t, t.Excerpt))
 	}
