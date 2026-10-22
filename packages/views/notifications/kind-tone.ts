@@ -44,6 +44,7 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   document_shared: moduleTone("documents"),
   document_trashed_by_other: moduleTone("documents"),
   document_changed: moduleTone("documents"),
+  document_owner_transferred: moduleTone("documents"),
 };
 
 export function kindTone(kind: string): Tint {

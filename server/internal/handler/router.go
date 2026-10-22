@@ -877,6 +877,7 @@ func New(d Deps) http.Handler {
 		ListDocumentAccessRequests:     h.listDocumentAccessRequests,
 		ApproveDocumentAccessRequest:   h.approveDocumentAccessRequest,
 		DeclineDocumentAccessRequest:   h.declineDocumentAccessRequest,
+		TransferDocumentOwner:          h.transferDocumentOwner,
 		CreateDocumentBreakGlass:       h.createDocumentBreakGlass,
 		RevokeDocumentBreakGlass:       h.revokeDocumentBreakGlass,
 		GetDocumentAdminSummary:        h.getDocumentAdminSummary,

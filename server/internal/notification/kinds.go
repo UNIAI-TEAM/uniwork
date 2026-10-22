@@ -76,6 +76,10 @@ const (
 	// actor's next command of the same verb. One kind for every verb
 	// (params.verb), in-app only by default.
 	KindDocumentChanged = "document_changed"
+	// DOC-06 (UNI-2084): a single-document owner transfer reached its new
+	// owner (addendum §4.2). In-app only by default; the bulk transfer has its
+	// own grouped kind (S-DOC06b).
+	KindDocumentOwnerTransferred = "document_owner_transferred"
 )
 
 // Kinds is the list in display order.
@@ -92,6 +96,7 @@ var Kinds = []string{
 	KindDocumentShared,
 	KindDocumentTrashedByOther,
 	KindDocumentChanged,
+	KindDocumentOwnerTransferred,
 }
 
 var kindSet = func() map[string]bool {

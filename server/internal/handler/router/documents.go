@@ -63,6 +63,7 @@ import (
 //	GET    /api/v1/documents/{documentID}/access-requests                   (DOC-07)
 //	POST   /api/v1/documents/{documentID}/access-requests/{requestID}/approve (DOC-07)
 //	POST   /api/v1/documents/{documentID}/access-requests/{requestID}/decline (DOC-07)
+//	PUT    /api/v1/documents/{documentID}/owner                             (DOC-06)
 //	GET    /api/v1/documents/{documentID}/download          (?meta=1 | bytes; HEAD)
 //	POST   /api/v1/documents/{documentID}/uploads
 //	POST   /api/v1/workspaces/{workspaceID}/documents/upload-sessions   (BIGUP-S1)
@@ -878,6 +879,17 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentAccessRequestDecisionSDO{},
 		auth:        true,
+	})
+	// DOC-06 (UNI-2084, §2.1, §4.2): hand one document's ACL owner slot to an
+	// effective member of its workspace, through the administer gate.
+	d.Put("/documents/{documentID}/owner", h.TransferDocumentOwner, apiOp{
+		summary: "Transfer document ownership",
+		description: "Người quản trị tài liệu (manage hoặc quản trị workspace) chuyển ACL owner cho một người là thành viên đang hoạt động của workspace chứa tài liệu; chủ cũ giữ share user ở mức previous_owner_level (edit mặc định, comment, view; none = không giữ; chỉ nâng, không hạ share sẵn có; chủ cũ đã bị vô hiệu hóa -> bỏ qua). Không tăng revision; tài liệu đã archive vẫn chuyển được. " +
+			"Người nhận đã là chủ -> 200, không ghi gì. Người nhận không phải người/không hoạt động/không là thành viên workspace -> 422 owner_target_not_member. Admin chỉ có AdminScope tự nhận tài liệu restricted -> 403 break_glass_required. Tài liệu thuộc Work Product -> 409 document_owned_by_work_product; Thư mục của tôi -> 409 my_folder_locked. previous_owner_level lạ -> 400 invalid_request. Người đọc thấp hơn manage -> 403 forbidden; không thấy tài liệu -> 404.",
+		tags: []string{"documents"},
+		sdi:  sdi.TransferDocumentOwnerSDI{},
+		sdo:  sdo.DocumentOwnerSDO{},
+		auth: true,
 	})
 	d.Get("/orgs/{orgID}/documents/settings", h.GetDocumentSettings, apiOp{
 		summary:     "Read the organization public-link switch",

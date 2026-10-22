@@ -130,6 +130,23 @@ WHERE id = sqlc.arg(id)
   AND revision = sqlc.arg(expected_revision)
 RETURNING *;
 
+-- name: TransferDocumentACLOwner :one
+-- DOC-06 (UNI-2084, addendum §2.1, §5): hand the ACL owner slot to another
+-- person. The caller holds the row lock (withDocumentAdministerMutation). The
+-- updated_by pair is the caller's like every other UPDATE (ADR 0007); the
+-- revision is NOT bumped - it is the autosave base, and an owner change does
+-- not change content. A Work Product document matches no row.
+UPDATE documents
+SET acl_owner_id = sqlc.arg(new_owner),
+    updated_by = sqlc.arg(updated_by),
+    updated_by_kind = sqlc.arg(updated_by_kind),
+    updated_at = now()
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND owner_kind IS NULL
+RETURNING *;
+
 -- The home-row move (SH-S1, UNI-1780): visibility and, while it is
 -- 'workspace', the level the row grants every effective member of the
 -- document's workspace. Every caller runs it inside the transaction that

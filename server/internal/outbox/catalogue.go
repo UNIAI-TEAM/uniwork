@@ -352,6 +352,10 @@ var catalogue = []EventDef{
 	// user_id and resolves the user scope from it.
 	{Topic: "document.access_requested", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.access_request_decided", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Owner transfer (DOC-06, UNI-2084): the ACL owner of one document moved.
+	// Ids only; bulk_id is present only when the bulk route (S-DOC06b) wrote
+	// the row, so the per-document notice can leave it to the grouped one.
+	{Topic: "document.owner_transferred", Version: 1, Payload: []string{"document_id", "workspace_id", "bulk_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Office offline leases (G5-08s, decision G5-D1 row 16): ids only, to the
 	// holder's own connections. revoked makes an online device lock its copy
