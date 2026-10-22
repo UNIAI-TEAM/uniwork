@@ -91,10 +91,11 @@ func TestListChatRoomsIsConstantStatements(t *testing.T) {
 		addOrgMember(t, q, w.OrganizationID, u.ID)
 		addWorkspaceMember(t, q, w.ID, u.ID)
 	}
-	if _, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID); err != nil {
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SendWorkspaceMessage(ctx, ub.ID, w.ID, SendChatMessageInput{Body: mentionAllBody}); err != nil {
+	if _, err := s.SendRoomMessage(ctx, ub.ID, w.ID, room.RoomID, SendChatMessageInput{Body: mentionAllBody}); err != nil {
 		t.Fatal(err)
 	}
 

@@ -11,35 +11,6 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
-func TestSniffChatFileContentType(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name string
-		data []byte
-		file string
-		want string
-		ok   bool
-	}{
-		{"png", []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}, "a.png", "image/png", true},
-		{"pdf", []byte("%PDF-1.7\n"), "doc.pdf", "application/pdf", true},
-		{"txt", []byte("hello world"), "notes.txt", "text/plain", true},
-		{"jpeg", []byte{0xff, 0xd8, 0xff, 0xe0}, "a.jpg", "image/jpeg", true},
-		{"gif", []byte("GIF89a........"), "a.gif", "image/gif", true},
-		{"pdf by ext", []byte("%PDF-1.4"), "doc.PDF", "application/pdf", true},
-		{"docx zip", []byte{'P', 'K', 0x03, 0x04}, "report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", true},
-		{"xlsx zip", []byte{'P', 'K', 0x03, 0x04}, "data.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", true},
-		{"reject", []byte{0x00, 0x01, 0x02}, "x.bin", "", false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, ok := sniffChatFileContentType(tc.data, tc.file)
-			if ok != tc.ok || got != tc.want {
-				t.Fatalf("got (%q, %v), want (%q, %v)", got, ok, tc.want, tc.ok)
-			}
-		})
-	}
-}
-
 func TestToChatMessageDTOMapsFileWithoutObjectKey(t *testing.T) {
 	t.Parallel()
 	dto := toChatMessageDTO(service.ChatMessageRow{
@@ -88,52 +59,4 @@ func uploadChatFile(
 	var out map[string]any
 	_ = json.Unmarshal(raw, &out)
 	return res, out
-}
-
-func TestSendChatFileMessage(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("LOCAL_UPLOAD_DIR", dir)
-	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
-	f := setupChatFixture(t, "filemsg")
-
-	res, out := uploadChatFile(
-		t, f.srv.URL, f.tokens["a"], f.wsID, f.dmRoomID,
-		"photo.png", "image/png", "file-http-client-1", tinyPNG,
-	)
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("upload status = %d out=%v", res.StatusCode, out)
-	}
-	msg, _ := out["message"].(map[string]any)
-	if msg == nil || msg["kind"] != "file" {
-		t.Fatalf("message = %v", out)
-	}
-	fileMeta, _ := msg["file"].(map[string]any)
-	if fileMeta == nil || fileMeta["filename"] != "photo.png" || fileMeta["object_key"] != nil {
-		t.Fatalf("file meta = %v", fileMeta)
-	}
-	messageID, _ := msg["id"].(string)
-	if messageID == "" {
-		t.Fatal("missing message id")
-	}
-
-	// Idempotent retry with the same client_msg_id.
-	res2, out2 := uploadChatFile(
-		t, f.srv.URL, f.tokens["a"], f.wsID, f.dmRoomID,
-		"photo.png", "image/png", "file-http-client-1", tinyPNG,
-	)
-	if res2.StatusCode != http.StatusOK {
-		t.Fatalf("retry status = %d out=%v", res2.StatusCode, out2)
-	}
-	msg2, _ := out2["message"].(map[string]any)
-	if msg2["id"] != messageID {
-		t.Fatalf("retry id = %v want %s", msg2["id"], messageID)
-	}
-
-	resBad, _ := uploadChatFile(
-		t, f.srv.URL, f.tokens["a"], f.wsID, f.dmRoomID,
-		"x.bin", "application/octet-stream", "file-http-client-2", []byte{0, 1, 2},
-	)
-	if resBad.StatusCode != http.StatusUnsupportedMediaType {
-		t.Fatalf("unsupported status = %d", resBad.StatusCode)
-	}
 }

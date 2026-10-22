@@ -25,7 +25,6 @@ import {
   listChatRoomMessagesAround,
   listChatRooms,
   getChatUnreadSummary,
-  listWorkspaceChatMessages,
   lookupChatUser,
   lookupChatUserById,
   resolveDMRoom,
@@ -36,7 +35,6 @@ import {
   sendChatDocumentLink,
   shareChatMessageAsDocument,
   getChatRoom,
-  sendWorkspaceChatMessage,
   signalChatTyping,
   signalChatVoiceAccept,
   signalChatVoiceHangup,
@@ -98,16 +96,6 @@ describe("chat endpoints", () => {
     );
     const room = await ensureWorkspaceChatRoom("ws1");
     expect(room?.room_id).toBe("01ROOM");
-  });
-
-  it("listWorkspaceChatMessages degrades on malformed response", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
-    expect(await listWorkspaceChatMessages("ws1")).toEqual([]);
-  });
-
-  it("sendWorkspaceChatMessage degrades on malformed response", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
-    expect(await sendWorkspaceChatMessage("ws1", { body: "hi" })).toBeNull();
   });
 
   it("lookupChatUser degrades on malformed response", async () => {

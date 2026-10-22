@@ -12,8 +12,6 @@ export * from "./voice-recording-hooks";
 export * from "./voice-transcript-hooks";
 export * from "./voice-recording-playback-cache";
 export * from "./chat-hooks-messages";
-export * from "./chat-contacts-hooks";
-export * from "./chat-groups-hooks";
 export {
   DEFAULT_CHAT_SCOPE_LIMIT,
   selectLazyChatScopeRoomIds,

@@ -195,7 +195,6 @@ describe("chat message mutations patch the room timeline instead of refetching i
     const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey);
     expect(keys).toContainEqual(documentKeys.workspace("ws1"));
     expect(keys).toContainEqual(chatKeys.rooms("ws1"));
-    expect(keys).toContainEqual(chatKeys.messages("ws1"));
     expect(keys).not.toContainEqual(documentKeys.workspace("ws2"));
   });
 

@@ -437,34 +437,3 @@ export async function toggleChatMessagePin(
   });
   return parsed.message ?? null;
 }
-
-export async function listWorkspaceChatMessages(
-  workspaceId: string,
-  options?: { before?: string; limit?: number },
-): Promise<ChatMessageRecord[]> {
-  const params = new URLSearchParams();
-  if (options?.before) params.set("before", options.before);
-  if (options?.limit) params.set("limit", String(options.limit));
-  const qs = params.toString();
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/messages${qs ? `?${qs}` : ""}`,
-  );
-  const parsed = parseWithFallback(raw, ChatMessagesListSchema, { messages: [] }, {
-    endpoint: "GET /api/v1/workspaces/{ws}/chat/messages",
-  });
-  return parsed.messages ?? [];
-}
-
-export async function sendWorkspaceChatMessage(
-  workspaceId: string,
-  input: { body: string; client_msg_id?: string; reply_to_message_id?: string },
-): Promise<ChatMessageRecord | null> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/messages`, {
-    method: "POST",
-    body: input,
-  });
-  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
-    endpoint: "POST /api/v1/workspaces/{ws}/chat/messages",
-  });
-  return parsed.message ?? null;
-}

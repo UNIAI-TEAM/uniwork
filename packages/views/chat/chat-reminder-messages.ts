@@ -1,6 +1,14 @@
-import type { RoomReminder } from "@uniwork/core/chat/room-bulletin-store";
 import { reminderBodyLabel } from "@uniwork/core/chat/reminder-utils";
 import type { ChatMessage } from "./chat-messages";
+
+export type RoomReminder = {
+  id: string;
+  body: string;
+  remindAt: string;
+  repeat?: "none" | "daily" | "weekly" | "monthly";
+  createdAt: string;
+  createdBy?: string;
+};
 
 export function bulletinRemindersToChatMessages(
   reminders: RoomReminder[],
