@@ -224,21 +224,49 @@ describe("the Office page", () => {
     it("is always shown, with the suite of the channel the page selects and dev when none is published", async () => {
       await render({ flags: {}, office_installers: installers });
       expect(container.querySelector("#office-download .apt-install")).not.toBeNull();
-      expect(commands()[0]).toContain("/apt/latest/uniwork-office_amd64.deb");
-      expect(commands()[0]).not.toContain("/apt/latest/stable/");
-      expect(commands()[1]).toContain("Suites: stable\n");
+      expect(commands()[0]).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh");
+      expect(commands()[1]).toContain("/apt/latest/uniwork-office_amd64.deb");
+      expect(commands()[1]).not.toContain("/apt/latest/stable/");
+      expect(commands()[2]).toContain("Suites: stable\n");
       act(() => root.unmount());
       root = createRoot(container);
       await render({ unexpected: true });
       expect(container.querySelector("#office-download .apt-install")).not.toBeNull();
-      expect(commands()[0]).toContain("/apt/latest/dev/uniwork-office_amd64.deb");
-      expect(commands()[1]).toContain("Suites: dev\n");
+      expect(commands()[0]).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- dev");
+      expect(commands()[1]).toContain("/apt/latest/dev/uniwork-office_amd64.deb");
+      expect(commands()[2]).toContain("Suites: dev\n");
+    });
+
+    it("never shows a stable line for a stable suite prop while the catalogue publishes no stable", async () => {
+      request.mockResolvedValue({ flags: {}, office_installers: onDownloads });
+      await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, { suite: "stable" }))); });
+      const [script, quick, setup] = [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
+      expect(script).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- dev");
+      expect(quick).toContain("/apt/latest/dev/uniwork-office_amd64.deb");
+      expect(setup).toContain("Suites: dev\n");
+      expect(container.querySelector(".apt-install")?.textContent).not.toMatch(/stable/);
+      act(() => root.unmount());
+      root = createRoot(container);
+      request.mockResolvedValue({ flags: {}, office_installers: { ...onDownloads, beta: [deb("beta")] } });
+      await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, { suite: "stable" }))); });
+      const beta = [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
+      expect(beta[0]).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- beta");
+      expect(beta[1]).toContain("/apt/latest/beta/uniwork-office_amd64.deb");
+    });
+
+    it("keeps a stable suite prop while the catalogue publishes stable", async () => {
+      request.mockResolvedValue({ flags: {}, office_installers: installers });
+      await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, { suite: "stable" }))); });
+      const [script, quick] = [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
+      expect(script).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh");
+      expect(quick).toContain("/apt/latest/uniwork-office_amd64.deb");
     });
 
     it("takes the suite from its prop, so another page can reuse the block", async () => {
       request.mockResolvedValue({ flags: {}, office_installers: installers });
       await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, { suite: "beta" }))); });
-      const [quick, setup] = [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
+      const [script, quick, setup] = [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
+      expect(script).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- beta");
       expect(quick).toContain("/apt/latest/beta/uniwork-office_amd64.deb");
       expect(setup).toContain("Suites: beta\n");
     });
@@ -248,7 +276,8 @@ describe("the Office page", () => {
       await render({ flags: {}, office_installers: onDownloads });
       const apt = (language === "vi" ? viMessages : enMessages).landing.office.apt;
       expect(container.querySelector(".apt-install h3")?.textContent).toBe(apt.title);
-      const [quick, setup, install] = commands();
+      const [script, quick, setup, install] = commands();
+      expect(script).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- dev");
       expect(quick).toBe("wget -nv -O /tmp/uniwork-office.deb https://uniworkos.com/downloads/office/apt/latest/dev/uniwork-office_amd64.deb && sudo apt install /tmp/uniwork-office.deb");
       expect(setup).toContain("sudo curl -fsSL -o /usr/share/keyrings/uniwork-office-archive-keyring.gpg https://uniworkos.com/downloads/office/apt/key.gpg &&\nsudo tee /etc/apt/sources.list.d/uniwork-office.sources > /dev/null <<'EOF'");
       expect(setup).toContain("sudo tee /etc/apt/sources.list.d/uniwork-office.sources");
@@ -258,13 +287,21 @@ describe("the Office page", () => {
       const text = container.querySelector(".apt-install")?.textContent ?? "";
       expect(text).toContain("58A9 0232 2C8D 45C4 33B5 25F5 1198 D109 26F3 4831");
       expect(text).toContain(apt.deb);
+      expect(text).toContain(apt.intro);
+      const blocks = container.querySelectorAll(".apt-install > .apt-block");
+      expect(blocks[0]?.querySelector("h4")?.textContent).toBe(apt.script);
+      expect(blocks[0]?.querySelector(".apt-note")?.textContent).toBe(apt.scriptNote);
+      expect(blocks[1]?.querySelector("h4")?.textContent).toBe(apt.quick);
+      expect(blocks[1]?.querySelector(".apt-note")?.textContent).toBe(apt.quickNote);
+      expect(text).not.toMatch(/recommended|fastest|verified|khuyên|nhanh nhất|xác minh/i);
       expect(text).not.toMatch(/github|landing\./i);
     });
 
     it("writes the suite of the most stable published channel", async () => {
       await render({ flags: {}, office_installers: { ...onDownloads, beta: [deb("beta")] } });
-      expect(commands()[0]).toContain("/apt/latest/beta/");
-      expect(commands()[1]).toContain("Suites: beta\n");
+      expect(commands()[0]).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- beta");
+      expect(commands()[1]).toContain("/apt/latest/beta/");
+      expect(commands()[2]).toContain("Suites: beta\n");
     });
 
     it("folds the manual steps and the fingerprint into a disclosure that starts collapsed", async () => {
@@ -276,20 +313,23 @@ describe("the Office page", () => {
       // A visible open/closed cue that assistive tech skips; CSS rotates it under details[open].
       expect(details?.querySelector("summary > svg.apt-chevron")?.getAttribute("aria-hidden")).toBe("true");
       const inside = [...(details?.querySelectorAll(".apt-code") ?? [])].map((pre) => pre.textContent);
-      expect(inside).toEqual([commands()[1], commands()[2]]);
+      expect(inside).toEqual([commands()[2], commands()[3]]);
       expect(details?.textContent).toContain("58A9 0232 2C8D 45C4 33B5 25F5 1198 D109 26F3 4831");
       expect(details?.textContent).toContain(viMessages.landing.office.apt.deb);
-      // The one command stays outside the fold.
+      // Both one-line ways stay outside the fold.
       expect(details?.contains(container.querySelectorAll(".apt-code")[0] ?? null)).toBe(false);
+      expect(details?.contains(container.querySelectorAll(".apt-code")[1] ?? null)).toBe(false);
     });
 
     it.each(["vi", "en"] as const)("gives every copy button its own name in %s", async (language) => {
       await setLocale(language);
       await render({ flags: {}, office_installers: onDownloads });
       const names = [...container.querySelectorAll(".apt-install button")].map((button) => button.getAttribute("aria-label"));
-      expect(names).toHaveLength(3);
-      expect(new Set(names).size).toBe(3);
-      expect(names[0]).toContain((language === "vi" ? viMessages : enMessages).landing.office.apt.quick);
+      const apt = (language === "vi" ? viMessages : enMessages).landing.office.apt;
+      expect(names).toHaveLength(4);
+      expect(new Set(names).size).toBe(4);
+      expect(names[0]).toContain(apt.script);
+      expect(names[1]).toContain(apt.quick);
     });
 
     it("copies a block and says so, or says it could not", async () => {
@@ -303,13 +343,16 @@ describe("the Office page", () => {
       expect(statuses[0]?.textContent).toBe(viMessages.landing.office.apt.copied);
       // The status is visible text beside the button, not only a screen-reader announcement.
       expect(statuses[0]?.classList.contains("sr-only")).toBe(false);
-      await act(async () => { buttons[2]?.click(); });
+      await act(async () => { buttons[1]?.click(); });
+      expect(writeText).toHaveBeenLastCalledWith(commands()[1]);
+      expect(commands()[1]).toContain("wget -nv -O /tmp/uniwork-office.deb");
+      await act(async () => { buttons[3]?.click(); });
       expect(writeText).toHaveBeenLastCalledWith("sudo apt update && sudo apt install uniwork-office");
       writeText.mockRejectedValue(new Error("denied"));
       if (!("execCommand" in document)) Object.defineProperty(document, "execCommand", { configurable: true, writable: true, value: () => false });
       const execCommand = vi.spyOn(document, "execCommand").mockReturnValue(false);
-      await act(async () => { buttons[1]?.click(); });
-      expect(statuses[1]?.textContent).toBe(viMessages.landing.office.apt.copyFailed);
+      await act(async () => { buttons[2]?.click(); });
+      expect(statuses[2]?.textContent).toBe(viMessages.landing.office.apt.copyFailed);
       execCommand.mockRestore();
     });
 

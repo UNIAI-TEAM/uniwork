@@ -9449,8 +9449,11 @@
       },
       "apt": {
         "title": "Cài qua apt",
-        "intro": "Trên Ubuntu và Debian (amd64), cài bằng một lệnh; các phiên bản sau đó đến qua sudo apt update && sudo apt upgrade.",
-        "quick": "Cài bằng một lệnh",
+        "intro": "Trên Ubuntu và Debian (amd64), cài theo cách nào cũng được; các phiên bản sau đó đến qua sudo apt update && sudo apt upgrade.",
+        "script": "Cách 1: script cài đặt",
+        "scriptNote": "Script thêm kho apt của UniWork Office rồi cài ứng dụng.",
+        "quick": "Cách 2: tải gói .deb",
+        "quickNote": "Gói tự thêm kho, nên các phiên bản sau đến qua apt.",
         "manual": "Cài thủ công",
         "setup": "1. Thêm kho",
         "install": "2. Cài đặt",
