@@ -62,6 +62,9 @@ function route(rows: unknown[], over: { post?: (path: string) => unknown; shared
     if (path.startsWith("/api/v1/config")) return Promise.resolve({ flags: { office_engine: true } });
     if (path.includes("/documents/favorites")) return Promise.resolve({ favorites: [] });
     if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+    // The trash dialog keeps confirm locked until the impact answer arrives.
+    if (path.endsWith("/archive-impact"))
+      return Promise.resolve({ folders: 0, documents: 0, total: 1, relocated_count: 0, too_large: false, max_nodes: 1000 });
     if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") return Promise.resolve({ items: [], next_cursor: null });
     if (path.startsWith(`${LIST_BASE}/shared-with-me`)) return Promise.resolve({ documents: over.shared ?? [], next_cursor: null });
     if (method === "POST") return Promise.resolve(over.post?.(path) ?? {});
