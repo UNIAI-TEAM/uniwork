@@ -236,6 +236,23 @@ export async function getChatRoom(
   return parsed.room ?? null;
 }
 
+export async function uploadChatRoomWallpaper(
+  workspaceId: string,
+  roomId: string,
+  file: File,
+): Promise<ChatRoomRecord | null> {
+  const form = new FormData();
+  form.append("file", file);
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/wallpaper`,
+    { method: "POST", body: form },
+  );
+  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/wallpaper",
+  });
+  return parsed.room ?? null;
+}
+
 export async function patchChatRoom(
   workspaceId: string,
   roomId: string,
@@ -244,6 +261,7 @@ export async function patchChatRoom(
     /** The room's description; "" clears it. */
     topic?: string;
     member_permissions?: Partial<ChatRoomMemberPermissions>;
+    wallpaper?: { preset: string };
   },
 ): Promise<ChatRoomMemberPermissions> {
   const raw = await request(

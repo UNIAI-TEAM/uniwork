@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
-import { CHAT_WALL } from "./chat-wall";
+import { useChatWall } from "./use-chat-wall";
 
 /* Alternating sides and widths so the loading shape reads as a conversation,
    not a list — the same rhythm the real bubbles land in. */
@@ -49,10 +49,11 @@ export function ChatMessagesSkeleton({ className }: { className?: string }) {
  * shapes are hidden from assistive tech; one status line says what is going on.
  * `notices` (a load failure) sit under the header, as on an open room (canvas).
  */
-export function ChatConversationSkeleton({ notices }: { notices?: ReactNode }) {
+export function ChatConversationSkeleton({ notices, roomId }: { notices?: ReactNode; roomId?: string | null }) {
   const { t } = useTranslation();
+  const chatWall = useChatWall(roomId);
   return (
-    <div aria-busy className={cn("flex min-h-0 flex-1 flex-col", CHAT_WALL)}>
+    <div aria-busy className={cn("flex min-h-0 flex-1 flex-col", chatWall.className)} style={chatWall.style}>
       {/* The live region is the status line alone, so a strip shown in here is not read twice. */}
       <span role="status" className="sr-only">
         {t("common.loading")}
