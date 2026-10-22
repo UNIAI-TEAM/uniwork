@@ -739,10 +739,10 @@
       "lines": 100
     },
     "data/query-client.ts": {
-      "statements": 88,
+      "statements": 100,
       "branches": 100,
-      "functions": 80,
-      "lines": 87
+      "functions": 100,
+      "lines": 100
     },
     "data/realtime/realtime-provider.tsx": {
       "statements": 100,

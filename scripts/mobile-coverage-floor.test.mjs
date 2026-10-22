@@ -58,7 +58,6 @@ const BELOW_GLOBAL = new Set([
   "components/ui/use-color-scheme.ts",
   "components/workspace/workspace-avatar.tsx",
   "data/calls/call-store.ts",
-  "data/query-client.ts",
   "data/realtime/use-ws-subscriptions.ts",
 ]);
 
