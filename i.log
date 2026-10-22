@@ -1,0 +1,7 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/web typecheck > /tmp/tc-web.log 2>&1; rc=$?; grep -E "error TS" /tmp/tc-web.log | head -10; tail -15 /tmp/tc-web.log; echo; echo "TYPECHECK_WEB_EXIT=$rc"
+
+> @uniwork/web@0.0.0 typecheck /workspace/apps/web
+> tsc --noEmit
+
+
+TYPECHECK_WEB_EXIT=0

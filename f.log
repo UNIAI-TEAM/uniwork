@@ -1,0 +1,5 @@
+$ (cd packages/views && pnpm exec vitest run notifications/ settings/components/notifications-tab.test.tsx documents/owner-transfer-dialog.test.tsx > /tmp/vv.log 2>&1); rc=$?; grep -E "Test Files|Tests |FAIL" /tmp/vv.log | tail -8; echo; echo "VITEST_VIEWS_EXIT=$rc"
+ Test Files  18 passed (18)
+      Tests  267 passed (267)
+
+VITEST_VIEWS_EXIT=0

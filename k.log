@@ -1,0 +1,3 @@
+$ (cd packages/views && pnpm exec eslint --max-warnings 0 notifications/document-owner-kind.test.tsx notifications/kind-icon.tsx notifications/kind-tone.ts notifications/notification-category.ts > /tmp/elv.log 2>&1); rc=$?; tail -15 /tmp/elv.log; echo; echo "ESLINT_VIEWS_EXIT=$rc"
+
+ESLINT_VIEWS_EXIT=0
