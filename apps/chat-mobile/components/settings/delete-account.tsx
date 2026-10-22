@@ -3,8 +3,10 @@
 // delete-account-dialog.tsx: what erasure does, the one proof the server
 // asks for (lib/account-deletion.ts), POST /api/v1/me/delete, then a sign-out
 // that wipes everything the account left on this phone
-// (useAuthStore.accountDeleted). An owner is told to hand the organization
-// over on the web first. Mounted in the workspace's Settings tab and, with no
+// (useAuthStore.accountDeleted). An owner who is the organization's only active
+// member closes it in the same request, typing its address again; one with
+// members is told to hand it over on the web first (delete-account-owner.tsx).
+// Mounted in the workspace's Settings tab and, with no
 // workspace, in the account's own Settings (app/(app)/account.tsx): deletion is
 // reachable from every signed-in state. Every refusal is said under the field and read out;
 // the sheet is a Modal, so a toast would sit under it.
@@ -20,12 +22,21 @@ import { useDeleteAccount } from "@/data/mutations/account";
 import { useAuthStore } from "@/data/auth/store";
 import { toast } from "@/data/stores/toast-store";
 import type { WorkspaceSlugs } from "@/lib/chat-routes";
-import { deleteAccountFailure, deleteProofBody, deleteProofMode, type DeleteProofMode } from "@/lib/account-deletion";
+import {
+  closeConfirmed,
+  deleteAccountFailure,
+  deleteProofBody,
+  deleteProofMode,
+  ownedOrganization,
+  type DeleteProofMode,
+  type OwnedOrganization,
+} from "@/lib/account-deletion";
 import { legalLinks, legalLocale } from "@/lib/legal-links";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
+import { CloseOrganizationField, OwnerTransferPanel } from "./delete-account-owner";
 import { useOpenWebPage } from "./use-open-web-page";
 import { SettingsRow } from "./settings-row";
 import { SettingsSection } from "./settings-section";
@@ -46,6 +57,13 @@ const CONSEQUENCES = [
   ["alert-circle-outline", "mobile.account.consequence_final"],
 ] as const;
 
+/** An owner's state once the server said so: the organization it named (null from an older server), and whether to close it. */
+interface OwnerState {
+  organization: OwnedOrganization | null;
+  /** Why closing is no longer offered, when it stopped being (someone joined meanwhile). */
+  notice: string | null;
+}
+
 interface SheetProps {
   visible: boolean;
   onClose: () => void;
@@ -63,7 +81,8 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
   const mode = deleteProofMode(user);
   const [proof, setProof] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [owner, setOwner] = useState(false);
+  const [owner, setOwner] = useState<OwnerState | null>(null);
+  const [closeSlug, setCloseSlug] = useState("");
   const [busy, setBusy] = useState(false);
   const deleteAccount = useDeleteAccount().mutateAsync;
   const input = useRef<TextInput>(null);
@@ -73,7 +92,8 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
     if (busy) return;
     setProof("");
     setError(null);
-    setOwner(false);
+    setOwner(null);
+    setCloseSlug("");
     onClose();
   };
 
@@ -83,22 +103,41 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
     input.current?.focus();
   };
 
+  // Set once the server named an organization this account alone can close: the next submit closes it too.
+  const closing = owner?.organization?.canClose ? owner.organization : null;
+
   const submit = async () => {
     if (busy) return;
     if (!proof.trim()) {
       fail(t(`settings.security.delete.required.${mode}`));
       return;
     }
+    if (closing && !closeConfirmed(closeSlug, closing)) {
+      fail(t(closeSlug.trim() ? "mobile.account.close_mismatch" : "mobile.account.close_required"));
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
-      await deleteAccount(deleteProofBody(mode, proof));
+      await deleteAccount(deleteProofBody(mode, proof, closing?.slug));
     } catch (err) {
       setBusy(false);
       const failure = deleteAccountFailure(err);
       if (failure === "owner_must_transfer") {
-        setOwner(true);
-        AccessibilityInfo.announceForAccessibility(t("mobile.account.owner_title"));
+        const organization = ownedOrganization(err);
+        setOwner({ organization, notice: null });
+        AccessibilityInfo.announceForAccessibility(t(organization?.canClose ? "mobile.account.close_title" : "mobile.account.owner_title"));
+        return;
+      }
+      if (failure === "organization_has_members") {
+        // Someone joined between the two answers: closing is off, ownership goes to them on the web.
+        const notice = t("mobile.account.close_has_members");
+        setOwner({ organization: closing && { ...closing, canClose: false }, notice });
+        AccessibilityInfo.announceForAccessibility(notice);
+        return;
+      }
+      if (failure === "close_mismatch") {
+        fail(t("mobile.account.close_mismatch"));
         return;
       }
       // A password or a one-time code is never kept past a refusal; a typed address stays to be corrected.
@@ -153,21 +192,27 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
           </Pressable>
         </View>
 
-        {owner ? (
-          <View accessibilityRole="alert" className="gap-2.5 rounded-xl border border-destructive/40 p-3.5" style={continuousCorners}>
-            <Text className="text-body font-semibold text-foreground">{t("mobile.account.owner_title")}</Text>
-            <Text className="text-subhead leading-[21px] text-foreground">{t("mobile.account.owner_body")}</Text>
-            <Pressable
-              accessibilityRole="link"
-              // The label, not the children: the icon's glyph is a character a screen reader would spell.
-              accessibilityLabel={t("mobile.account.owner_open_web")}
-              onPress={() => openWebPage(`${appUrl}${workspace ? paths.workspace(workspace.orgSlug, workspace.wsSlug).settings() : paths.root()}`)}
-              className="min-h-11 flex-row items-center justify-center gap-2 rounded-full bg-muted px-4 py-2.5 active:opacity-70"
-            >
-              <Text className="text-subhead font-semibold text-foreground">{t("mobile.account.owner_open_web")}</Text>
-              <Ionicons name="open-outline" size={16} color={theme.foreground} />
-            </Pressable>
-          </View>
+        {closing ? (
+          <CloseOrganizationField
+            organization={closing}
+            value={closeSlug}
+            onChangeText={(next) => {
+              setCloseSlug(next);
+              setError(null);
+            }}
+            error={error}
+            busy={busy}
+            placeholderColor={theme.mutedForeground}
+            onSubmit={() => void submit()}
+            inputRef={input}
+          />
+        ) : owner ? (
+          <OwnerTransferPanel
+            organization={owner.organization}
+            notice={owner.notice}
+            foreground={theme.foreground}
+            onOpenWeb={() => openWebPage(`${appUrl}${workspace ? paths.workspace(workspace.orgSlug, workspace.wsSlug).settings() : paths.root()}`)}
+          />
         ) : (
           <View className="gap-1.5">
             <Text className="text-subhead font-semibold text-foreground">{t(`settings.security.delete.proof.${mode}`)}</Text>
@@ -204,7 +249,7 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
         )}
 
         <View className="gap-2.5 pt-1">
-          {owner ? null : (
+          {owner && !closing ? null : (
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ busy, disabled: busy }}
@@ -217,7 +262,7 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
             >
               {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={THEME.light.primaryForeground} /> : null}
               <Text className="text-body font-semibold text-on-solid">
-                {busy ? t("mobile.account.deleting") : t("settings.security.delete.confirm")}
+                {busy ? t("mobile.account.deleting") : closing ? t("mobile.account.close_confirm") : t("settings.security.delete.confirm")}
               </Text>
             </Pressable>
           )}

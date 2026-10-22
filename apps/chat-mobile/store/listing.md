@@ -103,7 +103,7 @@ Dữ liệu này không rời máy nên không là dữ liệu "thu thập" tron
 **Xoá tài khoản.** Trong app: Cài đặt › Xóa tài khoản — ở tab Cài đặt của workspace, và khi người dùng không ở
 workspace nào (bị gỡ khỏi mọi workspace, hay mới đăng ký) thì ở nút Cài đặt của màn chọn workspace —, nêu hệ quả, xác nhận lại bằng mật khẩu (hoặc mã hai lớp, hoặc
 gõ lại email với tài khoản chỉ Google), gọi `POST /api/v1/me/delete`, rồi đăng xuất mọi thiết bị và xoá dữ liệu của tài
-khoản trên máy (bản sao cuộc trò chuyện, tin và tệp chưa gửi, ảnh đã lưu, thông báo, ghim). Chủ sở hữu tổ chức được hướng dẫn chuyển quyền trên web trước. URL
+khoản trên máy (bản sao cuộc trò chuyện, tin và tệp chưa gửi, ảnh đã lưu, thông báo, ghim). Chủ sở hữu tổ chức còn thành viên khác được hướng dẫn chuyển quyền trên web trước (sheet nêu tên tổ chức); chủ sở hữu là thành viên duy nhất gõ lại địa chỉ tổ chức và đóng nó cùng lúc với việc xoá tài khoản, ngay trong app (`close_organization` của `POST /me/delete`, một giao dịch) — không có ngõ cụt nào ra web. URL
 chính sách riêng tư: `https://app.uniworkos.com/privacy`; URL xoá tài khoản cho Play:
 `https://app.uniworkos.com/privacy#delete-account`. Điều khoản sử dụng: `https://app.uniworkos.com/terms` (App Store
 Connect › License Agreement: dùng điều khoản này làm EULA riêng — có mục tối thiểu Apple yêu cầu — hoặc giữ EULA chuẩn của

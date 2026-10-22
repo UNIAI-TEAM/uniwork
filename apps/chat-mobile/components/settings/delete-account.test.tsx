@@ -123,6 +123,80 @@ describe("DeleteAccountSection", () => {
     expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://app.example/");
   });
 
+  // Audit "owner-deletion-dead-end" (Apple 5.1.1(v)): the only member of an organization finishes in the app.
+  describe("an owner who is the organization's only member", () => {
+    const soleOwner = (canClose = true) =>
+      Object.assign(new Error("owner_must_transfer"), {
+        status: 409,
+        body: { error: { code: "owner_must_transfer", fields: { organization_name: "Một mình", organization_slug: "mot-minh", can_close: canClose } } },
+      });
+    const slugInput = () => screen.getByTestId("delete-account-close-slug");
+
+    async function reachClose() {
+      deleteAccount.mockRejectedValueOnce(soleOwner());
+      await open();
+      await fireEvent.changeText(proofInput("password"), "pw");
+      await confirm();
+    }
+
+    it("closes the organization with the erasure once its address is typed again", async () => {
+      await reachClose();
+      expect(screen.getByRole("header", { name: viText("mobile.account.close_title") })).toBeOnTheScreen();
+      expect(screen.getByText(viText("mobile.account.close_body", { name: "Một mình" }))).toBeOnTheScreen();
+      expect(screen.getByTestId("delete-account-confirm")).toHaveTextContent(viText("mobile.account.close_confirm"));
+
+      await confirm();
+      expect(screen.getByRole("alert")).toHaveTextContent(viText("mobile.account.close_required"));
+      await fireEvent.changeText(slugInput(), "mot minh");
+      expect(screen.queryByRole("alert")).toBeNull();
+      await confirm();
+      expect(screen.getByRole("alert")).toHaveTextContent(viText("mobile.account.close_mismatch"));
+      expect(deleteAccount).toHaveBeenCalledTimes(1);
+
+      deleteAccount.mockResolvedValueOnce(undefined);
+      await fireEvent.changeText(slugInput(), " Mot-Minh ");
+      await confirm();
+      expect(deleteAccount).toHaveBeenLastCalledWith({ password: "pw", close_organization: "mot-minh" });
+      expect(useAuthStore.getState().accountDeleted).toHaveBeenCalledTimes(1);
+    });
+
+    it("says so when the server refuses the address", async () => {
+      await reachClose();
+      deleteAccount.mockRejectedValueOnce(refusal("close_confirm_mismatch", 400));
+      await fireEvent.changeText(slugInput(), "mot-minh");
+      await confirm();
+      expect(screen.getByRole("alert")).toHaveTextContent(viText("mobile.account.close_mismatch"));
+    });
+
+    it("turns to handing over on the web when someone joined meanwhile", async () => {
+      await reachClose();
+      deleteAccount.mockRejectedValueOnce(refusal("organization_has_members", 409));
+      await fireEvent.changeText(slugInput(), "mot-minh");
+      await confirm();
+      expect(screen.getByText(viText("mobile.account.close_has_members"))).toBeOnTheScreen();
+      expect(screen.getByText(viText("mobile.account.owner_body_named", { name: "Một mình" }))).toBeOnTheScreen();
+      expect(screen.queryByTestId("delete-account-confirm")).toBeNull();
+      expect(screen.queryByTestId("delete-account-close-slug")).toBeNull();
+    });
+
+    it("names the organization to hand over when it has other members", async () => {
+      deleteAccount.mockRejectedValueOnce(soleOwner(false));
+      await open();
+      await fireEvent.changeText(proofInput("password"), "pw");
+      await confirm();
+      expect(screen.getByText(viText("mobile.account.owner_body_named", { name: "Một mình" }))).toBeOnTheScreen();
+      expect(screen.queryByTestId("delete-account-close-slug")).toBeNull();
+    });
+
+    it("forgets the organization when the sheet is cancelled", async () => {
+      await reachClose();
+      await fireEvent.press(screen.getByRole("button", { name: viText("settings.security.delete.cancel") }));
+      await fireEvent.press(screen.getByTestId("settings-delete-account"));
+      expect(screen.queryByTestId("delete-account-close-slug")).toBeNull();
+      expect(proofInput("password").props.value).toBe("");
+    });
+  });
+
   it.each([
     [refusal("rate_limited", 429), "mobile.account.rate_limited"],
     [Object.assign(new Error("offline"), { status: 0 }), "mobile.account.offline"],

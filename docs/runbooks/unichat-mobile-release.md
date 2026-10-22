@@ -513,7 +513,8 @@ từng mục khi đã nộp:
   cam kết 24 giờ và các mục tối thiểu của Apple). App Store Connect › License Agreement: chọn dùng điều khoản này làm EULA
   riêng hoặc giữ EULA chuẩn của Apple.
 - [ ] **Account deletion** (Play bắt buộc với app cho tạo tài khoản; Apple 5.1.1(v)): trong app ở Cài đặt › Xóa tài
-  khoản (đăng xuất mọi thiết bị, xoá dữ liệu trên máy); người không ở workspace nào vào Cài đặt từ màn chọn workspace. URL xoá cho Play:
+  khoản (đăng xuất mọi thiết bị, xoá dữ liệu trên máy); người không ở workspace nào vào Cài đặt từ màn chọn workspace;
+  chủ sở hữu là thành viên duy nhất đóng tổ chức cùng lúc ngay trong app (gõ lại địa chỉ tổ chức). URL xoá cho Play:
   `https://app.uniworkos.com/privacy#delete-account` (mục "Lưu giữ và xóa dữ liệu", neo cố định). Ghi chú cho reviewer
   Apple: "Settings › Delete account".
 - [ ] **Foreground service permissions**: đúng một dịch vụ, cuộc gọi (`expo.modules.unichatcalls.CallService`,
