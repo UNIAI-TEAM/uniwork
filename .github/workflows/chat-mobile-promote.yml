@@ -1,0 +1,111 @@
+name: UniChat mobile promote
+
+# Moves one production build of UniChat mobile (com.uniworkos.chat) between
+# Google Play tracks by version code (audit
+# "no-production-pipeline-binary-promotion"): what chat-mobile-production.yml
+# submitted to internal goes on to alpha / beta and to production, with a
+# staged rollout, and only a version code that has been live on the track it
+# comes from is accepted (scripts/mobile-play-release.mjs). The same workflow
+# widens a staged rollout (from = to = production, a larger rollout), completes
+# it (status completed) and halts it. Play's release notes come from
+# apps/chat-mobile/store/release-notes.md for `version`.
+#
+# The chat-mobile-production environment (required reviewers) holds
+# PLAY_SERVICE_ACCOUNT_JSON: the key of a Google Cloud service account with
+# release rights on the app (the one EAS submits with may be reused).
+# Runbook: docs/runbooks/unichat-mobile-release.md › Phát hành production theo
+# giai đoạn.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: promote (or widen) a release, or halt one
+        type: choice
+        options: [promote, halt]
+        required: true
+      version_code:
+        description: The Android version code (the production build's summary names it)
+        type: string
+        required: true
+      version:
+        description: The store version whose release notes go with it (promote)
+        type: string
+        required: false
+      from_track:
+        description: Where the build is live now (promote)
+        type: choice
+        options: [internal, alpha, beta, production]
+        default: internal
+      to_track:
+        description: Where it goes (promote), or the track to halt
+        type: choice
+        options: [alpha, beta, production]
+        default: production
+      status:
+        description: draft while the Play app has no public release; inProgress for a staged rollout
+        type: choice
+        options: [draft, inProgress, completed]
+        default: draft
+      rollout:
+        description: Share of phones for inProgress (0.05 = 5 %)
+        type: string
+        default: "0.05"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-mobile-promote
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  play:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: chat-mobile-production
+    env:
+      ACTION: ${{ inputs.action }}
+      VERSION_CODE: ${{ inputs.version_code }}
+      VERSION: ${{ inputs.version }}
+      FROM: ${{ inputs.from_track }}
+      TO: ${{ inputs.to_track }}
+      STATUS: ${{ inputs.status }}
+      ROLLOUT: ${{ inputs.rollout }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Move the release on Play
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [ "$ACTION" = "halt" ]; then
+            node scripts/mobile-play-release.mjs halt --package com.uniworkos.chat --version-code "$VERSION_CODE" --track "$TO"
+            exit 0
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "::error::promote needs the store version, for its release notes"
+            exit 1
+          fi
+          args=(promote --package com.uniworkos.chat --version-code "$VERSION_CODE" --from "$FROM" --to "$TO" --status "$STATUS" --notes-version "$VERSION")
+          if [ "$STATUS" = "inProgress" ]; then args+=(--rollout "$ROLLOUT"); fi
+          node scripts/mobile-play-release.mjs "${args[@]}"
+      - name: Summary
+        if: always()
+        run: |
+          if [ "$ACTION" = "halt" ]; then what="halted on $TO"; else what="$FROM → $TO, $STATUS"; fi
+          if [ "$ACTION" = "promote" ] && [ "$STATUS" = "inProgress" ]; then what="$what at $ROLLOUT"; fi
+          {
+            echo "### UniChat Play: $ACTION"
+            echo
+            echo "- version code \`$VERSION_CODE\` ${VERSION:+($VERSION) }: $what"
+            echo "- widen only on crash-free sessions ≥ 99.5 % over ≥ 200 sessions (runbook); the release-health job halts it below that"
+          } >> "$GITHUB_STEP_SUMMARY"

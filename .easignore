@@ -72,6 +72,8 @@ server/internal/handler/data/
 !.github/workflows/chat-mobile-release.yml
 !.github/workflows/chat-mobile-verify.yml
 !.github/workflows/chat-mobile-update.yml
+!.github/workflows/chat-mobile-production.yml
+!.github/workflows/chat-mobile-promote.yml
 .codex/
 .pnpm-store/
 .uniwork-dev/

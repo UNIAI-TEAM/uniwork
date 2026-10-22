@@ -762,6 +762,17 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   auto-submit **chỉ Android** (Play internal) tới khi có tài khoản Apple
   (UNI-1838), `eas-cli` ghim ở `EAS_CLI_VERSION`. Environment
   `chat-mobile-release`, chỉ `EXPO_TOKEN`; thiếu thì **đỏ** (một tag không build gì không được trông như một bản phát hành).
+- Bản production (app `com.uniworkos.chat`) build một lần và chính binary đó đi qua các track:
+  `.github/workflows/chat-mobile-production.yml` (chạy tay trên tag `chat-mobile-v*` của `main`, Environment
+  `chat-mobile-production` có reviewer): `verify` → tag khớp `version` và có "Có gì mới" ở
+  `store/release-notes.md` (vi-VN + en-US ≤ 500 ký tự, `scripts/mobile-release-notes.test.mjs` đỏ khi version hiện tại
+  thiếu) → báo crash bắt buộc (DSN trong môi trường EAS `production` + thiết lập Sentry để kiểm; đỏ trừ khi tick
+  `allow_missing_crash_reporting`) → `eas build --profile production --wait` → Sentry phải có release
+  `com.uniworkos.chat@<version>+<version code>` (bằng chứng source map/symbol đã tải) → `eas submit --profile
+  production-internal --id <build>` (internal track của app production). `.github/workflows/chat-mobile-promote.yml`
+  chuyển **version code** đó sang alpha/beta/production, mở rộng hay dừng rollout qua
+  `scripts/mobile-play-release.mjs` (Play Developer API, chỉ built-in của Node; chỉ nhận bản đã live trên track nguồn;
+  `PLAY_SERVICE_ACCOUNT_JSON`). Không workflow nào khác build profile `production` cho store.
 - OTA: `.github/workflows/chat-mobile-update.yml` (chạy tay trên `main`/`develop`:
   kênh, tỷ lệ rollout, message; Environment `chat-mobile-update`, giới hạn hai
   nhánh đó) → `verify` trên SHA → `eas update --platform android
@@ -775,7 +786,7 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   hỏi lại EAS khi quay lại foreground (một phút sau lúc mở, rồi ≥ 30 phút một lần), tải, và chỉ bản critical hay lệnh
   roll-back-to-embedded mới được áp dụng — lúc app vào nền, không có cuộc gọi; còn lại chờ lần mở lạnh sau. Không phát OTA từ laptop
   trừ khi CI hỏng (runbook).
-  `scripts/mobile-workflows.test.mjs` giữ các lời hứa của bốn workflow (verify
+  `scripts/mobile-workflows.test.mjs` giữ các lời hứa của các workflow mobile (verify
   trước EAS, chỉ Android, phiên bản ghim, nightly đỏ khi thiếu cấu hình, OTA
   staged và ký, đúng biến thể của kênh, môi trường riêng; mọi job build Release
   trên runner tắt upload Sentry); sửa workflow nào trong bốn cũng kích `mobile-verify.yml` nên

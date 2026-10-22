@@ -66,6 +66,8 @@ export const MOBILE_PATHS = [
   ".github/workflows/chat-mobile-release.yml",
   ".github/workflows/chat-mobile-verify.yml",
   ".github/workflows/chat-mobile-update.yml",
+  ".github/workflows/chat-mobile-production.yml",
+  ".github/workflows/chat-mobile-promote.yml",
   // scripts/mobile-workflows.test.mjs reads the release runbook.
   "docs/runbooks/unichat-mobile-release.md",
   // The server's side of the app's contracts: data/realtime/frames.test.ts reads the event

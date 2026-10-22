@@ -48,6 +48,9 @@
     "internal": {
       "android": { "track": "internal" }
     },
+    "production-internal": {
+      "android": { "track": "internal" }
+    },
     "production": {
       "android": { "track": "production", "releaseStatus": "draft" }
     }

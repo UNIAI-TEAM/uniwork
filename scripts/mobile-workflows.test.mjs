@@ -182,6 +182,71 @@ test("only the OTA workflow can mark an update critical, from its input", () => 
   assert.doesNotMatch(fs.readFileSync(path.join(root, "apps/chat-mobile/eas.json"), "utf8"), /UNICHAT_CRITICAL_UPDATE/);
 });
 
+// Audit "no-production-pipeline-binary-promotion": the production app is built once, from a tag on main, after every
+// PR check; that binary goes to the production app's internal track, and only promotions by version code move it on.
+test("the production build is verified, built from a main tag once, proved in Sentry, and submitted by build id", () => {
+  const wf = read("chat-mobile-production.yml");
+  assert.match(wf, /^ {2}workflow_dispatch:$/m);
+  assert.doesNotMatch(wf, /^ {2}(push|pull_request|schedule):/m, "a person starts a production build");
+  assert.match(wf, /^ {2}verify:\n {4}uses: \.\/\.github\/workflows\/mobile-verify\.yml\n {4}with:\n {6}force_native: true$/m);
+  assert.match(wf, /^ {2}build:\n {4}needs: verify$/m);
+  assert.match(wf, /^ {4}environment: chat-mobile-production$/m);
+  assert.equal(envPin(wf, "EAS_CLI_VERSION"), envPin(read("chat-mobile-release.yml"), "EAS_CLI_VERSION"), "the same eas-cli as the internal release");
+  assert.match(wf, /refs\/tags\/chat-mobile-v\*\) ;;/, "dispatched on a release tag only");
+  assert.match(wf, /git merge-base --is-ancestor "\$GITHUB_SHA" origin\/main; then/, "from main only");
+  assert.doesNotMatch(wf, /origin\/develop/);
+  assert.match(wf, /scripts\/mobile-release-notes\.mjs check "\$version"/, "the version has its What's new");
+  assert.match(wf, /eas build --platform android --profile production --non-interactive --wait --json/);
+  // The binary built is the binary submitted: by its EAS build id, to the production app's internal track.
+  assert.match(wf, /eas submit --platform android --profile production-internal --id "\$BUILD_ID" --non-interactive --wait/);
+  assert.doesNotMatch(wf, /--auto-submit/, "no second build behind a submit");
+  const eas = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/eas.json"), "utf8"));
+  assert.deepEqual(eas.submit["production-internal"], { android: { track: "internal" } });
+  // The Gradle upload names the release <appId>@<versionName>+<versionCode>: its presence proves the symbols arrived.
+  assert.match(wf, /RELEASE: com\.uniworkos\.chat@\$\{\{ steps\.version\.outputs\.version \}\}\+\$\{\{ steps\.build\.outputs\.version_code \}\}/);
+  assert.match(wf, /if: steps\.crash\.outputs\.verify == 'true'/);
+  assert.match(wf, /::error::EXPO_TOKEN is not set[^\n]*\n\s+exit 1/);
+  assert.doesNotMatch(wf.split(/^jobs:$/m)[1] ?? "", /run: [^\n]*\$\{\{ inputs\./, "inputs reach the shell through env");
+});
+
+test("a production build without crash reporting is refused unless waived, and the waiver skips only the proof", () => {
+  const marker = /^ {6}- id: crash$/m;
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "mobile-eas-"));
+  try {
+    fs.writeFileSync(path.join(bin, "eas"), '#!/bin/sh\nprintf "%s" "$FAKE_CONFIG"\n', { mode: 0o755 });
+    const servers = { apiUrl: "https://api.test", appUrl: "https://app.test" };
+    const run = (extra, env) => runStep("chat-mobile-production.yml", marker, { FAKE_CONFIG: JSON.stringify({ extra }), ...env }, bin);
+    const ready = run({ APP_ENV: "production", ...servers, sentryDsn: "https://k@sentry.test/1" }, { SENTRY_UPLOAD_READY: "true" });
+    assert.equal(ready.status, 0);
+    assert.equal(ready.outputs.verify, "true", "then the Sentry release is checked");
+    const blind = run({ APP_ENV: "production", ...servers }, { SENTRY_UPLOAD_READY: "false" });
+    assert.notEqual(blind.status, 0);
+    assert.match(blind.stdout, /::error::no SENTRY_DSN[\s\S]*::error::no SENTRY_AUTH_TOKEN/);
+    const waived = run({ APP_ENV: "production", ...servers }, { SENTRY_UPLOAD_READY: "false", ALLOW_NO_CRASH_REPORTING: "true" });
+    assert.equal(waived.status, 0);
+    assert.equal(waived.outputs.verify, "false");
+    assert.notEqual(run({ APP_ENV: "staging", ...servers, sentryDsn: "https://k@sentry.test/1" }, { SENTRY_UPLOAD_READY: "true" }).status, 0, "only the production variant");
+    assert.notEqual(run({ APP_ENV: "production", apiUrl: "https://api.test" }, { SENTRY_UPLOAD_READY: "true" }).status, 0, "with its servers");
+  } finally {
+    fs.rmSync(bin, { recursive: true, force: true });
+  }
+  const tag = (ref) => runStep("chat-mobile-production.yml", "- name: Dispatched on a release tag", { REF: ref }).status;
+  assert.equal(tag("refs/tags/chat-mobile-v0.3.0"), 0);
+  assert.notEqual(tag("refs/heads/main"), 0);
+});
+
+test("promotion moves a version code through scripts/mobile-play-release.mjs, behind the production environment", () => {
+  const wf = read("chat-mobile-promote.yml");
+  assert.match(wf, /^ {2}workflow_dispatch:$/m);
+  assert.doesNotMatch(wf, /^ {2}(push|pull_request|schedule):/m);
+  assert.match(wf, /^ {4}environment: chat-mobile-production$/m);
+  assert.match(wf, /node scripts\/mobile-play-release\.mjs halt --package com\.uniworkos\.chat --version-code "\$VERSION_CODE" --track "\$TO"/);
+  assert.match(wf, /args=\(promote --package com\.uniworkos\.chat --version-code "\$VERSION_CODE" --from "\$FROM" --to "\$TO" --status "\$STATUS" --notes-version "\$VERSION"\)/);
+  assert.match(wf, /if \[ "\$STATUS" = "inProgress" \]; then args\+=\(--rollout "\$ROLLOUT"\); fi/, "a rollout only for a staged release");
+  assert.doesNotMatch(wf.split(/^jobs:$/m)[1] ?? "", /run: [^\n]*\$\{\{ inputs\./, "inputs reach the shell through env");
+  assert.doesNotMatch(wf, /eas build|eas submit/, "promotion never builds or uploads a binary");
+});
+
 // The push filter is the scope script's list, and a pull request is never
 // filtered: the gate job is a required check, and a workflow a path filter keeps
 // from starting leaves its required check pending for ever. An edit to any of
@@ -193,9 +258,7 @@ test("mobile-verify runs on every pull request, and on a push that touches what 
   assert.doesNotMatch(block("pull_request"), /paths/, "no path filter on pull_request");
   const pushPaths = [...block("push").matchAll(/^ {6}- "([^"]+)"$/gm)].map((m) => m[1]);
   assert.deepEqual(pushPaths, MOBILE_PATHS, "the push filter is scripts/mobile-native-scope.mjs › MOBILE_PATHS");
-  for (const file of ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml", "chat-mobile-update.yml"]) {
-    assert.ok(MOBILE_PATHS.includes(`.github/workflows/${file}`), `MOBILE_PATHS lists ${file}`);
-  }
+  for (const file of WORKFLOWS) assert.ok(MOBILE_PATHS.includes(`.github/workflows/${file}`), `MOBILE_PATHS lists ${file}`);
   assert.ok(MOBILE_PATHS.includes("knip.json"), "MOBILE_PATHS lists knip.json");
 });
 
@@ -283,7 +346,7 @@ test("the scope job builds natively when the release calls it, even for a re-pus
   assert.equal(decide({ EVENT: "workflow_dispatch" }), all);
 });
 
-const WORKFLOWS = ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml", "chat-mobile-update.yml"];
+const WORKFLOWS = ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml", "chat-mobile-update.yml", "chat-mobile-production.yml", "chat-mobile-promote.yml"];
 
 /** The workflow-level env block and each job's text, by job id. */
 function jobsOf(wf) {

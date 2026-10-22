@@ -1,6 +1,6 @@
 # unichat-mobile-release — phát hành, OTA và rollback bản mobile UniChat
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UniChat M4 (UNI-1836) · **Workflow:** `.github/workflows/chat-mobile-release.yml`, `.github/workflows/chat-mobile-update.yml`, `.github/workflows/mobile-verify.yml`, `.github/workflows/chat-mobile-verify.yml`
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UniChat M4 (UNI-1836) · **Workflow:** `.github/workflows/chat-mobile-release.yml`, `.github/workflows/chat-mobile-production.yml`, `.github/workflows/chat-mobile-promote.yml`, `.github/workflows/chat-mobile-update.yml`, `.github/workflows/mobile-verify.yml`, `.github/workflows/chat-mobile-verify.yml`
 
 App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Năm profile:
 
@@ -9,7 +9,7 @@ App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Năm pr
 | `development` | `dev` | internal (dev client) | `development` | `development` | Dev trên máy thật, JS từ Metro |
 | `preview` | `staging` | internal (APK / ad hoc, link cài) | `preview` | `preview` | Pilot trước khi có store, QA một nhánh |
 | `internal` | `staging` | store → Play internal (TestFlight khi có tài khoản Apple) | `internal` | `preview` | Mỗi tag `chat-mobile-v*` |
-| `production` | `production` | store (Play: bản nháp) | `production` | `production` | Sau quyết định Q1; phát hành theo giai đoạn (mục dưới) |
+| `production` | `production` | store → internal track của app production, rồi promote | `production` | `production` | `chat-mobile-production.yml` từ tag trên `main`; phát hành theo giai đoạn (mục dưới) |
 | `production-check` | `production` | không phát hành | `production` | `production` | Chỉ nightly `eas-local`: đúng profile `production`, tắt `autoIncrement` để version code trên store không nhảy |
 
 `version` trong `apps/chat-mobile/app.config.ts` là version store (0.3.0 từ UNI-2053). `runtimeVersion` là
@@ -183,6 +183,11 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    - `chat-mobile-update` (`chat-mobile-update.yml`): Deployment branches → Selected → nhánh `main` và `develop`;
      secret `EXPO_TOKEN` (cùng token), `EAS_UPDATE_PRIVATE_KEY` (bước 9), `SENTRY_AUTH_TOKEN` và variables
      `SENTRY_ORG`, `SENTRY_PROJECT` (bước 8). Nên thêm Required reviewers.
+   - `chat-mobile-production` (`chat-mobile-production.yml`, `chat-mobile-promote.yml`): Deployment branches and tags →
+     Selected → tag `chat-mobile-v*` **và** nhánh `main` (promote chạy trên nhánh); **Required reviewers** (owner);
+     secrets `EXPO_TOKEN`, `SENTRY_AUTH_TOKEN`, `PLAY_SERVICE_ACCOUNT_JSON` (khoá JSON của một service account Google
+     Cloud có quyền phát hành trên `com.uniworkos.chat` — có thể dùng lại khoá đã tải lên EAS cho submit), variables
+     `SENTRY_ORG`, `SENTRY_PROJECT` (và `SENTRY_URL` nếu Sentry tự host).
    - `chat-mobile-nightly` (`chat-mobile-verify.yml` › `eas-local`): Deployment branches → Selected → nhánh `main` (lịch
      chạy đọc từ nhánh mặc định); secret `EXPO_TOKEN` (cùng robot token). **Không** đặt Required reviewers: run theo lịch
      sẽ đứng chờ duyệt. Thiếu token thì run theo lịch đỏ ở job đó.
@@ -232,21 +237,43 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    đổi `--platform android` thành `--platform all` trong `chat-mobile-release.yml`; Apple xử lý bản build 15–30 phút
    trước khi hiện ở TestFlight.
 
-**Phát hành production theo giai đoạn (Play, App Store)**: một bản store tới một phần máy trước và chỉ mở rộng theo
-crash-free sessions của Sentry cho đúng release đó (`<bundle id>@<version>+<build>`).
+**Phát hành production theo giai đoạn (Play, App Store)**: bản production được build **một lần** và chính binary đó
+đi qua các track (audit "no-production-pipeline-binary-promotion"); một bản store tới một phần máy trước và chỉ mở rộng
+theo crash-free sessions của Sentry cho đúng release đó (`<bundle id>@<version>+<build>`; máy đã nhận một OTA báo dưới
+`…+<build>.ota.<id>`, mục Phát OTA).
 
-1. Bắt đầu ở 5 %. Khi app `com.uniworkos.chat` trên Play chưa có bản phát hành công khai nào, Play chỉ nhận bản nháp,
-   nên `submit.production.android` trong `apps/chat-mobile/eas.json` giữ `"releaseStatus": "draft"`: sau `eas submit -p
-   android --profile production`, Play Console → Production → bản nháp → Edit release → **Staged rollout** 5 %. Từ khi
-   app đã công khai, đổi profile đó thành `"releaseStatus": "inProgress", "rollout": 0.05` qua PR (submit tự đặt 5 %).
-2. Mở rộng 5 % → 20 % → 50 % → 100 %, mỗi bước sau ít nhất 24 giờ, chỉ khi crash-free sessions của release ≥ 99.5 %
-   (Sentry → Releases, cùng ngưỡng với alert ở bước 8 của thiết lập) trên ít nhất 200 phiên, và không có lỗi mới chặn
-   luồng chính (đăng nhập, đọc/gửi tin, push, gọi). Play Console → Production → Manage rollout → Update rollout.
-3. Dừng khi crash-free < 99.5 % hoặc có lỗi chặn: Play Console → Production → **Halt rollout** (máy đã cài giữ bản đó,
-   máy mới không nhận). Lỗi chỉ ở JS: OTA sửa trên kênh `production` (cùng runtime), theo dõi lại rồi Resume rollout.
-   Lỗi native: revert, bump patch, cắt bản store mới và bắt đầu lại từ 5 %. Lỗi ở một tính năng: kill switch (mục dưới).
-4. iOS: khi nộp bản production bật **Phased release for automatic updates** (App Store Connect, 7 ngày); Pause phased
-   release theo cùng ngưỡng 99.5 %.
+1. **Build.** Viết "Có gì mới" cho version đó trong `apps/chat-mobile/store/release-notes.md` (vi-VN và en-US, ≤ 500 ký
+   tự mỗi ngôn ngữ; nháp từ commit: `node scripts/mobile-release-notes.mjs draft`), tag `chat-mobile-v<version>` trên
+   `main`. GitHub → Actions → "UniChat mobile production build" → Use workflow from → **Tags** → tag đó. Workflow
+   `chat-mobile-production.yml` (Environment `chat-mobile-production`, có Required reviewers): `verify` trên SHA của
+   tag → thiếu `EXPO_TOKEN` thì đỏ → tag phải là tag, trên `main`, khớp `version` và có release notes → **báo crash bắt
+   buộc**: môi trường EAS `production` có `SENTRY_DSN` và Environment có `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` +
+   `SENTRY_PROJECT`, thiếu thì đỏ (bản build vẫn build được khi thiếu Sentry — `SENTRY_ALLOW_FAILURE` trong `eas.json`
+   — nhưng không được nộp; tick `allow_missing_crash_reporting` để miễn, summary ghi lại) → `eas build --profile
+   production --wait` → kiểm Sentry đã có release `com.uniworkos.chat@<version>+<version code>` (Gradle tải source map
+   và symbol dưới tên đó; không có là tải hỏng, đỏ) → `eas submit --profile production-internal --id <build>`: đúng
+   binary đó lên **internal track của app production** `com.uniworkos.chat`. Summary ghi version code.
+2. **Thử** bản đó trên internal track của app production (người thử nội bộ, checklist máy thật bên dưới).
+3. **Promote** (cùng binary, theo version code): Actions → "UniChat mobile promote" (`chat-mobile-promote.yml`,
+   Environment `chat-mobile-production`, secret `PLAY_SERVICE_ACCOUNT_JSON`) → `action: promote`, `version_code`,
+   `version`, `from_track: internal`, `to_track: production` (hay `alpha`/`beta` trước), `status`. Script
+   `scripts/mobile-play-release.mjs` chỉ nhận version code **đã live** trên track nguồn (không bao giờ build lại) và gửi
+   kèm release notes của version đó. Khi app `com.uniworkos.chat` trên Play chưa có bản phát hành công khai nào, Play chỉ
+   nhận bản nháp: `status: draft`, rồi Play Console → Production → bản nháp → Edit release → **Staged rollout** 5 %.
+   Từ khi app đã công khai: `status: inProgress`, `rollout: 0.05` (5 %). `submit.production.android` trong `eas.json`
+   (dùng khi nộp tay bằng `eas submit --profile production`) cũng đổi thành
+   `"releaseStatus": "inProgress", "rollout": 0.05` qua PR lúc đó.
+4. Mở rộng 5 % → 20 % → 50 % → 100 %, mỗi bước sau ít nhất 24 giờ, chỉ khi crash-free sessions của release ≥ 99.5 %
+   (Sentry → Releases) trên ít nhất 200 phiên, và không có lỗi mới chặn luồng chính (đăng nhập, đọc/gửi tin, push, gọi):
+   "UniChat mobile promote" với `from_track` = `to_track` = `production`, `status: inProgress`, `rollout` mới;
+   100 % là `status: completed`.
+5. Dừng khi crash-free < 99.5 % hoặc có lỗi chặn: "UniChat mobile promote" với `action: halt`, `to_track: production`,
+   `version_code` (hoặc Play Console → Production → **Halt rollout**; máy đã cài giữ bản đó, máy mới không nhận). Job
+   **Sức khoẻ bản phát hành** (mục dưới) tự làm việc này khi đủ phiên. Lỗi chỉ ở JS: OTA sửa trên kênh `production`
+   (cùng runtime, đánh dấu `critical`), theo dõi lại rồi promote lại cùng version code ở tỷ lệ cũ (resume). Lỗi native:
+   revert, bump patch, cắt bản store mới và bắt đầu lại từ 5 %. Lỗi ở một tính năng: kill switch (mục dưới).
+6. iOS: khi nộp bản production bật **Phased release for automatic updates** (App Store Connect, 7 ngày); Pause phased
+   release theo cùng ngưỡng 99.5 %. Chưa có đường iOS tự động (UNI-1838: tài khoản Apple).
 
 **Bản cài trực tiếp (chưa có store)**: `eas build -p android --profile preview` cho link tải APK. iOS ad hoc cần Apple
 Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios --profile preview`.
