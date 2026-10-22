@@ -324,6 +324,13 @@
     "networkError": "Không kết nối được. Kiểm tra mạng rồi thử lại.",
     "serverError": "UniWork đang gặp sự cố. Thử lại sau ít phút.",
     "tooManyAttempts": "Thử quá nhiều lần. Chờ một phút rồi thử lại.",
+    "legal": {
+      "signUp": "Khi đăng ký, bạn đồng ý với",
+      "signIn": "Khi đăng nhập, bạn đồng ý với",
+      "terms": "Điều khoản sử dụng",
+      "and": "và đã đọc",
+      "privacy": "Chính sách quyền riêng tư"
+    },
     "desktop": {
       "eyebrow": "Đăng nhập desktop",
       "title": "Cho phép {{app}} đăng nhập?",

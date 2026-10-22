@@ -324,6 +324,13 @@
     "networkError": "Can't reach UniWork. Check your connection and try again.",
     "serverError": "UniWork is having trouble. Try again in a few minutes.",
     "tooManyAttempts": "Too many attempts. Wait a minute and try again.",
+    "legal": {
+      "signUp": "By signing up, you agree to the",
+      "signIn": "By signing in, you agree to the",
+      "terms": "Terms of use",
+      "and": "and acknowledge the",
+      "privacy": "Privacy policy"
+    },
     "desktop": {
       "eyebrow": "Desktop sign-in",
       "title": "Allow {{app}} to sign in?",

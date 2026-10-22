@@ -20,6 +20,8 @@ describe("privacy policy", () => {
       expect(section?.paragraphs.join(" ")).toContain(locale === "vi" ? "Cài đặt → Bảo mật → Xóa tài khoản" : "Settings → Security → Delete account");
       // UniChat erases the account in the app too (store account deletion policy).
       expect(section?.paragraphs.join(" ")).toContain(locale === "vi" ? "ứng dụng UniChat vào Cài đặt → Xóa tài khoản" : "UniChat app open Settings → Delete account");
+      // ...from every signed-in state: with no workspace, Settings is on the picker (app/(app)/account.tsx).
+      expect(section?.paragraphs.join(" ")).toContain(locale === "vi" ? "Cài đặt nằm ở màn chọn workspace" : "Settings is on the workspace picker");
     }
   });
 

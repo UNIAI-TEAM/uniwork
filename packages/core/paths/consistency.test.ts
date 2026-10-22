@@ -76,6 +76,7 @@ function builderTemplates(): string[] {
     paths.about(),
     paths.security(),
     paths.privacy(),
+    paths.terms(),
     paths.guide(ID),
     paths.vietnamese(),
     paths.vietnamese([ID]),
