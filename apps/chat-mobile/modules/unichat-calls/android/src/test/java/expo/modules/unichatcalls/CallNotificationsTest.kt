@@ -97,16 +97,17 @@ class CallNotificationsTest {
   }
 
   @Test
-  fun duringAnotherCallTheRingIsCallWaitingSilentAndNotInsistent() {
+  fun duringAnotherCallTheRingIsCallWaitingThatAlertsOnceAndNeverLoops() {
     val audio = app.getSystemService(AudioManager::class.java)
     audio.mode = AudioManager.MODE_IN_CALL
     try {
       assertTrue(CallNotifications.showIncoming(app, incoming()))
       val notification = posted()
-      // Still the call, with Answer and Decline, but no ringtone loop or buzz over the call under way.
+      // Still the call, heads-up with Answer and Decline and its full-screen intent, but no ringtone loop over the
+      // call under way.
       assertEquals(Notification.CATEGORY_CALL, notification.category)
       assertEquals(0, notification.flags and Notification.FLAG_INSISTENT)
-      assertNull(notification.vibrate)
+      assertNotNull(notification.fullScreenIntent)
     } finally {
       audio.mode = AudioManager.MODE_NORMAL
     }

@@ -100,8 +100,10 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   `UniChatCallRingSlow`). Task nền JavaScript (`runCallPushTask`) đọc lại cấu hình từ xa đã giữ trước khi quyết, nên
   công tắc tắt vẫn giữ trong runtime không giao diện.
   **Đang có cuộc gọi khác** (cuộc gọi điện thoại hay VoIP của app khác: `AudioManager.mode` là `IN_CALL`,
-  `IN_COMMUNICATION` hay `CALL_SCREENING`, đọc lúc reo, mọi API level): thông báo đổ chuông là chờ cuộc gọi — vẫn Nghe/Từ
-  chối, nhưng im lặng và không `FLAG_INSISTENT`; chuông trong app chỉ rung ngắn (`CallRinger.ringFor`). Telecom vẫn chưa
+  `IN_COMMUNICATION` hay `CALL_SCREENING`, đọc lúc reo, mọi API level): thông báo đổ chuông là chờ cuộc gọi — vẫn heads-up
+  với Nghe/Từ chối, báo một lần, không `FLAG_INSISTENT` (đang gọi điện thoại thì Android tự thay tiếng của thông báo bằng
+  tiếng bíp chờ cuộc gọi; không tắt hẳn tiếng vì thông báo im lặng cũng mất heads-up); chuông trong app chỉ rung ngắn
+  (`CallRinger.ringFor`). Telecom vẫn chưa
   làm (ADR 0038 §5): đây là phần thay tạm cho call-waiting của Telecom.
   **Khi app đóng mà máy chặn**: `BackgroundDelivery.kt` báo tối ưu pin, hạn chế nền (API 28+) và hãng có công tắc tự khởi
   động (Xiaomi/Redmi/POCO, Oppo/realme, vivo/iQOO, Huawei/Honor, OnePlus, Asus); Cài đặt › Thông báo

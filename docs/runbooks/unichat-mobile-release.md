@@ -716,7 +716,8 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
 - [ ] B kill app; A nhắn DM cho B (thông báo hiện trên máy B); B đọc phòng đó trên web: trong vài phút (push ưu tiên
   thường, máy ngủ sâu thì lâu hơn) thông báo trên máy B biến mất và số trên biểu tượng giảm, app vẫn đóng.
 - [ ] B đang nghe một cuộc gọi điện thoại (hoặc cuộc gọi Zalo/WhatsApp); A gọi UniChat: B thấy thông báo cuộc gọi đến có
-  Nghe / Từ chối nhưng không có nhạc chuông lặp đè lên cuộc gọi đang nghe (chờ cuộc gọi); app đang mở thì chỉ rung ngắn.
+  Nghe / Từ chối (heads-up) nhưng không có nhạc chuông lặp đè lên cuộc gọi đang nghe — chỉ một tiếng bíp chờ cuộc gọi;
+  app đang mở thì chỉ rung ngắn.
 - [ ] Trên Xiaomi/Redmi, Oppo/realme, vivo và Samsung có pin "tối ưu": Cài đặt › Thông báo hiện dòng "Cho UniChat chạy
   nền" và (trừ Samsung) "Bật tự khởi động cho UniChat"; mỗi dòng mở đúng trang của hệ thống/hãng; bật xong, quay lại app
   thì dòng pin biến mất. Vuốt tắt app khỏi đa nhiệm, A gọi: B vẫn đổ chuông.

@@ -27,9 +27,12 @@ import androidx.core.content.ContextCompat
  * declined or timed out, with a full-screen intent for a locked phone.
  * While the phone is already in a call (its own, or another app's VoIP call:
  * CallInterruptions.phoneBusy) the ring is call waiting instead: the same
- * notification and buttons, silent and posted once, so it never rings over
- * the call the person is on (review "android-no-telecom": without Telecom
- * nothing else arbitrates the two).
+ * heads-up notification and buttons, alerting once and never looping, so it
+ * does not ring over the call the person is on (review "android-no-telecom":
+ * without Telecom nothing else arbitrates the two). During a cellular call
+ * Android itself swaps a notification's sound for its short in-call tone. Not
+ * silenced outright: a silent notification gets no heads-up either, and the
+ * person would never see the call.
  * Ongoing: CallStyle.forOngoingCall for the foreground service, with a
  * chronometer and Hang up.
  */
@@ -137,8 +140,6 @@ internal object CallNotifications {
       .setFullScreenIntent(open, true)
       .setTimeoutAfter(call.timeoutMs.toLong().coerceAtLeast(1_000L))
       .addPerson(person)
-    // Call waiting: no ringtone or buzz over the call under way (setSilent overrides the channel's sound).
-    if (waiting) builder.setSilent(true).setVibrate(null)
     return try {
       post(context, requestCode, builder.setStyle(NotificationCompat.CallStyle.forIncomingCall(person, decline, answer).setIsVideo(call.video)).build(), waiting)
       true
