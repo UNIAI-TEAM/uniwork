@@ -6,19 +6,12 @@ import { useTranslation } from "react-i18next";
 import { useAiMessages } from "@uniwork/core/ai";
 import type { useAskUniStream } from "@uniwork/core/ai/stream";
 import type { AiCitation, AiMessage, AskUniInput } from "@uniwork/core/types";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { AskUniMessageTurn, type AskUniTurnMessage } from "./ask-uni-answer";
 
 /** What AskUniPanel owns and hands down: the live turn's state and its controls. */
 export type AskUniStream = ReturnType<typeof useAskUniStream>;
 
 const NEAR_BOTTOM_PX = 80;
-// Temporary bridge until the steps list renders: sum step counts by kind.
-const sumCounts = (steps: { counts: Record<string, number> }[]) => {
-  const out: Record<string, number> = {};
-  for (const st of steps) for (const [k, n] of Object.entries(st.counts)) out[k] = (out[k] ?? 0) + n;
-  return out;
-};
 const SAFE_CODE = /^[a-z_]+$/;
 
 /** How many turns the cache held when the live turn started; null until the history has loaded. */
@@ -51,7 +44,6 @@ export function AskUniThread({
   /** The composer's model, effort and language, so a regenerated turn runs the way a typed one would. */
   askDefaults?: Pick<AskUniInput, "model" | "effort" | "locale">;
 }) {
-  const { t } = useTranslation(undefined, { keyPrefix: "ai" });
   const { state, ask } = stream;
   const cached = useAiMessages(conversationId).data;
   const stored: AiMessage[] = cached ?? [];
@@ -92,7 +84,6 @@ export function AskUniThread({
     citations: state.message?.citations ?? state.citations,
     notice: state.message?.notice ?? (state.status === "stopped" ? "stopped" : ""),
   };
-  const counts = sumCounts(state.steps);
   // `[S#]` numbers are conversation-wide (the server seeds the book from earlier answers), so one map serves every answer.
   const sources = useMemo(() => {
     const out = new Map<string, AiCitation>();
@@ -103,7 +94,6 @@ export function AskUniThread({
     state.message?.citations.forEach(add);
     return out;
   }, [cached, state.sources, state.citations, state.message]);
-  const waiting = streaming && state.draft === "" && Object.keys(counts).length === 0;
 
   // Follow the answer as it grows, but only while the reader is at the bottom.
   const onScroll = () => {
@@ -123,7 +113,7 @@ export function AskUniThread({
             key={m.id}
             message={m}
             conversationId={conversationId}
-            counts={state.message?.id === m.id ? counts : undefined}
+            steps={state.message?.id === m.id && state.steps.length > 0 ? state.steps : undefined}
             sources={sources}
             wsId={wsId}
             onRegenerate={m.id === lastAssistant?.id ? regenerate : undefined}
@@ -135,13 +125,8 @@ export function AskUniThread({
             <AskUniMessageTurn message={{ id: "live-question", role: "user", content: state.question, citations: [] }} />
             {state.status === "error" ? (
               <StreamError code={state.errorCode} />
-            ) : waiting ? (
-              <li className="flex items-center gap-2 text-caption text-muted-foreground">
-                <Spinner className="size-4" />
-                {t("asking")}
-              </li>
             ) : (
-              <AskUniMessageTurn message={liveAnswer} streaming={streaming} counts={counts} sources={sources} wsId={wsId} />
+              <AskUniMessageTurn message={liveAnswer} streaming={streaming} steps={state.steps} writing={liveAnswer.content !== ""} sources={sources} wsId={wsId} />
             )}
           </>
         ) : null}

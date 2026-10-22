@@ -112,12 +112,9 @@ describe("AskUniMessageTurn", () => {
     expect(within(screen.getByRole("list", { name: "Nguồn" })).getAllByRole("listitem")).toHaveLength(2);
   });
 
-  it("steps line sums counts and collapses", () => {
-    mount(msg({ content: "xong" }), { counts: { task: 24, meeting: 3, members: 1 } });
-    const trigger = screen.getByRole("button", { name: /Đã xem 24 task, 3 cuộc họp/ });
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(trigger);
-    expect(trigger).toHaveAttribute("aria-expanded", "true");
+  it("shows the message's own stored steps as a collapsed line", () => {
+    mount(msg({ content: "xong", steps: [{ tool: "search", label: "a", counts: {} }, { tool: "get_task", label: "B", counts: {} }] }));
+    expect(screen.getByRole("button", { name: "Xong sau 2 bước" })).toHaveAttribute("aria-expanded", "false");
   });
 
   it.each([

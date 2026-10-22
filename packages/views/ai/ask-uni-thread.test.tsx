@@ -48,9 +48,9 @@ describe("AskUniThread", () => {
     const m = mount(s);
     expect(await screen.findByText("Họp tuần?")).toBeInTheDocument();
     expect(screen.getByText("Đang viết")).toBeInTheDocument();
-    m.update(stream({ status: "streaming", question: "Họp tuần?", draft: "", steps: [{ tool: "search", label: "", counts: { task: 2 } }] }));
+    m.update(stream({ status: "streaming", question: "Họp tuần?", draft: "", steps: [{ tool: "search", label: "quá hạn", counts: { task: 2 } }] }));
     expect(screen.queryByText("Đang viết")).toBeNull();
-    expect(screen.getByRole("button", { name: /Đã xem 2 task/ })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Đang tìm “quá hạn”…");
   });
 
   it("shows the finished turn once and keeps its steps line", async () => {
@@ -62,11 +62,37 @@ describe("AskUniThread", () => {
           : {},
       ),
     );
-    mount(stream({ status: "done", question: "Còn gì nữa?", message: answer, steps: [{ tool: "search", label: "", counts: { meeting: 3 } }] }));
+    mount(stream({ status: "done", question: "Còn gì nữa?", message: answer, steps: [{ tool: "search", label: "", counts: { meeting: 3 } }, { tool: "list_meetings", label: "", counts: {} }, { tool: "get_meeting", label: "Họp", counts: {} }] }));
     expect(await screen.findByText("Xong rồi.")).toBeInTheDocument();
     expect(screen.getAllByText("Xong rồi.")).toHaveLength(1);
     expect(screen.getAllByText("Còn gì nữa?")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: /Đã xem 3 cuộc họp/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Xong sau 3 bước" })).toBeInTheDocument();
+  });
+
+  it("shows a stored turn's steps after a reload, with no stream", async () => {
+    const stepped = { ...history[1]!, steps: [{ tool: "search", label: "quá hạn", counts: {} }, { tool: "get_task", label: "A", counts: {} }] };
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path === "/api/v1/ai/conversations/c1/messages" ? { messages: [history[0], stepped] } : {}),
+    );
+    mount(stream());
+    expect(await screen.findByRole("button", { name: "Xong sau 2 bước" })).toBeInTheDocument();
+  });
+
+  it("gives a stopped turn with no text no copy or rating buttons, and keeps them when it has text", async () => {
+    const stopped = (id: string, content: string) => ({ ...history[1]!, id, content, notice: "stopped" });
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path === "/api/v1/ai/conversations/c1/messages" ? { messages: [history[0], stopped("a-empty", "")] } : {}),
+    );
+    const empty = mount(stream());
+    expect(await screen.findByText(/Đã dừng/)).toBeInTheDocument();
+    for (const name of ["Sao chép", "Hữu ích", "Chưa đúng"]) expect(screen.queryByRole("button", { name })).toBeNull();
+    empty.unmount();
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path === "/api/v1/ai/conversations/c1/messages" ? { messages: [history[0], stopped("a-text", "Một phần")] } : {}),
+    );
+    mount(stream());
+    expect(await screen.findByText("Một phần")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sao chép" })).toBeInTheDocument();
   });
 
   it("shows the finished answer from the stream until the cache has it", async () => {
