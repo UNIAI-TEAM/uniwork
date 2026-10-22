@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import type { CreateTaskBody } from "@uniwork/core/tasks";
 import {
@@ -24,7 +24,7 @@ import {
   manualDialogContentClass,
 } from "./create-task-dialog-classes";
 import { CreateTaskAgentPanel } from "./create-task-agent-panel";
-import { CreateTaskManualPanel } from "./create-task-manual-panel";
+import { CreateTaskManualPanel, type CreateTaskManualPanelProps } from "./create-task-manual-panel";
 
 export type CreateTaskMode = "manual" | "agent";
 
@@ -35,7 +35,9 @@ export type CreateTaskDialogProps = {
   onOpenChange?: (open: boolean) => void;
   showTrigger?: boolean;
   initialMode?: CreateTaskMode;
-};
+  /** Where focus goes on close (Base UI `finalFocus`): the title's autoFocus hides the opener from it. */
+  finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
+} & Pick<CreateTaskManualPanelProps, "submitter" | "heading" | "hint">;
 
 /**
  * Shell that owns the single Dialog + DialogContent for create-task.
@@ -49,6 +51,10 @@ export function CreateTaskDialog({
   onOpenChange,
   showTrigger = true,
   initialMode,
+  submitter,
+  heading,
+  hint,
+  finalFocus,
 }: CreateTaskDialogProps) {
   const { t } = useTranslation();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -77,14 +83,16 @@ export function CreateTaskDialog({
       ? agentDialogContentClass(isExpanded)
       : manualDialogContentClass(isExpanded);
 
+  // A submitter's composer keeps no draft: the workspace's active one is the person's own.
   const closeImmediately = () => {
-    closeDraft(workspaceId);
+    if (!submitter) closeDraft(workspaceId);
     setOpen(false);
   };
 
   const requestClose = (skipConfirm = false) => {
     if (
       !skipConfirm &&
+      !submitter &&
       activeDraft &&
       !activeDraft.savedAt &&
       hasMeaningfulCreateTaskDraft(activeDraft)
@@ -106,7 +114,7 @@ export function CreateTaskDialog({
         {showTrigger ? (
           <DialogTrigger render={<Button size="sm">{t("tasks.new")}</Button>} />
         ) : null}
-        <DialogContent showCloseButton={false} className={contentClass}>
+        <DialogContent showCloseButton={false} className={contentClass} finalFocus={finalFocus}>
           {mode === "manual" ? (
             <CreateTaskManualPanel
               workspaceId={workspaceId}
@@ -118,6 +126,9 @@ export function CreateTaskDialog({
               setIsExpanded={setIsExpanded}
               createAnother={createAnother}
               setCreateAnother={setCreateAnother}
+              submitter={submitter}
+              heading={heading}
+              hint={hint}
             />
           ) : (
             <CreateTaskAgentPanel

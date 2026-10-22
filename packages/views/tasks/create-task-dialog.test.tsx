@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
+import type { User } from "@uniwork/core/types";
+import { useCreateTaskDraftStore } from "@uniwork/core/tasks/stores/create-task-draft-store";
 import { requestMock, wrap } from "../test/api-mock";
 import { CreateTaskDialog } from "./create-task-dialog";
 
@@ -53,6 +56,46 @@ describe("CreateTaskDialog", () => {
     expect(screen.getByTestId("create-task-footer")).toHaveClass(
       "border-surface-border/50",
     );
+  });
+
+  it("sends a submitter's task through it and leaves the person's own draft alone", async () => {
+    // Draft writes need a session owner; without one every write is a no-op.
+    setSessionUser({ id: "u1", email: "u1@x.com", display_name: "U1" } as User);
+    const mine = { title: "Bản nháp của tôi", idempotencyKey: "mine", version: 3 };
+    useCreateTaskDraftStore.setState({ drafts: { ws1: { mine } }, activeDraftIds: { ws1: "mine" }, ownerId: "u1" });
+    const submit = vi.fn(async () => {});
+    const onOpenChange = vi.fn();
+    render(
+      wrap(
+        <CreateTaskDialog
+          workspaceId="ws1"
+          open
+          showTrigger={false}
+          onOpenChange={onOpenChange}
+          defaults={{ title: "Gửi biên bản", assignee_id: null, project_id: null }}
+          submitter={{ submit, pending: false }}
+          heading="Việc sau họp 1/2"
+        />,
+      ),
+    );
+
+    const title = screen.getByRole("textbox", { name: "Tiêu đề issue" });
+    expect(title).toHaveValue("Gửi biên bản");
+    expect(screen.getByText("Việc sau họp 1/2")).toBeInTheDocument();
+    // No drafts, agent mode or "create another" of its own.
+    expect(screen.queryByRole("button", { name: "Chuyển sang agent" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Lưu bản nháp" })).not.toBeInTheDocument();
+    fireEvent.change(title, { target: { value: "Gửi biên bản họp" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Tạo/ }));
+
+    await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({ title: "Gửi biên bản họp" })));
+    expect(requestMock).not.toHaveBeenCalledWith(expect.stringMatching(/\/tasks$/), expect.objectContaining({ method: "POST" }));
+    fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    // Closing asks nothing and drops nothing: the active draft is still the person's.
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")).toEqual(mine);
+    resetAuthStoreForTests();
   });
 
   it("shows agent unavailable toast and does not POST /tasks when creating in agent mode", async () => {
