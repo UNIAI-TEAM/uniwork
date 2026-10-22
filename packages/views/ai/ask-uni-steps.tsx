@@ -4,7 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 
-// The kinds the server counts that mean something to a reader (askuni_agent_tools.go); "members" and "workload" are not documents.
+// The kinds the server counts that mean something to a reader (askuni_agent_tools.go); "member" is not a document.
 const KINDS = ["task", "meeting", "document", "project", "chat"] as const;
 
 /** "Đã xem 24 task, 3 cuộc họp" built from the summed step counts; collapses to the per-kind lines. */

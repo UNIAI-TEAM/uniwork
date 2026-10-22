@@ -512,12 +512,30 @@ func TestMemberWorkloadGivesEachPersonASource(t *testing.T) {
 	if _, err := s.tasks.Create(context.Background(), Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Việc của B", AssigneeID: &x.ub.ID}); err != nil {
 		t.Fatal(err)
 	}
+	ghost, err := s.tasks.Create(context.Background(), Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Việc của người đã rời"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(context.Background(), `UPDATE tasks SET assignee_id = 'not-a-member' WHERE id = $1`, ghost.ID); err != nil {
+		t.Fatal(err)
+	}
 	work := runAgentTool(t, s, tc, "member_workload", `{}`)
 	people := runAgentTool(t, s, tc, "list_members", `{"query":""}`)
 	book := newSourceBook(nil)
 	book.render(people, 100000)
 	book.render(work, 100000)
+	if len(work) == 0 {
+		t.Fatal("member_workload gave no item")
+	}
+	if !slices.ContainsFunc(work, func(it agentItem) bool {
+		return it.ID == x.ub.ID && it.Text == "ID: "+x.ub.ID+"\nOpen tasks: 1\nOverdue: 0"
+	}) {
+		t.Errorf("no item with B's counts: %+v", work)
+	}
 	for _, it := range work {
+		if it.ID == "not-a-member" || it.Title == "unknown" {
+			t.Errorf("a non-member row became an item: %+v", it)
+		}
 		if it.Kind != "member" || !strings.HasSuffix(it.Href, "/people/"+it.ID) || !strings.HasPrefix(it.Text, "ID: "+it.ID+"\nOpen tasks: ") || !strings.Contains(it.Text, "\nOverdue: ") {
 			t.Errorf("workload item = %+v", it)
 		}

@@ -187,7 +187,7 @@ func TestMentionedMemberLinksThePersonPage(t *testing.T) {
 	if err != nil || len(items) != 1 {
 		t.Fatalf("mentionedMember = %+v, %v", items, err)
 	}
-	if it := items[0]; !strings.HasSuffix(it.Href, "/people/"+c.x.ub.ID) || strings.Contains(it.Href, "/members") || it.ID != c.x.ub.ID {
+	if it := items[0]; !strings.HasSuffix(it.Href, "/people/"+c.x.ub.ID) || strings.Contains(it.Href, "/members") || it.ID != c.x.ub.ID || it.Text != "ID: "+c.x.ub.ID+"\nRole: member" {
 		t.Errorf("item = %+v", it)
 	}
 }

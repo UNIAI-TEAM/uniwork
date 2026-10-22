@@ -220,10 +220,11 @@ func withText(fields, text string) string {
 // tool: rendered sources show the title and excerpt, never the href.
 func sourceItem(src ai.Source) agentItem {
 	text := src.Excerpt
-	if id := sourceObjectID(src.Kind, src.Href); id != "" {
+	id := sourceObjectID(src.Kind, src.Href)
+	if id != "" {
 		text = withText("ID: "+id, src.Excerpt)
 	}
-	return agentItem{Kind: src.Kind, Key: src.Href, Title: src.Title, Href: src.Href, Text: text, Body: src.Excerpt, ID: sourceObjectID(src.Kind, src.Href)}
+	return agentItem{Kind: src.Kind, Key: src.Href, Title: src.Title, Href: src.Href, Text: text, Body: src.Excerpt, ID: id}
 }
 
 // sourceObjectID is the id at the end of a source's href ("…/tasks/<id>",
@@ -636,7 +637,10 @@ func (s *AskUNIService) agentMemberWorkload(ctx context.Context, tc ai.ToolConte
 	}
 	out := make([]agentItem, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, personItem(base, r.AssigneeID, nameOf(names, r.AssigneeID), fmt.Sprintf("Open tasks: %d\nOverdue: %d", r.OpenCount, r.OverdueCount)))
+		if names[r.AssigneeID] == "" { // not a member (any more): no person page to link
+			continue
+		}
+		out = append(out, personItem(base, r.AssigneeID, names[r.AssigneeID], fmt.Sprintf("Open tasks: %d\nOverdue: %d", r.OpenCount, r.OverdueCount)))
 	}
 	return out, nil
 }
