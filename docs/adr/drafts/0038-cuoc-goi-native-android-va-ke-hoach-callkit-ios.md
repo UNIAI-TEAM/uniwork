@@ -103,3 +103,8 @@ Mất / phải trả:
   cuộc gọi đang đổ chuông. Nhiều replica cùng sửa một cuộc gọi vẫn chưa đúng (bản đồ trong process vẫn là nguồn
   quyết định); deploy hiện chạy một replica.
 - iOS chưa có trải nghiệm tương đương cho tới khi PushKit + CallKit land.
+- Dịch vụ FCM native (`UniChatMessagingService`) thấy mọi push trước nhưng chỉ đổ chuông; thông báo tin chat vẫn do
+  expo-notifications dựng, phẳng, không MessagingStyle hay gom theo phòng (hoãn 2026-10-22). Đường làm và hợp đồng
+  phải giữ (tag = `group_key`, id 0, request marshal trong extra, intent phản hồi và nút Trả lời/Đánh dấu đã đọc của
+  expo) ghi ở `docs/engineering/unichat-mobile/calls.md`; server còn phải gửi tên người gửi và tên phòng tách riêng.
+  Việc này chờ một người có máy Android thật và môi trường build, sau một công tắc mobile riêng.

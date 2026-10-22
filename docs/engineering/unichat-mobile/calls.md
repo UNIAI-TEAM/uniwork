@@ -136,6 +136,23 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   không giao câu trả lời cho JS khi app bị kill và hành động ở nền). `lib/chat-notification.ts` đọc phản hồi (thuần)
   ở cả hai dạng: listener nhận `content.data` đã parse, task nền Android nhận bundle native nguyên trạng — data của push
   Expo là chuỗi JSON ở `content.dataString`, không có `data` (`NotificationSerializer.toBundle`); test dùng cả hai dạng.
+  **Chưa làm: thông báo chat kiểu hội thoại trên Android** (MessagingStyle, gom theo phòng; ADR 0038 › Hệ quả). Thông
+  báo tin vẫn phẳng (tiêu đề là một câu "X đã nhắn tin cho bạn", thân là bản xem trước) do `ExpoNotificationBuilder`
+  dựng. Chỗ móc đúng không phải `UniChatMessagingService` (tự đăng thông báo là bỏ qua intent phản hồi của expo, Trả
+  lời và chạm sẽ hỏng) mà là một lớp con `NotificationsService` khai ở priority trên -1 của expo, trả về một
+  `ExpoPresentationDelegate` có `createNotification` bọc lại thông báo expo đã dựng. Hợp đồng phải giữ: tag = `tag` của
+  data (server: `group_key` của hàng thông báo, `chat_room:<phòng>:dm|:mention`, `chat_thread:<gốc>:reply`) và id 0
+  (`ExpoPresentationDelegate.ANDROID_NOTIFICATION_ID`) — đổi một trong hai thì hai push của một nhóm thành hai thông
+  báo; extra `EXTRAS_MARSHALLED_NOTIFICATION_REQUEST_KEY` (`getPresentedNotificationsAsync` đọc lại request, nên
+  `dismissRoomNotifications` và push `room_read` mới tìm được thông báo theo `room_id`); content intent và hai nút của
+  category `chat_message` (Trả lời có RemoteInput) do expo dựng (`NotificationsService.createNotificationResponseIntent`)
+  để `runChatNotificationAction` và `data.url` của lần chạm còn chạy; ẩn xem trước (`hiddenPushTitle`, thân rỗng) giữ
+  phẳng. Còn thiếu ở server: data push chat chỉ có id, nên MessagingStyle không có tên người gửi và tên phòng tách
+  riêng (cần `sender_name`, `room_name`, loại phòng — chỉ khi không ẩn xem trước); và mỗi nhóm mở chỉ push một lần
+  (`pushed_at`), nên hội thoại chỉ có tin đầu tới khi phòng được đọc. Hoãn vì: không build/kiểm được Android ở máy làm
+  việc này, và một lỗi ở bước bọc làm hỏng Trả lời/chạm trên mọi push chat; làm sau công tắc mobile mới (keys.go +
+  `MOBILE_FLAG_DEFAULTS`), có test Robolectric giữ tag/id/extra/nút, và checklist máy thật Android 11+ (mục Hội thoại
+  cần `setShortcutId` với shortcut động dài hạn).
   Badge app = mọi tin chưa đọc (`appBadgeCount`, `data/badge.ts`); iPhone còn nhận số đó trong mỗi push tin (server
   `ChatService.UnreadBadge` → `badge` của push Expo, chỉ khi người đó có iPhone) nên biểu tượng đúng cả khi app đóng;
   nhắc tên, cuộc gọi đến/nhỡ trên iPhone là `interruptionLevel: time-sensitive` (entitlement trong `app.config.ts`).
