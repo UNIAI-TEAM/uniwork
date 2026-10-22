@@ -589,6 +589,20 @@ describe("calls on iPhone are a build capability", () => {
 });
 
 // Audit "target-sdk-implicit-untested": the target API was React Native's default, and no emulator ran it.
+// R8 is on for every release build: a class native code finds by name and no library rule keeps is gone from the
+// dex, and the app dies at launch (0.3.0 (11) lost WebRTC's livekit.org.jni_zero.JniInit this way).
+describe("R8 keep rules", () => {
+  it("keep what native code finds by name: Nitro, the calls module and WebRTC's relocated jni_zero", () => {
+    expect(ANDROID_KEEP_RULES.split("\n")).toEqual(
+      expect.arrayContaining([
+        "-keep class com.margelo.nitro.** { *; }",
+        "-keep class expo.modules.unichatcalls.** { *; }",
+        "-keep class livekit.org.jni_zero.** { *; }",
+      ]),
+    );
+  });
+});
+
 describe("the Android API the app targets", () => {
   it("is pinned, and the CI matrix runs it on a phone and on a tablet in landscape", () => {
     const plugin = build().plugins?.find((p) => Array.isArray(p) && p[0] === "expo-build-properties") as [string, { android: Record<string, unknown> }];

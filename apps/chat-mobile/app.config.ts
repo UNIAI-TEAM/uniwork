@@ -17,8 +17,17 @@ type AppEnv = "dev" | "staging" | "production";
 // assetlinks web serves name it); dev and staging rely on the custom scheme.
 const APP_LINK_HOST = "app.uniworkos.com";
 
-/** R8 keep rules for what no library rule covers (expo-build-properties › extraProguardRules). */
-export const ANDROID_KEEP_RULES = ["-keep class com.margelo.nitro.** { *; }", "-keep class expo.modules.unichatcalls.** { *; }"].join("\n");
+/**
+ * R8 keep rules for what no library rule covers (expo-build-properties › extraProguardRules). WebRTC's
+ * JNI_OnLoad looks up livekit.org.jni_zero.JniInit by name and traps when it is gone, killing the app at launch
+ * on every ABI: @livekit/react-native-webrtc 144.2.0's consumer-rules keep the unprefixed org.jni_zero, which
+ * the relocated android-prefixed artifact does not have, and that artifact ships no rules of its own.
+ */
+export const ANDROID_KEEP_RULES = [
+  "-keep class com.margelo.nitro.** { *; }",
+  "-keep class expo.modules.unichatcalls.** { *; }",
+  "-keep class livekit.org.jni_zero.** { *; }",
+].join("\n");
 
 // The EAS project (not a secret), written here by the first-time setup in
 // docs/runbooks/unichat-mobile-release.md once the account exists (UNI-1838).
@@ -347,9 +356,10 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // SDK 57's scene runtime is required for Xcode 27 builds. Android release builds go through R8 and
       // resource shrinking (audit P3 Perf: less dex to load at a cold start, a smaller download): the
       // libraries bring their own keep rules (React Native's @DoNotStrip, LiveKit/WebRTC's consumer-rules,
-      // Reanimated's); the two bound by JNI or by name without any are kept here (Nitro, which MMKV runs on,
-      // and the app's call module). Only a device proves a code path R8 broke: android-smoke boots the
-      // minified APK, the nightly signs in, chats and joins a call on it.
+      // Reanimated's); what is bound by JNI or by name without a working rule is kept here (Nitro, which MMKV
+      // runs on, the app's call module, and WebRTC's jni_zero, whose upstream rule names the wrong package).
+      // scripts/mobile-apk-scan.mjs checks the minified dex still holds the classes native code looks up; only a
+      // device proves the rest: android-smoke boots the minified APK, the nightly signs in, chats and joins a call.
       [
         "expo-build-properties",
         {
