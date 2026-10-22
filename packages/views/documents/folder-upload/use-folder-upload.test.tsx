@@ -31,8 +31,8 @@ const WITH_FOLDERS: DocumentLimits = {
   folder_upload: { max_files: 500, max_folders: 500, max_total_bytes: 2 * 1024 ** 3, max_depth: 20, parallel: 4, complete_batch: 50 },
 };
 
-function node(id: string, title: string, children: DocumentTreeNode[] = []): DocumentTreeNode {
-  return { id, title, kind: "folder", position: 1, children };
+function node(id: string, title: string, children: DocumentTreeNode[] = [], system_kind?: "my_folder"): DocumentTreeNode {
+  return { id, title, kind: "folder", position: 1, children, ...(system_kind ? { system_kind } : {}) };
 }
 
 function pdf(path: string): File {
@@ -66,7 +66,7 @@ function setup(over: Partial<UseFolderUploadOptions> = {}, fake: FakeFolderUploa
     enabled: true,
     folderId: "folder-open",
     destinationName: "Hợp đồng",
-    tree: [node("my-folder", "My", [node("folder-open", "Hợp đồng", [node("old", "Báo cáo")])])],
+    tree: [node("my-folder", "My", [node("folder-open", "Hợp đồng", [node("old", "Báo cáo")])], "my_folder"), node("team", "Nhóm", [node("team-sub", "Dự án")])],
     limits: WITH_FOLDERS,
     myFolderId: "my-folder",
     resolveRootParent,
@@ -180,6 +180,54 @@ describe("useFolderUpload", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
     const plan = transport.calls.find((c) => c.method === "plan");
     expect(plan?.method === "plan" && plan.body.share_with_workspace).toBe(false);
+  });
+
+  // UNI-2075 (ADR 0037): a folder outside My Folder is visible to the workspace, so the hint says so there.
+  describe("share hint per destination", () => {
+    const privateHint = () => t("documents.folder_upload.dialog.share_hint");
+    const workspaceHint = () => t("documents.folder_upload.dialog.share_hint_workspace");
+
+    it("keeps the private hint at the root, where the upload goes to My Folder", async () => {
+      setup({ folderId: null, destinationName: "My Folder" });
+      stage(entries("Mới", ["a.pdf"]));
+      await screen.findByText(privateHint());
+      expect(screen.queryByText(workspaceHint())).toBeNull();
+    });
+
+    it("keeps the private hint when the destination is My Folder itself", async () => {
+      setup({ folderId: "my-folder", destinationName: "My Folder" });
+      stage(entries("Mới", ["a.pdf"]));
+      await screen.findByText(privateHint());
+      expect(screen.queryByText(workspaceHint())).toBeNull();
+    });
+
+    it("keeps the private hint for a sub-folder of My Folder", async () => {
+      setup({ folderId: "folder-open" });
+      stage(entries("Mới", ["a.pdf"]));
+      await screen.findByText(privateHint());
+      expect(screen.queryByText(workspaceHint())).toBeNull();
+    });
+
+    it("says the new folders are visible to the workspace for a folder outside My Folder", async () => {
+      setup({ folderId: "team-sub", destinationName: "Dự án" });
+      stage(entries("Mới", ["a.pdf"]));
+      await screen.findByText(workspaceHint());
+      expect(screen.queryByText(privateHint())).toBeNull();
+    });
+
+    it("lets share_inherited win over the workspace hint", async () => {
+      setup({ folderId: "team", destinationName: "Nhóm", parentShared: true });
+      stage(entries("Mới", ["a.pdf"]));
+      await screen.findByText(t("documents.folder_upload.dialog.share_inherited"));
+      expect(screen.queryByText(workspaceHint())).toBeNull();
+    });
+
+    it("keeps the files hint in files mode, even outside My Folder", async () => {
+      setup({ folderId: "team-sub", destinationName: "Dự án" });
+      act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+      await screen.findByText(t("documents.folder_upload.dialog.share_hint_files"));
+      expect(screen.queryByText(workspaceHint())).toBeNull();
+    });
   });
 
   it("at the root lands in My Folder, resolving it when it is not known yet", async () => {
