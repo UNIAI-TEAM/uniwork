@@ -1,0 +1,26 @@
+import type { JSONContent } from "@tiptap/core";
+import type { AskUniObjectKind } from "./ask-uni-object-picker";
+
+export interface AskUniMentionCard {
+  kind: AskUniObjectKind;
+  id: string;
+  label: string;
+}
+
+/** The composer's document as the question text (each card reads as its label) and the cards it names, each once. */
+export function serializeQuestion(doc: JSONContent): { text: string; mentions: AskUniMentionCard[] } {
+  const mentions = new Map<string, AskUniMentionCard>();
+  const read = (node: JSONContent): string => {
+    if (node.type === "text") return node.text ?? "";
+    if (node.type === "hardBreak") return "\n";
+    if (node.type === "askUniMention") {
+      const card = node.attrs as AskUniMentionCard;
+      const key = `${card.kind}:${card.id}`;
+      if (!mentions.has(key)) mentions.set(key, { kind: card.kind, id: card.id, label: card.label });
+      return card.label;
+    }
+    return (node.content ?? []).map(read).join("");
+  };
+  const text = (doc.content ?? []).map(read).join("\n").trim();
+  return { text, mentions: [...mentions.values()] };
+}

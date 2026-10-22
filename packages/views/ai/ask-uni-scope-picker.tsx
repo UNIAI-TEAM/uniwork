@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type RefObject } from "react";
+import { useId, useRef, useState, type ComponentProps } from "react";
 import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -60,7 +60,14 @@ function ScopeList({ onPick, onDismiss }: { onPick: (pick: ScopePick) => void; o
 }
 
 /** The "+" button: one project, meeting, document or chat room becomes the question's focus. */
-export function AskUniScopePicker({ onPick, finalFocus }: { onPick: (pick: ScopePick) => void; finalFocus: RefObject<HTMLElement | null> }) {
+export function AskUniScopePicker({
+  onPick,
+  finalFocus,
+}: {
+  onPick: (pick: ScopePick) => void;
+  /** Where focus goes when the list closes (Base UI `finalFocus`). */
+  finalFocus: ComponentProps<typeof PopoverContent>["finalFocus"];
+}) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.scope" });
   const [open, setOpen] = useState(false);
   return (

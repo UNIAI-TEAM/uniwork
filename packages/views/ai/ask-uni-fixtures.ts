@@ -51,7 +51,9 @@ export function composerRoutes(path: string, init?: { body?: { query?: { search?
       ? [{ task: task("t1", "Lập kế hoạch"), direct_child_count: 0, labels: [] }]
       : q.startsWith("ori")
         ? [{ task: task("t2", "Origami kế hoạch"), direct_child_count: 0, labels: [] }]
-        : [];
+        : q.startsWith("hoan")
+          ? [{ task: task("t3", "Hoàn thiện báo cáo"), direct_child_count: 0, labels: [] }]
+          : [];
     return Promise.resolve({ query_fingerprint: "f", group_key: null, parent_id: null, total: rows.length, rows, next_cursor: null });
   }
   // A query nothing matches ("zz") finds nothing anywhere.

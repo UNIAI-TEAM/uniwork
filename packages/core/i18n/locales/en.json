@@ -5946,16 +5946,7 @@
     "composer_label": "Question for UNI",
     "stop": "Stop",
     "mention": {
-      "people": "People",
-      "tasks": "Tasks",
-      "documents": "Documents",
-      "meetings": "Meetings",
-      "projects": "Projects",
-      "empty": "No results",
-      "list": "Mention suggestions",
-      "remove": "Remove {{name}}",
-      "limit": "A question can mention at most {{max}} items.",
-      "count": "{{count}} suggestions"
+      "limit": "A question can mention at most {{max}} items."
     },
     "picker": {
       "list": "Pick an item",

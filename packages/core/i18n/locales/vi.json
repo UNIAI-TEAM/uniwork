@@ -5940,16 +5940,7 @@
     "composer_label": "Câu hỏi cho UNI",
     "stop": "Dừng",
     "mention": {
-      "people": "Người",
-      "tasks": "Task",
-      "documents": "Tài liệu",
-      "meetings": "Cuộc họp",
-      "projects": "Dự án",
-      "empty": "Không có kết quả",
-      "list": "Gợi ý nhắc tới",
-      "remove": "Bỏ {{name}}",
-      "limit": "Chỉ nhắc được tối đa {{max}} đối tượng trong một câu hỏi.",
-      "count": "{{count}} gợi ý"
+      "limit": "Chỉ nhắc được tối đa {{max}} đối tượng trong một câu hỏi."
     },
     "picker": {
       "list": "Chọn đối tượng",
