@@ -732,6 +732,15 @@ func TestChatSignals(t *testing.T) {
 	}
 }
 
+func TestChatMessageLinksHaveOnlyTheRoomBatchRead(t *testing.T) {
+	f := setupChatFixture(t, "msg-links-read")
+	path := "/api/v1/workspaces/" + f.wsID + "/chat/messages/" + f.firstMessageID + "/links"
+	res, _ := doJSON(t, f.srv, "GET", path, f.tokens["a"], nil)
+	if res.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("GET single-message links: %d, want 405", res.StatusCode)
+	}
+}
+
 func TestChatOutsiderForbidden(t *testing.T) {
 	f := setupChatFixture(t, "outsider")
 	srv := f.srv
