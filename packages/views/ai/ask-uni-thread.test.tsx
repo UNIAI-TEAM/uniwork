@@ -101,12 +101,12 @@ describe("AskUniThread", () => {
 
   it("shows the error text for a stream error", async () => {
     mount(stream({ status: "error", question: "Hỏi?", errorCode: "ai_rate_limited" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Bạn hỏi quá nhanh");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Bạn đang hỏi quá nhanh");
   });
 
   it("falls back to the generic error for an unknown code", async () => {
     mount(stream({ status: "error", question: "Hỏi?", errorCode: "stream_ended" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Không hỏi được lúc này");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Chưa gửi được câu hỏi");
   });
 
   it("a new conversation's turn is not adopted by whichever conversation opens before run", async () => {
