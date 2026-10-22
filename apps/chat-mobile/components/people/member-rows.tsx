@@ -22,7 +22,7 @@ interface PickPerson {
   email: string;
 }
 
-const ROW_BODY = "min-w-0 flex-1 flex-row items-center gap-3 self-stretch py-2 pr-4";
+const ROW_BODY = "min-w-0 flex-1 flex-row items-center gap-3 self-stretch py-2 pe-4";
 
 /** "Tin nhắn mới": a tap opens the DM with this person; `busy` while it is being opened. */
 export const DmPickRow = memo(function DmPickRow(props: {
@@ -45,7 +45,7 @@ export const DmPickRow = memo(function DmPickRow(props: {
       accessibilityState={{ busy }}
       disabled={props.disabled}
       onPress={() => props.onOpen(person.user_id)}
-      className={cn("min-h-16 flex-row items-center gap-3 pl-4 active:bg-secondary", busy && "bg-muted")}
+      className={cn("min-h-16 flex-row items-center gap-3 ps-4 active:bg-secondary", busy && "bg-muted")}
     >
       <PersonAvatar name={person.label} size={44} online={online} seed={person.user_id} />
       <View className={cn(ROW_BODY, !props.last && "border-b-hairline border-border")}>
@@ -87,7 +87,7 @@ export const GroupPickRow = memo(function GroupPickRow(props: {
       accessibilityLabel={[person.label, isIn ? t("chat.already_in_group") : null].filter(Boolean).join(", ")}
       disabled={isIn}
       onPress={() => props.onToggle(person.user_id)}
-      className="min-h-16 flex-row items-center gap-3 pl-4 active:bg-secondary"
+      className="min-h-16 flex-row items-center gap-3 ps-4 active:bg-secondary"
     >
       <PersonAvatar name={person.label} size={44} online={online} seed={person.user_id} />
       <View className={cn(ROW_BODY, !props.last && "border-b-hairline border-border")}>

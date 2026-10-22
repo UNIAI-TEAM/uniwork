@@ -35,7 +35,7 @@ export function SettingsRow({ icon, label, value, external, destructive, first, 
       accessibilityLabel={value ? `${label}, ${value}` : label}
       testID={testID}
       onPress={onPress}
-      className={cn("min-h-[52px] flex-row items-center gap-3 py-2.5 pl-4 pr-3.5 active:bg-secondary", !first && "border-t-hairline border-border")}
+      className={cn("min-h-[52px] flex-row items-center gap-3 py-2.5 ps-4 pe-3.5 active:bg-secondary", !first && "border-t-hairline border-border")}
     >
       <View className={cn("h-8 w-8 items-center justify-center rounded-[9px]", destructive ? "bg-destructive/10" : "bg-muted")}>
         <Ionicons name={icon} size={18} color={destructive ? theme.destructive : theme.mutedForeground} />

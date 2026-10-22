@@ -80,7 +80,7 @@ export default function Login() {
             style={bubbleCorners(true, true, false)}
           >
             <Text className="text-subhead leading-[21px] text-chat-bubble-own-foreground">{t("chat.mobile.login_sample_out")}</Text>
-            <Text className="pl-2 text-meta text-chat-bubble-own-meta">10:31</Text>
+            <Text className="ps-2 text-meta text-chat-bubble-own-meta">10:31</Text>
             <Ionicons name="checkmark-done" size={15} color={THEME[colorScheme].chatBubbleOwnMeta} />
           </View>
         </SafeAreaView>

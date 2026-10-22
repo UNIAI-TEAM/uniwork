@@ -93,12 +93,12 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
             accessibilityState={{ busy: joining === item.id }}
             disabled={joining !== null}
             onPress={() => (joined.has(item.id) ? router.replace(chatRoutes.room(chat, item.id)) : join(item.id, item.name))}
-            className="min-h-[68px] flex-row items-center gap-3 pl-4 active:bg-secondary"
+            className="min-h-[68px] flex-row items-center gap-3 ps-4 active:bg-secondary"
           >
             <RoomAvatar mark={{ kind: "channel" }} size={44} seed={item.id} />
             <View
               className={cn(
-                "min-w-0 flex-1 flex-row items-center gap-3 self-stretch py-2 pr-4",
+                "min-w-0 flex-1 flex-row items-center gap-3 self-stretch py-2 pe-4",
                 index < shown.length - 1 && "border-b-hairline border-border",
               )}
             >

@@ -49,7 +49,7 @@ export function WorkspacePill(props: {
           : t("chat.mobile.workspace_pill_aria_quiet", { name: props.name })
       }
       onPress={props.onPress}
-      className="min-h-11 max-w-[70%] flex-row items-center gap-2 rounded-full bg-muted py-1 pl-1.5 pr-2 active:opacity-80"
+      className="min-h-11 max-w-[70%] flex-row items-center gap-2 rounded-full bg-muted py-1 ps-1.5 pe-2 active:opacity-80"
     >
       <WorkspaceAvatar name={props.name} iconUrl={props.iconUrl} iconEmoji={props.iconEmoji} size={30} seed={props.seed} />
       <Text className="shrink text-subhead font-semibold text-foreground" numberOfLines={1}>

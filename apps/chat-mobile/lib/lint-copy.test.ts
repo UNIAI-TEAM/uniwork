@@ -73,3 +73,14 @@ describe("copy and formatting in .ts modules", { timeout: 60_000 }, () => {
     },
   );
 });
+
+// Audit "rtl-not-ready": spacing is logical (ms-/me-/ps-/pe-), so a right-to-left language is not a layout rewrite.
+describe("logical spacing", { timeout: 60_000 }, () => {
+  it.each([['void "flex-row pl-4"'], ['void ["gap-2", "active:mr-2"]'], ["void `px-2 ml-[72px] ${n}`"], ['void "-ml-2.5"']])("%s is red", async (body) => {
+    expect((await restricted(body)).filter((m) => m.includes("logical spacing"))).toHaveLength(1);
+  });
+
+  it.each([['void "flex-row ps-4 pe-2 -ms-2.5"'], ['void "html-pl mpl-3 text-pl-4x"'], ["void `ms-[72px] ${n}`"]])("%s is green", async (body) => {
+    expect((await restricted(body)).filter((m) => m.includes("logical spacing"))).toEqual([]);
+  });
+});

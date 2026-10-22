@@ -8,7 +8,7 @@ export function LetterIndex({ letters, onJump }: { letters: readonly string[]; o
   const { t } = useTranslation();
   return (
     <View
-      className="absolute bottom-0 right-0 top-0 justify-center pr-1"
+      className="absolute bottom-0 right-0 top-0 justify-center pe-1"
       accessibilityRole="menubar"
       accessibilityLabel={t("chat.mobile.alphabet_index")}
     >

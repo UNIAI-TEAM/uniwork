@@ -91,6 +91,21 @@ const copySyntax = [
   },
 ];
 
+// Spacing is logical (audit "rtl-not-ready"): ms-/me-/ps-/pe- (marginStart, paddingEnd, …) follow the layout direction,
+// ml-/mr-/pl-/pr- do not. The app is left to right today (app.config.ts › supportsRTL false); a right-to-left language
+// later is then a translation and a switch, not a layout rewrite. Positions, borders and corners stay physical for now.
+const PHYSICAL_SPACING = "(^|[\\s:\"'`])-?(ml|mr|pl|pr)-(\\d|\\[|px\\b|auto\\b)";
+const directionSyntax = [
+  {
+    selector: `Literal[value=/${PHYSICAL_SPACING}/]`,
+    message: "Use logical spacing: ms-/me-/ps-/pe- instead of ml-/mr-/pl-/pr- (they follow the layout direction).",
+  },
+  {
+    selector: `TemplateElement[value.raw=/${PHYSICAL_SPACING}/]`,
+    message: "Use logical spacing: ms-/me-/ps-/pe- instead of ml-/mr-/pl-/pr- (they follow the layout direction).",
+  },
+];
+
 // Numbers and dates are written in the app's language through lib/locale-format.ts (numberFormat, dateTimeFormat),
 // never the device's region or a fixed format (audit "number-format-and-server-copy"). lib/locale-format.ts is the one
 // place that builds an Intl formatter; tests and Node scripts may format as they like.
@@ -223,7 +238,7 @@ export default [
   {
     files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "data/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],
     ignores: ["**/*.test.{ts,tsx}", "lib/locale-format.ts"],
-    rules: { "no-restricted-syntax": ["error", ...restrictedSyntax, ...copySyntax, ...formatSyntax] },
+    rules: { "no-restricted-syntax": ["error", ...restrictedSyntax, ...copySyntax, ...formatSyntax, ...directionSyntax] },
   },
   // A sheet that slides up is a BottomSheet (components/ui/bottom-sheet.tsx): its grabber drags it closed,
   // VoiceOver's escape closes it, reduce motion fades it. A raw CallAwareModal slide would bring back a
@@ -237,6 +252,7 @@ export default [
         ...restrictedSyntax,
         ...copySyntax,
         ...formatSyntax,
+        ...directionSyntax,
         {
           selector: "JSXOpeningElement[name.name='CallAwareModal']:has(JSXAttribute[name.name='animationType'][value.value='slide'])",
           message: "A sliding sheet is a <BottomSheet> (components/ui/bottom-sheet.tsx): draggable, escapable, reduce-motion aware.",

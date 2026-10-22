@@ -320,7 +320,7 @@ function PollCard({
           </View>
           {results.hideCounts ? null : (
             <View
-              className={cn("ml-[30px] h-[5px] overflow-hidden rounded-full", own ? "bg-chat-bubble-own-foreground/25" : "bg-muted-foreground/20")}
+              className={cn("ms-[30px] h-[5px] overflow-hidden rounded-full", own ? "bg-chat-bubble-own-foreground/25" : "bg-muted-foreground/20")}
             >
               <View
                 className={cn(

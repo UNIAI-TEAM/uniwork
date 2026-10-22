@@ -329,8 +329,12 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       ],
       "expo-secure-store",
       // The languages the app speaks: iOS's CFBundleLocalizations and Android 13's
-      // locales_config.xml, so each system's per-app language setting offers exactly these.
-      ["expo-localization", { supportedLocales: ["vi", "en"] }],
+      // locales_config.xml, so each system's per-app language setting offers exactly these. Both are written left to
+      // right, and a phone in Arabic or Hebrew reads the app in English: supportsRTL false keeps React Native from
+      // mirroring that English layout (I18nManager.allowRTL(false) before the first render; unset, Android allows it).
+      // Layout uses logical start/end spacing (eslint.config.mjs › directionSyntax), so a right-to-left language
+      // later is this switch plus its translation.
+      ["expo-localization", { supportedLocales: ["vi", "en"], supportsRTL: false }],
       "expo-web-browser",
       // Android draws a notification's small icon from its alpha channel only: a one-colour glyph (built by
       // `pnpm brand:build`), tinted with the brand blue. The plugin writes it as the `notification_icon` drawable,

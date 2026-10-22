@@ -37,7 +37,7 @@ export function AboutSection() {
     <SettingsSection title={t("mobile.about.title")}>
       {rows.map(([label, value], index) => (
         <Fragment key={label}>
-          {index > 0 ? <Separator className="ml-4 w-auto" /> : null}
+          {index > 0 ? <Separator className="ms-4 w-auto" /> : null}
           <View accessible accessibilityLabel={`${label}: ${value}`} className="min-h-[48px] flex-row items-center justify-between gap-3 px-4 py-2.5">
             <Text className="text-body text-foreground">{label}</Text>
             <Text selectable numberOfLines={1} className="shrink text-right text-body text-muted-foreground">
@@ -46,7 +46,7 @@ export function AboutSection() {
           </View>
         </Fragment>
       ))}
-      <Separator className="ml-4 w-auto" />
+      <Separator className="ms-4 w-auto" />
       <Pressable
         onPress={() => void copy()}
         accessibilityRole="button"

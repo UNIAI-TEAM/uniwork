@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 
 /** Inset past the avatar, as a phone's call list draws it. */
 export function CallLogSeparator() {
-  return <Separator className="ml-[72px] w-auto" />;
+  return <Separator className="ms-[72px] w-auto" />;
 }
 
 export function CallLogRow({
@@ -55,7 +55,7 @@ export function CallLogRow({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={[title, direction, label, spokenTime].filter(Boolean).join(", ")}
-      className="min-h-[64px] flex-row items-center gap-3 py-2.5 pl-4 pr-1 active:bg-secondary"
+      className="min-h-[64px] flex-row items-center gap-3 py-2.5 ps-4 pe-1 active:bg-secondary"
     >
       <PersonAvatar
         name={title}

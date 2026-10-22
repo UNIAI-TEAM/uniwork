@@ -10,7 +10,7 @@ import type { ContactRow } from "@/lib/contacts-display";
 
 /** Inset past the avatar, inside each letter group. */
 function ContactSeparator() {
-  return <Separator className="ml-[72px] w-auto" />;
+  return <Separator className="ms-[72px] w-auto" />;
 }
 
 interface Props {

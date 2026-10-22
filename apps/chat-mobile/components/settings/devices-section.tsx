@@ -34,7 +34,7 @@ function DeviceRow({ device, onRevoke }: { device: Device; onRevoke: (name: stri
     ? t("mobile.settings.this_device")
     : [PLATFORM_NAMES[device.platform] ?? device.platform, formatCallTime(device.last_used_at, i18n.language)].filter(Boolean).join(" · ");
   return (
-    <View className="min-h-[64px] flex-row items-center gap-3 py-2.5 pl-4 pr-2">
+    <View className="min-h-[64px] flex-row items-center gap-3 py-2.5 ps-4 pe-2">
       <View className="h-9 w-9 items-center justify-center rounded-[10px] bg-muted">
         <Ionicons name={phone ? "phone-portrait-outline" : "laptop-outline"} size={19} color={THEME[colorScheme].mutedForeground} />
       </View>
@@ -85,7 +85,7 @@ export function DevicesSection() {
       ) : (
         devices.data.map((device, index) => (
           <View key={device.id}>
-            {index > 0 ? <Separator className="ml-16 w-auto" /> : null}
+            {index > 0 ? <Separator className="ms-16 w-auto" /> : null}
             <DeviceRow device={device} onRevoke={(name) => confirm(device, name)} />
           </View>
         ))

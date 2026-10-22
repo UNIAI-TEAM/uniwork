@@ -14,7 +14,7 @@ const textVariants = cva(cn("font-sans text-foreground text-body", Platform.sele
       h3: cn("text-display-sm font-semibold tracking-tight", Platform.select({ web: "scroll-m-20" })),
       h4: cn("text-title2 font-semibold tracking-tight", Platform.select({ web: "scroll-m-20" })),
       p: "mt-3 leading-7 sm:mt-6",
-      blockquote: "mt-4 border-l-2 pl-3 italic sm:mt-6 sm:pl-6",
+      blockquote: "mt-4 border-l-2 ps-3 italic sm:mt-6 sm:ps-6",
       code: "bg-muted relative rounded-xs px-[0.3rem] py-[0.2rem] font-mono text-callout font-semibold",
       lead: "text-muted-foreground text-title2",
       large: "text-title3 font-semibold",

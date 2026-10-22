@@ -86,7 +86,7 @@ export default function SelectWorkspace() {
                   ]
                     .filter(Boolean)
                     .join(", ")}
-                  className="min-h-[76px] flex-row items-center gap-3.5 rounded-2xl py-3.5 pl-4 pr-3.5"
+                  className="min-h-[76px] flex-row items-center gap-3.5 rounded-2xl py-3.5 ps-4 pe-3.5"
                   onPress={() => void onSelect(ws)}
                 >
                   <WorkspaceAvatar name={ws.name} iconUrl={ws.icon_url} iconEmoji={ws.icon_emoji} size={48} seed={ws.id} />

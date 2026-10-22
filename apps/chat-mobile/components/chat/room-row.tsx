@@ -122,10 +122,10 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
       }}
       testID={testID}
       android_ripple={ripple}
-      className="min-h-[76px] flex-row items-center gap-3 pl-4 active:bg-secondary"
+      className="min-h-[76px] flex-row items-center gap-3 ps-4 active:bg-secondary"
     >
       <RoomAvatar mark={mark} seed={seed} />
-      <View className="min-w-0 flex-1 self-stretch justify-center gap-[3px] border-b-hairline border-border py-2.5 pr-4">
+      <View className="min-w-0 flex-1 self-stretch justify-center gap-[3px] border-b-hairline border-border py-2.5 pe-4">
         <View className={cn("flex-row items-center gap-1.5", large && "flex-wrap")}>
           <Text className={cn("text-body font-display font-bold text-foreground", large ? "w-full" : "flex-1")} numberOfLines={large ? 2 : 1}>
             {title}

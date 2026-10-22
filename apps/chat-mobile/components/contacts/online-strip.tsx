@@ -23,7 +23,7 @@ const OnlineFace = memo(function OnlineFace({ row, onPress }: { row: ContactRow;
       onPress={() => onPress(row)}
       accessibilityRole="button"
       accessibilityLabel={`${row.label}, ${t("chat.presence_online")}`}
-      className="mr-2 w-16 items-center gap-1 rounded-lg active:bg-secondary"
+      className="me-2 w-16 items-center gap-1 rounded-lg active:bg-secondary"
     >
       <PersonAvatar name={row.label} avatarUrl={row.avatar_url} size={52} online seed={row.user_id} />
       <Text numberOfLines={1} className="max-w-16 text-caption text-muted-foreground">

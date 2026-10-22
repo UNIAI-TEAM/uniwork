@@ -49,7 +49,7 @@ export function UpdateNudge() {
   return (
     <View
       testID="update-nudge"
-      className="mx-4 mb-1.5 mt-1 flex-row items-center gap-3 rounded-[14px] border border-primary/25 bg-tint-blue py-2.5 pl-3 pr-2"
+      className="mx-4 mb-1.5 mt-1 flex-row items-center gap-3 rounded-[14px] border border-primary/25 bg-tint-blue py-2.5 ps-3 pe-2"
       style={continuousCorners}
     >
       <TintTile tint="blue" icon="arrow-down-circle-outline" size={34} iconSize={17} />

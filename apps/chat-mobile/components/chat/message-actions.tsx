@@ -231,7 +231,7 @@ export function MessageActionsSheet(props: Props) {
         className={cn("flex-1 justify-center gap-2.5 px-4", own ? "items-end" : "items-start")}
       >
         {message && record ? (
-          <View className={cn("flex-row items-center gap-0.5 rounded-full bg-card p-1.5 shadow-lg", props.avatar && "ml-9")}>
+          <View className={cn("flex-row items-center gap-0.5 rounded-full bg-card p-1.5 shadow-lg", props.avatar && "ms-9")}>
             {QUICK_REACTIONS.map(([emoji, labelKey]) => (
               <Pressable
                 key={emoji}
@@ -285,7 +285,7 @@ export function MessageActionsSheet(props: Props) {
           </View>
         ) : null}
         {items.length > 0 ? (
-          <View className={cn("overflow-hidden rounded-2xl bg-card shadow-xl", props.avatar && "ml-9")} style={{ width: layout.menuWidth }}>
+          <View className={cn("overflow-hidden rounded-2xl bg-card shadow-xl", props.avatar && "ms-9")} style={{ width: layout.menuWidth }}>
             {/* Capped at the height the window has left; past it the rows scroll (iOS flashes the bar to say so). */}
             <ScrollView
               ref={menuScroll}
@@ -306,7 +306,7 @@ export function MessageActionsSheet(props: Props) {
                   <Text className="flex-1 text-subhead text-foreground">{t("chat.seen_by_count", { count: props.seenBy.length })}</Text>
                   <View className="flex-row">
                     {props.seenBy.slice(0, 3).map((member, index) => (
-                      <View key={member.user_id} className={cn("rounded-full border-2 border-card", index > 0 && "-ml-2")}>
+                      <View key={member.user_id} className={cn("rounded-full border-2 border-card", index > 0 && "-ms-2")}>
                         <PersonAvatar name={member.display_name} size={22} seed={member.user_id} />
                       </View>
                     ))}

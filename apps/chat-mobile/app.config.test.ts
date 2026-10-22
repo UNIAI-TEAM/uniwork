@@ -126,7 +126,7 @@ describe("app.config per UNICHAT_ENV", () => {
   // per-app language picker of iOS and Android 13+), and Vietnamese is the base.
   it("declares Vietnamese and English to the OS, with Vietnamese as the development region", () => {
     const config = build();
-    expect(config.plugins).toContainEqual(["expo-localization", { supportedLocales: ["vi", "en"] }]);
+    expect(config.plugins).toContainEqual(["expo-localization", { supportedLocales: ["vi", "en"], supportsRTL: false }]);
     expect(config.ios?.infoPlist?.CFBundleDevelopmentRegion).toBe("vi");
   });
 

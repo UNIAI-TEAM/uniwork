@@ -282,7 +282,7 @@ export function Composer(props: Props) {
         </View>
       ) : null}
       {banner ? (
-        <View className="mx-3 mt-2 flex-row items-center gap-2.5 rounded-r-[10px] border-l-[3px] border-primary bg-muted pl-3">
+        <View className="mx-3 mt-2 flex-row items-center gap-2.5 rounded-r-[10px] border-l-[3px] border-primary bg-muted ps-3">
           <Ionicons name={edit ? "create-outline" : "arrow-undo-outline"} size={18} color={theme.primary} />
           <View className="flex-1 py-1.5">
             <Text className="text-footnote font-semibold text-primary" numberOfLines={1}>
@@ -303,7 +303,7 @@ export function Composer(props: Props) {
           </Pressable>
         </View>
       ) : null}
-      <View className={cn("flex-row items-end gap-1.5 py-2 pr-2", attach ? "pl-2" : "pl-3")}>
+      <View className={cn("flex-row items-end gap-1.5 py-2 pe-2", attach ? "ps-2" : "ps-3")}>
         {attach && !voice.active ? (
           <Pressable
             {...roundTap}
@@ -329,7 +329,7 @@ export function Composer(props: Props) {
             <VoiceWave />
           </View>
         ) : (
-          <View className="min-h-11 flex-1 flex-row items-end rounded-[22px] border border-border bg-muted pl-3.5 pr-0.5">
+          <View className="min-h-11 flex-1 flex-row items-end rounded-[22px] border border-border bg-muted ps-3.5 pe-0.5">
             <TextInput
               value={draft}
               onChangeText={onChange}

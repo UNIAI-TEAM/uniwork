@@ -137,7 +137,7 @@ export function RoomSwipe({ rowKey, onRead, readLabel, buttons, onOpen, children
             testID="room-swipe-actions"
           >
             {onRead ? (
-              <View className="flex-1 flex-row items-center gap-2 bg-primary pl-6">
+              <View className="flex-1 flex-row items-center gap-2 bg-primary ps-6">
                 <Ionicons name="checkmark-done" size={22} color={theme.primaryForeground} />
                 <Text className="text-subhead font-semibold text-primary-foreground">{readLabel}</Text>
               </View>

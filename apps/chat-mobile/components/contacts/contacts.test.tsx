@@ -53,7 +53,7 @@ describe("ContactItem", () => {
   });
 
   it("draws the inset line under it only when separated", async () => {
-    const lines = () => JSON.stringify(screen.toJSON()).match(/ml-\[72px\]/g)?.length ?? 0;
+    const lines = () => JSON.stringify(screen.toJSON()).match(/ms-\[72px\]/g)?.length ?? 0;
     const { rerender } = await render(<ContactItem row={person("u1", "An")} onPress={jest.fn()} />);
     expect(lines()).toBe(0);
     await rerender(<ContactItem row={person("u1", "An")} onPress={jest.fn()} separated />);

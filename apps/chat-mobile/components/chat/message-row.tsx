@@ -290,7 +290,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
         </Pressable>
       </View>
       {reactions.length > 0 ? (
-        <View className={cn("mt-1 flex-row flex-wrap gap-1", own ? "justify-end" : "justify-start", avatar && "ml-9")}>
+        <View className={cn("mt-1 flex-row flex-wrap gap-1", own ? "justify-end" : "justify-start", avatar && "ms-9")}>
           {reactions.map(([emoji, count]) => (
             <Animated.View key={emoji} entering={REACTION_IN}>
               <Pressable
@@ -316,7 +316,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
         </View>
       ) : null}
       {props.taskIds?.length ? (
-        <View className={avatar ? "ml-9" : undefined}>
+        <View className={avatar ? "ms-9" : undefined}>
           <TaskCards ctx={ctx} taskIds={props.taskIds} own={own} />
         </View>
       ) : null}
@@ -327,7 +327,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
           accessibilityLabel={t(record.thread_unread ? "chat.thread_replies_unread" : "chat.thread_replies", { count: record.reply_count })}
           {...threadTap}
           onPress={() => props.onPressThread(message)}
-          className={cn("mt-1 min-h-8 flex-row items-center gap-1.5 rounded-full bg-chat-chip px-3", avatar && "ml-9")}
+          className={cn("mt-1 min-h-8 flex-row items-center gap-1.5 rounded-full bg-chat-chip px-3", avatar && "ms-9")}
         >
           <Ionicons name="chatbubbles-outline" size={15} color={theme.primary} />
           <Text className="text-footnote font-semibold text-primary">

@@ -82,7 +82,7 @@ export default function SettingsTab() {
             onPress={() => setSwitchOpen(true)}
             accessibilityRole="button"
             accessibilityLabel={`${t("mobile.settings.switch_workspace")}, ${t("chat.mobile.workspace_at", { name: workspace?.name ?? ws })}`}
-            className="min-h-[64px] flex-row items-center gap-3 py-2.5 pl-4 pr-3.5 active:bg-secondary"
+            className="min-h-[64px] flex-row items-center gap-3 py-2.5 ps-4 pe-3.5 active:bg-secondary"
           >
             <WorkspaceAvatar
               name={workspace?.name ?? ws}

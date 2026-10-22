@@ -74,7 +74,11 @@ Trình đọc màn hình, cảm giác, chuyển động, quy ước Android, c�
   `{{x, number}}` của i18next, `lib/i18n.test.ts` giữ). `formatSyntax` của `eslint.config.mjs` đỏ khi `toFixed`,
   `toLocale*` hay `new Intl.*` xuất hiện ngoài `lib/locale-format.ts`. Chữ dựng ngoài JSX (toast, `Alert`, lời đọc
   `announceForAccessibility*`, title/body/name của thông báo và kênh) cũng phải qua `t()` (`copySyntax`, fixture
-  `lib/lint-copy.test.ts`). Luật lint chữ (`i18next/no-literal-string`, `jsx-only`) bắt cả
+  `lib/lint-copy.test.ts`). **Hướng chữ**: app chỉ viết trái sang phải (`expo-localization › supportsRTL: false` trong
+  `app.config.ts`: máy đặt tiếng Ả Rập hay Do Thái đọc app bằng tiếng Anh và không bị lật bố cục); khoảng cách dùng lớp
+  logic `ms-/me-/ps-/pe-` (marginStart, paddingEnd…), `directionSyntax` của `eslint.config.mjs` đỏ khi `ml-/mr-/pl-/pr-`
+  quay lại — thêm một ngôn ngữ phải sang trái sau này là bật công tắc và dịch, vị trí tuyệt đối, viền và bo góc còn theo
+  cạnh vật lý. Luật lint chữ (`i18next/no-literal-string`, `jsx-only`) bắt cả
   chuỗi trong biểu thức JSX và các prop người dùng đọc hay nghe (`accessibilityLabel`, `accessibilityHint`,
   `placeholder`, `title`, `label`…; fixture `lib/lint-copy.test.ts`); `lib/i18n.test.ts` đỏ khi vi và en khác
   `{{placeholder}}`.

@@ -91,7 +91,7 @@ export function ChatHeader({
       />
       {backBadge > 0 ? (
         <View
-          className="-ml-2.5 min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5"
+          className="-ms-2.5 min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5"
           accessibilityElementsHidden
           importantForAccessibility="no"
         >
