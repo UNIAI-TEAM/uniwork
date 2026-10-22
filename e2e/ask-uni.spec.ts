@@ -33,6 +33,21 @@ async function onboard(page: Page, tag: string, orgName: string, wsName: string)
   return orgId;
 }
 
+/**
+ * Reloads and waits until ⌘J reads the organization's flags: the shell keeps
+ * the org-less flags until the organization's /config answer lands, and ⌘J
+ * does nothing until the AI capability answer shows the "Hỏi UNI" button.
+ */
+async function reloadWithOrgFlags(page: Page) {
+  const scoped = page.waitForResponse((r) => {
+    const url = new URL(r.url());
+    return url.pathname === "/api/v1/config" && url.searchParams.has("organization_id");
+  });
+  await page.reload();
+  await scoped;
+  await expect(page.getByRole("button", { name: /Hỏi UNI/ })).toBeVisible();
+}
+
 async function ask(page: Page, question: string) {
   await page.keyboard.press("ControlOrMeta+j");
   const dialog = page.getByRole("dialog", { name: "Hỏi UNI" });
@@ -43,9 +58,14 @@ async function ask(page: Page, question: string) {
 }
 
 test("⌘J answers from the asker's own workspace only", async ({ browser, page: a }) => {
-  await onboard(a, "Chủ Nhóm", `Alpha ${stamp}`, "Đội Alpha");
+  // Each setFlag below can wait out the server's 30 s override cache (featureflags.CacheTTL).
+  test.setTimeout(150_000);
+  const orgA = await onboard(a, "Chủ Nhóm", `Alpha ${stamp}`, "Đội Alpha");
   const askButton = a.getByRole("button", { name: /Hỏi UNI/ });
   test.skip(!(await askButton.isVisible().catch(() => false)), "AI provider not configured on this server");
+  // The legacy dialog, even on a server that turns the docked panel on for everyone (FF_ASK_UNI_STREAM=true).
+  await setFlag("ask_uni_stream", orgA, false);
+  await reloadWithOrgFlags(a);
 
   const title = `Việc cho UNI ${stamp}`;
   await a.getByRole("button", { name: "Tạo việc" }).click();
@@ -62,7 +82,9 @@ test("⌘J answers from the asker's own workspace only", async ({ browser, page:
   // B: own organization, same question, nothing of A's comes back.
   const ctx = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
   const b = await ctx.newPage();
-  await onboard(b, "Người Khác", `Beta ${stamp}`, "Đội Beta");
+  const orgB = await onboard(b, "Người Khác", `Beta ${stamp}`, "Đội Beta");
+  await setFlag("ask_uni_stream", orgB, false);
+  await reloadWithOrgFlags(b);
   const dialogB = await ask(b, `việc cho UNI ${stamp} thế nào?`);
   // B's workspace has its own guide task, so UNI may cite that; A's task never comes back.
   await expect(dialogB.getByText(/\d+ vào · \d+ ra/)).toBeVisible({ timeout: 15_000 });
