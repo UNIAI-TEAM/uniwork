@@ -10,7 +10,7 @@ import { NotificationTitle, notificationTitleKey } from "./notification-title";
 import { resourceHref } from "./resource-href";
 
 // S-DOC06 (UNI-2084, access addendum §4.2, §4.4): the new owner's notice. The
-// kind is appended last so the Go kinds_test.go order check holds.
+// kind is appended after document_changed so the Go kinds_test.go order check holds.
 
 const KIND = "document_owner_transferred";
 const { t } = initI18n();
@@ -37,8 +37,8 @@ afterEach(async () => {
 });
 
 describe("document_owner_transferred kind", () => {
-  it("is the last kind, so the server's ordered list matches", () => {
-    expect(NOTIFICATION_KINDS.at(-1)).toBe(KIND);
+  it("sits right before the bulk kind, so the server's ordered list matches", () => {
+    expect(NOTIFICATION_KINDS.at(-2)).toBe(KIND);
   });
 
   it("has the documents tone, its own glyph and files under updates", () => {

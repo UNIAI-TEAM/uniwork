@@ -47,6 +47,7 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   document_access_declined: "updates",
   document_shared: "updates",
   document_owner_transferred: "updates",
+  document_owners_bulk_transferred: "updates",
 };
 
 export function inboxCategory(kind: string): InboxCategory {
