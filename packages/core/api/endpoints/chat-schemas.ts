@@ -318,6 +318,13 @@ export const ChatRoomSchema = z.object({
    * offers a refused send.
    */
   can_send_document: z.boolean().optional().catch(undefined),
+  wallpaper: z
+    .object({
+      preset: z.string(),
+      url: z.string().optional(),
+    })
+    .optional()
+    .catch(undefined),
 });
 export type ChatRoomRecord = z.infer<typeof ChatRoomSchema>;
 

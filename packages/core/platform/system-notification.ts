@@ -9,7 +9,10 @@
 // which needs the app router, is injected by the host app via
 // `registerSystemNotificationClickHandler`.
 
+import { useSyncExternalStore } from "react";
 import { getDesktopBridge } from "./desktop-bridge";
+
+const PERMISSION_CHANGED = "uniwork:notification-permission";
 
 export interface SystemNotificationPayload {
   /**
@@ -70,6 +73,23 @@ export function getWebNotificationPermission(): WebNotificationPermission {
   return ctor ? ctor.permission : "unsupported";
 }
 
+function subscribePermission(onChange: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(PERMISSION_CHANGED, onChange);
+  window.addEventListener("focus", onChange);
+  document.addEventListener("visibilitychange", onChange);
+  return () => {
+    window.removeEventListener(PERMISSION_CHANGED, onChange);
+    window.removeEventListener("focus", onChange);
+    document.removeEventListener("visibilitychange", onChange);
+  };
+}
+
+/** Share permission changes between settings, the invitation and live notification listeners. */
+export function useWebNotificationPermission(): WebNotificationPermission {
+  return useSyncExternalStore(subscribePermission, getWebNotificationPermission, () => "unsupported");
+}
+
 /**
  * Prompt for notification permission. Resolves to the resulting permission, or
  * "unsupported". Only "default" triggers the browser prompt — an
@@ -84,6 +104,8 @@ export async function requestWebNotificationPermission(): Promise<WebNotificatio
   } catch {
     // Older Safari used a callback signature and can reject the promise form.
     return ctor.permission;
+  } finally {
+    window.dispatchEvent?.(new Event(PERMISSION_CHANGED));
   }
 }
 
@@ -92,7 +114,7 @@ export async function requestWebNotificationPermission(): Promise<WebNotificatio
  * supported AND permission is "granted". Clicking the banner focuses the tab
  * (and the UniChat window) and routes via the registered click handler.
  */
-export function showWebNotification(payload: SystemNotificationPayload): void {
+export function showWebNotification(payload: SystemNotificationPayload): Notification | undefined {
   const ctor = getNotificationCtor();
   if (!ctor || ctor.permission !== "granted") return;
   let notification: Notification;
@@ -120,4 +142,5 @@ export function showWebNotification(payload: SystemNotificationPayload): void {
     notification.close();
     clickHandler?.(payload);
   };
+  return notification;
 }

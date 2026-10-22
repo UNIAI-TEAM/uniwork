@@ -11,6 +11,7 @@ export {
   registerSystemNotificationClickHandler,
   isWebNotificationSupported,
   getWebNotificationPermission,
+  useWebNotificationPermission,
   requestWebNotificationPermission,
   showWebNotification,
   type SystemNotificationPayload,

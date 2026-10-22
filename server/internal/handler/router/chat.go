@@ -241,6 +241,14 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatRoomDTO{},
 		auth:        true,
 	})
+	r.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/wallpaper", h.UploadChatRoomWallpaper, apiOp{
+		summary:     "Upload chat room wallpaper",
+		description: "Ảnh nền chat dùng chung cho mọi thành viên. DM: cả hai bên; nhóm/kênh: admin phòng. JPG/PNG/GIF/WebP, tối đa 900 KB.",
+		tags:        []string{"chat"},
+		sdi:         sdi.UploadChatRoomWallpaperSDI{},
+		sdo:         sdo.ChatRoomDTO{},
+		auth:        true,
+	})
 	r.With(chatRoomLimit).Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}", h.PatchChatRoomMember, apiOp{
 		summary:     "Update chat room member",
 		description: "Thăng/giáng admin phòng hoặc cấm/bỏ cấm gửi tin.",

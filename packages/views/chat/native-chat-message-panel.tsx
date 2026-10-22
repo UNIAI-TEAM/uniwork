@@ -30,7 +30,9 @@ import { ChatMessageLinksProvider } from "./chat-message-links-context";
 import { ChatLinkPreviewsProvider } from "./chat-link-preview-card";
 import { ChatForwardContext } from "./chat-forward-context";
 import { ChatPeerReadAtContext } from "./chat-message-parts";
-import { CHAT_CONVERSATION_GUTTER, CHAT_WALL } from "./chat-wall";
+import { CHAT_CONVERSATION_GUTTER } from "./chat-wall";
+import { cn } from "@uniwork/ui/lib/utils";
+import { useChatWall } from "./use-chat-wall";
 import { toastChatError } from "./chat-error-message";
 import { VirtualChatMessageList, updateStickToBottomFromScroll, useReaderScrollAt } from "./virtual-chat-message-list";
 import type { NameContextEntry } from "./native-chat-message-mapping";
@@ -127,6 +129,7 @@ export function NativeChatMessagePanel({
   desktopOpen?: ChatDocumentDesktopOpen;
 }) {
   const { t } = useTranslation();
+  const chatWall = useChatWall(roomId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const readerScrollAtRef = useReaderScrollAt(scrollRef);
   const stickToBottomRef = useRef(true);
@@ -480,7 +483,11 @@ export function NativeChatMessagePanel({
           ref={scrollRef}
           onScroll={onScroll}
           // A size container: a message's actions bar fits itself to the timeline's width.
-          className={`@container/timeline min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain ${CHAT_WALL}`}
+          className={cn(
+            "@container/timeline min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain",
+            chatWall.className,
+          )}
+          style={chatWall.style}
           role="log"
           aria-live="off"
           aria-label={t("chat.messages_region")}
