@@ -787,12 +787,9 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTu
 		return db.AiMessage{}, err
 	}
 	// A regenerate has no question of its own: an empty title leaves the stored one.
-	title := t.Question
-	if t.Regenerates != "" {
-		title = ""
-	}
-	if r := []rune(title); len(r) > 80 {
-		title = string(r[:80]) + "…"
+	title := ""
+	if t.Regenerates == "" {
+		title = questionTitle(t.Question)
 	}
 	if err := q.AiTouchConversation(ctx, db.AiTouchConversationParams{ID: convID, Title: title}); err != nil {
 		return db.AiMessage{}, err

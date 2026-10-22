@@ -73,6 +73,23 @@ func titleUsageRows(t *testing.T, s *AskUNIService, orgID string) int {
 	return n
 }
 
+func TestQuestionTitle(t *testing.T) {
+	for name, c := range map[string]struct{ in, want string }{
+		"plain":          {"Tiến độ dự án?", "Tiến độ dự án?"},
+		"marks":          {"**Đậm**, *nghiêng*, ~~gạch~~ và `a_b`", "Đậm, nghiêng, gạch và a_b"},
+		"escapes":        {`Việc \*gấp\* a &lt; b &amp; c task\_id \~5`, "Việc *gấp* a < b & c task_id ~5"},
+		"code keeps":     {"`a*b &amp; c`", "a*b &amp; c"},
+		"block prefixes": {"> Trích\n- Một\n   - Con\n1. Hai", "Trích Một Con Hai"},
+		"code block":     {"```go\nx := *p\n```\nVì sao?", "x := *p Vì sao?"},
+		"hard break":     {"Một  \nHai", "Một Hai"},
+		"long":           {strings.Repeat("a", 90), strings.Repeat("a", 80) + "…"},
+	} {
+		if got := questionTitle(c.in); got != c.want {
+			t.Errorf("%s: questionTitle(%q) = %q, want %q", name, c.in, got, c.want)
+		}
+	}
+}
+
 func TestFirstDockAnswerNamesTheConversation(t *testing.T) {
 	s, fake, ua, w := agentAskFixture(t)
 	agentTask(t, s, ua, w, "Banner Tết")
