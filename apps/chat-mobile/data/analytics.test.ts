@@ -24,12 +24,24 @@ vi.mock("./chat-send", () => ({
     return sends.stop;
   },
 }));
-const callStore = vi.hoisted(() => ({ store: null as unknown }));
+const callStore = vi.hoisted(() => ({ store: null as unknown, media: new Set<(callId: string) => void>() }));
 vi.mock("./calls/call-store", async () => {
   const { createStore: create } = await import("zustand/vanilla");
   callStore.store = create(() => ({ call: { status: "idle" } as Record<string, unknown> }));
-  return { callEngine: { store: callStore.store } };
+  return {
+    callEngine: {
+      store: callStore.store,
+      onMediaConnected: (listener: (callId: string) => void) => {
+        callStore.media.add(listener);
+        return () => void callStore.media.delete(listener);
+      },
+    },
+  };
 });
+/** The call room's media connected (call-room.tsx › callEngine.markConnected). */
+const mediaConnected = () => {
+  for (const listener of callStore.media) listener("c1");
+};
 vi.mock("./report", async (original) => ({
   ...(await original<typeof import("./report")>()),
   bestEffort: (_scope: string, what: string) => () => void crumbs.push(what),
@@ -134,16 +146,41 @@ describe("startAnalytics", () => {
     sends.observer?.("sent", 420);
     sends.observer?.("failed", 0);
     track({ name: "first_screen", result: "ok", duration_ms: 900 });
-    // A call: connecting, then connected 2.1 s later; another that never connects.
+    // The transitions the engine emits (call-engine.ts). A call: connecting, a token (active) at 0.4 s, its
+    // media connected at 2.1 s — the connect time; a second media connect of the same call is not another.
     calls().setState({ call: { status: "connecting" } });
-    now = 2_100;
+    now = 400;
     calls().setState({ call: { status: "active" } });
+    now = 2_100;
+    mediaConnected();
+    mediaConnected();
     calls().setState({ call: { status: "active", muted: true } });
     calls().setState({ call: { status: "idle" } });
+    // The connecting clock ran out, or the token or the accept failed: connecting → ended/connect_failed.
     calls().setState({ call: { status: "connecting" } });
+    calls().setState({ call: { status: "ended", reason: "connect_failed" } });
+    calls().setState({ call: { status: "idle" } });
+    // A token, then the media room let go before it ever connected.
+    calls().setState({ call: { status: "connecting" } });
+    calls().setState({ call: { status: "active" } });
+    calls().setState({ call: { status: "ended", reason: "peer_ended" } });
+    // The invite never went out (ringing was never reached): idle → ended/start_failed.
+    calls().setState({ call: { status: "idle" } });
     calls().setState({ call: { status: "ended", reason: "start_failed" } });
+    calls().setState({ call: { status: "idle" } });
+    // Not failures: the person hung up while connecting (idle), a call that ended after its media connected,
+    // and a connect_failed with no connect under way.
+    calls().setState({ call: { status: "connecting" } });
+    calls().setState({ call: { status: "idle" } });
+    calls().setState({ call: { status: "connecting" } });
+    mediaConnected();
+    calls().setState({ call: { status: "active" } });
+    calls().setState({ call: { status: "ended", reason: "peer_ended" } });
+    calls().setState({ call: { status: "idle" } });
+    calls().setState({ call: { status: "ended", reason: "connect_failed" } });
     calls().setState({ call: { status: "connecting" } });
     calls().setState({ call: { status: "ended", reason: "declined" } });
+    mediaConnected();
     calls().setState({ call: { status: "active" } });
     appState.currentState = "background";
     await vi.advanceTimersByTimeAsync(FLUSH_EVERY_MS);
@@ -157,6 +194,9 @@ describe("startAnalytics", () => {
       { name: "first_screen", result: "ok", duration_ms: 900 },
       { name: "call_connect", result: "connected", duration_ms: 2_100 },
       { name: "call_connect", result: "failed" },
+      { name: "call_connect", result: "failed" },
+      { name: "call_connect", result: "failed" },
+      { name: "call_connect", result: "connected", duration_ms: 0 },
     ]);
     stop();
     expect(appState.remove).toHaveBeenCalled();

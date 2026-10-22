@@ -179,6 +179,24 @@ describe("call engine on the phone", () => {
     expect(call()).toMatchObject({ status: "ended", reason: "start_failed", peerName: "Long" });
   });
 
+  it("tells its listeners once per call when the media room connects", async () => {
+    const { engine } = setup();
+    const heard: string[] = [];
+    const stop = engine.onMediaConnected((callId) => heard.push(callId));
+    engine.markConnected();
+    engine.onInvite(invite());
+    await engine.acceptCall();
+    engine.markConnected();
+    engine.markConnected();
+    expect(heard).toEqual(["c1"]);
+    await engine.hangUp();
+    stop();
+    engine.onInvite(invite({ call_id: "c2" }));
+    await engine.acceptCall();
+    engine.markConnected();
+    expect(heard).toEqual(["c1"]);
+  });
+
   it("the hang-up button ends a 1-1 call for both and only leaves someone else's group call", async () => {
     const one = setup();
     one.engine.onInvite(invite());

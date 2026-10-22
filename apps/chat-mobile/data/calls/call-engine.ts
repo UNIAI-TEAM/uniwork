@@ -79,6 +79,8 @@ export function createCallEngine(deps: CallEngineDeps) {
   let ctx: CallContext | null = null;
   let hangupSent: string | null = null;
   let connectedAt: number | null = null;
+  // Told once per call when its media room first connects (data/analytics.ts › call_connect).
+  const mediaListeners = new Set<(callId: string) => void>();
   // Calls that already rang out, were declined or ended here: a late frame or
   // the pending-invite sync must not ring them again.
   const closed = new Set<string>();
@@ -343,8 +345,17 @@ export function createCallEngine(deps: CallEngineDeps) {
       if (hangupSent === state.callId || info?.movedElsewhere) closeLocal(state);
       else void failCall(state, { reason: "peer_ended" });
     },
+    /** The media room connected (call-room.tsx): the call's clock starts, once per live call. */
     markConnected() {
-      connectedAt ??= Date.now();
+      const state = current();
+      if (!isLive(state) || connectedAt !== null) return;
+      connectedAt = Date.now();
+      for (const listener of mediaListeners) listener(state.callId);
+    },
+    /** Called with the call id the first time each call's media room connects. */
+    onMediaConnected(listener: (callId: string) => void): () => void {
+      mediaListeners.add(listener);
+      return () => void mediaListeners.delete(listener);
     },
     dismissEnded() {
       if (current().status === "ended") setCall({ status: "idle" });

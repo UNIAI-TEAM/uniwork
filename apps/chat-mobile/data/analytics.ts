@@ -94,13 +94,23 @@ export function pushOpenResult(data: unknown): "chat" | "call" | "other" {
   return typeof field("room_id") === "string" ? "chat" : "other";
 }
 
-const isConnecting = (status: string) => status === "connecting";
+/**
+ * Whether a call that ended before its media room connected failed to connect:
+ * the engine gave up on it (connect_failed — the connecting clock ran out, the
+ * token or the accept failed — or start_failed, the invite never went out), or
+ * the media room let go of it before it ever connected (peer_ended from active).
+ * A call the person closed themselves goes to idle and is not a failure.
+ */
+function failedToConnect(reason: string, from: string, connecting: boolean): boolean {
+  if (reason === "start_failed") return true;
+  return connecting && (reason === "connect_failed" || (reason === "peer_ended" && from === "active"));
+}
 
 /**
  * Wires the sink once (app/_layout.tsx): a cold open now, a warm one on each
  * return from the background, a flush every minute while open and on each
  * trip to the background, every send's outcome (data/chat-send.ts) and every
- * call that connects or fails to. Returns the teardown.
+ * call whose media connects or that fails to. Returns the teardown.
  */
 export function startAnalytics(deps: Omit<AnalyticsDeps, "send">, now: () => number = Date.now): () => void {
   const sink = createAnalytics({ ...deps, send: (events) => api.request("/api/v1/mobile/events", { method: "POST", body: JSON.stringify({ events }) }) });
@@ -123,18 +133,21 @@ export function startAnalytics(deps: Omit<AnalyticsDeps, "send">, now: () => num
   }, FLUSH_EVERY_MS);
   const stopSends = observeChatSends((outcome, ms) => sink.track(outcome === "sent" ? { name: "message_send", result: "sent", duration_ms: ms } : { name: "message_send", result: "failed" }));
 
-  // A call connects when it goes from connecting to active; it fails when it ends without having been active.
+  // A call's connect runs from "connecting" (the peer answered, or Answer was tapped) to its media room
+  // connecting (call-room.tsx › markConnected) — not to "active", which only means a token was minted.
   let connectingSince: number | null = null;
   const stopCalls = callEngine.store.subscribe(({ call }, previous) => {
     if (call.status === previous.call.status) return;
-    if (isConnecting(call.status)) connectingSince = now();
-    else if (call.status === "active" && connectingSince !== null) {
-      sink.track({ name: "call_connect", result: "connected", duration_ms: now() - connectingSince });
-      connectingSince = null;
-    } else if (call.status === "ended" && call.reason === "start_failed") {
+    if (call.status === "connecting") connectingSince = now();
+    else if (call.status === "ended" && failedToConnect(call.reason, previous.call.status, connectingSince !== null)) {
       sink.track({ name: "call_connect", result: "failed" });
       connectingSince = null;
     } else if (call.status === "idle" || call.status === "ended") connectingSince = null;
+  });
+  const stopMedia = callEngine.onMediaConnected(() => {
+    if (connectingSince === null) return;
+    sink.track({ name: "call_connect", result: "connected", duration_ms: now() - connectingSince });
+    connectingSince = null;
   });
 
   return () => {
@@ -142,6 +155,7 @@ export function startAnalytics(deps: Omit<AnalyticsDeps, "send">, now: () => num
     clearInterval(timer);
     stopSends();
     stopCalls();
+    stopMedia();
     instance = null;
   };
 }

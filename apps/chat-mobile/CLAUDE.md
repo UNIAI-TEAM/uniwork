@@ -277,7 +277,7 @@ một dòng thì ghi lý do ở dòng trên.
   mở lạnh không mạng. Chưa từng có câu trả lời và server không tới được thì không chặn gì và mọi công tắc ở mặc định.
   Thống kê sản phẩm (audit "no-product-analytics"): `data/analytics.ts` (khởi ở `app/_layout.tsx`) xếp hàng sự kiện
   ẩn danh — `app_open` cold/warm, `first_screen` (ms từ lúc JS chạy), `message_send` sent/failed (`observeChatSends` của
-  `data/chat-send.ts`, ms từ lúc viết), `push_open` chat/call/other, `call_connect` connected/failed (từ store cuộc gọi)
+  `data/chat-send.ts`, ms từ lúc viết), `push_open` chat/call/other, `call_connect` connected (ms từ `connecting` tới lúc phòng media nối, `callEngine.onMediaConnected`; `active` chỉ là đã có token) / failed (`connect_failed`, `start_failed`, hay phòng media buông trước khi nối; tự cúp máy thì không tính)
   — gửi theo lô ≤ 20 mỗi phút và khi vào nền tới `POST /api/v1/mobile/events` (server chỉ cộng bộ đếm
   `uniwork_mobile_events_total` theo OS, version và bản OTA / histogram `uniwork_mobile_event_duration_seconds` theo OS
   và version; dashboard `deploy/grafana/dashboards/unichat-mobile.json`; không lưu gì của người hay nội dung); không thử lại, hàng tối đa 60. Tắt ở Cài đặt › Quyền riêng tư và bảo mật (`usageStats` trong

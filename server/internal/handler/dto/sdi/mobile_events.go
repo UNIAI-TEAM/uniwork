@@ -10,6 +10,6 @@ type MobileEventsSDI struct {
 // and for the timed ones how long the step took.
 type MobileEventSDI struct {
 	Name       string   `json:"name" enum:"app_open,first_screen,message_send,push_open,call_connect" description:"Sự kiện: mở app, màn đầu vẽ xong, gửi tin, mở từ push, nối cuộc gọi" example:"message_send"`
-	Result     string   `json:"result" description:"Kết quả: app_open cold|warm, first_screen ok, message_send sent|failed, push_open chat|call|other, call_connect connected|failed" example:"sent"`
-	DurationMs *float64 `json:"duration_ms,omitempty" description:"Mili giây của bước (first_screen, message_send, call_connect); bỏ qua với sự kiện khác" example:"420"`
+	Result     string   `json:"result" description:"Kết quả: app_open cold|warm, first_screen ok, message_send sent|failed, push_open chat|call|other, call_connect connected (phòng media đã nối) | failed (bỏ cuộc trước khi media nối)" example:"sent"`
+	DurationMs *float64 `json:"duration_ms,omitempty" description:"Mili giây của bước (first_screen; message_send; call_connect từ lúc bắt đầu nối tới lúc phòng media nối); bỏ qua với sự kiện khác" example:"420"`
 }
