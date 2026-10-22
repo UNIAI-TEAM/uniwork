@@ -392,7 +392,8 @@ var isoReferences = []isoReference{
 		covers: []string{"OrgInviteSDI.workspace_ids"}},
 	// DOC-06b (UNI-2092 §4.2): A's person as the recipient of a bulk transfer
 	// in B is 422 owner_target_not_member, naming nobody. The control hands
-	// B's peer's documents to B's owner, who skips the peer's restricted one.
+	// B's peer's documents to B's owner: the unrestricted one moves, the
+	// peer's restricted one is skipped as self_restricted.
 	{method: "POST", pattern: "/api/v1/orgs/{org}/members/{userID}/document-ownership", what: "recipient", body: map[string]any{
 		"to_user_id": isoRef("owner")}, covers: []string{"TransferMemberDocumentsSDI.to_user_id"}},
 	{method: "POST", pattern: "/api/v1/orgs/{org}/transfer-ownership", what: "new owner", body: map[string]any{
