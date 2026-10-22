@@ -26,6 +26,12 @@ func cleanTitle(raw string) string {
 	t := strings.Join(strings.Fields(sourceRef.ReplaceAllString(raw, "")), " ")
 	if r := []rune(trimTitle(t)); len(r) > askGenTitleMax {
 		t = string(r[:askGenTitleMax])
+		// A cut inside a word ends at the word before it; one long word keeps the hard cut.
+		if r[askGenTitleMax] != ' ' {
+			if i := strings.LastIndexByte(t, ' '); i > 0 {
+				t = t[:i]
+			}
+		}
 	}
 	return trimTitle(t)
 }

@@ -21,6 +21,7 @@ func TestCleanTitle(t *testing.T) {
 		"trailing marks":       {"Việc trễ dự án Q4.!?:", "Việc trễ dự án Q4"},
 		"inner whitespace":     {"  Việc   trễ \n dự án ", "Việc trễ dự án"},
 		"cut to 40 runes":      {long, strings.Repeat("ạ", 40)},
+		"cut at a word":        {"Thiết kế trang chủ chưa được lên kế hoạch cụ thể", "Thiết kế trang chủ chưa được lên kế"},
 		"quote then dot":       {"\"Việc trễ\".", "Việc trễ"},
 		"source ref":           {"Việc [S1] trễ", "Việc trễ"},
 		"space after the cut":  {strings.Repeat("a", 39) + " bbb", strings.Repeat("a", 39)},
