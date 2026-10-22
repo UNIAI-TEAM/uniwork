@@ -27,6 +27,9 @@ export function buildSurfaceTableFilter(input: {
   if (input.scope.type === "project") {
     return { ...mapped, project_ids: [input.scope.projectId] };
   }
+  if (input.scope.type === "my") {
+    return { ...mapped, relation: input.scope.relation };
+  }
   return Object.keys(mapped).length > 0 ? mapped : undefined;
 }
 
@@ -48,8 +51,17 @@ export function planSurfaceQuery(input: {
   /** Pre-mapped store filter (statuses, etc.); project_ids always overwritten on project scope. */
   filter?: TableFilter;
 }): SurfaceQueryPlan {
-  // My-scope never plans table: `/tasks/table/*` is workspace-wide today.
   if (input.scope.type === "my") {
+    if (input.viewMode === "table") {
+      return {
+        kind: "table",
+        tableBody: {
+          filter: { ...input.filter, relation: input.scope.relation },
+        },
+      };
+    }
+    // Board pages its columns through the table API with the relation filter;
+    // the flat my-tasks list feeds list, gantt and swimlane.
     return {
       kind: "my_tasks",
       myTasksOpts: { relation: input.scope.relation },
