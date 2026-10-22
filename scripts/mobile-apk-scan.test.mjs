@@ -48,7 +48,8 @@ const XMLTREE = `N: android=http://schemas.android.com/apk/res/android (line=1)
 `;
 
 test("finds credentials and prints only a hint of them", () => {
-  const key = ["-----BEGIN RSA PRIVATE KEY-----", "MIIEowIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0gun", "VTLw7onLRnrq0/IzW7yWR7QkrmBL7jTKEn5u+qKhbwKfBstIs+bMY2Zkp18gnTxK"].join("\n");
+  // The jwt.io sample key, split so secret scanners do not read the fixture as a key.
+  const key = ["-----BEGIN RSA " + "PRIVATE KEY-----", "MIIEowIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0gun", "VTLw7onLRnrq0/IzW7yWR7QkrmBL7jTKEn5u+qKhbwKfBstIs+bMY2Zkp18gnTxK"].join("\n"); // gitleaks:allow (public jwt.io sample, test fixture)
   const sentry = `sntrys_${"eyJpYXQiOjE3MDAwMDAwMDAsInVybCI6Imh0dHBzOi8vc2VudHJ5LmlvIn0".repeat(2)}`;
   const text = [
     key,
