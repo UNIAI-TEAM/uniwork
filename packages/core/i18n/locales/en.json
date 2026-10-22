@@ -3970,6 +3970,7 @@
       "nothingPending": "Nothing left to assign",
       "add": "Add task",
       "addHeading": "Meeting follow-up",
+      "editAssign": "Edit & assign",
       "dismiss": "Dismiss",
       "dismissLabel": "Dismiss \"{{title}}\"",
       "dismissTitle": "Dismiss this item?",

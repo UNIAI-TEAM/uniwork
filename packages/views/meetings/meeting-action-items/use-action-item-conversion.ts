@@ -31,9 +31,10 @@ export type ActionItemSelection = [ReadonlySet<string>, Dispatch<SetStateAction<
  * Selection over a meeting's pending action items and the two ways a task
  * comes out of them. "Assign" turns every ticked item into a task at once,
  * on the meeting's own suggestions (who, when, priority, the AI's prose and
- * cited lines, the project) in one transaction; what needs changing is
- * changed on the task. "Add task" opens the task screen's composer; creating
- * there files a hand-added item and converts it. Ticks are item ids, so a
+ * cited lines, the project) in one transaction. A row's "Edit & assign"
+ * opens the task screen's composer on those same values, to change before
+ * creating; "Add task" opens it empty, and creating there files a hand-added
+ * item and converts it. Ticks are item ids, so a
  * list that changes under the clerk keeps the ticks of items still pending.
  * It only mounts with a real workspace id: every key the mutations refresh
  * is workspace-scoped.
@@ -62,6 +63,9 @@ export function useActionItemConversion({
   const own = useState<ReadonlySet<string>>(NONE);
   const [picked, setPicked] = selection ?? own;
   const [addOpen, setAddOpen] = useState(false);
+  // The item whose values the composer opened on, if not a blank "Add task".
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editing = items.find((item) => item.id === editingId && item.status === "PENDING");
 
   const pickedPending = useMemo(
     () => items.filter((item) => item.status === "PENDING" && picked.has(item.id)),
@@ -69,6 +73,14 @@ export function useActionItemConversion({
   );
   // The ticked items' cited lines are read as they are ticked, so assigning never waits for them.
   const evidence = useMeetingEvidenceOf(meetingId, pickedPending, pickedPending.length > 0);
+  const editingLines = useMeetingEvidenceOf(meetingId, editing ? [editing] : [], Boolean(editing));
+  // Fixed once its lines are in: a refetch of the same item must not reset the composer.
+  const editDefaults = useMemo<Partial<CreateTaskBody> | undefined>(() => {
+    if (!editing || !editingLines.settled) return undefined;
+    const description = actionItemTaskDescription(editing, editingLines.lines[0] ?? [], t, meetingLocale(i18n.language));
+    return actionItemTaskDefaults(editing, projectId, description);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the lines settle once per item; the locale does not change mid-edit
+  }, [editing?.id, editingLines.settled, projectId]);
   const wsPaths = workspace ? paths.workspace(workspace.organization_slug, workspace.slug) : null;
   const locale = i18n.language.startsWith("en") ? "en" : "vi";
 
@@ -124,19 +136,35 @@ export function useActionItemConversion({
     );
   }
 
-  // The composer's task: a hand-added item, converted with what was typed.
-  // A convert refused after the add leaves the item pending, where the list
-  // shows it and "Assign" finishes the job.
+  function closeComposer() {
+    setAddOpen(false);
+    setEditingId(null);
+  }
+
+  // The composer's task: the item being edited, else a hand-added item,
+  // converted with what was typed. A convert refused after the add leaves
+  // the item pending, where the list shows it and "Assign" finishes the job.
   const submitter: CreateTaskSubmitter = {
     async submit(body: CreateTaskBody) {
-      const item = await add.mutateAsync({ title: body.title });
-      if (!item) {
-        toast.warning(t("meetings.summaryAi.createdUnknown"));
-        setAddOpen(false);
-        return;
+      let id = editing?.id;
+      if (!id) {
+        const item = await add.mutateAsync({ title: body.title });
+        if (!item) {
+          toast.warning(t("meetings.summaryAi.createdUnknown"));
+          closeComposer();
+          return;
+        }
+        id = item.id;
       }
-      const result = await convert.mutateAsync({ items: [convertActionItemInput(item.id, body)], locale });
-      setAddOpen(false);
+      let result;
+      try {
+        result = await convert.mutateAsync({ items: [convertActionItemInput(id, body)], locale });
+      } catch (err) {
+        if (STALE_SELECTION.has(errorCode(err) ?? "")) closeComposer();
+        throw err;
+      }
+      closeComposer();
+      toggle(id, false);
       if (!result) {
         toast.warning(t("meetings.summaryAi.createdUnknown"));
         return;
@@ -148,15 +176,19 @@ export function useActionItemConversion({
     errorText: (err) => (errorCode(err) === "active_duplicate_task" ? undefined : summaryErrorText(err, t, "tasks", { items })),
   };
 
+  const addDefaults = useMemo<Partial<CreateTaskBody>>(() => ({ project_id: projectId || null }), [projectId]);
+
   return {
     picked,
     pickedPending,
     toggle,
     assign,
-    addOpen,
-    setAddOpen,
+    /** Opens the composer on the item's values, once its cited lines are in. */
+    edit: (id: string) => setEditingId(id),
+    composerOpen: addOpen || (Boolean(editing) && editDefaults !== undefined),
+    setComposerOpen: (open: boolean) => (open ? setAddOpen(true) : closeComposer()),
     submitter,
-    addDefaults: useMemo<Partial<CreateTaskBody>>(() => ({ project_id: projectId || null }), [projectId]),
+    composerDefaults: editDefaults ?? addDefaults,
     // Also while the ticked items' lines are read: the assign button says it is busy.
     pending: convert.isPending || (pickedPending.length > 0 && !evidence.settled),
   };

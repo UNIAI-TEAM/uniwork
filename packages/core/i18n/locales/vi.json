@@ -3969,6 +3969,7 @@
       "nothingPending": "Không còn việc nào chờ giao",
       "add": "Thêm task",
       "addHeading": "Task sau họp",
+      "editAssign": "Sửa & giao",
       "dismiss": "Bỏ qua",
       "dismissLabel": "Bỏ qua \"{{title}}\"",
       "dismissTitle": "Bỏ qua việc này?",

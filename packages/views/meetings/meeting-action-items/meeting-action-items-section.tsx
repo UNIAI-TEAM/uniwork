@@ -165,37 +165,43 @@ function ClerkPendingList({
               onCheckedChange={(on) => flow.toggle(item.id, on)}
               evidence={<MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />}
               action={
-                <DismissActionItemButton
-                  title={item.title}
-                  // One shared mutation: TanStack runs only the latest mutate()'s callbacks, so a
-                  // second dismiss while one is in flight would lose the first's done/toast.
-                  pending={dismiss.isPending}
-                  error={dismissError?.id === item.id ? dismissError.text : undefined}
-                  onDismiss={(reason, done) => {
-                    setDismissError(null);
-                    landing.current = { leaving: item.id, next: (pending[at + 1] ?? pending[at - 1])?.id };
-                    dismiss.mutate(
-                      { itemId: item.id, reason },
-                      {
-                        onSuccess: () => {
-                          done();
-                          announce(t("meetings.actionItemsSection.dismissed"));
+                <div className="flex shrink-0 items-center gap-1">
+                  {/* The same values "Assign" would use, in the composer, to change first. */}
+                  <Button type="button" size="sm" variant="ghost" onClick={() => flow.edit(item.id)}>
+                    {t("meetings.actionItemsSection.editAssign")}
+                  </Button>
+                  <DismissActionItemButton
+                    title={item.title}
+                    // One shared mutation: TanStack runs only the latest mutate()'s callbacks, so a
+                    // second dismiss while one is in flight would lose the first's done/toast.
+                    pending={dismiss.isPending}
+                    error={dismissError?.id === item.id ? dismissError.text : undefined}
+                    onDismiss={(reason, done) => {
+                      setDismissError(null);
+                      landing.current = { leaving: item.id, next: (pending[at + 1] ?? pending[at - 1])?.id };
+                      dismiss.mutate(
+                        { itemId: item.id, reason },
+                        {
+                          onSuccess: () => {
+                            done();
+                            announce(t("meetings.actionItemsSection.dismissed"));
+                          },
+                          onError: (err) => {
+                            if (ROW_CHANGED_ELSEWHERE.has(errorCode(err) ?? "")) {
+                              toast.error(t("meetings.actionItemsSection.changedElsewhere"));
+                              return;
+                            }
+                            landing.current = null;
+                            setDismissError({
+                              id: item.id,
+                              text: apiErrorCopy(err) ?? t("meetings.actionItemsSection.dismissFailed"),
+                            });
+                          },
                         },
-                        onError: (err) => {
-                          if (ROW_CHANGED_ELSEWHERE.has(errorCode(err) ?? "")) {
-                            toast.error(t("meetings.actionItemsSection.changedElsewhere"));
-                            return;
-                          }
-                          landing.current = null;
-                          setDismissError({
-                            id: item.id,
-                            text: apiErrorCopy(err) ?? t("meetings.actionItemsSection.dismissFailed"),
-                          });
-                        },
-                      },
-                    );
-                  }}
-                />
+                      );
+                    }}
+                  />
+                </div>
               }
             />
           ))}
@@ -224,7 +230,7 @@ function ClerkPendingList({
             {count > 0 ? t("meetings.actionItemsSection.assign", { count }) : t("meetings.actionItemsSection.assignNone")}
           </Button>
         ) : null}
-        <Button ref={addRef} type="button" size="sm" variant="ghost" onClick={() => flow.setAddOpen(true)}>
+        <Button ref={addRef} type="button" size="sm" variant="ghost" onClick={() => flow.setComposerOpen(true)}>
           <Plus aria-hidden />
           {t("meetings.actionItemsSection.add")}
         </Button>
@@ -236,13 +242,13 @@ function ClerkPendingList({
           </p>
         ) : null}
       </div>
-      {/* The task screen's own composer: a task the summary missed. */}
+      {/* The task screen's own composer: an item's values to change first, or a task the summary missed. */}
       <CreateTaskDialog
         workspaceId={workspaceId}
-        open={flow.addOpen}
-        onOpenChange={flow.setAddOpen}
+        open={flow.composerOpen}
+        onOpenChange={flow.setComposerOpen}
         showTrigger={false}
-        defaults={flow.addDefaults}
+        defaults={flow.composerDefaults}
         submitter={flow.submitter}
         heading={t("meetings.actionItemsSection.addHeading")}
         finalFocus={addRef}

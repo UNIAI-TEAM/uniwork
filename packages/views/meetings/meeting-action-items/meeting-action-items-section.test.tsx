@@ -259,6 +259,34 @@ describe("MeetingActionItemsSection", () => {
     await waitFor(() => expect(posts("/a3/restore")).toHaveLength(1));
   });
 
+  it("opens a row in the task screen's composer on its values, to change before assigning", async () => {
+    const described = { ...pendingAI, description: "Gửi biên bản cho cả nhóm trước thứ Sáu.", suggested_priority: "high" };
+    respond({ items: () => ({ ...list, items: [described, pendingManual, converted, dismissed] }) });
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      String(path).includes("/evidence?refs=")
+        ? Promise.resolve({ items: [{ kind: "segment", id: "g1", author: "Mai Anh", text: "Em gửi biên bản nhé", at: "2026-09-22T03:05:00Z" }] })
+        : base(path, init),
+    );
+    renderSection({ projectId: "p1" });
+    const row = (await screen.findByRole("checkbox", { name: "Gửi biên bản" })).closest("li")!;
+    fireEvent.click(within(row).getByRole("button", { name: "Sửa & giao" }));
+    const dialog = await screen.findByRole("dialog");
+    const title = within(dialog).getByRole("textbox", { name: "Tiêu đề issue" });
+    await waitFor(() => expect(title).toHaveValue("Gửi biên bản"));
+    expect(within(dialog).getByText("Em gửi biên bản nhé")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Độ ưu tiên: Cao" })).toBeInTheDocument();
+    fireEvent.change(title, { target: { value: "Gửi biên bản họp" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Tạo/ }));
+    await waitFor(() => expect(posts("/action-items/convert")).toHaveLength(1));
+    expect((posts("/action-items/convert")[0]!.body as { items: unknown[] }).items[0]).toMatchObject({
+      action_item_id: "a0", title: "Gửi biên bản họp", priority: "high", assignee_id: "u-mai", project_id: "p1",
+    });
+    expect(posts("/meetings/m1/action-items")).toHaveLength(0);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã giao 1 việc.", expect.anything()));
+  });
+
   it("adds a task through the task screen's composer: a hand-added item, converted with what was typed", async () => {
     renderSection({ projectId: "p1" });
     fireEvent.click(await screen.findByRole("button", { name: "Thêm task" }));
