@@ -205,7 +205,7 @@ func (s *ChatService) directRooms(ctx context.Context, userID, orgID, workspaceI
 // for the caller only. Like FollowThread it is a personal preference, so it
 // writes no audit row; the notification rules read it at delivery.
 func (s *ChatService) SetRoomNotificationsMuted(ctx context.Context, userID, workspaceID, roomID string, muted bool) error {
-	if _, err := s.authorizeRoomMember(ctx, userID, workspaceID, roomID); err != nil {
+	if _, err := s.authorizeRoom(ctx, userID, workspaceID, roomID); err != nil {
 		return err
 	}
 	n, err := s.q.SetChatRoomMemberNotificationsMuted(ctx, db.SetChatRoomMemberNotificationsMutedParams{
@@ -635,11 +635,6 @@ func (s *ChatService) authorizeRoomQ(ctx context.Context, q *db.Queries, userID,
 // authorizeRoomRead allows reading a public channel without joining.
 func (s *ChatService) authorizeRoomRead(ctx context.Context, userID, workspaceID, roomID string) (db.ChatRoom, error) {
 	return s.authorizeRoomAccess(ctx, userID, workspaceID, roomID, false)
-}
-
-// authorizeRoomMember requires active membership (send / moderate).
-func (s *ChatService) authorizeRoomMember(ctx context.Context, userID, workspaceID, roomID string) (db.ChatRoom, error) {
-	return s.authorizeRoomAccess(ctx, userID, workspaceID, roomID, true)
 }
 
 func (s *ChatService) authorizeRoomAccess(ctx context.Context, userID, workspaceID, roomID string, requireMember bool) (db.ChatRoom, error) {

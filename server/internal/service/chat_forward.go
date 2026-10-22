@@ -109,7 +109,7 @@ func (s *ChatService) ForwardChatMessage(
 
 	targets := make([]chatForwardTarget, 0, len(targetIDs))
 	for _, id := range targetIDs {
-		room, err := s.authorizeRoomMember(ctx, userID, workspaceID, id)
+		room, err := s.authorizeRoom(ctx, userID, workspaceID, id)
 		if err != nil {
 			return nil, err
 		}
