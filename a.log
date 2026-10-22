@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -5; git fetch -q origin feature/UNI-923-office-g5-g6-g7 2>/dev/null; git merge-base HEAD FETCH_HEAD; true
+864101a00f019dc6dd2f0d274e45b076dbfb448b
+864101a00 refactor(documents): reword the ArchiveDocument comment for relocation
+121acf80b test(documents): answer archive-impact in the row-menu trash test
+990dec4a5 chore: merge the G5-G7 root 7f225212a into the UNI-2074 lane
+7f225212a chore: merge develop f26deea16 into the G5-G7 root
+f26deea16 UNI-2083: My Tasks phân trang board theo từng cột như /tasks (#398)
+7f225212a30636f4a78a81da8f544257bcc6085d

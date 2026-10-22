@@ -1,0 +1,7 @@
+$ NODE_OPTIONS=--max-old-space-size=6144 pnpm --filter @uniwork/views lint > /tmp/x.log 2>&1; rc=$?; tail -15 /tmp/x.log; echo; echo "VIEWS_LINT_EXIT=$rc"
+
+> @uniwork/views@0.0.0 lint /workspace/packages/views
+> eslint . --max-warnings 0
+
+
+VIEWS_LINT_EXIT=0

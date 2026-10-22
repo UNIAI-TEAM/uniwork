@@ -1,0 +1,5 @@
+$ pnpm --filter @uniwork/core test > /tmp/ct.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|ERROR|threshold" /tmp/ct.log | tail -15; echo; echo "CORE_TEST_EXIT=$rc"
+ Test Files  309 passed (309)
+      Tests  3573 passed (3573)
+
+CORE_TEST_EXIT=0
