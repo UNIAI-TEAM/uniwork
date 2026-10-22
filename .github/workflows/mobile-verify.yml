@@ -387,7 +387,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: unichat-calls-androidtest
-          path: apps/chat-mobile/**/outputs/apk/androidTest/debug/*.apk
+          # One directory, so the APK sits at the artifact's root where android-smoke installs it from: a `**` glob
+          # keeps the path below the common ancestor (modules/unichat-calls/android/build/...).
+          path: apps/chat-mobile/modules/unichat-calls/android/build/outputs/apk/androidTest/debug/*.apk
           if-no-files-found: error
           retention-days: 3
 
