@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Folder, Hash, Lock, Search, TriangleAlert, UserPlus } from "lucide-react";
+import { Archive, Folder, Hash, Image, Lock, Search, TriangleAlert, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -32,6 +32,7 @@ import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 import { toastChatError } from "./chat-error-message";
 import { canAdminChannel, isChatRoomModerator } from "./chat-room-moderation-utils";
 import { LeaveConversationSection } from "./leave-conversation-section";
+import { ChatWallpaperSheet } from "./chat-wallpaper-sheet";
 import { ChatGroupManageSection } from "./chat-group-manage-section";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 
@@ -92,6 +93,7 @@ export function ChannelSettingsSheet({
   const [busy, setBusy] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [wallpaperOpen, setWallpaperOpen] = useState(false);
   // What the viewer was heading to when the discard question interrupted:
   // confirming carries on there instead of just closing the sheet.
   const afterDiscardRef = useRef<(() => void) | null>(null);
@@ -219,6 +221,15 @@ export function ChannelSettingsSheet({
               />
             </section>
           ) : null}
+
+          <section className="py-0.5">
+            <ChatSettingsMenuRow
+              icon={Image}
+              label={t("chat.settings_wallpaper")}
+              hint={t("chat.settings_wallpaper_hint")}
+              onClick={() => setWallpaperOpen(true)}
+            />
+          </section>
 
           {!canAdmin ? (
             <ChannelSettingsReadonly
@@ -454,6 +465,7 @@ export function ChannelSettingsSheet({
             next?.();
           }}
         />
+        <ChatWallpaperSheet open={wallpaperOpen} onOpenChange={setWallpaperOpen} roomId={channel.id} />
       </SheetContent>
     </Sheet>
   );

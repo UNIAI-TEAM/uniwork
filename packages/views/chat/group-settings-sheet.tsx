@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BellOff, Pin, Search, Settings, StickyNote, Tag, UserPlus } from "lucide-react";
+import { Bell, BellOff, Image, Pin, Search, Settings, StickyNote, Tag, UserPlus } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
@@ -43,6 +43,7 @@ import { ChatGroupManageSection } from "./chat-group-manage-section";
 import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
 import { ChatRoomSharedTotals } from "./chat-room-shared-totals";
 import { ChatSetNicknameDialog } from "./chat-set-nickname-dialog";
+import { ChatWallpaperSheet } from "./chat-wallpaper-sheet";
 import { ChatRoomRenameDialog } from "./chat-room-rename-dialog";
 import { useChatRoomPreferences } from "./use-chat-room-preferences";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
@@ -116,6 +117,7 @@ export function GroupSettingsSheet({
   const [manageOpen, setManageOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [bulletinOpen, setBulletinOpen] = useState(false);
+  const [wallpaperOpen, setWallpaperOpen] = useState(false);
   const [nicknameTarget, setNicknameTarget] = useState<{ userId: string; label: string } | null>(null);
 
   const displayName = roomRecord?.name?.trim() || group.name;
@@ -261,6 +263,12 @@ export function GroupSettingsSheet({
                 }}
               />
             ) : null}
+            <ChatSettingsMenuRow
+              icon={Image}
+              label={t("chat.settings_wallpaper")}
+              hint={t("chat.settings_wallpaper_hint")}
+              onClick={() => setWallpaperOpen(true)}
+            />
           </ChatSettingsSection>
 
           <ChatRoomSharedTotals workspaceId={workspaceId} roomId={group.room_id} open={open} />
@@ -391,6 +399,7 @@ export function GroupSettingsSheet({
             currentName={displayName}
           />
         ) : null}
+        <ChatWallpaperSheet open={wallpaperOpen} onOpenChange={setWallpaperOpen} roomId={group.room_id} />
         {bulletinOpen ? (
           <ChatRoomBulletinSheet
             open={bulletinOpen}
