@@ -23,8 +23,6 @@ import (
 //	POST   /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members
 //	PATCH  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}
 //	DELETE /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}
-//	GET  /api/v1/workspaces/{workspaceID}/chat/messages
-//	POST /api/v1/workspaces/{workspaceID}/chat/messages
 //	GET  /api/v1/workspaces/{workspaceID}/chat/messages/search
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/around/{messageID}
