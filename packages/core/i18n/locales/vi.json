@@ -5979,6 +5979,12 @@
     "ask_about_document": "Hỏi UNI về tài liệu này",
     "ask_about_project": "Hỏi UNI về dự án này",
     "ask_about_room": "Hỏi UNI về cuộc trò chuyện này",
+    "placeholder_task": "Hỏi về task này…",
+    "placeholder_meeting": "Hỏi về cuộc họp này…",
+    "placeholder_document": "Hỏi về tài liệu này…",
+    "placeholder_project": "Hỏi về dự án này…",
+    "placeholder_room": "Hỏi về cuộc trò chuyện này…",
+    "page_chip": "Trang này: {{label}}",
     "model": {
       "label": "Chọn model",
       "auto": "Tự động",

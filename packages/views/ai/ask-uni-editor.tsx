@@ -242,6 +242,11 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
     editor?.setEditable(!disabled, false);
   }, [editor, disabled]);
 
+  // The placeholder is a decoration: an empty transaction redraws it when the text changes.
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr);
+  }, [editor, placeholder]);
+
   // A focus asked for before the editor existed lands once it does.
   useEffect(() => {
     if (!editor || !wantsFocus.current) return;

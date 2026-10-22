@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Square, X } from "lucide-react";
+import { ArrowUp, Square, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import type { AskUniInput } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useWorkspace } from "../layout/workspace-context";
+import { entityKindIcon } from "./ask-uni-entity";
 import { AskUniEditor, type AskUniEditorHandle, type AskUniQuestion } from "./ask-uni-editor";
 import { AskUniModelPicker, useAskModelSelection } from "./ask-uni-model-picker";
 import { AskUniScopePicker } from "./ask-uni-scope-picker";
@@ -16,9 +17,10 @@ const EMPTY: AskUniQuestion = { question: "", mentions: [] };
 
 type Focus = NonNullable<AskUniInput["focus"]> & { label: string };
 
-function Chip({ label, remove, onRemove }: { label: string; remove: string; onRemove: () => void }) {
+function Chip({ label, remove, onRemove, icon: Icon }: { label: string; remove: string; onRemove: () => void; icon?: LucideIcon }) {
   return (
     <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted pl-2.5 text-caption text-foreground">
+      {Icon ? <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
       <span className="truncate">{label}</span>
       {/* The primitive carries the 44px coarse-pointer target. */}
       <Button type="button" variant="ghost" size="icon-xs" aria-label={remove} className="rounded-full text-muted-foreground" onClick={onRemove}>
@@ -43,6 +45,9 @@ export function AskUniComposer({
   const conversationId = useAiPanelStore((s) => s.conversationId);
   const pendingFocus = useAiPanelStore((s) => s.pendingFocus);
   const clearPendingFocus = useAiPanelStore((s) => s.clearPendingFocus);
+  const page = useAiPanelStore((s) => s.page);
+  const pageDismissed = useAiPanelStore((s) => s.pageDismissed);
+  const dismissPage = useAiPanelStore((s) => s.dismissPage);
   const { model, effort } = useAskModelSelection(workspace.id);
 
   const box = useRef<AskUniEditorHandle>(null);
@@ -79,12 +84,18 @@ export function AskUniComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingFocus, clearPendingFocus]);
 
+  // A hand-picked focus wins over the page; a removed page chip stays off until another page.
+  const shownPage = !focus && page && `${page.kind}:${page.id}` !== pageDismissed ? page : null;
+  const sent = focus ?? shownPage;
+  const placeholderKind = sent?.kind;
+  const pageLabel = shownPage ? t("page_chip", { label: shownPage.label || kindLabel(shownPage.kind) }) : "";
+
   const send = ({ question, mentions }: AskUniQuestion) => {
     if (!question || streaming) return;
     onSend({
       question,
       conversation_id: conversationId ?? undefined,
-      focus: focus ? { kind: focus.kind, id: focus.id } : undefined,
+      focus: sent ? { kind: sent.kind, id: sent.id } : undefined,
       mentions,
       model,
       effort,
@@ -112,10 +123,23 @@ export function AskUniComposer({
             />
           </div>
         ) : null}
+        {shownPage ? (
+          <div className="flex flex-wrap gap-1.5">
+            <Chip
+              icon={entityKindIcon(shownPage.kind === "room" ? "chat" : shownPage.kind)}
+              label={pageLabel}
+              remove={t("scope.remove", { name: pageLabel })}
+              onRemove={() => {
+                dismissPage();
+                box.current?.focus();
+              }}
+            />
+          </div>
+        ) : null}
         <AskUniEditor
           ref={box}
           wsId={workspace.id}
-          placeholder={t("placeholder")}
+          placeholder={placeholderKind ? t(`placeholder_${placeholderKind}`, { defaultValue: t("placeholder") }) : t("placeholder")}
           maxMentions={MAX_MENTIONS}
           onSubmit={send}
           onChange={setDraft}

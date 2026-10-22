@@ -70,7 +70,7 @@ beforeEach(() => {
   resetAuthStoreForTests();
   requestMock.mockReset();
   requestMock.mockImplementation(composerRoutes);
-  useAiPanelStore.setState({ conversationId: "c1", workspaceId: "ws1", pendingFocus: null, open: true });
+  useAiPanelStore.setState({ conversationId: "c1", workspaceId: "ws1", pendingFocus: null, open: true, page: null, pageDismissed: null });
   useAskModelChoice.setState({ model: "", effort: "" });
 });
 
@@ -534,4 +534,43 @@ describe("AskUniComposer", () => {
     mount();
     expect(box()).toHaveFocus();
   });
+
+  describe("the open page", () => {
+    const setPage = () => act(() => useAiPanelStore.getState().setPage({ kind: "task", id: "t7", label: "Nộp app" }));
+
+    it("shows as a chip with a kind placeholder, and is sent as the focus", () => {
+      const { onSend } = mount();
+      setPage();
+      expect(screen.getByText("Trang này: Nộp app")).toBeInTheDocument();
+      expect(box()).toHaveAttribute("aria-placeholder", "Hỏi về task này…");
+      expect(box().querySelector("[data-placeholder]")).toHaveAttribute("data-placeholder", "Hỏi về task này…");
+      type("Còn vướng gì?");
+      key("Enter");
+      expect(onSend.mock.calls[0]![0].focus).toEqual({ kind: "task", id: "t7" });
+    });
+
+    it("the x removes it, and the next question has no focus", () => {
+      const { onSend } = mount();
+      setPage();
+      fireEvent.click(screen.getByRole("button", { name: "Bỏ phạm vi Trang này: Nộp app" }));
+      expect(screen.queryByText("Trang này: Nộp app")).toBeNull();
+      type("Hi");
+      key("Enter");
+      expect(onSend.mock.calls[0]![0].focus).toBeUndefined();
+    });
+
+    it("a hand-picked focus hides the page chip and wins; clearing it brings the page back", async () => {
+      const { onSend } = mount();
+      setPage();
+      fireEvent.click(screen.getByRole("button", { name: "Thêm phạm vi" }));
+      fireEvent.click(await screen.findByRole("option", { name: /Website/ }));
+      expect(screen.queryByText("Trang này: Nộp app")).toBeNull();
+      type("Hi");
+      key("Enter");
+      expect(onSend.mock.calls[0]![0].focus).toEqual({ kind: "project", id: "p1" });
+      fireEvent.click(screen.getByRole("button", { name: "Bỏ phạm vi Dự án: Website" }));
+      expect(screen.getByText("Trang này: Nộp app")).toBeInTheDocument();
+    });
+  });
+
 });

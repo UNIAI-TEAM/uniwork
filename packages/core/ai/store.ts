@@ -17,6 +17,10 @@ interface AiPanelStore {
   /** Full-page mode takes the whole main area; never persisted. */
   fullPage: boolean;
   workspaceId: string | null;
+  /** The object the open page shows; set by the page itself, never persisted. */
+  page: AskUniPanelFocus | null;
+  /** `kind:id` of a page whose chip the reader removed. */
+  pageDismissed: string | null;
   /** A conversation belongs to one workspace: switching workspace forgets the open one. */
   bindWorkspace: (wsId: string) => void;
   setOpen: (open: boolean) => void;
@@ -25,6 +29,9 @@ interface AiPanelStore {
   select: (conversationId: string | null) => void;
   openWithFocus: (focus: AskUniPanelFocus) => void;
   clearPendingFocus: () => void;
+  /** Moving to another object forgets the dismissal; a same-object update (a rename) keeps it. */
+  setPage: (page: AskUniPanelFocus | null) => void;
+  dismissPage: () => void;
 }
 
 export const useAiPanelStore = create<AiPanelStore>((set) => ({
@@ -33,6 +40,8 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
   pendingFocus: null,
   fullPage: false,
   workspaceId: null,
+  page: null,
+  pageDismissed: null,
   bindWorkspace: (wsId) =>
     set((s) =>
       s.workspaceId === wsId
@@ -46,4 +55,7 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
   select: (conversationId) => set({ conversationId }),
   openWithFocus: (focus) => set({ open: true, conversationId: null, pendingFocus: focus }),
   clearPendingFocus: () => set({ pendingFocus: null }),
+  setPage: (page) =>
+    set((s) => ({ page, pageDismissed: page && `${page.kind}:${page.id}` === s.pageDismissed ? s.pageDismissed : null })),
+  dismissPage: () => set((s) => ({ pageDismissed: s.page ? `${s.page.kind}:${s.page.id}` : null })),
 }));

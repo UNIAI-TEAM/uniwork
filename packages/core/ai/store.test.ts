@@ -43,3 +43,26 @@ describe("ai panel full page", () => {
     expect(useAiPanelStore.getState().fullPage).toBe(false);
   });
 });
+
+describe("ai panel page context", () => {
+  const T = { kind: "task", id: "t1", label: "A" } as const;
+  const U = { kind: "task", id: "t2", label: "B" } as const;
+  afterEach(() => useAiPanelStore.setState({ page: null, pageDismissed: null }));
+
+  it("a dismissed page stays dismissed on a same-key update and returns on another page", () => {
+    const s = useAiPanelStore.getState();
+    s.setPage(T);
+    s.dismissPage();
+    expect(useAiPanelStore.getState().pageDismissed).toBe("task:t1");
+    s.setPage({ ...T, label: "Renamed" });
+    expect(useAiPanelStore.getState()).toMatchObject({ page: { label: "Renamed" }, pageDismissed: "task:t1" });
+    s.setPage(U);
+    expect(useAiPanelStore.getState().pageDismissed).toBeNull();
+  });
+
+  it("setPage(null) clears the page", () => {
+    useAiPanelStore.getState().setPage(T);
+    useAiPanelStore.getState().setPage(null);
+    expect(useAiPanelStore.getState().page).toBeNull();
+  });
+});
