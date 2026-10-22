@@ -35,6 +35,11 @@ async function draw(extra: { onRead?: () => void; buttons?: RoomSwipeButton[]; o
       <Text>Bình</Text>
     </RoomSwipe>,
   );
+  // Let the threshold reaction see the row at rest first: it ticks on a change from not armed to armed, and on a
+  // loaded runner its first run could otherwise land after the whole drag (no "before"), which made the tick flaky.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
   return { ...view, onOpen };
 }
 
