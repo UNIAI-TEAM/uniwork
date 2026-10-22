@@ -441,6 +441,14 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
+	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/decline", h.SignalChatVoiceDecline, apiOp{
+		summary:     "Signal voice call decline",
+		description: "Người được gọi từ chối. Gọi 1-1: kết thúc cuộc gọi như hangup. Nhóm/kênh: cuộc gọi tiếp tục, chỉ ngừng đổ chuông cho người này ở mọi thiết bị.",
+		tags:        []string{"chat"},
+		sdi:         sdi.VoiceSignalSDI{},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
 	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recording/start", h.StartChatVoiceRecording, apiOp{
 		summary:     "Start chat voice recording",
 		description: "Bắt đầu ghi âm cuộc gọi thoại/video trong phòng chat (LiveKit Egress).",

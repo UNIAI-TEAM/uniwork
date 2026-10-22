@@ -782,6 +782,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/share-as-document": {body: isoIdem(nil, map[string]any{"share_level": "comment", "client_msg_id": "iso-share-as-doc"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/threads/{messageID}/messages":           {body: isoJSON(map[string]any{"body": "hello"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/accept":                           {body: isoWith(map[string]string{"call_id": "callID"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/decline":                          {body: isoWith(map[string]string{"call_id": "callID"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/hangup":                           {body: isoWith(map[string]string{"call_id": "callID"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/invite":                           {body: isoWith(map[string]string{"call_id": "callID"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recording/start":                  {body: isoWith(map[string]string{"call_id": "callID"}, nil)},

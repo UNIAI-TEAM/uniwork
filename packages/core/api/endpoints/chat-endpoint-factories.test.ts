@@ -161,6 +161,7 @@ const factoryCases: FactoryCase[] = [
   { name: "signalChatVoiceAccept", call: (r) => voice(r).signalChatVoiceAccept("w 1", "r1", "c1"), sent: [`${R}/voice/accept`, { method: "POST", body: { call_id: "c1" } }], good: { status: "ok" }, read: true, fallback: false },
   { name: "signalChatVoiceHangup", call: (r) => voice(r).signalChatVoiceHangup("w 1", "r1", "c1", 0), sent: [`${R}/voice/hangup`, { method: "POST", body: { call_id: "c1" } }], good: { status: "ok" }, read: true, fallback: false },
   { name: "signalChatVoiceHangup timed", call: (r) => voice(r).signalChatVoiceHangup("w 1", "r1", "c1", 42), sent: [`${R}/voice/hangup`, { method: "POST", body: { call_id: "c1", duration_seconds: 42 } }], good: { status: "ok" }, read: true, fallback: false },
+  { name: "signalChatVoiceDecline", call: (r) => voice(r).signalChatVoiceDecline("w 1", "r1", "c1"), sent: [`${R}/voice/decline`, { method: "POST", body: { call_id: "c1" } }], good: { status: "ok" }, read: true, fallback: false },
   { name: "signalChatTyping", call: (r) => voice(r).signalChatTyping("w 1", "r1"), sent: [`${R}/typing`, { method: "POST", body: {} }], good: { status: "ok" }, read: true, fallback: false },
 ];
 

@@ -59,6 +59,22 @@ func (h *handlers) signalChatVoiceHangup(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
 }
 
+func (h *handlers) signalChatVoiceDecline(w http.ResponseWriter, r *http.Request) {
+	var in sdi.VoiceSignalSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	err := h.Chat.SignalVoiceDecline(
+		r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), in.CallID,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
+
 func (h *handlers) listPendingChatVoiceInvites(w http.ResponseWriter, r *http.Request) {
 	invites, err := h.Chat.ListPendingVoiceInvites(
 		r.Context(),

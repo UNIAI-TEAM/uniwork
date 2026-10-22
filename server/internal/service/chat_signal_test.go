@@ -486,3 +486,91 @@ func TestAcceptOnAnotherNodeStillClosesTheRing(t *testing.T) {
 	}
 	_ = s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "call-same-node")
 }
+
+// Declining a group call (the phone's Decline from a closed app, review answer-path gaps) leaves the call going
+// for the others but stops it ringing for the one who declined: no pending invite, no more ring pushes, and one
+// ring_closed row that stops their other Android phones. A second decline, the caller's own, or a call this node
+// does not hold change nothing; in a DM, Decline is the hangup.
+func TestSignalVoiceDeclineStopsAGroupCallRingingForThatPersonOnly(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc, err := q.CreateUser(ctx, db.CreateUserParams{ID: util.NewID(), Email: "decline-c@example.com", DisplayName: "C", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addOrgMember(t, q, w.OrganizationID, uc.ID)
+	addWorkspaceMember(t, q, w.ID, uc.ID)
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "Decline", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	closedFor := func() []string {
+		var users []string
+		for _, p := range outboxPayloads(t, pool, "chat.voice.ring_closed") {
+			if p["call_id"] == "call-decline" {
+				users = append(users, p["user_id"])
+			}
+		}
+		return users
+	}
+	pendingFor := func(userID string) int {
+		pending, err := s.ListPendingVoiceInvites(ctx, userID, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, p := range pending {
+			if p.CallID == "call-decline" {
+				n++
+			}
+		}
+		return n
+	}
+
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "call-decline", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceDecline(ctx, ub.ID, w.ID, group.ID, "call-decline"); err != nil {
+		t.Fatal(err)
+	}
+	if s.VoiceCallRinging(group.ID, "call-decline", ub.ID) || pendingFor(ub.ID) != 0 {
+		t.Fatal("the call still rings for the person who declined it")
+	}
+	if !s.VoiceCallRinging(group.ID, "call-decline", uc.ID) || pendingFor(uc.ID) != 1 {
+		t.Fatal("a decline must not stop the call ringing for the others")
+	}
+	if got := closedFor(); !slices.Equal(got, []string{ub.ID}) {
+		t.Fatalf("ring_closed for %v, want the one who declined", got)
+	}
+	for _, u := range []string{ub.ID, ua.ID} {
+		if err := s.SignalVoiceDecline(ctx, u, w.ID, group.ID, "call-decline"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SignalVoiceDecline(ctx, uc.ID, w.ID, group.ID, "call-not-here"); err != nil {
+		t.Fatal(err)
+	}
+	if got := closedFor(); len(got) != 1 {
+		t.Fatalf("ring_closed for %v after repeated and empty declines, want still one", got)
+	}
+	if err := s.SignalVoiceDecline(ctx, uc.ID, w.ID, group.ID, ""); err == nil {
+		t.Fatal("a decline without a call id is invalid")
+	}
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-dm-decline", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceDecline(ctx, ub.ID, w.ID, dm.ID, "call-dm-decline"); err != nil {
+		t.Fatal(err)
+	}
+	if s.VoiceCallRinging(dm.ID, "call-dm-decline", ub.ID) {
+		t.Fatal("a declined DM call is over")
+	}
+	_ = s.SignalVoiceHangup(ctx, ua.ID, w.ID, group.ID, "call-decline")
+}

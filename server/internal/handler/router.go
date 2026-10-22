@@ -732,6 +732,7 @@ func New(d Deps) http.Handler {
 		SignalChatVoiceInvite:            h.signalChatVoiceInvite,
 		SignalChatVoiceAccept:            h.signalChatVoiceAccept,
 		SignalChatVoiceHangup:            h.signalChatVoiceHangup,
+		SignalChatVoiceDecline:           h.signalChatVoiceDecline,
 		StartChatVoiceRecording:          h.startChatVoiceRecording,
 		StopChatVoiceRecording:           h.stopChatVoiceRecording,
 		GetActiveChatVoiceRecording:      h.getActiveChatVoiceRecording,

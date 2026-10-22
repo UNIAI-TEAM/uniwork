@@ -5,7 +5,7 @@ import type { ChatRequest, ChatVoiceToken, PendingChatVoiceInvite } from "./chat
 
 /**
  * The call signalling endpoints (pending invites, LiveKit token, invite,
- * accept, hang up) and the typing signal over any transport: chat-voice.ts
+ * accept, hang up, decline) and the typing signal over any transport: chat-voice.ts
  * binds them to the web's, the phone (apps/chat-mobile, ADR 0011) to its own.
  * Recordings stay in chat-voice.ts: their playback reads a Blob through the
  * web transport.
@@ -57,6 +57,17 @@ export function createChatVoiceApi(request: ChatRequest) {
       return readStatusOk(
         request(`${room(workspaceId, roomId)}/voice/hangup`, { method: "POST", body }),
         "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/voice/hangup",
+      );
+    },
+
+    /**
+     * The callee says no. A 1-1 call ends as with a hangup; a group or channel call goes on without them and stops
+     * ringing on their other devices. Answered for a call that is not ringing for them too (nothing happens).
+     */
+    signalChatVoiceDecline(workspaceId: string, roomId: string, callId: string): Promise<boolean> {
+      return readStatusOk(
+        request(`${room(workspaceId, roomId)}/voice/decline`, { method: "POST", body: { call_id: callId } }),
+        "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/voice/decline",
       );
     },
 

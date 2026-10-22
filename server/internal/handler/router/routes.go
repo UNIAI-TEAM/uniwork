@@ -507,6 +507,7 @@ type Routes struct {
 	SignalChatVoiceInvite            http.HandlerFunc
 	SignalChatVoiceAccept            http.HandlerFunc
 	SignalChatVoiceHangup            http.HandlerFunc
+	SignalChatVoiceDecline           http.HandlerFunc
 	StartChatVoiceRecording          http.HandlerFunc
 	StopChatVoiceRecording           http.HandlerFunc
 	GetActiveChatVoiceRecording      http.HandlerFunc

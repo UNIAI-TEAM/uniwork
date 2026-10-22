@@ -130,6 +130,33 @@ func (s *ChatService) SignalVoiceHangup(
 	return errors.Join(logErr, pubErr)
 }
 
+// SignalVoiceDecline is a callee saying no to a call that rings for them. In
+// a DM it is the hangup: the call ends for both, as the call screen's own
+// Decline does. In a group or channel the call goes on without them: the
+// session remembers it, so the pending list and the ring pushes leave them
+// out, and their ring row closes with a ring_closed row that stops their
+// other Android phones. A call this node does not hold, the caller, or
+// someone already in the call or already declined has nothing to decline: no
+// error and nothing sent, so a retried decline from a phone is harmless.
+func (s *ChatService) SignalVoiceDecline(ctx context.Context, userID, workspaceID, roomID, callID string) error {
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return err
+	}
+	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, false)
+	if err != nil {
+		return err
+	}
+	if !voiceCallMultiPartyKind(room.Kind) {
+		return s.SignalVoiceHangup(ctx, userID, workspaceID, roomID, callID)
+	}
+	if !trackVoiceCallDecline(room.ID, callID, userID) {
+		return nil
+	}
+	s.closeVoiceCallRings(ctx, room, callID, userID, []string{userID})
+	return nil
+}
+
 // SignalTyping broadcasts a typing indicator for a chat room.
 func (s *ChatService) SignalTyping(ctx context.Context, userID, workspaceID, roomID string) error {
 	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
