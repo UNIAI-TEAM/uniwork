@@ -123,10 +123,10 @@ type AskStreamFollowupsDTO struct {
 }
 
 // AskStreamTitleDTO is the data of event title, sent after done when UNI named
-// a new conversation.
+// a new conversation; the stream may stay open briefly for it.
 type AskStreamTitleDTO struct {
 	ConversationID string `json:"conversation_id" description:"Hội thoại vừa được UNI đặt tên" example:"01J8Z3Q4X5Y6A7B8C9D0E1F2G3"`
-	Title          string `json:"title" description:"Tên ngắn UNI đặt cho hội thoại, tối đa 40 ký tự" example:"Việc trễ dự án Q4"`
+	Title          string `json:"title" description:"Tên ngắn UNI đặt cho hội thoại, tối đa 40 ký tự. Khung này đến sau done; luồng có thể mở thêm một lúc để chờ nó" example:"Việc trễ dự án Q4"`
 }
 
 // AskStreamUsageDTO is the tokens of a streamed turn.

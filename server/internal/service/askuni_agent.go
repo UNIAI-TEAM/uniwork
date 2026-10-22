@@ -324,6 +324,17 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			panic(p)
 		}
 	}()
+	// The name comes last, once the run slot below is free (defers run in
+	// reverse): a slow title call never keeps an organization's slot.
+	var nameWith string
+	defer func() {
+		if nameWith == "" || err != nil || ctx.Err() != nil {
+			return
+		}
+		if title, ok := s.generateTitle(ctx, Human(userID), w.OrganizationID, w.ID, conv.ID, question, nameWith); ok {
+			emit.emit(AskEvent{Name: "title", Title: &AskTitleEvent{ConversationID: conv.ID, Title: title}})
+		}
+	}()
 	release, err := s.agentRuns.Acquire(ctx, w.OrganizationID)
 	if err != nil {
 		outcome = "busy"
@@ -343,9 +354,11 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	if err != nil {
 		return AskResult{}, err
 	}
-	// A conversation with nothing stored yet gets its name from this answer; a
-	// regenerate always has an answer already.
-	first := len(rows) == 0 && base.Regenerates == ""
+	// A conversation with no stored answer yet gets its name from this one (a
+	// refused or failed turn stored only a notice); a regenerate never does.
+	first := base.Regenerates == "" && !slices.ContainsFunc(rows, func(r db.AiMessage) bool {
+		return r.Role == "assistant" && r.Content != "" && r.Notice.String == ""
+	})
 	if base.Regenerates != "" {
 		// The model sees the conversation as it was before the question it
 		// answers again: neither that question nor the old answer.
@@ -572,11 +585,8 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		answer, followups = splitFollowups(answer)
 	}
 	res, err = s.finishAgent(sctx, emit, res, w, conv, base, answer, "", agentCitations(answer, book), resp.UsageEventID, steps, followups)
-	if err == nil && first && in.Dock && ctx.Err() == nil {
-		// After done, so the answer is never held back by the name.
-		if title, ok := s.generateTitle(ctx, Human(userID), w.OrganizationID, w.ID, conv.ID, question, answer); ok {
-			emit.emit(AskEvent{Name: "title", Title: &AskTitleEvent{ConversationID: conv.ID, Title: title}})
-		}
+	if first && in.Dock {
+		nameWith = answer
 	}
 	return res, err
 }

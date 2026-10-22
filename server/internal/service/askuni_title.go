@@ -23,13 +23,23 @@ const (
 // cleanTitle is the model's reply as a one-line title: no surrounding quotes
 // or trailing sentence marks, single spaces, at most askGenTitleMax runes.
 func cleanTitle(raw string) string {
-	t := strings.Join(strings.Fields(raw), " ")
-	t = strings.Trim(t, "\"'“”«» ")
-	t = strings.TrimRight(t, ".!?: ")
-	if r := []rune(t); len(r) > askGenTitleMax {
-		t = strings.TrimSpace(string(r[:askGenTitleMax]))
+	t := strings.Join(strings.Fields(sourceRef.ReplaceAllString(raw, "")), " ")
+	if r := []rune(trimTitle(t)); len(r) > askGenTitleMax {
+		t = string(r[:askGenTitleMax])
 	}
-	return t
+	return trimTitle(t)
+}
+
+// trimTitle strips quotes, sentence marks and spaces from both ends until
+// nothing more comes off: `"Việc trễ".` is `Việc trễ`.
+func trimTitle(t string) string {
+	for {
+		n := strings.TrimRight(strings.Trim(t, "\"'“”«» "), ".!?: ")
+		if n == t {
+			return t
+		}
+		t = n
+	}
 }
 
 // generateTitle names a conversation after its first answer with one short

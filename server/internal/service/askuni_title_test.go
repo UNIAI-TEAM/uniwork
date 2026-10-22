@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
@@ -217,5 +218,65 @@ func TestNoticeAnswerDoesNotName(t *testing.T) {
 	}
 	if res.Message.Notice.String == "" || *calls != 0 {
 		t.Fatalf("notice %q, title calls %d", res.Message.Notice.String, *calls)
+	}
+}
+
+func TestTitleCallRunsAfterTheRunSlotIsFree(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	s.agentRuns = newUniworkConcurrency(nil, "ai:ask:", askAgentPodMax, 1, askAgentGlobalMax, time.Minute)
+	titleScript(fake, "Có 1 việc [S1]", "Tên", nil)
+	inner := fake.Reply
+	inTitle, unblock := make(chan struct{}), make(chan struct{})
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		if strings.Contains(req.System, "Name this conversation") {
+			close(inTitle)
+			<-unblock
+		}
+		return inner(req)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi", Dock: true})
+		done <- err
+	}()
+	<-inTitle
+	release, err := s.agentRuns.Acquire(context.Background(), w.OrganizationID)
+	if err != nil {
+		t.Errorf("the title call holds the organization's run slot: %v", err)
+	} else {
+		release()
+	}
+	close(unblock)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNoticeOnlyFirstTurnLeavesTheNamingToTheNextAnswer(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	answer := ""
+	calls := titleScript(fake, "", "Tên sau", nil)
+	inner := fake.Reply
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		if !strings.Contains(req.System, "Name this conversation") && req.Messages[len(req.Messages)-1].Role != "tool" && answer == "" {
+			return provider.CompletionResponse{Text: "", UsagePresent: true, InputTokens: 1, StopReason: "end_turn"}
+		}
+		return inner(req)
+	}
+	first, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Lượt một", Locale: "vi", Dock: true})
+	if err != nil || first.Message.Notice.String == "" || *calls != 0 {
+		t.Fatalf("turn 1: err %v notice %q title calls %d", err, first.Message.Notice.String, *calls)
+	}
+	answer = "ok"
+	scriptAgent(fake, "x", "Có rồi [S1]")
+	titleScript(fake, "Có rồi [S1]", "Tên sau", nil)
+	res, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: "Lượt hai", Locale: "vi", Dock: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if conv := convRow(t, s, res.ConversationID); conv.Title != "Tên sau" || conv.TitleSource != "generated" {
+		t.Fatalf("conversation %q / %q", conv.Title, conv.TitleSource)
 	}
 }
