@@ -197,7 +197,7 @@ describe("Recent on the approved recent-canvas layout (UNI-2045 W14)", () => {
   });
 
   it("hides the Mở tiếp row on an empty list and while a filter is on", async () => {
-    route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("format") === "pdf" ? [] : rows) });
+    route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("type") === "pdf" ? [] : rows) });
     renderView("/?view=recent");
     await screen.findByRole("region", { name: t("documents.recent.continue_title") });
     await pickTypeFilter("docx");

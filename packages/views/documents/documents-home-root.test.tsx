@@ -302,7 +302,7 @@ describe("home root empty states", () => {
   });
 
   it("keeps the no-results state, distinct from both empty copies, when a type filter matches nothing", async () => {
-    route({ ...withFolder, list: (path) => (queryOf(path).get("format") === "pdf" ? [] : [file("d1", "Kế hoạch Q4")]) });
+    route({ ...withFolder, list: (path) => (queryOf(path).get("type") === "pdf" ? [] : [file("d1", "Kế hoạch Q4")]) });
     renderView();
     await screen.findByText("Kế hoạch Q4");
 

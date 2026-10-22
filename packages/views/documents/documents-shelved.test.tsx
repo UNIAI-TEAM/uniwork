@@ -262,7 +262,7 @@ describe("shelved nav + list", () => {
     expect(within(third).getAllByText(t("documents.shelved_list.shelved_by_system")).length).toBeGreaterThan(0);
   });
 
-  it("sends the type filter as format= and re-fetches", async () => {
+  it("sends the type filter as type= and re-fetches", async () => {
     route({ list: () => [shelved()] });
     renderView();
     await openShelved();
@@ -270,7 +270,7 @@ describe("shelved nav + list", () => {
 
     await pickTypeFilter("docx");
     await waitFor(() =>
-      expect(shelvedRequests().some((path) => query(path).get("format") === "docx")).toBe(true),
+      expect(shelvedRequests().some((path) => query(path).get("type") === "docx")).toBe(true),
     );
     expect(shelvedRequests().every((path) => query(path).get("shelved") === "true")).toBe(true);
   });

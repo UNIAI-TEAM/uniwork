@@ -74,7 +74,10 @@ function byType(path: string) {
 function route(list: (path: string) => unknown[] = byType) {
   requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
     const p = String(path);
-    if (p.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+    if (p.startsWith(`${LIST_BASE}/tree`)) {
+      return Promise.resolve({ documents: [{ id: "fo1", title: "Dự án", kind: "folder", position: 0, children: [] }] });
+    }
+    if (p.startsWith("/api/v1/documents/fo1")) return Promise.resolve({ document: doc("fo1", { kind: "folder", title: "Dự án" }) });
     if (p === `/api/v1/orgs/${ORG}/documents/favorites`) return Promise.resolve({ favorites: [] });
     if (p.startsWith(`/api/v1/workspaces/${WS}/members`)) return Promise.resolve({ members: [] });
     if (p.startsWith(`${LIST_BASE}/sources`)) return Promise.resolve({ items: [], next_cursor: null });

@@ -122,15 +122,15 @@ beforeEach(() => {
 });
 
 describe("type chip over paged lists (M2)", () => {
-  it("filters on the server: the chip becomes ?format=, pages restart at the cursor base, and load more keeps filtering", async () => {
+  it("filters on the server: the pick becomes ?type=, pages restart at the cursor base, and load more keeps filtering", async () => {
     route({
       list: (path) => {
-        const format = queryOf(path).get("format");
+        const format = queryOf(path).get("type");
         if (format === "xlsx") return queryOf(path).get("cursor") === "x2" ? [file("x2", "Thêm.xlsx")] : [];
         return queryOf(path).get("cursor") === "c2" ? [summary({ id: "d2" })] : [summary(), file("f1", "Báo giá.docx")];
       },
       cursor: (path) => {
-        const format = queryOf(path).get("format");
+        const format = queryOf(path).get("type");
         if (format === "xlsx") return queryOf(path).get("cursor") === "x2" ? null : "x2";
         return queryOf(path).get("cursor") === "c2" ? null : "c2";
       },
@@ -143,7 +143,7 @@ describe("type chip over paged lists (M2)", () => {
     await pickTypeFilter("xlsx");
     expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
     expect(screen.queryByText(t("documents.home.no_matches_more_description"))).toBeNull();
-    const filteredCalls = requestMock.mock.calls.filter(([path]) => queryOf(String(path)).get("format") === "xlsx");
+    const filteredCalls = requestMock.mock.calls.filter(([path]) => queryOf(String(path)).get("type") === "xlsx");
     expect(filteredCalls.length).toBeGreaterThan(0);
     expect(filteredCalls.every(([path]) => !queryOf(String(path)).get("cursor"))).toBe(true);
 
@@ -156,7 +156,7 @@ describe("type chip over paged lists (M2)", () => {
   it("shows the filtered-empty line pointing at the Tạo nhanh strip, with no Load more once exhausted", async () => {
     // The chip is a server filter (UNI-1868), so the fixture answers an empty
     // page for format=pdf the way the real server would.
-    route({ list: (path) => (queryOf(path).get("format") === "pdf" ? [] : [summary()]) });
+    route({ list: (path) => (queryOf(path).get("type") === "pdf" ? [] : [summary()]) });
     renderView();
     await screen.findByText("Kế hoạch Q4");
     await pickTypeFilter("pdf");

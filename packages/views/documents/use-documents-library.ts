@@ -15,14 +15,12 @@ import {
 } from "@uniwork/core/documents/hooks-collections";
 import { isEndpointMissing, useDocumentSources } from "@uniwork/core/documents/hooks-library";
 import type { DocumentSourceType } from "@uniwork/core/documents/sources-schema";
-import type { DocumentFileFormat, DocumentList, DocumentTreeNode } from "@uniwork/core/types/document";
+import type { DocumentList, DocumentTreeNode } from "@uniwork/core/types/document";
 import { myFolderFirst } from "./document-tree-model";
 import type { LibraryView } from "./documents-sidebar";
 import {
   editorFilterId,
   matchesMeta,
-  matchesTypes,
-  typeFilterQuery,
   updatedFilterSince,
   type ActivityFilter,
   type EditorFilter,
@@ -30,7 +28,7 @@ import {
 } from "./doclist/filters";
 import { docListSpec } from "./doclist/columns";
 import { docListScreenOfView } from "./doclist/live-screen";
-import { documentRow, matchesChip, sourceRow, type DocumentTypeFilter, type LibraryRow } from "./library-rows";
+import { documentRow, matchesTypes, sourceRow, type DocumentTypeFilter, type LibraryRow } from "./library-rows";
 import {
   mergeSorted,
   nextSort,
@@ -119,7 +117,7 @@ export interface UseDocumentsLibraryInput {
   view: LibraryView;
   folderId: string | null;
   /** The Loại picks; none = every type. */
-  types: readonly DocumentTypeFilter[];
+  types: DocumentTypeFilter[];
   /** Member display names by user id: the Người sửa column sorts by name, and only the client can look them up. */
   editorNames?: EditorNames;
 }
@@ -139,10 +137,12 @@ export interface UseDocumentsLibraryInput {
  * `sortedOnServer` below.
  */
 export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, types, editorNames = NO_EDITOR_NAMES }: UseDocumentsLibraryInput) {
-  const { chip, narrowOnClient } = typeFilterQuery(types);
   const home = view.kind === "home";
-  const sourceType = SOURCE_TYPES.has(chip) ? (chip as DocumentSourceType) : undefined;
-  const sourcesWanted = chip !== "page" && ((home && !folderId) || view.kind === "sources");
+  // The Type picks go to every list route as the repeated `type` parameter (UNI-2113). The
+  // sources route takes one `type`, so two or more picks are narrowed on its rows only (below).
+  const typeParam = types.length > 0 ? types : undefined;
+  const sourceType = types.length === 1 && SOURCE_TYPES.has(types[0]!) ? (types[0] as DocumentSourceType) : undefined;
+  const sourcesWanted = (types.length === 0 || types.some((type) => type !== "page")) && ((home && !folderId) || view.kind === "sources");
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const [lastUserId, setLastUserId] = useState<string | null>(userId);
   const [editor, setEditor] = useState<EditorFilter>("any");
@@ -199,9 +199,6 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
   const own = docListSpec(screen).defaultSort;
   const ownOrder = sort.column === own.key && sort.order === own.order;
 
-  // The server-side pair of the type chips (UNI-1868): the file chips become
-  // `format` and "UniNote" keeps `kind=page`. The trash has no filter bar.
-  const serverFormat = SOURCE_TYPES.has(chip) ? (chip as DocumentFileFormat) : undefined;
   const archived = view.kind === "archived";
   const shelvedView = view.kind === "shelved";
   const [shelvedBy, setShelvedBy] = useState<string | null>(null);
@@ -224,55 +221,49 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
       // list to that level (Main.dc, TV-3 option A). A folder is loaded in
       // full and filtered here, so its request carries no filter.
       ...(home ? { parentId: folderId ?? "" } : {}),
-      ...(homeRoot && chip === "page" ? { kind: "page" as const } : {}),
-      ...(homeRoot && serverFormat ? { format: serverFormat } : {}),
+      ...(typeParam ? { types: typeParam } : {}),
       ...(homeRoot && editorId ? { updatedBy: editorId } : {}),
       ...(homeRoot && updatedSince ? { updatedFrom: updatedSince } : {}),
       ...(homeRoot ? serverSort : {}),
     }),
-    [home, folderId, homeRoot, chip, editorId, updatedSince, serverFormat, serverSort],
+    [home, folderId, homeRoot, typeParam, editorId, updatedSince, serverSort],
   );
   const homeQuery = useDocumentList(wsId, listFilter, { enabled: enabled && home });
   const folderAutoPaging = useLoadInFull(homeQuery, enabled && home && Boolean(folderId));
   // Có gắn sao (UNI-2045 SV-2): the workspace's starred rows as full list rows
   // with `favorited_at`, loaded in full and then filtered and sorted here like
-  // an open folder; it sends no filter or sort (Ngày gắn sao is ordered here).
-  const starredQuery = useWorkspaceFavoriteDocuments(wsId, { enabled: enabled && view.kind === "starred" });
+  // an open folder; it sends the Type picks but no other filter or sort (Ngày gắn sao is ordered here).
+  const starredQuery = useWorkspaceFavoriteDocuments(wsId, { enabled: enabled && view.kind === "starred", types: typeParam });
   const starredAutoPaging = useLoadInFull(starredQuery, enabled && view.kind === "starred");
   // Thùng rác: always `deleted` ascending (UNI-2045 Q2), fixed by the endpoint.
-  // Thùng rác has no filter bar (the page passes chip "all").
-  const archivedQuery = useTrashedDocuments(wsId, {
-    enabled: enabled && archived,
-    kind: chip === "page" ? "page" : undefined,
-    format: serverFormat,
-  });
-  // ARCHIVE-01 U-2: the shelved list takes `format` and Người sửa / Cập nhật
-  // server-side (SV-8; Cập nhật windows shelved_at there); the "UniNote" chip
-  // and the "Lưu trữ bởi" member filter stay on the client (the endpoint has
-  // no `kind` or `shelved_by` parameter, and `updated_by` is the last editor,
-  // not who shelved it).
+  // Thùng rác has no filter bar (the page passes no types).
+  const archivedQuery = useTrashedDocuments(wsId, { enabled: enabled && archived, types: typeParam });
+  // ARCHIVE-01 U-2: the shelved list takes the Type picks and Người sửa / Cập nhật
+  // server-side (SV-8; Cập nhật windows shelved_at there); the "Lưu trữ bởi"
+  // member filter stays on the client (the endpoint has no `shelved_by`
+  // parameter, and `updated_by` is the last editor, not who shelved it).
   const shelvedQuery = useShelvedDocuments(wsId, {
     enabled: enabled && shelvedView,
-    format: serverFormat,
+    types: typeParam,
     ...serverMeta,
     ...serverSort,
   });
   const recentQuery = useRecentDocuments(wsId, {
     enabled: enabled && view.kind === "recent",
-    format: serverFormat,
+    types: typeParam,
     ...serverMeta,
     activity: activity === "all" ? undefined : activity,
     ...serverSort,
   });
   const sharedQuery = useSharedWithMe(wsId, {
     enabled: enabled && view.kind === "shared",
-    format: serverFormat,
+    types: typeParam,
     ...serverMeta,
     ...serverSort,
   });
   const sharedByMeQuery = useSharedByMe(wsId, {
     enabled: enabled && view.kind === "sharedByMe",
-    format: serverFormat,
+    types: typeParam,
     ...serverMeta,
     ...serverSort,
   });
@@ -289,7 +280,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
   const sourcesQuery = useDocumentSources(wsId, sourceFilter, { enabled });
   const sourcesMissing = sourcesQuery.isError && isEndpointMissing(sourcesQuery.error);
   // Availability is "the API has answered for this workspace", not "the query
-  // for the current chip has data": a chip change swaps the query key, and the
+  // for the current picks has data": a change of picks swaps the query key, and the
   // sidebar section must not unmount while the new one loads.
   const [answeredFor, setAnsweredFor] = useState<string | null>(null);
   if (Boolean(sourcesQuery.data) && !sourcesMissing && answeredFor !== wsId) setAnsweredFor(wsId);
@@ -364,30 +355,26 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
     }
   }
 
-  // What the server could not filter (UNI-1868, UNI-2045 W10): the lists
-  // loaded in full (an open folder, Có gắn sao) and the sources view run the
-  // chip, Người sửa and Cập nhật predicates on every row, and a merged home on
-  // its source rows only — a document row there is the server's answer.
-  // Recent and both Shared lists take `format` but no `kind`, so the
-  // "UniNote" chip there is narrowed on the client, and the empty state says
-  // "in what is loaded". A merged home counts only while source rows actually
-  // merged — an empty sources answer leaves the doc list fully server-filtered.
+  // What the server could not filter (UNI-2045 W10): the lists loaded in full
+  // (an open folder, Có gắn sao) and the sources view run the Người sửa and
+  // Cập nhật predicates on every row, and a merged home on its source rows
+  // only — a document row there is the server's answer. The Type picks are the
+  // server's everywhere except two or more of them on source rows (the sources
+  // route takes one `type`): those rows are narrowed here, and the empty state
+  // says "in what is loaded". A merged home counts only while source rows
+  // actually merged — an empty sources answer leaves the doc list fully server-filtered.
   const mergedHome = Boolean(homeRoot && sourcesWanted && sourcesAvailable && sourceRows.length > 0);
   const loadedInFull = view.kind === "starred" || view.kind === "sources" || folderView;
-  const pageChipOnListWithoutKind =
-    chip === "page" && (view.kind === "recent" || view.kind === "shared" || view.kind === "sharedByMe" || shelvedView);
   // The "Lưu trữ bởi" member filter is always client-side: the server has no
   // shelved_by parameter, so it narrows only the loaded pages (Q-UI2).
   const memberFiltered = shelvedView && shelvedBy !== null;
-  const clientFiltered = loadedInFull || mergedHome || pageChipOnListWithoutKind || memberFiltered || narrowOnClient;
+  const clientFiltered = loadedInFull || mergedHome || memberFiltered;
   const filtered = state.rows.filter((row) => {
     if (memberFiltered && (row.type !== "document" || (row.doc.shelved_by ?? SHELVED_BY_SYSTEM) !== shelvedBy)) return false;
-    // Two or more types: the server was sent none (typeFilterQuery), so every row is narrowed here.
-    if (narrowOnClient && !matchesTypes(row, types)) return false;
-    // Only the type predicate runs on the server-paged lists: the server applied the rest there.
-    if (pageChipOnListWithoutKind) return matchesChip(row, chip);
+    // Two or more picks: the sources route took none, so its rows are narrowed here.
+    if (row.type === "source" && !matchesTypes(row, types)) return false;
     const clientSide = loadedInFull || (mergedHome && row.type === "source");
-    return !clientSide || (matchesChip(row, chip) && matchesMeta(row, editorId, updated.since));
+    return !clientSide || matchesMeta(row, editorId, updated.since);
   });
   const rows = sortedOnClient ? sortRows(filtered, sort, editorNames) : filtered;
   // The member filter's options: the distinct shelved_by ids the loaded rows
@@ -434,7 +421,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
     /** Gần đây's Tất cả / Đã mở / Đã sửa. */
     activity,
     setActivity,
-    /** Người sửa, Cập nhật, the segment and "Lưu trữ bởi" back to their defaults (the type chip is the page's). */
+    /** Người sửa, Cập nhật, the segment and "Lưu trữ bởi" back to their defaults (the type picks are the page's). */
     clearFilters,
     /** The header sort of the open screen for the table; absent in the trash, whose order is fixed. */
     sortControl: screen === "trash" ? undefined : { value: sort, onSort },

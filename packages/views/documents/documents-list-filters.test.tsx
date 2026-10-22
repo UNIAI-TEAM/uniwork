@@ -101,7 +101,7 @@ interface Routes {
   sourcesCursor?: (path: string) => string | null;
   favorites?: () => unknown[];
   /** The Starred screen's rows, GET {LIST_BASE}/favorites (UNI-2045 SV-2). */
-  starred?: () => unknown[];
+  starred?: (path: string) => unknown[];
   detail?: (id: string) => unknown;
 }
 
@@ -117,7 +117,7 @@ function route(routes: Routes) {
     };
     if (path.startsWith(TREE_URL)) return run(() => ({ documents: routes.tree?.() ?? [] }));
     if (path === FAVORITES_URL) return run(() => ({ favorites: routes.favorites?.() ?? [] }));
-    if (path.startsWith(`${LIST_BASE}/favorites`)) return run(() => ({ documents: routes.starred?.() ?? [], next_cursor: null }));
+    if (path.startsWith(`${LIST_BASE}/favorites`)) return run(() => ({ documents: routes.starred?.(path) ?? [], next_cursor: null }));
     if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") {
       return run(() => ({ items: routes.sources?.(path) ?? [], next_cursor: routes.sourcesCursor?.(path) ?? null }));
     }
@@ -165,34 +165,34 @@ beforeEach(() => {
   });
 });
 
-describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
-  it("sends format on the home list, restarts at page 1 on a chip change, and never re-sends an old cursor", async () => {
+describe("server-side type and editor filters (UNI-1868, UNI-2113, UNI-2045 W10)", () => {
+  it("sends type on the home list, restarts at page 1 on a pick, and never re-sends an old cursor", async () => {
     route({
       list: (path) => {
-        const format = queryOf(path).get("format");
+        const format = queryOf(path).get("type");
         if (format === "xlsx") return [file("x1", "Số liệu.xlsx")];
         if (format) return [];
         return queryOf(path).get("cursor") === "c2" ? [summary({ id: "d2", title: "Trang hai" })] : [summary(), file("f1", "Báo giá.docx")];
       },
-      cursor: (path) => (queryOf(path).get("cursor") === "c2" || queryOf(path).get("format") ? null : "c2"),
+      cursor: (path) => (queryOf(path).get("cursor") === "c2" || queryOf(path).get("type") ? null : "c2"),
     });
     renderView();
     await pickTypeFilter("xlsx");
     expect(await screen.findByText("Số liệu.xlsx")).toBeInTheDocument();
     expect(screen.queryByText("Báo giá.docx")).toBeNull();
     expect(screen.queryByText("Trang hai")).toBeNull();
-    const filtered = listCalls().filter((path) => queryOf(path).get("format") === "xlsx");
+    const filtered = listCalls().filter((path) => queryOf(path).get("type") === "xlsx");
     expect(filtered.length).toBeGreaterThan(0);
     expect(filtered.every((path) => !queryOf(path).get("cursor"))).toBe(true);
   });
 
-  it("sends kind=page for the Trang chip and both filters together for chip + Người sửa", async () => {
+  it("sends type=page for UniNote and both filters together for type + Người sửa", async () => {
     route({ list: () => [summary()] });
     renderView();
     await screen.findByText("Kế hoạch Q4");
-    // kind=page goes to the main list only.
+    // type=page goes to the main list only.
     await pickTypeFilter("page");
-    await waitFor(() => expect(listCalls().some((path) => queryOf(path).get("kind") === "page")).toBe(true));
+    await waitFor(() => expect(listCalls().some((path) => queryOf(path).get("type") === "page")).toBe(true));
 
     fireEvent.click(await scopeTab("recent"));
     await pickTypeFilter("docx");
@@ -201,19 +201,19 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
       expect(
         listCalls().some((path) => {
           const q = queryOf(path);
-          return path.startsWith(`${LIST_BASE}/recent`) && q.get("format") === "docx" && q.get("updated_by") === "u1";
+          return path.startsWith(`${LIST_BASE}/recent`) && q.get("type") === "docx" && q.get("updated_by") === "u1";
         }),
       ).toBe(true),
     );
   });
 
-  it("sends format and Người sửa on recent, shared-with-me and shared-by-me, and parent_id in an open folder", async () => {
+  it("sends type and Người sửa on recent, shared-with-me and shared-by-me, and parent_id with the type in an open folder", async () => {
     route({
       // Folder cards on home come from the tree, not the document list.
       tree: () => [{ id: "fo1", title: "Dự án CCB", kind: "folder", position: 0, children: [] }],
       detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
       list: (path) => {
-        const format = queryOf(path).get("format");
+        const format = queryOf(path).get("type");
         if (path.startsWith(`${LIST_BASE}/recent`)) return [format === "docx" ? file("r2", "Gần đây.docx") : summary({ id: "r1", title: "Mở gần đây" })];
         if (path.startsWith(`${LIST_BASE}/shared-with-me`)) return [format === "docx" ? file("s2", "Chia sẻ.docx") : summary({ id: "s1", title: "Được chia sẻ" })];
         if (queryOf(path).get("shared_by_me") === "true") return [format === "docx" ? file("sbm2", "Tôi chia sẻ.docx") : summary({ id: "sbm1", title: "Tôi chia sẻ" })];
@@ -229,7 +229,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
     await pickTypeFilter("docx");
     await waitFor(() =>
       expect(
-        listCalls().some((path) => path.startsWith(`${LIST_BASE}/recent`) && queryOf(path).get("format") === "docx"),
+        listCalls().some((path) => path.startsWith(`${LIST_BASE}/recent`) && queryOf(path).get("type") === "docx"),
       ).toBe(true),
     );
     expect(await screen.findByText("Gần đây.docx")).toBeInTheDocument();
@@ -244,7 +244,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
       expect(
         listCalls().some((path) => {
           const q = queryOf(path);
-          return path.startsWith(`${LIST_BASE}/shared-with-me`) && q.get("format") === "docx" && q.get("updated_by") === "u1";
+          return path.startsWith(`${LIST_BASE}/shared-with-me`) && q.get("type") === "docx" && q.get("updated_by") === "u1";
         }),
       ).toBe(true),
     );
@@ -258,20 +258,23 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
       expect(
         listCalls().some((path) => {
           const q = queryOf(path);
-          return q.get("shared_by_me") === "true" && !q.has("parent_id") && q.get("format") === "docx" && q.get("updated_by") === "u1";
+          return q.get("shared_by_me") === "true" && !q.has("parent_id") && q.get("type") === "docx" && q.get("updated_by") === "u1";
         }),
       ).toBe(true),
     );
     expect(await screen.findByText("Tôi chia sẻ.docx")).toBeInTheDocument();
 
     // The open folder's list is the same endpoint keyed by parent_id; it is
-    // loaded in full and filtered on the client, so parent_id is the only
-    // param to assert.
+    // loaded in full, and the server filters it by the picked types.
     fireEvent.click(await scopeTab("home"));
     // The name appears on both the folder card and the sidebar tree; the
     // card is the clickable one here.
     fireEvent.click((await screen.findAllByText("Dự án CCB"))[0]!);
     await waitFor(() => expect(listCalls().some((path) => queryOf(path).get("parent_id") === "fo1")).toBe(true));
+    await pickTypeFilter("xlsx");
+    await waitFor(() => expect(listCalls().some((path) => queryOf(path).get("parent_id") === "fo1" && queryOf(path).get("type") === "xlsx")).toBe(true));
+    expect(await screen.findByText("Trong thư mục.xlsx")).toBeInTheDocument();
+    expect(screen.queryByText("Trong thư mục.docx")).toBeNull();
   });
 
   const matchesScopeEndpoint = (path: string, endpoint: string) =>
@@ -281,10 +284,11 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
     ["recent", "recent"],
     ["shared", "shared-with-me"],
     ["shared_by_me", "shared-by-me"],
-  ])("keeps only pages under the Trang chip on %s, filtered on the client (no kind param exists there)", async (scope, endpoint) => {
+  ])("sends type=page for UniNote on %s and shows what the server answers (no kind, no client narrowing)", async (scope, endpoint) => {
     route({
       list: (path) => {
         if (!matchesScopeEndpoint(path, endpoint)) return [summary()];
+        if (queryOf(path).get("type") === "page") return [summary({ id: "p1", title: "Trang của tôi" })];
         return [
           summary({ id: "p1", title: "Trang của tôi" }),
           file("f1", "Tệp của tôi.docx"),
@@ -298,22 +302,21 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
     fireEvent.click(await scopeTab(scope));
     await screen.findByText("Tệp của tôi.docx");
     await pickTypeFilter("page");
-    // Rows narrowed: only the page survives; no kind/format is sent to this endpoint.
-    const table = screen.getByRole("table");
+    const table = await screen.findByRole("table");
     expect(await within(table).findByText("Trang của tôi")).toBeInTheDocument();
-    expect(within(table).queryByText("Tệp của tôi.docx")).toBeNull();
+    await waitFor(() => expect(within(table).queryByText("Tệp của tôi.docx")).toBeNull());
     expect(within(table).queryByText("Thư mục của tôi")).toBeNull();
-    const endpointCalls = listCalls().filter((path) => matchesScopeEndpoint(path, endpoint));
-    expect(endpointCalls.every((path) => !queryOf(path).get("kind") && !queryOf(path).get("format"))).toBe(true);
+    const last = listCalls().filter((path) => matchesScopeEndpoint(path, endpoint)).at(-1)!;
+    expect([queryOf(last).getAll("type"), queryOf(last).has("kind"), queryOf(last).has("format")]).toEqual([["page"], false, false]);
   });
 
   it.each([
     ["recent", "recent"],
     ["shared", "shared-with-me"],
     ["shared_by_me", "shared-by-me"],
-  ])("says 'in what is loaded' for an empty Trang result on %s while more pages wait", async (scope, endpoint) => {
+  ])("shows the plain filtered-empty state for an empty UniNote result on %s even while more pages wait", async (scope, endpoint) => {
     route({
-      list: (path) => (matchesScopeEndpoint(path, endpoint) ? [file("f1", "Chỉ có tệp.docx")] : [summary()]),
+      list: (path) => (matchesScopeEndpoint(path, endpoint) ? (queryOf(path).get("type") ? [] : [file("f1", "Chỉ có tệp.docx")]) : [summary()]),
       cursor: (path) => (matchesScopeEndpoint(path, endpoint) ? "more" : null),
     });
     renderView();
@@ -322,7 +325,9 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
     fireEvent.click(await scopeTab(scope));
     await screen.findByText("Chỉ có tệp.docx");
     await pickTypeFilter("page");
-    expect(await screen.findByText(t("documents.home.no_matches_more_description"))).toBeInTheDocument();
+    // The server already filtered: the copy never says "in what is loaded".
+    expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.no_matches_more_description"))).toBeNull();
     expect(screen.queryByText("Chỉ có tệp.docx")).toBeNull();
   });
 
@@ -343,7 +348,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
     for (const path of listCalls()) {
       const q = queryOf(path);
       if (q.get("archived") === "1") {
-        expect([q.get("format"), q.get("access"), q.get("updated_by"), q.get("updated_from")]).toEqual([null, null, null, null]);
+        expect([q.get("format"), q.get("type"), q.get("access"), q.get("updated_by"), q.get("updated_from")]).toEqual([null, null, null, null, null]);
       }
     }
     // The trash view has no filter bar at all (UNI-2045 W10).
@@ -355,7 +360,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
       list: (path) => {
         const q = queryOf(path);
         const editor = q.get("updated_by");
-        const format = q.get("format");
+        const format = q.get("type");
         // Emulate the server: only rows that survive both filters come back.
         return [summary({ id: "own", title: "Ghi chú của tôi", updated_by: "u1" }), file("f1", "Báo giá.docx", { updated_by: "u2" })].filter(
           (row) => (!editor || (row as Record<string, unknown>).updated_by === editor) && (!format || (row.kind === "file" && String(row.title).toLowerCase().endsWith(`.${format}`))),
@@ -376,7 +381,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
     expect(sourceCallsList.every(([path]) => !queryOf(String(path)).get("updated_by"))).toBe(true);
 
     await pickTypeFilter("docx");
-    // The chip reaches the sources API as `type`; the doc list sees `format`.
+    // One pick reaches the sources API as `type`, and the doc list as `type` too.
     await waitFor(() =>
       expect(
         requestMock.mock.calls.some(
@@ -384,29 +389,48 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
         ),
       ).toBe(true),
     );
-    expect(listCalls().some((path) => queryOf(path).get("format") === "docx")).toBe(true);
+    expect(listCalls().some((path) => queryOf(path).get("type") === "docx")).toBe(true);
   });
 
-  it("keeps client filtering on starred: chips hide favorites without touching the list requests", async () => {
+  it("narrows merged source rows on the client for two picks: the sources route takes one type", async () => {
+    route({
+      list: (path) => (queryOf(path).getAll("type").length ? [file("f1", "Báo giá.docx")] : [summary(), file("f1", "Báo giá.docx")]),
+      sources: () => [source(), source({ id: "chat:m2", name: "Bản chiếu.pptx", extension: "pptx" })],
+    });
+    renderView();
+    await screen.findByText("Đề xuất ngân sách.pdf");
+    expect(screen.getByText("Bản chiếu.pptx")).toBeInTheDocument();
+
+    await pickTypeFilter("docx", "pdf");
+    expect(await screen.findByText("Đề xuất ngân sách.pdf")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Bản chiếu.pptx")).toBeNull());
+    const last = requestMock.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith(`${LIST_BASE}/sources`)).at(-1)!;
+    expect(queryOf(last).has("type")).toBe(false);
+    expect(listCalls().some((path) => queryOf(path).getAll("type").join() === "docx,pdf")).toBe(true);
+  });
+
+  it("sends the type to the starred route and shows what it answers", async () => {
     route({
       list: () => [summary()],
-      starred: () => [
-        summary({ id: "star-docx", kind: "file", title: "Báo giá.docx" }),
-        summary({ id: "star-pdf", kind: "file", title: "Hợp đồng.pdf" }),
-      ],
+      starred: (path) => {
+        const rows = [
+          summary({ id: "star-docx", kind: "file", title: "Báo giá.docx" }),
+          summary({ id: "star-pdf", kind: "file", title: "Hợp đồng.pdf" }),
+        ];
+        const wanted = queryOf(path).getAll("type");
+        return wanted.length ? rows.filter((row) => wanted.some((type) => String(row.title).endsWith(`.${type}`))) : rows;
+      },
     });
     renderView(`/org/${WS}/documents?view=starred`);
     expect(await screen.findByText("Báo giá.docx")).toBeInTheDocument();
     expect(await screen.findByText("Hợp đồng.pdf")).toBeInTheDocument();
-    const callsBefore = listCalls().length;
 
     await pickTypeFilter("pdf");
     expect(await screen.findByText("Hợp đồng.pdf")).toBeInTheDocument();
-    expect(screen.queryByText("Báo giá.docx")).toBeNull();
-    // No refetch for a client-only filter on this view, and the starred route takes no format.
-    expect(listCalls().length).toBe(callsBefore);
-    expect(requestMock.mock.calls.every(([path]) => !String(path).startsWith(`${LIST_BASE}/favorites?format`))).toBe(true);
-    expect(listCalls().every((path) => !queryOf(path).get("format"))).toBe(true);
+    await waitFor(() => expect(screen.queryByText("Báo giá.docx")).toBeNull());
+    const favorites = requestMock.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith(`${LIST_BASE}/favorites`));
+    expect(queryOf(favorites.at(-1)!).getAll("type")).toEqual(["pdf"]);
+    expect(favorites.every((path) => !queryOf(path).has("format"))).toBe(true);
   });
 
   it("keeps the honest 'in what is loaded' copy for a client-filtered list that still has more", async () => {
@@ -424,7 +448,7 @@ describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
 
   it("shows a plain filtered-empty state for a server-filtered list, even while has_more holds", async () => {
     route({
-      list: (path) => (queryOf(path).get("format") === "pdf" ? [] : [summary()]),
+      list: (path) => (queryOf(path).get("type") === "pdf" ? [] : [summary()]),
       // The filtered page came back full-or-empty but the server still reports more:
       // the copy must not say "in what has loaded" — the filter already ran.
       cursor: () => "more",

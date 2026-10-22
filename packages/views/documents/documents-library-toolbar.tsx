@@ -14,13 +14,12 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { DocumentTypeIcon } from "./document-type-icon";
 import {
   ACTIVITY_FILTERS,
-  TYPE_FILTERS,
   UPDATED_FILTERS,
   type ActivityFilter,
   type EditorFilter,
   type UpdatedFilter,
 } from "./doclist/filters";
-import type { DocumentTypeFilter } from "./library-rows";
+import { TYPE_FILTERS, type DocumentTypeFilter } from "./library-rows";
 
 export interface LibraryToolbarProps {
   /** "Loại": the picked types in menu order; empty = Tất cả. */

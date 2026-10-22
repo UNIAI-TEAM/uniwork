@@ -99,11 +99,12 @@ const listCalls = (prefix = LIST_BASE) =>
   requestMock.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith(prefix) && !path.startsWith(`${LIST_BASE}/sources`));
 const lastCall = (match: (path: string) => boolean) => listCalls().filter(match).at(-1) ?? "";
 
-/** page-a, notes.txt, sheet.xlsx; a one-type request is answered the way the server would (format= / kind=page). */
+/** page-a, notes.txt, sheet.xlsx; a request is answered the way the server would (the repeated type=). */
 function mixedRows(path: string) {
   const query = queryOf(path);
   const rows: Record<string, unknown>[] = [summary("page-a"), txtFile("notes"), summary("sheet", { kind: "file", title: "sheet.xlsx", format: "xlsx", current_version: 1, organization_id: ORG })];
-  return rows.filter((row) => (query.get("kind") ? row.kind === query.get("kind") : true) && (query.get("format") ? row.format === query.get("format") : true));
+  const wanted = query.getAll("type");
+  return wanted.length === 0 ? rows : rows.filter((row) => wanted.includes(row.kind === "page" ? "page" : String(row.format)));
 }
 
 const CHIP_LABELS = ["Tất cả", "UniNote", ".docx", ".xlsx", ".pptx", ".pdf", ".md", ".html", ".txt"];
@@ -179,10 +180,10 @@ describe("one filter bar (W10)", () => {
     expect(typeFilterSelect()!.querySelector("svg")).not.toBeNull();
     expect(screen.getByTestId("type-chip-xlsx")).toHaveTextContent(".xlsx");
     expect(typeChipRemove("xlsx")).not.toBeNull();
-    expect(queryOf(lastCall((path) => path.startsWith(LIST_BASE))).get("format")).toBe("xlsx");
+    expect(queryOf(lastCall((path) => path.startsWith(LIST_BASE))).getAll("type")).toEqual(["xlsx"]);
   });
 
-  it("picking two types shows the count in the trigger and two chips, and narrows the list (DESIGN-ONLY seam: client-side, no type sent)", async () => {
+  it("picking two types shows the count in the trigger and two chips, and narrows the list (sent as the repeated type=, answered by the server)", async () => {
     route({ list: mixedRows });
     renderView();
     await screen.findByText("page-a");
@@ -195,9 +196,9 @@ describe("one filter bar (W10)", () => {
     await waitFor(() => expect(screen.queryByText("notes.txt")).toBeNull());
     expect(screen.getByText("page-a")).toBeInTheDocument();
     expect(screen.getByText("sheet.xlsx")).toBeInTheDocument();
-    // Two picks send no type; the last request is the home root list as it was.
+    // The last request carries both picks, as the repeated type, and no format or kind.
     const last = queryOf(lastCall((path) => path.startsWith(LIST_BASE)));
-    expect([last.has("format"), last.has("kind")]).toEqual([false, false]);
+    expect([last.getAll("type"), last.has("format"), last.has("kind")]).toEqual([["page", "xlsx"].sort(), false, false]);
   });
 
   it("the x of a chip drops that one type; Tất cả clears every pick", async () => {
@@ -260,14 +261,14 @@ describe("one filter bar (W10)", () => {
     expect(activityGroup()).toBeNull();
   });
 
-  it("sends format=txt, the Người sửa id, the Cập nhật bound and the Gần đây segment to the server", async () => {
+  it("sends type=txt, the Người sửa id, the Cập nhật bound and the Gần đây segment to the server", async () => {
     route({ list: () => [summary("r1", { last_activity: { kind: "opened", at: ago(5) } })] });
     renderView("/?view=recent");
     await screen.findAllByText("r1");
     const recent = (path: string) => path.startsWith(`${LIST_BASE}/recent`);
 
     await pickTypeFilter("txt");
-    await waitFor(() => expect(queryOf(lastCall(recent)).get("format")).toBe("txt"));
+    await waitFor(() => expect(queryOf(lastCall(recent)).get("type")).toBe("txt"));
 
     fireEvent.click(within(activityGroup()!).getByRole("radio", { name: "Đã sửa" }));
     await waitFor(() => expect(queryOf(lastCall(recent)).get("activity")).toBe("edited"));
@@ -279,7 +280,7 @@ describe("one filter bar (W10)", () => {
     await choose(updatedSelect()!, t("documents.home.filters.updated_7d"));
     await waitFor(() => expect(queryOf(lastCall(recent)).get("updated_from")).toBeTruthy());
     const query = queryOf(lastCall(recent));
-    expect([query.get("format"), query.get("activity"), query.get("updated_by")]).toEqual(["txt", "edited", "u2"]);
+    expect([query.get("type"), query.get("activity"), query.get("updated_by")]).toEqual(["txt", "edited", "u2"]);
 
     fireEvent.click(within(activityGroup()!).getByRole("radio", { name: "Tất cả" }));
     await waitFor(() => expect(queryOf(lastCall(recent)).has("activity")).toBe(false));
@@ -299,9 +300,13 @@ describe("one filter bar (W10)", () => {
     await waitFor(() => expect(queryOf(lastCall(match)).get("updated_from")).toBeTruthy());
   });
 
-  it("filters an open folder on the client: no new request carries the filters", async () => {
+  it("sends the type for an open folder, and Người sửa still filters it on the client", async () => {
     route({
-      list: () => [txtFile("notes", { parent_id: "fo1" }), summary("plan", { parent_id: "fo1", updated_by: "u2" })],
+      list: (path) => {
+        const rows: Record<string, unknown>[] = [txtFile("notes", { parent_id: "fo1" }), summary("plan", { parent_id: "fo1", updated_by: "u2" })];
+        const wanted = queryOf(path).getAll("type");
+        return rows.filter((row) => wanted.length === 0 || wanted.includes(row.kind === "page" ? "page" : String(row.format)));
+      },
       detail: (id) => (id === "fo1" ? summary("fo1", { kind: "folder", title: "Dự án" }) : null),
       tree: () => [{ id: "fo1", title: "Dự án", kind: "folder", position: 0, children: [] }],
     });
@@ -309,16 +314,15 @@ describe("one filter bar (W10)", () => {
     await screen.findByText("notes.txt");
     await pickTypeFilter("txt");
     await waitFor(() => expect(screen.queryByText("plan")).toBeNull());
-    expect(screen.getByText("notes.txt")).toBeInTheDocument();
+    expect(await screen.findByText("notes.txt")).toBeInTheDocument();
+    expect(queryOf(lastCall((path) => queryOf(path).get("parent_id") === "fo1")).getAll("type")).toEqual(["txt"]);
     await pickTypeFilter("all");
     await screen.findByText("plan");
     await choose(editorSelect()!, "Bình");
     await waitFor(() => expect(screen.queryByText("notes.txt")).toBeNull());
     expect(screen.getByText("plan")).toBeInTheDocument();
-    for (const path of listCalls()) {
-      expect(queryOf(path).has("format")).toBe(false);
-      expect(queryOf(path).has("updated_by")).toBe(false);
-    }
+    // Người sửa is the client's here: no request carries it.
+    for (const path of listCalls()) expect(queryOf(path).has("updated_by")).toBe(false);
   });
 
   it("filters Có gắn sao on the client by Người sửa and Cập nhật", async () => {

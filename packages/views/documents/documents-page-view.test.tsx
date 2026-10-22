@@ -269,15 +269,15 @@ describe("DocumentsPageView", () => {
     expect(urls.some((url) => queryOf(url).get("cursor") === "c2")).toBe(true);
   });
 
-  it("filters by one picked type on the server: ?format= for file types, ?kind=page for UniNote", async () => {
+  it("filters by one picked type on the server: ?type= for file types and for UniNote (type=page)", async () => {
     const urls: string[] = [];
     route({
       list: (path) => {
         urls.push(path);
-        const format = queryOf(path).get("format");
+        const format = queryOf(path).get("type");
         if (format === "docx") return [file("f1", "Báo giá.docx")];
+        if (format === "page") return [summary()];
         if (format) return [];
-        if (queryOf(path).get("kind") === "page") return [summary()];
         return [summary(), file("f1", "Báo giá.docx"), file("f2", "Số liệu.xlsx")];
       },
     });
@@ -285,27 +285,27 @@ describe("DocumentsPageView", () => {
     expect(await screen.findByText("Số liệu.xlsx")).toBeInTheDocument();
 
     await pickTypeFilter("docx");
-    await waitFor(() => expect(urls.some((url) => queryOf(url).get("format") === "docx")).toBe(true));
+    await waitFor(() => expect(urls.some((url) => queryOf(url).get("type") === "docx")).toBe(true));
     expect(await screen.findByText("Báo giá.docx")).toBeInTheDocument();
     expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
     expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
 
     // The menu is multi-select: toggle .docx off and UniNote on.
     await pickTypeFilter("docx", "page");
-    await waitFor(() => expect(urls.some((url) => queryOf(url).get("kind") === "page")).toBe(true));
+    await waitFor(() => expect(urls.some((url) => queryOf(url).get("type") === "page")).toBe(true));
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.queryByText("Báo giá.docx")).toBeNull();
   });
 
   it("sets the same state through the Loại menu as the chips did: the server query changes, the URL does not (UNI-2113)", async () => {
     const urls: string[] = [];
-    route({ list: (path) => (urls.push(path), queryOf(path).get("format") === "xlsx" ? [file("f2", "Số liệu.xlsx")] : [summary(), file("f2", "Số liệu.xlsx")]) });
+    route({ list: (path) => (urls.push(path), queryOf(path).get("type") === "xlsx" ? [file("f2", "Số liệu.xlsx")] : [summary(), file("f2", "Số liệu.xlsx")]) });
     const { nav } = renderView(vi.fn());
     await screen.findByText("Kế hoạch Q4");
     const search = nav.searchParams.toString();
 
     await pickTypeFilter("xlsx");
-    await waitFor(() => expect(urls.some((url) => queryOf(url).get("format") === "xlsx")).toBe(true));
+    await waitFor(() => expect(urls.some((url) => queryOf(url).get("type") === "xlsx")).toBe(true));
     await waitFor(() => expect(screen.queryByText("Kế hoạch Q4")).toBeNull());
     expect(typeFilterSelect()).toHaveTextContent(`${t("documents.home.filters.type")}: .xlsx`);
     // The type is page state, never a query parameter: no push, no replace, the same search string.
@@ -319,7 +319,7 @@ describe("DocumentsPageView", () => {
   });
 
   it("shows the filtered empty state when a chip matches nothing, and clears it", async () => {
-    route({ list: (path) => (queryOf(path).get("format") === "pdf" ? [] : [summary()]) });
+    route({ list: (path) => (queryOf(path).get("type") === "pdf" ? [] : [summary()]) });
     renderView(vi.fn());
     await screen.findByText("Kế hoạch Q4");
 
@@ -1380,7 +1380,7 @@ describe("DocumentsPageView", () => {
             // (page 2's last row) renders: the rest sit in a deeper folder, which
             // the open folder's direct-children filter drops.
             const batch = cur === "cap2" ? 500 : cur === "cap3" ? 1000 : 0;
-            const format = queryOf(path).get("format");
+            const format = queryOf(path).get("type");
             return Array.from({ length: 500 }, (_, i) => {
               const n = batch + i + 1;
               if (n === 1000) return file("cap-1000", "Tài liệu 1000.docx", { parent_id: "fo-cap", updated_at: "2026-10-01T00:00:00Z" });

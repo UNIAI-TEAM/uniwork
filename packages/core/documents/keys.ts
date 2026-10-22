@@ -172,7 +172,10 @@ export const documentKeys = {
    * (a rename, an archive) refreshes them like any list; the star toggles
    * invalidate them beside `favoritesRoot`.
    */
-  favoriteList: (wsId: string) => [...documentKeys.workspace(wsId), "favorites"] as const,
+  favoriteList: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "favorites", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "favorites"] as const),
 };
 
 /** One report is one cache entry however the URL spelled its filters (order, blanks). */

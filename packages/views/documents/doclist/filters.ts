@@ -1,4 +1,4 @@
-import { matchesChip, TYPE_CHIPS, type DocumentTypeFilter, type LibraryRow, type TypeChip } from "../library-rows";
+import type { LibraryRow } from "../library-rows";
 
 // The filter bar's values beyond the type chips (UNI-2045 W10): Người sửa,
 // Cập nhật and Gần đây's Tất cả / Đã mở / Đã sửa. Where a list pages on the
@@ -46,24 +46,4 @@ export function matchesMeta(row: LibraryRow, editorId: string | undefined, since
   if (!since) return true;
   const updated = Date.parse((row.type === "document" ? row.doc.updated_at : row.source.updated_at) ?? "");
   return !Number.isNaN(updated) && updated >= Date.parse(since);
-}
-
-/** Every pickable type, in the menu's order (chips and trigger keep that order, never the order of the clicks). */
-export const TYPE_FILTERS: readonly DocumentTypeFilter[] = TYPE_CHIPS.filter((value): value is DocumentTypeFilter => value !== "all");
-
-/**
- * DESIGN-ONLY until the UNI-2113 contract: the one seam between the multi-select
- * Loại filter and the single-valued server parameters (`format=` / `kind=page`).
- * One pick is sent as today; none or several send no type, and `narrowOnClient`
- * tells the library hook to narrow the loaded rows with `matchesTypes`. Step 2
- * replaces this with the real multi-value query and drops the client narrowing.
- */
-export function typeFilterQuery(selected: readonly DocumentTypeFilter[]): { chip: TypeChip; narrowOnClient: boolean } {
-  if (selected.length === 1) return { chip: selected[0]!, narrowOnClient: false };
-  return { chip: "all", narrowOnClient: selected.length > 1 };
-}
-
-/** DESIGN-ONLY (see `typeFilterQuery`): a row passes when any picked type does; folders stay visible like `matchesChip`. */
-export function matchesTypes(row: LibraryRow, selected: readonly DocumentTypeFilter[]): boolean {
-  return selected.length === 0 || selected.some((type) => matchesChip(row, type));
 }
