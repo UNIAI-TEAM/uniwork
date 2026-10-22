@@ -1,0 +1,23 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; git diff --stat origin/feature/UNI-923-office-g5-g6-g7...HEAD | tail -12; echo; echo "SYNCED_EXIT=$rc"
+79f4a30fc3861003b7544247f7a67c9c0fde9241
+84a1e3da1dc4a76aaceb434ef6d08bf299472c9c
+79f4a30fc test(office): re-bless the g7-06 goldens at the web-0.1.0-59defc1 pin
+84ea49439 chore(deploy): point OFFICE_INSTALLER_BETA_URLS at desktop beta.8
+b3f2cc008 docs(office): name the web-0.1.0-59defc1 pin as the REPIN-8 pin
+924e7e584 chore(office): re-pin the six office frames to web-0.1.0-59defc1
+84a1e3da1 fix(chat-mobile): regenerate the mobile locales from packages/core
+150714c67 chore: merge UNI-2055 e2e ADR 0037 (92363e2b2) into the G5-G7 root
+ deploy/app/env/uniwork-be.env                      |   4 +--
+ docs/office/g5g6g7/ux/g7-09-checklist.md           |   8 +++---
+ docs/office/office-web-modules.md                  |  30 +++++++++++++++------
+ .../views/office/frame/frame-avatar-url.test.ts    |  10 +++----
+ packages/views/office/frame/frame-avatar-url.ts    |   2 +-
+ .../views/office/frame/use-frame-comments.test.tsx |   2 +-
+ scripts/office/g5g6g7/g7-06/goldens/manifest.json  |  14 +++++-----
+ .../g5g6g7/g7-06/goldens/web/fx-docx-report-vi.png | Bin 170010 -> 170010 bytes
+ .../g5g6g7/g7-06/goldens/web/fx-html-page-vi.png   | Bin 105052 -> 105053 bytes
+ .../g5g6g7/g7-06/goldens/web/fx-md-notes-vi.png    | Bin 122789 -> 122790 bytes
+ .../g7-06/goldens/web/fx-xlsx-revenue-xyz.png      | Bin 131310 -> 131276 bytes
+ 18 files changed, 62 insertions(+), 48 deletions(-)
+
+SYNCED_EXIT=0
