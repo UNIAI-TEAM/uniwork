@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -145,7 +146,9 @@ func (c *PushConsumer) SetMetrics(m Metrics) { c.metrics = m }
 
 func (*PushConsumer) Name() string { return "notification-push" }
 
-func (*PushConsumer) Topics() []string { return []string{TopicPush, TopicCallRingClosed} }
+func (*PushConsumer) Topics() []string {
+	return []string{TopicPush, TopicCallRingClosed, TopicRoomNotificationsCleared}
+}
 
 // Handle sends once per subscription and marks the notification pushed, so
 // a retried row after a partial failure does not re-send to the browsers
@@ -156,8 +159,11 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if c.sender == nil {
 		return nil
 	}
-	if ev.Topic == TopicCallRingClosed {
+	switch ev.Topic {
+	case TopicCallRingClosed:
 		return c.handleRingClosed(ctx, ev)
+	case TopicRoomNotificationsCleared:
+		return c.handleRoomCleared(ctx, ev)
 	}
 	var p map[string]string
 	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
@@ -387,6 +393,45 @@ func (c *PushConsumer) handleRingClosed(ctx context.Context, ev outbox.Row) erro
 		return err
 	}
 	msg := PushMessage{TTL: callEndTTL, Call: CallPush{Type: CallPushEnd, CallID: callID, RoomID: roomID, WorkspaceID: ev.WorkspaceID.String}}
+	return c.sendToCallUI(ctx, subs, msg)
+}
+
+// roomClearedTTL: a tray cleanup that reaches a phone a day late finds
+// nothing worth taking down.
+const roomClearedTTL = int(24 * time.Hour / time.Second)
+
+// handleRoomCleared tells a person's Android phones (the builds with the call
+// UI, whose background task can act on it) that they read a room on some
+// device: the room's message notifications leave the tray and the icon's
+// count follows, even while the app is closed. ChatService writes the row
+// only when reading closed an open notification of that room, so a read with
+// nothing in the tray sends nothing.
+func (c *PushConsumer) handleRoomCleared(ctx context.Context, ev outbox.Row) error {
+	var p map[string]string
+	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
+		return fmt.Errorf("push: payload of %s: %w", ev.ID, err)
+	}
+	userID, roomID := p["user_id"], p["room_id"]
+	if userID == "" || roomID == "" {
+		return nil
+	}
+	subs, err := c.q.ListDeliverablePushSubscriptions(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !slices.ContainsFunc(subs, func(sub db.PushSubscription) bool { return isExpoPushToken(sub.Endpoint) && expoCallUI(sub) }) {
+		return nil
+	}
+	msg := PushMessage{TTL: roomClearedTTL, Cleared: RoomCleared{RoomID: roomID, WorkspaceID: ev.WorkspaceID.String}}
+	if c.badges != nil {
+		msg.Badge = c.unreadBadge(ctx, userID)
+	}
+	return c.sendToCallUI(ctx, subs, msg)
+}
+
+// sendToCallUI sends msg to the person's Android phones with the call UI and
+// to nothing else: the data-only pushes only those builds act on.
+func (c *PushConsumer) sendToCallUI(ctx context.Context, subs []db.PushSubscription, msg PushMessage) error {
 	var failed error
 	for _, sub := range subs {
 		if !isExpoPushToken(sub.Endpoint) || !expoCallUI(sub) {

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -179,6 +180,38 @@ func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, s
 	}
 }
 
+// closeRoomNotifications closes the reader's open message notifications of
+// the room (a DM, a mention) and, when that closed any, writes in the same
+// transaction the chat.room.notifications_cleared row the push lane turns
+// into a "read elsewhere" push: the reader's Android phones take those
+// notifications out of the tray and set the icon's count while the app is
+// closed. A read that closed nothing writes nothing, so reading a quiet room
+// wakes no phone. Thread replies and calls stay in the tray, as in the app.
+func (s *ChatService) closeRoomNotifications(ctx context.Context, room db.ChatRoom, userID string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := s.q.WithTx(tx)
+	closed, err := qtx.CloseNotificationGroups(ctx, db.CloseNotificationGroupsParams{
+		UserID: userID, GroupKeys: []string{ChatDMNotifyGroup(room.ID), ChatMentionNotifyGroup(room.ID)},
+	})
+	if err != nil {
+		return err
+	}
+	if closed > 0 {
+		if err := auditRecorder.Emit(ctx, qtx, Human(userID), audit.Event{
+			Topic: "chat.room.notifications_cleared", Version: 1,
+			Payload:        map[string]string{"room_id": room.ID, "user_id": userID},
+			OrganizationID: room.OrganizationID, WorkspaceID: roomAnchorWorkspaceID(room),
+		}); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
 // markChatRoomRead moves the caller's read pointer to at and, only when that
 // moves it forward, tells the reader's other tabs and, in a DM, the peer who
 // renders the receipt. Every client that hears chat.room.read reloads its
@@ -198,9 +231,7 @@ func (s *ChatService) markChatRoomRead(ctx context.Context, room db.ChatRoom, us
 	}
 	// Before the pointer check: a notification that arrived after the last
 	// read still closes, so the next message pushes again (UNI-1665).
-	if err := s.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{
-		UserID: userID, GroupKeys: []string{ChatDMNotifyGroup(room.ID), ChatMentionNotifyGroup(room.ID)},
-	}); err != nil {
+	if err := s.closeRoomNotifications(ctx, room, userID); err != nil {
 		slog.WarnContext(ctx, "chat: close room notifications", "room_id", room.ID, "user_id", userID, "error", err)
 	}
 	if member.LastReadAt.Valid && !at.Time.After(member.LastReadAt.Time) {

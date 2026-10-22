@@ -189,6 +189,8 @@ var catalogue = []EventDef{
 	// One row per invite, however many people it adds (C10).
 	{Topic: "chat.room.members_added", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_removed", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	// The reader's open message notifications of a room closed by a read: the push lane tells their Android phones.
+	{Topic: "chat.room.notifications_cleared", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	// A read goes to the reader's own tabs and, in a DM, to the peer: nobody
 	// else renders it, and every client that hears one reloads its sidebar.
 	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},

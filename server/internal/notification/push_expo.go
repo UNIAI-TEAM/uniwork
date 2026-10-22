@@ -177,6 +177,9 @@ func callData(msg PushMessage) map[string]string {
 // when this subscription gets nothing.
 func expoMessageFor(sub db.PushSubscription, msg PushMessage) (expoMessage, bool) {
 	callUI := expoCallUI(sub)
+	if msg.Cleared.RoomID != "" {
+		return roomReadMessage(sub, msg, callUI)
+	}
 	switch msg.Call.Type {
 	case CallPushEnd:
 		if !callUI {
@@ -213,6 +216,26 @@ func expoMessageFor(sub db.PushSubscription, msg PushMessage) (expoMessage, bool
 		}
 	}
 	return m, true
+}
+
+// roomReadMessage is the "read elsewhere" push: data-only, to an Android
+// build whose background task takes a read room's notifications out of the
+// tray and sets the icon's count (the call-ui builds; an older one would only
+// wake for nothing). Normal priority: it shows nothing, and FCM lowers an app
+// that spends high-priority messages on nothing the person sees, which would
+// slow its rings. An iPhone gets nothing: its icon count rides on every push.
+func roomReadMessage(sub db.PushSubscription, msg PushMessage, callUI bool) (expoMessage, bool) {
+	if !callUI {
+		return expoMessage{}, false
+	}
+	data := map[string]string{"type": RoomReadPush, "room_id": msg.Cleared.RoomID}
+	if msg.Cleared.WorkspaceID != "" {
+		data["workspace_id"] = msg.Cleared.WorkspaceID
+	}
+	if msg.Badge != nil {
+		data["badge"] = strconv.Itoa(*msg.Badge)
+	}
+	return expoMessage{To: sub.Endpoint, Data: data, TTL: msg.ttl(), Priority: "normal"}, true
 }
 
 type expoResponse struct {

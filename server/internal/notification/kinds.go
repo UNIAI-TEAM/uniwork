@@ -109,4 +109,8 @@ const (
 	// TopicCallRingClosed is ChatService saying a call stopped ringing for one
 	// person; the push consumer tells their Android phones (handleRingClosed).
 	TopicCallRingClosed = "chat.voice.ring_closed"
+	// TopicRoomNotificationsCleared is ChatService saying a person read a room
+	// whose message notifications were still open; the push consumer tells
+	// their Android phones to take those out of the tray (handleRoomCleared).
+	TopicRoomNotificationsCleared = "chat.room.notifications_cleared"
 )

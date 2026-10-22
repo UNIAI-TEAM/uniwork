@@ -42,7 +42,21 @@ type PushMessage struct {
 	// (everything unread, as the app draws it); nil leaves the icon as it is.
 	// Android launchers count the tray themselves. A browser never sees it.
 	Badge *int `json:"-"`
+	// Cleared is set when the person read a room on some device: their
+	// Android phones take its message notifications out of the tray and set
+	// the icon's count to Badge. A browser never sees it.
+	Cleared RoomCleared `json:"-"`
 }
+
+// RoomCleared names the room a "read elsewhere" push is about. Ids only.
+type RoomCleared struct {
+	WorkspaceID string
+	RoomID      string
+}
+
+// RoomReadPush is the type of the data-only push that clears a read room's
+// notifications (apps/chat-mobile/lib/room-read-push.ts reads it).
+const RoomReadPush = "room_read"
 
 // ChatPush names the message a chat push is about. Ids only, as every
 // client-visible payload (CLAUDE.md › Audit and Events).

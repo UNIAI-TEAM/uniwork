@@ -358,3 +358,53 @@ func TestExpoPushSenderSetsTheIPhoneBadgeAndUrgency(t *testing.T) {
 		t.Fatalf("Android gets neither badge nor interruption level: %v", m)
 	}
 }
+
+// A room read on some device reaches the person's Android phones with the call
+// UI as a data-only, normal-priority push naming the room and the icon's count:
+// their background task takes the room's notifications out of the tray. It
+// shows nothing, so it never spends a high-priority message; an iPhone (whose
+// count rides on every push) and an older Android build get nothing at all.
+func TestExpoPushSenderSendsRoomReadToTheCallUIBuildsOnly(t *testing.T) {
+	var got []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = nil
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = io.WriteString(w, `{"data":[{"status":"ok","id":"t1"}]}`)
+	}))
+	defer srv.Close()
+	s := ExpoPushSender{URL: srv.URL}
+	android := db.PushSubscription{Endpoint: "ExponentPushToken[a]", UserAgent: pgtype.Text{String: "expo/android; call-ui", Valid: true}}
+	legacy := db.PushSubscription{Endpoint: "ExponentPushToken[l]", UserAgent: pgtype.Text{String: "expo/android", Valid: true}}
+	iphone := db.PushSubscription{Endpoint: "ExponentPushToken[i]", UserAgent: pgtype.Text{String: "expo/ios", Valid: true}}
+	three := 3
+	read := PushMessage{TTL: 86400, Cleared: RoomCleared{WorkspaceID: "w", RoomID: "r"}, Badge: &three}
+
+	if err := s.Send(context.Background(), android, read); err != nil {
+		t.Fatal(err)
+	}
+	m := got[0]
+	data, _ := m["data"].(map[string]any)
+	if len(data) != 4 || data["type"] != RoomReadPush || data["room_id"] != "r" || data["workspace_id"] != "w" || data["badge"] != "3" {
+		t.Fatalf("room read data = %v", data)
+	}
+	for _, key := range []string{"title", "body", "sound", "channelId", "badge"} {
+		if _, ok := m[key]; ok {
+			t.Fatalf("room read carries %q, want a data-only message: %v", key, m)
+		}
+	}
+	if m["priority"] != "normal" || m["ttl"] != float64(86400) {
+		t.Fatalf("room read priority/ttl = %v/%v, want normal/86400", m["priority"], m["ttl"])
+	}
+	if err := s.Send(context.Background(), android, PushMessage{Cleared: RoomCleared{RoomID: "r"}}); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := got[0]["data"].(map[string]any); len(data) != 2 {
+		t.Fatalf("no workspace and no count known: only the type and the room, got %v", data)
+	}
+	got = nil
+	for _, sub := range []db.PushSubscription{legacy, iphone} {
+		if err := s.Send(context.Background(), sub, read); !errors.Is(err, ErrPushSkipped) || got != nil {
+			t.Fatalf("room read to %s = %v (sent %v), want skipped without a request", sub.UserAgent.String, err, got)
+		}
+	}
+}

@@ -587,3 +587,55 @@ func TestUnansweredDMCallPushesAMissedCall(t *testing.T) {
 		t.Fatalf("missed call push = %+v", got)
 	}
 }
+
+// Reading a room whose DM notification is still open (pushed to the phone, or
+// waiting) writes one chat.room.notifications_cleared row, and the push lane
+// tells only the reader's Android phones with the call UI, so a closed app's
+// tray stops showing a message already read elsewhere. Reading it again, with
+// nothing left open, writes nothing: a quiet room wakes no phone.
+func TestReadingARoomClearsItsNotificationsOnTheAndroidPhones(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribeAs(t, f.member.ID, "ExponentPushToken[android]", "expo/android; call-ui")
+	f.subscribeAs(t, f.member.ID, "ExponentPushToken[iphone]", "expo/ios")
+	f.subscribe(t, f.member.ID, "https://push.example/member-browser")
+	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "chào"}); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+	before := len(f.events(t, TopicRoomNotificationsCleared))
+
+	if err := chat.MarkRoomRead(f.ctx, f.member.ID, f.wsID, dm.ID); err != nil {
+		t.Fatal(err)
+	}
+	rows := f.events(t, TopicRoomNotificationsCleared)
+	if len(rows) != before+1 {
+		t.Fatalf("cleared rows = %d (was %d), want one for the read", len(rows), before)
+	}
+	cleared := rows[len(rows)-1]
+	if p := payloadOf(t, cleared); p["user_id"] != f.member.ID || p["room_id"] != dm.ID || len(p) != 2 {
+		t.Fatalf("cleared payload = %v, want the reader and the room", p)
+	}
+	if cleared.ActorID.String != f.member.ID || cleared.OrganizationID.String != f.orgID {
+		t.Fatalf("cleared actor/org = %+v/%+v", cleared.ActorID, cleared.OrganizationID)
+	}
+	spy := &spySender{}
+	if err := NewPushConsumer(f.q, spy, "http://app.test").Handle(f.ctx, cleared); err != nil {
+		t.Fatal(err)
+	}
+	want := PushMessage{TTL: 86400, Cleared: RoomCleared{RoomID: dm.ID, WorkspaceID: cleared.WorkspaceID.String}}
+	if len(spy.sent) != 1 || spy.sent[0] != want || spy.endpoints[0] != "ExponentPushToken[android]" {
+		t.Fatalf("room read sent %+v to %v, want %+v to the Android phone with the call UI only", spy.sent, spy.endpoints, want)
+	}
+
+	if err := chat.MarkRoomRead(f.ctx, f.member.ID, f.wsID, dm.ID); err != nil {
+		t.Fatal(err)
+	}
+	if again := f.events(t, TopicRoomNotificationsCleared); len(again) != len(rows) {
+		t.Fatalf("a read with nothing open wrote %d more cleared rows", len(again)-len(rows))
+	}
+}
