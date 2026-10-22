@@ -1,16 +1,17 @@
 // The recycled message list's own logic (recycled-message-list.tsx), on a
 // stand-in FlashList that draws every row and records what it is asked: rows
 // oldest first, cells pooled by kind, the jumps, the unread landing, "at the
-// latest" from the bottom, and older pages from the top. The real FlashList
-// draws it in recycled-message-list.mockFlash.test.tsx.
+// latest" from the bottom, and older pages from the top. The stand-in says it
+// has loaded after its first commit, as FlashList's onLoad does after its first
+// layout. The real FlashList draws it in recycled-message-list.flash.test.tsx.
 import { ChatMessageSchema } from "@uniwork/core/api/endpoints/chat-schemas";
-import { fireEvent, screen } from "@testing-library/react-native";
+import { act, fireEvent, screen } from "@testing-library/react-native";
 import type { ReactElement, ReactNode } from "react";
 import { Text } from "react-native";
 import type { TimelineMessage, TimelineRow } from "@/lib/timeline-display";
 import { layoutTimeline } from "@/lib/timeline-layout";
 import { render } from "@/test/render";
-import { RecycledMessageList, timelineItemType } from "./recycled-message-list";
+import { RecycledMessageList, SETTLE_MS, timelineItemType } from "./recycled-message-list";
 import type { ListRow } from "./message-list";
 
 const mockFlash = {
@@ -27,15 +28,18 @@ interface MockStandInProps {
   ListFooterComponent: ReactNode;
   testID: string;
   onScroll: () => void;
+  onLoad: () => void;
 }
 
 jest.mock("@shopify/flash-list", () => {
-  const { forwardRef, useImperativeHandle } = jest.requireActual<typeof import("react")>("react");
+  const { forwardRef, useEffect, useImperativeHandle } = jest.requireActual<typeof import("react")>("react");
   const { ScrollView, View } = jest.requireActual<typeof import("react-native")>("react-native");
   return {
     FlashList: forwardRef(function StandIn(props: MockStandInProps, ref) {
       mockFlash.props = props as unknown as Record<string, unknown>;
       useImperativeHandle(ref, () => ({ scrollToIndex: mockFlash.scrollToIndex, scrollToEnd: mockFlash.scrollToEnd }));
+      const { onLoad } = props;
+      useEffect(() => onLoad(), [onLoad]);
       return (
         <ScrollView testID={props.testID} onScroll={props.onScroll}>
           {props.ListHeaderComponent}
@@ -58,6 +62,9 @@ const renderMessage = (row: Extract<TimelineRow, { type: "message" }>) => <Text>
 function list(rows: TimelineRow[], extra: Partial<Parameters<typeof RecycledMessageList>[0]> = {}) {
   return <RecycledMessageList rows={rows} renderMessage={renderMessage} loadingOlder={false} onAtLatestChange={jest.fn()} {...extra} />;
 }
+
+/** Past FlashList's own initial scroll: the list's jumps are issued from here on. */
+const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, SETTLE_MS + 10)));
 
 beforeEach(() => {
   mockFlash.scrollToIndex.mockClear();
@@ -91,6 +98,7 @@ describe("RecycledMessageList", () => {
   it("jumps to a message by its index from the top, animated only when near the newest", async () => {
     const rows = newestFirst(messages(100));
     const { rerender } = await render(list(rows, { jumpTo: { id: "m95", seq: 1 } }));
+    await settle();
     const indexOf = (id: string) => (mockFlash.props?.data as ListRow[]).findIndex((row) => row.type === "message" && row.message.id === id);
     expect(mockFlash.scrollToIndex).toHaveBeenLastCalledWith({ index: indexOf("m95"), viewPosition: 0.5, animated: true });
     await rerender(list(rows, { jumpTo: { id: "m10", seq: 2 } }));
@@ -103,17 +111,54 @@ describe("RecycledMessageList", () => {
 
   it("opens on the unread line near the top when it is past the first screen, and not when it is on it", async () => {
     await render(list(newestFirst(messages(100)), { unread: { id: "m40", label: "60 tin chưa đọc" } }));
+    await settle();
     const line = (mockFlash.props?.data as ListRow[]).findIndex((row) => row.type === "unread");
     expect(mockFlash.scrollToIndex.mock.calls).toEqual([[{ index: line, viewPosition: 0.1, animated: false }]]);
     mockFlash.scrollToIndex.mockClear();
     await render(list(newestFirst(messages(10)), { unread: { id: "m8", label: "2 tin chưa đọc" } }));
+    await settle();
     expect(mockFlash.scrollToIndex).not.toHaveBeenCalled();
     // A link to a message wins over the line; a line for a message not loaded draws nothing.
     await render(list(newestFirst(messages(100)), { unread: { id: "m40", label: "60" }, jumpTo: { id: "m90", seq: 1 } }));
+    await settle();
     expect(mockFlash.scrollToIndex).toHaveBeenCalledTimes(1);
     expect(mockFlash.scrollToIndex).toHaveBeenLastCalledWith(expect.objectContaining({ viewPosition: 0.5 }));
+    mockFlash.scrollToIndex.mockClear();
     await render(list(newestFirst(messages(10)), { unread: { id: "gone", label: "1" } }));
+    await settle();
     expect(screen.queryByTestId("unread-divider")).toBeNull();
+    expect(mockFlash.scrollToIndex).not.toHaveBeenCalled();
+  });
+
+  it("leaves the landing to FlashList's initial scroll until it settles, then places it itself", async () => {
+    const rows = newestFirst(messages(100));
+    const { rerender } = await render(list(rows, { unread: { id: "m40", label: "60" } }));
+    const data = () => mockFlash.props?.data as ListRow[];
+    const line = data().findIndex((row) => row.type === "unread");
+    // Before it settles: no jump of the list's own (FlashList would undo it), the line is the initial row instead.
+    expect(mockFlash.scrollToIndex).not.toHaveBeenCalled();
+    expect(mockFlash.props?.initialScrollIndex).toBe(line);
+    await rerender(list(rows, { jumpTo: { id: "m10", seq: 1 } }));
+    const target = data().findIndex((row) => row.type === "message" && row.message.id === "m10");
+    expect(mockFlash.props?.initialScrollIndex).toBe(target);
+    await rerender(list(rows, { jumpTo: { id: "gone", seq: 2 } }));
+    expect(mockFlash.props?.initialScrollIndex).toBeUndefined();
+    await settle();
+    expect(mockFlash.scrollToIndex).not.toHaveBeenCalled();
+    await rerender(list(rows, { jumpTo: { id: "m10", seq: 3 } }));
+    expect(mockFlash.scrollToIndex).toHaveBeenCalledWith({ index: target, viewPosition: 0.5, animated: false });
+    // Settled, the bottom is FlashList's again (its initial scroll has run and does not come back).
+    expect(mockFlash.props?.initialScrollIndex).toBeUndefined();
+  });
+
+  it("waits for rows before it counts its initial scroll as settled", async () => {
+    const { rerender } = await render(list([]));
+    await settle();
+    const rows = newestFirst(messages(100));
+    await rerender(list(rows, { unread: { id: "m40", label: "60" } }));
+    expect(mockFlash.scrollToIndex).not.toHaveBeenCalled();
+    await settle();
+    expect(mockFlash.scrollToIndex).toHaveBeenCalledTimes(1);
   });
 
   it("says when the reader leaves and comes back to the bottom, and scrolls to the end on a new signal", async () => {

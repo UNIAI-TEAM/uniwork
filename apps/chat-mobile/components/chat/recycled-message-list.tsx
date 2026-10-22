@@ -18,7 +18,7 @@
 // its scroll feel is a device question, answered by an A/B on the nightly's
 // frame numbers and Sentry's slow and frozen frames (runbook › Đo hiệu năng).
 import { FlashList, type FlashListRef, type ListRenderItem } from "@shopify/flash-list";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { messageView } from "@/lib/message-display";
 import { OlderPagesFooter } from "./conversation-states";
@@ -37,6 +37,13 @@ import {
 
 /** Within this share of a screen from the bottom, a new message scrolls into view (FlashList's own measure). */
 const AUTOSCROLL_SHARE = 0.2;
+
+/**
+ * After its first layout FlashList 2.0 applies its initial scroll (the bottom, from startRenderingFromBottom, or
+ * initialScrollIndex) and repeats it on every commit for 100 ms; a scroll issued before then is undone. The list's own
+ * jumps wait this long after its first layout with rows.
+ */
+export const SETTLE_MS = 150;
 
 /** A cell's recycling pool: one per kind of row, and one per kind of bubble. */
 export function timelineItemType(row: ListRow): string {
@@ -72,26 +79,48 @@ export function RecycledMessageList({
     [renderMessage],
   );
 
+  // Where the room opens instead of the bottom: the message a link names, else an unread line past the first screen.
+  const landing = useMemo(() => {
+    if (jumpTo) {
+      const index = data.findIndex((row) => row.type === "message" && row.message.id === jumpTo.id);
+      return index < 0 ? undefined : index;
+    }
+    const index = unread ? data.findIndex((row) => row.type === "unread") : -1;
+    return index < 0 || data.length - 1 - index < UNREAD_IN_VIEW_ROWS ? undefined : index;
+  }, [data, jumpTo, unread]);
+
+  // FlashList's own initial scroll owns the list until it settles (SETTLE_MS): until then the landing is its
+  // initialScrollIndex (the row at the top, no jump from the bottom); after it, the jumps below place it exactly.
+  const [loaded, setLoaded] = useState(false);
+  const [ready, setReady] = useState(false);
+  const onLoad = useCallback(() => setLoaded(true), []);
+  const hasRows = data.length > 0;
+  useEffect(() => {
+    if (!loaded || !hasRows || ready) return;
+    const timer = setTimeout(() => setReady(true), SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [loaded, hasRows, ready]);
+
   const jumped = useRef<number | null>(null);
   useEffect(() => {
-    if (!jumpTo || jumped.current === jumpTo.seq) return;
+    if (!ready || !jumpTo || jumped.current === jumpTo.seq) return;
     const index = data.findIndex((row) => row.type === "message" && row.message.id === jumpTo.id);
     if (index < 0) return;
     jumped.current = jumpTo.seq;
     // FlashList measures its way to an unmeasured target itself; a far one goes without animation.
     void list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: data.length - 1 - index <= FAR_JUMP_ROWS });
-  }, [data, jumpTo]);
+  }, [ready, data, jumpTo]);
 
   // Opened with unread messages past the first screen: open on their line, near the top (a link to a message wins).
   const landedOn = useRef<string | null>(null);
   useEffect(() => {
-    if (!unread || jumpTo || landedOn.current === unread.id) return;
+    if (!ready || !unread || jumpTo || landedOn.current === unread.id) return;
     const index = data.findIndex((row) => row.type === "unread");
     if (index < 0) return;
     landedOn.current = unread.id;
     if (data.length - 1 - index < UNREAD_IN_VIEW_ROWS) return;
     void list.current?.scrollToIndex({ index, viewPosition: 0.1, animated: false });
-  }, [data, unread, jumpTo]);
+  }, [ready, data, unread, jumpTo]);
 
   const scrolledFor = useRef(latestSignal);
   useEffect(() => {
@@ -120,6 +149,8 @@ export function RecycledMessageList({
       keyExtractor={keyOf}
       getItemType={timelineItemType}
       renderItem={renderItem}
+      initialScrollIndex={ready ? undefined : landing}
+      onLoad={onLoad}
       maintainVisibleContentPosition={{ startRenderingFromBottom: true, autoscrollToBottomThreshold: AUTOSCROLL_SHARE }}
       onStartReached={onLoadOlder}
       onStartReachedThreshold={0.5}
