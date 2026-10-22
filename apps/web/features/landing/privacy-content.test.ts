@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { legalEntity, siteInformation } from "../../platform/site-information";
 import { guideContent } from "./guide-content";
@@ -54,8 +56,8 @@ describe("privacy policy", () => {
   });
 
   it("carries a machine-readable effective date", () => {
-    expect(guideContent("privacy", "en").effective?.dateTime).toBe("2026-10-21");
-    expect(guideContent("privacy", "vi").effective?.dateTime).toBe("2026-10-21");
+    expect(guideContent("privacy", "en").effective?.dateTime).toBe("2026-10-22");
+    expect(guideContent("privacy", "vi").effective?.dateTime).toBe("2026-10-22");
   });
 
   // Long provider names and descriptions overflowed the Office table's narrow middle column.
@@ -64,6 +66,42 @@ describe("privacy policy", () => {
       const tables = guideContent("privacy", locale).sections.flatMap(section => section.table ? [section.table] : []);
       expect(tables).toHaveLength(2);
       expect(tables.every(table => table.layout === "wide-middle")).toBe(true);
+    }
+  });
+
+  // Store reviewers hold the policy against the data-safety and App Privacy forms, which
+  // apps/chat-mobile/store/listing.md › Quyền riêng tư declares row by row. Every row there
+  // names here what the policy must say for it, in both languages; a new row fails until it does.
+  const listingRows = () => {
+    const listing = readFileSync(path.resolve(__dirname, "../../../chat-mobile/store/listing.md"), "utf8");
+    const section = listing.slice(listing.indexOf("## Quyền riêng tư"));
+    const table = section.slice(section.indexOf("| Dữ liệu |"), section.indexOf("\n\n", section.indexOf("| Dữ liệu |")));
+    return table.split("\n").slice(2).map(line => line.split("|")[1]!.trim());
+  };
+  const policyFor: Record<string, { vi: string[]; en: string[] }> = {
+    "Tên, email": { vi: ["Email, tên hiển thị"], en: ["Email, display name"] },
+    "Nội dung tin, ảnh, tệp, tin thoại": { vi: ["Tin nhắn, ảnh, tệp, tin thoại"], en: ["Messages, photos, files, voice messages"] },
+    "Nội dung xem trước trong push": { vi: ["tối đa 120 ký tự đầu"], en: ["first 120 characters"] },
+    "Push token Expo, tên máy, nền tảng": { vi: ["Mã nhận thông báo đẩy (push token), nền tảng, tên thiết bị", "Expo (650 Industries)"], en: ["Push notification token, platform, device name", "Expo (650 Industries)"] },
+    "Chẩn đoán: báo cáo crash và hiệu năng (Sentry, bên thứ ba)": { vi: ["Báo cáo lỗi ứng dụng điện thoại", "Sentry (Functional Software)"], en: ["Phone app error reports", "Sentry (Functional Software)"] },
+    "Thống kê sử dụng ẩn danh (server UniWork)": {
+      vi: ["Thống kê sử dụng ứng dụng điện thoại", "không gắn với bạn", "Cài đặt → Quyền riêng tư và bảo mật → Gửi thống kê sử dụng ẩn danh"],
+      en: ["Phone app usage statistics", "not linked to you", "Settings → Privacy & security → Share anonymous usage statistics"],
+    },
+    "Mã định danh trong báo cáo crash": { vi: ["mã người dùng UniWork"], en: ["your UniWork user id"] },
+    "Xử lý AI (Anthropic, bên thứ ba)": { vi: ["Anthropic"], en: ["Anthropic"] },
+    "Báo cáo vi phạm": { vi: ["Báo cáo và chặn"], en: ["Reports and blocking"] },
+  };
+
+  it("says what the store listing declares, row for row, in both languages", () => {
+    const rows = listingRows();
+    expect(rows).toHaveLength(Object.keys(policyFor).length);
+    for (const row of rows) {
+      expect(policyFor, `listing row "${row}" has no policy wording here`).toHaveProperty([row]);
+      for (const locale of ["en", "vi"] as const) {
+        const text = JSON.stringify(guideContent("privacy", locale));
+        for (const phrase of policyFor[row]![locale]) expect(text, `${locale}: ${row}`).toContain(phrase);
+      }
     }
   });
 

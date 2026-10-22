@@ -12,7 +12,7 @@ import type { GuideContent } from "./guide-content";
  */
 const vi: GuideContent = {
   introduction: "Chính sách này giải thích UniWork, UniOffice và ứng dụng UniChat (web, máy tính, Android, iPhone) thu thập dữ liệu cá nhân nào, dùng để làm gì, lưu ở đâu, chia sẻ với ai và bạn yêu cầu xem hoặc xóa dữ liệu bằng cách nào.",
-  effective: { dateTime: "2026-10-21", text: "21/10/2026" },
+  effective: { dateTime: "2026-10-22", text: "22/10/2026" },
   sections: [
     { title: "Ai chịu trách nhiệm về dữ liệu", paragraphs: [
       `UniWork, UniOffice và UniChat do ${legalEntity.nameVi} (mã số doanh nghiệp ${legalEntity.enterpriseCode}, trụ sở: ${legalEntity.addressVi}) vận hành. Liên hệ về dữ liệu cá nhân: ${legalEntity.email}.`,
@@ -28,6 +28,8 @@ const vi: GuideContent = {
       ["Thiết bị và phiên đăng nhập", "Mã nhận thông báo đẩy (push token), nền tảng, tên thiết bị, phiên bản ứng dụng, địa chỉ IP và trình duyệt/ứng dụng của phiên đăng nhập", "Gửi thông báo, quản lý phiên, phát hiện truy cập bất thường"],
       ["Nhật ký hoạt động", "Hành động thay đổi dữ liệu (ai, lúc nào, làm gì) kèm địa chỉ IP và trình duyệt/ứng dụng", "Bảo mật, truy vết và giải quyết tranh chấp trong tổ chức"],
       ["Đo hiệu năng web", "Thời gian tải trang và độ phản hồi, không gắn với tài khoản", "Giữ trang web nhanh"],
+      ["Thống kê sử dụng ứng dụng điện thoại", "Bộ đếm ẩn danh của UniChat cho Android và iPhone: lần mở ứng dụng, thời gian màn hình đầu tiên hiện ra, tin gửi được hay hỏng và thời gian gửi, lần mở từ thông báo, cuộc gọi nối được hay không và thời gian nối — chỉ cộng theo hệ điều hành và phiên bản ứng dụng, không gắn với tài khoản; bạn tắt được", "Biết một phiên bản ứng dụng có chạy tốt không"],
+      ["Báo cáo lỗi ứng dụng điện thoại", "Khi ứng dụng UniChat cho Android và iPhone gặp lỗi: diễn biến lỗi, kiểu máy, hệ điều hành, phiên bản ứng dụng và mã người dùng (không email, tên hay nội dung tin); thời gian mở ứng dụng và tải màn hình của một phần nhỏ phiên dùng", "Tìm và sửa lỗi, giữ ứng dụng nhanh"],
     ], layout: "wide-middle" } },
     { title: "Quyền truy cập trên điện thoại và máy tính", paragraphs: [
       "Ứng dụng chỉ xin quyền khi bạn dùng tính năng cần nó, và bạn có thể tắt trong cài đặt của thiết bị bất cứ lúc nào.",
@@ -41,6 +43,8 @@ const vi: GuideContent = {
     { title: "Chúng tôi dùng dữ liệu để làm gì", paragraphs: [
       "Để cung cấp và bảo vệ dịch vụ: đăng nhập, đồng bộ nội dung giữa các thiết bị, gửi thông báo, chống lạm dụng và khắc phục sự cố.",
       "Chúng tôi không bán dữ liệu cá nhân, không dùng dữ liệu để quảng cáo và không cài công cụ quảng cáo hay phân tích của bên thứ ba trong ứng dụng UniChat và UniOffice. Chúng tôi không dùng nội dung của bạn để huấn luyện mô hình AI.",
+      "Thống kê sử dụng ẩn danh: ứng dụng UniChat cho Android và iPhone gửi về chính máy chủ UniWork các bộ đếm — lần mở ứng dụng, thời gian màn hình đầu tiên hiện ra, tin gửi được hay hỏng hẳn và thời gian gửi, lần mở từ thông báo (tin nhắn hay cuộc gọi), cuộc gọi nối được hay không và thời gian nối. Máy chủ chỉ cộng chúng theo hệ điều hành và phiên bản ứng dụng: không gắn với bạn, tổ chức, cuộc trò chuyện hay nội dung nào, và không gửi cho bên thứ ba. Tính năng bật sẵn; bạn tắt được ở Cài đặt → Quyền riêng tư và bảo mật → Gửi thống kê sử dụng ẩn danh, và khi tắt thì những gì chưa gửi bị bỏ.",
+      "Báo cáo lỗi: khi ứng dụng UniChat cho Android và iPhone gặp lỗi, ứng dụng gửi báo cáo lỗi tới Sentry, nhà cung cấp dịch vụ xử lý thay chúng tôi. Báo cáo gồm diễn biến lỗi, kiểu máy, hệ điều hành, phiên bản ứng dụng và mã người dùng UniWork; nội dung tin nhắn, email, tên, mã đăng nhập và tham số trong địa chỉ được lọc bỏ trước khi gửi, không chụp màn hình và không ghi lại phiên dùng.",
       "Thông báo đẩy có thể hiện tên người gửi, tên phòng và tối đa 120 ký tự đầu của tin nhắn văn bản (tin thoại, ảnh, tệp chỉ hiện nhãn). Nếu không muốn nội dung xuất hiện trên màn hình khóa, hãy tắt xem trước thông báo trong cài đặt của thiết bị.",
       `Báo cáo và chặn: khi bạn báo cáo một tin nhắn hoặc một người trong UniChat, chúng tôi lưu lý do, mô tả bạn viết và tin nhắn hoặc người liên quan. Chủ sở hữu và quản trị viên tổ chức của bạn thấy báo cáo trong Nhật ký hoạt động của tổ chức — lý do, người hoặc tin nhắn bị báo cáo và ai đã báo cáo — để xử lý; mô tả bạn viết không vào nhật ký mà được lưu cùng báo cáo, nằm trong bản xuất dữ liệu của tổ chức mà chỉ chủ sở hữu tải được. Người bị báo cáo không nhận thông báo nào, nhưng nếu họ là chủ sở hữu hoặc quản trị viên thì họ cũng xem được báo cáo. Bạn cũng có thể báo cáo thẳng với chúng tôi qua ${legalEntity.email}. Khi bạn chặn một người, hai bên không nhắn tin riêng được cho tới khi bạn bỏ chặn.`,
     ] },
@@ -61,6 +65,7 @@ const vi: GuideContent = {
       ["Anthropic", "Xử lý yêu cầu AI khi bạn dùng tính năng AI", "Hoa Kỳ"],
       ["Tavily hoặc Brave; OpenAI", "Chỉ khi tổ chức bật công cụ AI đám mây trong UniOffice: tìm kiếm web (câu truy vấn), tạo ảnh (mô tả và ảnh tham chiếu), chuyển giọng nói thành văn bản (tệp âm thanh)", "Hoa Kỳ"],
       ["Expo (650 Industries)", "Chuyển thông báo đẩy tới điện thoại; phân phối bản cập nhật ứng dụng di động", "Hoa Kỳ"],
+      ["Sentry (Functional Software)", "Nhận báo cáo lỗi và số đo hiệu năng của ứng dụng UniChat cho Android và iPhone", "Hoa Kỳ"],
       ["Google (Firebase Cloud Messaging), Apple (APNs)", "Đưa thông báo đẩy tới máy Android và iPhone", "Theo hạ tầng của Google và Apple"],
       ["Google", "Đăng nhập bằng Google (khi bạn chọn); gửi email hệ thống như mã xác minh", "Theo hạ tầng của Google"],
       ["GitHub", "Lưu bản cài và bản cập nhật UniChat, UniOffice cho máy tính", "Theo hạ tầng của GitHub"],
@@ -91,7 +96,7 @@ const vi: GuideContent = {
 
 const en: GuideContent = {
   introduction: "This policy explains what personal data UniWork, UniOffice and the UniChat apps (web, desktop, Android, iPhone) collect, why, where it is kept, who it is shared with and how to ask to see or delete it.",
-  effective: { dateTime: "2026-10-21", text: "21 October 2026" },
+  effective: { dateTime: "2026-10-22", text: "22 October 2026" },
   sections: [
     { title: "Who is responsible for your data", paragraphs: [
       `UniWork, UniOffice and UniChat are operated by ${legalEntity.nameEn} (enterprise code ${legalEntity.enterpriseCode}, registered office: ${legalEntity.addressEn}). Personal data contact: ${legalEntity.email}.`,
@@ -107,6 +112,8 @@ const en: GuideContent = {
       ["Devices and sessions", "Push notification token, platform, device name, app version, IP address and browser/app of each session", "Sending notifications, managing sessions, detecting unusual access"],
       ["Activity log", "Actions that change data (who, when, what) with IP address and browser/app", "Security, traceability and resolving disputes within the organization"],
       ["Web performance", "Page load and responsiveness timings, not linked to an account", "Keeping the website fast"],
+      ["Phone app usage statistics", "Anonymous counters from UniChat for Android and iPhone: app opens, how long the first screen takes, whether a message was sent or failed and how long it took, opens from a notification, whether a call connected and how long it took — added up by operating system and app version only, not linked to an account; you can turn them off", "Knowing whether an app release works well"],
+      ["Phone app error reports", "When UniChat for Android or iPhone hits an error: what led to it, device model, operating system, app version and user id (no email, name or message content); app start and screen load times for a small share of sessions", "Finding and fixing bugs, keeping the app fast"],
     ], layout: "wide-middle" } },
     { title: "Device permissions", paragraphs: [
       "The apps ask for a permission only when you use the feature that needs it, and you can turn it off in your device settings at any time.",
@@ -120,6 +127,8 @@ const en: GuideContent = {
     { title: "How we use data", paragraphs: [
       "To provide and protect the service: sign-in, syncing content across devices, notifications, abuse prevention and troubleshooting.",
       "We do not sell personal data, do not use it for advertising and do not include third-party advertising or analytics tools in the UniChat and UniOffice apps. We do not use your content to train AI models.",
+      "Anonymous usage statistics: the UniChat apps for Android and iPhone send counters to UniWork's own server — app opens, how long the first screen takes to appear, whether a message was sent or failed for good and how long it took, opens from a notification (a message or a call), whether a call connected and how long it took. The server only adds them up by operating system and app version: they are not linked to you, your organization, a conversation or any content, and are not shared with third parties. This is on by default; you can turn it off in Settings → Privacy & security → Share anonymous usage statistics, and anything not yet sent is then dropped.",
+      "Error reports: when the UniChat app for Android or iPhone hits an error, it sends an error report to Sentry, a service provider acting on our behalf. A report includes what led to the error, the device model, operating system, app version and your UniWork user id; message content, email addresses, names, sign-in tokens and URL parameters are filtered out before it is sent, and no screenshots or session recordings are taken.",
       "Push notifications may show the sender's name, the room name and up to the first 120 characters of a text message (voice messages, photos and files show only a label). To keep content off your lock screen, turn off notification previews in your device settings.",
       `Reports and blocking: when you report a message or a person in UniChat, we store the reason, the words you add and the message or person concerned. Your organization's owners and admins see the report in the organization's Activity log — the reason, the person or message reported and who reported it — so they can act on it; the words you add stay out of the log and are kept with the report, in the organization's data export that only the owner can download. The person reported is not notified, but if they are an owner or admin they can see the report too. You can also report directly to us at ${legalEntity.email}. When you block someone, neither of you can message the other directly until you unblock them.`,
     ] },
@@ -140,6 +149,7 @@ const en: GuideContent = {
       ["Anthropic", "Processing AI requests when you use an AI feature", "United States"],
       ["Tavily or Brave; OpenAI", "Only when an organization turns on UniOffice cloud AI tools: web search (the query), image generation (the prompt and reference images), speech to text (the audio file)", "United States"],
       ["Expo (650 Industries)", "Relaying push notifications to phones; delivering mobile app updates", "United States"],
+      ["Sentry (Functional Software)", "Receiving error reports and performance measurements from the UniChat apps for Android and iPhone", "United States"],
       ["Google (Firebase Cloud Messaging), Apple (APNs)", "Delivering push notifications to Android phones and iPhones", "Google's and Apple's infrastructure"],
       ["Google", "Sign in with Google (when you choose it); sending system email such as verification codes", "Google's infrastructure"],
       ["GitHub", "Hosting UniChat and UniOffice desktop installers and updates", "GitHub's infrastructure"],

@@ -57,7 +57,7 @@ tin, gọi giữa thành viên một tổ chức), không chia sẻ vị trí. N
 App gửi về server UniWork, qua Expo Push Service (bên thứ ba, rồi APNs/FCM), tới Sentry (bên thứ ba, báo cáo
 crash; UNI-2053) và — khi người dùng, hay một thành viên khác của cuộc trò chuyện hoặc cuộc gọi chung, dùng tính năng
 AI — qua server UniWork tới Anthropic (nhà cung cấp mô hình AI) những dữ liệu sau. Không có quảng cáo, không theo dõi giữa app (App Tracking Transparency: không),
-không bán dữ liệu. Ghi Expo và Sentry vào chính sách riêng tư (spec §11). Báo cáo crash không chứa nội dung tin, email,
+không bán dữ liệu. Chính sách riêng tư (`apps/web/features/landing/privacy-content.ts`, vi và en) nói từng dòng của bảng dưới — Expo, Sentry, thống kê sử dụng ẩn danh và cách tắt; `privacy-content.test.ts` đọc bảng này và đỏ khi một dòng chưa có trong chính sách (thêm dòng thì thêm câu ở cả hai). Báo cáo crash không chứa nội dung tin, email,
 tên, token hay query của URL (`lib/redact.ts` lọc trước khi gửi), không chụp màn hình, không ghi lại phiên.
 
 | Dữ liệu | Khi nào | Apple App Privacy | Google Data safety |
