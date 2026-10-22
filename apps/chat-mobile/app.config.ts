@@ -287,14 +287,16 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // The WebRTC plugin asks to draw over other apps; a call never does, and Play reviews it. expo-file-system,
       // expo-image and expo-image-picker ask for shared storage (up to API 32): UniChat reads only its own files and
       // what the system pickers hand it, so it asks for none (audit "no-masvs-baseline").
-      // expo-screen-capture adds READ_MEDIA_IMAGES and DETECT_SCREEN_CAPTURE for its screenshot listener, which UniChat
-      // does not use (it only blocks capture): Play reviews READ_MEDIA_IMAGES as a photo permission.
+      // expo-screen-capture adds READ_MEDIA_IMAGES for its screenshot listener before Android 14, which UniChat does
+      // not use (it only blocks capture): Play reviews READ_MEDIA_IMAGES as a photo permission. Its
+      // DETECT_SCREEN_CAPTURE stays: on Android 14+ the module registers its ScreenCaptureCallback when it is created,
+      // and without that install-time permission the registration throws while the bundle loads and the app dies at
+      // launch (CI's API 35 emulator, 2026-10-23). It is a normal permission: no prompt, nothing for Play to review.
       blockedPermissions: [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.DETECT_SCREEN_CAPTURE",
       ],
       // No cloud backup of the app's files: unsent attachments sit in plain files under documents/outbox, and a
       // restored session store cannot open on another phone anyway (its Keystore key never leaves this one).

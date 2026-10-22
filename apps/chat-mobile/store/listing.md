@@ -163,9 +163,11 @@ và nghe/gác máy dùng phản hồi chạm của hệ thống (Android `perfor
 | Quản lý cuộc gọi của app | Android `MANAGE_OWN_CALLS` | S4 | Android 14 chỉ cho chạy dịch vụ nền kiểu `phoneCall` với app tự quản lý cuộc gọi; UniChat không đọc hay đặt cuộc gọi điện thoại | — (quyền thường, cấp lúc cài) |
 | Thiết bị ở gần (Bluetooth) | Android 12+ `BLUETOOTH_CONNECT` | S4 | Đưa âm thanh cuộc gọi qua tai nghe Bluetooth; chỉ hỏi khi bắt đầu cuộc gọi, từ chối thì cuộc gọi vẫn dùng loa máy | — (hộp thoại hệ thống "thiết bị ở gần") |
 | Face ID | iOS `NSFaceIDUsageDescription`; Android `USE_BIOMETRIC`/`USE_FINGERPRINT` (quyền thường) | bảo mật | Chỉ khi người dùng bật Cài đặt › Khoá UniChat hay tổ chức của họ bắt buộc khoá: mở app bằng Face ID, vân tay hay mã khoá của máy. App không đọc hay lưu dữ liệu sinh trắc; hệ điều hành chỉ trả lời có/không | UniChat dùng Face ID để mở khoá ứng dụng khi bạn bật Khoá UniChat. / UniChat uses Face ID to unlock the app when you turn on Lock UniChat. |
-| ~~Bộ nhớ dùng chung, ảnh~~ | Android `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_IMAGES`, `DETECT_SCREEN_CAPTURE` **bị gỡ** (`blockedPermissions`) | bảo mật | `expo-file-system`, `expo-image`, `expo-image-picker` khai hai quyền đầu tới API 32, `expo-screen-capture` khai hai quyền sau cho listener chụp màn hình mà app không dùng; UniChat chỉ đọc tệp của chính nó và tệp trình chọn hệ thống trao, nên không xin | — |
+| ~~Bộ nhớ dùng chung, ảnh~~ | Android `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_IMAGES` **bị gỡ** (`blockedPermissions`) | bảo mật | `expo-file-system`, `expo-image`, `expo-image-picker` khai hai quyền đầu tới API 32, `expo-screen-capture` khai quyền sau cho listener chụp màn hình trước Android 14 mà app không dùng; UniChat chỉ đọc tệp của chính nó và tệp trình chọn hệ thống trao, nên không xin | — |
 
-Quyền thường của Android (cấp lúc cài, không hộp thoại, không khai báo riêng trên Play): `INTERNET`,
+Quyền thường của Android (cấp lúc cài, không hộp thoại, không khai báo riêng trên Play): `DETECT_SCREEN_CAPTURE`
+(Android 14+: `expo-screen-capture` đăng ký callback chụp màn hình ngay khi module được tạo; chặn quyền này thì app
+chết khi mở), `INTERNET`,
 `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` (biết có mạng để gửi lại tin chờ), `MODIFY_AUDIO_SETTINGS` (loa ngoài, tai nghe
 trong cuộc gọi), `VIBRATE`, `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED` (thông báo hẹn giờ của `expo-notifications` sống qua
 lần khởi động lại), `FOREGROUND_SERVICE` cùng `FOREGROUND_SERVICE_PHONE_CALL`, `FOREGROUND_SERVICE_MICROPHONE`,

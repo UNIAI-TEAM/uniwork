@@ -40,6 +40,9 @@ describe("the release build's Android manifest", () => {
       // Native calls (plugins/with-unichat-calls.js): Bluetooth audio on API 31+.
       "android.permission.BLUETOOTH_CONNECT",
       "android.permission.CAMERA",
+      // expo-screen-capture registers its capture callback when it is created on Android 14+ (app.config.ts ›
+      // blockedPermissions): a normal permission, no prompt; without it the app dies at launch.
+      "android.permission.DETECT_SCREEN_CAPTURE",
       "android.permission.FOREGROUND_SERVICE",
       // The call's foreground service: phoneCall (with MANAGE_OWN_CALLS), microphone, camera.
       "android.permission.FOREGROUND_SERVICE_CAMERA",
@@ -65,7 +68,6 @@ describe("the release build's Android manifest", () => {
     expect(manifest.maxSdkVersion).toEqual({});
     // A call never draws over other apps, and UniChat reads no shared storage (app.config.ts › blockedPermissions).
     expect(manifest.removedPermissions).toEqual([
-      "android.permission.DETECT_SCREEN_CAPTURE",
       "android.permission.READ_EXTERNAL_STORAGE",
       "android.permission.READ_MEDIA_IMAGES",
       "android.permission.SYSTEM_ALERT_WINDOW",

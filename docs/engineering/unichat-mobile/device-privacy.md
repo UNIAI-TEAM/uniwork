@@ -32,8 +32,9 @@
   chính cuộc gọi đang diễn ra — `keepOpenForCall` — thì giữ). Màn Face ID/mã khoá của chính app (`authenticateOwner`,
   đếm ở `ownerPrompts`) không tính là rời app: trên Android màn mã khoá là activity khác, app thành `background`, nếu
   tính thì "Ngay" khoá lại ngay sau khi mở. Trình chọn ảnh/tệp và hộp thoại quyền của hệ thống vẫn tính là rời app. Android: `USE_BIOMETRIC`/
-  `USE_FINGERPRINT` là quyền thường; `READ_MEDIA_IMAGES`/`DETECT_SCREEN_CAPTURE` mà `expo-screen-capture` khai cho
-  listener chụp màn hình (app không dùng) bị chặn.
+  `USE_FINGERPRINT` là quyền thường; `READ_MEDIA_IMAGES` mà `expo-screen-capture` khai cho listener chụp màn hình
+  trước Android 14 (app không dùng) bị chặn. `DETECT_SCREEN_CAPTURE` (quyền thường, Android 14+) thì giữ: module đăng
+  ký callback ngay khi được tạo, chặn quyền này thì app chết khi mở.
 - **Mức tối thiểu của tổ chức** (audit "Security & privacy", privacy-defaults-off). Owner/admin bật "Bắt buộc khoá
   UniChat" và "Bắt buộc chặn chụp màn hình" ở web › Cài đặt › Tổ chức › UniChat trên điện thoại
   (`GET/PUT /orgs/{org}/mobile-security-policy`, `OrganizationService.SetMobileSecurityPolicy`, audit
