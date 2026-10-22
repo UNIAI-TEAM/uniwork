@@ -5800,6 +5800,12 @@
     "sources": "Nguồn",
     "you": "Bạn",
     "uni": "UNI",
+    "meta": {
+      "uni": "UNI"
+    },
+    "followups": {
+      "label": "Gợi ý hỏi tiếp"
+    },
     "usage_tokens": "{{in}} vào · {{out}} ra",
     "notice": {
       "no_sources": "Chưa có dữ liệu nào bạn được xem khớp với câu hỏi này.",

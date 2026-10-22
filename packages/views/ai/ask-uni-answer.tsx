@@ -9,6 +9,8 @@ import { AppLink } from "../navigation";
 import { AskUniActions } from "./ask-uni-actions";
 import { isInAppHref } from "./ask-uni-links";
 import { AskUniEntityChip, AskUniSources, InLinkContext } from "./ask-uni-entity";
+import { AskUniContextChips } from "./ask-uni-context-chips";
+import { AskUniMessageMeta } from "./ask-uni-meta";
 import { AskUniProgress } from "./ask-uni-steps";
 
 const NOTICES = new Set(["no_sources", "empty_answer", "agent_failed", "refused", "stopped", "interrupted"]);
@@ -16,7 +18,7 @@ const NOTICES = new Set(["no_sources", "empty_answer", "agent_failed", "refused"
 const PARTIAL = new Set(["stopped", "interrupted"]);
 const CITE_TOKEN = /\[S(\d+)\]/g;
 
-export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps">>;
+export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps" | "focus" | "mentions" | "created_at">>;
 
 /** The model-written answer as markdown: raw html inert, no images, links only in-app or to a cited source, `[S#]` as entity chips. */
 function AnswerBody({ content, byId, wsId }: { content: string; byId: Map<string, AiCitation>; wsId: string }) {
@@ -77,10 +79,13 @@ export function AskUniMessageTurn({
   const byId = useMemo(() => sources ?? new Map(message.citations.map((c) => [c.source_id, c])), [sources, message.citations]);
   if (message.role === "user") {
     return (
-      <li className="flex justify-end">
+      <li className="flex flex-col items-end gap-1">
+        {/* eslint-disable-next-line jsx-a11y/aria-role -- our own prop, not an ARIA role */}
+        <AskUniMessageMeta role="user" createdAt={message.created_at ?? ""} />
         <div className="max-w-[94%] whitespace-pre-wrap rounded-lg bg-surface-selected px-3.5 py-2.5 text-body leading-6 text-surface-selected-foreground">
           {message.content}
         </div>
+        <AskUniContextChips refs={[...(message.focus ? [message.focus] : []), ...(message.mentions ?? [])]} />
       </li>
     );
   }
@@ -91,6 +96,10 @@ export function AskUniMessageTurn({
   return (
     <li className="flex flex-col items-start">
       <div className="w-full min-w-0">
+        <div className="mb-1">
+          {/* eslint-disable-next-line jsx-a11y/aria-role -- our own prop, not an ARIA role */}
+          <AskUniMessageMeta role="assistant" createdAt={message.created_at ?? ""} />
+        </div>
         <AskUniProgress steps={steps ?? message.steps ?? []} running={streaming} writing={writing} />
         {message.content ? <AnswerBody content={message.content} byId={byId} wsId={wsId} /> : null}
         {showNotice ? (

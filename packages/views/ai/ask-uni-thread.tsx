@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiMessages } from "@uniwork/core/ai";
 import type { useAskUniStream } from "@uniwork/core/ai/stream";
 import type { AiCitation, AiMessage, AskUniInput } from "@uniwork/core/types";
+import { AskUniFollowups } from "./ask-uni-followups";
 import { AskUniMessageTurn, type AskUniTurnMessage } from "./ask-uni-answer";
 
 /** What AskUniPanel owns and hands down: the live turn's state and its controls. */
@@ -68,14 +69,27 @@ export function AskUniThread({
   // A stopped turn has no message of its own: it is stored once the cache grew by its question and its partial answer.
   const storedStopped =
     state.status === "stopped" && !state.message && anchor?.base != null && stored.length >= anchor.base + 2;
-  const live = state.status !== "idle" && sameConversation && !inStore && !storedStopped;
+  const live = state.status !== "idle" && sameConversation && !inStore && !storedStopped && !state.regenerateOf;
 
   const lastAssistant = [...stored].reverse().find((m) => m.role === "assistant" && !m.id.startsWith("pending-"));
   const lastQuestion = [...stored].reverse().find((m) => m.role === "user")?.content ?? "";
+  // The server reuses the stored question, page chip and mentions; the question is sent only because the request requires it.
   const regenerate = () => {
-    // A stored turn keeps no focus or mentions, so a regenerated one asks the same question in the same conversation only.
-    if (lastQuestion) ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question: lastQuestion });
+    if (lastQuestion && lastAssistant) {
+      ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question: lastQuestion, regenerate_message_id: lastAssistant.id });
+    }
   };
+  const askFollowup = (question: string) => ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question });
+  // The answer being regenerated keeps its place: the live cell replaces it while it streams.
+  const regen = sameConversation && state.regenerateOf ? state.regenerateOf : null;
+  const followups =
+    streaming || live || !lastAssistant || lastAssistant.notice
+      ? []
+      : lastAssistant.followups.length > 0
+        ? lastAssistant.followups
+        : state.message?.id === lastAssistant.id
+          ? state.followups
+          : [];
 
   const liveAnswer: AskUniTurnMessage = {
     id: "live",
@@ -108,9 +122,12 @@ export function AskUniThread({
   return (
     <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
       <ul className="flex flex-col gap-4" aria-live="polite" aria-busy={streaming}>
-        {stored.map((m) => (
+        {stored.map((m) =>
+          regen === m.id && streaming ? (
+            <AskUniMessageTurn key={m.id} message={{ ...liveAnswer, id: "live", created_at: "" }} streaming steps={state.steps} writing={liveAnswer.content !== ""} sources={sources} wsId={wsId} />
+          ) : (
+          <Fragment key={m.id}>
           <AskUniMessageTurn
-            key={m.id}
             message={m}
             conversationId={conversationId}
             steps={state.message?.id === m.id && state.steps.length > 0 ? state.steps : undefined}
@@ -119,7 +136,11 @@ export function AskUniThread({
             onRegenerate={m.id === lastAssistant?.id ? regenerate : undefined}
             regenerateDisabled={streaming}
           />
-        ))}
+          {regen === m.id && state.status === "error" ? <StreamError code={state.errorCode} /> : null}
+          {m.id === lastAssistant?.id ? <AskUniFollowups items={followups} onAsk={askFollowup} /> : null}
+          </Fragment>
+          ),
+        )}
         {live ? (
           <>
             <AskUniMessageTurn message={{ id: "live-question", role: "user", content: state.question, citations: [] }} />

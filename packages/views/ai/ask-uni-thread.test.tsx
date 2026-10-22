@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import type { AskStreamState } from "@uniwork/core/ai/stream";
 import { initI18n } from "@uniwork/core/i18n";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import type { User, Workspace } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { AskUniThread, type AskUniStream } from "./ask-uni-thread";
 
@@ -15,6 +18,14 @@ const history = [
   { id: "a1", role: "assistant", content: "Có 3 task quá hạn.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "" },
 ];
 
+const user: User = {
+  id: "u1", email: "a@b.c", display_name: "An", onboarded_at: "2026-08-25T00:00:00Z",
+  email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
+};
+const workspace: Workspace = {
+  id: "ws1", slug: "team", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme",
+};
+
 function stream(state: Partial<AskStreamState> = {}): AskUniStream {
   return { state: { ...IDLE, conversationId: "c1", ...state }, ask: vi.fn(), stop: vi.fn() };
 }
@@ -23,7 +34,13 @@ function mount(s: AskUniStream, conversationId: string | null = "c1", askDefault
   // One client across rerenders: a fresh one per render would drop the cache the thread is testing.
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ui = (st: AskUniStream, conv: string | null) =>
-    wrapWithNav(<AskUniThread conversationId={conv} stream={st} askDefaults={askDefaults} />, undefined, client);
+    wrapWithNav(
+      <WorkspaceProvider workspace={workspace} user={user}>
+        <AskUniThread conversationId={conv} stream={st} askDefaults={askDefaults} wsId="ws1" />
+      </WorkspaceProvider>,
+      undefined,
+      client,
+    );
   const r = render(ui(s, conversationId));
   return { ...r, update: (st: AskUniStream, conv: string | null = conversationId) => r.rerender(ui(st, conv)) };
 }
@@ -34,6 +51,8 @@ beforeEach(() => {
     Promise.resolve(path === "/api/v1/ai/conversations/c1/messages" ? { messages: history } : {}),
   );
   useAiPanelStore.setState({ conversationId: "c1", workspaceId: "ws1" });
+  resetAuthStoreForTests();
+  setSessionUser(user);
 });
 
 describe("AskUniThread", () => {
@@ -107,7 +126,9 @@ describe("AskUniThread", () => {
     const s = stream();
     mount(s);
     fireEvent.click(await screen.findByRole("button", { name: "Trả lời lại" }));
-    expect(s.ask).toHaveBeenCalledWith(expect.objectContaining({ conversation_id: "c1", question: "Task nào quá hạn?" }));
+    expect(s.ask).toHaveBeenCalledWith(
+      expect.objectContaining({ conversation_id: "c1", question: "Task nào quá hạn?", regenerate_message_id: "a1" }),
+    );
   });
 
   it("regenerate sends the composer's model, effort and language", async () => {
@@ -115,7 +136,7 @@ describe("AskUniThread", () => {
     mount(s, "c1", { model: "opus", effort: "high", locale: "vi" });
     fireEvent.click(await screen.findByRole("button", { name: "Trả lời lại" }));
     expect(s.ask).toHaveBeenCalledWith({
-      conversation_id: "c1", question: "Task nào quá hạn?", model: "opus", effort: "high", locale: "vi",
+      conversation_id: "c1", question: "Task nào quá hạn?", regenerate_message_id: "a1", model: "opus", effort: "high", locale: "vi",
     });
   });
 
@@ -186,5 +207,87 @@ describe("AskUniThread sources", () => {
     );
     mount(stream());
     expect(await screen.findAllByRole("link", { name: "Dự án: Ra mắt Q4" })).toHaveLength(2);
+  });
+});
+
+const msg = (o: Record<string, unknown>) => ({ id: "x", role: "assistant", content: "", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], created_at: "", ...o });
+const serve = (messages: unknown[]) =>
+  requestMock.mockImplementation((path: string) =>
+    Promise.resolve(path === "/api/v1/ai/conversations/c1/messages" ? { messages } : {}),
+  );
+
+describe("AskUniThread regenerate in place", () => {
+  it("shows one question and the live answer where the old one was", async () => {
+    mount(stream({ status: "streaming", question: "Task nào quá hạn?", draft: "Đang viết lại", regenerateOf: "a1" }));
+    await screen.findByText("Task nào quá hạn?");
+    expect(await screen.findByText("Đang viết lại")).toBeInTheDocument();
+    expect(screen.queryByText("Có 3 task quá hạn.")).toBeNull();
+    expect(screen.getAllByText("Task nào quá hạn?")).toHaveLength(1);
+    const items = screen.getAllByRole("listitem").map((li) => li.textContent ?? "");
+    expect(items.findIndex((x) => x.includes("Đang viết lại"))).toBe(items.findIndex((x) => x.includes("Task nào quá hạn?")) + 1);
+  });
+
+  it("brings the old answer back with an error when the regenerate fails", async () => {
+    mount(stream({ status: "error", question: "Task nào quá hạn?", regenerateOf: "a1", errorCode: "ai_rate_limited" }));
+    expect(await screen.findByText("Có 3 task quá hạn.")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Bạn hỏi quá nhanh");
+    expect(screen.getAllByText("Task nào quá hạn?")).toHaveLength(1);
+  });
+});
+
+describe("AskUniThread follow-ups", () => {
+  const withFollowups = [history[0], { ...history[1], followups: ["A?", "B?"] }];
+
+  it("offers the last answer's follow-ups and asks the clicked one in the same conversation", async () => {
+    serve(withFollowups);
+    const s = stream();
+    mount(s, "c1", { model: "opus", effort: "high", locale: "vi" });
+    fireEvent.click(await screen.findByRole("button", { name: "A?" }));
+    expect(screen.getByRole("button", { name: "B?" })).toBeInTheDocument();
+    expect(s.ask).toHaveBeenCalledWith({ conversation_id: "c1", question: "A?", model: "opus", effort: "high", locale: "vi" });
+  });
+
+  it("takes the live turn's follow-ups for an answer the stream just finished", async () => {
+    serve([history[0], history[1], msg({ id: "a2", content: "Xong." })]);
+    mount(stream({ status: "done", question: "Q", followups: ["Tiếp?"], message: msg({ id: "a2", content: "Xong." }) as never }));
+    expect(await screen.findByRole("button", { name: "Tiếp?" })).toBeInTheDocument();
+  });
+
+  it("hides them for an answer with a notice, an earlier answer, and while streaming", async () => {
+    serve([history[0], { ...history[1], followups: ["Cũ?"] }, msg({ id: "u2", role: "user", content: "Hai" }), msg({ id: "a2", content: "", notice: "refused", followups: ["Z?"] })]);
+    const m = mount(stream());
+    await screen.findByText("Hai");
+    expect(screen.queryByRole("button", { name: "Z?" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cũ?" })).toBeNull();
+    serve(withFollowups);
+    m.update(stream({ status: "streaming", question: "Mới", draft: "x" }));
+    expect(screen.queryByRole("button", { name: "A?" })).toBeNull();
+  });
+});
+
+describe("AskUniThread meta and context", () => {
+  it("names the asker and UNI with the time, and no time for an unreadable date", async () => {
+    serve([msg({ id: "u1", role: "user", content: "Hỏi", created_at: "2026-01-02T08:05:00Z" }), msg({ id: "a1", content: "Đáp", created_at: "not a date" })]);
+    mount(stream());
+    await screen.findByText("Đáp");
+    expect(screen.getByText(/^An ·/)).toBeInTheDocument();
+    expect(screen.getByText("UNI")).toBeInTheDocument();
+    expect(screen.getByText("UNI").textContent).not.toMatch(/\d:\d\d/);
+  });
+
+  it("links a focus and a mention to their objects and leaves an unknown kind plain", async () => {
+    serve([
+      msg({
+        id: "u1", role: "user", content: "Hỏi",
+        focus: { kind: "task", id: "t1", title: "Sửa lỗi" },
+        mentions: [{ kind: "member", id: "m1", title: "Bình" }, { kind: "mystery", id: "z", title: "Lạ" }],
+      }),
+      msg({ id: "a1", content: "Đáp" }),
+    ]);
+    mount(stream());
+    expect(await screen.findByRole("link", { name: /Sửa lỗi/ })).toHaveAttribute("href", "/acme/team/tasks/t1");
+    expect(screen.getByRole("link", { name: /Bình/ })).toHaveAttribute("href", "/acme/team/people/m1");
+    expect(screen.getByText("Lạ")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Lạ/ })).toBeNull();
   });
 });

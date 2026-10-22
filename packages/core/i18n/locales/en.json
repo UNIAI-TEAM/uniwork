@@ -5804,6 +5804,12 @@
     "sources": "Sources",
     "you": "You",
     "uni": "UNI",
+    "meta": {
+      "uni": "UNI"
+    },
+    "followups": {
+      "label": "Suggested follow-ups"
+    },
     "usage_tokens": "{{in}} in · {{out}} out",
     "notice": {
       "no_sources": "Nothing you can see in this workspace matches this question yet.",
