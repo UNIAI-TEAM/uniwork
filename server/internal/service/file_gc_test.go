@@ -190,7 +190,7 @@ func TestFileGCBarrierClaimWins(t *testing.T) {
 		}
 		done <- rep
 	}()
-	<-leased
+	awaitGCHook(t, leased, done)
 	tx, err := h.pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -239,7 +239,7 @@ func TestFileGCBarrierGCWins(t *testing.T) {
 		}
 		done <- rep
 	}()
-	<-locked
+	awaitGCHook(t, locked, done)
 	claimErr := make(chan error, 1)
 	go func() {
 		claimErr <- h.tx(t, func(tx pgx.Tx, q *db.Queries) error { return attachAvatar(ctx, h, tx, q, id) })
@@ -319,7 +319,7 @@ func TestFileGCTwoWorkers(t *testing.T) {
 		}
 		done <- rep
 	}()
-	<-locked
+	awaitGCHook(t, locked, done)
 	second := h.sweep(t)
 	if second.Skipped != "run_lease_held" {
 		t.Fatalf("second replica = %+v, want skipped run_lease_held", second)
