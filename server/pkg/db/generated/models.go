@@ -1945,6 +1945,8 @@ type MeetingSummary struct {
 	OrganizationID string             `json:"organization_id"`
 	Partial        bool               `json:"partial"`
 	CreatedByKind  string             `json:"created_by_kind"`
+	Topics         string             `json:"topics"`
+	OpenQuestions  string             `json:"open_questions"`
 }
 
 type MeetingSummaryRun struct {

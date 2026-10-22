@@ -424,6 +424,46 @@ func (q *Queries) NextMeetingActionItemPosition(ctx context.Context, arg NextMee
 	return position, err
 }
 
+const refineLiveMeetingActionItem = `-- name: RefineLiveMeetingActionItem :execrows
+UPDATE meeting_action_items i
+SET owner_text = $1, due_text = $2, suggested_priority = $3,
+  description = $4, evidence = $5, updated_at = now()
+WHERE i.organization_id = $6 AND i.meeting_id = $7 AND i.id = $8
+  AND i.source = 'LIVE' AND i.dismissed_at IS NULL
+  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id)
+`
+
+type RefineLiveMeetingActionItemParams struct {
+	OwnerText         string `json:"owner_text"`
+	DueText           string `json:"due_text"`
+	SuggestedPriority string `json:"suggested_priority"`
+	Description       string `json:"description"`
+	Evidence          string `json:"evidence"`
+	OrganizationID    string `json:"organization_id"`
+	MeetingID         string `json:"meeting_id"`
+	ID                string `json:"id"`
+}
+
+// A summary refines a pending live item in place (UNI-1995 benchmark #21):
+// owner, due, priority, description and evidence, never its title. Only while
+// nobody handled it: not dismissed and no task that still exists.
+func (q *Queries) RefineLiveMeetingActionItem(ctx context.Context, arg RefineLiveMeetingActionItemParams) (int64, error) {
+	result, err := q.db.Exec(ctx, refineLiveMeetingActionItem,
+		arg.OwnerText,
+		arg.DueText,
+		arg.SuggestedPriority,
+		arg.Description,
+		arg.Evidence,
+		arg.OrganizationID,
+		arg.MeetingID,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const restoreMeetingActionItem = `-- name: RestoreMeetingActionItem :exec
 UPDATE meeting_action_items
 SET dismissed_at = NULL, dismissed_by = NULL, dismiss_reason = '', updated_at = now()

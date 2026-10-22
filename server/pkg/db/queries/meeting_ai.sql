@@ -55,9 +55,28 @@ ORDER BY created_at ASC, id ASC
 LIMIT sqlc.arg('row_limit');
 
 -- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind, topics, open_questions)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, sqlc.arg('topics'), sqlc.arg('open_questions'))
 RETURNING *;
+
+-- name: ListWorkspaceMeetingSearchTexts :many
+-- Ask UNI and MCP search a meeting by what it said too (UNI-1995 benchmark
+-- #14): each meeting's latest summary (paragraph, decisions, topics) and the
+-- titles of its pending and converted action items, for the meetings named.
+SELECT m.id AS meeting_id,
+  COALESCE(sm.summary, '')::text AS summary,
+  COALESCE(sm.decisions, '[]')::text AS decisions,
+  COALESCE(sm.topics, '[]')::text AS topics,
+  COALESCE((SELECT string_agg(i.title, E'\n' ORDER BY i.position, i.id) FROM meeting_action_items i
+    WHERE i.organization_id = m.organization_id AND i.meeting_id = m.id AND i.dismissed_at IS NULL), '')::text AS item_titles
+FROM meetings m
+LEFT JOIN LATERAL (
+  SELECT s.summary, s.decisions, s.topics FROM meeting_summaries s
+  WHERE s.meeting_id = m.id AND s.organization_id = m.organization_id
+  ORDER BY s.created_at DESC, s.id DESC LIMIT 1
+) sm ON true
+WHERE m.organization_id = sqlc.arg(organization_id) AND m.workspace_id = sqlc.arg(workspace_id)
+  AND m.id = ANY(sqlc.arg(meeting_ids)::text[]);
 
 -- name: GetLatestMeetingSummary :one
 -- tenant: parent meeting_id

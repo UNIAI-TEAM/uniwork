@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -28,6 +29,11 @@ const (
 	// rest waits for the next call.
 	liveItemsMaxSegments = 200
 	liveItemsMaxRunes    = 20000
+	// liveItemsContextLines are the lines up to the cursor the next
+	// extraction reads again as context, unlabelled (benchmark #21): an owner
+	// named just before the window ("Bình làm nhé" → "ok, thứ Năm") is not lost.
+	liveItemsContextLines = 15
+	liveItemsContextRunes = 3000
 )
 
 // Why an extraction stored nothing without failing (the SDO's skipped).
@@ -88,10 +94,22 @@ func (s *MeetingService) AgentExtract(ctx context.Context, c meetings.AgentClaim
 	if err != nil || len(segs) == 0 {
 		return LiveItemsResult{}, err
 	}
-	// Shared-mic lines carry their speaker's name, not the room participant's.
-	if _, err := s.nameSpeakers(ctx, m.ID, segs, scribeLocale); err != nil {
+	before, err := s.q.ListSegmentsUpToExtractCursor(ctx, db.ListSegmentsUpToExtractCursorParams{
+		MeetingID: m.ID, Cursor: cursor, RowLimit: liveItemsContextLines,
+	})
+	if err != nil {
 		return LiveItemsResult{}, err
 	}
+	slices.Reverse(before)
+	// The items speak the meeting's language, like its auto summary.
+	all := append(slices.Clone(before), segs...)
+	locale := meetingLanguage(all, nil, nil)
+	// Shared-mic lines carry their speaker's name, not the room participant's.
+	if _, err := s.nameSpeakers(ctx, m.ID, all, locale); err != nil {
+		return LiveItemsResult{}, err
+	}
+	before, segs = all[:len(before)], all[len(before):]
+	earlier := liveItemsContext(before)
 	labels := newSummaryLabels()
 	lines, runes := make([]ai.TranscriptLine, 0, len(segs)), 0
 	for _, sg := range segs {
@@ -116,7 +134,7 @@ func (s *MeetingService) AgentExtract(ctx context.Context, c meetings.AgentClaim
 	resp, err := s.AI.Complete(ctx, ai.Request{
 		Actor: scribeActor, OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingLiveItems, PromptID: ai.PromptMeetingLiveItems,
-		Vars: map[string]any{"title": m.Title, "locale": scribeLocale, "transcript": lines, "existing_action_items": titles},
+		Vars: map[string]any{"title": m.Title, "locale": locale, "transcript": lines, "context": earlier, "existing_action_items": titles},
 	})
 	if errors.Is(err, ai.ErrQuotaExceeded) {
 		s.count("live_items_quota")
@@ -146,6 +164,22 @@ func (s *MeetingService) AgentExtract(ctx context.Context, c meetings.AgentClaim
 	}
 	s.count("live_items_extracted")
 	return LiveItemsResult{Created: created}, nil
+}
+
+// liveItemsContext keeps the newest earlier lines that fit
+// liveItemsContextRunes, in reading order.
+func liveItemsContext(before []db.MeetingTranscriptSegment) []ai.ContextLine {
+	out, runes := []ai.ContextLine{}, 0
+	for i := len(before) - 1; i >= 0; i-- {
+		sg := before[i]
+		runes += utf8.RuneCountInString(sg.SpeakerName) + utf8.RuneCountInString(sg.Text) + 2
+		if runes > liveItemsContextRunes {
+			break
+		}
+		out = append(out, ai.ContextLine{Speaker: sg.SpeakerName, Text: sg.Text})
+	}
+	slices.Reverse(out)
+	return out
 }
 
 // storeLiveItems moves the cursor and inserts the new items under the

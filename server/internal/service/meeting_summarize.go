@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -38,6 +39,13 @@ const (
 	// a long-running meeting's backlog cannot crowd out its transcript.
 	summaryExistingItems     = 100
 	summaryExistingItemRunes = 300
+	// The pending live items a summary may refine (benchmark #21); more
+	// than this stay as they are and are skipped as repeats by title.
+	summaryDraftItems            = 50
+	summaryDraftDescriptionRunes = 600
+	// summaryEvidenceRefs bounds a refined item's merged evidence, like the
+	// model's own (ai.maxEvidenceLabels).
+	summaryEvidenceRefs = 10
 
 	// summaryRunLease is how long a claimed run keeps other runs of its
 	// meeting out at the smallest budget (summaryBudget grows it). It is also
@@ -112,7 +120,26 @@ func (s *MeetingService) summaryFailure(meetingID, usageEventID string, err erro
 	s.summaryErrorCount(reason)
 	slog.Warn("meetings: summary failed", "meeting_id", meetingID, "usage_event_id", summaryUsageID(usageEventID, err),
 		"reason", reason, "err", err)
-	return out
+	return summaryRunFailure{reason: reason, err: out}
+}
+
+// summaryRunFailure is the refusal of a failed run with the reason it was
+// counted under: the auto summary retries the reasons that pass
+// (summaryReasonTransient) instead of giving up. It unwraps to the refusal,
+// so callers and the handler see the CodedError as before.
+type summaryRunFailure struct {
+	reason string
+	err    error
+}
+
+func (e summaryRunFailure) Error() string { return e.err.Error() }
+func (e summaryRunFailure) Unwrap() error { return e.err }
+
+// summaryReasonTransient are the failures a later run can expect not to
+// meet: a rate limit, a timeout, a provider or network error. A billed answer
+// that did not parse, a quota or a missing model are not.
+var summaryReasonTransient = map[string]bool{
+	summaryReasonRateLimited: true, summaryReasonTimeout: true, summaryReasonProvider: true, summaryReasonGateway: true,
 }
 
 // summaryUsageID is the usage row a failed run left: the one the gateway
@@ -219,13 +246,31 @@ func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting, leas
 // earlier one of the same answer) is skipped, so a dismissed item does not
 // come back.
 func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, actor Actor, res ai.MeetingSummary, resp ai.Response, labels *summaryLabels, partial bool) (db.MeetingSummary, error) {
-	stored := make([]SummaryDecision, len(res.Decisions))
 	dropped := 0
-	for i, d := range res.Decisions {
-		refs, n := labels.resolve(d.Evidence)
-		stored[i], dropped = SummaryDecision{Text: d.Text, Evidence: refs}, dropped+n
+	points := func(in []ai.Decision) []SummaryDecision {
+		out := make([]SummaryDecision, len(in))
+		for i, d := range in {
+			refs, n := labels.resolve(d.Evidence)
+			out[i], dropped = SummaryDecision{Text: d.Text, Evidence: refs}, dropped+n
+		}
+		return out
 	}
-	decisions, err := json.Marshal(stored)
+	topics := make([]SummaryTopic, len(res.Topics))
+	for i, t := range res.Topics {
+		topics[i] = SummaryTopic{Title: t.Title, Points: points(t.Points)}
+		if refs, _ := labels.resolve([]string{t.StartLabel}); len(refs) == 1 && refs[0].Kind == EvidenceSegment {
+			topics[i].Start = &refs[0]
+		}
+	}
+	decisions, err := json.Marshal(points(res.Decisions))
+	if err != nil {
+		return db.MeetingSummary{}, err
+	}
+	topicsJSON, err := json.Marshal(topics)
+	if err != nil {
+		return db.MeetingSummary{}, err
+	}
+	questions, err := json.Marshal(points(res.OpenQuestions))
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
@@ -248,6 +293,7 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, actor A
 		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, Summary: res.Summary,
 		Decisions: string(decisions), ActionItems: string(rawItems), Model: resp.Model, CreatedBy: actor.ID,
 		UsageEventID: strText(resp.UsageEventID), Partial: partial, CreatedByKind: string(actor.Kind),
+		Topics: string(topicsJSON), OpenQuestions: string(questions),
 	})
 	if err != nil {
 		return db.MeetingSummary{}, err
@@ -273,7 +319,9 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, actor A
 		Metadata: map[string]any{
 			"summary_id": row.ID, "usage_event_id": resp.UsageEventID, "model": resp.Model,
 			"decisions": len(res.Decisions), "action_items": len(res.ActionItems),
+			"topics": len(res.Topics), "open_questions": len(res.OpenQuestions),
 			"replaced_pending": items.replaced, "kept": items.kept, "skipped_duplicates": items.skipped,
+			"refined_drafts":   items.refined,
 			"evidence_dropped": dropped + items.evidenceDropped,
 		},
 	}, audit.Event{Topic: "summary.created", Payload: map[string]string{
@@ -315,7 +363,7 @@ func summaryNoteLines(notes []db.ListMeetingNotesRow) ([]ai.NoteLine, int) {
 }
 
 // summaryItemsOutcome is what storing a summary did to the meeting's items.
-type summaryItemsOutcome struct{ replaced, kept, skipped, evidenceDropped int }
+type summaryItemsOutcome struct{ replaced, kept, skipped, refined, evidenceDropped int }
 
 // replaceSummaryActionItems applies spec §7.1 inside storeSummary's
 // transaction, under the meeting's summary lock.
@@ -332,12 +380,32 @@ func replaceSummaryActionItems(ctx context.Context, q *db.Queries, m db.Meeting,
 	}
 	out.kept = len(kept)
 	titles := make(map[string]struct{}, len(kept)+len(proposed))
+	drafts := map[string]db.MeetingActionItem{}
 	for _, k := range kept {
 		titles[normalizeTaskTitle(k.MeetingActionItem.Title)] = struct{}{}
+		if k.MeetingActionItem.Source == ActionItemSourceLive && actionItemStatus(k.MeetingActionItem, k.TaskLive) == ActionItemPending {
+			drafts[k.MeetingActionItem.ID] = k.MeetingActionItem
+		}
 	}
 	creator := audit.System("meeting_summary")
 	position := int32(0)
 	for _, it := range proposed {
+		// A refined draft (benchmark #21) is updated in place, once; a label
+		// that names no pending live item any more falls through and its
+		// title still matches the item, so it is skipped as a repeat.
+		if id, ok := labels.draftID(it.Draft); ok {
+			if d, ok := drafts[id]; ok {
+				refined, err := refineLiveItem(ctx, q, m, d, it, labels)
+				if err != nil {
+					return out, err
+				}
+				if refined {
+					delete(drafts, id)
+					out.refined++
+					continue
+				}
+			}
+		}
 		title := strings.TrimSpace(it.Title)
 		key := normalizeTaskTitle(title)
 		if key == "" {
@@ -368,19 +436,57 @@ func replaceSummaryActionItems(ctx context.Context, q *db.Queries, m db.Meeting,
 	return out, nil
 }
 
-// handledActionItemTitles are the titles of the items a new summary keeps
-// (converted, dismissed, manual, live): the prompt is told not to propose
-// them again. The pending AI items are left out; the new summary replaces
-// them anyway.
-func (s *MeetingService) handledActionItemTitles(ctx context.Context, m db.Meeting) ([]string, error) {
+// refineLiveItem applies a summary's refinement of a pending live item: a
+// field the summary left empty keeps the draft's value, the title never
+// changes, and the evidence gains the lines the summary cited. false when
+// the item was handled in the meantime.
+func refineLiveItem(ctx context.Context, q *db.Queries, m db.Meeting, d db.MeetingActionItem, it ai.ActionItem, labels *summaryLabels) (bool, error) {
+	pick := func(next, prev string) string {
+		if next = strings.TrimSpace(next); next != "" {
+			return next
+		}
+		return prev
+	}
+	refs, _ := labels.resolve(it.Evidence)
+	merged := decodeEvidence(d.Evidence)
+	for _, r := range refs {
+		if !slices.Contains(merged, r) && len(merged) < summaryEvidenceRefs {
+			merged = append(merged, r)
+		}
+	}
+	evidence, err := json.Marshal(merged)
+	if err != nil {
+		return false, err
+	}
+	n, err := q.RefineLiveMeetingActionItem(ctx, db.RefineLiveMeetingActionItemParams{
+		OrganizationID: m.OrganizationID, MeetingID: m.ID, ID: d.ID,
+		OwnerText: pick(it.Owner, d.OwnerText), DueText: pick(it.Due, d.DueText),
+		SuggestedPriority: pick(it.Priority, d.SuggestedPriority), Description: pick(it.Description, d.Description),
+		Evidence: string(evidence),
+	})
+	return n == 1, err
+}
+
+// summaryPromptItems are what a new summary is told about the meeting's
+// items: the titles of the ones it keeps as handled (converted, dismissed,
+// manual, live ones a person converted or set aside), never to propose again,
+// and the pending live items as drafts it may refine in place (benchmark
+// #21). The pending AI items are left out; the new summary replaces them.
+func (s *MeetingService) summaryPromptItems(ctx context.Context, m db.Meeting) ([]string, []db.MeetingActionItem, error) {
 	rows, err := s.q.ListMeetingActionItems(ctx, db.ListMeetingActionItemsParams{OrganizationID: m.OrganizationID, MeetingID: m.ID})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	titles := make([]string, 0, len(rows))
+	var drafts []db.MeetingActionItem
 	for _, r := range rows {
 		it := r.MeetingActionItem
-		if it.Source == ActionItemSourceAI && actionItemStatus(it, r.TaskLive) == ActionItemPending {
+		pending := actionItemStatus(it, r.TaskLive) == ActionItemPending
+		switch {
+		case pending && it.Source == ActionItemSourceAI:
+			continue
+		case pending && it.Source == ActionItemSourceLive && len(drafts) < summaryDraftItems:
+			drafts = append(drafts, it)
 			continue
 		}
 		titles = append(titles, capRunes(it.Title, summaryExistingItemRunes, "…"))
@@ -393,5 +499,18 @@ func (s *MeetingService) handledActionItemTitles(ctx context.Context, m db.Meeti
 	if len(titles) > summaryExistingItems {
 		titles = titles[len(titles)-summaryExistingItems:]
 	}
-	return titles, nil
+	return titles, drafts, nil
+}
+
+// summaryDraftLines labels the drafts for the prompt.
+func summaryDraftLines(drafts []db.MeetingActionItem, labels *summaryLabels) []ai.DraftItem {
+	out := make([]ai.DraftItem, 0, len(drafts))
+	for _, d := range drafts {
+		out = append(out, ai.DraftItem{
+			Label: labels.draft(d.ID), Title: capRunes(d.Title, summaryExistingItemRunes, "…"),
+			Owner: d.OwnerText, Due: d.DueText, Priority: d.SuggestedPriority,
+			Description: capRunes(d.Description, summaryDraftDescriptionRunes, "…"),
+		})
+	}
+	return out
 }

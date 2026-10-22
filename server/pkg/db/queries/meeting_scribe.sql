@@ -151,6 +151,18 @@ WHERE s.meeting_id = sqlc.arg('meeting_id')
 ORDER BY s.created_at, s.id
 LIMIT sqlc.arg('row_limit');
 
+-- name: ListSegmentsUpToExtractCursor :many
+-- tenant: parent meeting_id
+-- The last lines the extraction already read, newest first, up to and
+-- including the cursor: read-only context for the next extraction (UNI-1995
+-- benchmark #21). An empty or unknown cursor has none.
+SELECT s.* FROM meeting_transcript_segments s
+JOIN meeting_transcript_segments c ON c.id = sqlc.arg('cursor')::text AND c.meeting_id = s.meeting_id
+WHERE s.meeting_id = sqlc.arg('meeting_id')
+  AND (s.created_at, s.id) <= (c.created_at, c.id)
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT sqlc.arg('row_limit');
+
 -- name: AdvanceScribeExtractCursor :execrows
 -- tenant: by-id
 -- Guarded by the extract count the caller read: of two extractions that read

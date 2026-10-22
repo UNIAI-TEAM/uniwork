@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -149,7 +150,8 @@ func TestSummarizeFailuresAnswerFixedCodes(t *testing.T) {
 			if len(met.reasons) != 1 || met.reasons[0] != c.reason {
 				t.Fatalf("summary error reasons = %v, want [%s]", met.reasons, c.reason)
 			}
-			if len(met.events) != 1 || met.events[0] != "summary_error" {
+			// A cut answer is asked once more in brief mode first (benchmark #6).
+			if events := slices.DeleteFunc(slices.Clone(met.events), func(e string) bool { return e == "summary_truncated" }); len(events) != 1 || events[0] != "summary_error" {
 				t.Fatalf("lifecycle events = %v, want [summary_error]", met.events)
 			}
 			// The run lock was given back: the next run is not refused as in progress.

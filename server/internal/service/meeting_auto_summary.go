@@ -31,10 +31,17 @@ const (
 	// Summaries in flight per node: one long meeting never holds up the rest.
 	autoSummaryConcurrency = 4
 	// A row claimed this many times without settling (its node died each
-	// time) is given up, and the host gets the reminder instead.
-	autoSummaryMaxAttempts = 3
-	// No organization locale exists yet; the product's default is Vietnamese.
-	autoSummaryLocale = "vi"
+	// time, or the model failed for a reason that passes) is given up, and
+	// the host gets the reminder instead.
+	autoSummaryMaxAttempts = 4
+	// A run that failed for a reason that passes waits this long, times four
+	// per attempt (30 s, 2 min, 8 min), or the rate limit's retry_after when
+	// it is longer, up to autoSummaryMaxBackoff (UNI-1995 benchmark #12).
+	autoSummaryBackoff    = 30 * time.Second
+	autoSummaryMaxBackoff = 15 * time.Minute
+	// autoSummaryLocale asks summarize for the meeting's own language
+	// (meetingLanguage): no organization locale exists yet.
+	autoSummaryLocale = ""
 	// The topic that sends the summary reminder after an auto run that made
 	// no summary (catalogue: notification only, no client).
 	topicAutoSummaryFailed = "meeting.auto_summary_failed"
@@ -175,6 +182,15 @@ func (s *MeetingService) runAutoSummary(ctx context.Context, row db.MeetingAutoS
 		return ctx.Err()
 	}
 	remind, settle := autoSummaryOutcome(err)
+	if retry, ok := autoSummaryRetry(err, row.Attempts); ok {
+		// A rate limit at 17:00 when many meetings end together, a timeout,
+		// a provider outage: the row comes back after its backoff instead of
+		// costing the meeting its summary.
+		s.count("auto_summary_retry")
+		slog.Info("meetings: auto summary failed for a reason that passes, retrying", "meeting_id", row.MeetingID,
+			"attempts", row.Attempts, "retry_in_s", int(retry/time.Second), "err", err)
+		return s.deferAutoSummary(ctx, row, retry)
+	}
 	if !settle {
 		// Not a refusal (a read failed, say): the row stays, its lease lapses
 		// and another claim retries it, up to autoSummaryMaxAttempts.
@@ -208,6 +224,35 @@ func autoSummaryOutcome(err error) (remind, settle bool) {
 		return !quiet, true
 	}
 	return false, false
+}
+
+// autoSummaryRetry is the wait before a failed run's next attempt, when it
+// failed for a reason that passes (summaryReasonTransient) and attempts are
+// left; ok is false otherwise and the run settles as before.
+func autoSummaryRetry(err error, attempts int32) (time.Duration, bool) {
+	var f summaryRunFailure
+	if !errors.As(err, &f) || !summaryReasonTransient[f.reason] || attempts >= autoSummaryMaxAttempts {
+		return 0, false
+	}
+	wait := autoSummaryBackoff << (2 * max(attempts-1, 0))
+	var ce CodedError
+	if errors.As(err, &ce) {
+		if secs, ok := ce.Fields["retry_after"].(int); ok && time.Duration(secs)*time.Second > wait {
+			wait = time.Duration(secs) * time.Second
+		}
+	}
+	return min(wait, autoSummaryMaxBackoff), true
+}
+
+// deferAutoSummary gives a claimed row back, due again after wait.
+func (s *MeetingService) deferAutoSummary(ctx context.Context, row db.MeetingAutoSummary, wait time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), summaryStoreTimeout)
+	defer cancel()
+	_, err := s.q.DeferMeetingAutoSummary(ctx, db.DeferMeetingAutoSummaryParams{
+		OrganizationID: row.OrganizationID, MeetingID: row.MeetingID, LeaseUntil: row.LeaseUntil,
+		AfterSeconds: int32(wait / time.Second),
+	})
+	return err // no row: the lease lapsed and another node holds it now
 }
 
 func (s *MeetingService) settleAutoSummary(ctx context.Context, row db.MeetingAutoSummary, m db.Meeting, remind bool) error {

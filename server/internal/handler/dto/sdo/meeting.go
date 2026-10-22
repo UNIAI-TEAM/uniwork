@@ -264,6 +264,25 @@ type MeetingSummaryDTO struct {
 	CreatedByKind string `json:"created_by_kind" enum:"human,agent,system" description:"system = tóm tắt tự tạo khi họp xong" example:"system"`
 	CreatedAt     string `json:"created_at"`
 	Partial       bool   `json:"partial" description:"Tóm tắt dựa trên một phần cuộc họp: transcript dài hơn ngân sách đầu vào"`
+	// Topics and OpenQuestions are meeting_summary@7's; empty before it.
+	Topics        []MeetingSummaryTopicDTO    `json:"topics" description:"Các chủ đề theo thứ tự được bàn (meeting_summary@7); rỗng với bản tóm tắt cũ"`
+	OpenQuestions []MeetingSummaryDecisionDTO `json:"open_questions" description:"Câu hỏi còn bỏ ngỏ, mỗi câu kèm căn cứ (meeting_summary@7)"`
+}
+
+// MeetingSummaryTopicDTO is one topic of a summary: where it starts in the
+// transcript and its key points with their evidence.
+type MeetingSummaryTopicDTO struct {
+	Title   string                      `json:"title" example:"Ngân sách quý IV"`
+	Start   *MeetingEvidenceRefDTO      `json:"start" description:"Đoạn transcript chủ đề bắt đầu; null khi không có"`
+	StartAt *string                     `json:"start_at" description:"RFC 3339: lúc đoạn bắt đầu được nói; null khi không có" example:"2026-10-20T02:15:00Z"`
+	Points  []MeetingSummaryDecisionDTO `json:"points" description:"Ý chính của chủ đề, mỗi ý kèm căn cứ"`
+}
+
+// MeetingSummaryRunDTO says whether a summary is being made.
+type MeetingSummaryRunDTO struct {
+	Status   string  `json:"status" enum:"idle,queued,running" description:"running = đang tạo; queued = hệ thống sẽ tự tạo (chờ dòng cuối hoặc chờ thử lại); idle = không có lần tạo nào" example:"running"`
+	At       *string `json:"at" description:"RFC 3339: lúc bắt đầu (running) hoặc lúc đến hạn (queued); null khi idle" example:"2026-10-20T02:15:00Z"`
+	Attempts int     `json:"attempts" description:"Số lần hệ thống đã thử tự tạo" example:"1"`
 }
 
 // MeetingSettingsSDO is the organization's meeting settings (UNI-2026).
@@ -302,7 +321,8 @@ type MeetingCatchUpSDO struct {
 }
 
 type MeetingSummarySDO struct {
-	Summary *MeetingSummaryDTO `json:"summary"`
+	Summary *MeetingSummaryDTO   `json:"summary"`
+	Run     MeetingSummaryRunDTO `json:"run" description:"Tóm tắt có đang được tạo không (UNI-1995)"`
 }
 
 // MeetingActionItemTaskDTO is the live task a converted action item became.
