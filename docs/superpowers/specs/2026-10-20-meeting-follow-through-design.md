@@ -526,7 +526,8 @@ thuật làm người phụ trách.
 
 ### 7.5 Dữ liệu cá nhân
 
-Giọng nói là dữ liệu cá nhân (Nghị định 13/2023/NĐ-CP). Tải file lên phải kèm xác nhận
+Giọng nói là dữ liệu cá nhân (Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15, hiệu lực 01/01/2026,
+và nghị định hướng dẫn; bản đầu của spec dẫn Nghị định 13/2023/NĐ-CP). Tải file lên phải kèm xác nhận
 "Tôi đã thông báo cho người dự họp về việc ghi âm" (lưu trong metadata audit của
 `meeting.transcription_requested`). Phòng họp đang ghi phải hiện báo hiệu ghi (builder
 kiểm cái hiện có).
@@ -536,8 +537,12 @@ ghi lời trực tiếp lẫn ghi lời file: **một nhà cung cấp, một th�
 hồ sơ chuyển dữ liệu ra nước ngoài**. **Trước khi bật cờ `meeting_transcription` (và
 `meeting_scribe`) cho khách hàng**: ký thỏa thuận xử lý dữ liệu với AssemblyAI, chọn và
 xác nhận vùng xử lý và thời gian AssemblyAI giữ file và bản ghi lời, và hoàn tất nghĩa vụ
-chuyển dữ liệu cá nhân ra nước ngoài theo quy định hiện hành (hồ sơ đánh giá tác động theo
-Nghị định 13/2023/NĐ-CP). Việc này không chặn code; nó chặn việc bật cờ ngoài nội bộ.
+chuyển dữ liệu cá nhân ra nước ngoài (hồ sơ đánh giá tác động theo Luật 91/2025/QH15). Ghi lời
+trực tiếp và ghi lời file dùng **cùng một vùng** (`SCRIBE_STT_BASE_URL` của agent theo
+`AI_MEETING_TRANSCRIBE_BASE_URL` của server; ADR 0038 mục "Bổ sung 2026-10-23"). Việc này không
+chặn code; nó chặn việc bật cờ ngoài nội bộ: bên xử lý phụ và hồ sơ ở
+`docs/ops/MEETINGS_AI_COMPLIANCE.md`, cổng bật cờ là checklist `docs/ops/MEETINGS_AI_GO_LIVE.md`
+(gồm cả bộ đánh giá chất lượng STT `apps/meeting-agent/eval/`).
 
 Bản ghi lời file tải lên bị xóa ở AssemblyAI (`DELETE /v2/transcript/{id}`) ngay sau khi
 server lấy về và lưu xong, và cả việc bị bỏ (quá hạn chót, hoặc lỗi rồi gửi lại bằng việc

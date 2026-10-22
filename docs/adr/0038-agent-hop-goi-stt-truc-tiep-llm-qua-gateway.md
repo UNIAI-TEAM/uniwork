@@ -48,3 +48,24 @@ của LiveKit Agents (Python) đã làm đúng việc này, kể cả chốt lư
   không được route nào khác nhận.
 - Hồ sơ pháp lý (thỏa thuận xử lý dữ liệu, vùng xử lý, chuyển dữ liệu ra nước ngoài) cho nhà
   cung cấp STT theo spec cha §7.5 phải xong trước khi bật cờ `meeting_scribe` cho khách.
+
+## Bổ sung 2026-10-23 — vùng xử lý STT và cơ sở pháp lý
+
+Benchmark UNI-1995 (vấn đề #15) thấy ghi lời trực tiếp luôn đi endpoint Mỹ của AssemblyAI
+trong khi ghi lời file chọn được EU, và hồ sơ pháp lý chỉ dẫn Nghị định 13/2023. Bổ sung, không
+đổi năm quyết định ở trên:
+
+6. **Một vùng cho cả hai đường STT.** Mỗi môi trường chọn một vùng của nhà cung cấp STT (Mỹ hoặc
+   EU) cho cả ghi lời file (`AI_MEETING_TRANSCRIBE_BASE_URL` của server) lẫn ghi lời trực tiếp
+   (`SCRIBE_STT_BASE_URL` của agent, đặt qua Helm `meetingAgent`, mặc định theo vùng của đường
+   file). Không có vùng Việt Nam, nên mọi cuộc họp có thư ký là một lần chuyển dữ liệu cá nhân
+   ra nước ngoài. Vùng đang dùng: **chưa chọn** (mặc định Mỹ); chủ sản phẩm ghi vùng đã chọn vào
+   đây khi ký DPA.
+7. **Cơ sở pháp lý là Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15** (hiệu lực 01/01/2026) và nghị
+   định hướng dẫn, thay cho Nghị định 13/2023/NĐ-CP mà phần Hệ quả dẫn. Danh sách bên xử lý phụ
+   và hồ sơ chuyển dữ liệu: `docs/ops/MEETINGS_AI_COMPLIANCE.md`.
+8. **Cờ chỉ bật cho khách sau checklist.** `meeting_scribe`, `meeting_transcription` và
+   `meeting_caption_translate` chỉ bật cho tổ chức ngoài nội bộ khi mọi dòng của
+   `docs/ops/MEETINGS_AI_GO_LIVE.md` đã tích, gồm DPA, vùng, LiveKit ≥ v1.13.5, image đã build
+   và pin digest, bộ đánh giá STT (`apps/meeting-agent/eval/`) ra Đạt, và alert. Chưa có test máy
+   cho luật này: người bật cờ ghi link checklist vào `reason` của thao tác admin.
