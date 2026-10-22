@@ -12,6 +12,7 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Text } from "@/components/ui/text";
 import { TintTile } from "@/components/ui/tint-tile";
 import { useCatchUp } from "@/data/mutations/rooms";
+import { useMobileFlag } from "@/data/remote-config";
 import { AiConsentActions, AiConsentText, useAiConsent } from "./ai-consent-notice";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
@@ -23,10 +24,12 @@ export interface CatchUpTarget {
   unread: number;
 }
 
-/** The banner above the list: how much is unread and that UNI can sum it up. */
+/** The banner above the list: how much is unread and that UNI can sum it up; nothing while the server's switch is off. */
 export function CatchUpBanner({ total, rooms, onPress }: { total: number; rooms: number; onPress: () => void }) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
+  const on = useMobileFlag("unichat_mobile_ai_catch_up");
+  if (!on) return null;
   return (
     <Pressable
       accessibilityRole="button"

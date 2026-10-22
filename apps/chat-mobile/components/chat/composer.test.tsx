@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -8,6 +9,7 @@ import { render, viText } from "@/test/render";
 import { Composer } from "./composer";
 import { useVoiceRecorder } from "./use-voice-recorder";
 import { systemUiOpen } from "@/data/system-ui";
+import { REMOTE_CONFIG_FALLBACK, remoteConfigKey } from "@/data/remote-config";
 
 jest.mock("./use-voice-recorder", () => ({ VOICE_MAX_MS: 120_000, useVoiceRecorder: jest.fn() }));
 jest.mock("expo-image-picker", () => ({
@@ -56,6 +58,18 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 
 describe("Composer", () => {
+  it("leaves photos, files and voice messages out while the server's switches for them are off", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity } } });
+    queryClient.setQueryData(remoteConfigKey, { ...REMOTE_CONFIG_FALLBACK, flags: { unichat_mobile_media_upload: false, unichat_mobile_voice_messages: false } });
+    await render(<Composer {...props()} />, { queryClient });
+    expect(screen.queryByRole("button", { name: viText("chat.voice_message") })).toBeNull();
+    expect(sendButton()).toBeDisabled();
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.composer_attach") }));
+    expect(screen.queryByRole("button", { name: viText("chat.media_image") })).toBeNull();
+    expect(screen.queryByRole("button", { name: viText("chat.composer_attach_file") })).toBeNull();
+    expect(screen.getByRole("button", { name: viText("chat.composer_create_reminder") })).toBeOnTheScreen();
+  });
+
   it("records a voice message from an empty draft and sends text once there is some", async () => {
     const p = props();
     await render(<Composer {...p} />);

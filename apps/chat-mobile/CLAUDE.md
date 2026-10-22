@@ -271,8 +271,14 @@ một dòng thì ghi lý do ở dòng trên.
   dưới mức tối thiểu; `useMobileFlag(name)` / `readMobileFlag(qc, name)` cho
   công tắc (`unichat_mobile_calls`: tắt thì ẩn nút gọi, không đổ chuông — cả màn đổ chuông
   native của Android, push cuộc gọi mở phòng; server cũng không gửi push cuộc gọi hay push kết thúc cho người đó —
-  `PushConsumer.SetMobileCalls`; cuộc gọi đang diễn ra không bị cắt và giữ dịch vụ cuộc gọi). Câu trả lời cuối của server được giữ trên máy
-  (`remote-config/v1` trong device store, `persistRemoteConfig`, ≤ 30 ngày, ngoài mọi tài khoản) và gieo lại vào query
+  `PushConsumer.SetMobileCalls`; cuộc gọi đang diễn ra không bị cắt và giữ dịch vụ cuộc gọi;
+  `unichat_mobile_media_upload` / `unichat_mobile_voice_messages`: ô soạn tin bỏ ảnh/tệp khỏi menu đính kèm / bỏ nút ghi
+  âm; `unichat_mobile_ai_catch_up`: `CatchUpBanner` không hiện; `unichat_mobile_outbox_flush`: `flushOwed` không tự gửi
+  lại gì, gửi từ ô soạn tin và Thử lại vẫn chạy). Công tắc mới: thêm vào `MOBILE_FLAG_DEFAULTS` và vào catalogue
+  `server/internal/featureflags/keys.go` với `Mobile: true`, cùng `Default` và `ReviewAt` (`data/server-contract.test.ts`
+  đỏ khi lệch); bật dần theo tỷ lệ người dùng là việc của server (`FF_<KEY>=N%`, runbook). Câu trả lời cuối của server được giữ trên máy
+  (`remote-config/v1` trong device store, `persistRemoteConfig`, ≤ 30 ngày, ngoài mọi tài khoản — nên đăng xuất
+  (`clearAccountCache(qc, openDeviceStore)`) bỏ công tắc cả trong bộ nhớ lẫn bản giữ, chỉ giữ mức tối thiểu và link store) và gieo lại vào query
   lúc mở (`restoreRemoteConfig`, đề ngày lúc nhận nên query hỏi lại ngay): kill switch và mức tối thiểu giữ qua một lần
   mở lạnh không mạng. Chưa từng có câu trả lời và server không tới được thì không chặn gì và mọi công tắc ở mặc định.
   Thống kê sản phẩm (audit "no-product-analytics"): `data/analytics.ts` (khởi ở `data/app-startup.ts › startAppServices`, mà `app/_layout.tsx` gọi lúc boot) xếp hàng sự kiện

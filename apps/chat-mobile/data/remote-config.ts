@@ -27,6 +27,14 @@ import type { DeviceStore } from "./storage/device-store";
 export const MOBILE_FLAG_DEFAULTS = {
   // Calls: off hides calling and stops incoming calls from ringing (server: featureflags.unichat_mobile_calls).
   unichat_mobile_calls: true,
+  // Photos and files: off hides attaching them in the composer (server: featureflags.unichat_mobile_media_upload).
+  unichat_mobile_media_upload: true,
+  // Voice messages: off hides recording one in the composer (server: featureflags.unichat_mobile_voice_messages).
+  unichat_mobile_voice_messages: true,
+  // "Bắt kịp nhanh": off hides the AI catch-up banner above the chat list (server: featureflags.unichat_mobile_ai_catch_up).
+  unichat_mobile_ai_catch_up: true,
+  // The outbox's automatic re-send: off stops data/owed.ts › flushOwed (server: featureflags.unichat_mobile_outbox_flush).
+  unichat_mobile_outbox_flush: true,
 } as const satisfies Record<string, boolean>;
 
 export type MobileFlag = keyof typeof MOBILE_FLAG_DEFAULTS;
@@ -110,13 +118,22 @@ export function useRemoteConfigOrganization(id: string | null): void {
  * query itself: the update gate at the root observes it for the life of the
  * app, and removing it (queryClient.clear()) would leave that observer on a
  * query nothing refetches, the gate frozen on the old minimum. The switches
- * can differ per person and organization, so the answer is asked again, for
- * no organization until the next workspace opens.
+ * can differ per person and organization, so they are dropped — in memory and
+ * in the copy kept on the device (forgetKeptFlags) — and the answer is asked
+ * again, for no organization until the next workspace opens: the next person
+ * on this phone runs on the defaults until the server answers for them, never
+ * on the last person's switches, even after an offline cold start. The
+ * minimum version and the store pages are the same for everyone and stay.
  */
-export function clearAccountCache(queryClient: Pick<QueryClient, "removeQueries" | "getMutationCache" | "invalidateQueries">): void {
+export function clearAccountCache(
+  queryClient: Pick<QueryClient, "removeQueries" | "getMutationCache" | "invalidateQueries" | "setQueryData">,
+  openStore?: () => Promise<DeviceStore>,
+): void {
   queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== remoteConfigKey[0] });
   queryClient.getMutationCache().clear();
   organizationId = null;
+  queryClient.setQueryData<MobileRemoteConfig>(remoteConfigKey, (config) => config && { ...config, flags: {} });
+  if (openStore) void forgetKeptFlags(openStore).catch(bestEffort("remote-config", "kept switches not dropped", "breadcrumb"));
   void queryClient.invalidateQueries({ queryKey: remoteConfigKey });
 }
 
@@ -171,6 +188,19 @@ export async function restoreRemoteConfig(queryClient: Pick<QueryClient, "getQue
   if (queryClient.getQueryData(remoteConfigKey) !== undefined) return false;
   queryClient.setQueryData<MobileRemoteConfig>(remoteConfigKey, parsed.data.config, { updatedAt: parsed.data.savedAt });
   return true;
+}
+
+/** The kept answer without its switches (they were the last person's); a copy that does not read is removed. */
+export async function forgetKeptFlags(openStore: () => Promise<DeviceStore>): Promise<void> {
+  const store = await openStore();
+  const raw = store.getString(REMOTE_CONFIG_STORE_KEY);
+  if (raw === undefined) return;
+  const parsed = StoredRemoteConfigSchema.safeParse(parseJson(raw));
+  if (!parsed.success) {
+    store.remove(REMOTE_CONFIG_STORE_KEY);
+    return;
+  }
+  store.set(REMOTE_CONFIG_STORE_KEY, JSON.stringify({ ...parsed.data, config: { ...parsed.data.config, flags: {} } }));
 }
 
 /** Keeps every answer the server gives on the device (not a seeded copy written back); returns the unsubscribe. */

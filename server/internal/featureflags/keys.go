@@ -79,6 +79,13 @@ var catalogue = []Flag{
 	// (or an organization/user override) hides calling on every installed
 	// phone at its next config read, incoming calls included.
 	{Key: "unichat_mobile_calls", Description: "UniChat mobile: gọi thoại/video, cả màn cuộc gọi đến native trên Android; tắt là kill switch ẩn và ngừng nhận cuộc gọi trên mọi bản đã cài (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	// The phone's other risky subsystems (UNI-2053 audit "remote-config-thin"): each is on by default and
+	// read by the app through useMobileFlag / readMobileFlag; FF_<KEY>=false, FF_<KEY>=N% (by user id) or a
+	// console override turns one off for everyone, a share of people, an organization or one person.
+	{Key: "unichat_mobile_media_upload", Description: "UniChat mobile: gửi ảnh và tệp; tắt thì ẩn ảnh/tệp trong menu đính kèm (tin đã xếp hàng vẫn gửi) (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	{Key: "unichat_mobile_voice_messages", Description: "UniChat mobile: ghi và gửi tin thoại; tắt thì ẩn nút ghi âm của ô soạn tin (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	{Key: "unichat_mobile_ai_catch_up", Description: "UniChat mobile: \"Bắt kịp nhanh\" bằng AI trên danh sách chat; tắt thì ẩn banner (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	{Key: "unichat_mobile_outbox_flush", Description: "UniChat mobile: tự gửi lại tin và thao tác đang chờ (khi có mạng lại, về foreground, socket nối lại); tắt thì chúng nằm yên trên máy, gửi từ ô soạn tin và nút Thử lại vẫn chạy (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	{Key: "ask_uni_agent", Description: "Hỏi UNI chạy như agent tự tra cứu bằng tool chỉ đọc (UNI-1962, P1); tắt thì giữ luồng P0", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 1, 31)},
 }
 

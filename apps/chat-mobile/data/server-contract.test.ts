@@ -335,8 +335,10 @@ describe("the app's response schemas against the server's SDOs and handlers", ()
   // declare as a mobile flag never arrives, so the server could not switch it off.
   it("every mobile flag the app reads is a mobile flag of the server's catalogue", () => {
     const keys = readFileSync(path.join(SERVER, "featureflags/keys.go"), "utf8");
-    for (const flag of Object.keys(MOBILE_FLAG_DEFAULTS)) {
+    for (const [flag, value] of Object.entries(MOBILE_FLAG_DEFAULTS)) {
       expect(keys).toMatch(new RegExp(`\\{Key: "${flag}",[^\\n]*\\bMobile: true\\b`));
+      // Before (or without) an answer the app acts on the same value the server would send.
+      expect(keys).toMatch(new RegExp(`\\{Key: "${flag}",[^\\n]*\\bDefault: ${value},`));
     }
   });
 

@@ -2,6 +2,8 @@ package featureflags
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
@@ -116,6 +118,67 @@ func TestMobileCallsKillSwitchTurnsOffByEnv(t *testing.T) {
 	if EvaluateMobileFlags(context.Background(), svc)["unichat_mobile_calls"] {
 		t.Fatal("FF_UNICHAT_MOBILE_CALLS=false must turn the calls switch off")
 	}
+}
+
+// The phone's subsystem switches (audit "remote-config-thin") are mobile flags,
+// on by default, and roll out to a share of people by a hash of the user id:
+// FF_<KEY>=N% (or a `percent: {percent: N, by: user_id}` rule in the flags
+// file) puts the same person in or out on every config read, about N% of all.
+func TestMobileSubsystemSwitchesRollOutByUserPercent(t *testing.T) {
+	for _, key := range []string{"unichat_mobile_media_upload", "unichat_mobile_voice_messages", "unichat_mobile_ai_catch_up", "unichat_mobile_outbox_flush"} {
+		f, ok := Lookup(key)
+		if !ok || !f.Mobile || !f.Default || f.Public || f.ReviewAt.IsZero() {
+			t.Fatalf("%s: %+v, want a mobile flag on by default with a review date", key, f)
+		}
+		if !EvaluateMobileFlags(context.Background(), nil)[key] {
+			t.Fatalf("%s is on without a service", key)
+		}
+	}
+	byEnv := func(t *testing.T) *featureflag.Service {
+		t.Setenv("FF_UNICHAT_MOBILE_VOICE_MESSAGES", "30%")
+		return featureflag.NewService(featureflag.NewEnvProvider("FF_"))
+	}
+	byFile := func(t *testing.T) *featureflag.Service {
+		return ruleFile(t, "unichat_mobile_voice_messages:\n  default: false\n  percent:\n    percent: 30\n    by: user_id\n")
+	}
+	for name, build := range map[string]func(*testing.T) *featureflag.Service{"env": byEnv, "file": byFile} {
+		t.Run(name, func(t *testing.T) { rollsOutToAShare(t, build(t)) })
+	}
+}
+
+func rollsOutToAShare(t *testing.T, rules *featureflag.Service) {
+	t.Helper()
+	on := 0
+	for i := 0; i < 2000; i++ {
+		ctx := featureflag.WithEvalContext(context.Background(), featureflag.EvalContext{UserID: fmt.Sprintf("01J8X4USER%016d", i)})
+		first := EvaluateMobileFlags(ctx, rules)["unichat_mobile_voice_messages"]
+		if again := EvaluateMobileFlags(ctx, rules)["unichat_mobile_voice_messages"]; again != first {
+			t.Fatalf("user %d flipped between two reads", i)
+		}
+		if first {
+			on++
+		}
+		if !EvaluateMobileFlags(ctx, rules)["unichat_mobile_media_upload"] {
+			t.Fatal("a rollout of one switch leaves the others alone")
+		}
+	}
+	if on < 500 || on > 700 {
+		t.Fatalf("30%% rollout reached %d of 2000 people", on)
+	}
+}
+
+func ruleFile(t *testing.T, yaml string) *featureflag.Service {
+	t.Helper()
+	path := t.TempDir() + "/flags.yaml"
+	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(featureflag.EnvFlagFile, path)
+	svc, err := featureflag.NewServiceFromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc
 }
 
 // The calls kill switch reaches the server's own work too (UNI-2053): the

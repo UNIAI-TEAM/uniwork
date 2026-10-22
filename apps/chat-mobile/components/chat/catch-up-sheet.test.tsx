@@ -1,9 +1,11 @@
 // The catch-up sheet sends nothing to the AI provider before the reader agreed
 // to the AI processing notice (Apple 5.1.2(i)).
+import { QueryClient } from "@tanstack/react-query";
 import { fireEvent, screen } from "@testing-library/react-native";
 import { accountApi } from "@/data/account-api";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
+import { REMOTE_CONFIG_FALLBACK, remoteConfigKey } from "@/data/remote-config";
 import { AI_CONSENT_VERSION } from "@/lib/ai-consent";
 import { render, viText } from "@/test/render";
 import { CatchUpBanner, CatchUpSheet } from "./catch-up-sheet";
@@ -95,5 +97,12 @@ describe("CatchUpSheet and AI consent", () => {
     await render(<CatchUpBanner total={12} rooms={3} onPress={onPress} />);
     await fireEvent.press(screen.getByRole("button", { name: `${viText("chat.sidebar_catch_up_title")}, ${viText("chat.sidebar_catch_up_body", { count: 12, rooms: 3 })}` }));
     expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it("the server's AI catch-up switch off hides the banner", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity } } });
+    queryClient.setQueryData(remoteConfigKey, { ...REMOTE_CONFIG_FALLBACK, flags: { unichat_mobile_ai_catch_up: false } });
+    await render(<CatchUpBanner total={12} rooms={3} onPress={jest.fn()} />, { queryClient });
+    expect(screen.queryByRole("button")).toBeNull();
   });
 });

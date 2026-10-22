@@ -362,6 +362,17 @@ máy mở lạnh không có mạng vẫn theo công tắc và mức tối thiể
   tổ chức của cuộc gọi, như máy đọc nó; dòng inbox vẫn còn, `uniwork_push_suppressed_total{kind="chat_call_incoming"}`
   đếm) và không gửi push "kết thúc" (`chat.voice.ring_closed`), nên máy không reo kể cả khi app chưa đọc cấu hình.
   Bật lại: xoá biến/override.
+- Tắt một phần khác của app (mặc định bật, cùng cách đặt: `FF_<KEY>=false` hoặc override ở console):
+  `unichat_mobile_media_upload` (ẩn gửi ảnh/tệp trong menu đính kèm; tin đã xếp hàng vẫn đi),
+  `unichat_mobile_voice_messages` (ẩn nút ghi tin thoại), `unichat_mobile_ai_catch_up` (ẩn banner "Bắt kịp nhanh"),
+  `unichat_mobile_outbox_flush` (ngừng tự gửi lại tin và thao tác đang chờ khi có mạng lại / về foreground / socket nối
+  lại — chúng nằm yên trên máy; gửi từ ô soạn tin và nút Thử lại vẫn chạy; dùng khi bản app gây bão gửi lại).
+- Bật dần cho một phần người dùng: `FF_<KEY>=N%` hoặc trong tệp `FEATURE_FLAGS_FILE`
+  `<key>: {default: false, percent: {percent: N, by: user_id}}` — cùng một người luôn trong hay ngoài (băm id người
+  dùng), khoảng N % tổng số; đổi cần khởi động lại server. Override ở console chỉ bật/tắt (người > tổ chức > toàn hệ
+  thống) và thắng tỷ lệ.
+- Đăng xuất bỏ các công tắc đã giữ trên máy (chúng có thể là của riêng người trước); mức tối thiểu và link store ở lại.
+  Người kế tiếp chạy theo mặc định tới khi server trả lời cho họ.
 
 **Play Console App content và App Store Connect (trước bản production đầu tiên; làm lại khi quyền, dịch vụ hay dữ liệu
 đổi).** Nguồn chữ là `apps/chat-mobile/store/listing.md`; danh sách quyền và dịch vụ của bản release là

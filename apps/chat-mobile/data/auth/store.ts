@@ -26,6 +26,7 @@ import { hydrateChatSendStore, useChatSendStore } from "../stores/chat-send-stor
 import { hydrateDraftStore, useDraftStore } from "../stores/draft-store";
 import { hydratePendingOpsStore, usePendingOpsStore } from "../stores/pending-ops-store";
 import { useWorkspaceStore } from "../stores/workspace-store";
+import { openDeviceStore } from "../storage/device-store";
 import { session } from "./flow";
 import { forgetLastUser, readLastUser, rememberUser } from "./last-user";
 
@@ -121,7 +122,7 @@ async function endAccountSession(): Promise<void> {
  */
 async function forgetAccountLocally(): Promise<void> {
   await Promise.all([useWorkspaceStore.getState().clear(), forgetLastUser(), dropAccountCache(), wipeSessionTraces()]);
-  clearAccountCache(queryClient);
+  clearAccountCache(queryClient, openDeviceStore);
   clearChatOutbox(chatSendDeps);
   clearPendingOps(pendingOpsDeps);
   useDraftStore.getState().clearAll();

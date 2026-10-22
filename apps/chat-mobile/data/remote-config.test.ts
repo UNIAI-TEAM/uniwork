@@ -29,6 +29,7 @@ import { memoryDeviceStore } from "./storage/device-store";
 import {
   clearAccountCache,
   fetchRemoteConfig,
+  forgetKeptFlags,
   persistRemoteConfig,
   REMOTE_CONFIG_MAX_AGE_MS,
   REMOTE_CONFIG_STORE_KEY,
@@ -223,6 +224,41 @@ describe("the last answer kept on the device", () => {
     expect(await restoreRemoteConfig(client, async () => store, NOW)).toBe(false);
     expect(client.getQueryData(remoteConfigKey)).toBeUndefined();
     expect(store.getString(REMOTE_CONFIG_STORE_KEY)).toBeUndefined();
+  });
+
+  // Audit (remote-config-thin): the kept copy sits outside any account, so a sign-out must not leave the last
+  // person's per-user or per-organization switches to the next person on an offline cold start.
+  it("a sign-out drops the switches, in memory and kept, and keeps the minimum version and the store pages", async () => {
+    const store = memoryDeviceStore();
+    store.set(REMOTE_CONFIG_STORE_KEY, JSON.stringify({ savedAt: NOW, config: killed }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(remoteConfigKey, killed);
+    apiMock.request.mockReturnValue(new Promise(() => undefined));
+    clearAccountCache(client, async () => store);
+    expect(client.getQueryData(remoteConfigKey)).toEqual({ ...killed, flags: {} });
+    expect(readMobileFlag(client, "unichat_mobile_calls")).toBe(true);
+    expect(client.getQueryState(remoteConfigKey)?.isInvalidated).toBe(true);
+    await vi.waitFor(() => expect(JSON.parse(store.getString(REMOTE_CONFIG_STORE_KEY) ?? "")).toEqual({ savedAt: NOW, config: { ...killed, flags: {} } }));
+    // The next launch, offline, seeds the minimum version and no one's switches.
+    const next = new QueryClient();
+    expect(await restoreRemoteConfig(next, async () => store, NOW)).toBe(true);
+    expect(next.getQueryData(remoteConfigKey)).toEqual({ ...killed, flags: {} });
+    client.clear();
+  });
+
+  it("forgets nothing without a kept copy, removes one that does not read, and a store that cannot open is a breadcrumb", async () => {
+    const empty = memoryDeviceStore();
+    await forgetKeptFlags(async () => empty);
+    expect(empty.getString(REMOTE_CONFIG_STORE_KEY)).toBeUndefined();
+    const broken = memoryDeviceStore();
+    broken.set(REMOTE_CONFIG_STORE_KEY, "{");
+    await forgetKeptFlags(async () => broken);
+    expect(broken.getString(REMOTE_CONFIG_STORE_KEY)).toBeUndefined();
+    // Without a cache (nothing answered yet) a sign-out sets nothing; a store that will not open is left to a breadcrumb.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    clearAccountCache(client, () => Promise.reject(new Error("keystore")));
+    expect(client.getQueryData(remoteConfigKey)).toBeUndefined();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
   it("leaves a store that cannot open to a breadcrumb", async () => {

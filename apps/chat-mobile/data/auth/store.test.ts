@@ -67,6 +67,7 @@ import { useChatSendStore } from "../stores/chat-send-store";
 import { useDraftStore } from "../stores/draft-store";
 import { usePendingOpsStore } from "../stores/pending-ops-store";
 import { PUSH_UNREGISTER_BUDGET_MS, useAuthStore } from "./store";
+import { openDeviceStore } from "../storage/device-store";
 
 const user = {
   id: "u1",
@@ -147,7 +148,7 @@ describe("auth store", () => {
     expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(1);
     expect(workspaceClear).toHaveBeenCalledTimes(1);
     expect(lastUserMock.forgetLastUser).toHaveBeenCalledTimes(1);
-    expect(clearAccountCache).toHaveBeenCalledExactlyOnceWith(queryClientMock);
+    expect(clearAccountCache).toHaveBeenCalledExactlyOnceWith(queryClientMock, openDeviceStore);
     expect(wipeSessionTraces).toHaveBeenCalledTimes(1);
     expect(sessionMock.logout).not.toHaveBeenCalled();
 
@@ -359,7 +360,7 @@ describe("auth store", () => {
     useChatSendStore.setState({ entries: [{ clientMsgId: "c1" } as never] });
     useAuthStore.getState().setUser(user);
     await useAuthStore.getState().logout();
-    expect(clearAccountCache).toHaveBeenCalledExactlyOnceWith(queryClientMock);
+    expect(clearAccountCache).toHaveBeenCalledExactlyOnceWith(queryClientMock, openDeviceStore);
     expect(useChatSendStore.getState().entries).toEqual([]);
   });
 
@@ -432,7 +433,7 @@ describe("auth store", () => {
     expect(pushMock.unregisterPushToken).not.toHaveBeenCalled();
     expect(pushMock.forgetPushToken).toHaveBeenCalledTimes(1);
     expect(workspaceClear).toHaveBeenCalledTimes(1);
-    expect(clearAccountCache).toHaveBeenCalledExactlyOnceWith(queryClientMock);
+    expect(clearAccountCache).toHaveBeenCalledExactlyOnceWith(queryClientMock, openDeviceStore);
     expect(useChatSendStore.getState().entries).toEqual([]);
     expect(wipeDeviceTraces).toHaveBeenCalledExactlyOnceWith(["w1", "w2"]);
     expect(order).toEqual(["session", "wipe"]);

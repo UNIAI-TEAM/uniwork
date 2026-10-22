@@ -11,6 +11,9 @@
 // S6: the home-indicator inset under the composer shrinks with the keyboard's
 // own progress, frame by frame (react-native-keyboard-controller), instead of
 // jumping after the keyboard finished moving.
+// The server's switches (data/remote-config.ts): unichat_mobile_media_upload off
+// leaves photos and files out of the attach sheet, unichat_mobile_voice_messages
+// off leaves the record button out (an empty draft shows a disabled send).
 import { Ionicons } from "@expo/vector-icons";
 import { CHAT_MESSAGE_BODY_MAX_LENGTH } from "@uniwork/core/chat/client-msg-id";
 import * as DocumentPicker from "expo-document-picker";
@@ -45,6 +48,7 @@ import { cn } from "@/lib/utils";
 import { useDraftPersistence } from "./use-drafts";
 import { useVoiceRecorder, VOICE_MAX_MS, type VoiceClip } from "./use-voice-recorder";
 import { VoiceWave } from "./voice-wave";
+import { useMobileFlag } from "@/data/remote-config";
 import { toast } from "@/data/stores/toast-store";
 import { whileSystemUiOpen } from "@/data/system-ui";
 
@@ -104,6 +108,8 @@ export function Composer(props: Props) {
   const { progress } = useReanimatedKeyboardAnimation();
   const insetStyle = useAnimatedStyle(() => ({ paddingBottom: insets.bottom * (1 - progress.value) }), [insets.bottom]);
   const voice = useVoiceRecorder(props.onSendVoice);
+  const mediaOn = useMobileFlag("unichat_mobile_media_upload");
+  const voiceOn = useMobileFlag("unichat_mobile_voice_messages");
   // A refused microphone resolves false: the permission primer already said why, so only a recorder error toasts.
   const startVoice = () => {
     haptics.recordStart();
@@ -344,7 +350,7 @@ export function Composer(props: Props) {
               <Ionicons name="send" size={20} color={theme.primaryForeground} />
             </Pressable>
           </>
-        ) : !trimmed && attach ? (
+        ) : !trimmed && attach && voiceOn ? (
           <Pressable {...roundTap} accessibilityRole="button" accessibilityLabel={t("chat.voice_message")} testID="composer-voice" onPress={startVoice} className="h-11 w-11 items-center justify-center rounded-full bg-primary">
             <Ionicons name="mic-outline" size={22} color={theme.primaryForeground} />
           </Pressable>
@@ -375,8 +381,12 @@ export function Composer(props: Props) {
         title={t("chat.composer_attach")}
         layout="tiles"
         actions={[
-          { key: "photo", label: t("chat.media_image"), icon: "image-outline", tint: "blue", onPress: () => void pickPhoto() },
-          { key: "file", label: t("chat.composer_attach_file"), icon: "attach", tint: "orange", onPress: () => void pickFile() },
+          ...(mediaOn
+            ? [
+                { key: "photo", label: t("chat.media_image"), icon: "image-outline" as const, tint: "blue" as const, onPress: () => void pickPhoto() },
+                { key: "file", label: t("chat.composer_attach_file"), icon: "attach" as const, tint: "orange" as const, onPress: () => void pickFile() },
+              ]
+            : []),
           { key: "expressions", label: `${t("chat.expression_tab_sticker")} · ${t("chat.expression_tab_gif")}`, icon: "happy-outline", tint: "yellow", onPress: props.onOpenExpressions },
           { key: "reminder", label: t("chat.composer_create_reminder"), icon: "alarm-outline", tint: "teal", onPress: props.onOpenReminder },
         ]}
