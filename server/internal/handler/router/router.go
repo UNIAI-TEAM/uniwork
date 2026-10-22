@@ -99,7 +99,7 @@ func New(d Deps, h Routes) http.Handler {
 		// carrier address would share 300 a minute; it has its own
 		// per-device budget under an address ceiling (refreshLimit).
 		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, globalIdentity(d.Minter, d.FrameIdentity))
-		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/mcp", "/api/v1/auth/desktop/refresh", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
+		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", apiHealthPath, "/mcp", "/api/v1/auth/desktop/refresh", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
 	// Native refresh: per (address, device) under a ceiling per address; the
@@ -171,7 +171,7 @@ func New(d Deps, h Routes) http.Handler {
 	// Patterns, not prefixes, on purpose: a prefix under /api/v1/orgs/{orgID}/ai/
 	// would exempt the BYOK proxy and the cloud tools too. Exempt routes still
 	// get their body deadline.
-	r.Use(mw.LoadShed(d.Cfg.HTTPMaxInFlight, "/healthz", "/readyz",
+	r.Use(mw.LoadShed(d.Cfg.HTTPMaxInFlight, "/healthz", "/readyz", apiHealthPath,
 		"/api/v1/orgs/{orgID}/ai/uniwork/chat/completions",
 		"/api/v1/documents/{documentID}/ai/uniwork/chat/completions",
 		"/api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions",
@@ -193,6 +193,7 @@ func New(d Deps, h Routes) http.Handler {
 			mw.RateLimitByIdentityBucket(d.Redis, "mcp", 120, time.Minute, proxies, mcpBearer)))
 	root.Route("/api/v1", func(v1 api) {
 		v1.r.Get("/ws", h.WS) // WebSocket — off the OpenAPI spec
+		registerAPIHealth(v1, h)
 		registerAuth(v1, h, credentialLimit, refreshLimit)
 		registerDemoRequests(v1, h, mw.RateLimit(d.Redis, 5, time.Hour, proxies))
 		// Outside authed: the provider redirects the popup here with no bearer.

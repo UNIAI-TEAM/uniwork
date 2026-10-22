@@ -116,8 +116,11 @@ func TestProbesAreNotTraced(t *testing.T) {
 	sr := recorder(t, "")
 	r := chi.NewRouter()
 	r.Use(HTTP)
-	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) })
-	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	// /api/v1/healthz is every phone's reachability probe, once a minute.
+	for _, path := range []string{"/healthz", "/api/v1/healthz"} {
+		r.Get(path, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) })
+		r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, path, nil))
+	}
 	if len(sr.Ended()) != 0 {
 		t.Fatal("liveness probe produced a span")
 	}
