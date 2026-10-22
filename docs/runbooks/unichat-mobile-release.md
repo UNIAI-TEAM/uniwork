@@ -731,8 +731,8 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
 với `call_ui` (bản 0.3.0 trở lên có module native; app đăng ký lại mỗi lần mở); bản 0.2.x và iPhone vẫn nhận push "X
 đang gọi" hiển thị, nên deploy server trước hay sau bản store đều không làm máy cũ mất cuộc gọi. Push hiển thị giờ mang
 kênh `calls`/`messages`/`mentions`/`general` mà bản 0.2.x chưa tạo: Expo đưa chúng vào kênh dự phòng của app (vẫn hiện,
-tên kênh "Miscellaneous"). Khi 0.3.0 đã có trên track người dùng thấy, đặt `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION=0.3.0`
-để mọi máy có cùng giao diện cuộc gọi. Kiểm sau deploy: `push_subscriptions.user_agent = 'expo/android; call-ui'` tăng
+tên kênh "Miscellaneous"). Khi 0.3.1 đã có trên track người dùng thấy, đặt `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION=0.3.1`
+để mọi máy có cùng giao diện cuộc gọi (không dùng 0.3.0: bản Android 0.3.0 (11) chết khi mở, chỉ lên track nội bộ). Kiểm sau deploy: `push_subscriptions.user_agent = 'expo/android; call-ui'` tăng
 dần theo số máy đã cập nhật.
 
 **Cuộc gọi native trên Android (UNI-2053 S4, `docs/adr/drafts/0038-…`).** Test node/jest giữ chính sách (khi nào reo,

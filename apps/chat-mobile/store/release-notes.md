@@ -16,7 +16,7 @@ không chép tên commit.
 - Khoá UniChat bằng vân tay, khuôn mặt hoặc mật mã; ẩn nội dung tin trong thông báo.
 - Mở lại đúng chỗ bạn đọc dở, kể cả khi không có mạng; tin viết lúc offline tự gửi khi có mạng.
 - Nháp giữ theo từng cuộc trò chuyện, link trong tin bấm được.
-- Mở nhanh hơn trên iPhone; ổn định hơn, dễ dùng hơn với trình đọc màn hình và cỡ chữ lớn.
+- Ổn định hơn, dễ dùng hơn với trình đọc màn hình và cỡ chữ lớn.
 
 ### en-US
 
@@ -25,7 +25,7 @@ không chép tên commit.
 - Lock UniChat with your fingerprint, face or passcode; hide message text in notifications.
 - Opens where you left off, even offline; messages written offline send once you are online.
 - Drafts are kept per conversation; links in messages open.
-- Starts faster on iPhone; more stable, easier with a screen reader and large text.
+- More stable, easier with a screen reader and large text.
 
 ## 0.3.0
 
