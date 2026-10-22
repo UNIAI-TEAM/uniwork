@@ -1,10 +1,10 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiMessages } from "@uniwork/core/ai";
-import type { useAskUniStream } from "@uniwork/core/ai/stream";
+import type { AskStreamState, useAskUniStream } from "@uniwork/core/ai/stream";
 import type { AiCitation, AiMessage, AskUniInput } from "@uniwork/core/types";
 import { AskUniFollowups } from "./ask-uni-followups";
 import { AskUniMessageTurn, type AskUniTurnMessage } from "./ask-uni-answer";
@@ -29,6 +29,62 @@ function StreamError({ code }: { code: string | null }) {
       <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
       {text}
     </li>
+  );
+}
+
+/** One stored turn: while it is being regenerated the live cell takes its place; a failed regenerate shows it again with the error. */
+function StoredTurn({
+  message,
+  replacement,
+  error,
+  isLast,
+  followups,
+  onAskFollowup,
+  onRegenerate,
+  conversationId,
+  stream,
+  sources,
+  wsId,
+}: {
+  message: AiMessage;
+  replacement: AskUniTurnMessage | null;
+  /** Error code of a failed regenerate of this answer; undefined when there is none. */
+  error: string | null | undefined;
+  isLast: boolean;
+  followups: string[];
+  onAskFollowup: (q: string) => void;
+  onRegenerate: () => void;
+  conversationId: string | null;
+  stream: AskStreamState;
+  sources: Map<string, AiCitation>;
+  wsId?: string;
+}) {
+  if (replacement) {
+    return (
+      <AskUniMessageTurn
+        message={{ ...replacement, id: "live" }}
+        streaming
+        steps={stream.steps}
+        writing={replacement.content !== ""}
+        sources={sources}
+        wsId={wsId}
+      />
+    );
+  }
+  return (
+    <>
+      <AskUniMessageTurn
+        message={message}
+        conversationId={conversationId}
+        steps={stream.message?.id === message.id && stream.steps.length > 0 ? stream.steps : undefined}
+        sources={sources}
+        wsId={wsId}
+        onRegenerate={isLast ? onRegenerate : undefined}
+        regenerateDisabled={stream.status === "streaming"}
+      />
+      {error !== undefined ? <StreamError code={error} /> : null}
+      {isLast ? <AskUniFollowups items={followups} onAsk={onAskFollowup} /> : null}
+    </>
   );
 }
 
@@ -83,7 +139,7 @@ export function AskUniThread({
   // The answer being regenerated keeps its place: the live cell replaces it while it streams.
   const regen = sameConversation && state.regenerateOf ? state.regenerateOf : null;
   const followups =
-    streaming || live || !lastAssistant || lastAssistant.notice
+    streaming || live || (regen !== null && state.status !== "done") || !lastAssistant || lastAssistant.notice
       ? []
       : lastAssistant.followups.length > 0
         ? lastAssistant.followups
@@ -122,25 +178,22 @@ export function AskUniThread({
   return (
     <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
       <ul className="flex flex-col gap-4" aria-live="polite" aria-busy={streaming}>
-        {stored.map((m) =>
-          regen === m.id && streaming ? (
-            <AskUniMessageTurn key={m.id} message={{ ...liveAnswer, id: "live", created_at: "" }} streaming steps={state.steps} writing={liveAnswer.content !== ""} sources={sources} wsId={wsId} />
-          ) : (
-          <Fragment key={m.id}>
-          <AskUniMessageTurn
+        {stored.map((m) => (
+          <StoredTurn
+            key={m.id}
             message={m}
+            replacement={regen === m.id && streaming ? liveAnswer : null}
+            error={regen === m.id && state.status === "error" ? state.errorCode : undefined}
+            isLast={m.id === lastAssistant?.id}
+            followups={followups}
+            onAskFollowup={askFollowup}
+            onRegenerate={regenerate}
             conversationId={conversationId}
-            steps={state.message?.id === m.id && state.steps.length > 0 ? state.steps : undefined}
+            stream={state}
             sources={sources}
             wsId={wsId}
-            onRegenerate={m.id === lastAssistant?.id ? regenerate : undefined}
-            regenerateDisabled={streaming}
           />
-          {regen === m.id && state.status === "error" ? <StreamError code={state.errorCode} /> : null}
-          {m.id === lastAssistant?.id ? <AskUniFollowups items={followups} onAsk={askFollowup} /> : null}
-          </Fragment>
-          ),
-        )}
+        ))}
         {live ? (
           <>
             <AskUniMessageTurn message={{ id: "live-question", role: "user", content: state.question, citations: [] }} />

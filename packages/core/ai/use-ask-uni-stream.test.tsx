@@ -166,6 +166,15 @@ describe("useAskUniStream", () => {
     expect(result.current.state.status).toBe("stopped");
   });
 
+  it("stopping a regenerate refetches the conversation's messages, with no run frame needed", () => {
+    const { result, qc } = setup();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    act(() => result.current.ask({ question: "q", conversation_id: "c1", regenerate_message_id: "old" }));
+    act(() => result.current.stop());
+    expect(result.current.state.status).toBe("stopped");
+    expect(invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))).toContain(JSON.stringify(aiKeys.messages("c1")));
+  });
+
   it("stop after run refreshes the history list and quota, and refetches messages again after 1500 ms", () => {
     vi.useFakeTimers();
     try {

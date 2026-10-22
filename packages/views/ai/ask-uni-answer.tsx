@@ -80,8 +80,7 @@ export function AskUniMessageTurn({
   if (message.role === "user") {
     return (
       <li className="flex flex-col items-end gap-1">
-        {/* eslint-disable-next-line jsx-a11y/aria-role -- our own prop, not an ARIA role */}
-        <AskUniMessageMeta role="user" createdAt={message.created_at ?? ""} />
+        <AskUniMessageMeta from="user" createdAt={message.created_at ?? ""} />
         <div className="max-w-[94%] whitespace-pre-wrap rounded-lg bg-surface-selected px-3.5 py-2.5 text-body leading-6 text-surface-selected-foreground">
           {message.content}
         </div>
@@ -97,8 +96,7 @@ export function AskUniMessageTurn({
     <li className="flex flex-col items-start">
       <div className="w-full min-w-0">
         <div className="mb-1">
-          {/* eslint-disable-next-line jsx-a11y/aria-role -- our own prop, not an ARIA role */}
-          <AskUniMessageMeta role="assistant" createdAt={message.created_at ?? ""} />
+          <AskUniMessageMeta from="assistant" createdAt={message.created_at ?? ""} />
         </div>
         <AskUniProgress steps={steps ?? message.steps ?? []} running={streaming} writing={writing} />
         {message.content ? <AnswerBody content={message.content} byId={byId} wsId={wsId} /> : null}

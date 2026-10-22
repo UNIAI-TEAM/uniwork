@@ -42,7 +42,7 @@ function mount(s: AskUniStream, conversationId: string | null = "c1", askDefault
       client,
     );
   const r = render(ui(s, conversationId));
-  return { ...r, update: (st: AskUniStream, conv: string | null = conversationId) => r.rerender(ui(st, conv)) };
+  return { ...r, client, update: (st: AskUniStream, conv: string | null = conversationId) => r.rerender(ui(st, conv)) };
 }
 
 beforeEach(() => {
@@ -228,10 +228,23 @@ describe("AskUniThread regenerate in place", () => {
   });
 
   it("brings the old answer back with an error when the regenerate fails", async () => {
+    serve([history[0], { ...history[1], followups: ["A?", "B?"] }]);
     mount(stream({ status: "error", question: "Task nào quá hạn?", regenerateOf: "a1", errorCode: "ai_rate_limited" }));
     expect(await screen.findByText("Có 3 task quá hạn.")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("Bạn hỏi quá nhanh");
     expect(screen.getAllByText("Task nào quá hạn?")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "A?" })).toBeNull();
+  });
+
+  it("shows no follow-ups under a stopped regenerate, and the stored partial decides after the refetch", async () => {
+    serve([history[0], { ...history[1], followups: ["A?"] }]);
+    const m = mount(stream({ status: "stopped", question: "Task nào quá hạn?", regenerateOf: "a1", draft: "một phần" }));
+    await screen.findByText("Có 3 task quá hạn.");
+    expect(screen.queryByRole("button", { name: "A?" })).toBeNull();
+    serve([history[0], msg({ id: "a3", content: "một phần", notice: "stopped", followups: ["Z?"] })]);
+    await m.client.invalidateQueries();
+    expect(await screen.findByText("một phần")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Z?" })).toBeNull();
   });
 });
 
@@ -273,6 +286,23 @@ describe("AskUniThread meta and context", () => {
     expect(screen.getByText(/^An ·/)).toBeInTheDocument();
     expect(screen.getByText("UNI")).toBeInTheDocument();
     expect(screen.getByText("UNI").textContent).not.toMatch(/\d:\d\d/);
+  });
+
+  it("shows only the time for today and the date with it for an older message", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 5, 15, 12, 0));
+    serve([
+      msg({ id: "u1", role: "user", content: "Cũ", created_at: new Date(2026, 5, 3, 8, 5).toISOString() }),
+      msg({ id: "a1", content: "Nay", created_at: new Date(2026, 5, 15, 9, 30).toISOString() }),
+    ]);
+    try {
+      mount(stream());
+      await screen.findByText("Nay");
+      expect(screen.getByText("An · 3/6 08:05")).toBeInTheDocument();
+      expect(screen.getByText("UNI · 09:30")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("links a focus and a mention to their objects and leaves an unknown kind plain", async () => {

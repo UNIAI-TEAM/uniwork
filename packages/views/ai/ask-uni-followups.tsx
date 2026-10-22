@@ -10,9 +10,9 @@ export function AskUniFollowups({ items, onAsk }: { items: string[]; onAsk: (q: 
     <li className="flex flex-col gap-1.5">
       <p className="text-caption text-muted-foreground">{t("label")}</p>
       <div className="flex flex-col items-start gap-1.5">
-        {items.map((q) => (
+        {items.map((q, i) => (
           <button
-            key={q}
+            key={`${i}:${q}`}
             type="button"
             aria-label={q}
             onClick={() => onAsk(q)}
