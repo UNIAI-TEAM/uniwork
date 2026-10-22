@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 import { useMeetingChat } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
 import { chatWatermark, unreadChatSince, type ChatWatermark } from "./meeting-chat";
-import { useScribeInRoom } from "./meeting-scribe-captions";
+import { useScribeInRoom, useScribePaused } from "./meeting-scribe-captions";
 import { scribeChipState } from "./meeting-scribe-chip";
 import { DIAL_IN_STATE_ATTRIBUTE, inMeeting, reactionLabelKey } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
@@ -63,16 +63,21 @@ export function OnOffAnnouncer({
 export function ScribeAnnouncer({ meeting }: { meeting?: Pick<Meeting, "scribe_enabled" | "scribe_status"> }) {
   const { t } = useTranslation();
   const inRoom = useScribeInRoom();
+  const pausedNow = useScribePaused();
   // The status the server reports: a host must hear that transcription stopped, not only that the agent left.
   const failed = meeting ? scribeChipState(meeting, inRoom) === "failed" : false;
-  const previous = useRef({ inRoom, failed });
+  const paused = inRoom && pausedNow;
+  const previous = useRef({ inRoom, failed, paused });
   const [text, setText] = useState("");
   useEffect(() => {
     const was = previous.current;
-    previous.current = { inRoom, failed };
+    previous.current = { inRoom, failed, paused };
     if (failed && !was.failed) setText(t("meetings.scribe.announceFailed"));
-    else if (inRoom !== was.inRoom) setText(t(inRoom ? "meetings.scribe.announceOn" : "meetings.scribe.announceOff"));
-  }, [inRoom, failed, t]);
+    else if (paused && !was.paused) setText(t("meetings.scribe.chipPaused"));
+    else if (inRoom !== was.inRoom || (was.paused && !paused)) {
+      setText(t(inRoom ? "meetings.scribe.announceOn" : "meetings.scribe.announceOff"));
+    }
+  }, [inRoom, failed, paused, t]);
   return (
     <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-scribe-announcer">
       {text}

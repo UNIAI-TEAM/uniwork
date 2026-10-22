@@ -4057,6 +4057,9 @@
       "chipOff": "AI scribe is off",
       "chipShort": "AI scribe",
       "chipFailedShort": "Not transcribing",
+      "chipPaused": "AI scribe paused, retrying",
+      "chipPausedShort": "Paused",
+      "explainPaused": "Speech recognition is failing. The AI scribe stays in the room and keeps retrying; meanwhile captions use each person's device.",
       "explain": "The AI scribe listens to each person in the room, writes the meeting transcript and shows captions to everyone. It never speaks, has no camera and is not counted as a participant.",
       "explainJoining": "The AI scribe is joining. Once in, it writes the meeting transcript and shows captions to everyone.",
       "explainFailed": "The AI scribe couldn't join, so nothing is being transcribed. It tries again on its own in a few minutes.",
@@ -4092,6 +4095,7 @@
       "speakerSaving": "Saving…",
       "speakerSaved": "Speaker name saved",
       "speakerSaveFailed": "This name wasn't saved.",
+      "speakerSameAs": "Same as speaker {{n}} · {{name}}",
       "speakersEmpty": "No speakers to name yet.",
       "speakersLoading": "Loading speakers",
       "speakersLoadFailed": "Couldn't load the speakers."

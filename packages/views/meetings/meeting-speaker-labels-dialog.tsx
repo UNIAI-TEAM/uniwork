@@ -13,6 +13,7 @@ import { apiErrorCopy } from "../api-error-copy";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 import { MeetingAssigneeSelect } from "./meeting-assignee-select";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
+import { sameSpeakerCandidates } from "./speaker-label-merge";
 
 type Draft = { userId?: string; name: string };
 
@@ -119,6 +120,8 @@ export function MeetingSpeakerLabelsDialog({
                 const d = draft(l);
                 const error = errors[l.id];
                 const set = (next: Draft) => setDrafts((all) => ({ ...all, [l.id]: next }));
+                // Only an unnamed speaker is offered a merge; a click fills its draft, saved with the rest.
+                const same = d.userId || d.name.trim() ? [] : sameSpeakerCandidates(l, rows);
                 return (
                   <li key={l.id} className="space-y-2">
                     <div>
@@ -144,6 +147,15 @@ export function MeetingSpeakerLabelsDialog({
                         onChange={(e) => set({ userId: e.target.value ? undefined : d.userId, name: e.target.value })}
                       />
                     </div>
+                    {same.length ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {same.map((c) => (
+                          <Button key={c.id} type="button" size="xs" variant="outline" onClick={() => set(draftOf(c))}>
+                            {t("meetings.scribe.speakerSameAs", { n: c.number ?? "?", name: c.assigned_name || c.name })}
+                          </Button>
+                        ))}
+                      </div>
+                    ) : null}
                     {error ? (
                       <p role="alert" className="flex items-center gap-1.5 text-caption text-destructive">
                         <CircleAlert aria-hidden className="size-3.5 shrink-0" />

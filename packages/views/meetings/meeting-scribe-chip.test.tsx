@@ -8,7 +8,9 @@ import type { Meeting } from "@uniwork/core/types";
 import { requestMock } from "../test/api-mock";
 import { MeetingScribeChip, scribeChipState } from "./meeting-scribe-chip";
 
-const lk = vi.hoisted(() => ({ remote: [] as { identity: string; isAgent?: boolean }[] }));
+const lk = vi.hoisted(() => ({
+  remote: [] as { identity: string; isAgent?: boolean; attributes?: Record<string, string> }[],
+}));
 vi.mock("@livekit/components-react", () => ({ useRemoteParticipants: () => lk.remote }));
 
 const meeting = {
@@ -37,6 +39,8 @@ describe("scribeChipState", () => {
     expect(scribeChipState({ scribe_enabled: false }, true)).toBe("off");
     expect(scribeChipState({ scribe_enabled: true, scribe_status: "FAILED" }, false)).toBe("failed");
     expect(scribeChipState({}, false)).toBe("joining");
+    expect(scribeChipState({ scribe_enabled: true }, true, true)).toBe("paused");
+    expect(scribeChipState({ scribe_enabled: false }, true, true)).toBe("off");
   });
 });
 
@@ -75,6 +79,18 @@ describe("MeetingScribeChip", () => {
     render(wrap(<MeetingScribeChip meeting={meeting} available canSwitch={false} />));
     const chip = screen.getByTestId("meeting-scribe-chip");
     expect(chip).toHaveAccessibleName("Thư ký AI đang ghi lời");
+  });
+
+  it("tells everyone the scribe is paused while its speech recognition fails", async () => {
+    // Benchmark #1: the agent stays in the room and retries; the room must not read "transcribing".
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true, attributes: { "uw.scribe_state": "degraded" } }];
+    render(wrap(<MeetingScribeChip meeting={meeting} available canSwitch={false} />));
+    const chip = screen.getByTestId("meeting-scribe-chip");
+    expect(chip).toHaveAttribute("data-state", "paused");
+    expect(chip).toHaveAccessibleName("Thư ký AI tạm dừng, đang thử lại");
+    await userEvent.click(chip);
+    expect(await screen.findByText(/phụ đề dùng giọng nói trên máy/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
   });
 
   it("says it failed, in the room's dark palette, and lets the host try again", async () => {

@@ -9,19 +9,27 @@ import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../toast-api-error";
-import { useScribeInRoom } from "./meeting-scribe-captions";
+import { useScribeInRoom, useScribePaused } from "./meeting-scribe-captions";
 
-type ScribeChipState = "on" | "joining" | "failed" | "off";
+type ScribeChipState = "on" | "paused" | "joining" | "failed" | "off";
 
-/** What the chip says: the agent in the room wins over what the server last reported. */
-export function scribeChipState(meeting: Pick<Meeting, "scribe_enabled" | "scribe_status">, inRoom: boolean): ScribeChipState {
+/**
+ * What the chip says: the agent in the room wins over what the server last
+ * reported; in the room it is paused while its STT fails (benchmark #1).
+ */
+export function scribeChipState(
+  meeting: Pick<Meeting, "scribe_enabled" | "scribe_status">,
+  inRoom: boolean,
+  paused = false,
+): ScribeChipState {
   if (meeting.scribe_enabled === false) return "off";
-  if (inRoom) return "on";
+  if (inRoom) return paused ? "paused" : "on";
   return meeting.scribe_status === "FAILED" ? "failed" : "joining";
 }
 
 const LABEL_KEY: Record<ScribeChipState, string> = {
   on: "meetings.scribe.chipOn",
+  paused: "meetings.scribe.chipPaused",
   joining: "meetings.scribe.chipJoining",
   failed: "meetings.scribe.chipFailed",
   off: "meetings.scribe.chipOff",
@@ -29,6 +37,7 @@ const LABEL_KEY: Record<ScribeChipState, string> = {
 
 const EXPLAIN_KEY: Record<ScribeChipState, string> = {
   on: "meetings.scribe.explain",
+  paused: "meetings.scribe.explainPaused",
   joining: "meetings.scribe.explainJoining",
   failed: "meetings.scribe.explainFailed",
   off: "meetings.scribe.explainOff",
@@ -53,14 +62,17 @@ export function MeetingScribeChip({
 }) {
   const { t } = useTranslation();
   const inRoom = useScribeInRoom();
+  const paused = useScribePaused();
   const set = useSetMeetingScribe(meeting?.id ?? "");
   const [open, setOpen] = useState(false);
   if (!meeting || (!available && !inRoom)) return null;
-  const state = scribeChipState(meeting, inRoom);
+  const state = scribeChipState(meeting, inRoom, paused);
   // A viewer who cannot switch it learns nothing from "joining" or "off".
   if (!canSwitch && (state === "joining" || state === "off")) return null;
   const failed = state === "failed";
-  const Icon = failed ? CircleAlert : Sparkles;
+  // Paused reads as a warning too: the room is not being transcribed right now.
+  const warn = failed || state === "paused";
+  const Icon = warn ? CircleAlert : Sparkles;
   const switchTo = (enabled: boolean) => {
     set.mutate(enabled, {
       onSuccess: () => setOpen(false),
@@ -78,7 +90,7 @@ export function MeetingScribeChip({
             // Failed reads as a warning, not as the neutral "listening" chip.
             className={cn(
               "h-8 px-2 @4xl/stagehead:px-2.5",
-              failed && "border-warning/60 text-warning hover:text-warning aria-expanded:text-warning data-popup-open:text-warning",
+              warn && "border-warning/60 text-warning hover:text-warning aria-expanded:text-warning data-popup-open:text-warning",
             )}
             data-testid="meeting-scribe-chip"
             data-state={state}
@@ -88,7 +100,13 @@ export function MeetingScribeChip({
         <Icon aria-hidden className="size-4" />
         {/* A narrow header keeps a short name, so the privacy signal is never an icon alone; a failure has its own. */}
         <span aria-hidden className="@4xl/stagehead:hidden">
-          {t(failed ? "meetings.scribe.chipFailedShort" : "meetings.scribe.chipShort")}
+          {t(
+            failed
+              ? "meetings.scribe.chipFailedShort"
+              : state === "paused"
+                ? "meetings.scribe.chipPausedShort"
+                : "meetings.scribe.chipShort",
+          )}
         </span>
         <span className="sr-only @4xl/stagehead:not-sr-only">{t(LABEL_KEY[state])}</span>
       </PopoverTrigger>

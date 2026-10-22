@@ -4056,6 +4056,9 @@
       "chipOff": "Thư ký AI đã tắt",
       "chipShort": "Thư ký AI",
       "chipFailedShort": "Chưa ghi lời",
+      "chipPaused": "Thư ký AI tạm dừng, đang thử lại",
+      "chipPausedShort": "Tạm dừng",
+      "explainPaused": "Dịch vụ nhận dạng giọng nói đang lỗi. Thư ký AI vẫn ở trong phòng và tự thử lại; trong lúc chờ, phụ đề dùng giọng nói trên máy của từng người.",
       "explain": "Thư ký AI nghe từng người trong phòng, ghi bản ghi lời thoại của cuộc họp và hiện phụ đề cho mọi người. Thư ký AI không nói, không bật camera và không được tính là người tham gia.",
       "explainJoining": "Thư ký AI đang vào phòng. Khi vào xong, Thư ký AI ghi bản ghi lời thoại và hiện phụ đề cho mọi người.",
       "explainFailed": "Thư ký AI chưa vào được phòng nên chưa ghi lời thoại. Hệ thống tự thử lại sau ít phút.",
@@ -4091,6 +4094,7 @@
       "speakerSaving": "Đang lưu…",
       "speakerSaved": "Đã lưu tên người nói",
       "speakerSaveFailed": "Chưa lưu được tên này.",
+      "speakerSameAs": "Giống Người nói {{n}} · {{name}}",
       "speakersEmpty": "Chưa có người nói nào cần gán tên.",
       "speakersLoading": "Đang tải danh sách người nói",
       "speakersLoadFailed": "Không tải được danh sách người nói."
