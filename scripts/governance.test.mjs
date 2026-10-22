@@ -432,7 +432,8 @@ describe("ADR 0011 — apps/chat-mobile", () => {
       const [head, ...steps] = job.split(/^ {6}- /m);
       assert.doesNotMatch(head, /MAESTRO_TEST_/, `${job.split(":")[0]}: the test account belongs on the Maestro steps, not the job env`);
       for (const step of steps.filter((s) => s.includes("MAESTRO_TEST_"))) {
-        assert.match(step, /maestro (--device \S+ )?test /, `a step that does not run Maestro gets the test account:\n${step}`);
+        // Directly or through scripts/maestro-retry.sh, the one-retry wrapper every device run uses.
+        assert.match(step, /maestro(-retry\.sh)? (--device \S+ )?test /, `a step that does not run Maestro gets the test account:\n${step}`);
       }
     }
   });

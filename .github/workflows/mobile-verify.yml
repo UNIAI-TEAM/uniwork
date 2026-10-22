@@ -10,7 +10,9 @@ name: Mobile Verify
 #                   imports or a contract its tests read (event catalogue,
 #                   response SDOs); native=true when it reaches the binary
 #   checks          typecheck, lint, the vitest unit suite (100% floor) and
-#                   the jest-expo component suite, the mobile repo contracts
+#                   the jest-expo component and route suites, knip, the native
+#                   module versions, ktlint over the local modules' Kotlin, the
+#                   mobile repo contracts
 #   doctor-bundle   expo-doctor, then `expo export` of the Android and iOS
 #                   bundles with the production config, held to
 #                   apps/chat-mobile/bundle-budget.json
