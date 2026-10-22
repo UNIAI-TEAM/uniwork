@@ -5282,6 +5282,14 @@
       "description": "Push notifications travel through Expo, Google, Apple and browser push services, then show on lock screens.",
       "hide": "Hide content in notifications",
       "hide_hint": "Applies to every member: a notification only says that something new arrived, without the sender, the room, a task or document name, or the message's words. An incoming call still shows who is calling."
+    },
+    "mobile_security": {
+      "title": "UniChat on phones",
+      "description": "These apply to every member's phone. While the organization requires them, members cannot turn them off in the app.",
+      "app_lock": "Require the UniChat lock",
+      "app_lock_hint": "UniChat opens only after Face ID, a fingerprint or the phone's passcode. A phone without a screen lock has to set one before UniChat opens.",
+      "screen_capture": "Require screenshot blocking",
+      "screen_capture_hint": "UniChat cannot be captured or recorded, and the app switcher shows no content."
     }
   },
   "invitations": {

@@ -5239,6 +5239,14 @@
       "description": "Nội dung thông báo đẩy đi qua dịch vụ đẩy của Expo, Google, Apple và trình duyệt, rồi hiện trên màn hình khoá.",
       "hide": "Ẩn nội dung trong thông báo",
       "hide_hint": "Áp dụng cho mọi thành viên: thông báo chỉ nói có tin hay việc mới, không hiện tên người gửi, tên phòng, tên công việc, tài liệu hay chữ trong tin. Chuông cuộc gọi đến vẫn hiện tên người gọi."
+    },
+    "mobile_security": {
+      "title": "UniChat trên điện thoại",
+      "description": "Yêu cầu áp dụng cho điện thoại của mọi thành viên. Khi tổ chức bật, thành viên không tắt được trong ứng dụng.",
+      "app_lock": "Bắt buộc khoá UniChat",
+      "app_lock_hint": "UniChat chỉ mở sau Face ID, vân tay hoặc mã khoá của máy. Máy chưa đặt khoá màn hình phải đặt trước khi mở được UniChat.",
+      "screen_capture": "Bắt buộc chặn chụp màn hình",
+      "screen_capture_hint": "Không chụp hay quay được màn hình UniChat, và trình chuyển ứng dụng không hiện nội dung."
     }
   },
   "invitations": {

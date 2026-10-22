@@ -69,3 +69,32 @@ export async function setPushPreviewPolicy(orgSlug: string, hidden: boolean): Pr
     endpoint: "PUT /api/v1/orgs/{org}/push-preview-policy",
   });
 }
+
+/**
+ * The organization's floor under members' phones (GET/PUT /api/v1/orgs/{org}/mobile-security-policy): the UniChat
+ * app lock and screen-capture blocking, required for everyone. A drifted answer reads as nothing required, and not
+ * the caller's to change.
+ */
+const MobileSecurityPolicySchema = z.object({
+  require_app_lock: z.boolean().catch(false),
+  block_screen_capture: z.boolean().catch(false),
+  can_manage: z.boolean().catch(false),
+});
+export type MobileSecurityPolicy = z.infer<typeof MobileSecurityPolicySchema>;
+export type MobileSecurityPolicyChange = Partial<Pick<MobileSecurityPolicy, "require_app_lock" | "block_screen_capture">>;
+const NO_MOBILE_SECURITY_POLICY: MobileSecurityPolicy = { require_app_lock: false, block_screen_capture: false, can_manage: false };
+
+export async function getMobileSecurityPolicy(orgSlug: string): Promise<MobileSecurityPolicy> {
+  const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/mobile-security-policy`);
+  return parseWithFallback<MobileSecurityPolicy>(raw, MobileSecurityPolicySchema, NO_MOBILE_SECURITY_POLICY, {
+    endpoint: "GET /api/v1/orgs/{org}/mobile-security-policy",
+  });
+}
+
+/** Changes the fields given; the others keep their value. */
+export async function setMobileSecurityPolicy(orgSlug: string, change: MobileSecurityPolicyChange): Promise<MobileSecurityPolicy> {
+  const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/mobile-security-policy`, { method: "PUT", body: change });
+  return parseWithFallback<MobileSecurityPolicy>(raw, MobileSecurityPolicySchema, { ...NO_MOBILE_SECURITY_POLICY, ...change, can_manage: true }, {
+    endpoint: "PUT /api/v1/orgs/{org}/mobile-security-policy",
+  });
+}

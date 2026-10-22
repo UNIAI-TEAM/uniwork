@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
-import { create, createWorkspace, getPushPreviewPolicy, list, listWorkspaces, setPushPreviewPolicy } from "./organizations";
+import { create, createWorkspace, getMobileSecurityPolicy, getPushPreviewPolicy, list, listWorkspaces, setMobileSecurityPolicy, setPushPreviewPolicy } from "./organizations";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -75,5 +75,24 @@ describe("organizations endpoints", () => {
     // A drifted answer to a write the server took reads as what was asked.
     vi.mocked(fetch).mockResolvedValueOnce(json("<html>"));
     await expect(setPushPreviewPolicy("acme", true)).resolves.toEqual({ hidden: true, hidden_at: null, can_manage: true });
+  });
+
+  it("reads and sets the organization's phone security requirements, and a malformed answer degrades to none", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ require_app_lock: true, block_screen_capture: false, can_manage: true }));
+    await expect(getMobileSecurityPolicy("acme co")).resolves.toEqual({ require_app_lock: true, block_screen_capture: false, can_manage: true });
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe("http://api.test/api/v1/orgs/acme%20co/mobile-security-policy");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ require_app_lock: "yes", block_screen_capture: 1 }));
+    await expect(getMobileSecurityPolicy("acme")).resolves.toEqual({ require_app_lock: false, block_screen_capture: false, can_manage: false });
+    vi.mocked(fetch).mockResolvedValueOnce(json(null));
+    await expect(getMobileSecurityPolicy("acme")).resolves.toEqual({ require_app_lock: false, block_screen_capture: false, can_manage: false });
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ require_app_lock: false, block_screen_capture: true, can_manage: true }));
+    await expect(setMobileSecurityPolicy("acme", { block_screen_capture: true })).resolves.toMatchObject({ block_screen_capture: true });
+    const [, init] = vi.mocked(fetch).mock.calls.at(-1) as [string, RequestInit];
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(String(init.body))).toEqual({ block_screen_capture: true });
+    // A drifted answer to a write the server took reads as what was asked, the rest as unknown (off).
+    vi.mocked(fetch).mockResolvedValueOnce(json("<html>"));
+    await expect(setMobileSecurityPolicy("acme", { require_app_lock: true })).resolves.toEqual({ require_app_lock: true, block_screen_capture: false, can_manage: true });
   });
 });

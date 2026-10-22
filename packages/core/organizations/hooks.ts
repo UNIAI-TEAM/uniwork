@@ -10,6 +10,7 @@ export const organizationKeys = {
   list: () => ["organizations"] as const,
   workspaces: (orgId: string) => ["org-workspaces", orgId] as const,
   pushPreviewPolicy: (orgSlug: string) => ["org-push-preview-policy", orgSlug] as const,
+  mobileSecurityPolicy: (orgSlug: string) => ["org-mobile-security-policy", orgSlug] as const,
 };
 
 export function useOrganizations(enabled = true) {
@@ -80,6 +81,29 @@ export function useSetPushPreviewPolicy(orgSlug: string) {
     mutationFn: (hidden: boolean) => organizations.setPushPreviewPolicy(orgSlug, hidden),
     onSuccess: (policy) => qc.setQueryData(organizationKeys.pushPreviewPolicy(orgSlug), policy),
     onError: () => qc.invalidateQueries({ queryKey: organizationKeys.pushPreviewPolicy(orgSlug) }),
+  });
+}
+
+/**
+ * The organization's floor under members' phones: the UniChat app lock and
+ * screen-capture blocking, required for everyone; `can_manage` says who may
+ * change it (owners and admins).
+ */
+export function useMobileSecurityPolicy(orgSlug: string) {
+  return useQuery({
+    queryKey: organizationKeys.mobileSecurityPolicy(orgSlug),
+    queryFn: () => organizations.getMobileSecurityPolicy(orgSlug),
+    enabled: !!orgSlug,
+  });
+}
+
+/** Owners and admins change one requirement or both; the answer replaces the cached policy. */
+export function useSetMobileSecurityPolicy(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (change: organizations.MobileSecurityPolicyChange) => organizations.setMobileSecurityPolicy(orgSlug, change),
+    onSuccess: (policy) => qc.setQueryData(organizationKeys.mobileSecurityPolicy(orgSlug), policy),
+    onError: () => qc.invalidateQueries({ queryKey: organizationKeys.mobileSecurityPolicy(orgSlug) }),
   });
 }
 

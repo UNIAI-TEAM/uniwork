@@ -10,8 +10,9 @@ import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
  * Owners and admins hide the words of every chat push in the organization
  * (audit "Security & privacy", push-preview-plaintext): the text of a push
  * passes through Expo, FCM, APNs and the browsers' push services and sits on
- * lock screens. Hidden, a push still says who wrote and where. Members never
- * see this section; their phone says when the organization turned it on.
+ * lock screens. Hidden, a push says only what kind of thing happened, naming
+ * no one and nothing (an incoming call keeps the caller). Members never see
+ * this section; their phone says when the organization turned it on.
  */
 export function PushPreviewPolicySection({ orgSlug }: { orgSlug: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "org.push_previews" });
