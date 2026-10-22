@@ -1,0 +1,98 @@
+$ npm run check:egress
+
+> genoffice@0.1.0 check:egress
+> node tools/check-egress.mjs && node --test tools/check-egress.test.mjs
+
+Egress check passed.
+TAP version 13
+# Subtest: scanText
+    # Subtest: flags every blocked host and the CLI package, comments included
+    ok 1 - flags every blocked host and the CLI package, comments included
+      ---
+      duration_ms: 1.395512
+      type: 'test'
+      ...
+    # Subtest: flags the other Genspark, ads and analytics hosts and a gtag call
+    ok 2 - flags the other Genspark, ads and analytics hosts and a gtag call
+      ---
+      duration_ms: 0.199402
+      type: 'test'
+      ...
+    # Subtest: flags the escaped host forms of a regex literal and a RegExp string
+    ok 3 - flags the escaped host forms of a regex literal and a RegExp string
+      ---
+      duration_ms: 0.118866
+      type: 'test'
+      ...
+    # Subtest: is case-insensitive and ignores look-alike words without the domain
+    ok 4 - is case-insensitive and ignores look-alike words without the domain
+      ---
+      duration_ms: 0.144309
+      type: 'test'
+      ...
+    1..4
+ok 1 - scanText
+  ---
+  duration_ms: 2.442522
+  type: 'suite'
+  ...
+# Subtest: inScope
+    # Subtest: covers shipped sources, manifests, the builder config, scripts and skills
+    ok 1 - covers shipped sources, manifests, the builder config, scripts and skills
+      ---
+      duration_ms: 0.566136
+      type: 'test'
+      ...
+    # Subtest: leaves out tests, packaging, tools, docs and build output
+    ok 2 - leaves out tests, packaging, tools, docs and build output
+      ---
+      duration_ms: 0.131061
+      type: 'test'
+      ...
+    1..2
+ok 2 - inScope
+  ---
+  duration_ms: 0.805049
+  type: 'suite'
+  ...
+# Subtest: scanTree
+    # Subtest: reports hits in scope only, with repo-relative paths
+    ok 1 - reports hits in scope only, with repo-relative paths
+      ---
+      duration_ms: 1.514115
+      type: 'test'
+      ...
+    # Subtest: honours an allowlist entry for exactly that path and pattern
+    ok 2 - honours an allowlist entry for exactly that path and pattern
+      ---
+      duration_ms: 0.45274
+      type: 'test'
+      ...
+    1..2
+ok 3 - scanTree
+  ---
+  duration_ms: 2.184667
+  type: 'suite'
+  ...
+# Subtest: CLI
+    # Subtest: exits 1 with the hit listed, and 0 on a clean tree
+    ok 1 - exits 1 with the hit listed, and 0 on a clean tree
+      ---
+      duration_ms: 49.52181
+      type: 'test'
+      ...
+    1..1
+ok 4 - CLI
+  ---
+  duration_ms: 49.693301
+  type: 'suite'
+  ...
+1..4
+# tests 9
+# suites 4
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 103.227385
