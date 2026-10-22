@@ -478,6 +478,17 @@ type DocumentAccessRequestDecisionSDO struct {
 	ShareID string `json:"share_id" description:"ULID grant được tạo khi duyệt; rỗng khi người xin đã đủ mức (không tạo share mới)" example:"01J8X4SHAREN1P2Q3R4S5T6U7"`
 }
 
+// DocumentOwnerSDO is the 200 body of PUT /documents/{documentID}/owner
+// (DOC-06 §4.2). previous_owner_share_id is empty when the previous owner
+// keeps nothing (none, deactivated, a folder); both previous fields are empty
+// when the recipient already owned the document.
+type DocumentOwnerSDO struct {
+	DocumentID           string `json:"document_id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	ACLOwnerID           string `json:"acl_owner_id" description:"ULID chủ sở hữu mới (bằng user_id của yêu cầu)" example:"01J8X4USER0N1P2Q3R4S5T6U7V8"`
+	PreviousOwnerID      string `json:"previous_owner_id" description:"ULID chủ cũ; rỗng khi người nhận đã là chủ hoặc tài liệu chưa có chủ" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	PreviousOwnerShareID string `json:"previous_owner_share_id" description:"ULID share chủ cũ giữ lại; rỗng khi none hoặc bỏ qua" example:"01J8X4SHAREN1P2Q3R4S5T6U7"`
+}
+
 // DocumentAdminSummaryDocumentDTO is the metadata block of the admin summary:
 // what an administrator may see about a restricted document they cannot read.
 // It never carries content, content_text or a file.
@@ -492,6 +503,8 @@ type DocumentAdminSummaryDocumentDTO struct {
 	Visibility     string  `json:"visibility" description:"workspace hoặc restricted" example:"restricted"`
 	SizeBytes      int64   `json:"size_bytes" description:"Kích thước phiên bản file hiện tại (byte); 0 với trang và thư mục" example:"325632"`
 	ArchivedAt     *string `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
+	OwnerKind      *string `json:"owner_kind,omitempty" description:"work_product khi tài liệu thuộc sở hữu; vắng mặt khi không" example:"work_product"`
+	Revision       string  `json:"revision" description:"Revision làm việc, chuỗi thập phân (nền khóa lạc quan khi đổi visibility)" example:"41"`
 	CreatedBy      string  `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	CreatedAt      string  `json:"created_at" example:"2026-09-27T09:00:00Z"`
 	UpdatedAt      string  `json:"updated_at" example:"2026-09-27T09:00:00Z"`

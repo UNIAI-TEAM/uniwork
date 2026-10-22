@@ -84,6 +84,26 @@ export function documentFrameKeys(
       // is a workspace-root child) and an open delete dialog's counts.
       return ownWorkspace ? [documentKeys.workspace(wsId)] : [];
     }
+    case "document.owner_transferred": {
+      // S-DOC06 (UNI-2084): a document changed hands; `bulk_id` only marks a
+      // frame of the bulk command and changes nothing here. The workspace
+      // root is the prefix of the detail entry, its shares (the access list)
+      // and every list root, so one invalidation refreshes all of them. A
+      // frame without a document id, or stamped for another workspace,
+      // refreshes nothing.
+      if (!ownWorkspace || !payload.document_id) return [];
+      return [documentKeys.workspace(wsId)];
+    }
+    case "document.owners_bulk_transferred": {
+      // S-DOC06b (UNI-2092): a bulk run moved a member's documents to this
+      // person. The frame is user-scoped and names the workspace of the first
+      // moved document, which is not the only workspace that changed: the
+      // documents changed owner in every workspace the recipient shares with
+      // the source. The case therefore deliberately ignores ownWorkspace and
+      // refreshes the whole documents prefix whichever workspace is open.
+      // Ids only; nothing from the frame is cached.
+      return [documentKeys.all];
+    }
     case "document.lock_changed": {
       // UNI-1645: who holds the document changed (acquire, release, expiry,
       // take-over, handover, hold). The R1 state and every row that shows the

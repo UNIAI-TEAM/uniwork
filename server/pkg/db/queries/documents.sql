@@ -130,6 +130,92 @@ WHERE id = sqlc.arg(id)
   AND revision = sqlc.arg(expected_revision)
 RETURNING *;
 
+-- name: TransferDocumentACLOwner :one
+-- DOC-06 (UNI-2084, addendum §2.1, §5): hand the ACL owner slot to another
+-- person. The caller holds the row lock (withDocumentAdministerMutation). The
+-- updated_by pair is the caller's like every other UPDATE (ADR 0007); the
+-- revision is NOT bumped - it is the autosave base, and an owner change does
+-- not change content. A Work Product document matches no row.
+UPDATE documents
+SET acl_owner_id = sqlc.arg(new_owner),
+    updated_by = sqlc.arg(updated_by),
+    updated_by_kind = sqlc.arg(updated_by_kind),
+    updated_at = now()
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND owner_kind IS NULL
+RETURNING *;
+
+-- name: TransferDocumentsACLOwnerFrom :many
+-- DOC-06b (UNI-2092, addendum §2.2, §5): TransferDocumentACLOwner for a batch
+-- of the bulk route, in one statement, guarded by the owner the batch listed.
+-- A row whose owner changed while the batch waited for its lock matches
+-- nothing and is not returned, so the caller never counts it. Same updated_by
+-- pair, same untouched revision. Returns what moved: the caller writes one
+-- audit row and one outbox row for each.
+UPDATE documents
+SET acl_owner_id = sqlc.arg(new_owner),
+    updated_by = sqlc.arg(updated_by),
+    updated_by_kind = sqlc.arg(updated_by_kind),
+    updated_at = now()
+WHERE id = ANY(sqlc.arg(ids)::text[])
+  AND organization_id = sqlc.arg(organization_id)
+  AND owner_kind IS NULL
+  AND acl_owner_id = sqlc.arg(from_owner)
+RETURNING id, workspace_id;
+
+-- name: ListMemberOwnedDocumentsForTransfer :many
+-- One batch of the bulk transfer (§2.2, R1-10): the member's documents in
+-- the organization after the cursor, in id order, locked. Plain FOR UPDATE,
+-- no SKIP LOCKED: a concurrent transfer makes the batch wait instead of
+-- skipping a row, and id order means two batches never lock crosswise.
+-- Work Product documents (owner_kind) and the member's My Folder roots are
+-- never listed; the documents inside a My Folder are. Archived documents
+-- not yet purged are, so a successor can restore them.
+-- Only the columns the loop and the level resolver read: never content,
+-- content_text or search_text, so a 500-row batch stays metadata (BE-R1-1).
+-- FOR UPDATE locks the whole row whatever the column list.
+SELECT id, organization_id, workspace_id, visibility, workspace_level,
+       acl_owner_id, owner_kind, owner_id
+FROM documents
+WHERE organization_id = sqlc.arg(organization_id)
+  AND acl_owner_id = sqlc.arg(owner)
+  AND owner_kind IS NULL
+  AND system_kind IS DISTINCT FROM 'my_folder'
+  AND id > sqlc.arg(after)
+ORDER BY id
+LIMIT sqlc.arg(page)
+FOR UPDATE;
+
+-- name: MemberOwnsDocumentsAfter :one
+-- has_more of the bulk transfer: whether a listable document of the member
+-- is left after the batch's last id. Never inferred from a full page, which
+-- LIMIT ... FOR UPDATE can return short (R1-10).
+SELECT EXISTS (
+  SELECT 1
+  FROM documents
+  WHERE organization_id = sqlc.arg(organization_id)
+    AND acl_owner_id = sqlc.arg(owner)
+    AND owner_kind IS NULL
+    AND system_kind IS DISTINCT FROM 'my_folder'
+    AND id > sqlc.arg(after)
+) AS has_more;
+
+-- name: CountMemberOwnedDocumentsByWorkspace :many
+-- GET .../document-ownership: how many listable documents the member owns in
+-- each workspace of the organization, with the workspace's name. Counts
+-- only, never a title.
+SELECT d.workspace_id, w.name AS workspace_name, count(*)::bigint AS document_count
+FROM documents d
+JOIN workspaces w ON w.id = d.workspace_id AND w.organization_id = d.organization_id
+WHERE d.organization_id = sqlc.arg(organization_id)
+  AND d.acl_owner_id = sqlc.arg(owner)
+  AND d.owner_kind IS NULL
+  AND d.system_kind IS DISTINCT FROM 'my_folder'
+GROUP BY d.workspace_id, w.name
+ORDER BY w.name, d.workspace_id;
+
 -- The home-row move (SH-S1, UNI-1780): visibility and, while it is
 -- 'workspace', the level the row grants every effective member of the
 -- document's workspace. Every caller runs it inside the transaction that

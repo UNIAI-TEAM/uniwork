@@ -649,7 +649,9 @@
         "document_access_declined": "Document access request declined",
         "document_shared": "Documents shared with you",
         "document_trashed_by_other": "Your document moved to the trash",
-        "document_changed": "Changes to your documents and documents shared with you"
+        "document_changed": "Changes to your documents and documents shared with you",
+        "document_owner_transferred": "Document ownership transferred to you",
+        "document_owners_bulk_transferred": "A member's documents transferred to you"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
@@ -5802,7 +5804,11 @@
       "document_changed_relocated_from_page_one": "{{actor}} moved the page holding “{{document}}” to trash; the document is now at the workspace root",
       "document_changed_relocated_from_page_untitled": "{{actor}} moved the page holding one of your documents to trash; the document is now at the workspace root",
       "document_changed_generic_one": "{{actor}} changed “{{document}}”",
-      "document_changed_generic_untitled": "{{actor}} changed a document"
+      "document_changed_generic_untitled": "{{actor}} changed a document",
+      "document_owner_transferred": "{{actor}} transferred ownership of “{{document}}” to you.",
+      "document_owner_transferred_untitled": "{{actor}} transferred ownership of a document to you.",
+      "document_owners_bulk_transferred": "{{actor}} transferred {{name}}'s documents to you.",
+      "document_owners_bulk_transferred_untitled": "{{actor}} transferred a member's documents to you."
     },
     "kindTitle": {
       "document_mentioned": "You were mentioned in a comment",
@@ -5817,7 +5823,9 @@
       "document_access_declined": "Request declined",
       "document_shared": "Document shared",
       "document_trashed_by_other": "Your document was moved to trash",
-      "document_changed": "Documents changed"
+      "document_changed": "Documents changed",
+      "document_owner_transferred": "You now own a document",
+      "document_owners_bulk_transferred": "You now own documents"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",

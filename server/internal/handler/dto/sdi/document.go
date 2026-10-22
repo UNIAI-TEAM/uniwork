@@ -359,6 +359,14 @@ type ApproveDocumentAccessRequestSDI struct {
 	Level *string `json:"level" description:"view, comment hoặc edit; mặc định = mức người xin đã chọn; manage -> 400 invalid_request" example:"view"`
 }
 
+// TransferDocumentOwnerSDI is PUT /api/v1/documents/{documentID}/owner
+// (DOC-06 §2.1, §4.2): the recipient of the ACL owner slot and what the
+// previous owner keeps. Absent previous_owner_level = edit.
+type TransferDocumentOwnerSDI struct {
+	UserID             string  `json:"user_id" description:"ULID người nhận, thành viên hiệu lực của workspace chứa tài liệu" example:"01J8X4USER0N1P2Q3R4S5T6U7V8"`
+	PreviousOwnerLevel *string `json:"previous_owner_level" description:"edit (mặc định), comment, view hoặc none; giá trị khác -> 400 invalid_request" example:"edit"`
+}
+
 // ListDocumentAccessLogsSDI documents GET
 // /api/v1/documents/{documentID}/access-logs (C-01 §5.4, manage only):
 // newest first, actor kinds human/agent/anonymous, optional action filter.

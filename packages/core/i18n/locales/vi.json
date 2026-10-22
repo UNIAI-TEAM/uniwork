@@ -648,7 +648,9 @@
         "document_access_declined": "Yêu cầu truy cập bị từ chối",
         "document_shared": "Tài liệu được chia sẻ với bạn",
         "document_trashed_by_other": "Tài liệu của bạn bị chuyển vào thùng rác",
-        "document_changed": "Thay đổi trên tài liệu của bạn hoặc được chia sẻ với bạn"
+        "document_changed": "Thay đổi trên tài liệu của bạn hoặc được chia sẻ với bạn",
+        "document_owner_transferred": "Được chuyển quyền sở hữu tài liệu",
+        "document_owners_bulk_transferred": "Được chuyển quyền sở hữu các tài liệu của một thành viên"
       },
       "all_kinds": "Mọi loại",
       "channel_all": "{{channel}} cho mọi loại",
@@ -5798,7 +5800,11 @@
       "document_changed_relocated_from_page_one": "{{actor}} đã chuyển trang chứa tài liệu “{{document}}” của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
       "document_changed_relocated_from_page_untitled": "{{actor}} đã chuyển trang chứa một tài liệu của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
       "document_changed_generic_one": "{{actor}} đã thay đổi tài liệu “{{document}}”",
-      "document_changed_generic_untitled": "{{actor}} đã thay đổi một tài liệu"
+      "document_changed_generic_untitled": "{{actor}} đã thay đổi một tài liệu",
+      "document_owner_transferred": "{{actor}} đã chuyển cho bạn quyền sở hữu tài liệu “{{document}}”.",
+      "document_owner_transferred_untitled": "{{actor}} đã chuyển cho bạn quyền sở hữu một tài liệu.",
+      "document_owners_bulk_transferred": "{{actor}} đã chuyển cho bạn quyền sở hữu các tài liệu của {{name}}.",
+      "document_owners_bulk_transferred_untitled": "{{actor}} đã chuyển cho bạn quyền sở hữu các tài liệu của một thành viên."
     },
     "kindTitle": {
       "document_mentioned": "Bạn được nhắc tên trong bình luận",
@@ -5813,7 +5819,9 @@
       "document_access_declined": "Yêu cầu bị từ chối",
       "document_shared": "Tài liệu được chia sẻ",
       "document_trashed_by_other": "Tài liệu của bạn đã vào thùng rác",
-      "document_changed": "Tài liệu đã thay đổi"
+      "document_changed": "Tài liệu đã thay đổi",
+      "document_owner_transferred": "Bạn là chủ sở hữu tài liệu",
+      "document_owners_bulk_transferred": "Bạn nhận quyền sở hữu nhiều tài liệu"
     },
     "archived_one": "Đã lưu trữ {{count}} thông báo",
     "archived_other": "Đã lưu trữ {{count}} thông báo",

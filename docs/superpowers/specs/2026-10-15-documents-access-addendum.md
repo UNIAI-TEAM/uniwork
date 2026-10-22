@@ -384,7 +384,7 @@ Sự kiện (thêm ở **ba** nơi: `docs/events/CATALOGUE.md`, `server/internal
 | Topic | Payload | Scope | Client |
 | --- | --- | --- | --- |
 | `document.owner_transferred` | `document_id`, `workspace_id`, `bulk_id` (tùy chọn, chỉ lệnh hàng loạt) | `ScopeWorkspace` | invalidate khóa chi tiết + danh sách truy cập của tài liệu, các list gốc của workspace |
-| `document.owners_bulk_transferred` | `organization_id`, `user_id` (người nhận), `bulk_id` | `ScopeUser` | invalidate list tài liệu của người nhận; nguồn của thông báo gộp |
+| `document.owners_bulk_transferred` | `organization_id`, `user_id` (người nhận), `bulk_id`, `from_user_id` (thành viên nguồn; để thông báo gộp nêu tên), `workspace_id` (workspace của tài liệu đầu tiên được chuyển) | `ScopeUser` | invalidate list tài liệu của người nhận; nguồn của thông báo gộp |
 
 Audit (`server/internal/audit/actions.go` + `service/audit_coverage_test.go`) — **một** bộ khóa cho cả hai lệnh (`R2-3`; mục 2.2 trỏ về đây): `document.owner_transferred` (`ResourceType=document`, `Changes{acl_owner_id: before→after}`, `Metadata{from_user_id, previous_owner_level, bulk_id?}` — `from_user_id` = chủ cũ, luôn có; `previous_owner_level` luôn có, lệnh hàng loạt ghi `none`; `bulk_id` chỉ khi đi từ lệnh hàng loạt), `document.owners_bulk_transferred` (`ResourceType=organization_member`, `Metadata{bulk_id, to_user_id, transferred, skipped:{recipient_not_member, self_restricted}}`). `audit_coverage_test.go` không ghim khóa metadata, nên DOC6-A01/A04 kiểm chúng.
 
