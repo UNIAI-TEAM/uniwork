@@ -15,7 +15,8 @@ module.exports = {
   // Replaces the default skip set, so the default (package.json scripts that
   // run no native step) is kept beside it.
   sourceSkips: SourceSkips.PackageJsonAndroidAndIosScriptsIfNotContainRun | SourceSkips.ExpoConfigExtraSection,
-  // The local modules' JVM unit tests (Robolectric, mobile-verify › android-release) never
-  // reach a binary: adding or changing one must not split the runtime.
-  ignorePaths: ["modules/*/android/src/test/**"],
+  // The local modules' JVM unit tests (Robolectric, mobile-verify › android-release) and
+  // instrumented tests (src/androidTest, run on android-smoke's emulator from their own APK)
+  // never reach a binary: adding or changing one must not split the runtime.
+  ignorePaths: ["modules/*/android/src/test/**", "modules/*/android/src/androidTest/**"],
 };

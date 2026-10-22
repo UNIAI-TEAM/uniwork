@@ -471,9 +471,18 @@ một dòng thì ghi lý do ở dòng trên.
   Kotlin có test JVM trên Robolectric (`modules/unichat-calls/android/src/test`, SDK 34 vì CI chạy JDK 17): token khởi
   chạy (chỉ token của chính thông báo đó mới cho hiện trên màn khoá và Nghe, token thu hồi/hết hạn/giả thì không),
   `PendingActions` (giữ 10 mục mới nhất, lấy một lần), và thông báo như hệ thống nhận (`CallStyle` thật, `FLAG_INSISTENT`,
-  full-screen intent, intent mang token, chỉ Nghe có `EXTRA_ANSWER`, Gác máy của cuộc gọi đang diễn ra); CI chạy
-  `:unichat-calls:testReleaseUnitTest` cùng lượt Gradle của `android-release`. Thư mục test nằm ngoài fingerprint
-  (`fingerprint.config.js › ignorePaths`): thêm test không tách runtime.
+  full-screen intent, intent mang token, chỉ Nghe có `EXTRA_ANSWER`, Gác máy của cuộc gọi đang diễn ra),
+  `CallService` (loại phoneCall, thêm micro/camera khi đã cấp; Android từ chối một loại thì giữ loại đã có, từ chối hết
+  lúc đầu thì tự dừng; một cuộc gọi chỉ một `startForegroundService`, cập nhật sau đi thẳng vào dịch vụ đang chạy — shadow
+  `ShadowRefusingService` trong test giả lời từ chối theo loại của Android 14), `CallActionReceiver` (Từ chối gỡ thông báo
+  đổ chuông, khởi task JS; Android không cho khởi thì hành động nằm ở `PendingActions`), `CallLockScreen` và listener của
+  `UniChatCallsPackage` (chỉ lần mở có token đúng mới hiện trên màn khoá và ghi Nghe, một lần kể cả khi activity tạo
+  lại), `CallRinger` (im lặng không reo, rung chỉ rung); CI chạy
+  `:unichat-calls:testReleaseUnitTest` cùng lượt Gradle của `android-release`. Thêm một test instrumented
+  (`src/androidTest`, UiAutomator): cuộc gọi đến đăng qua `CallNotifications` hiện trong khay của System UI như một cuộc
+  gọi có Nghe/Từ chối và biến mất khi huỷ; `android-release` build APK test (`:unichat-calls:assembleDebugAndroidTest`),
+  `android-smoke` cài và chạy nó trên emulator (`am instrument`, đỏ nếu không `OK (`). Hai thư mục test nằm ngoài
+  fingerprint (`fingerprint.config.js › ignorePaths`): thêm test không tách runtime.
   **Chỉ máy thật kiểm được** (checklist ở runbook › Cuộc gọi native trên Android; luồng tay
   `maestro/flows/call-answer-incoming.yaml`): push data-only tới khi app bị kill (cần FCM thật), màn toàn màn hình trên máy khoá, nhạc
   chuông theo công tắc chuông/DND, Nghe từ màn khoá (listener của `UniChatCallsPackage` đặt

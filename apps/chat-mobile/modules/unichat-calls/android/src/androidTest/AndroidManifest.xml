@@ -1,0 +1,8 @@
+<!-- The instrumented test APK (src/androidTest) posts the incoming call itself:
+     it needs the app's notification permissions and an icon for the
+     notification (CallNotifications.smallIcon falls back to the app's). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+  <application android:icon="@android:drawable/sym_call_incoming" />
+</manifest>

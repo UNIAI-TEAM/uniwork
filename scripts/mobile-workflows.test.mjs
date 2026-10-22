@@ -38,7 +38,17 @@ test("mobile-verify can be called and builds the release only through its jobs",
   assert.match(wf, /\.\/gradlew :app:assembleRelease/);
   // Audit "native-module-untested": the calls module's Kotlin is unit-tested in the same Gradle run.
   assert.match(jobsOf(wf).jobs.get("android-release") ?? "", /\.\/gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest /);
-  assert.ok(fs.existsSync(path.join(root, "apps/chat-mobile/modules/unichat-calls/android/src/test/java/expo/modules/unichatcalls/CallLaunchTokensTest.kt")));
+  const calls = path.join(root, "apps/chat-mobile/modules/unichat-calls/android/src");
+  // Review P2: the service, the action receiver, the lock screen and the ringer have JVM tests too.
+  for (const file of ["CallLaunchTokens", "PendingActions", "CallNotifications", "CallService", "CallActionReceiver", "CallLockScreen", "CallRinger"]) {
+    assert.ok(fs.existsSync(path.join(calls, `test/java/expo/modules/unichatcalls/${file}Test.kt`)), `${file}Test.kt`);
+  }
+  // And the incoming call as System UI draws it: built with the release, run on the smoke's emulator.
+  assert.ok(fs.existsSync(path.join(calls, "androidTest/java/expo/modules/unichatcalls/IncomingCallNotificationTest.kt")));
+  assert.match(jobsOf(wf).jobs.get("android-release") ?? "", /:unichat-calls:assembleDebugAndroidTest /);
+  const smoke = jobsOf(wf).jobs.get("android-smoke") ?? "";
+  assert.match(smoke, /name: unichat-calls-androidtest/);
+  assert.match(smoke, /adb shell am instrument -w expo\.modules\.unichatcalls\.test\/androidx\.test\.runner\.AndroidJUnitRunner \| tee "([^"]+)"\n\s+grep -q '\^OK \(' "\1"/, "the run fails unless the instrumentation says OK");
   assert.match(wf, /maestro-retry\.sh test flows\/smoke-launch\.yaml/, "the cold-start smoke runs the release APK");
   // Audit "ios-never-built": every native PR compiles iOS too, for the simulator, without an Apple account.
   const ios = jobsOf(wf).jobs.get("ios-release") ?? "";

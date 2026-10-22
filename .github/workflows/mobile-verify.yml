@@ -30,7 +30,9 @@ name: Mobile Verify
 #                   apps/chat-mobile/maestro/flows/smoke-launch.yaml: the app
 #                   cold-starts to its sign-in screen and stays up; then times
 #                   five cold starts and weighs the APK against
-#                   apps/chat-mobile/perf-budget.json (scripts/mobile-perf.mjs).
+#                   apps/chat-mobile/perf-budget.json (scripts/mobile-perf.mjs);
+#                   then runs the calls module's instrumented test APK
+#                   (modules/unichat-calls/android/src/androidTest).
 #   ios-release     `expo prebuild -p ios`, CocoaPods, an ad-hoc signed Release
 #                   build for the simulator (no Apple account) on the Xcode
 #                   XCODE_VERSION names (scripts/select-xcode.sh), then
@@ -298,7 +300,9 @@ jobs:
         # halves the build. The nightly builds every ABI (android-production).
         # The calls module's Robolectric tests (modules/unichat-calls/android/src/test)
         # share the release compilation; Robolectric runs SDK 34 on this JDK 17.
-        run: ./gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest --no-daemon -PreactNativeArchitectures=x86_64
+        # :unichat-calls:assembleDebugAndroidTest builds the module's instrumented test APK
+        # (src/androidTest), which android-smoke runs on its emulator.
+        run: ./gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest :unichat-calls:assembleDebugAndroidTest --no-daemon -PreactNativeArchitectures=x86_64
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -319,6 +323,12 @@ jobs:
           path: apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unichat-calls-androidtest
+          path: apps/chat-mobile/**/outputs/apk/androidTest/debug/*.apk
+          if-no-files-found: error
+          retention-days: 3
 
   android-smoke:
     name: Android cold-start smoke
@@ -337,6 +347,10 @@ jobs:
         with:
           name: unichat-release-apk
           path: ${{ runner.temp }}/apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: unichat-calls-androidtest
+          path: ${{ runner.temp }}/androidtest
       # Maestro runs on the JVM.
       - uses: actions/setup-java@v4
         with:
@@ -364,6 +378,8 @@ jobs:
           # frame and to the sign-in screen drawn under the lifted splash, each held to its ceiling. Last (audit
           # UX "no-device-a11y-verification"), at the largest font scale and in dark mode: the sign-in screen
           # still shows its copy and reaches its button, and every control on it is named and 48 dp a side.
+          # Then (review P2) the calls module's instrumented test: an incoming call posted through
+          # CallNotifications reaches System UI's shade as a call with Answer and Decline.
           script: |
             adb install "${{ runner.temp }}/apk/app-release.apk"
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
@@ -376,6 +392,9 @@ jobs:
             node scripts/mobile-a11y-audit.mjs --package com.uniworkos.chat --out "${{ runner.temp }}/a11y-signin.json"
             adb shell settings put system font_scale 1.0
             adb shell cmd uimode night no
+            adb install -r -t "${{ runner.temp }}"/androidtest/*.apk
+            adb shell am instrument -w expo.modules.unichatcalls.test/androidx.test.runner.AndroidJUnitRunner | tee "${{ runner.temp }}/instrument.txt"
+            grep -q '^OK (' "${{ runner.temp }}/instrument.txt"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

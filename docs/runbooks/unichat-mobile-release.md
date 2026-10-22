@@ -406,8 +406,12 @@ dần theo số máy đã cập nhật.
 
 **Cuộc gọi native trên Android (UNI-2053 S4, `docs/adr/drafts/0038-…`).** Test node/jest giữ chính sách (khi nào reo,
 khi nào dịch vụ chạy, ai được báo) với module native giả; test JVM Robolectric của module
-(`modules/unichat-calls/android/src/test`, chạy trong `android-release`) giữ token khởi chạy, hành động chờ và thông báo
-như hệ thống nhận; chỉ máy Android thật (bản `preview`/`internal` có `GOOGLE_SERVICES_JSON` và FCM) xác nhận phần còn
+(`modules/unichat-calls/android/src/test`, chạy trong `android-release`) giữ token khởi chạy, hành động chờ, thông báo
+như hệ thống nhận, dịch vụ nền của cuộc gọi, nút Từ chối/Gác máy, màn khoá và tiếng reo theo chế độ chuông; test
+instrumented (`src/androidTest`, chạy trên emulator của `android-smoke`) giữ thông báo đổ chuông như System UI vẽ nó (khay,
+Nghe/Từ chối). Đỏ ở bước `am instrument`: tải artifact `maestro-smoke` không có gì cho nó — đọc log job (dòng
+`FAILURES!!!` và stack), tái hiện bằng `./gradlew :unichat-calls:connectedDebugAndroidTest` trên một emulator API 35.
+Chỉ máy Android thật (bản `preview`/`internal` có `GOOGLE_SERVICES_JSON` và FCM) xác nhận phần còn
 lại — nhạc chuông, màn toàn màn hình, push khi app bị kill, OEM. Chạy test đó trên máy dev cần Android SDK:
 `cd apps/chat-mobile && pnpm exec expo prebuild -p android --no-install && (cd android && ./gradlew
 :unichat-calls:testReleaseUnitTest)`. Hai tài khoản, A gọi B (luồng có sẵn:
