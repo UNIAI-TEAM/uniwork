@@ -496,6 +496,41 @@ từng mục khi đã nộp:
   "không ai nghe"). Android là chính; iOS có thể bị hệ điều hành treo app nền giữa hai frame tới khi có CallKit.
 - [ ] Đăng xuất rồi đăng nhập tài khoản khác: không thấy phòng, tin hay hàng đợi của tài khoản trước.
 
+**Kiểm tra bảo mật trên máy trước bản store (audit "Security & privacy").** Test giữ chính sách (allowlist deep link,
+lọc báo lỗi, mức tối thiểu của tổ chức, quét APK/AAB); chỉ máy thật xác nhận phần nền tảng. Mỗi bản store trên Android;
+trên iOS là **lượt kiểm bảo mật iOS bắt buộc trước bản iOS đầu tiên** (mọi kiểm soát iOS hiện chỉ có trong cấu hình và
+test JS), rồi mỗi bản store. Ghi kết quả (ảnh, lệnh, log) vào bằng chứng go/no-go, dòng Bảo mật.
+
+- [ ] Android: bản release không debuggable (`adb shell run-as com.uniworkos.chat ls` báo "not debuggable") và không
+  sao lưu (`adb shell bmgr backupnow com.uniworkos.chat` không sao lưu gì); job quét APK của `mobile-verify.yml` xanh.
+- [ ] Link từ ngoài không mở màn trong: `adb shell am start -a android.intent.action.VIEW -d "uniworkchat://account"`
+  và App Link `https://<host>/<org>/<ws>/room/<id>/info` (iOS: dán vào Safari/Notes) đều về trang chủ, không tới màn xoá
+  tài khoản hay thông tin phòng; link chat `…/chat?room=<id>` vẫn mở phòng.
+- [ ] Ẩn nội dung thông báo (người dùng tắt trong app, hay tổ chức bật ở web): push tin riêng chỉ hiện "Tin nhắn riêng
+  mới", push việc/tài liệu chỉ "Bạn có thông báo mới" — không tên người, phòng hay tiêu đề, kể cả trên màn khoá; chuông
+  cuộc gọi đến vẫn hiện tên người gọi.
+- [ ] Mức tối thiểu của tổ chức: owner bật "Bắt buộc khoá UniChat" và "Bắt buộc chặn chụp màn hình" ở web › Cài đặt ›
+  Tổ chức. Trên máy thành viên, mở lại app: Cài đặt hiện hai công tắc bật, bị khoá, kèm "Tổ chức của bạn yêu cầu…"; mở
+  lạnh hỏi Face ID/vân tay/mã; chụp màn hình bị chặn, màn đa nhiệm trống. Máy không có khoá màn hình: màn khoá nói đặt
+  khoá trong Cài đặt của máy. Owner tắt lại: lựa chọn của người dùng quay lại. Đăng xuất: mức tối thiểu được gỡ.
+- [ ] Ghim TLS (khi đã bật, Khắc phục 19): qua mitmproxy với CA người dùng tự cài, REST, socket `wss://` và cuộc gọi
+  LiveKit đều hỏng mà không lộ token; trên mạng thường mọi thứ chạy.
+- [ ] iOS — Keychain sau gỡ cài: gỡ app, cài lại, mở: về màn đăng nhập (dấu cài đặt trong MMKV), thiết bị cũ biến mất
+  khỏi danh sách thiết bị trên web (đã thu hồi).
+- [ ] iOS — bản sao lưu: sao lưu mã hoá bằng Finder, mở bằng công cụ đọc backup (iMazing hay `idevicebackup2` +
+  giải nén): không có token phiên (item Keychain là `ThisDeviceOnly`, không đi theo backup), file MMKV là dữ liệu mã
+  hoá, không có ảnh hay tệp nào của tin đã gửi. Ảnh của tin **chưa gửi** nằm ở `Documents/outbox` (đã biết: chưa loại
+  khỏi backup, cần một lệnh native — ghi lại có hay không).
+- [ ] iOS — màn đa nhiệm: tắt cả khoá và chặn chụp thì ảnh đa nhiệm là cuộc trò chuyện; bật một trong hai thì ảnh bị
+  che (app switcher protection + lớp phủ của guard). Bật chặn chụp: chụp màn hình ra ảnh trống, quay màn hình ra đen.
+- [ ] iOS — đăng nhập: `ASWebAuthenticationSession` trả callback về app và đăng nhập xong; mở
+  `uniworkchat://auth/callback?code=x&state=y` từ Safari khi không có lượt đăng nhập nào thì không đăng nhập được gì.
+- [ ] iOS — ghim TLS và socket: với pin bật, kiểm riêng socket `wss://` qua mitmproxy (chưa xác minh `NSPinnedDomains`
+  phủ WebSocket SocketRocket/CFStream); nếu socket vẫn nối được qua proxy thì ghi là lỗ hổng đã biết và mở việc.
+- [ ] iOS — redirect: chưa xác minh URLSession có giữ `Authorization` khi theo 3xx sang host khác; app chặn 3xx cho
+  mọi request JSON (`data/auth/strict-fetch.ts`), upload multipart vẫn theo fetch của React Native — bỏ qua dòng này nếu
+  server không trả 3xx nào (`TestOnlyBrowserFlowsRedirect`).
+
 **UX, trợ năng và ngôn ngữ (UNI-2053 S6).** Test node/jest giữ nhãn, hành động, thông báo cho trình đọc màn hình,
 cử chỉ ảnh (qua tiện ích test của react-native-gesture-handler) và màn giải thích quyền; chỉ máy thật xác nhận cảm giác
 và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):

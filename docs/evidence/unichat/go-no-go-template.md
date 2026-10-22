@@ -18,7 +18,7 @@ Mỗi dòng trỏ tới bằng chứng (bình luận UNI-1838, run CI, ảnh). M
 | Push ≤ 10 s p95, preview đúng, không log (K4, K6, Maestro) | ☐ | p95 = … s trên … mẫu |
 | Không push khi đang hoạt động (K5) | ☐ | … |
 | Ổn định: crash-free ≥ 99,5 % 7 ngày cuối; desktop tự phục hồi | ☐ | iOS …%, Android …% |
-| Bảo mật (`security-review-2026-10-17.md`, CI, UNI-1877 đã quyết) | ☐ | … |
+| Bảo mật (`security-review-2026-10-17.md`, CI, UNI-1877 đã quyết; lượt kiểm bảo mật trên máy Android và iOS ở runbook `unichat-mobile-release` › Kiểm tra bảo mật trên máy) | ☐ | … |
 | Trợ năng / i18n (K8, K9) | ☐ | … |
 | Desktop: bản cài 3 hệ điều hành, tự cập nhật, smoke ký tên | ☐ | … |
 | Mobile: TestFlight + Play internal; Maestro 5 đêm xanh | ☐ | … |

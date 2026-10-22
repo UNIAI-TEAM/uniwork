@@ -14,6 +14,7 @@ một dòng sai đi thì sửa dòng đó cùng PR; dòng "chưa có" là nợ �
 | Dữ liệu offline mã hoá | MMKV AES-256, khoá ngẫu nhiên trong Keychain/Keystore (this device only) | `data/storage/native-device-store.test.ts` |
 | Không sao lưu, không chuyển máy | `android.allowBackup: false`, data extraction rules loại mọi vùng (Android 12+) | `app.config.test.ts`, `android-manifest.test.ts` (thuộc tính `application`, luật của plugin) |
 | Đăng xuất / bị thu hồi xoá dấu vết | Cache ảnh expo-image, thông báo trong khay, badge, hàng đợi, cache truy vấn, workspace | `data/local-wipe.test.ts`, `data/auth/store.test.ts` |
+| Tệp của tin chưa gửi | Bản sao ảnh, tệp, tin thoại chưa gửi ở `Documents/outbox`, xoá khi server nhận và khi đăng xuất; Android không sao lưu gì. **Nợ đã biết:** trên iOS, `Documents` vào bản sao lưu iCloud/Finder cho tới khi có lệnh native đặt `isExcludedFromBackup` (expo-file-system không có) — chuyển sang `Caches` thì hệ điều hành có thể xoá tệp của tin đang chờ | `data/outbox-files.test.ts`, `data/local-wipe.test.ts`; iOS: runbook › Kiểm tra bảo mật trên máy |
 | Gỡ app là đăng xuất (iOS giữ Keychain) | Dấu cài đặt trong MMKV; lần mở đầu của bản cài mới bỏ phiên cũ và thu hồi thiết bị | `data/install-marker.test.ts`, `data/auth/session.test.ts`, `data/auth/store.test.ts` |
 | Log và báo crash không lộ dữ liệu | Console chỉ ở dev; Sentry `sendDefaultPii: false`, không ảnh màn hình/replay; app không đưa nội dung tin hay tên vào báo cáo, và `beforeSend` còn lọc token, email, query URL, push token, mọi đoạn trong ngoặc kép, cả lời của server trong `ApiError` | `data/logger.test.ts`, `data/sentry.test.ts`, `lib/redact.test.ts`, lint `no-console` (`lib/lint-quality.test.ts`) |
 
@@ -29,6 +30,7 @@ một dòng sai đi thì sửa dòng đó cùng PR; dòng "chưa có" là nợ �
 | Kiểm soát | Cách làm | Cái giữ nó |
 | --- | --- | --- |
 | Đăng nhập theo RFC 8252/7636 | Trình duyệt hệ thống, PKCE S256, `state`, một lần thử 10 phút, callback kiểm chặt | `data/auth/pkce.test.ts`, `data/auth/callback.test.ts`, `data/auth/session.test.ts` |
+| Callback đăng nhập trên Android | Custom scheme `uniworkchat://auth/callback`: một app khác đăng ký cùng scheme có thể nhận code. PKCE (verifier chỉ trong bộ nhớ) và `state` chặn nó đổi code của lượt người dùng; lượt nó tự khởi phải qua màn đồng ý có nút bấm và CSRF (`desktop_auth.go` › Consent/Approve). **Nợ đã biết:** redirect https đã xác minh (App Link) cho production, cần kiểm Custom Tabs trên máy trước khi đổi | `data/auth/callback.test.ts`, `server/internal/service/desktop_auth_test.go` |
 | Trang đăng nhập đúng nguồn | `authorization_url` phải cùng origin với `appUrl` (https ở bản phát hành) | `data/auth/transport.test.ts` |
 | Refresh xoay vòng, phát hiện dùng lại | Server thu hồi cả họ token; app kết thúc phiên ngay khi server nói | `server/internal/service/desktop_auth_test.go`, `data/auth/session-refresh.test.ts` |
 | Thu hồi thiết bị có hiệu lực ngay | Mọi request kiểm `device_revoked`; push của thiết bị bị gỡ | `server/internal/middleware/auth_device_test.go`, `server/internal/service/desktop_auth_test.go` |
@@ -63,10 +65,17 @@ một dòng sai đi thì sửa dòng đó cùng PR; dòng "chưa có" là nợ �
 | Phụ thuộc có lỗ hổng | `pnpm audit --audit-level high` ở `ci.yml`; `expo install --check` | `.github/workflows/ci.yml`, `.github/workflows/mobile-verify.yml` |
 | Quét binary đã dựng | APK release của CI: không credential trong mọi file (dex, bundle Hermes, `.so`, asset), không debuggable/testOnly, không backup/cleartext, không component export không permission ngoài baseline; AAB production trên EAS: quét credential trước khi submit | `scripts/mobile-apk-scan.mjs` (+ `.test.mjs`), `apps/chat-mobile/apk-scan-baseline.json`, `mobile-verify.yml › android-release`, `chat-mobile-production.yml` |
 
+## Kiểm trên máy
+
+Các dòng trên chỉ ra test và cấu hình. Phần chỉ nền tảng mới chứng minh được (Keychain sau gỡ cài, nội dung bản sao
+lưu, ảnh màn đa nhiệm, chặn chụp, ghim TLS dưới MITM, link từ ngoài) có lượt kiểm trên máy ở runbook
+`unichat-mobile-release` › Kiểm tra bảo mật trên máy: Android mỗi bản store; **iOS chưa có bản build nào, nên mọi kiểm
+soát iOS ở đây chưa được kiểm trên máy** — lượt kiểm iOS là điều kiện của bản iOS đầu tiên.
+
 ## MASVS-RESILIENCE (L2 — chưa bắt buộc ở L1)
 
 | Kiểm soát | Trạng thái |
 | --- | --- |
-| Play Integrity / App Attest trên `/auth/desktop/exchange` | Chưa có. Cần tài khoản Play Console/Apple và thay đổi server; nằm trong tầng gia cố sau launch |
-| Phát hiện root/jailbreak | Chưa có; nếu thêm thì chỉ để đo (telemetry), không chặn người dùng |
+| Play Integrity / App Attest trên `/auth/desktop/exchange` | Chưa có. Cần tài khoản Play Console (Play Integrity API bật cho app) và Apple (App Attest), rồi server kiểm verdict ở exchange và refresh, bắt đầu ở chế độ chỉ ghi nhận; việc của chủ tài khoản trước, code sau |
+| Phát hiện root/jailbreak | Chưa có; khi có Play Integrity thì verdict `MEETS_DEVICE_INTEGRITY` là tín hiệu (tag Sentry, không chặn người dùng) — không tự viết heuristic root |
 | Rút gọn mã | R8 + shrink tài nguyên ở bản release Android (`app.config.ts`, `ANDROID_KEEP_RULES`) |
