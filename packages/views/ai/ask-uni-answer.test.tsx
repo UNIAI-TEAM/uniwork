@@ -226,4 +226,12 @@ describe("AskUniMessageTurn", () => {
     mount(msg({ content: "x" }), { streaming: true });
     expect(screen.queryByRole("button", { name: "Sao chép" })).toBeNull();
   });
+
+  it("draws a question's markdown, with in-app links only", () => {
+    mount(msg({ role: "user", content: "**Đậm** và `a_b`\n- [ngoài](https://x.test) [trong](/o/w/tasks/T1)" }));
+    expect(screen.getByText("Đậm").tagName).toBe("STRONG");
+    expect(screen.getByText("a_b").closest("code")).not.toBeNull();
+    expect(screen.getByText("ngoài").closest("a")).toBeNull();
+    expect(screen.getByRole("link", { name: "trong" })).toHaveAttribute("href", "/o/w/tasks/T1");
+  });
 });

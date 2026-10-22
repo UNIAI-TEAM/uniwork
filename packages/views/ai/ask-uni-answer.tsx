@@ -21,6 +21,13 @@ const CITE_TOKEN = /\[S(\d+)\]/g;
 
 export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps" | "focus" | "mentions" | "created_at">>;
 
+// How an answer or a question shows a link that isInAppHref lets through.
+const inAppLink = ({ href, children }: { href: string; children: ReactNode }) => (
+  <AppLink href={href} className="text-primary underline-offset-2 hover:underline">
+    <InLinkContext.Provider value>{children}</InLinkContext.Provider>
+  </AppLink>
+);
+
 /** The model-written answer as markdown: raw html inert, no images, links only in-app or to a cited source, `[S#]` as entity chips. */
 function AnswerBody({ content, byId, wsId, streaming }: { content: string; byId: Map<string, AiCitation>; wsId: string; streaming: boolean }) {
   // A cited href is held to the same rule as any other: only in-app paths become links.
@@ -31,11 +38,7 @@ function AnswerBody({ content, byId, wsId, streaming }: { content: string; byId:
   return (
     <SafeMarkdown
       isLinkAllowed={isLinkAllowed}
-      renderLink={({ href, children }: { href: string; children: ReactNode }) => (
-        <AppLink href={href} className="text-primary underline-offset-2 hover:underline">
-          <InLinkContext.Provider value>{children}</InLinkContext.Provider>
-        </AppLink>
-      )}
+      renderLink={inAppLink}
       inlineToken={{
         pattern: CITE_TOKEN,
         render: (m, key) => {
@@ -89,9 +92,14 @@ export function AskUniMessageTurn({
     return (
       <li className="flex flex-col items-end gap-1">
         <AskUniMessageMeta from="user" createdAt={message.created_at ?? ""} />
-        <div className="max-w-[94%] whitespace-pre-wrap rounded-lg bg-surface-selected px-3.5 py-2.5 text-body leading-6 text-surface-selected-foreground">
+        {/* The question is the composer's markdown; a block's outer margins would pad the bubble. */}
+        <SafeMarkdown
+          isLinkAllowed={isInAppHref}
+          renderLink={inAppLink}
+          className="max-w-[94%] min-w-0 rounded-lg bg-surface-selected px-3.5 py-2.5 leading-6 text-surface-selected-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+        >
           {message.content}
-        </div>
+        </SafeMarkdown>
         <AskUniContextChips refs={[...(message.focus ? [message.focus] : []), ...(message.mentions ?? [])]} />
       </li>
     );

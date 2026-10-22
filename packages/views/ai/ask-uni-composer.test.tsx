@@ -89,12 +89,12 @@ describe("AskUniComposer", () => {
     }
   });
 
-  it("enter sends, shift-enter breaks the line, composing does not send", () => {
+  it("enter sends, shift-enter opens a paragraph, composing does not send", () => {
     const { onSend } = mount();
     type("Task nào quá hạn?");
     key("Enter", { shiftKey: true });
     expect(onSend).not.toHaveBeenCalled();
-    expect(inline().map((n) => n.type)).toEqual(["text", "hardBreak"]);
+    expect(box().editor.getJSON().content?.map((n) => n.type)).toEqual(["paragraph", "paragraph"]);
     // Telex/VNI confirm a syllable with Enter; that must never send.
     fireEvent.compositionStart(box());
     key("Enter", { isComposing: true, keyCode: 229 });
@@ -102,10 +102,10 @@ describe("AskUniComposer", () => {
     key("Enter", { isComposing: true });
     key("Enter", { keyCode: 229 });
     expect(onSend).not.toHaveBeenCalled();
-    // An IME Enter changes nothing: still one paragraph, the same text and break.
-    expect(box().editor.getJSON().content).toEqual([
-      { type: "paragraph", content: [{ type: "text", text: "Task nào quá hạn?" }, { type: "hardBreak" }] },
-    ]);
+    // An IME Enter changes nothing: the same text and empty paragraph.
+    expect(box().editor.getJSON().content).toEqual([{ type: "paragraph", content: [{ type: "text", text: "Task nào quá hạn?" }] }, { type: "paragraph" }]);
+    // Empty paragraphs at the end are not sent.
+    key("Enter", { shiftKey: true });
     key("Enter");
     expect(onSend).toHaveBeenCalledTimes(1);
     expect(onSend.mock.calls[0]![0]).toMatchObject({ question: "Task nào quá hạn?", mentions: [], conversation_id: "c1", model: "", effort: "" });

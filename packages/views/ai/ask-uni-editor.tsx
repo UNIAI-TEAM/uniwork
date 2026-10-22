@@ -1,8 +1,9 @@
 "use client";
 
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
-import { Node, type JSONContent } from "@tiptap/core";
+import { Node, type Editor, type JSONContent } from "@tiptap/core";
 import Placeholder from "@tiptap/extension-placeholder";
+import { Markdown } from "@tiptap/markdown";
 import { Plugin } from "@tiptap/pm/state";
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor, type NodeViewProps } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
@@ -10,6 +11,9 @@ import { exitSuggestion, Suggestion, SuggestionPluginKey, type SuggestionKeyDown
 import { useTranslation } from "react-i18next";
 import { isImeComposing } from "@uniwork/core/utils";
 import { cn } from "@uniwork/ui/lib/utils";
+import { EditorBubbleMenu } from "../editor/bubble-menu";
+// Lists, quotes and code inside the box take the editor's prose styles, and the toolbar its own.
+import "../editor/styles/index.css";
 import { CHIP, entityKindIcon, TaskStatusLabel, useKindLabel } from "./ask-uni-entity";
 import { AskUniObjectPicker, type AskUniObjectKind, type AskUniObjectPickerHandle } from "./ask-uni-object-picker";
 import { serializeQuestion, type AskUniMentionCard } from "./ask-uni-question";
@@ -18,7 +22,7 @@ const KINDS: AskUniObjectKind[] = ["task", "document", "meeting", "project", "me
 
 // The frame around the editor shows focus (as the Textarea primitive does with its own ring), so the editor draws none.
 const EDITOR_CLASS = cn(
-  "max-h-[8lh] overflow-y-auto px-1 py-1 font-sans text-title-sm tracking-normal outline-none md:text-body",
+  "rich-text-editor max-h-[8lh] overflow-y-auto px-1 py-1 font-sans text-title-sm tracking-normal outline-none md:text-body",
   "[&_.is-editor-empty]:before:pointer-events-none [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0",
   "[&_.is-editor-empty]:before:text-muted-foreground [&_.is-editor-empty]:before:content-[attr(data-placeholder)]",
 );
@@ -51,12 +55,15 @@ interface Hooks {
   open(props: Open | null): void;
   key(props: SuggestionKeyDownProps): boolean;
   allow(doc: JSONContent): boolean;
-  submit(doc: JSONContent): void;
+  submit(editor: Editor): void;
 }
 
-function toQuestion(doc: JSONContent): AskUniQuestion {
-  const { text, mentions } = serializeQuestion(doc);
-  return { question: text, mentions: mentions.map(({ kind, id }) => ({ kind, id })) };
+/** The question as the box's markdown (a card reads as its label), "" while it holds no text, and the cards it names, each once. */
+function toQuestion(editor: Editor): AskUniQuestion {
+  const { text, mentions } = serializeQuestion(editor.getJSON());
+  // Empty paragraphs at either end are no part of it (TipTap writes a second empty one in a row as &nbsp;).
+  const question = text ? editor.getMarkdown().replace(/^(?:\s|&nbsp;)+|(?:\s|&nbsp;)+$/g, "") : "";
+  return { question, mentions: mentions.map(({ kind, id }) => ({ kind, id })) };
 }
 
 /** A card in the sentence: the kind's icon and the object's name, as plain text. */
@@ -89,8 +96,11 @@ function askUniMention(hooks: () => Hooks) {
     parseHTML: () => [],
     renderHTML: ({ node }) => ["span", { "data-ask-uni-mention": node.attrs.kind }, node.attrs.label],
     renderText: ({ node }) => node.attrs.label,
+    // Escaped as TipTap escapes typed text, so a name never reads as formatting.
+    renderMarkdown: (node) => String(node.attrs?.label ?? "").replace(/([\\`*_[\]~])/g, "\\$1"),
     addNodeView: () => ReactNodeViewRenderer(AskUniToken),
     addProseMirrorPlugins() {
+      const editor = this.editor;
       return [
         Suggestion<unknown, AskUniMentionCard>({
           editor: this.editor,
@@ -113,10 +123,16 @@ function askUniMention(hooks: () => Hooks) {
         new Plugin({
           props: {
             handleKeyDown(view, event) {
-              if (event.key !== "Enter" || event.shiftKey) return false;
+              if (event.key !== "Enter") return false;
               // An IME confirming a Telex/VNI syllable: never a send, and the document stays as it is.
               if (view.composing || isImeComposing(event)) return true;
-              hooks().submit(view.state.doc.toJSON());
+              // In a list or code block the keymaps keep Enter (a new item or line) and Shift+Enter (a line break).
+              const inBlock = editor.isActive("listItem") || editor.isActive("codeBlock");
+              // Elsewhere Shift+Enter opens a paragraph, where "- " or "> " starts a list or a quote.
+              if (event.shiftKey) return !inBlock && editor.commands.splitBlock();
+              // Mod+Enter sends from anywhere.
+              if (!event.metaKey && !event.ctrlKey && inBlock) return false;
+              hooks().submit(editor);
               return true;
             },
           },
@@ -127,9 +143,11 @@ function askUniMention(hooks: () => Hooks) {
 }
 
 /**
- * Ask UNI's question box: plain text with line breaks, where `@` opens the object picker and a pick becomes a card in
- * the sentence. Enter submits the question with its cards; Shift+Enter breaks the line. The host positions the picker
- * (it sits above the nearest positioned ancestor).
+ * Ask UNI's question box: text with inline marks, lists, quotes and code, sent as markdown, where `@` opens the object
+ * picker and a pick becomes a card in the sentence. Enter submits the question with its cards and Shift+Enter opens a
+ * paragraph; in a list or code block they add an item or a line, and Mod+Enter submits. Selecting text shows the
+ * formatting toolbar.
+ * The host positions the picker (it sits above the nearest positioned ancestor).
  */
 export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUniEditor(
   { wsId, placeholder, disabled = false, maxMentions, onSubmit, onChange },
@@ -168,7 +186,7 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
       // A settled empty list gives Enter back: the picker closes and the text goes as typed. While loading Enter waits.
       if (picker.current?.isEmpty() && !picker.current.isLoading()) {
         exitSuggestion(view);
-        hooks.current!.submit(view.state.doc.toJSON());
+        hooks.current!.submit(editor!);
       }
       return true;
     },
@@ -178,19 +196,19 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
       if (!ok) setNotice(t("mention.limit", { max }));
       return ok;
     },
-    submit(doc) {
-      const q = toQuestion(doc);
+    submit(e) {
+      const q = toQuestion(e);
       if (q.question) latest.current.onSubmit(q);
     },
   };
 
   const [extensions] = useState(() => [
-    // Plain text, line breaks and undo: a question carries no formatting.
+    // What markdown carries in a question: bold, italic, strike, code, lists, quotes and code blocks; no headings,
+    // rules, links or underline.
     StarterKit.configure({
-      blockquote: false, bold: false, bulletList: false, code: false, codeBlock: false, dropcursor: false, gapcursor: false,
-      heading: false, horizontalRule: false, italic: false, link: false, listItem: false, listKeymap: false,
-      orderedList: false, strike: false, trailingNode: false, underline: false,
+      dropcursor: false, gapcursor: false, heading: false, horizontalRule: false, link: false, trailingNode: false, underline: false,
     }),
+    Markdown.configure({ indentation: { style: "space", size: 3 } }),
     Placeholder.configure({ placeholder: () => latest.current.placeholder }),
     askUniMention(() => hooks.current!),
   ]);
@@ -218,10 +236,16 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
             }
           : { role: "textbox", "aria-multiline": "true" }),
       },
-      // Only plain text comes in: no formatting, and never a card from pasted HTML.
+      // Only plain text comes in: no pasted formatting, and never a card from pasted HTML.
       handlePaste(view, event) {
         const tr = view.state.tr;
-        (event.clipboardData?.getData("text/plain") ?? "").replace(/\r\n?/g, "\n").split("\n").forEach((line, i) => {
+        const text = (event.clipboardData?.getData("text/plain") ?? "").replace(/\r\n?/g, "\n");
+        // A code block holds its own line breaks.
+        if (view.state.selection.$from.parent.type.spec.code) {
+          view.dispatch(tr.insertText(text).scrollIntoView());
+          return true;
+        }
+        text.split("\n").forEach((line, i) => {
           if (i > 0) tr.replaceSelectionWith(view.state.schema.nodes.hardBreak!.create(), false);
           if (line) tr.insertText(line);
         });
@@ -230,7 +254,7 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
       },
     },
     onUpdate: ({ editor: e }) => {
-      const q = toQuestion(e.getJSON());
+      const q = toQuestion(e);
       if (q.mentions.length < maxMentions) setNotice("");
       onChange?.(q);
     },
@@ -267,7 +291,7 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
         if (editor) editor.view.focus();
         else wantsFocus.current = true;
       },
-      isEmpty: () => !editor || toQuestion(editor.getJSON()).question === "",
+      isEmpty: () => !editor || toQuestion(editor).question === "",
     }),
     [editor],
   );
@@ -296,6 +320,7 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
       {/* One flex item, so the always-mounted notice adds no gap while it is empty. */}
       <div>
         <EditorContent editor={editor} />
+        {editor ? <EditorBubbleMenu editor={editor} variant="question" /> : null}
         <p role="status" className="px-1 text-caption text-destructive">
           {notice}
         </p>

@@ -91,9 +91,11 @@ function EditorBubbleMenu({
    * Which editor this toolbar sits on. The page-document editor (G1-06) runs
    * the closed C-01 §3.7 vocabulary, which has no highlight mark: the
    * button would call a command the editor does not have AND offer formatting
-   * the server drops on save. Every other control is shared.
+   * the server drops on save. Ask UNI's question box ("question") keeps the
+   * marks, lists and quote only: it has no link, heading or checkbox list.
+   * Every other control is shared.
    */
-  variant?: "markdown" | "page";
+  variant?: "markdown" | "page" | "question";
 }) {
   const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
@@ -240,6 +242,8 @@ function EditorBubbleMenu({
               <MarkButton editor={editor} mark="highlight" icon={Highlighter} label={t("editor.bubble_menu.highlight")} shortcut={createShortcutChord("H", { primary: true, shift: true })} isActive={fmt.highlight} />
             ) : null}
             <Separator orientation="vertical" className="mx-0.5 h-5" />
+            {variant !== "question" ? (
+            <>
             <Tooltip>
               <TooltipTrigger render={
                 <Toggle
@@ -257,12 +261,15 @@ function EditorBubbleMenu({
             </Tooltip>
             <Separator orientation="vertical" className="mx-0.5 h-5" />
             <HeadingDropdown editor={editor} onOpenChange={handleMenuOpenChange} activeLevel={fmt.headingLevel} />
-            <ListDropdown editor={editor} onOpenChange={handleMenuOpenChange} isBullet={fmt.bulletList} isOrdered={fmt.orderedList} isTask={fmt.taskList} />
+            </>
+            ) : null}
+            <ListDropdown editor={editor} onOpenChange={handleMenuOpenChange} isBullet={fmt.bulletList} isOrdered={fmt.orderedList} isTask={fmt.taskList} withTaskList={variant !== "question"} />
             {/* Dedicated one-click toggle for checkbox task lists — turns the
                 current line(s) into a `- [ ]` task item or back to a paragraph.
                 The same toggle also lives in the List dropdown, but a direct
                 button keeps the common "make this a checklist" action one tap
                 away instead of two. */}
+            {variant !== "question" ? (
             <Tooltip>
               <TooltipTrigger render={
                 <Toggle
@@ -278,6 +285,7 @@ function EditorBubbleMenu({
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={8}>{t("editor.bubble_menu.task_list")}</TooltipContent>
             </Tooltip>
+            ) : null}
             <Tooltip>
               <TooltipTrigger render={
                 <Toggle

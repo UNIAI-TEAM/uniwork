@@ -53,4 +53,49 @@ describe("AskUniEditor", () => {
     act(() => ref.current?.focus());
     expect(box()).toHaveFocus();
   });
+
+  it("sends the formatting as markdown and a card as its escaped label", () => {
+    const { onSubmit } = mount(false);
+    act(() => {
+      box().editor.commands.setContent("<p><strong>Đậm</strong>, <em>nghiêng</em>, <s>gạch</s> và <code>a_b</code> với</p>");
+      box().editor.commands.insertContentAt(box().editor.state.doc.content.size - 1, [
+        { type: "text", text: " " },
+        { type: "askUniMention", attrs: { kind: "task", id: "T1", label: "Việc *gấp*" } },
+      ]);
+    });
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledWith({ question: "**Đậm**, *nghiêng*, ~~gạch~~ và `a_b` với Việc \\*gấp\\*", mentions: [{ kind: "task", id: "T1" }] });
+  });
+
+  it("in a list or code block Enter breaks the line; Mod+Enter sends from anywhere", () => {
+    const { onSubmit } = mount(false);
+    act(() => {
+      box().editor.commands.setContent("<ul><li><p>Một</p></li></ul>");
+      box().editor.commands.focus("end");
+    });
+    fireEvent.keyDown(box(), { key: "Enter", metaKey: true });
+    expect(onSubmit).toHaveBeenLastCalledWith({ question: "- Một", mentions: [] });
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(box().querySelectorAll("li")).toHaveLength(2);
+    act(() => {
+      box().editor.commands.setContent("<pre><code>x = 1</code></pre>");
+      box().editor.commands.focus("end");
+    });
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(box(), { key: "Enter", ctrlKey: true });
+    expect(onSubmit).toHaveBeenLastCalledWith({ question: "```\nx = 1\n\n```", mentions: [] });
+  });
+
+  it("offers the question's formatting only: no link, heading or checkbox list", () => {
+    mount(false);
+    // The toolbar waits hidden for a selection, so its buttons are found by label, not by accessible name.
+    for (const name of ["In đậm", "In nghiêng", "Gạch ngang", "Code", "Danh sách", "Trích dẫn"]) {
+      expect(screen.getByLabelText(name)).toBeInTheDocument();
+    }
+    for (const name of ["Tô sáng", "Liên kết", "Văn bản", "Danh sách checkbox"]) {
+      expect(screen.queryByLabelText(name)).toBeNull();
+    }
+  });
 });
