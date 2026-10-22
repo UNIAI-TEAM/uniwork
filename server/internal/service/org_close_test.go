@@ -214,7 +214,7 @@ func TestSoleOwnerClosesOrganizationAndDeletesAccount(t *testing.T) {
 			t.Fatal("the account was not erased")
 		}
 		if n := f.count(t, `SELECT count(*) FROM audit_events WHERE action = 'organization.closed' AND organization_id = $1
-			AND metadata->>'reason' = 'account_deleted'`, o.ID); n != 1 {
+			AND metadata::jsonb->>'reason' = 'account_deleted'`, o.ID); n != 1 {
 			t.Fatalf("organization.closed rows naming the deletion: %d", n)
 		}
 		if n := f.count(t, `SELECT count(*) FROM outbox_events WHERE topic = 'organization.closed' AND organization_id = $1`, o.ID); n != 1 {
