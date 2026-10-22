@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+55d1beff7120d2ea573310ab57810184904e4c54
+55d1beff feat(shell): translate the workspace upload hint in the home shards
+442c6233 fix(shell): pick the folder upload share hint by destination
+59defc15 fix(shell): split the pane between the bar stacks only while both are shown

@@ -1,0 +1,18 @@
+$ cd apps/shell && npx vitest run 2>&1 | tail -15; rc=${PIPESTATUS[0]}; echo; echo "SHELL_VITEST_EXIT=$rc"
+(node:5661) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Socket]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:6815) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:7915) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8163) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8480) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  465 passed | 3 skipped (468)
+      Tests  10074 passed | 23 skipped (10097)
+   Start at  02:47:46
+   Duration  128.42s (transform 29.57s, setup 0ms, import 88.10s, tests 208.22s, environment 44.09s)
+
+
+SHELL_VITEST_EXIT=0
