@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -401,5 +402,44 @@ func TestToAiMessageDTOBadStepsJSONIsEmpty(t *testing.T) {
 	out := toAiMessageDTO(m)
 	if out.Steps == nil || len(out.Steps) != 0 || out.Followups == nil || len(out.Followups) != 0 || out.Mentions == nil || len(out.Mentions) != 0 || out.Focus != nil {
 		t.Fatalf("%+v", out)
+	}
+}
+
+// The stream route asks as the dock: the answer's follow-up block becomes a
+// followups frame right before done. The JSON route never does.
+func TestAskUniStreamWritesFollowupsBeforeDone(t *testing.T) {
+	answer := "Xong.\n<followups>\n- Việc nào trễ?\n</followups>"
+	fake := &provider.Fake{StreamChunk: 4, Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: answer, UsagePresent: true, InputTokens: 5, StopReason: "end_turn"}
+	}}
+	srv, owner, _, wsID := askWorld(t, fake)
+	frames := collectFrames(readSSE(postStream(t, srv, wsID, owner, map[string]any{"question": "việc nào trễ?", "locale": "vi"}).Body))
+	names := eventsOf(frames)
+	at := slices.Index(names, "followups")
+	if at < 0 || at != len(names)-2 || names[len(names)-1] != "done" {
+		t.Fatalf("events %v", names)
+	}
+	var deltas strings.Builder
+	for _, f := range frames {
+		switch f.event {
+		case "followups":
+			if f.data != `{"followups":["Việc nào trễ?"]}` {
+				t.Fatalf("followups %s", f.data)
+			}
+		case "delta":
+			deltas.WriteString(f.data)
+		case "done":
+			if !strings.Contains(f.data, `"content":"Xong."`) || !strings.Contains(f.data, `"followups":["Việc nào trễ?"]`) {
+				t.Fatalf("done %s", f.data)
+			}
+		}
+	}
+	if strings.Contains(deltas.String(), "follo") {
+		t.Fatalf("the block streamed: %s", deltas.String())
+	}
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", owner, map[string]any{"question": "việc nào trễ?", "locale": "vi"})
+	msg, _ := out["message"].(map[string]any)
+	if res.StatusCode != http.StatusOK || msg["content"] != answer {
+		t.Fatalf("JSON route: %d %v", res.StatusCode, out)
 	}
 }

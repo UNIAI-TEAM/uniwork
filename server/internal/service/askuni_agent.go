@@ -270,11 +270,11 @@ func agentCitations(answer string, b *sourceBook) []AskCitation {
 }
 
 // agentMalformed is a reply that cannot be stored as the answer (R11): empty
-// once its tags are stripped, cut at the output ceiling, or still calling
-// tools.
+// once its tags and any follow-up block are stripped, cut at the output
+// ceiling, or still calling tools.
 func agentMalformed(r ai.Response) bool {
-	return len(r.ToolCalls) > 0 || r.StopReason == "max_tokens" || r.StopReason == "length" ||
-		strings.TrimSpace(ai.StripUntrustedTags(r.Text)) == ""
+	body, _ := splitFollowups(strings.TrimSpace(ai.StripUntrustedTags(r.Text)))
+	return len(r.ToolCalls) > 0 || r.StopReason == "max_tokens" || r.StopReason == "length" || body == ""
 }
 
 // agentCallOver counts one model call against the organization's minute and
@@ -373,7 +373,11 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	}
 
 	vars := map[string]any{"locale": in.Locale, "today": s.now().Format("2006-01-02"), "focus": focus, "question": question}
-	prompt, _ := ai.LookupPrompt(ai.PromptCopilotAnswerV3)
+	promptID := ai.PromptCopilotAnswerV3
+	if in.Dock {
+		promptID = ai.PromptCopilotAnswerV4
+	}
+	prompt, _ := ai.LookupPrompt(promptID)
 	hist := history(rows)
 	// The rendered question as the gateway sends it on the first call; later
 	// calls replay it byte for byte, so the cached prefix holds.
@@ -382,12 +386,12 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	model, effort := s.resolveAskModel(runCtx, w.OrganizationID, in.Model, in.Effort)
 	req := ai.Request{
 		Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
-		Capability: ai.CapCopilotAgent, PromptID: ai.PromptCopilotAnswerV3, Vars: vars, History: hist,
+		Capability: ai.CapCopilotAgent, PromptID: promptID, Vars: vars, History: hist,
 		Tools: agentRegistry(tools), FilterToolCalls: true, RunID: res.RunID, Model: model, Effort: effort,
 	}
 	// Every call streams its text to the asker as it arrives (R2); without a
 	// sink nothing streams.
-	draft := &askDraft{emit: emit}
+	draft := &askDraft{emit: emit, cutFollowups: in.Dock}
 	if emit != nil {
 		req.OnDelta = draft.add
 	}
@@ -422,7 +426,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		var e *ai.Error
 		errors.As(err, &e)
 		rowUsage(ctx, e.UsageEventID)
-		return s.finishAgent(ctx, emit, res, w, conv, question, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID, steps)
+		return s.finishAgent(ctx, emit, res, w, conv, question, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID, steps, nil)
 	}
 	// A stop (askStopNotice) stores the text the asker saw streamed for the
 	// last call, with what it cites, on a context that outlives the request,
@@ -436,7 +440,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			usage = e.UsageEventID
 			rowUsage(sctx, usage)
 		}
-		return s.finishAgent(sctx, emit, res, w, conv, question, draft.sent, notice, agentCitations(draft.sent, book), usage, steps)
+		// The dock's draft stops before the follow-up block, so a stop keeps the
+		// answer cut there and no question.
+		return s.finishAgent(sctx, emit, res, w, conv, question, draft.sent, notice, agentCitations(draft.sent, book), usage, steps, nil)
 	}
 	// Any other error after a call was billed stores the turn with
 	// agent_failed (ruling P19), on a context that outlives the run's
@@ -460,7 +466,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		slog.Warn("ask uni: agent run failed", "run_id", res.RunID, "organization_id", w.OrganizationID, "err", err)
 		sctx, cancel := outliving(ctx)
 		defer cancel()
-		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, usage, steps)
+		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, usage, steps, nil)
 	}
 
 	var resp ai.Response
@@ -542,21 +548,25 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	sctx, cancelStore := outliving(ctx)
 	defer cancelStore()
 	if agentMalformed(resp) {
-		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID, steps)
+		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID, steps, nil)
 	}
 	answer := strings.TrimSpace(ai.StripUntrustedTags(resp.Text))
-	return s.finishAgent(sctx, emit, res, w, conv, question, answer, "", agentCitations(answer, book), resp.UsageEventID, steps)
+	var followups []string
+	if in.Dock {
+		answer, followups = splitFollowups(answer)
+	}
+	return s.finishAgent(sctx, emit, res, w, conv, question, answer, "", agentCitations(answer, book), resp.UsageEventID, steps, followups)
 }
 
 // finishAgent stores the turn with the last call's usage row. Its text
-// already streamed, so it ends with citations and done.
-func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep) (AskResult, error) {
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps})
+// already streamed, so it ends with citations, any follow-ups and done.
+func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep, followups []string) (AskResult, error) {
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups})
 	if err != nil {
 		return AskResult{}, err
 	}
 	res.Message, res.Citations = msg, citations
-	emit.emitDone(res)
+	emit.emitDone(res, followups)
 	return res, nil
 }
 

@@ -120,9 +120,9 @@ func TestSystemPromptsEndWithUntrustedFooter(t *testing.T) {
 		if !strings.HasSuffix(p.System, UntrustedFooter) {
 			t.Errorf("%s: system prompt does not end with the untrusted footer", k)
 		}
-		// copilot_answer@2 and @3 are the prompts with no OutputSchema: the
+		// copilot_answer@2, @3 and @4 are the prompts with no OutputSchema: the
 		// schema would switch the tools off for the agent.
-		if p.Key() != k || (len(p.OutputSchema) == 0 && k != PromptCopilotAnswerV2 && k != PromptCopilotAnswerV3) || p.Render == nil {
+		if p.Key() != k || (len(p.OutputSchema) == 0 && k != PromptCopilotAnswerV2 && k != PromptCopilotAnswerV3 && k != PromptCopilotAnswerV4) || p.Render == nil {
 			t.Errorf("%s: incomplete prompt", k)
 		}
 	}
@@ -183,6 +183,7 @@ func TestPromptSnapshots(t *testing.T) {
 		},
 		PromptCopilotAnswerV2: copilotAgent,
 		PromptCopilotAnswerV3: copilotAgent,
+		PromptCopilotAnswerV4: copilotAgent,
 		"chat_catchup@1":      catchUp,
 		PromptChatCatchUp:     catchUp,
 		PromptChatCallSummary: {
@@ -1321,7 +1322,7 @@ func TestGatewayPassesStrictAndRaw(t *testing.T) {
 }
 
 func TestCopilotAnswerV2HasNoSchemaAndKeepsV1(t *testing.T) {
-	for k, want := range map[string]string{PromptCopilotAnswerV2: "copilot_answer@2", PromptCopilotAnswerV3: "copilot_answer@3"} {
+	for k, want := range map[string]string{PromptCopilotAnswerV2: "copilot_answer@2", PromptCopilotAnswerV3: "copilot_answer@3", PromptCopilotAnswerV4: "copilot_answer@4"} {
 		p, ok := LookupPrompt(k)
 		if !ok || p.Key() != want || len(p.OutputSchema) != 0 {
 			t.Fatalf("%s must be registered without an output schema: %v %q", want, ok, p.OutputSchema)

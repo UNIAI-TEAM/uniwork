@@ -116,6 +116,12 @@ type AskStreamSourcesDTO struct {
 	Sources []AiCitationDTO `json:"sources" description:"Nguồn mới của bước vừa chạy, mỗi nguồn một số S# mới"`
 }
 
+// AskStreamFollowupsDTO is the data of event followups, sent before done
+// when the answer suggests questions to ask next.
+type AskStreamFollowupsDTO struct {
+	Followups []string `json:"followups" description:"Câu hỏi gợi ý tiếp theo, tối đa 3, chỉ để đọc dữ liệu" example:"[\"Việc nào trễ nhất?\"]"`
+}
+
 // AskStreamUsageDTO is the tokens of a streamed turn.
 type AskStreamUsageDTO struct {
 	InputTokens      int `json:"input_tokens" description:"Token đầu vào của cả lượt, cộng mọi lần gọi model" example:"812"`

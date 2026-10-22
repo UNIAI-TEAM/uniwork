@@ -29,7 +29,10 @@ func (h *handlers) askUniStream(w http.ResponseWriter, r *http.Request) {
 	sw.onDead = cancel
 	defer sw.close()
 	emit := func(ev service.AskEvent) { writeAskEvent(sw, ev) }
-	_, err := h.AskUNI.AskStream(ctx, middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), askInputFromSDI(in), emit)
+	// The stream route is the docked panel's (R1); the JSON route never sets Dock.
+	askIn := askInputFromSDI(in)
+	askIn.Dock = true
+	_, err := h.AskUNI.AskStream(ctx, middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), askIn, emit)
 	if err == nil {
 		return
 	}
@@ -60,6 +63,8 @@ func writeAskEvent(sw *sseWriter, ev service.AskEvent) {
 		sw.event("delta", sdo.AskStreamDeltaDTO{Text: ev.Delta})
 	case "citations":
 		sw.event("citations", sdo.AskStreamCitationsDTO{Citations: citationDTOs(ev.Citations)})
+	case "followups":
+		sw.event("followups", sdo.AskStreamFollowupsDTO{Followups: ev.Followups})
 	case "done":
 		if ev.Done != nil {
 			u := ev.Done.Usage

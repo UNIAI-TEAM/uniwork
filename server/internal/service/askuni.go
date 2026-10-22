@@ -100,6 +100,9 @@ type AskInput struct {
 	// Model is "" (Auto) or a key of askModels; Effort is "low", "medium" or
 	// "high". Both only count behind ask_uni_agent; an unusable value falls back.
 	Model, Effort string
+	// Dock is the docked panel asking (the stream route, R1): the agent runs
+	// copilot_answer@4 and splits off its follow-up questions. P0 ignores it.
+	Dock bool
 }
 
 // AskCitation is a validated citation enriched with what the client needs to

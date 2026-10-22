@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1274,5 +1275,97 @@ func TestAgentEmitsFocusSourcesRightAfterRun(t *testing.T) {
 		if name == "sources" {
 			t.Fatal("a turn with no focus or mention emitted sources")
 		}
+	}
+}
+
+// The dock asks with copilot_answer@4, which answers in the question's
+// language; the locale only breaks a tie. Without Dock the turn stays on @3.
+func TestDockUsesPromptV4AndTheQuestionsLanguage(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	ctx := context.Background()
+	agentTask(t, s, ua, w, "Banner Tết")
+	for _, tc := range []struct {
+		dock         bool
+		prompt, line string
+	}{
+		{true, "copilot_answer@4", "Answer in the language the question is written in. If that is unclear, use English.\nToday: "},
+		{false, "copilot_answer@3", "Output language: English\nToday: "},
+	} {
+		reqs := scriptAgent(fake, "banner", "Xong [S1]")
+		res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner tới đâu rồi?", Locale: "en", Dock: tc.dock})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, ok := ai.LookupPrompt(tc.prompt)
+		first := (*reqs)[0]
+		user := first.Messages[len(first.Messages)-1].Content
+		if !ok || first.System != p.System || !strings.HasPrefix(user, tc.line) || (tc.dock && strings.Contains(user, "Output language")) {
+			t.Fatalf("dock %v: want %s (registered %v), user turn:\n%s", tc.dock, tc.prompt, ok, user)
+		}
+		u, err := s.q.AiGetUsageEvent(ctx, res.Message.UsageEventID.String)
+		if err != nil || u.PromptID != tc.prompt {
+			t.Fatalf("dock %v: usage prompt %q %v, want %s", tc.dock, u.PromptID, err, tc.prompt)
+		}
+	}
+}
+
+// The dock's answer loses its <followups> block: the questions are stored
+// with the turn and sent as their own event, after the citations and before
+// done, and never stream as text. Without Dock nothing is split.
+func TestDockStoresAndStreamsFollowups(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	ctx := context.Background()
+	agentTask(t, s, ua, w, "Banner Tết")
+	answer := "Xong [S1].\n<followups>\n- Việc nào trễ?\n- Ai đang làm?\n</followups>"
+	scriptAgent(fake, "banner", answer)
+	fake.StreamChunk = 4
+	var events []AskEvent
+	res, err := s.AskStream(ctx, ua.ID, w.ID, AskInput{Question: "Banner tới đâu?", Locale: "vi", Dock: true}, collectEvents(&events))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Việc nào trễ?", "Ai đang làm?"}
+	if res.Message.Content != "Xong [S1]." || res.Message.Followups != `["Việc nào trễ?","Ai đang làm?"]` || len(res.Citations) != 1 {
+		t.Fatalf("stored %q followups %s citations %+v", res.Message.Content, res.Message.Followups, res.Citations)
+	}
+	names := eventNames(events)
+	if !slices.Equal(names[len(names)-3:], []string{"citations", "followups", "done"}) || !slices.Equal(events[len(events)-2].Followups, want) {
+		t.Fatalf("events %v, followups %q", names, events[len(events)-2].Followups)
+	}
+	if sent := joinDeltas(events); strings.Contains(sent, "<follo") || !strings.HasPrefix(sent, "Xong [S1].") {
+		t.Fatalf("streamed %q", sent)
+	}
+
+	events = nil
+	res, err = s.AskStream(ctx, ua.ID, w.ID, AskInput{Question: "Banner tới đâu?", Locale: "vi"}, collectEvents(&events))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Message.Content != answer || res.Message.Followups != "[]" || slices.Contains(eventNames(events), "followups") {
+		t.Fatalf("without Dock: stored %q followups %s events %v", res.Message.Content, res.Message.Followups, eventNames(events))
+	}
+
+	// A reply that is only the block has no answer: it is retried, then failed.
+	scriptAgent(fake, "banner", "<followups>\n- Việc nào trễ?\n</followups>")
+	res, err = s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner tới đâu?", Locale: "vi", Dock: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Message.Notice.String != ai.NoticeAgentFailed || res.Message.Followups != "[]" {
+		t.Fatalf("block only: notice %q followups %s", res.Message.Notice.String, res.Message.Followups)
+	}
+
+	// A stop while the block streams keeps the answer cut before it, and no question.
+	scriptAgent(fake, "banner", answer)
+	fake.StreamDelay = 10 * time.Millisecond
+	stopCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	events = nil
+	res, err = s.AskStream(stopCtx, ua.ID, w.ID, AskInput{Question: "Banner tới đâu?", Locale: "vi", Dock: true}, cancelOnDelta(&events, 3, cancel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Message.Notice.String != ai.NoticeStopped || res.Message.Content != "Xong [S1].\n" || res.Message.Followups != "[]" || slices.Contains(eventNames(events), "followups") {
+		t.Fatalf("stopped: notice %q stored %q followups %s events %v", res.Message.Notice.String, res.Message.Content, res.Message.Followups, eventNames(events))
 	}
 }
