@@ -3,7 +3,7 @@
 //
 // There is no .env (the pre-commit hook refuses one). The only build-time knobs
 // are UNICHAT_ENV (dev | staging | production), UNICHAT_API_URL,
-// UNICHAT_APP_URL, UNICHAT_EAS_PROJECT_ID and SENTRY_DSN; the app reads the result from
+// UNICHAT_APP_URL, UNICHAT_EAS_PROJECT_ID, SENTRY_DSN and, for an OTA only, UNICHAT_CRITICAL_UPDATE; the app reads the result from
 // `extra` via expo-constants and calls configureRuntime() at boot. Defaults are
 // the dev values; staging and production have none (eas.json, runbook
 // docs/runbooks/unichat-mobile-release.md).
@@ -153,6 +153,10 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
   // CI's measured builds only (mobile-verify.yml, chat-mobile-verify.yml): the app logs its startup marks for
   // scripts/mobile-perf.mjs. Off in every store build; `extra` is outside the fingerprint, so no new runtime.
   const perfMarks = process.env.UNICHAT_PERF_MARKS === "1";
+  // An OTA published as critical (chat-mobile-update.yml › critical): phones apply it on their next trip to the
+  // background instead of the next cold start (data/updates-controller.ts). Only that workflow sets it; `extra` is
+  // outside the fingerprint, so the update still reaches the binaries it was built for.
+  const criticalUpdate = process.env.UNICHAT_CRITICAL_UPDATE === "1";
 
   return {
     ...config,
@@ -324,6 +328,7 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // Absent without SENTRY_DSN: data/sentry.ts then starts nothing.
       ...(sentryDsn ? { sentryDsn } : {}),
       ...(perfMarks ? { perfMarks: true } : {}),
+      ...(criticalUpdate ? { criticalUpdate: true } : {}),
     },
   };
 };

@@ -54,10 +54,18 @@ export function shortUpdateId(updateId: string | null): string {
   return updateId ? updateId.replace(/-.*$/, "") : "";
 }
 
-/** Sentry's release, the way its native SDK names one: `<appId>@<version>+<build>`. */
+/**
+ * Sentry's release: `<appId>@<version>+<build>` for the bundle embedded in the binary (the name its Gradle upload
+ * gives the source maps), and `<appId>@<version>+<build>.ota.<update id>` while an OTA runs, so release health
+ * (crash-free sessions) is counted per update and a bad one can be stopped on its own numbers
+ * (scripts/mobile-release-health.mjs). Semver build metadata: dot-separated [0-9A-Za-z-]. Source maps match by
+ * debug id, whatever the release is called.
+ */
 export function sentryRelease(info: BuildInfo): string {
   const id = info.appId || "unichat";
-  return info.build ? `${id}@${info.version}+${info.build}` : `${id}@${info.version}`;
+  const ota = info.updateId ? info.updateId.replace(/[^0-9A-Za-z-]/g, "") : "";
+  const build = [info.build, ota && `ota.${ota}`].filter(Boolean).join(".");
+  return build ? `${id}@${info.version}+${build}` : `${id}@${info.version}`;
 }
 
 /** The X-Client-* headers every REST call carries (server: middleware.ClientMetadata). */

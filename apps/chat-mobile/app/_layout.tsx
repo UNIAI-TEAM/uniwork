@@ -39,6 +39,7 @@ import { useAuthStore } from "@/data/auth/store";
 import { bootRuntime } from "@/data/boot";
 import { perfMark } from "@/data/logger";
 import { startNativeCalls } from "@/data/calls/call-wiring";
+import { startUpdatesController } from "@/data/updates-controller";
 import { nativeCalls } from "@/data/calls/native-calls";
 import { runChatNotificationAction, registerChatMessageCategory } from "@/data/chat-notification-actions";
 import { ensureNotificationChannels } from "@/data/notification-channels";
@@ -66,6 +67,8 @@ void loadThemePreference();
 void loadPrivacySettings();
 // The call's foreground service follows the call engine; Decline / Hang up taps that waited run now.
 startNativeCalls();
+// An update marked critical is applied on the next trip to the background, not the next cold start (data/updates-controller.ts).
+startUpdatesController();
 // The encrypted store the outbox and the cached rooms live in, before the session is restored.
 installDeviceStore(openNativeDeviceStore);
 installAccountCache({ queryClient, persister: createDevicePersister(openDeviceStore) });

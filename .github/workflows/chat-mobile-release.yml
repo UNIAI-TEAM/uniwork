@@ -1,14 +1,18 @@
 name: UniChat mobile release
 
 # Builds UniChat mobile (apps/chat-mobile) for Android on EAS from a tag and
-# submits it to the Play internal track (UNI-1836). Android only until the
-# Apple developer account exists (UNI-1838): then add ios to --platform and
-# TestFlight follows from the same profile. Runbook:
-# docs/runbooks/unichat-mobile-release.md.
+# submits it to the Play internal track of the staging app (UNI-1836): the
+# `internal` profile, com.uniworkos.chat.staging, for testers. The production
+# app is built and promoted by chat-mobile-production.yml and
+# chat-mobile-promote.yml. Android only until the Apple developer account
+# exists (UNI-1838): then add ios to --platform and TestFlight follows from the
+# same profile. Runbook: docs/runbooks/unichat-mobile-release.md.
 #
 #   chat-mobile-v<version>   <version> must equal `version` in
-#                            apps/chat-mobile/app.config.ts: it is also the
-#                            runtimeVersion EAS Update matches updates against
+#                            apps/chat-mobile/app.config.ts, the store version.
+#                            Which phones an OTA reaches is decided by the
+#                            native fingerprint (runtimeVersion policy
+#                            "fingerprint"), not by this number
 #
 # First `verify` runs every PR check (mobile-verify.yml: typecheck, lint, unit
 # and component tests, expo-doctor, the bundle budget, an Android release
@@ -18,9 +22,9 @@ name: UniChat mobile release
 # credentials (the Google Play service account; the App Store Connect key once iOS ships) are kept
 # by EAS and the server URLs by the EAS `preview` environment, so the
 # chat-mobile-release environment holds one secret: EXPO_TOKEN. Without it the
-# job ends green with a notice, which keeps tags harmless until the accounts
-# exist (UNI-1838). Restrict the environment to chat-mobile-v* tags before
-# adding the token.
+# run is red: a release tag that built nothing must not look like a release
+# (audit "missed: a release tag goes green while building nothing"). Restrict
+# the environment to chat-mobile-v* tags before adding the token.
 
 on:
   push:
@@ -51,24 +55,19 @@ jobs:
     timeout-minutes: 120
     environment: chat-mobile-release
     steps:
-      - id: gate
-        name: Skip without an EAS token
+      - name: The EAS token is set
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          if [ -n "$EXPO_TOKEN" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::EXPO_TOKEN is not set in the chat-mobile-release environment, so nothing was built. First-time setup: docs/runbooks/unichat-mobile-release.md"
-            echo "ready=false" >> "$GITHUB_OUTPUT"
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not set in the chat-mobile-release environment, so nothing can be built. First-time setup: docs/runbooks/unichat-mobile-release.md"
+            exit 1
           fi
       - uses: actions/checkout@v4
-        if: steps.gate.outputs.ready == 'true'
         with:
           persist-credentials: false
           fetch-depth: 0
       - name: The tagged commit is on main or develop
-        if: steps.gate.outputs.ready == 'true'
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -78,18 +77,14 @@ jobs:
             exit 1
           fi
       - uses: pnpm/action-setup@v4
-        if: steps.gate.outputs.ready == 'true'
       - uses: actions/setup-node@v4
-        if: steps.gate.outputs.ready == 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       # The app and what it imports only: other workspaces' prepare scripts
       # (the Office engine build) have no business on this runner.
-      - if: steps.gate.outputs.ready == 'true'
-        run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
       - name: The tag names the app version
-        if: steps.gate.outputs.ready == 'true'
         working-directory: apps/chat-mobile
         env:
           TAG: ${{ github.ref_name }}
@@ -101,11 +96,9 @@ jobs:
             exit 1
           fi
       - uses: expo/expo-github-action@v8
-        if: steps.gate.outputs.ready == 'true'
         with:
           eas-version: ${{ env.EAS_CLI_VERSION }}
           token: ${{ secrets.EXPO_TOKEN }}
       - name: Build on EAS and submit to Play internal
-        if: steps.gate.outputs.ready == 'true'
         working-directory: apps/chat-mobile
         run: eas build --platform android --profile internal --non-interactive --auto-submit

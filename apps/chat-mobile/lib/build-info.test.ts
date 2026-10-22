@@ -53,9 +53,15 @@ describe("shortUpdateId", () => {
 });
 
 describe("sentryRelease", () => {
-  it("is <appId>@<version>+<build>, without the build when unknown", () => {
-    expect(sentryRelease(buildInfoFrom(inputs()))).toBe("com.uniworkos.chat@0.3.0+42");
-    expect(sentryRelease(buildInfoFrom(inputs({ nativeBuild: null, appId: null })))).toBe("unichat@0.3.0");
+  it("is <appId>@<version>+<build> for the embedded bundle, without the build when unknown", () => {
+    expect(sentryRelease(buildInfoFrom(inputs({ isEmbeddedLaunch: true })))).toBe("com.uniworkos.chat@0.3.0+42");
+    expect(sentryRelease(buildInfoFrom(inputs({ isEmbeddedLaunch: true, nativeBuild: null, appId: null })))).toBe("unichat@0.3.0");
+  });
+
+  // Audit "rollout-gating-manual": crash-free sessions per OTA, so the release-health job can stop one update.
+  it("names the update an OTA run is on, as semver build metadata", () => {
+    expect(sentryRelease(buildInfoFrom(inputs()))).toBe("com.uniworkos.chat@0.3.0+42.ota.0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b");
+    expect(sentryRelease(buildInfoFrom(inputs({ nativeBuild: null, updateId: "ab_c/1" })))).toBe("com.uniworkos.chat@0.3.0+ota.abc1");
   });
 });
 

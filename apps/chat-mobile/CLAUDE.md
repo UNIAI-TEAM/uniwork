@@ -761,7 +761,7 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   `scripts/mobile-verify-gate.mjs`), rồi EAS build +
   auto-submit **chỉ Android** (Play internal) tới khi có tài khoản Apple
   (UNI-1838), `eas-cli` ghim ở `EAS_CLI_VERSION`. Environment
-  `chat-mobile-release`, chỉ `EXPO_TOKEN`; thiếu thì notice và xanh.
+  `chat-mobile-release`, chỉ `EXPO_TOKEN`; thiếu thì **đỏ** (một tag không build gì không được trông như một bản phát hành).
 - OTA: `.github/workflows/chat-mobile-update.yml` (chạy tay trên `main`/`develop`:
   kênh, tỷ lệ rollout, message; Environment `chat-mobile-update`, giới hạn hai
   nhánh đó) → `verify` trên SHA → `eas update --platform android
@@ -769,7 +769,11 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   kênh đó (`eas update` không đọc `env` của profile; thiếu là cấu hình dev,
   fingerprint không khớp bản store nào — bước kiểm `extra.APP_ENV` đỏ), ký bằng
   `EAS_UPDATE_PRIVATE_KEY` khi app có chứng chỉ, rồi tải source map lên Sentry;
-  thiếu `EXPO_TOKEN` thì **đỏ** (người bấm cần biết). Không phát OTA từ laptop
+  thiếu `EXPO_TOKEN` thì **đỏ** (người bấm cần biết); kênh `production` thiếu DSN hay thiết lập tải source map cũng
+  **đỏ** trừ khi tick `allow_missing_crash_reporting`. Input `critical` đặt `UNICHAT_CRITICAL_UPDATE=1` →
+  `extra.criticalUpdate` trong manifest (ngoài fingerprint): `data/updates-controller.ts` (khởi ở `app/_layout.tsx`)
+  hỏi lại EAS khi quay lại foreground (một phút sau lúc mở, rồi ≥ 30 phút một lần), tải, và chỉ bản critical hay lệnh
+  roll-back-to-embedded mới được áp dụng — lúc app vào nền, không có cuộc gọi; còn lại chờ lần mở lạnh sau. Không phát OTA từ laptop
   trừ khi CI hỏng (runbook).
   `scripts/mobile-workflows.test.mjs` giữ các lời hứa của bốn workflow (verify
   trước EAS, chỉ Android, phiên bản ghim, nightly đỏ khi thiếu cấu hình, OTA

@@ -158,6 +158,30 @@ test("the OTA signing step refuses every unsigned update and hands eas the key i
   assert.match(signed.outputs.args ?? "", /^--private-key-path \S+eas-update-private-key\.pem$/);
 });
 
+// Audit "missed: a release tag goes green while building nothing": no token is a red run, and the header no longer
+// says the tag is the OTA runtime (the fingerprint decides).
+test("a store release without its EAS token is red, and the release header names the fingerprint", () => {
+  const wf = read("chat-mobile-release.yml");
+  assert.doesNotMatch(wf, /ready=false|::notice::EXPO_TOKEN/, "no green path without a token");
+  const gate = runStep("chat-mobile-release.yml", "- name: The EAS token is set", { EXPO_TOKEN: "" });
+  assert.notEqual(gate.status, 0);
+  assert.match(gate.stdout, /::error::EXPO_TOKEN is not set/);
+  assert.equal(runStep("chat-mobile-release.yml", "- name: The EAS token is set", { EXPO_TOKEN: "t" }).status, 0);
+  const header = wf.split(/^on:$/m)[0].replace(/\n# ?/g, " ");
+  assert.doesNotMatch(header, /is also the runtimeVersion/, "the tag is the store version, not the runtime");
+  assert.match(header, /fingerprint/);
+});
+
+// A critical OTA (data/updates-controller.ts) is applied early by the phones: only a person publishing one says so,
+// through the update workflow's input. No store binary or other workflow marks itself critical.
+test("only the OTA workflow can mark an update critical, from its input", () => {
+  const wf = read("chat-mobile-update.yml");
+  assert.match(wf, /^ {6}critical:\n {8}description: [^\n]+\n {8}type: boolean\n {8}default: false$/m);
+  assert.match(wf, /UNICHAT_CRITICAL_UPDATE: \$\{\{ inputs\.critical && '1' \|\| '' \}\}/);
+  for (const file of WORKFLOWS.filter((f) => f !== "chat-mobile-update.yml")) assert.doesNotMatch(read(file), /UNICHAT_CRITICAL_UPDATE/, file);
+  assert.doesNotMatch(fs.readFileSync(path.join(root, "apps/chat-mobile/eas.json"), "utf8"), /UNICHAT_CRITICAL_UPDATE/);
+});
+
 // The push filter is the scope script's list, and a pull request is never
 // filtered: the gate job is a required check, and a workflow a path filter keeps
 // from starting leaves its required check pending for ever. An edit to any of
@@ -346,7 +370,7 @@ test("an OTA update is built as the variant of the store binaries on its channel
   }
   assert.notEqual(runStep("chat-mobile-update.yml", /^ {6}- id: target$/m, { CHANNEL: "nightly" }).status, 0, "an unknown channel fails");
   // Every step that evaluates the app config gets the variant.
-  for (const step of ["- name: The update is the channel's variant, with its servers", "- id: runtime", "- name: Publish to the channel, staged"]) {
+  for (const step of ["- name: The update is the channel's variant, with its servers", "- id: runtime", "- id: publish"]) {
     const block = wf.split(step)[1]?.split(/^ {6}- /m)[0] ?? "";
     assert.match(block, /^ {10}UNICHAT_ENV: \$\{\{ steps\.target\.outputs\.app_env \}\}$/m, `${step} sets UNICHAT_ENV`);
   }
@@ -366,6 +390,20 @@ test("the OTA config check fails an update built as the wrong variant or without
     assert.match(dev.stderr + dev.stdout, /::error::.*dev.*staging/);
     assert.notEqual(check({ APP_ENV: "staging", apiUrl: "https://api.test" }).status, 0, "a missing server URL fails");
     assert.match(check({ APP_ENV: "staging", ...servers }).stdout, /::notice::no SENTRY_DSN/);
+    // Audit "observability-optional-in-prod": production is not published blind, unless someone says so.
+    const prod = (extra, env) =>
+      runStep("chat-mobile-update.yml", marker, { EAS_ENVIRONMENT: "production", UNICHAT_ENV: "production", FAKE_CONFIG: JSON.stringify({ extra }), ...env }, bin);
+    const full = { APP_ENV: "production", ...servers, sentryDsn: "https://k@sentry.test/1" };
+    assert.equal(prod(full, { SENTRY_UPLOAD_READY: "true" }).status, 0, "crash reporting and source maps: published");
+    const noDsn = prod({ ...full, sentryDsn: undefined }, { SENTRY_UPLOAD_READY: "true" });
+    assert.notEqual(noDsn.status, 0, "no DSN on production is red");
+    assert.match(noDsn.stdout, /::error::no SENTRY_DSN/);
+    const noMaps = prod(full, { SENTRY_UPLOAD_READY: "false" });
+    assert.notEqual(noMaps.status, 0, "no source-map upload settings on production is red");
+    assert.match(noMaps.stdout, /::error::no SENTRY_AUTH_TOKEN/);
+    const waived = prod({ ...full, sentryDsn: undefined }, { SENTRY_UPLOAD_READY: "false", ALLOW_NO_CRASH_REPORTING: "true" });
+    assert.equal(waived.status, 0, "the waiver publishes");
+    assert.match(waived.stdout, /::notice::no SENTRY_DSN/);
   } finally {
     fs.rmSync(bin, { recursive: true, force: true });
   }

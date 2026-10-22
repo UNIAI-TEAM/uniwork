@@ -252,17 +252,29 @@ crash-free sessions của Sentry cho đúng release đó (`<bundle id>@<version>
 Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios --profile preview`.
 
 **Phát OTA (chỉ JS, từ CI)**: GitHub → Actions → "UniChat mobile OTA update" → Run workflow trên `develop`/`main`,
-chọn `channel` (`internal` | `preview` | `production`), `rollout_percentage` (mặc định 10) và `message`
-(`UNI-nnn: …`). Workflow `chat-mobile-update.yml` (Environment `chat-mobile-update`): `verify` (mọi kiểm tra của PR
+chọn `channel` (`internal` | `preview` | `production`), `rollout_percentage` (mặc định 10), `message`
+(`UNI-nnn: …`), `critical` (mặc định tắt) và `allow_missing_crash_reporting` (mặc định tắt). Workflow `chat-mobile-update.yml` (Environment `chat-mobile-update`): `verify` (mọi kiểm tra của PR
 trên SHA, kể cả build Android) → thiếu `EXPO_TOKEN` thì **đỏ** → commit trên `main`/`develop` → kênh quyết định môi
 trường EAS và biến thể như profile build của kênh trong `eas.json` (`internal`/`preview` → `preview` + `UNICHAT_ENV=staging`;
 `production` → `production` + `UNICHAT_ENV=production`; `eas update` không đọc `env` của profile build nên workflow tự
-đặt) → cấu hình phải đúng biến thể (`extra.APP_ENV`) và có URL máy chủ, sai thì **đỏ** → so runtime (fingerprint) của
+đặt) → cấu hình phải đúng biến thể (`extra.APP_ENV`) và có URL máy chủ, sai thì **đỏ**; kênh `production` còn phải có
+báo crash: `SENTRY_DSN` trong môi trường EAS và `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` + `SENTRY_PROJECT` trong Environment
+`chat-mobile-update` (source map), thiếu thì **đỏ** trừ khi tick `allow_missing_crash_reporting` (summary ghi lại việc
+miễn đó) — một bản OTA production không được mở rộng theo một tỷ lệ crash-free không ai đọc được; kênh staging chỉ
+notice → so runtime (fingerprint) của
 bản OTA với bản store mới nhất trên kênh, khác thì **warning** (thường là đổi native, cần bản store) → ký bằng
-`EAS_UPDATE_PRIVATE_KEY` khi app có chứng chỉ (có chứng chỉ mà thiếu khoá thì đỏ) →
+`EAS_UPDATE_PRIVATE_KEY` (bắt buộc trên mọi kênh: thiếu chứng chỉ hay thiếu khoá thì đỏ) →
 `eas update --platform android --channel <kênh> --environment <env> --rollout-percentage <n>` → tải source map lên
-Sentry (thiếu token thì notice). Job summary ghi runtime của bản OTA. App tải bản mới lúc mở và áp dụng ở lần mở sau. Theo dõi crash của bản đó trong
-Sentry (tag `update_id`, `channel`) khoảng một ngày rồi mở rộng: `eas update:edit --branch <kênh>` và chọn tỷ lệ mới
+Sentry. Job summary ghi runtime, group (thứ `eas update:edit` và lệnh revert nhận) và id bản Android của OTA. App tải
+bản mới lúc mở; ngoài ra khi quay lại foreground (một phút sau lúc mở, rồi tối đa 30 phút một lần,
+`data/updates-controller.ts`) app hỏi lại và tải. Bản thường áp dụng ở lần mở lạnh sau. **Bản `critical`** (và lệnh
+`eas update:roll-back-to-embedded`) được áp dụng ngay lần kế tiếp app vào nền mà không có cuộc gọi nào đang reo hay
+đang nói — không bao giờ trước mặt người dùng; dùng cho bản sửa crash hay lỗi dữ liệu, không cho bản thường (mỗi lần
+áp dụng là một lần app khởi động lại khi người dùng quay lại). Breadcrumb `updates` trong Sentry ghi lúc tải và lúc áp
+dụng. Mỗi máy chạy một bản OTA báo về Sentry dưới release riêng `<bundle id>@<version>+<build>.ota.<id bản Android>`
+(bản nhúng trong binary vẫn là `<bundle id>@<version>+<build>`), nên crash-free sessions được tính cho từng bản OTA,
+và job tự động ở mục **Sức khoẻ bản phát hành** đọc đúng con số đó. Theo dõi crash của bản đó trong Sentry khoảng một
+ngày rồi mở rộng: `eas update:edit --branch <kênh>` và chọn tỷ lệ mới
 (hoặc `--rollout-percentage 100`). Phát tay từ máy chỉ khi CI không chạy được, và phải đặt
 biến thể và ký giống CI (thiếu `UNICHAT_ENV` là cấu hình dev: không máy nào nhận):
 `cd apps/chat-mobile && UNICHAT_ENV=staging eas update --platform android --channel internal --environment preview

@@ -52,7 +52,8 @@ describe("initSentry", () => {
     expect(options).toMatchObject({
       dsn: "https://k@o1.ingest.sentry.io/1",
       environment: "production",
-      release: "com.uniworkos.chat@0.3.0+42",
+      // The OTA it runs is part of the release: crash-free sessions per update (lib/build-info.ts).
+      release: "com.uniworkos.chat@0.3.0+42.ota.0193a1b2-c3d4",
       dist: "42",
       sendDefaultPii: false,
       enableAutoSessionTracking: true,

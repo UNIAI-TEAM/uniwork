@@ -10,6 +10,16 @@ name: UniChat mobile OTA update
 #   rollout_percentage  the share of that channel's phones that take it at
 #                       once; raise it later with `eas update:edit` (runbook)
 #   message             what changed, shown in the EAS dashboard
+#   critical            the update fixes something people must not keep
+#                       running: phones that download it apply it the next time
+#                       UniChat goes to the background with no call on, instead
+#                       of at the next cold start (data/updates-controller.ts;
+#                       app.config.ts › extra.criticalUpdate)
+#   allow_missing_crash_reporting
+#                       a production update needs crash reporting (a DSN in the
+#                       EAS environment, the Sentry upload settings here) unless
+#                       this is ticked, so a staged rollout is never judged
+#                       blind (audit "observability-optional-in-prod")
 #
 # The update reaches only binaries whose native fingerprint matches
 # (app.config.ts › runtimeVersion policy "fingerprint"): a change that needs
@@ -31,8 +41,9 @@ name: UniChat mobile OTA update
 # apps/chat-mobile/certs/eas-update-certificate.pem and refuses an unsigned
 # update) and SENTRY_AUTH_TOKEN with
 # the SENTRY_ORG / SENTRY_PROJECT variables (optional: without them the source
-# maps are not uploaded and the run says so). The server URLs and SENTRY_DSN
-# come from the EAS environment of the channel, as for a build.
+# maps are not uploaded: a notice on staging channels, red on production
+# unless waived). The server URLs and SENTRY_DSN come from the EAS environment
+# of the channel, as for a build.
 
 on:
   workflow_dispatch:
@@ -51,6 +62,14 @@ on:
         description: What changed (shown in the EAS dashboard)
         type: string
         required: true
+      critical:
+        description: Critical fix - phones apply it on their next trip to the background, not their next cold start
+        type: boolean
+        default: false
+      allow_missing_crash_reporting:
+        description: Publish to production without crash reporting or source maps (recorded in the run summary)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -80,6 +99,9 @@ jobs:
       CHANNEL: ${{ inputs.channel }}
       ROLLOUT: ${{ inputs.rollout_percentage }}
       MESSAGE: ${{ inputs.message }}
+      # extra.criticalUpdate in the update's manifest; extra is outside the fingerprint, so no new runtime.
+      UNICHAT_CRITICAL_UPDATE: ${{ inputs.critical && '1' || '' }}
+      ALLOW_NO_CRASH_REPORTING: ${{ inputs.allow_missing_crash_reporting }}
     steps:
       - name: Settings and inputs
         env:
@@ -134,9 +156,12 @@ jobs:
         env:
           EAS_ENVIRONMENT: ${{ steps.target.outputs.environment }}
           UNICHAT_ENV: ${{ steps.target.outputs.app_env }}
+          SENTRY_UPLOAD_READY: ${{ secrets.SENTRY_AUTH_TOKEN != '' && vars.SENTRY_ORG != '' && vars.SENTRY_PROJECT != '' }}
         # An update's manifest is its config: built as another variant it has
         # that variant's fingerprint and reaches no phone; published without
-        # the URLs it would point every phone that takes it at nothing.
+        # the URLs it would point every phone that takes it at nothing. A
+        # production update without crash reporting or its source maps would be
+        # widened on a crash-free rate nobody can read: red unless waived.
         run: |
           set -euo pipefail
           eas env:exec "$EAS_ENVIRONMENT" "npx expo config --type public --json" > "$RUNNER_TEMP/config.json"
@@ -146,7 +171,12 @@ jobs:
             if (c.extra?.APP_ENV !== want) { console.error(`::error::the update would be built as ${c.extra?.APP_ENV}, the channel ships ${want}`); process.exit(1); }
             const missing = ["apiUrl", "appUrl"].filter((k) => !c.extra?.[k]);
             if (missing.length) { console.error(`::error::the ${process.env.EAS_ENVIRONMENT} EAS environment has no ${missing.join(", ")}`); process.exit(1); }
-            if (!c.extra?.sentryDsn) console.log("::notice::no SENTRY_DSN in the EAS environment: phones on this update report no crashes");
+            const gaps = [];
+            if (!c.extra?.sentryDsn) gaps.push("no SENTRY_DSN in the EAS environment: phones on this update report no crashes");
+            if (process.env.SENTRY_UPLOAD_READY !== "true") gaps.push("no SENTRY_AUTH_TOKEN, SENTRY_ORG or SENTRY_PROJECT in this environment: the update would crash with minified stacks");
+            const blocking = want === "production" && process.env.ALLOW_NO_CRASH_REPORTING !== "true";
+            for (const gap of gaps) console.log(blocking ? `::error::${gap} (allow_missing_crash_reporting waives it)` : `::notice::${gap}`);
+            if (blocking && gaps.length) process.exit(1);
           ' "$RUNNER_TEMP/config.json"
       - id: runtime
         name: A store build on the channel has this runtime
@@ -189,18 +219,27 @@ jobs:
           umask 077
           printf '%s\n' "$EAS_UPDATE_PRIVATE_KEY" > "$RUNNER_TEMP/eas-update-private-key.pem"
           echo "args=--private-key-path $RUNNER_TEMP/eas-update-private-key.pem" >> "$GITHUB_OUTPUT"
-      - name: Publish to the channel, staged
+      - id: publish
+        name: Publish to the channel, staged
         working-directory: apps/chat-mobile
         env:
           EAS_ENVIRONMENT: ${{ steps.target.outputs.environment }}
           UNICHAT_ENV: ${{ steps.target.outputs.app_env }}
           SIGNING_ARGS: ${{ steps.signing.outputs.args }}
         # Android only until the Apple account exists (UNI-1838), as the store release.
+        # The JSON names the group (what update:edit and a revert take) and the Android update's id (what the
+        # phones report: Sentry's release `<appId>@<version>+<build>.ota.<id>`, lib/build-info.ts).
         run: |
           set -euo pipefail
-          # shellcheck disable=SC2086 # SIGNING_ARGS is empty or one flag and its path: split on purpose.
+          # shellcheck disable=SC2086 # SIGNING_ARGS is one flag and its path: split on purpose.
           eas update --platform android --channel "$CHANNEL" --environment "$EAS_ENVIRONMENT" \
-            --message "$MESSAGE" --rollout-percentage "$ROLLOUT" --non-interactive $SIGNING_ARGS
+            --message "$MESSAGE" --rollout-percentage "$ROLLOUT" --non-interactive --json $SIGNING_ARGS > "$RUNNER_TEMP/update.json"
+          node -e '
+            const updates = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            const android = updates.find((u) => u.platform === "android");
+            if (!android) { console.error("::error::eas update reported no Android update"); process.exit(1); }
+            require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `group=${android.group}\nupdate_id=${android.id}\n`);
+          ' "$RUNNER_TEMP/update.json"
       - name: Upload the source maps to Sentry
         working-directory: apps/chat-mobile
         env:
@@ -220,11 +259,15 @@ jobs:
         if: always()
         env:
           RUNTIME: ${{ steps.runtime.outputs.runtime }}
+          GROUP: ${{ steps.publish.outputs.group }}
+          UPDATE_ID: ${{ steps.publish.outputs.update_id }}
         run: |
           {
             echo "### UniChat OTA update"
             echo
-            echo "- channel: \`$CHANNEL\`, rollout: $ROLLOUT %"
+            echo "- channel: \`$CHANNEL\`, rollout: $ROLLOUT %, critical: ${UNICHAT_CRITICAL_UPDATE:-no}"
+            echo "- group: \`${GROUP:-not published}\`, Android update: \`${UPDATE_ID:-none}\` (Sentry releases ending in \`.ota.${UPDATE_ID:-…}\`)"
+            if [ "$ALLOW_NO_CRASH_REPORTING" = "true" ]; then echo "- **crash reporting waived** for this run (allow_missing_crash_reporting)"; fi
             echo "- runtime (fingerprint): \`${RUNTIME:-unknown}\`"
             echo "- commit: \`$GITHUB_SHA\`"
             echo "- widen or roll back: docs/runbooks/unichat-mobile-release.md › Phát OTA"

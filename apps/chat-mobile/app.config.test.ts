@@ -303,6 +303,17 @@ describe("EAS project and release servers", () => {
     expect(build().extra).not.toHaveProperty("perfMarks");
   });
 
+  // Audit "ota-apply-latency": the OTA workflow's critical input reaches the update's manifest (data/updates-controller.ts),
+  // inside `extra`, which the fingerprint leaves out: marking an update critical does not move it to another runtime.
+  it("marks an update critical only when the OTA workflow says so (UNICHAT_CRITICAL_UPDATE=1)", () => {
+    vi.stubEnv("UNICHAT_CRITICAL_UPDATE", "1");
+    expect(build().extra?.criticalUpdate).toBe(true);
+    vi.stubEnv("UNICHAT_CRITICAL_UPDATE", "true");
+    expect(build().extra).not.toHaveProperty("criticalUpdate");
+    vi.stubEnv("UNICHAT_CRITICAL_UPDATE", undefined);
+    expect(build().extra).not.toHaveProperty("criticalUpdate");
+  });
+
   it("hands the Firebase file of the EAS environment to Android, which needs it for an Expo push token", () => {
     vi.stubEnv("GOOGLE_SERVICES_JSON", "/eas/tmp/google-services.json");
     expect(build().android?.googleServicesFile).toBe("/eas/tmp/google-services.json");
