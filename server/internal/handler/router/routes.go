@@ -481,7 +481,6 @@ type Routes struct {
 	CreateTaskFromChatMessage        http.HandlerFunc
 	CreateChatMessageLink            http.HandlerFunc
 	ForwardChatMessage               http.HandlerFunc
-	ListChatMessageLinks             http.HandlerFunc
 	ListChatRoomMessageLinks         http.HandlerFunc
 	ListChatRoomLinkPreviews         http.HandlerFunc
 	ListChatRoomLinkedTasks          http.HandlerFunc

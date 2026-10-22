@@ -32,6 +32,7 @@ vi.mock("./workspace-rail", () => ({ WorkspaceRail: () => <div data-testid="work
 vi.mock("./workspace-chat-toast", () => ({ WorkspaceChatToast: () => null }));
 vi.mock("./browser-notifications-prompt", () => ({ BrowserNotificationsPrompt: () => null }));
 vi.mock("./navigation-progress", () => ({ NavigationProgress: () => null }));
+vi.mock("./browser-notifications-prompt", () => ({ BrowserNotificationsPrompt: () => null }));
 vi.mock("./workspace-top-bar", () => ({
   WorkspaceChrome: ({ children, bare }: { children: ReactNode; bare?: boolean }) => (
     <div data-testid="chrome" data-bare={String(Boolean(bare))}>

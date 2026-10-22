@@ -706,7 +706,6 @@ func New(d Deps) http.Handler {
 		CreateTaskFromChatMessage:        h.createTaskFromChatMessage,
 		CreateChatMessageLink:            h.createChatMessageLink,
 		ForwardChatMessage:               h.forwardChatMessage,
-		ListChatMessageLinks:             h.listChatMessageLinks,
 		ListChatRoomMessageLinks:         h.listChatRoomMessageLinks,
 		ListChatRoomLinkPreviews:         h.listChatRoomLinkPreviews,
 		ListChatRoomLinkedTasks:          h.listChatRoomLinkedTasks,

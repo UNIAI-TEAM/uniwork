@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -48,6 +49,8 @@ type ChatService struct {
 	// resolves each message's block against it. nil until SetDocuments.
 	docs        *DocumentService
 	TenorAPIKey string
+	// featuredCache holds Tenor "featured" responses (UNI-1750); zero value is fine.
+	featuredCache sync.Map // key string -> tenorCacheEntry
 	// presenceTracker is installed by SetPresenceStore (chat_presence.go).
 	presenceTracker atomic.Pointer[presenceTracker]
 }

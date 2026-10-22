@@ -91,9 +91,10 @@ test("compose files pin registry images", () => {
 
 test("Jenkinsfile deploys by SSH without a latest tag", () => {
   const text = fs.readFileSync(path.join(root, "ci/Jenkinsfile.app-dev.groovy"), "utf8");
-  for (const value of ["113.20.107.188", "root", "/home/devops/uniwork", "ssh-107.188"]) {
+  for (const value of ["113.20.107.188", "2232", "root", "/home/devops/uniwork", "ssh-107.188"]) {
     assert.equal(text.includes(value), true, value);
   }
   assert.equal(/docker\s+(tag|push)\b[^\n]*:latest/.test(text), false);
   assert.equal(text.includes("cfg=\\\\$(mktemp -d)"), true, "cfg=\\\\$(mktemp -d)");
+  assert.equal((text.match(/sh '''#!\/bin\/bash/g) || []).length, 2);
 });
