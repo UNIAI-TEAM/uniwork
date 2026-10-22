@@ -70,6 +70,23 @@ describe("AskUniHistory", () => {
     expect(document.activeElement).toBe(rename);
   });
 
+  it("moves between the search box and the rows with the arrow keys", async () => {
+    await open();
+    const search = screen.getByRole("searchbox", { name: "Tìm hội thoại" });
+    search.focus();
+    const rows = Array.from(document.querySelectorAll<HTMLElement>("[data-history-row]"));
+    expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining("Task quá hạn"), expect.stringContaining("Họp tuần")]);
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(rows[0]);
+    fireEvent.keyDown(rows[0]!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(rows[1]);
+    fireEvent.keyDown(rows[1]!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(rows[1]);
+    fireEvent.keyDown(rows[1]!, { key: "ArrowUp" });
+    fireEvent.keyDown(rows[0]!, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(search);
+  });
+
   it("searches after the debounce with the trimmed query", async () => {
     await open();
     await userEvent.type(screen.getByRole("searchbox", { name: "Tìm hội thoại" }), "viec tre");
