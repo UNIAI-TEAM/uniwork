@@ -52,13 +52,14 @@ import { incomingUrlAction, setPendingDeepLink } from "@/lib/deep-link";
 import { createNotificationResponseHandler, handleLaunchResponse } from "@/lib/notification-response";
 import { I18nProvider, loadLocalePreference, useLocaleReady } from "@/components/app/i18n-provider";
 import { NAV_THEME } from "@/components/ui/nav-theme";
-import { loadThemePreference, useColorScheme } from "@/components/ui/use-color-scheme";
+import { loadThemePreference, useColorScheme, useThemeReady } from "@/components/ui/use-color-scheme";
 
 // Crash reporting first, so the rest of boot is covered (nothing starts without a DSN); then the
 // server URLs every data/* module reads per call and the build's identity on every REST call
 // (X-Client-Version / -OS / -Update-Id); the socket names it in realtime-provider.
 bootRuntime();
-// The saved theme, read once for the whole app (data/theme-preference.ts), not by each component that draws a colour.
+// The saved theme, read once for the whole app (data/theme-preference.ts), not by each component that draws a colour;
+// the splash waits for it, so the first frame is already in the chosen scheme.
 void loadThemePreference();
 // The saved language too: the splash waits for it, so the first screen is drawn in the right language.
 void loadLocalePreference();
@@ -157,17 +158,22 @@ function AuthInitializer({ children }: { children: ReactNode }) {
   return children;
 }
 
-/** The splash goes once the first screen knows where it is going and in which language, or after SPLASH_CAP_MS whatever happens. */
+/**
+ * The splash goes once the first screen knows where it is going, in which language and in which colour scheme, or
+ * after SPLASH_CAP_MS whatever happens.
+ */
 function useSplashUntilReady() {
   const isLoading = useAuthStore((s) => s.isLoading);
   // The saved language: one Keychain read, started at boot beside the session's.
   const localeReady = useLocaleReady();
+  // The saved light / dark choice: another read of the same store, so it costs the splash nothing it was not waiting on.
+  const themeReady = useThemeReady();
   useEffect(() => {
     const cap = setTimeout(() => SplashScreen.hide(), SPLASH_CAP_MS);
     return () => clearTimeout(cap);
   }, []);
   useEffect(() => {
-    if (isLoading || !localeReady) return;
+    if (isLoading || !localeReady || !themeReady) return;
     // One frame for the redirect's screen to draw under it.
     const frame = requestAnimationFrame(() => {
       SplashScreen.hide();
@@ -175,7 +181,7 @@ function useSplashUntilReady() {
       trackFirstScreen();
     });
     return () => cancelAnimationFrame(frame);
-  }, [isLoading, localeReady]);
+  }, [isLoading, localeReady, themeReady]);
 }
 
 function RootLayout() {

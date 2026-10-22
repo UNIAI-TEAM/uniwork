@@ -9,7 +9,7 @@ import { ChatMessageSchema, ChatRoomSchema, type ChatMessageRecord } from "@uniw
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import * as Haptics from "expo-haptics";
 import type { ReactNode } from "react";
-import { AccessibilityInfo, FlatList } from "react-native";
+import { AccessibilityInfo, FlatList, Platform } from "react-native";
 import { chatApi } from "@/data/chat-api";
 import * as chatSend from "@/data/chat-send";
 import * as pendingOps from "@/data/pending-ops";
@@ -187,16 +187,18 @@ describe("new messages and a screen reader", () => {
     });
   };
 
-  it("reads who wrote what, then gathers a burst into one count", async () => {
+  it("reads who wrote what, queued behind VoiceOver's speech, then gathers a burst into one count", async () => {
     jest.spyOn(AccessibilityInfo, "isScreenReaderEnabled").mockResolvedValue(true);
-    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibilityWithOptions").mockImplementation(() => undefined);
     const { rerender } = await render(<Screen records={history} />);
     await flush();
     expect(announce).not.toHaveBeenCalled();
 
     await rerender(<Screen records={[...history, record("m10", "U2", 100, "Mai họp nhé")]} />);
     await flush();
-    expect(announce).toHaveBeenLastCalledWith(viText("chat.message_list.live_new_message", { sender: "Bình", preview: "Mai họp nhé" }));
+    expect(announce).toHaveBeenLastCalledWith(viText("chat.message_list.live_new_message", { sender: "Bình", preview: "Mai họp nhé" }), { queue: true });
+    // No live region on iOS: VoiceOver never reads one.
+    expect(screen.queryByTestId("arrival-live-region")).toBeNull();
 
     await rerender(<Screen records={[...history, record("m10", "U2", 100, "Mai họp nhé"), record("m11", "U2", 101), record("m12", "U2", 102)]} />);
     await flush();
@@ -204,12 +206,33 @@ describe("new messages and a screen reader", () => {
     await act(async () => {
       await jest.advanceTimersByTimeAsync(ARRIVAL_QUIET_MS);
     });
-    expect(announce).toHaveBeenLastCalledWith(viText("mobile.a11y.new_messages", { count: 2 }));
+    expect(announce).toHaveBeenLastCalledWith(viText("mobile.a11y.new_messages", { count: 2 }), { queue: true });
+  });
+
+  it("hands TalkBack the line through a polite live region, changed even when the same line comes twice", async () => {
+    jest.replaceProperty(Platform, "OS", "android");
+    jest.spyOn(AccessibilityInfo, "isScreenReaderEnabled").mockResolvedValue(true);
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+    const { rerender } = await render(<Screen records={history} />);
+    await flush();
+    const region = () => screen.getByTestId("arrival-live-region");
+    expect(region()).toHaveProp("accessibilityLiveRegion", "polite");
+    await rerender(<Screen records={[...history, record("m10", "U2", 100, "Mai họp nhé")]} />);
+    await flush();
+    const line = viText("chat.message_list.live_new_message", { sender: "Bình", preview: "Mai họp nhé" });
+    expect(region()).toHaveTextContent(line);
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(ARRIVAL_QUIET_MS);
+    });
+    await rerender(<Screen records={[...history, record("m10", "U2", 100, "Mai họp nhé"), record("m11", "U2", 101, "Mai họp nhé")]} />);
+    await flush();
+    expect(region()).toHaveTextContent(`${line}\u200B`);
+    expect(announce).not.toHaveBeenCalled();
   });
 
   it("stays quiet without a screen reader, and never reads one's own send", async () => {
     const reader = jest.spyOn(AccessibilityInfo, "isScreenReaderEnabled").mockResolvedValue(false);
-    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibilityWithOptions").mockImplementation(() => undefined);
     const { rerender, unmount } = await render(<Screen records={history} />);
     await flush();
     await rerender(<Screen records={[...history, record("m10", "U2", 100)]} />);

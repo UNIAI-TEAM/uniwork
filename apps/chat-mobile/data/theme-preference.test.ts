@@ -7,8 +7,9 @@ describe("createThemePreference", () => {
   it("reads the saved choice once per launch and applies it", async () => {
     const d = deps(Promise.resolve("dark"));
     const theme = createThemePreference(d);
-    expect(theme.store.getState().preference).toBe("system");
+    expect(theme.store.getState()).toEqual({ preference: "system", ready: false });
     await Promise.all([theme.load(), theme.load()]);
+    expect(theme.store.getState().ready).toBe(true);
     await theme.load();
     expect(d.read).toHaveBeenCalledTimes(1);
     expect(d.apply).toHaveBeenCalledExactlyOnceWith("dark");
@@ -20,7 +21,8 @@ describe("createThemePreference", () => {
       const d = deps(saved);
       const theme = createThemePreference(d);
       await theme.load();
-      expect(theme.store.getState().preference).toBe("system");
+      // Ready all the same: the splash must not wait on a Keychain that failed.
+      expect(theme.store.getState()).toEqual({ preference: "system", ready: true });
       expect(d.apply).not.toHaveBeenCalled();
     }
   });
@@ -44,6 +46,6 @@ describe("createThemePreference", () => {
     const theme = createThemePreference(d);
     theme.set("dark");
     await Promise.resolve();
-    expect(theme.store.getState().preference).toBe("dark");
+    expect(theme.store.getState()).toEqual({ preference: "dark", ready: true });
   });
 });

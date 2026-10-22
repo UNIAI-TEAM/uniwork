@@ -3,6 +3,9 @@
 // drew a colour (each bubble, row and icon, 50-odd call sites) read
 // SecureStore and set the scheme again on mount. Boot calls load(); the hook in
 // lib/use-color-scheme.ts reads the store and NativeWind's scheme, nothing else.
+// `ready` turns true once the saved choice is known (or could not be read), and
+// the splash waits for it, so a dark choice on a light OS never shows a light
+// first frame.
 // Storage and NativeWind come in as dependencies so this stays a node test.
 import { createStore } from "zustand/vanilla";
 import { bestEffort } from "./report";
@@ -20,7 +23,7 @@ interface ThemeDeps {
 }
 
 export function createThemePreference(deps: ThemeDeps) {
-  const store = createStore<{ preference: ThemePreference }>(() => ({ preference: "system" }));
+  const store = createStore<{ preference: ThemePreference; ready: boolean }>(() => ({ preference: "system", ready: false }));
   let loading: Promise<void> | null = null;
   // A choice made while the saved one was still being read wins over it.
   let chosen = false;
@@ -36,12 +39,13 @@ export function createThemePreference(deps: ThemeDeps) {
           deps.apply(saved);
         })
         // A failed read is not fatal: "system" stands, as before any choice.
-        .catch(bestEffort("theme", "saved theme not read", "breadcrumb"));
+        .catch(bestEffort("theme", "saved theme not read", "breadcrumb"))
+        .then(() => store.setState({ ready: true }));
       return loading;
     },
     set(preference: ThemePreference): void {
       chosen = true;
-      store.setState({ preference });
+      store.setState({ preference, ready: true });
       deps.apply(preference);
       // The choice holds for this launch even when it cannot be saved.
       void deps.write(preference).catch(bestEffort("theme", "theme not saved", "breadcrumb"));

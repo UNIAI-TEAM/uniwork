@@ -55,6 +55,7 @@ import { ReportSheet } from "./report-sheet";
 import { ReminderSheet } from "./reminder-sheet";
 import { ConversationTyping } from "./room-typing";
 import { useArrivalAnnouncements } from "./use-arrival-announcements";
+import { LiveRegion } from "@/components/ui/live-region";
 import { useSendFailureFeedback } from "./use-send-failure-feedback";
 import { useMessageActions } from "./use-message-actions";
 import { useStableHandlers } from "./use-stable-handlers";
@@ -261,7 +262,11 @@ export function Conversation(props: Props) {
   const send = (body: string) => enqueue({ body, replyToMessageId: takeReply(), threadRootId });
   const sendFile = (file: PendingFile) => enqueue({ body: "", file, replyToMessageId: takeReply() });
   // What VoiceOver / TalkBack hear when someone else's message arrives at the bottom.
-  useArrivalAnnouncements(roomId, messages, userId, (message) => ({ sender: room.senderName(message), preview: quoteText(message) }));
+  // iOS hears them queued; Android reads the line from the live region drawn below.
+  const arrivalLine = useArrivalAnnouncements(roomId, messages, userId, (message) => ({
+    sender: room.senderName(message),
+    preview: quoteText(message),
+  }));
   // A send of mine that fails while the room is open is felt and said.
   useSendFailureFeedback(messages);
 
@@ -329,6 +334,7 @@ export function Conversation(props: Props) {
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-background" testID={`conversation-${roomId}`}>
       {props.header}
+      <LiveRegion line={arrivalLine} testID="arrival-live-region" />
       <ConnectionBanner />
       {props.banner}
       {props.loading || props.onRetryLoad ? (
