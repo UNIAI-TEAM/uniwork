@@ -118,7 +118,8 @@ matrix theo profile `android-2gb`; nightly đo thêm mở lạnh tới `inbox` v
 Đo hiệu năng trên thiết bị, gồm cách `tighten` đặt trần từ 5 run). Mốc là `perfMark(name)` của
 `data/logger.ts` (một dòng `UniChatPerf mark=<tên> at=<ms>` trong log máy và, cho iOS, trong tệp của
 `data/perf/marks-file.ts`, mỗi tên một lần mỗi tiến trình), chỉ bản build với
-`UNICHAT_PERF_MARKS=1` (`extra.perfMarks`) mới ghi; mốc mới thì thêm vào `scripts/mobile-perf.mjs`. Thêm gói làm bundle nặng hơn trần thì nâng trần cùng
+`UNICHAT_PERF_MARKS=1` (`extra.perfMarks`) mới ghi, kèm mốc `rn-*` của `performance.rnStartupTiming` để quy thời gian
+(iOS tính từ lúc kernel khởi tiến trình app); mốc mới thì thêm vào `scripts/mobile-perf.mjs`. Thêm gói làm bundle nặng hơn trần thì nâng trần cùng
 commit, ghi lý do; bundle nhỏ đi thì hạ trần. Không có script `build`.
 Khi `native`, và cả khi PR chỉ chạm thứ các luồng đó chạy ngoài binary (chính các flow, subflow và script Maestro, seed,
 code chat và đăng nhập desktop của server, trang đồng ý của web: output `e2e` của `scripts/mobile-native-scope.mjs`),

@@ -4,7 +4,27 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { METRICS, PROFILES, budgetOf, check, launchToMark, marksSince, median, parseAmStart, parseEpochLine, parseGfxinfo, parseMark, parseMeminfo, table, tighten } from "./mobile-perf.mjs";
+import {
+  METRICS,
+  PROFILES,
+  budgetOf,
+  check,
+  iosStartupRun,
+  launchMarks,
+  launchToMark,
+  logLineAt,
+  logStartArg,
+  median,
+  parseAmStart,
+  parseEpochLine,
+  parseGfxinfo,
+  parseLaunchPid,
+  parseMark,
+  parseMeminfo,
+  summarize,
+  table,
+  tighten,
+} from "./mobile-perf.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 
@@ -101,10 +121,74 @@ test("a mark that carries its time is timed by it, not by when it was logged", (
   assert.equal(launchToMark(log, "com.uniworkos.chat", "first-screen"), 1880);
 });
 
-test("reads the iOS marks file against the host's launch time, ignoring an earlier launch's marks", () => {
-  const file = ["UniChatPerf mark=js-boot at=900", "UniChatPerf mark=js-boot at=1400", "UniChatPerf mark=first-screen at=2600", "noise"].join("\n");
-  assert.deepEqual(marksSince(file, 1000), { "js-boot": 400, "first-screen": 1600 });
-  assert.deepEqual(marksSince("", 1000), {});
+test("reads the iOS marks file at the marks' own times, only once this launch has rewritten it", () => {
+  // Each process rewrites the file whole, js-boot first: React Native's own marks may name moments before it.
+  const file = ["UniChatPerf mark=js-boot at=1400", "UniChatPerf mark=rn-startup at=1050", "UniChatPerf mark=first-screen at=2600", "UniChatPerf mark=first-screen at=2700", "noise"].join("\n");
+  assert.deepEqual(launchMarks(file, 1000), { "js-boot": 1400, "rn-startup": 1050, "first-screen": 2600 });
+  // The previous launch's file, before this one's js-boot replaced it, is not this launch's.
+  assert.deepEqual(launchMarks(file, 1500), {});
+  assert.deepEqual(launchMarks("UniChatPerf mark=first-screen at=2600", 1000), {});
+  assert.deepEqual(launchMarks("", 1000), {});
+});
+
+test("reads the pid simctl launch prints for the app, and nothing else", () => {
+  assert.equal(parseLaunchPid("com.uniworkos.chat: 48213\n", "com.uniworkos.chat"), 48213);
+  assert.equal(parseLaunchPid("An error was encountered processing the command (domain=FBSOpenApplicationServiceErrorDomain, code=4)", "com.uniworkos.chat"), null);
+  // The bundle id's dots are literal: another app's line is not this one's.
+  assert.equal(parseLaunchPid("comXuniworkosXchat: 12\n", "com.uniworkos.chat"), null);
+});
+
+test("times an iOS launch from the process's start, and simctl's own part apart", () => {
+  const marks = { "js-boot": 9000, "first-screen": 9600, "rn-startup": 3300.4, "rn-runtime-init": 3500, "rn-bundle-entry": 8800 };
+  assert.deepEqual(iosStartupRun({ mark: "first-screen", marks, launchedAt: 1000, processStart: 3200.25, reactFactoryAt: 3400 }), {
+    launchOverheadMs: 2200,
+    coldStartJsBootMs: 5800,
+    coldStartFirstScreenMs: 6400,
+    rnStartupMs: 100,
+    rnRuntimeInitMs: 300,
+    rnBundleEntryMs: 5600,
+    reactFactoryMs: 200,
+  });
+  // A build without React Native's timing, a log without the factory's line: null, not a failed run.
+  const bare = iosStartupRun({ mark: "inbox", marks: { "js-boot": 4000, inbox: 7000 }, launchedAt: 1000, processStart: 1500, reactFactoryAt: null });
+  assert.deepEqual(bare, { launchOverheadMs: 500, coldStartJsBootMs: 2500, coldStartInboxMs: 5500, rnStartupMs: null, rnRuntimeInitMs: null, rnBundleEntryMs: null, reactFactoryMs: null });
+});
+
+test("a result file keeps every run's value next to the medians, and check and tighten read it as before", () => {
+  const result = summarize([
+    { coldStartJsBootMs: 900, coldStartFirstScreenMs: 2000, reactFactoryMs: null },
+    { coldStartJsBootMs: 1100, coldStartFirstScreenMs: 2400, reactFactoryMs: 300 },
+    { coldStartJsBootMs: 1000, coldStartFirstScreenMs: 2200 },
+  ]);
+  assert.deepEqual(result, {
+    coldStartJsBootMs: 1000,
+    coldStartFirstScreenMs: 2200,
+    reactFactoryMs: 300,
+    runs: 3,
+    samples: { coldStartJsBootMs: [900, 1100, 1000], coldStartFirstScreenMs: [2000, 2400, 2200], reactFactoryMs: [null, 300, null] },
+  });
+  const file = JSON.parse(JSON.stringify(result));
+  assert.deepEqual(
+    check(file, { coldStartJsBootMs: 4000, coldStartFirstScreenMs: 2100 }).over.map((r) => r.key),
+    ["coldStartFirstScreenMs"],
+  );
+  assert.equal(tighten(Array.from({ length: 5 }, () => file), { coldStartFirstScreenMs: 6000 }).next.coldStartFirstScreenMs, 2530);
+});
+
+test("reads the factory's line of a compact unified log in local time, and asks log show from the launch's second", () => {
+  const log = [
+    "Timestamp               Ty Process[PID:TID]",
+    "2026-10-23 03:44:02.014 Df UniChat[48213:1a2b] [com.apple.UIKit:Lifecycle] launch",
+    "2026-10-23 03:44:02.389 I  UniChat[48213:1a2b] [com.facebook.react:native] -[RCTReactNativeFactory _setUpFeatureFlags]",
+    "2026-10-23 03:44:03.000 I  UniChat[48213:1a2b] _setUpFeatureFlags again",
+  ].join("\n");
+  assert.equal(logLineAt(log, "_setUpFeatureFlags"), new Date(2026, 9, 23, 3, 44, 2, 389).getTime());
+  assert.equal(logLineAt(log, "_setUpNothing"), null);
+  assert.equal(logLineAt("mobile-perf: log show failed: _setUpFeatureFlags", "_setUpFeatureFlags"), null);
+  const at = new Date(2026, 9, 23, 3, 44, 2, 900).getTime();
+  const offset = -new Date(at).getTimezoneOffset();
+  const zone = `${offset < 0 ? "-" : "+"}${String(Math.floor(Math.abs(offset) / 60)).padStart(2, "0")}${String(Math.abs(offset) % 60).padStart(2, "0")}`;
+  assert.equal(logStartArg(at), `2026-10-23 03:44:02${zone}`);
 });
 
 test("tightens each ceiling to the worst of five runs + 15 %, never upward, and keeps one with too few runs", () => {

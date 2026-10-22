@@ -719,9 +719,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          # One run's numbers: `mobile-perf.mjs tighten` reads five of these (runbook).
+          # One run's numbers: `mobile-perf.mjs tighten` reads five of these (runbook). Each launch's unified log
+          # (ios-startup-run<N>.log) rides along to attribute the time before the bundle's first line.
           name: unichat-perf-ios-simulator
-          path: ${{ runner.temp }}/perf/*.json
+          path: |
+            ${{ runner.temp }}/perf/*.json
+            ${{ runner.temp }}/perf/*.log
           if-no-files-found: ignore
           retention-days: 90
       - uses: actions/upload-artifact@v4

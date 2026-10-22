@@ -12,12 +12,18 @@
 //       JavaScript graph and boot after it), and the time from the launch to
 //       the app's startup mark `name` in the device log ("first-screen": the
 //       first screen drawn under the lifted splash; "inbox": the chat list
-//       drawn for a signed-in account). The marks are logged only by a build
-//       made with UNICHAT_PERF_MARKS=1 (data/logger.ts › perfMark).
+//       drawn for a signed-in account), each with every run's value under
+//       "samples". The marks are logged only by a build made with
+//       UNICHAT_PERF_MARKS=1 (data/logger.ts › perfMark).
 //   node scripts/mobile-perf.mjs ios-startup --udid <sim> --bundle <id> --mark <name> [--runs 5] --out <file>
 //       The same on an iOS simulator (terminate, then `simctl launch`), timed
-//       from the launch to the marks the build writes to its documents
-//       (data/perf/marks-file.ts: iOS's release log drops console.info).
+//       from the kernel's start of the app's process to the marks the build
+//       writes to its documents (data/perf/marks-file.ts: iOS's release log
+//       drops console.info). The simulator's app is a process of the host, so
+//       its start (sysctl) and its marks (Date.now) are on the host's clock;
+//       `simctl launch` itself is reported apart (launchOverheadMs), as are
+//       React Native's own startup marks (rn-*) and, from each run's unified
+//       log saved beside --out (ios-startup-run<N>.log), the React factory.
 //   node scripts/mobile-perf.mjs frames --package <id> --out <file>
 //       Reads `dumpsys gfxinfo` (reset it before the flow it measures) and
 //       `dumpsys meminfo`: janky frames, the 90th percentile frame time, PSS.
@@ -101,14 +107,78 @@ export function launchToMark(log, pkg, mark) {
   return launch !== null && marked !== null && marked >= launch ? marked - launch : null;
 }
 
-/** Launch (host epoch ms) to each mark of a marks file (data/perf/marks-file.ts); marks of an earlier launch are not this one's. */
-export function marksSince(text, launchedAt) {
+/**
+ * The marks of a marks file (data/perf/marks-file.ts) at their own times (epoch ms), when the file is this launch's:
+ * each process rewrites it whole, js-boot first, so a js-boot at or after the launch (host epoch ms) makes every line
+ * this process's. An earlier launch's file, or one not written yet, has no marks.
+ */
+export function launchMarks(text, launchedAt) {
   const marks = {};
   for (const line of text.split("\n")) {
     const found = parseMark(line);
-    if (found?.at != null && found.at >= launchedAt && !(found.name in marks)) marks[found.name] = found.at - launchedAt;
+    if (found?.at != null && !(found.name in marks)) marks[found.name] = found.at;
   }
-  return marks;
+  return marks["js-boot"] !== undefined && marks["js-boot"] >= launchedAt ? marks : {};
+}
+
+/** The pid `simctl launch` prints for `bundle` ("com.uniworkos.chat: 4321"); null when it printed none. */
+export function parseLaunchPid(text, bundle) {
+  const escaped = bundle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`^${escaped}:\\s*(\\d+)\\s*$`, "m").exec(text);
+  return match ? Number(match[1]) : null;
+}
+
+/** `log show --start` in the host's local time with its offset ('Y-M-D H:m:s+zzzz'), floored to the second. */
+export function logStartArg(ms) {
+  const d = new Date(ms);
+  const pad = (n) => String(n).padStart(2, "0");
+  const offset = -d.getTimezoneOffset();
+  const zone = `${offset < 0 ? "-" : "+"}${pad(Math.floor(Math.abs(offset) / 60))}${pad(Math.abs(offset) % 60)}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${zone}`;
+}
+
+/**
+ * The time (epoch ms) of the first line of a `log show --style compact` log that contains `needle`, read in the
+ * host's local time zone (the simulator's, which it inherits); null when no line does.
+ */
+export function logLineAt(log, needle) {
+  for (const line of log.split("\n")) {
+    if (!line.includes(needle)) continue;
+    const match = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\.(\d{3})/.exec(line);
+    if (match) {
+      const [y, mo, d, h, mi, sec, ms] = match.slice(1).map(Number);
+      return new Date(y, mo - 1, d, h, mi, sec, ms).getTime();
+    }
+  }
+  return null;
+}
+
+// React Native's own startup marks (data/logger.ts › enablePerfMarks) and what each is reported as.
+const RN_MARKS = [
+  ["rn-startup", "rnStartupMs"],
+  ["rn-runtime-init", "rnRuntimeInitMs"],
+  ["rn-bundle-entry", "rnBundleEntryMs"],
+];
+
+/**
+ * One iOS launch, every time from the kernel's start of the app's process (epoch ms, fractional): the bundle's first
+ * line, the mark `mark`, React Native's own marks and the React factory (null when absent), and the time
+ * `simctl launch` took to start the process (launchOverheadMs, from the host's clock before it ran).
+ */
+export function iosStartupRun({ mark, marks, launchedAt, processStart, reactFactoryAt }) {
+  const since = (at) => (typeof at === "number" ? Math.round(at - processStart) : null);
+  const run = { launchOverheadMs: Math.round(processStart - launchedAt), coldStartJsBootMs: since(marks["js-boot"]), [markKey(mark)]: since(marks[mark]) };
+  for (const [name, key] of RN_MARKS) run[key] = since(marks[name]);
+  run.reactFactoryMs = since(reactFactoryAt);
+  return run;
+}
+
+/** One result file from the runs: each number's median, the run count, and every run's value under `samples` (null where a run had none). */
+export function summarize(perRun) {
+  const keys = [...new Set(perRun.flatMap((run) => Object.keys(run)))];
+  const medians = Object.fromEntries(keys.map((key) => [key, median(perRun.map((run) => run[key]))]));
+  const samples = Object.fromEntries(keys.map((key) => [key, perRun.map((run) => run[key] ?? null)]));
+  return { ...medians, runs: perRun.length, samples };
 }
 
 /** `dumpsys gfxinfo <pkg>`: janky frames as a percentage and the 90th percentile frame time. */
@@ -202,24 +272,22 @@ function launcherActivity(pkg) {
 
 async function measureStartup(pkg, mark, runs) {
   const activity = launcherActivity(pkg);
-  const ttid = [];
-  const toMark = [];
-  const toBoot = [];
+  const perRun = [];
   for (let run = 0; run < runs; run += 1) {
     adb("shell", "am", "force-stop", pkg);
     await sleep(1000);
     adb("logcat", "-c");
-    ttid.push(parseAmStart(adb("shell", "am", "start", "-W", "-n", activity)));
+    const ttid = parseAmStart(adb("shell", "am", "start", "-W", "-n", activity));
     let ms = null;
     for (let waited = 0; ms === null && waited < 60_000; waited += 250) {
       await sleep(250);
       ms = launchToMark(adb("logcat", "-d", "-v", "epoch", "ActivityTaskManager:I", "ActivityManager:I", "ReactNativeJS:I", "*:S"), pkg, mark);
     }
     if (ms === null) throw new Error(`mobile-perf: no "UniChatPerf mark=${mark}" within 60 s of launch ${run + 1} (is the build made with UNICHAT_PERF_MARKS=1?)`);
-    toMark.push(ms);
-    toBoot.push(launchToMark(adb("logcat", "-d", "-v", "epoch", "ActivityTaskManager:I", "ActivityManager:I", "ReactNativeJS:I", "*:S"), pkg, "js-boot"));
+    const toBoot = launchToMark(adb("logcat", "-d", "-v", "epoch", "ActivityTaskManager:I", "ActivityManager:I", "ReactNativeJS:I", "*:S"), pkg, "js-boot");
+    perRun.push({ coldStartTtidMs: ttid, coldStartJsBootMs: toBoot, [markKey(mark)]: ms });
   }
-  return { coldStartTtidMs: median(ttid), coldStartJsBootMs: median(toBoot), [markKey(mark)]: median(toMark), runs };
+  return summarize(perRun);
 }
 
 const markKey = (mark) => (mark === "inbox" ? "coldStartInboxMs" : "coldStartFirstScreenMs");
@@ -228,30 +296,112 @@ function simctl(...args) {
   return execFileSync("xcrun", ["simctl", ...args], { encoding: "utf8" });
 }
 
-async function measureIosStartup(udid, bundle, mark, runs) {
-  const marksFile = () => path.join(simctl("get_app_container", udid, bundle, "data").trim(), "Documents", "unichat-perf-marks.txt");
-  const toMark = [];
-  const toBoot = [];
-  for (let run = 0; run < runs; run += 1) {
-    try {
-      simctl("terminate", udid, bundle);
-    } catch {
-      // Not running: the first launch, or a run that ended on its own.
+/** The app's data container, where its documents (and the marks file) live; null when simctl cannot name it yet. */
+function dataContainer(udid, bundle) {
+  try {
+    return simctl("get_app_container", udid, bundle, "data").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+// The kernel's start of a host process, from sysctl(CTL_KERN, KERN_PROC, KERN_PROC_PID): kp_proc.p_starttime is the
+// struct timeval at offset 0 of struct extern_proc, the first member of kinfo_proc (sys/proc.h, sys/sysctl.h; 64-bit
+// macOS: tv_sec int64, tv_usec int32). A pid with no process returns no bytes.
+const PROCESS_START_PY = `
+import ctypes, struct, sys
+libc = ctypes.CDLL(None, use_errno=True)
+mib = (ctypes.c_int * 4)(1, 14, 1, int(sys.argv[1]))
+buf = ctypes.create_string_buffer(1024)
+size = ctypes.c_size_t(len(buf))
+if libc.sysctl(mib, 4, buf, ctypes.byref(size), None, ctypes.c_size_t(0)) != 0:
+    sys.exit("sysctl failed: errno %d" % ctypes.get_errno())
+if size.value < 16:
+    sys.exit("no process %s" % sys.argv[1])
+sec, usec = struct.unpack_from("=qi", buf.raw, 0)
+print("%d.%06d" % (sec, usec))
+`;
+
+/** When the kernel started `pid`, in epoch ms with microseconds; throws when it cannot say, rather than guess. */
+function processStartMs(pid) {
+  try {
+    const out = execFileSync("python3", ["-I", "-c", PROCESS_START_PY, String(pid)], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    const ms = Number(out.trim()) * 1000;
+    if (!Number.isFinite(ms) || ms <= 0) throw new Error(`unreadable start time "${out.trim()}"`);
+    return ms;
+  } catch (error) {
+    const detail = error?.stderr ? String(error.stderr).trim() : error instanceof Error ? error.message : String(error);
+    throw new Error(`mobile-perf: cannot read the start time of process ${pid} (${detail})`);
+  }
+}
+
+/** The app's unified log since the launch, for one pid; the error in its place when `log show` fails (it only attributes). */
+function unifiedLog(udid, pid, launchedAt) {
+  try {
+    return simctl("spawn", udid, "log", "show", "--style", "compact", "--info", "--start", logStartArg(launchedAt), "--predicate", `processIdentifier == ${pid}`);
+  } catch (error) {
+    const detail = error?.stderr ? String(error.stderr).trim() : error instanceof Error ? error.message : String(error);
+    console.warn(`mobile-perf: no unified log for process ${pid}: ${detail}`);
+    return `mobile-perf: log show failed: ${detail}\n`;
+  }
+}
+
+/**
+ * Terminates and launches the app, and returns the pid `simctl launch` printed. The container's lookup and the
+ * process's start time are read by spawning xcrun and python3: never while the app is starting.
+ */
+async function launchIos(udid, bundle, run) {
+  try {
+    simctl("terminate", udid, bundle);
+  } catch {
+    // Not running: the first launch, or a run that ended on its own.
+  }
+  await sleep(1000);
+  const launchedAt = Date.now();
+  const out = simctl("launch", udid, bundle);
+  const pid = parseLaunchPid(out, bundle);
+  if (pid === null) throw new Error(`mobile-perf: simctl launch printed no pid for ${bundle} (launch ${run}): ${out.trim()}`);
+  return { launchedAt, pid };
+}
+
+// A unified log line's time outside this window after the launch is a clock or time-zone mismatch, not the app's.
+const LOG_WINDOW_MS = 120_000;
+
+async function measureIosStartup(udid, bundle, mark, runs, outDir) {
+  // An installed app's data container does not move between its launches: named once, before any timed run. If
+  // simctl cannot name it before a first launch, an untimed launch creates it and is not counted.
+  let container = dataContainer(udid, bundle);
+  if (container === null) {
+    await launchIos(udid, bundle, "untimed");
+    for (let waited = 0; container === null && waited < 30_000; waited += 500) {
+      await sleep(500);
+      container = dataContainer(udid, bundle);
     }
-    await sleep(1000);
-    const launchedAt = Date.now();
-    simctl("launch", udid, bundle);
+    if (container === null) throw new Error(`mobile-perf: simctl names no data container for ${bundle} on ${udid}`);
+  }
+  const file = path.join(container, "Documents", "unichat-perf-marks.txt");
+  const perRun = [];
+  for (let run = 1; run <= runs; run += 1) {
+    const { launchedAt, pid } = await launchIos(udid, bundle, run);
+    // While the app starts the host only reads one file every 250 ms: no process competes with it for the CPU.
     let marks = {};
     for (let waited = 0; marks[mark] === undefined && waited < 60_000; waited += 250) {
       await sleep(250);
-      const file = marksFile();
-      marks = fs.existsSync(file) ? marksSince(fs.readFileSync(file, "utf8"), launchedAt) : {};
+      marks = fs.existsSync(file) ? launchMarks(fs.readFileSync(file, "utf8"), launchedAt) : {};
     }
-    if (marks[mark] === undefined) throw new Error(`mobile-perf: no "${mark}" mark within 60 s of launch ${run + 1} (is the build made with UNICHAT_PERF_MARKS=1?)`);
-    toMark.push(marks[mark]);
-    toBoot.push(marks["js-boot"] ?? null);
+    if (marks[mark] === undefined) throw new Error(`mobile-perf: no "${mark}" mark within 60 s of launch ${run} (is the build made with UNICHAT_PERF_MARKS=1?)`);
+    // The mark is drawn: what follows spawns processes, and the app is still running for its start time and its log.
+    const processStart = processStartMs(pid);
+    const log = unifiedLog(udid, pid, launchedAt);
+    fs.writeFileSync(path.join(outDir, `ios-startup-run${run}.log`), log);
+    let reactFactoryAt = logLineAt(log, "_setUpFeatureFlags");
+    if (reactFactoryAt !== null && (reactFactoryAt < launchedAt - 1000 || reactFactoryAt > launchedAt + LOG_WINDOW_MS)) {
+      console.warn(`mobile-perf: launch ${run}'s _setUpFeatureFlags line is ${reactFactoryAt - launchedAt} ms from the launch: not read (time zone?)`);
+      reactFactoryAt = null;
+    }
+    perRun.push(iosStartupRun({ mark, marks, launchedAt, processStart, reactFactoryAt }));
   }
-  return { coldStartJsBootMs: median(toBoot), [markKey(mark)]: median(toMark), runs };
+  return summarize(perRun);
 }
 
 function measureFrames(pkg) {
@@ -274,7 +424,8 @@ async function main(argv) {
   };
   if (command === "startup") return write(await measureStartup(option(args, "package"), option(args, "mark", "first-screen"), Number(option(args, "runs", "5"))));
   if (command === "ios-startup") {
-    return write(await measureIosStartup(option(args, "udid"), option(args, "bundle"), option(args, "mark", "first-screen"), Number(option(args, "runs", "5"))));
+    const result = await measureIosStartup(option(args, "udid"), option(args, "bundle"), option(args, "mark", "first-screen"), Number(option(args, "runs", "5")), path.dirname(path.resolve(out)));
+    return write(result);
   }
   if (command === "frames") return write(measureFrames(option(args, "package")));
   if (command === "apk") return write({ apkMB: Math.round((fs.statSync(args[0]).size / 1048576) * 10) / 10 });
