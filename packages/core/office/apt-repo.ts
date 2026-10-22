@@ -6,6 +6,7 @@ export const APT_KEY_URL = `${APT_REPO_URL}/key.gpg`;
 export const APT_KEYRING_PATH = "/usr/share/keyrings/uniwork-office-archive-keyring.gpg";
 export const APT_SOURCES_PATH = "/etc/apt/sources.list.d/uniwork-office.sources";
 export const APT_KEY_FINGERPRINT = "58A9 0232 2C8D 45C4 33B5 25F5 1198 D109 26F3 4831";
+export const APT_INSTALL_SCRIPT_URL = "https://uniworkos.com/downloads/office/install.sh";
 export const APT_INSTALL_COMMAND = "sudo apt update && sudo apt install uniwork-office";
 
 /** The apt suite of a channel carries the channel's name. */
@@ -63,4 +64,14 @@ export function aptLatestDebUrl(suite: AptSuite): string {
  */
 export function aptQuickInstallCommand(suite: AptSuite): string {
   return `wget -nv -O /tmp/uniwork-office.deb ${aptLatestDebUrl(suite)} && sudo apt install /tmp/uniwork-office.deb`;
+}
+
+/**
+ * The install-script line: the script adds the same key and source the .deb does,
+ * then installs. It defaults to stable, so only dev and beta name their suite
+ * after `sh -s --`.
+ */
+export function aptScriptInstallCommand(suite: AptSuite): string {
+  const run = `curl -fsSL ${APT_INSTALL_SCRIPT_URL} | sudo sh`;
+  return suite === "stable" ? run : `${run} -s -- ${suite}`;
 }
