@@ -175,7 +175,8 @@ describe("native build wiring", () => {
 // expo-notifications' implementation dependency) and failed the first EAS release build on it.
 describe("calls plugin manifest", () => {
   it("tells lint the messaging service is instantiable, with the tools namespace it needs", async () => {
-    const plugin = (await import("./plugins/with-unichat-calls.js")) as { MESSAGING_SERVICE: { $: Record<string, string> } };
+    // The plugin is CommonJS: MESSAGING_SERVICE hangs off module.exports, which the inferred type does not show.
+    const plugin = (await import("./plugins/with-unichat-calls.js")) as unknown as { MESSAGING_SERVICE: { $: Record<string, string> } };
     expect(plugin.MESSAGING_SERVICE.$["tools:ignore"]).toBe("Instantiatable");
     expect(readFileSync(path.join(appRoot, "plugins/with-unichat-calls.js"), "utf8")).toContain('"xmlns:tools": TOOLS');
   });
