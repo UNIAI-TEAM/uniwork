@@ -156,19 +156,6 @@ function invalidateRoomSharedSummary(qc: QueryClient, wsId: string, roomId: stri
   void qc.invalidateQueries({ queryKey });
 }
 
-function patchWorkspaceMessageListIfLoaded(
-  qc: QueryClient,
-  wsId: string,
-  roomId: string,
-  patch: (existing: ChatMessageRecord[]) => ChatMessageRecord[],
-): void {
-  const wsRoom = qc.getQueryData<{ room_id?: string }>(chatKeys.room(wsId));
-  if (wsRoom?.room_id !== roomId) return;
-  const key = chatKeys.messages(wsId);
-  const existing = qc.getQueryData<ChatMessageRecord[]>(key);
-  if (existing === undefined) return;
-  qc.setQueryData<ChatMessageRecord[]>(key, patch(existing));
-}
 /**
  * The root heads a thread's first page, so the generic "newer than the head's
  * oldest row" test would take any reply. A reply older than the head's oldest
@@ -209,7 +196,6 @@ function patchThreadReplyCaches(
   };
 
   patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) => mapRoomTimeline(existing, patchMainList));
-  patchWorkspaceMessageListIfLoaded(qc, wsId, roomId, patchMainList);
 }
 
 /** `created` places a new message; anything else only replaces a loaded one (H4). */
@@ -226,9 +212,6 @@ function patchMessageCaches(
   }
   if (created) insertCreatedRoomMessage(qc, wsId, roomId, message);
   else patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) => replaceTimelineMessage(existing, message));
-  patchWorkspaceMessageListIfLoaded(qc, wsId, roomId, (existing) =>
-    created ? mergeMessageIntoList(existing, message) : replaceMessageInList(existing, message),
-  );
 }
 
 /**
@@ -270,10 +253,8 @@ function shouldIncrementUnreadLocally(room: ChatRoomRecord | undefined): boolean
  * GET a message. One loaded but not shown is marked stale instead (UNI-1078).
  */
 function isRoomTimelineShown(qc: QueryClient, wsId: string, roomId: string): boolean {
-  const wsRoom = qc.getQueryData<{ room_id?: string }>(chatKeys.room(wsId));
   const keys: QueryKey[] = [
     chatKeys.roomMessages(wsId, roomId),
-    ...(wsRoom?.room_id === roomId ? [chatKeys.messages(wsId)] : []),
     ...qc.getQueriesData({ queryKey: ["chat", "thread-messages", wsId, roomId] }).map(([key]) => key),
   ];
   let shown = false;
@@ -393,9 +374,6 @@ export function patchChatMessageDeleted(
     roomTimelineHas(existing, messageId)
       ? mapRoomTimeline(existing, (page) => removeMessageFromList(page, messageId))
       : existing,
-  );
-  patchWorkspaceMessageListIfLoaded(qc, wsId, roomId, (existing) =>
-    removeMessageFromList(existing, messageId),
   );
   // Thread message caches are keyed by root; drop the id from every loaded page of each.
   qc.setQueriesData<RoomTimeline>(

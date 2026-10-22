@@ -9,10 +9,8 @@ import {
   getActiveMentionQuery,
   insertMentionToken,
   mentionCandidatesFromBody,
-  messageBodyHasMention,
   resolveActiveMentionQuery,
   serializeComposerDraftToMessageBody,
-  messageMentionsUser,
 } from "./chat-mention-utils";
 
 describe("chat-mention-utils", () => {
@@ -65,13 +63,6 @@ describe("chat-mention-utils", () => {
     expect(candidates[0]?.kind).toBe("all");
     expect(candidates.some((item) => item.userId === "u2")).toBe(true);
     expect(candidates.some((item) => item.userId === "u3")).toBe(false);
-  });
-
-  it("detects when current user is mentioned on a message", () => {
-    expect(
-      messageMentionsUser({ mentionedUserIds: ["USER2"] }, "user2"),
-    ).toBe(true);
-    expect(messageMentionsUser({ mentionedUserIds: ["USER2"] }, "USER9")).toBe(false);
   });
 
   it("sanitizes labels and falls back when empty after sanitize", () => {
@@ -230,10 +221,7 @@ describe("chat-mention-utils", () => {
     expect(filterMentionCandidates(people, "tuan", { allLabel: "all" }).some((item) => item.userId === "u1")).toBe(true);
   });
 
-  it("detects mention bodies and filters with includeAll disabled", () => {
-    expect(messageBodyHasMention("hello mention://member/u1")).toBe(true);
-    expect(messageBodyHasMention("[@ anywhere")).toBe(true);
-    expect(messageBodyHasMention("plain")).toBe(false);
+  it("filters with includeAll disabled", () => {
     expect(
       filterMentionCandidates(
         [
@@ -246,8 +234,6 @@ describe("chat-mention-utils", () => {
     ).toEqual([
       { kind: "member", userId: "u2", label: "Binh", email: "binh@example.com" },
     ]);
-    expect(messageMentionsUser({}, "u1")).toBe(false);
-    expect(messageMentionsUser({ mentionedUserIds: [] }, "u1")).toBe(false);
   });
 
   it("rejects mention queries inside existing markdown tokens", () => {

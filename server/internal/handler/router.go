@@ -701,8 +701,6 @@ func New(d Deps) http.Handler {
 		AckChatDelivered:                 h.ackChatDelivered,
 		MuteChatRoom:                     h.muteChatRoom,
 		UnmuteChatRoom:                   h.unmuteChatRoom,
-		ListWorkspaceChatMessages:        h.listWorkspaceChatMessages,
-		SendWorkspaceChatMessage:         h.sendWorkspaceChatMessage,
 		ListChatRoomMessages:             h.listChatRoomMessages,
 		GetChatRoomMessage:               h.getChatRoomMessage,
 		SearchChatRoomMessages:           h.searchChatRoomMessages,

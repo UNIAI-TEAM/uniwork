@@ -258,7 +258,7 @@ func TestChatWritesBudgetEachUserPerRoute(t *testing.T) {
 		budget int
 	}{
 		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r%d/messages", ws, i) }, 120},
-		{http.MethodPost, func(int) string { return ws + "/messages" }, 120},
+		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/messages/m%d/forward", ws, i) }, 120},
 		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r1/messages/m%d/reactions", ws, i) }, 60},
 		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r1/messages/m%d/pin", ws, i) }, 60},
 		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r1/messages/m%d/poll/vote", ws, i) }, 60},
