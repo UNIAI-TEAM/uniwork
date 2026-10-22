@@ -199,6 +199,7 @@ func (s *OrganizationMemberDocumentService) TransferMemberDocuments(ctx context.
 	// The recipient's workspace membership, decided once per workspace on
 	// this transaction.
 	member := map[string]bool{}
+	movable := make([]db.Document, 0, len(batch))
 	for _, row := range batch {
 		doc := transferListedDocument(row)
 		ok, seen := member[doc.WorkspaceID]
@@ -226,30 +227,52 @@ func (s *OrganizationMemberDocumentService) TransferMemberDocuments(ctx context.
 				continue
 			}
 		}
-		n, err := q.TransferDocumentACLOwnerFrom(ctx, db.TransferDocumentACLOwnerFromParams{
+		movable = append(movable, doc)
+	}
+
+	// One UPDATE moves the whole batch, guarded by the owner it was listed
+	// under; a row that changed hands under its lock is not returned and not
+	// counted. The audit and outbox rows are written a chunk at a time, one of
+	// each per moved document (R2-3), in the listed order.
+	if len(movable) > 0 {
+		ids := make([]string, len(movable))
+		for i, doc := range movable {
+			ids[i] = doc.ID
+		}
+		moved, err := q.TransferDocumentsACLOwnerFrom(ctx, db.TransferDocumentsACLOwnerFromParams{
 			NewOwner: nullText(in.ToUserID), UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
-			ID: doc.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-			FromOwner: nullText(userID),
+			Ids: ids, OrganizationID: orgID, FromOwner: nullText(userID),
 		})
 		if err != nil {
 			return MemberDocumentsTransfer{}, err
 		}
-		if n == 0 {
-			// The row is locked and listed under the source; a miss means it
-			// changed hands under the lock. Not counted either way.
-			continue
+		movedIDs := make(map[string]struct{}, len(moved))
+		for _, m := range moved {
+			movedIDs[m.ID] = struct{}{}
 		}
-		if err := auditRecorder.Record(ctx, q, audit.Entry{
-			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, Actor: actor,
-			Action: audit.ActionDocumentOwnerTransferred, ResourceType: "document", ResourceID: doc.ID,
-			Changes:  audit.Diff(map[string]any{"acl_owner_id": userID}, map[string]any{"acl_owner_id": in.ToUserID}),
-			Metadata: map[string]any{"from_user_id": userID, "previous_owner_level": "none", "bulk_id": out.BulkID},
-		}, audit.Event{Topic: topicDocumentOwnerTransferred, Payload: map[string]string{
-			"document_id": doc.ID, "workspace_id": doc.WorkspaceID, "bulk_id": out.BulkID,
-		}}); err != nil {
-			return MemberDocumentsTransfer{}, err
+		recs := make([]audit.Recorded, 0, len(moved))
+		for _, doc := range movable {
+			if _, ok := movedIDs[doc.ID]; !ok {
+				continue
+			}
+			recs = append(recs, audit.Recorded{
+				Entry: audit.Entry{
+					OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, Actor: actor,
+					Action: audit.ActionDocumentOwnerTransferred, ResourceType: "document", ResourceID: doc.ID,
+					Changes:  audit.Diff(map[string]any{"acl_owner_id": userID}, map[string]any{"acl_owner_id": in.ToUserID}),
+					Metadata: map[string]any{"from_user_id": userID, "previous_owner_level": "none", "bulk_id": out.BulkID},
+				},
+				Events: []audit.Event{{Topic: topicDocumentOwnerTransferred, Payload: map[string]string{
+					"document_id": doc.ID, "workspace_id": doc.WorkspaceID, "bulk_id": out.BulkID,
+				}}},
+			})
 		}
-		out.Transferred++
+		for start := 0; start < len(recs); start += documentShareWriteChunk {
+			if err := auditRecorder.RecordMany(ctx, q, recs[start:min(start+documentShareWriteChunk, len(recs))]); err != nil {
+				return MemberDocumentsTransfer{}, err
+			}
+		}
+		out.Transferred = len(recs)
 	}
 
 	if len(batch) > 0 {

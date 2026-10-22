@@ -807,47 +807,64 @@ func (q *Queries) TransferDocumentACLOwner(ctx context.Context, arg TransferDocu
 	return i, err
 }
 
-const transferDocumentACLOwnerFrom = `-- name: TransferDocumentACLOwnerFrom :execrows
+const transferDocumentsACLOwnerFrom = `-- name: TransferDocumentsACLOwnerFrom :many
 UPDATE documents
 SET acl_owner_id = $1,
     updated_by = $2,
     updated_by_kind = $3,
     updated_at = now()
-WHERE id = $4
+WHERE id = ANY($4::text[])
   AND organization_id = $5
-  AND workspace_id = $6
   AND owner_kind IS NULL
-  AND acl_owner_id = $7
+  AND acl_owner_id = $6
+RETURNING id, workspace_id
 `
 
-type TransferDocumentACLOwnerFromParams struct {
+type TransferDocumentsACLOwnerFromParams struct {
 	NewOwner       pgtype.Text `json:"new_owner"`
 	UpdatedBy      string      `json:"updated_by"`
 	UpdatedByKind  string      `json:"updated_by_kind"`
-	ID             string      `json:"id"`
+	Ids            []string    `json:"ids"`
 	OrganizationID string      `json:"organization_id"`
-	WorkspaceID    string      `json:"workspace_id"`
 	FromOwner      pgtype.Text `json:"from_owner"`
 }
 
-// DOC-06b (UNI-2092, addendum §2.2, §5): TransferDocumentACLOwner for the
-// bulk route, guarded by the owner the batch listed. A row whose owner
-// changed while the batch waited for its lock matches nothing and is not
-// counted. Same updated_by pair, same untouched revision.
-func (q *Queries) TransferDocumentACLOwnerFrom(ctx context.Context, arg TransferDocumentACLOwnerFromParams) (int64, error) {
-	result, err := q.db.Exec(ctx, transferDocumentACLOwnerFrom,
+type TransferDocumentsACLOwnerFromRow struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+// DOC-06b (UNI-2092, addendum §2.2, §5): TransferDocumentACLOwner for a batch
+// of the bulk route, in one statement, guarded by the owner the batch listed.
+// A row whose owner changed while the batch waited for its lock matches
+// nothing and is not returned, so the caller never counts it. Same updated_by
+// pair, same untouched revision. Returns what moved: the caller writes one
+// audit row and one outbox row for each.
+func (q *Queries) TransferDocumentsACLOwnerFrom(ctx context.Context, arg TransferDocumentsACLOwnerFromParams) ([]TransferDocumentsACLOwnerFromRow, error) {
+	rows, err := q.db.Query(ctx, transferDocumentsACLOwnerFrom,
 		arg.NewOwner,
 		arg.UpdatedBy,
 		arg.UpdatedByKind,
-		arg.ID,
+		arg.Ids,
 		arg.OrganizationID,
-		arg.WorkspaceID,
 		arg.FromOwner,
 	)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []TransferDocumentsACLOwnerFromRow{}
+	for rows.Next() {
+		var i TransferDocumentsACLOwnerFromRow
+		if err := rows.Scan(&i.ID, &i.WorkspaceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateDocumentContent = `-- name: UpdateDocumentContent :one
