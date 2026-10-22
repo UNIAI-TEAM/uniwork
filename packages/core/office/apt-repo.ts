@@ -44,3 +44,17 @@ export function aptInstallCommands(suite: AptSuite): string[] {
     APT_INSTALL_COMMAND,
   ];
 }
+
+/** The newest .deb of one suite, at a fixed address (the repository keeps it current). */
+export function aptLatestDebUrl(suite: AptSuite): string {
+  return `${APT_REPO_URL}/latest/${suite}/uniwork-office_amd64.deb`;
+}
+
+/**
+ * The one-line install: download the newest .deb and let apt install it. The
+ * deb's postinst adds the keyring and the source, so later versions arrive
+ * through `apt upgrade`. `&&` keeps apt from running on a failed download.
+ */
+export function aptQuickInstallCommand(suite: AptSuite): string {
+  return `wget -qO /tmp/uniwork-office.deb ${aptLatestDebUrl(suite)} && sudo apt install /tmp/uniwork-office.deb`;
+}

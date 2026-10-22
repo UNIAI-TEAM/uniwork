@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APT_INSTALL_COMMAND, APT_KEY_FINGERPRINT, APT_KEY_URL, APT_KEYRING_PATH, APT_REPO_URL, aptInstallCommands, aptSourcesText } from "./apt-repo";
+import { APT_INSTALL_COMMAND, APT_KEY_FINGERPRINT, APT_KEY_URL, APT_KEYRING_PATH, APT_REPO_URL, aptInstallCommands, aptLatestDebUrl, aptQuickInstallCommand, aptSourcesText } from "./apt-repo";
 
 describe("apt repository commands", () => {
   it("keeps the repository, key and keyring where the published repository puts them", () => {
@@ -29,5 +29,15 @@ describe("apt repository commands", () => {
     expect(lines.at(-2)).toBe("EOF");
     expect(lines.at(-1)).toBe(APT_INSTALL_COMMAND);
     expect(APT_INSTALL_COMMAND).toBe("sudo apt update && sudo apt install uniwork-office");
+  });
+
+  it.each(["dev", "beta", "stable"] as const)("points the %s quick install at the latest .deb of its suite", (suite) => {
+    const url = `https://uniworkos.com/downloads/office/apt/latest/${suite}/uniwork-office_amd64.deb`;
+    expect(aptLatestDebUrl(suite)).toBe(url);
+    expect(aptQuickInstallCommand(suite)).toBe(`wget -qO /tmp/uniwork-office.deb ${url} && sudo apt install /tmp/uniwork-office.deb`);
+  });
+
+  it("never pipes a download into a shell", () => {
+    expect(aptQuickInstallCommand("dev")).not.toMatch(/\|\s*(sudo\s+)?(ba)?sh/);
   });
 });

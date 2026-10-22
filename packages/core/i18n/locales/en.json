@@ -9459,13 +9459,15 @@
       },
       "apt": {
         "title": "Install with apt",
-        "intro": "On Ubuntu and Debian (64-bit x86, amd64), add the UniWork Office repository once; later updates arrive with the rest of your system.",
+        "intro": "On Ubuntu and Debian (amd64), install with one command; later versions then arrive through sudo apt update && sudo apt upgrade.",
+        "quick": "Install",
+        "manual": "Manual setup",
         "setup": "1. Add the repository",
         "install": "2. Install",
         "copy": "Copy command: {{step}}",
         "copied": "Copied",
         "copyFailed": "Couldn't copy. Select the commands and copy them yourself.",
-        "deb": "If /etc/apt/sources.list.d/uniwork-office.sources exists after you install the .deb, you can skip step 1.",
+        "deb": "If you installed the .deb, this file already exists and you can skip step 1.",
         "fingerprint": "Key fingerprint"
       },
       "works": {

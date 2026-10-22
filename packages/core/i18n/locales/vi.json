@@ -9449,13 +9449,15 @@
       },
       "apt": {
         "title": "Cài qua apt",
-        "intro": "Trên Ubuntu và Debian (x86 64-bit, amd64), thêm kho UniWork Office một lần; các bản cập nhật sau đó đến cùng với phần còn lại của hệ thống.",
+        "intro": "Trên Ubuntu và Debian (amd64), cài bằng một lệnh; các phiên bản sau đó đến qua sudo apt update && sudo apt upgrade.",
+        "quick": "Cài đặt",
+        "manual": "Cài thủ công",
         "setup": "1. Thêm kho",
         "install": "2. Cài đặt",
         "copy": "Sao chép lệnh: {{step}}",
         "copied": "Đã sao chép",
         "copyFailed": "Không sao chép được. Hãy chọn đoạn lệnh và tự sao chép.",
-        "deb": "Nếu sau khi cài tệp .deb mà tệp /etc/apt/sources.list.d/uniwork-office.sources đã tồn tại, bạn có thể bỏ qua bước 1.",
+        "deb": "Nếu bạn đã cài tệp .deb, tệp này đã có sẵn và bạn có thể bỏ qua bước 1.",
         "fingerprint": "Dấu vân tay của khóa"
       },
       "works": {
