@@ -52,6 +52,8 @@ describe("app.config per UNICHAT_ENV", () => {
       bundleIdentifier: appId,
       associatedDomains: ["applinks:app.uniworkos.com"],
       config: { usesNonExemptEncryption: false },
+      // Mentions and missed calls break through Focus (server push_expo.go › timeSensitiveChannels).
+      entitlements: { "com.apple.developer.usernotifications.time-sensitive": true },
     });
     expect(config.android).toMatchObject({
       package: appId,

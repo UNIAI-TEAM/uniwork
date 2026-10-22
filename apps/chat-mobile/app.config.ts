@@ -192,6 +192,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       appleTeamId: process.env.EXPO_APPLE_TEAM_ID,
       bundleIdentifier: appId,
       associatedDomains: [`applinks:${APP_LINK_HOST}`],
+      // Mentions and missed calls arrive "time-sensitive" (server notification/push_expo.go), which iOS lets through
+      // Focus only with this capability; EAS turns it on for the App ID when it signs.
+      entitlements: { "com.apple.developer.usernotifications.time-sensitive": true },
       // HTTPS, WSS and WebRTC only: exempt encryption, so TestFlight does not hold every build on the export question.
       config: { usesNonExemptEncryption: false },
       // A call keeps its audio when the person switches app or locks the phone. Vietnamese is the

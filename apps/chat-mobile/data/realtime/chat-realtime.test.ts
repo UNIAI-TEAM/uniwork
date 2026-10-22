@@ -8,6 +8,7 @@ vi.mock("../api", () => ({ api: { request: vi.fn() } }));
 import { chatApi } from "../chat-api";
 import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { chatKeys } from "../queries/chat-keys";
+import { onRoomRead } from "../room-read-signal";
 import { decodeFrame, type RealtimeFrame } from "./frames";
 import { BURST_CATCH_UP_MIN, createChatRealtime, ROOM_ACTIVITY_DEBOUNCE_MS, type ChatRealtimeDeps } from "./chat-realtime";
 
@@ -160,12 +161,18 @@ describe("list-level frames", () => {
   it("clears my badges on my read anywhere, and moves a DM's Seen on the peer's", () => {
     qc.setQueryData(chatKeys.rooms("w1"), [room("r1", { unread_count: 2, last_message_at: "2026-10-17T10:00:00Z" })]);
     const realtime = createChatRealtime(qc, deps);
+    const heard = vi.fn();
+    const stop = onRoomRead(heard);
     realtime.handle(frame("chat.room.read", { room_id: "r1", user_id: "u2" }));
+    expect(heard).not.toHaveBeenCalled();
     realtime.handle(frame("chat.room.read", { room_id: "r1", user_id: "u1" }));
+    stop();
     expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("w1"))?.[0]).toMatchObject({
       unread_count: 0,
       peer_last_read_at: "2026-10-17T10:00:00Z",
     });
+    // Read on another of my devices: its notifications come down on this one too.
+    expect(heard).toHaveBeenCalledWith("r1");
   });
 
   it("feeds typing and presence into their stores, once signed in", () => {

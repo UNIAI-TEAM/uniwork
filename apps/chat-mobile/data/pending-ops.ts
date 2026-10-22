@@ -23,6 +23,7 @@ import type { RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { chatKeys } from "./queries/chat-keys";
 import { RefusedError, bestEffort, reportError } from "./report";
 import { createRetryTimers, type RetryTimers } from "./retry-timers";
+import { roomWasRead } from "./room-read-signal";
 import { usePendingOpsStore, type PendingOp } from "./stores/pending-ops-store";
 
 export interface PendingOpsDeps {
@@ -199,6 +200,8 @@ async function enqueue(qc: QueryClient, op: PendingOp | null, dropKey: string, d
 /** Opening a room, reaching its newest message, or leaving it: the badge clears now, the server follows. */
 export async function markRoomRead(qc: QueryClient, wsId: string, roomId: string, userId: string, deps: PendingOpsDeps = pendingOpsDeps): Promise<void> {
   clearUnread(qc, wsId, roomId);
+  // Its notifications come down with the badge (data/notification-tray.ts).
+  roomWasRead(roomId);
   const key = `read/${wsId}/${roomId}`;
   const rev = (find(key)?.rev ?? 0) + 1;
   // A refused read was reported by the line; the screen has nothing to say about it.

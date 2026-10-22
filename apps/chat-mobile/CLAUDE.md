@@ -490,12 +490,19 @@ một dòng thì ghi lý do ở dòng trên.
   không giao câu trả lời cho JS khi app bị kill và hành động ở nền). `lib/chat-notification.ts` đọc phản hồi (thuần)
   ở cả hai dạng: listener nhận `content.data` đã parse, task nền Android nhận bundle native nguyên trạng — data của push
   Expo là chuỗi JSON ở `content.dataString`, không có `data` (`NotificationSerializer.toBundle`); test dùng cả hai dạng.
-  Badge app = mọi tin chưa đọc (`appBadgeCount`, `data/badge.ts`). Android 14+ bị thu hồi full-screen intent thì Cài
+  Badge app = mọi tin chưa đọc (`appBadgeCount`, `data/badge.ts`); iPhone còn nhận số đó trong mỗi push tin (server
+  `ChatService.UnreadBadge` → `badge` của push Expo, chỉ khi người đó có iPhone) nên biểu tượng đúng cả khi app đóng;
+  nhắc tên, cuộc gọi đến/nhỡ trên iPhone là `interruptionLevel: time-sensitive` (entitlement trong `app.config.ts`).
+  Phòng đã đọc — ở máy này (`pending-ops.ts › markRoomRead`) hay ở thiết bị khác khi socket còn mở (`chat.room.read` của
+  chính mình) — gỡ thông báo tin của phòng khỏi khay (`data/room-read-signal.ts` → `data/notification-tray.ts`, gắn ở
+  `app-startup.ts`; thông báo trả lời chủ đề và cuộc gọi ở lại). Android 14+ bị thu hồi full-screen intent thì Cài
   đặt › Thông báo hiện `components/settings/full-screen-calls-row.tsx`. Server: push đổ chuông tới Android là data-only chỉ khi bản đó
   đăng ký token với `call_ui: true` (`registerPushToken({ callUI: nativeCalls.available })`, mỗi lần mở app, và lại khi
   FCM/APNs đổi token lúc app đang chạy — `watchPushTokenRotation`, chỉ khi token máy khác lần trước vì tự lấy token cũng
   phát sự kiện, không hỏi quyền, token Expo đổi thì gỡ cái cũ; server lưu
-  user agent `expo/android; call-ui`), iOS và bản Android cũ giữ push hiển thị; `chat.voice.ring_closed` (outbox, cùng transaction đóng hàng ring) → push data-only "kết thúc"
+  user agent `expo/android; call-ui`), bản Android cũ giữ push hiển thị, iPhone không nhận push đổ chuông khi công tắc
+  `unichat_mobile_calls_ios` tắt (mặc định; server gộp nó vào `unichat_mobile_calls` của máy gửi `X-Client-OS: ios`, nên
+  iPhone cũng ẩn nút gọi — chưa có CallKit/PushKit); `chat.voice.ring_closed` (outbox, cùng transaction đóng hàng ring) → push data-only "kết thúc"
   tới máy Android; cuộc gọi 1-1 nhỡ là "Cuộc gọi nhỡ từ X" trên `missed_calls`.
   Kotlin có test JVM trên Robolectric (`modules/unichat-calls/android/src/test`, SDK 34 vì CI chạy JDK 17): token khởi
   chạy (chỉ token của chính thông báo đó mới cho hiện trên màn khoá và Nghe, token thu hồi/hết hạn/giả thì không),

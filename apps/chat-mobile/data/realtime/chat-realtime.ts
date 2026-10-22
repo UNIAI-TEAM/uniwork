@@ -13,6 +13,7 @@ import {
 } from "../chat-cache";
 import { catchUpOnChatSubscribeAck, catchUpRoomTimeline, refreshLoadedRoomTimelines } from "../chat-timeline";
 import { chatKeys } from "../queries/chat-keys";
+import { roomWasRead } from "../room-read-signal";
 import { isKnownFrame, type RealtimeFrame } from "./frames";
 
 export interface ChatRealtimeDeps {
@@ -168,8 +169,12 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
       case "chat.room.read": {
         const { room_id: roomId, user_id: userId } = msg.payload;
         if (viewer.userId) patchChatRoomRead(qc, wsId, viewer.userId, roomId, userId);
-        // The reader's own pointer moved: the per-workspace counts follow.
-        if (userId === viewer.userId) schedule(chatKeys.unreadSummary());
+        // The reader's own pointer moved (here or on another device): the per-workspace counts follow, and the
+        // room's notifications come down on this phone too.
+        if (userId === viewer.userId) {
+          schedule(chatKeys.unreadSummary());
+          roomWasRead(roomId);
+        }
         return;
       }
       case "chat.voice.hangup":

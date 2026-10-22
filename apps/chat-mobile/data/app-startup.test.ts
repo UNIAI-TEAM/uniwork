@@ -12,6 +12,7 @@ const calls = vi.hoisted(() => ({
   subscribe: vi.fn(),
   setLocale: vi.fn(),
   startLocaleSync: vi.fn(),
+  dismissRoomNotifications: vi.fn<(roomId: string) => Promise<number>>(async () => 1),
 }));
 
 vi.mock("./updates-controller", () => ({ startUpdatesController: calls.startUpdatesController }));
@@ -25,6 +26,7 @@ vi.mock("./remote-config", () => ({ persistRemoteConfig: calls.persistRemoteConf
 vi.mock("./auth/store", () => ({ useAuthStore: { getState: () => ({ user: calls.user, setUser: calls.setUser }), subscribe: calls.subscribe } }));
 vi.mock("./account-api", () => ({ accountApi: { setLocale: calls.setLocale } }));
 vi.mock("./locale-sync", () => ({ startLocaleSync: calls.startLocaleSync }));
+vi.mock("./notification-tray", () => ({ dismissRoomNotifications: calls.dismissRoomNotifications }));
 vi.mock("./storage/device-store", () => ({ openDeviceStore: vi.fn() }));
 vi.mock("./report", () => ({ bestEffort: (_scope: string, what: string) => () => void calls.crumbs.push(what) }));
 
@@ -32,6 +34,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { User } from "@uniwork/core/types/user";
 import { i18n } from "@/lib/i18n/singleton";
 import type { LocaleSyncDeps } from "./locale-sync";
+import { roomWasRead } from "./room-read-signal";
 import { openDeviceStore } from "./storage/device-store";
 
 const loadedAt = Date.now();
@@ -57,6 +60,16 @@ describe("startAppServices", () => {
     expect(calls.persistRemoteConfig).toHaveBeenCalledWith(queryClient, openDeviceStore);
     expect(calls.restoreRemoteConfig).toHaveBeenCalledWith(queryClient, openDeviceStore);
     await vi.waitFor(() => expect(calls.crumbs).toEqual(["kept answer not read"]));
+  });
+
+  it("takes a read room's notifications out of the tray, and a tray that fails is only a breadcrumb", async () => {
+    calls.restoreRemoteConfig.mockResolvedValueOnce(true);
+    startAppServices({ queryClient: {} as QueryClient, usageStatsEnabled: () => true });
+    roomWasRead("r1");
+    expect(calls.dismissRoomNotifications).toHaveBeenCalledWith("r1");
+    calls.dismissRoomNotifications.mockRejectedValueOnce(new Error("no tray"));
+    roomWasRead("r2");
+    await vi.waitFor(() => expect(calls.crumbs).toContain("read room's notifications not dismissed"));
   });
 
   it("sends the app's language to the server for the signed-in person", async () => {

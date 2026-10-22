@@ -18,8 +18,8 @@ Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-
 > - Gửi ảnh và tệp vào cuộc trò chuyện
 > - Gọi thoại và video cho hai người hoặc cả nhóm
 > - Danh bạ đồng nghiệp với trạng thái hoạt động
-> - Thông báo đẩy có xem trước nội dung, trả lời hoặc đánh dấu đã đọc ngay trên thông báo; không làm phiền khi bạn
->   đang dùng UniWork ở thiết bị khác
+> - Thông báo đẩy có xem trước nội dung, trả lời hoặc đánh dấu đã đọc ngay trên thông báo, tự gỡ khi bạn đã đọc; không
+>   làm phiền khi bạn đang đọc chính workspace đó ở thiết bị khác
 > - Bản nháp giữ nguyên khi rời cuộc trò chuyện, liên kết trong tin bấm được, mở lại phòng ở đúng tin chưa đọc đầu tiên (tới vài trăm tin chưa đọc)
 > - Hỗ trợ VoiceOver và TalkBack, cỡ chữ lớn và chế độ tối
 >
@@ -36,8 +36,8 @@ Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-
 > - Share photos and files in a conversation
 > - Voice and video calls, one-to-one or with the whole group
 > - A directory of your colleagues with their presence
-> - Push notifications with message previews that you can reply to or mark as read in place, held back while you are
->   active in UniWork elsewhere
+> - Push notifications with message previews that you can reply to or mark as read in place, cleared once you have
+>   read them, and held back while you are reading the same workspace elsewhere
 > - Drafts that wait for you, tappable links, and rooms that reopen at your first unread message (up to a few hundred unread)
 > - Works with VoiceOver and TalkBack, large text and dark mode
 >
@@ -141,7 +141,14 @@ và nghe/gác máy dùng phản hồi chạm của hệ thống (Android `perfor
 | ~~Bộ nhớ dùng chung, ảnh~~ | Android `READ_/WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_IMAGES`, `DETECT_SCREEN_CAPTURE` **bị gỡ** (`blockedPermissions`) | bảo mật | `expo-file-system`, `expo-image`, `expo-image-picker` khai hai quyền đầu tới API 32, `expo-screen-capture` khai hai quyền sau cho listener chụp màn hình mà app không dùng; UniChat chỉ đọc tệp của chính nó và tệp trình chọn hệ thống trao, nên không xin | — |
 
 Không CallKit/VoIP push trên iOS (chưa có tài khoản Apple; kế hoạch PushKit + CallKit ở
-`docs/adr/drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md`), nên không có background mode `voip`. iOS
+`docs/adr/drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md`), nên không có background mode `voip`, và
+**gọi điện tắt trên iPhone** bằng công tắc server `unichat_mobile_calls_ios` (mặc định tắt: iPhone không hiện nút gọi,
+không nhận push đổ chuông). Vì vậy mô tả App Store của bản iOS đầu tiên **bỏ dòng "Gọi thoại và video" / "Voice and
+video calls"** (Apple 2.3.1: metadata phải đúng với app) cho tới khi bật CallKit; mô tả Play giữ nguyên. Thông báo nhắc
+tên và cuộc gọi nhỡ trên iPhone là "time-sensitive" (đi qua Chế độ tập trung; entitlement
+`com.apple.developer.usernotifications.time-sensitive`, EAS bật capability cho App ID khi ký) và mỗi push tin mang số
+chưa đọc cho biểu tượng app. Màn tắt khi áp tai trong cuộc gọi thoại (Android, cảm biến tiệm cận) dùng `WAKE_LOCK`, quyền
+thường đã khai, không xin quyền mới. iOS
 có background mode `audio` để cuộc gọi giữ tiếng khi người dùng rời app hoặc khoá máy (lý do cho review: "keeps an
 ongoing voice/video call audible"); `expo-task-manager` tự thêm `fetch` và plugin `with-unichat-calls` gỡ nó đi (app
 không tải nền trên iOS).

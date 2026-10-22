@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./api", () => ({ api: { request: vi.fn() } }));
 
 import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
+import { onRoomRead } from "./room-read-signal";
 import { clearPendingOps, deleteMessage, editMessage, flushAllPendingOps, flushPendingOps, markRoomRead, pendingOpsDeps, toggleReaction, votePoll, type PendingOpsDeps } from "./pending-ops";
 import { chatKeys } from "./queries/chat-keys";
 import { installReportSink } from "./report";
@@ -86,9 +87,14 @@ afterEach(() => vi.restoreAllMocks());
 describe("reads", () => {
   it("clears the badge at once and tells the server; offline it waits and goes once online", async () => {
     const qc = seeded();
+    const heard = vi.fn();
+    const stop = onRoomRead(heard);
     await markRoomRead(qc, "w1", "r1", "u1", deps);
+    stop();
     expect(api.markRoomRead).toHaveBeenCalledWith("w1", "r1");
     expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("w1"))?.map((r) => r.unread_count)).toEqual([0, 2]);
+    // The room's notifications come down with its badge (data/notification-tray.ts, wired at boot).
+    expect(heard).toHaveBeenCalledWith("r1");
     expect(ops()).toEqual([]);
     // No rooms list loaded: nothing to clear, the server is still told.
     await markRoomRead(new QueryClient(), "w1", "r1", "u1", deps);
