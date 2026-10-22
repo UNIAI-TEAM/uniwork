@@ -96,10 +96,12 @@ export function documentFrameKeys(
     }
     case "document.owners_bulk_transferred": {
       // S-DOC06b (UNI-2092): a bulk run moved a member's documents to this
-      // person. The frame is user-scoped and names no workspace, while the
+      // person. The frame is user-scoped and names the workspace of the first
+      // moved document, which is not the only workspace that changed: the
       // documents changed owner in every workspace the recipient shares with
-      // the source, so the whole documents prefix refreshes whichever
-      // workspace is open. Ids only; nothing from the frame is cached.
+      // the source. The case therefore deliberately ignores ownWorkspace and
+      // refreshes the whole documents prefix whichever workspace is open.
+      // Ids only; nothing from the frame is cached.
       return [documentKeys.all];
     }
     case "document.lock_changed": {
