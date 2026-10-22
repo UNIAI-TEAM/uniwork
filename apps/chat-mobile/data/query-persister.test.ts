@@ -38,9 +38,10 @@ function seeded(qc = new QueryClient()): QueryClient {
   qc.setQueryData(chatKeys.roomMembers("w1", "new"), []);
   qc.setQueryData(chatKeys.roomMessages("w1", "new"), { pages: [page("n2"), page("n1")], pageParams: [null, { cursor: "c" }] });
   qc.setQueryData(chatKeys.roomMessages("w1", "old"), { pages: [page("o1")], pageParams: [null] });
-  // Never kept: search, threads, tasks, the remote config.
+  // A thread last read in a recent room: its first page is kept too.
+  qc.setQueryData(chatKeys.threadMessages("w1", "new", "root"), { pages: [page("t2"), page("t1")], pageParams: [null, { cursor: "t" }] });
+  // Never kept: search, tasks, the remote config.
   qc.setQueryData(chatKeys.roomSearch("w1", "new", "hi"), []);
-  qc.setQueryData(chatKeys.threadMessages("w1", "new", "root"), { pages: [], pageParams: [] });
   qc.setQueryData(chatKeys.task("w1", "t1"), {});
   qc.setQueryData(["remote-config"], {});
   return qc;
@@ -67,6 +68,7 @@ describe("what is kept", () => {
         chatKeys.roomMembers("w1", "new"),
         chatKeys.roomMessages("w1", "new"),
         chatKeys.roomMessages("w1", "old"),
+        chatKeys.threadMessages("w1", "new", "root"),
       ]
         .map((k) => JSON.stringify(k))
         .sort(),
@@ -309,7 +311,10 @@ describe("the disk outlives memory", () => {
     persister = createDevicePersister(async () => store);
   });
 
-  const savedTimelines = () => store.keys().filter((key) => key.startsWith("query-cache/timeline/")).sort();
+  // The rooms' timelines (a thread's are under the same prefix: its own test below).
+  const savedTimelines = () => store.keys().filter((key) => key.startsWith("query-cache/timeline/") && key.includes("room-messages")).sort();
+  const savedThreads = () => store.keys().filter((key) => key.includes("thread-messages")).sort();
+  const threadKey = (roomId: string, rootId: string) => `query-cache/timeline/${JSON.stringify(chatKeys.threadMessages("w1", roomId, rootId))}`;
   const timelineKey = (roomId: string) => `query-cache/timeline/${JSON.stringify(chatKeys.roomMessages("w1", roomId))}`;
 
   /** The app's QueryClient: a query nobody observes leaves memory after 10 minutes. */
@@ -351,6 +356,43 @@ describe("the disk outlives memory", () => {
     expect(savedTimelines()).toEqual([timelineKey("new")]);
     await dropAccountCache();
     expect(store.keys()).toEqual([]);
+  });
+
+  it("keeps the first page of the threads last read in the recent rooms, and a frame takes a copy only the disk holds", async () => {
+    vi.useFakeTimers();
+    const first = seeded();
+    first.setQueryData(chatKeys.threadMessages("w1", "old", "r-old"), { pages: [page("x")], pageParams: [null] });
+    // A room not among the recent ones: its thread is not kept either.
+    first.setQueryData(chatKeys.rooms("w1"), [...room("new", "2026-10-20T00:00:00Z"), ...room("old", "2026-10-01T00:00:00Z"), ...room("gone", "2026-09-01T00:00:00Z")]);
+    first.setQueryData(chatKeys.threadMessages("w1", "elsewhere", "r9"), { pages: [page("y")], pageParams: [null] });
+    installAccountCache({ queryClient: first, persister });
+    await restoreAccountCache("u1");
+    first.setQueryData(chatKeys.unreadSummary(), unread(3));
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(savedThreads()).toEqual([threadKey("new", "root"), threadKey("old", "r-old")]);
+    // Its first page only: the root and the newest replies.
+    expect(JSON.parse(store.getString(threadKey("new", "root"))!).state.data).toEqual({ pages: [page("t2")], pageParams: [null] });
+
+    const next = new QueryClient();
+    installAccountCache({ queryClient: next, persister });
+    await restoreAccountCache("u1");
+    await vi.advanceTimersByTimeAsync(RESTORE_LATER_MS);
+    expect(next.getQueryData(chatKeys.threadMessages("w1", "new", "root"))).toEqual({ pages: [page("t2")], pageParams: [null] });
+    // Memory let the thread go while it still holds the room: an edit in the room takes the thread's copy off the disk too.
+    next.removeQueries({ queryKey: chatKeys.threadMessages("w1", "new", "root"), exact: true });
+    dropCarriedTimeline("w1", "new");
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(savedThreads()).toEqual([threadKey("old", "r-old")]);
+    expect(savedTimelines()).toContain(timelineKey("new"));
+
+    // The threads kept are the ones read last (the seeded one, just now; then t3), a few per account.
+    const many = seeded();
+    const client: PersistedClient = { buster: "b", timestamp: 1, clientState: dehydrate(many, { shouldDehydrateQuery: shouldPersistQuery }) };
+    const base = client.clientState.queries.find((q) => q.queryKey[2] === "thread-messages")!;
+    const threads = [1, 2, 3].map((n) => ({ ...base, queryHash: `t${n}`, queryKey: chatKeys.threadMessages("w1", "new", `t${n}`), state: { ...base.state, dataUpdatedAt: n } }));
+    const shaped = shapePersistedClient({ ...client, clientState: { mutations: [], queries: [...client.clientState.queries, ...threads] } }, 24, 2);
+    expect(shaped.clientState.queries.filter((q) => q.queryKey[2] === "thread-messages").map((q) => q.queryHash)).toEqual([base.queryHash, "t3"]);
+    await dropAccountCache();
   });
 
   it("a frame for a room whose timeline only the disk still holds takes that copy off the disk: no frame can reach it", async () => {
@@ -496,7 +538,15 @@ describe("the cost of a save and of a cold start", () => {
 
     const rest = await restarted.restoreLater();
     expect(rest.map((query) => JSON.stringify(query.queryKey)).sort()).toEqual(
-      [chatKeys.members("w1"), chatKeys.roomMembers("w1", "new"), chatKeys.roomMessages("w1", "new"), chatKeys.roomMessages("w1", "old")].map((key) => JSON.stringify(key)).sort(),
+      [
+        chatKeys.members("w1"),
+        chatKeys.roomMembers("w1", "new"),
+        chatKeys.roomMessages("w1", "new"),
+        chatKeys.roomMessages("w1", "old"),
+        chatKeys.threadMessages("w1", "new", "root"),
+      ]
+        .map((key) => JSON.stringify(key))
+        .sort(),
     );
     // Each is returned once, and a save without them now takes them off the disk.
     expect(await restarted.restoreLater()).toEqual([]);
@@ -511,7 +561,7 @@ describe("the cost of a save and of a cold start", () => {
     store.set(timelineKey("old"), JSON.stringify({ queryKey: chatKeys.roomMessages("w1", "old"), queryHash: "x", state: { data: "drift" } }));
     const restarted = createDevicePersister(async () => store);
     await restarted.restoreClient();
-    expect(await restarted.restoreLater()).toHaveLength(3);
+    expect(await restarted.restoreLater()).toHaveLength(4);
     expect(warnings).toContain("cached queries dropped");
     installReportSink(null);
   });

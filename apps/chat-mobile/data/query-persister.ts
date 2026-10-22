@@ -1,10 +1,11 @@
 // The cache a cold start opens on: the workspaces, the rooms list,
-// the unread counts, nicknames and members, and the newest page of the rooms
-// most recently active, written to the encrypted device store
+// the unread counts, nicknames and members, the newest page of the rooms
+// most recently active and the first page (root and newest replies) of the
+// threads last opened in them, written to the encrypted device store
 // (storage/device-store.ts) and read back before the first screen, so the
 // inbox is there at once, offline included, and every query refetches behind
-// it as usual. Nothing else is kept: search, threads, older pages and tasks
-// are asked again (the remote config keeps its own copy, outside any account:
+// it as usual. Nothing else is kept: search, older pages and tasks are asked
+// again (the remote config keeps its own copy, outside any account:
 // data/remote-config.ts). The copy belongs to one person and one
 // cache schema (the buster is CACHE_SCHEMA_VERSION and the user id: another
 // account, or a change of what a kept record means, reads nothing of it) and
@@ -43,11 +44,12 @@ import { persistQueryClientRestore, persistQueryClientSave, type PersistedClient
 import { z } from "zod";
 import { createLogger } from "./logger";
 import { CACHE_SCHEMA_VERSION, persistedRooms, readPersistedClient, readPersistedQueries } from "./persisted-cache";
-import { chatKeys } from "./queries/chat-keys";
 import type { DeviceStore } from "./storage/device-store";
 
 /** The rooms whose newest page is kept: the most recently active ones. */
 const PERSISTED_ROOM_TIMELINES = 24;
+/** The threads whose first page is kept: the last read ones, in those rooms. */
+const PERSISTED_THREAD_TIMELINES = 12;
 /** A copy, or a carried query, older than this is not worth showing. */
 export const PERSISTED_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export const PERSIST_THROTTLE_MS = 1_000;
@@ -68,6 +70,7 @@ function isPersistedKey(queryKey: readonly unknown[]): boolean {
   if (root !== "chat") return false;
   if (second === "unread-summary") return queryKey.length === 2;
   if (queryKey.length === 3) return third === "rooms" || third === "nicknames" || third === "members";
+  if (queryKey.length === 5) return third === "thread-messages";
   return queryKey.length === 4 && (third === "room-members" || third === "room-messages");
 }
 
@@ -79,7 +82,8 @@ export function shouldPersistQuery(query: Pick<Query, "queryKey" | "state">): bo
 type DehydratedQuery = PersistedClient["clientState"]["queries"][number];
 
 const lastActivity = (room: { last_message_at?: string | null }) => Date.parse(room.last_message_at ?? "") || 0;
-const isTimeline = (query: DehydratedQuery) => query.queryKey[0] === "chat" && query.queryKey[2] === "room-messages";
+const isTimeline = (query: DehydratedQuery) =>
+  query.queryKey[0] === "chat" && (query.queryKey[2] === "room-messages" || query.queryKey[2] === "thread-messages");
 
 /** The rooms of each workspace whose timeline is kept, newest activity first. */
 function recentRoomIds(queries: readonly DehydratedQuery[], limit: number): Set<string> {
@@ -114,13 +118,31 @@ function firstPageOnly(query: DehydratedQuery): DehydratedQuery {
   return { ...query, state: { ...query.state, data: first } };
 }
 
-/** The copy written to disk: the timelines of the most recent rooms, each one page. */
-export function shapePersistedClient(client: PersistedClient, limit = PERSISTED_ROOM_TIMELINES): PersistedClient {
+/** The threads kept: of the recent rooms, the `limit` read most lately. */
+function recentThreadHashes(queries: readonly DehydratedQuery[], recent: ReadonlySet<string>, limit: number): Set<string> {
+  return new Set(
+    queries
+      .filter((query) => query.queryKey[2] === "thread-messages" && recent.has(`${String(query.queryKey[1])}/${String(query.queryKey[3])}`))
+      .sort((a, b) => b.state.dataUpdatedAt - a.state.dataUpdatedAt)
+      .slice(0, limit)
+      .map((query) => query.queryHash),
+  );
+}
+
+/** The copy written to disk: the timelines of the most recent rooms and of their last read threads, each one page. */
+export function shapePersistedClient(
+  client: PersistedClient,
+  limit = PERSISTED_ROOM_TIMELINES,
+  threadLimit = PERSISTED_THREAD_TIMELINES,
+): PersistedClient {
   const { queries } = client.clientState;
   const recent = recentRoomIds(queries, limit);
+  const threads = recentThreadHashes(queries, recent, threadLimit);
   const kept = queries.flatMap((query) => {
     const [root, wsId, kind, roomId] = query.queryKey;
-    if (root !== "chat" || kind !== "room-messages") return [query];
+    if (root !== "chat") return [query];
+    if (kind === "thread-messages") return threads.has(query.queryHash) ? [firstPageOnly(query)] : [];
+    if (kind !== "room-messages") return [query];
     return recent.has(`${String(wsId)}/${String(roomId)}`) ? [firstPageOnly(query)] : [];
   });
   return { ...client, clientState: { mutations: [], queries: kept } };
@@ -368,8 +390,10 @@ async function restoreAndSubscribe(userId: string, { queryClient, persister }: I
     timer ??= setTimeout(save, PERSIST_THROTTLE_MS);
   });
   forgetCarried = (wsId, roomId) => {
-    const isRoom = (query: DehydratedQuery) => isTimeline(query) && query.queryKey[1] === wsId && query.queryKey[3] === roomId;
-    if (queryClient.getQueryData(chatKeys.roomMessages(wsId, roomId)) !== undefined || !kept.some(isRoom)) return;
+    // The room's timeline and its threads: a copy memory still holds is the frame's own to patch; one only the disk holds goes.
+    const isRoom = (query: DehydratedQuery) =>
+      isTimeline(query) && query.queryKey[1] === wsId && query.queryKey[3] === roomId && queryClient.getQueryData(query.queryKey) === undefined;
+    if (!kept.some(isRoom)) return;
     kept = kept.filter((query) => !isRoom(query));
     timer ??= setTimeout(save, PERSIST_THROTTLE_MS);
   };

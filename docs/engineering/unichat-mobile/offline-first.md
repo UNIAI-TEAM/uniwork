@@ -77,8 +77,10 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   giao bằng PATCH cả body (idempotent, không đọc trước); xoá gỡ tin khỏi timeline ngay và bỏ mọi mong muốn còn chờ cho
   tin đó (sửa, biểu cảm, phiếu); 404 khi giao là đã xong (tin đã mất), từ chối hẳn thì refetch phòng (tin quay lại) và
   reject cho màn hình báo. **Cache đĩa**:
-  `data/query-persister.ts` — allowlist `["workspaces"]`, rooms, unread-summary, nicknames, members, room-members và
-  trang mới nhất của 24 phòng hoạt động gần nhất; chỉ ghi khi một query được giữ có data mới (câu trả lời fetch, patch
+  `data/query-persister.ts` — allowlist `["workspaces"]`, rooms, unread-summary, nicknames, members, room-members,
+  trang mới nhất của 24 phòng hoạt động gần nhất và trang đầu (tin gốc cùng các trả lời mới nhất) của 12 chủ đề đọc
+  gần nhất trong các phòng đó (`PERSISTED_THREAD_TIMELINES`; frame tới phòng mà bộ nhớ không còn giữ chủ đề thì bỏ
+  bản chủ đề trên đĩa như bỏ timeline); chỉ ghi khi một query được giữ có data mới (câu trả lời fetch, patch
   — không phải fetch bắt đầu, observer hay bộ nhớ bỏ query), sau 1 s yên; mỗi query được giữ một key MMKV
   (`query-cache/timeline/<queryHash>` cho timeline, `query-cache/query/<queryHash>` cho phần còn lại), chỉ ghi lại khi
   data đổi — data cùng object và cùng `dataUpdatedAt` với lần ghi trước thì không cả `JSON.stringify` (structural

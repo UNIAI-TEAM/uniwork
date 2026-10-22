@@ -69,6 +69,8 @@ function readerFor(queryKey: readonly unknown[]): Reader | null {
   }
   if (queryKey.length === 4 && third === "room-members") return listIn(MembersSchema, "members");
   if (queryKey.length === 4 && third === "room-messages") return readTimeline;
+  // A thread: its root then its newest replies, the same pages as a room's (queries/chat.ts › threadTimelineOptions).
+  if (queryKey.length === 5 && third === "thread-messages") return readTimeline;
   return null;
 }
 
