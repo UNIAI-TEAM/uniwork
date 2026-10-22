@@ -61,3 +61,26 @@ test("a run that fails twice fails, and MAESTRO_ATTEMPTS=1 turns the retry off",
   assert.equal(once.status, 1);
   assert.equal(once.calls, 1);
 });
+
+// Review P2: the retry reruns a flow from its first command. A flow that turns airplane mode on and fails before it
+// turns it off again would leave the emulator offline, so the retry's clean launch and browser sign-in could never
+// pass: one flake became a hard red. Every such flow starts by turning it off, before it launches the app.
+const flows = path.join(import.meta.dirname, "..", "apps", "chat-mobile", "maestro", "flows");
+const commandsOf = (text) => (text.split(/^---$/m)[1] ?? "").split("\n").filter((line) => /^- \S/.test(line)).map((line) => line.slice(2).trim());
+
+test("every flow that turns airplane mode on starts online, so a retry is not born offline", () => {
+  const offline = fs.readdirSync(flows).filter((f) => f.endsWith(".yaml") && /^\s*- setAirplaneMode: enabled$/m.test(fs.readFileSync(path.join(flows, f), "utf8")));
+  assert.ok(offline.includes("offline-send-relaunch.yaml") && offline.includes("upgrade-before.yaml"), "the scan finds the offline flows");
+  for (const file of offline) {
+    const commands = commandsOf(fs.readFileSync(path.join(flows, file), "utf8"));
+    const launch = commands.findIndex((c) => c.startsWith("launchApp"));
+    assert.ok(launch > 0, `${file} launches the app`);
+    assert.ok(commands.slice(0, launch).includes("setAirplaneMode: disabled"), `${file} turns airplane mode off before launchApp`);
+  }
+});
+
+test("the PR gate's offline flow also leaves the emulator online for the flow after it", () => {
+  const text = fs.readFileSync(path.join(flows, "offline-send-relaunch.yaml"), "utf8");
+  const header = text.split(/^---$/m)[0];
+  assert.match(header, /^onFlowComplete:\n {2}- setAirplaneMode: disabled$/m);
+});
