@@ -354,8 +354,8 @@ func TestAskAgentMemberWorkload(t *testing.T) {
 		t.Fatalf("member_workload = %+v", items)
 	}
 	for _, it := range items {
-		if it.Text != want[it.Title] {
-			t.Errorf("workload of %s = %q, want %q", it.Title, it.Text, want[it.Title])
+		if w := "ID: " + it.ID + "\n" + want[it.Title]; it.Text != w {
+			t.Errorf("workload of %s = %q, want %q", it.Title, it.Text, w)
 		}
 	}
 	for _, it := range append(items, runAgentTool(t, s, tc, "list_members", `{"query":""}`)...) {
@@ -400,7 +400,7 @@ func TestAskAgentToolsReadEveryKind(t *testing.T) {
 	if len(tasks) != 1 || !strings.Contains(tasks[0].Text, "Project: Website mới ("+pr.ID+")") {
 		t.Errorf("list_tasks by project = %+v", tasks)
 	}
-	if items := runAgentTool(t, s, tc, "list_members", `{"query":""}`); len(items) != 1 || items[0].Title != "A" || items[0].Text != "Role: owner" || items[0].ID != x.ua.ID {
+	if items := runAgentTool(t, s, tc, "list_members", `{"query":""}`); len(items) != 1 || items[0].Title != "A" || items[0].Text != "ID: "+x.ua.ID+"\nRole: owner" || items[0].ID != x.ua.ID {
 		t.Errorf("list_members = %+v", items)
 	}
 
@@ -500,7 +500,7 @@ func TestListMembersGivesEachPersonASource(t *testing.T) {
 		t.Fatalf("list_members = %+v, want one item per person", items)
 	}
 	for _, it := range items {
-		if it.Kind != "member" || it.ID == "" || !strings.HasSuffix(it.Href, "/people/"+it.ID) || it.Key != it.Href || !strings.HasPrefix(it.Text, "Role: ") {
+		if it.Kind != "member" || it.ID == "" || !strings.HasSuffix(it.Href, "/people/"+it.ID) || it.Key != it.Href || !strings.HasPrefix(it.Text, "ID: "+it.ID+"\nRole: ") {
 			t.Errorf("member item = %+v", it)
 		}
 	}
@@ -518,7 +518,7 @@ func TestMemberWorkloadGivesEachPersonASource(t *testing.T) {
 	book.render(people, 100000)
 	book.render(work, 100000)
 	for _, it := range work {
-		if it.Kind != "member" || !strings.HasSuffix(it.Href, "/people/"+it.ID) || !strings.HasPrefix(it.Text, "Open tasks: ") || !strings.Contains(it.Text, "\nOverdue: ") {
+		if it.Kind != "member" || !strings.HasSuffix(it.Href, "/people/"+it.ID) || !strings.HasPrefix(it.Text, "ID: "+it.ID+"\nOpen tasks: ") || !strings.Contains(it.Text, "\nOverdue: ") {
 			t.Errorf("workload item = %+v", it)
 		}
 		id, known := book.number(it.Key)

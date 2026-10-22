@@ -645,5 +645,5 @@ func (s *AskUNIService) agentMemberWorkload(ctx context.Context, tc ai.ToolConte
 // the same person the same Key, so they share one S#.
 func personItem(base, userID, name, text string) agentItem {
 	h := base + "/people/" + userID
-	return agentItem{Kind: "member", ID: userID, Key: h, Title: name, Href: h, Text: text}
+	return agentItem{Kind: "member", ID: userID, Key: h, Title: name, Href: h, Text: withText("ID: "+userID, text)}
 }
