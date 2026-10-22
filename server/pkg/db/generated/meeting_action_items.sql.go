@@ -83,29 +83,31 @@ const insertMeetingActionItem = `-- name: InsertMeetingActionItem :one
 
 INSERT INTO meeting_action_items (
   id, organization_id, workspace_id, meeting_id, source, summary_id, position,
-  title, owner_text, due_text, evidence, created_by, created_by_kind
+  title, owner_text, due_text, evidence, description, suggested_priority, created_by, created_by_kind
 ) VALUES (
   $1, $2, $3, $4, $5,
   $6, $7, $8, $9, $10,
-  $11, $12, $13
+  $11, $12, $13, $14, $15
 )
-RETURNING id, organization_id, workspace_id, meeting_id, source, summary_id, position, title, owner_text, due_text, task_id, converted_at, converted_by, dismissed_at, dismissed_by, dismiss_reason, created_by, created_by_kind, created_at, updated_at, evidence
+RETURNING id, organization_id, workspace_id, meeting_id, source, summary_id, position, title, owner_text, due_text, task_id, converted_at, converted_by, dismissed_at, dismissed_by, dismiss_reason, created_by, created_by_kind, created_at, updated_at, evidence, description, suggested_priority
 `
 
 type InsertMeetingActionItemParams struct {
-	ID             string      `json:"id"`
-	OrganizationID string      `json:"organization_id"`
-	WorkspaceID    string      `json:"workspace_id"`
-	MeetingID      string      `json:"meeting_id"`
-	Source         string      `json:"source"`
-	SummaryID      pgtype.Text `json:"summary_id"`
-	Position       int32       `json:"position"`
-	Title          string      `json:"title"`
-	OwnerText      string      `json:"owner_text"`
-	DueText        string      `json:"due_text"`
-	Evidence       string      `json:"evidence"`
-	CreatedBy      string      `json:"created_by"`
-	CreatedByKind  string      `json:"created_by_kind"`
+	ID                string      `json:"id"`
+	OrganizationID    string      `json:"organization_id"`
+	WorkspaceID       string      `json:"workspace_id"`
+	MeetingID         string      `json:"meeting_id"`
+	Source            string      `json:"source"`
+	SummaryID         pgtype.Text `json:"summary_id"`
+	Position          int32       `json:"position"`
+	Title             string      `json:"title"`
+	OwnerText         string      `json:"owner_text"`
+	DueText           string      `json:"due_text"`
+	Evidence          string      `json:"evidence"`
+	Description       string      `json:"description"`
+	SuggestedPriority string      `json:"suggested_priority"`
+	CreatedBy         string      `json:"created_by"`
+	CreatedByKind     string      `json:"created_by_kind"`
 }
 
 // Action items of a meeting (UNI-1998, spec meeting follow-through §5.1). A
@@ -125,6 +127,8 @@ func (q *Queries) InsertMeetingActionItem(ctx context.Context, arg InsertMeeting
 		arg.OwnerText,
 		arg.DueText,
 		arg.Evidence,
+		arg.Description,
+		arg.SuggestedPriority,
 		arg.CreatedBy,
 		arg.CreatedByKind,
 	)
@@ -151,6 +155,8 @@ func (q *Queries) InsertMeetingActionItem(ctx context.Context, arg InsertMeeting
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Evidence,
+		&i.Description,
+		&i.SuggestedPriority,
 	)
 	return i, err
 }
@@ -236,7 +242,7 @@ func (q *Queries) ListCarriedOverActionItems(ctx context.Context, arg ListCarrie
 }
 
 const listMeetingActionItems = `-- name: ListMeetingActionItems :many
-SELECT i.id, i.organization_id, i.workspace_id, i.meeting_id, i.source, i.summary_id, i.position, i.title, i.owner_text, i.due_text, i.task_id, i.converted_at, i.converted_by, i.dismissed_at, i.dismissed_by, i.dismiss_reason, i.created_by, i.created_by_kind, i.created_at, i.updated_at, i.evidence,
+SELECT i.id, i.organization_id, i.workspace_id, i.meeting_id, i.source, i.summary_id, i.position, i.title, i.owner_text, i.due_text, i.task_id, i.converted_at, i.converted_by, i.dismissed_at, i.dismissed_by, i.dismiss_reason, i.created_by, i.created_by_kind, i.created_at, i.updated_at, i.evidence, i.description, i.suggested_priority,
   (t.id IS NOT NULL)::boolean AS task_live,
   COALESCE(t.title, '')::text AS task_title,
   COALESCE(t.status, '')::text AS task_status,
@@ -300,6 +306,8 @@ func (q *Queries) ListMeetingActionItems(ctx context.Context, arg ListMeetingAct
 			&i.MeetingActionItem.CreatedAt,
 			&i.MeetingActionItem.UpdatedAt,
 			&i.MeetingActionItem.Evidence,
+			&i.MeetingActionItem.Description,
+			&i.MeetingActionItem.SuggestedPriority,
 			&i.TaskLive,
 			&i.TaskTitle,
 			&i.TaskStatus,
@@ -318,7 +326,7 @@ func (q *Queries) ListMeetingActionItems(ctx context.Context, arg ListMeetingAct
 }
 
 const lockMeetingActionItems = `-- name: LockMeetingActionItems :many
-SELECT i.id, i.organization_id, i.workspace_id, i.meeting_id, i.source, i.summary_id, i.position, i.title, i.owner_text, i.due_text, i.task_id, i.converted_at, i.converted_by, i.dismissed_at, i.dismissed_by, i.dismiss_reason, i.created_by, i.created_by_kind, i.created_at, i.updated_at, i.evidence, (t.id IS NOT NULL)::boolean AS task_live
+SELECT i.id, i.organization_id, i.workspace_id, i.meeting_id, i.source, i.summary_id, i.position, i.title, i.owner_text, i.due_text, i.task_id, i.converted_at, i.converted_by, i.dismissed_at, i.dismissed_by, i.dismiss_reason, i.created_by, i.created_by_kind, i.created_at, i.updated_at, i.evidence, i.description, i.suggested_priority, (t.id IS NOT NULL)::boolean AS task_live
 FROM meeting_action_items i
 LEFT JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
 WHERE i.organization_id = $1 AND i.meeting_id = $2
@@ -371,6 +379,8 @@ func (q *Queries) LockMeetingActionItems(ctx context.Context, arg LockMeetingAct
 			&i.MeetingActionItem.CreatedAt,
 			&i.MeetingActionItem.UpdatedAt,
 			&i.MeetingActionItem.Evidence,
+			&i.MeetingActionItem.Description,
+			&i.MeetingActionItem.SuggestedPriority,
 			&i.TaskLive,
 		); err != nil {
 			return nil, err

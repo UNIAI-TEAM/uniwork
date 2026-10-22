@@ -434,6 +434,15 @@ hạn xếp cuối), tối đa 100. Cuộc họp không có dự án → `items:
 - Bản tóm tắt cũ có `decisions` dạng chuỗi: bên đọc chấp nhận cả hai dạng (schema
   khoan dung, ADR 0003).
 
+Bổ sung 2026-10-22 (prompt `meeting_summary@6`, `meeting_live_items@2`): mỗi việc AI có
+thêm `description` — một đến ba câu văn xuôi AI viết lại việc cần làm, lý do và kết quả
+mong đợi, chỉ từ nội dung cuộc họp — và `priority` gợi ý (`low`/`medium`/`high`/`urgent`)
+chỉ khi cuộc họp nói rõ mức gấp; không có thì để rỗng. Server cắt mô tả ở 1000 ký tự, bỏ
+mức độ ngoài bốn giá trị đó, lưu vào hai cột mới `description`, `suggested_priority`
+(`TEXT NOT NULL DEFAULT ''`; việc tay luôn rỗng) và trả cùng tên trong §6.2. Ô soạn task
+điền sẵn mô tả (kèm các dòng căn cứ client tự lấy) và mức độ từ đó. `@5`, `live_items@1`
+vẫn đăng ký cho các dòng usage cũ.
+
 ### 7.3 Chọn nguồn transcript
 
 Tóm tắt, biên bản và màn transcript dùng cùng một quy tắc:

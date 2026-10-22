@@ -324,6 +324,8 @@ type MeetingActionItemDTO struct {
 	Title               string                    `json:"title" example:"Gửi báo cáo sprint"`
 	OwnerText           string                    `json:"owner_text" description:"Người phụ trách như được nhắc, nguyên văn" example:"anh Hùng"`
 	DueText             string                    `json:"due_text" description:"Hạn như được nhắc, nguyên văn" example:"thứ sáu tuần sau"`
+	Description         string                    `json:"description" description:"Mô tả văn xuôi AI viết lại từ nội dung họp (meeting_summary@6+); rỗng khi không có" example:"Tổng hợp tiến độ sprint và gửi cho khách trước buổi demo để khách duyệt phạm vi."`
+	SuggestedPriority   string                    `json:"suggested_priority" description:"Mức độ AI gợi ý khi cuộc họp nêu rõ: low, medium, high hoặc urgent; rỗng khi không có" example:"high"`
 	SuggestedAssigneeID *string                   `json:"suggested_assignee_id" description:"Thành viên duy nhất khớp tên được nhắc; chỉ với việc chờ xử lý" example:"01JABC1234567890ABCDEFGH"`
 	SuggestedDueDate    *string                   `json:"suggested_due_date" description:"Hạn được nhắc đọc theo ngày họp (YYYY-MM-DD); chỉ với việc chờ xử lý" example:"2026-10-30"`
 	Status              string                    `json:"status" enum:"PENDING,CONVERTED,DISMISSED" example:"PENDING"`

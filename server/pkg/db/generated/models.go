@@ -1532,27 +1532,29 @@ type MeetingAccessGrant struct {
 }
 
 type MeetingActionItem struct {
-	ID             string             `json:"id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	MeetingID      string             `json:"meeting_id"`
-	Source         string             `json:"source"`
-	SummaryID      pgtype.Text        `json:"summary_id"`
-	Position       int32              `json:"position"`
-	Title          string             `json:"title"`
-	OwnerText      string             `json:"owner_text"`
-	DueText        string             `json:"due_text"`
-	TaskID         pgtype.Text        `json:"task_id"`
-	ConvertedAt    pgtype.Timestamptz `json:"converted_at"`
-	ConvertedBy    pgtype.Text        `json:"converted_by"`
-	DismissedAt    pgtype.Timestamptz `json:"dismissed_at"`
-	DismissedBy    pgtype.Text        `json:"dismissed_by"`
-	DismissReason  string             `json:"dismiss_reason"`
-	CreatedBy      string             `json:"created_by"`
-	CreatedByKind  string             `json:"created_by_kind"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	Evidence       string             `json:"evidence"`
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	WorkspaceID       string             `json:"workspace_id"`
+	MeetingID         string             `json:"meeting_id"`
+	Source            string             `json:"source"`
+	SummaryID         pgtype.Text        `json:"summary_id"`
+	Position          int32              `json:"position"`
+	Title             string             `json:"title"`
+	OwnerText         string             `json:"owner_text"`
+	DueText           string             `json:"due_text"`
+	TaskID            pgtype.Text        `json:"task_id"`
+	ConvertedAt       pgtype.Timestamptz `json:"converted_at"`
+	ConvertedBy       pgtype.Text        `json:"converted_by"`
+	DismissedAt       pgtype.Timestamptz `json:"dismissed_at"`
+	DismissedBy       pgtype.Text        `json:"dismissed_by"`
+	DismissReason     string             `json:"dismiss_reason"`
+	CreatedBy         string             `json:"created_by"`
+	CreatedByKind     string             `json:"created_by_kind"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Evidence          string             `json:"evidence"`
+	Description       string             `json:"description"`
+	SuggestedPriority string             `json:"suggested_priority"`
 }
 
 type MeetingAttendanceMark struct {

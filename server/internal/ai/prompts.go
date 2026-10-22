@@ -8,8 +8,8 @@ import (
 
 // Prompt keys used by callers.
 const (
-	PromptMeetingSummary     = "meeting_summary@5"
-	PromptMeetingLiveItems   = "meeting_live_items@1"
+	PromptMeetingSummary     = "meeting_summary@6"
+	PromptMeetingLiveItems   = "meeting_live_items@2"
 	PromptCopilotAnswer      = "copilot_answer@1"
 	PromptCopilotAnswerV2    = "copilot_answer@2"
 	PromptCopilotAnswerV3    = "copilot_answer@3"
@@ -118,6 +118,27 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 - Write every string in the language named by the caller.
 `
 
+// meetingSummaryRulesV6 is the @5 opening with two more fields per action
+// item (actionItemProseRules): a prose description and a suggested priority,
+// which the task composer prefills.
+const meetingSummaryRulesV6 = `You turn meeting transcripts and notes into a written record for a Vietnamese work team.
+Respond with a single JSON object and nothing else, shaped exactly as:
+{"summary": string, "decisions": [{"text": string, "evidence": string[]}], "action_items": [{"title": string, "owner": string, "due": string, "description": string, "priority": string, "evidence": string[]}]}
+- "summary": at most 6 sentences covering what was discussed and the outcome; one or two sentences when little was said. Never pad it.
+- "decisions": concrete decisions that were made; empty array if none. "text" states the decision.
+- "action_items": tasks someone must do next that the input states or clearly agrees on; empty array if none. "title" is an imperative sentence. "owner" is a person the input names as responsible, written as it appears there, or "" when nobody is named. "due" is a date or relative time as stated in the input, or "" when none is stated. Never guess an owner or a due date.
+` + actionItemProseRules + `- Each transcript line, note and chat message starts with a label in square brackets: [S1] for a transcript line, [N1] for a note, [C1] for a chat message.
+- "evidence" lists the labels of the lines a decision or action item rests on, written without brackets, for example ["S12", "N3"]. Use only labels that appear in the input. Use an empty array when no line supports it, for example a vote taken from "Recorded votes".
+- Write every string in the language named by the caller.
+`
+
+// actionItemProseRules (meeting_summary@6, meeting_live_items@2) ask for an
+// item's description and priority from the input alone: the description is
+// prefilled into a task people read as the meeting's word.
+const actionItemProseRules = `- "description": one to three sentences of prose restating what has to be done, the context or reason the input gives for it, and the expected result. Use only what the input says; never add a fact, name, number or date it does not state. "" when the input says nothing about the task beyond its title.
+- "priority": "urgent", "high", "medium" or "low" only when the input signals how pressing the task is: an explicit word of urgency or priority (for example "gấp", "ưu tiên"), work that blocks other work, or a close deadline stated in the input. Otherwise "". Never guess a priority.
+`
+
 // meetingLiveItemsRules is meeting_live_items@1 (scribe spec §4.4, §8): the
 // newest transcript lines of a meeting under way, the meeting's existing
 // items, and the same owner/due rules as meeting_summary@3+.
@@ -132,6 +153,27 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 - Most stretches of a meeting settle nothing: an empty "action_items" array is a correct answer.
 - Write every string in the language named by the caller.
 `
+
+// meetingLiveItemsRulesV2 is @1 with actionItemProseRules.
+const meetingLiveItemsRulesV2 = `You pick out follow-up tasks from the newest lines of a meeting that is still under way, for a Vietnamese work team.
+Respond with a single JSON object and nothing else, shaped exactly as:
+{"action_items": [{"title": string, "owner": string, "due": string, "description": string, "priority": string, "evidence": string[]}]}
+- "action_items": tasks someone must do next that these lines state or clearly agree on; empty array if none. Leave out a topic the lines are still discussing. "title" is an imperative sentence. "owner" is a person the input names as responsible, written as it appears there, or "" when nobody is named. "due" is a date or relative time as stated in the input, or "" when none is stated. Never guess an owner or a due date.
+` + actionItemProseRules + `- Each transcript line starts with a label in square brackets, for example [S1]. "evidence" lists the labels of the lines an item rests on, written without brackets, for example ["S3"]. Use only labels that appear in the input.
+- The transcript comes from automatic speech recognition and may contain misheard words and names. Do not invent names, dates or numbers to repair it; leave out a passage you cannot understand.
+- A speaker label may be a technical identifier rather than a name; never use an identifier as an owner.
+- "Existing action items" lists tasks this meeting already has. Never put one of them in "action_items" again, even in different words.
+- Most stretches of a meeting settle nothing: an empty "action_items" array is a correct answer.
+- Write every string in the language named by the caller.
+`
+
+// actionItemSchemaV6 is one action item of meeting_summary@6 and
+// meeting_live_items@2.
+const actionItemSchemaV6 = `{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"},"description":{"type":"string"},"priority":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}},"required":["title","owner","due","description","priority","evidence"],"additionalProperties":false}`
+
+const meetingLiveItemsSchemaV2 = `{"type":"object","properties":{"action_items":{"type":"array","items":` + actionItemSchemaV6 + `}},"required":["action_items"],"additionalProperties":false}`
+
+const meetingSummarySchemaV6 = `{"type":"object","properties":{"summary":{"type":"string"},"decisions":{"type":"array","items":{"type":"object","properties":{"text":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}},"required":["text","evidence"],"additionalProperties":false}},"action_items":{"type":"array","items":` + actionItemSchemaV6 + `}},"required":["summary","decisions","action_items"],"additionalProperties":false}`
 
 const meetingLiveItemsSchema = `{"type":"object","properties":{"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}},"required":["title","owner","due","evidence"],"additionalProperties":false}}},"required":["action_items"],"additionalProperties":false}`
 
@@ -286,6 +328,13 @@ func init() {
 		OutputSchema: json.RawMessage(meetingSummarySchemaV5),
 		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 5) },
 	})
+	// @6 renders exactly like @5; only the asked-for item fields change.
+	register(Prompt{
+		ID: "meeting_summary", Version: 6,
+		System:       meetingSummaryRulesV6 + meetingSummaryFactRules + meetingSummaryInputRules + meetingSummaryExistingRules + UntrustedFooter,
+		OutputSchema: json.RawMessage(meetingSummarySchemaV6),
+		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 5) },
+	})
 
 	// The input is a subset of a summary's (title, existing items, labelled
 	// transcript), so it renders the way meeting_summary@5 does.
@@ -293,6 +342,12 @@ func init() {
 		ID: "meeting_live_items", Version: 1,
 		System:       meetingLiveItemsRules + UntrustedFooter,
 		OutputSchema: json.RawMessage(meetingLiveItemsSchema),
+		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 5) },
+	})
+	register(Prompt{
+		ID: "meeting_live_items", Version: 2,
+		System:       meetingLiveItemsRulesV2 + UntrustedFooter,
+		OutputSchema: json.RawMessage(meetingLiveItemsSchemaV2),
 		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 5) },
 	})
 

@@ -7,6 +7,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/service"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestSummaryLocaleIsAClosedSet(t *testing.T) {
@@ -14,6 +17,26 @@ func TestSummaryLocaleIsAClosedSet(t *testing.T) {
 		if got := summaryLocale(raw); got != want {
 			t.Errorf("summaryLocale(%q) = %q, want %q", raw, got, want)
 		}
+	}
+}
+
+// TestActionItemDTOCarriesTheAIProse: an AI item's description and suggested
+// priority reach the client under the names the composer prefills from.
+func TestActionItemDTOCarriesTheAIProse(t *testing.T) {
+	d := toActionItemDTO(service.ActionItemView{Item: db.MeetingActionItem{
+		ID: "01J8X4ACTN1P2Q3R4S5T6U7V", Source: "AI", Title: "Gửi báo giá",
+		Description: "Gửi báo giá để khách chốt đơn.", SuggestedPriority: "high",
+	}})
+	raw, err := json.Marshal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["description"] != "Gửi báo giá để khách chốt đơn." || got["suggested_priority"] != "high" {
+		t.Fatalf("dto = %s", raw)
 	}
 }
 
@@ -74,6 +97,13 @@ func TestMeetingActionItemsHTTP(t *testing.T) {
 	}
 	if counts := out["counts"].(map[string]any); counts["pending"] != float64(2) {
 		t.Fatalf("counts: %v", counts)
+	}
+	// A manual item has no AI description or priority: both keys, empty.
+	if d, ok := first["description"].(string); !ok || d != "" {
+		t.Fatalf("manual item description: %v", first)
+	}
+	if p, ok := first["suggested_priority"].(string); !ok || p != "" {
+		t.Fatalf("manual item suggested_priority: %v", first)
 	}
 	// A manual item has no evidence: an empty list, not null (UNI-2002).
 	if ev, ok := first["evidence"].([]any); !ok || len(ev) != 0 {

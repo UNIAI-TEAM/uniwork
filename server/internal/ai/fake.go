@@ -106,9 +106,11 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 var fakeNoteLabel = regexp.MustCompile(`^- \[(N\d+)\] `)
 
 // fakeNoteActionItems reads the meeting's notes block: a line holding
-// "Việc: <title>" or "Việc: <title> | <owner>" is an action item, so a
-// development or E2E run can drive the follow-through with items it chose.
-// From @5 each item cites the note it came from.
+// "Việc: <title>", "Việc: <title> | <owner>" or "Việc: <title> | <owner> |
+// <priority>" is an action item, so a development or E2E run can drive the
+// follow-through with items it chose. From @5 each item cites the note it
+// came from; from @6 it carries a fixed description and, when the third
+// segment is an allowed one, a priority.
 func fakeNoteActionItems(prompt string) []ActionItem {
 	items := []ActionItem{}
 	_, block, ok := strings.Cut(prompt, `<untrusted source="notes">`)
@@ -126,8 +128,13 @@ func fakeNoteActionItems(prompt string) []ActionItem {
 		if !ok {
 			continue
 		}
-		title, owner, _ := strings.Cut(rest, "|")
+		title, rest, _ := strings.Cut(rest, "|")
+		owner, priority, _ := strings.Cut(rest, "|")
 		it := ActionItem{Title: strings.TrimSpace(title), Owner: strings.TrimSpace(owner)}
+		it.Description = "Theo ghi chú cuộc họp: " + it.Title + "."
+		if p := strings.ToLower(strings.TrimSpace(priority)); actionItemPriorities[p] {
+			it.Priority = p
+		}
 		if label != "" {
 			it.Evidence = []string{label}
 		}

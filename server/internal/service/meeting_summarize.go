@@ -358,6 +358,7 @@ func replaceSummaryActionItems(ctx context.Context, q *db.Queries, m db.Meeting,
 			ID: util.NewID(), OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID, MeetingID: m.ID,
 			Source: ActionItemSourceAI, SummaryID: strText(sum.ID), Position: position, Title: title,
 			OwnerText: strings.TrimSpace(it.Owner), DueText: strings.TrimSpace(it.Due), Evidence: string(evidence),
+			Description: strings.TrimSpace(it.Description), SuggestedPriority: it.Priority,
 			CreatedBy: creator.ID, CreatedByKind: string(creator.Kind),
 		}); err != nil {
 			return out, err

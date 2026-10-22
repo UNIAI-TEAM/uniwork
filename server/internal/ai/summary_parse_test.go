@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // TestParseSummaryJSONValidates (L1): garbage and empty answers are
@@ -92,6 +93,39 @@ func TestParseLiveItemsJSON(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, []ActionItem{{Title: "Gửi báo giá", Owner: "An", Evidence: []string{"S2"}}}) {
 		t.Fatalf("not cleaned: %+v", got)
+	}
+}
+
+// TestActionItemDescriptionAndPriority (meeting_summary@6, meeting_live_items@2):
+// both parsers trim the prose description and cap it at maxItemDescriptionRunes,
+// and keep a priority only when it is one of low|medium|high|urgent (any case);
+// anything else, a guess the model dressed up included, becomes "".
+func TestActionItemDescriptionAndPriority(t *testing.T) {
+	long := strings.Repeat("ạ", maxItemDescriptionRunes+50)
+	items := `[{"title":"A","description":"  Gửi báo giá cho khách để chốt hợp đồng.  ","priority":" High "},` +
+		`{"title":"B","description":"` + long + `","priority":"critical"},` +
+		`{"title":"C","priority":"urgent"},{"title":"D","priority":""}]`
+	want := []ActionItem{
+		{Title: "A", Description: "Gửi báo giá cho khách để chốt hợp đồng.", Priority: "high"},
+		{Title: "B", Description: capRunes(long, maxItemDescriptionRunes)},
+		{Title: "C", Priority: "urgent"},
+		{Title: "D"},
+	}
+	sum, err := ParseSummaryJSON(`{"summary":"x","decisions":[],"action_items":` + items + `}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, err := ParseLiveItemsJSON(`{"action_items":` + items + `}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, got := range map[string][]ActionItem{"summary": sum.ActionItems, "live": live} {
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: %+v, want %+v", name, got, want)
+		}
+	}
+	if n := utf8.RuneCountInString(want[1].Description); n != maxItemDescriptionRunes {
+		t.Fatalf("capped description has %d runes", n)
 	}
 }
 

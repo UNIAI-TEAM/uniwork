@@ -193,6 +193,7 @@ func (s *MeetingService) storeLiveItems(ctx context.Context, m db.Meeting, run d
 				ID: util.NewID(), OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID, MeetingID: m.ID,
 				Source: ActionItemSourceLive, Position: position, Title: title,
 				OwnerText: strings.TrimSpace(it.Owner), DueText: strings.TrimSpace(it.Due), Evidence: string(evidence),
+				Description: strings.TrimSpace(it.Description), SuggestedPriority: it.Priority,
 				CreatedBy: scribeActor.ID, CreatedByKind: string(scribeActor.Kind),
 			})
 			if err != nil {

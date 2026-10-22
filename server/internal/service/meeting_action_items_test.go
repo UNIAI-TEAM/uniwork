@@ -655,7 +655,8 @@ func TestStoreSummaryKeepsHandledItems(t *testing.T) {
 	}
 
 	sum := seedSummary(t, s, m, ua.ID,
-		ai.ActionItem{Title: "đặt  phòng"}, ai.ActionItem{Title: "Việc mới", Owner: "B"}, ai.ActionItem{Title: "GỬI BÁO CÁO"},
+		ai.ActionItem{Title: "đặt  phòng"}, ai.ActionItem{Title: "Việc mới", Owner: "B", Description: " Làm việc mới để chốt bản demo. ", Priority: "urgent"},
+		ai.ActionItem{Title: "GỬI BÁO CÁO"},
 		ai.ActionItem{Title: "Việc mới"}, ai.ActionItem{Title: " "},
 	)
 	after := itemsByTitle(t, s, ua.ID, m)
@@ -668,10 +669,11 @@ func TestStoreSummaryKeepsHandledItems(t *testing.T) {
 	if got := after["Đặt phòng"]; got.Item.ID != items["Đặt phòng"].Item.ID || got.Status != ActionItemDismissed {
 		t.Fatalf("dismissed item = %+v", got)
 	}
-	if got := after["Việc tay"]; got.Item.ID != manual.Item.ID {
+	if got := after["Việc tay"]; got.Item.ID != manual.Item.ID || got.Item.Description != "" || got.Item.SuggestedPriority != "" {
 		t.Fatalf("manual item = %+v", got)
 	}
 	if got := after["Việc mới"]; got.Item.SummaryID.String != sum.ID || got.Item.OwnerText != "B" || got.Item.Position != 0 ||
+		got.Item.Description != "Làm việc mới để chốt bản demo." || got.Item.SuggestedPriority != "urgent" ||
 		got.Item.CreatedBy != "meeting_summary" || got.Item.CreatedByKind != "system" {
 		t.Fatalf("new item = %+v", got)
 	}

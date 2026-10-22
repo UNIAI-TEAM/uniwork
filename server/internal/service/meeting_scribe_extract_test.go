@@ -108,7 +108,7 @@ func liveItems(t *testing.T, s *MeetingService, m db.Meeting) []db.MeetingAction
 
 func TestAgentExtractStoresLiveItems(t *testing.T) {
 	s, llm, ua, m, c, add := liveFixture(t, `{"action_items":[
-		{"title":"Gửi báo giá cho khách","owner":"Bình","due":"thứ Sáu","evidence":["S1","S9"]},
+		{"title":"Gửi báo giá cho khách","owner":"Bình","due":"thứ Sáu","description":" Gửi báo giá để khách chốt đơn. ","priority":"high","evidence":["S1","S9"]},
 		{"title":"gửi  BÁO CÁO quý","owner":"","due":"","evidence":[]},
 		{"title":"Gửi báo giá cho khách","owner":"","due":"","evidence":[]}]}`)
 	ctx := context.Background()
@@ -130,6 +130,7 @@ func TestAgentExtractStoresLiveItems(t *testing.T) {
 	it := items[0]
 	segs, _ := s.q.ListSegmentsAfterExtractCursor(ctx, db.ListSegmentsAfterExtractCursorParams{MeetingID: m.ID, RowLimit: 10})
 	if it.Title != "Gửi báo giá cho khách" || it.OwnerText != "Bình" || it.DueText != "thứ Sáu" ||
+		it.Description != "Gửi báo giá để khách chốt đơn." || it.SuggestedPriority != "high" ||
 		it.CreatedBy != "meeting_scribe" || it.CreatedByKind != "system" || it.SummaryID.Valid ||
 		!strings.Contains(it.Evidence, segs[0].ID) || strings.Contains(it.Evidence, segs[1].ID) {
 		t.Fatalf("stored item %+v", it)
@@ -141,7 +142,7 @@ func TestAgentExtractStoresLiveItems(t *testing.T) {
 	if n := countSummaryRows(t, s, `SELECT count(*) FROM outbox_events WHERE topic = 'action_item.created' AND payload::jsonb->>'action_item_id' = $1`, it.ID); n != 1 {
 		t.Fatalf("outbox rows = %d", n)
 	}
-	if n := countSummaryRows(t, s, `SELECT count(*) FROM ai_usage_events WHERE capability = 'meeting_live_items' AND actor_kind = 'system'`); n != 1 {
+	if n := countSummaryRows(t, s, `SELECT count(*) FROM ai_usage_events WHERE capability = 'meeting_live_items' AND prompt_id = 'meeting_live_items@2' AND actor_kind = 'system'`); n != 1 {
 		t.Fatalf("usage rows = %d", n)
 	}
 	r := latestRun(t, s, m.ID)

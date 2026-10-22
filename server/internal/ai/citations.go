@@ -74,6 +74,12 @@ type ActionItem struct {
 	// Evidence is the meeting_summary@5 labels ("S12", "N3", "C5") of the
 	// input lines the item rests on; the caller maps them to rows.
 	Evidence []string `json:"evidence,omitempty"`
+	// Description (meeting_summary@6, meeting_live_items@2) restates the item
+	// in prose from the meeting content; the task composer prefills it.
+	Description string `json:"description,omitempty"`
+	// Priority is low|medium|high|urgent when the meeting signalled one, ""
+	// otherwise; cleanActionItems drops any other value.
+	Priority string `json:"priority,omitempty"`
 }
 
 // Decision is one decision of a meeting summary. Before @5 a decision was a
@@ -235,8 +241,10 @@ const (
 	maxItemTitleRunes   = 300
 	maxItemOwnerRunes   = 120
 	maxItemDueRunes     = 120
-	maxEvidenceLabels   = 10
-	maxEvidenceRunes    = 16
+	// maxItemDescriptionRunes: the prompt asks for 1-3 sentences.
+	maxItemDescriptionRunes = 1000
+	maxEvidenceLabels       = 10
+	maxEvidenceRunes        = 16
 )
 
 // ParseSummaryJSON accepts the model text and tolerates a ```json fence or
@@ -269,6 +277,9 @@ func ParseSummaryJSON(s string) (MeetingSummary, error) {
 	return out, nil
 }
 
+// actionItemPriorities are the task priorities a model may suggest.
+var actionItemPriorities = map[string]bool{"low": true, "medium": true, "high": true, "urgent": true}
+
 // cleanActionItems trims and caps the items a model proposed, dropping the
 // untitled ones.
 func cleanActionItems(in []ActionItem) []ActionItem {
@@ -281,6 +292,11 @@ func cleanActionItems(in []ActionItem) []ActionItem {
 		it.Owner = capRunes(strings.TrimSpace(it.Owner), maxItemOwnerRunes)
 		it.Due = capRunes(strings.TrimSpace(it.Due), maxItemDueRunes)
 		it.Evidence = capEvidence(it.Evidence)
+		it.Description = capRunes(strings.TrimSpace(it.Description), maxItemDescriptionRunes)
+		it.Priority = strings.ToLower(strings.TrimSpace(it.Priority))
+		if !actionItemPriorities[it.Priority] {
+			it.Priority = ""
+		}
 		items = append(items, it)
 	}
 	return items
