@@ -58,7 +58,21 @@ tags:
           duration: 400
 - assertVisible: "Delete|Xóa"
 - assertVisible: "Like|Thích"
-# Close from the dimmed backdrop, as a person would.
-- tapOn: "Close|Đóng"
+# Close from the dimmed backdrop, as a person would, at a point the column never covers: its 16 dp side padding,
+# halfway down (lib/maestro-flows.test.ts holds the point to lib/action-menu-layout.ts). Not by the backdrop's
+# name: Maestro taps the centre of what it finds, and the backdrop's centre is under the menu, so that tap pressed
+# whichever row sat there (Pin, Forward, Delete…) against the staging room; and on iOS the column's
+# accessibilityViewIsModal hides the backdrop from the tree Maestro reads.
+- tapOn:
+    point: "2%,50%"
 - assertNotVisible:
     id: message-actions-menu
+# The tap closed the menu and ran nothing: still in the room, no sheet, dialog or edit banner, the message not pinned.
+- assertVisible:
+    id: composer-input
+- assertVisible: .*${output.menuStamp}.*
+- assertNotVisible: "Forward to|Chuyển tiếp tới"
+- assertNotVisible: "Delete this message.|Xóa tin nhắn này."
+- assertNotVisible: "Edit message|Sửa tin nhắn"
+- assertNotVisible: "Create reminder|Tạo nhắc hẹn"
+- assertNotVisible: (Pinned|Tin ghim) \d+/\d+\. ${output.menuStamp}

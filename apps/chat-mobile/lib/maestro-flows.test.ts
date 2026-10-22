@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { actionMenuLayout } from "./action-menu-layout";
 
 const appRoot = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(appRoot, "../..");
@@ -83,4 +84,57 @@ describe("Maestro flows", () => {
     const missing = ids.filter(({ id }) => !source.includes(`"${id}"`) && !source.includes(`\`${id}`)).map(({ where, id }) => `${where} ${id}`);
     expect(missing).toEqual([]);
   });
+
+  // A full-screen backdrop (the long-press menu's, BottomSheet's) is named common.close, and Maestro taps the centre of
+  // what it finds. That centre is under the menu or the sheet drawn above the backdrop, so a tap by that name presses
+  // whichever row sits there (Pin, Forward, Delete…) against the shared staging room, and the menu still closes.
+  it("never taps an overlay closed by the backdrop's name", () => {
+    const close = [closeLabel("vi"), closeLabel("en")];
+    // `- tapOn: "Close|Đóng"`, or `text: …` right under a `- tapOn:` block.
+    const tapped = lines.flatMap(({ where, line }, i) => {
+      const inline = /^\s*-\s*tapOn:\s*"?([^"]+?)"?\s*$/.exec(line)?.[1];
+      const underTap = /^\s*-\s*tapOn:\s*$/.test(lines[i - 1]?.line ?? "");
+      const nested = underTap ? /^\s*text:\s*"?([^"]+?)"?\s*$/.exec(line)?.[1] : undefined;
+      const pattern = inline ?? nested;
+      return pattern ? [{ where, pattern }] : [];
+    });
+    const hits = tapped.filter(({ pattern }) => close.some((label) => new RegExp(`^(?:${pattern})$`).test(label)));
+    expect(hits.map(({ where, pattern }) => `${where} "${pattern}"`)).toEqual([]);
+  });
+
+  // The menu flow closes the menu at a point, so the point must be one the column never covers at any width the nightly
+  // runs: the column's side padding, which is what is left beside a width-capped card on the narrowest window.
+  it("closes the long-press menu at a point in the gutter beside the column", () => {
+    const flow = lines.filter(({ where }) => where.startsWith(path.join("maestro", "flows", "message-menu-large-text.yaml")));
+    const points = flow.flatMap(({ where, line }) => {
+      const match = /^\s*point:\s*"?(\d+(?:\.\d+)?)%,\s*(\d+(?:\.\d+)?)%"?\s*$/.exec(line);
+      return match ? [{ where, x: Number(match[1]), y: Number(match[2]) }] : [];
+    });
+    expect(points.length).toBeGreaterThan(0);
+    const narrow = 360;
+    const { menuWidth } = actionMenuLayout({
+      windowWidth: narrow,
+      windowHeight: 640,
+      fontScale: 2,
+      insetTop: 24,
+      insetBottom: 48,
+      reactions: true,
+      senderName: false,
+      avatar: false,
+    });
+    const gutter = (narrow - menuWidth) / 2;
+    expect(gutter).toBeGreaterThan(8);
+    // The widest iPhone the simulator step may pick (`... | last`) is 440 pt; the point must stay off the very edge too.
+    const outside = points.filter(({ x, y }) => !((x / 100) * 440 < gutter && x >= 1 && y >= 25 && y <= 75));
+    expect(outside.map(({ where, x, y }) => `${where} ${x}%,${y}%`)).toEqual([]);
+  });
 });
+
+/** common.close in one language: the name every full-screen backdrop carries. */
+function closeLabel(lang: "vi" | "en"): string {
+  const file: unknown = JSON.parse(fs.readFileSync(path.join(appRoot, `locales/${lang}.json`), "utf8"));
+  const common: unknown = file !== null && typeof file === "object" && "common" in file ? file.common : null;
+  const close: unknown = common !== null && typeof common === "object" && "close" in common ? common.close : null;
+  if (typeof close !== "string") throw new Error(`locales/${lang}.json has no common.close`);
+  return close;
+}
