@@ -6106,6 +6106,12 @@
         "2": "Hôm nay tôi nên làm gì trước?",
         "3": "Tóm tắt các cuộc họp tuần này",
         "4": "Việc nào đang chờ tôi duyệt?"
+      },
+      "more": {
+        "1": "Ai đang có nhiều việc nhất?",
+        "2": "Dự án nào đang chậm tiến độ?",
+        "3": "Tuần tới có những cuộc họp nào?",
+        "4": "Việc ưu tiên cao nào còn đang mở?"
       }
     }
   },

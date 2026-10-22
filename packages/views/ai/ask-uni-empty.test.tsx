@@ -10,7 +10,12 @@ import { composerRoutes, user, workspace } from "./ask-uni-fixtures";
 import { AskUniEmptyState } from "./ask-uni-empty";
 import { AskUniPanel } from "./ask-uni-panel";
 
+const motion = vi.hoisted(() => ({ reduce: false }));
+vi.mock("motion/react", async (importOriginal) => ({ ...(await importOriginal<typeof import("motion/react")>()), useReducedMotion: () => motion.reduce }));
+
 initI18n();
+
+const MORE = ["Ai đang có nhiều việc nhất?", "Dự án nào đang chậm tiến độ?", "Tuần tới có những cuộc họp nào?", "Việc ưu tiên cao nào còn đang mở?"];
 
 const SETS: Record<string, string[]> = {
   task: ["Tóm tắt task này", "Task này đang vướng ở đâu?", "Ai nên nhận task này?", "Việc nào liên quan đến task này?"],
@@ -24,18 +29,48 @@ const SETS: Record<string, string[]> = {
 const buttons = () => screen.getAllByRole("button").map((b) => b.textContent);
 
 describe("AskUniEmptyState", () => {
-  it.each(Object.keys(SETS).filter((k) => k !== "other"))("shows the four %s questions", (kind) => {
-    render(<AskUniEmptyState kind={kind} onAsk={vi.fn()} />);
-    expect(screen.getByRole("heading", { name: "Hỏi UNI về công việc" })).toBeInTheDocument();
-    expect(buttons()).toEqual(SETS[kind]);
+  beforeEach(() => {
+    motion.reduce = false;
   });
 
-  it("falls back to the other set for null, member and unknown kinds", () => {
+  it.each(Object.keys(SETS).filter((k) => k !== "other"))("shows the four %s questions, then the general ones", (kind) => {
+    render(<AskUniEmptyState kind={kind} onAsk={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Hỏi UNI về công việc" })).toBeInTheDocument();
+    expect(buttons()).toEqual([...SETS[kind]!, ...SETS.other!]);
+  });
+
+  it("falls back to the other set, then more general questions, for null, member and unknown kinds", () => {
     for (const kind of [null, "member", "email_thread"]) {
       const { unmount } = render(<AskUniEmptyState kind={kind} onAsk={vi.fn()} />);
-      expect(buttons()).toEqual(SETS.other);
+      expect(buttons()).toEqual([...SETS.other!, ...MORE]);
       unmount();
     }
+  });
+
+  it("drifts each row with an echo copy that screen readers and Tab skip", () => {
+    render(<AskUniEmptyState kind="task" onAsk={vi.fn()} />);
+    expect(document.querySelector('[data-slot="ask-uni-empty"]')).toHaveAttribute("data-motion", "full");
+    const echoes = document.querySelectorAll('[data-copy="echo"]');
+    expect(echoes).toHaveLength(2);
+    for (const echo of echoes) {
+      expect(echo).toHaveAttribute("aria-hidden", "true");
+      expect(echo).toHaveAttribute("inert");
+    }
+  });
+
+  it("stands still with each question once under reduced motion", () => {
+    motion.reduce = true;
+    render(<AskUniEmptyState kind="task" onAsk={vi.fn()} />);
+    expect(document.querySelector('[data-slot="ask-uni-empty"]')).toHaveAttribute("data-motion", "reduced");
+    expect(document.querySelectorAll('[data-copy="echo"]')).toHaveLength(0);
+    expect(buttons()).toEqual([...SETS.task!, ...SETS.other!]);
+  });
+
+  it("draws UNI's mark from its parts so it can assemble", () => {
+    render(<AskUniEmptyState kind={null} onAsk={vi.fn()} />);
+    const mark = document.querySelector('[data-slot="ask-uni-empty-mark"]')!;
+    expect(mark.querySelectorAll('[data-part="head"]')).toHaveLength(2);
+    expect(mark.querySelectorAll('[data-part="body"]')).toHaveLength(2);
   });
 
   it("welcomes with UNI for Auto and with Claude and the model's description for a Claude model", () => {

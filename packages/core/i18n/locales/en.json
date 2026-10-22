@@ -6113,6 +6113,12 @@
         "2": "What should I do first today?",
         "3": "Summarize this week's meetings",
         "4": "What is waiting for my approval?"
+      },
+      "more": {
+        "1": "Who has the most on their plate?",
+        "2": "Which projects are falling behind?",
+        "3": "Which meetings are coming up next week?",
+        "4": "Which high-priority tasks are still open?"
       }
     }
   },
