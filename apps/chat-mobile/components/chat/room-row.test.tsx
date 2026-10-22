@@ -1,4 +1,5 @@
 import { fireEvent, screen } from "@testing-library/react-native";
+import { Dimensions } from "react-native";
 import { render, viText } from "@/test/render";
 import { RoomRow, type RoomRowProps } from "./room-row";
 
@@ -106,5 +107,21 @@ describe("RoomRow", () => {
     expect(screen.getByText(viText("chat.sidebar_draft_label"))).toBeOnTheScreen();
     expect(screen.queryByText("Mai họp nhé")).toBeNull();
     expect(screen.getByRole("button", { name: `Bình, ${viText("chat.sidebar_draft_label")} Mai họp lúc 9 giờ, 09:41` })).toBeOnTheScreen();
+  });
+
+  it("gives the name two lines and wraps the time and marks under it at the accessibility text sizes", async () => {
+    const large = jest.spyOn(Dimensions, "get").mockReturnValue({ width: 360, height: 640, scale: 2, fontScale: 2 });
+    const { unmount } = await render(<RoomRow {...props({ unread: 3 })} />);
+    expect(screen.getByText("Bình").props.numberOfLines).toBe(2);
+    expect(screen.getByText("Mai họp nhé").props.numberOfLines).toBe(2);
+    expect(screen.getByText("09:41")).toBeOnTheScreen();
+    await unmount();
+    const drafted = await render(<RoomRow {...props({ draft: "Mai họp lúc 9 giờ" })} />);
+    expect(screen.getByText(/Mai họp lúc 9 giờ/).props.numberOfLines).toBe(2);
+    await drafted.unmount();
+    large.mockRestore();
+    await render(<RoomRow {...props({ draft: "Mai họp lúc 9 giờ" })} />);
+    expect(screen.getByText("Bình").props.numberOfLines).toBe(1);
+    expect(screen.getByText(/Mai họp lúc 9 giờ/).props.numberOfLines).toBe(1);
   });
 });

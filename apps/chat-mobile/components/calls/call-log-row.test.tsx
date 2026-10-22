@@ -1,7 +1,8 @@
 // The calls tab's row and chips, as a person hears them: who, which way, how
 // it went and when; calling back follows the server's kill switch.
 import { QueryClient } from "@tanstack/react-query";
-import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import { Dimensions } from "react-native";
 import { callEngine } from "@/data/calls/call-store";
 import type { CallLog } from "@/data/queries/call-logs";
 import { REMOTE_CONFIG_FALLBACK, remoteConfigKey } from "@/data/remote-config";
@@ -45,9 +46,20 @@ function withCalls(on: boolean) {
 beforeEach(() => jest.clearAllMocks());
 
 describe("CallLogRow", () => {
+  it("gives the name and the outcome two lines each and the time a line of its own at the accessibility text sizes", async () => {
+    jest.spyOn(Dimensions, "get").mockReturnValue({ width: 360, height: 640, scale: 2, fontScale: 2 });
+    await render(<CallLogRow log={log()} userId="u1" nicknames={{ u2: "Bình" }} onPress={jest.fn()} />, withCalls(false));
+    expect(screen.getByText("Bình").props.numberOfLines).toBe(2);
+    // The time sits in the text column, under the outcome, not beside the call-back button.
+    expect(within(screen.getByTestId("call-log-text")).getByTestId("call-log-time")).toBeOnTheScreen();
+    jest.restoreAllMocks();
+  });
+
   it("names the person, the direction and the outcome, opens the room, and calls back by voice", async () => {
     const open = jest.fn();
     await render(<CallLogRow log={log()} userId="u1" nicknames={{ u2: "Bình" }} onPress={open} />, withCalls(true));
+    // At the default text size the time stands beside the text, before the call-back button.
+    expect(within(screen.getByTestId("call-log-text")).queryByTestId("call-log-time")).toBeNull();
     const row = screen.getByRole("button", { name: new RegExp(`^Bình, ${viText("mobile.calls.outgoing")}, `) });
     await fireEvent.press(row);
     expect(open).toHaveBeenCalledTimes(1);

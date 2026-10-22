@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
+import { useLargeText } from "@/components/ui/a11y";
 import { haptics } from "@/components/ui/haptics";
 import { useRipple } from "@/components/ui/ripple";
 import { Text } from "@/components/ui/text";
@@ -81,6 +82,9 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const ripple = useRipple();
+  // At the accessibility text sizes the name gets its own two lines and the marks and time wrap under it (Slack,
+  // Messages): one line of "Ng…" beside a clock reads as nothing.
+  const large = useLargeText();
   const hasUnread = unread > 0 || mentionUnread > 0;
   const label = [
     title,
@@ -122,8 +126,8 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
     >
       <RoomAvatar mark={mark} seed={seed} />
       <View className="min-w-0 flex-1 self-stretch justify-center gap-[3px] border-b-hairline border-border py-2.5 pr-4">
-        <View className="flex-row items-center gap-1.5">
-          <Text className="flex-1 text-body font-display font-bold text-foreground" numberOfLines={1}>
+        <View className={cn("flex-row items-center gap-1.5", large && "flex-wrap")}>
+          <Text className={cn("text-body font-display font-bold text-foreground", large ? "w-full" : "flex-1")} numberOfLines={large ? 2 : 1}>
             {title}
           </Text>
           {muted ? <Ionicons name="notifications-off" size={14} color={theme.mutedForeground} /> : null}
@@ -134,7 +138,7 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
             </Text>
           ) : null}
         </View>
-        <View className="flex-row items-center gap-1.5">
+        <View className={cn("flex-row items-center gap-1.5", large && "flex-wrap")}>
           {queued ? (
             <View className="flex-1 flex-row items-center gap-1.5">
               <Ionicons name="time-outline" size={14} color={theme.tintOrangeForeground} />
@@ -144,16 +148,17 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
             </View>
           ) : draft ? (
             // WhatsApp's and the web's draft line: the label in red, then the words.
-            <Text className="flex-1 text-subhead leading-5 text-muted-foreground" numberOfLines={1}>
+            <Text className={cn("text-subhead leading-5 text-muted-foreground", large ? "w-full" : "flex-1")} numberOfLines={large ? 2 : 1}>
               <Text className="text-subhead font-medium text-destructive">{t("chat.sidebar_draft_label")}</Text> {draft}
             </Text>
           ) : (
             <Text
               className={cn(
-                "flex-1 text-subhead leading-5",
+                "text-subhead leading-5",
+                large ? "w-full" : "flex-1",
                 typing ? "font-medium text-primary" : missed ? "text-destructive" : "text-muted-foreground",
               )}
-              numberOfLines={1}
+              numberOfLines={large ? 2 : 1}
             >
               {prefix ? <Text className="text-subhead font-medium text-foreground">{prefix}</Text> : null}
               {subtitle ?? " "}

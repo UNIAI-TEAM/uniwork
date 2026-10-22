@@ -1,9 +1,9 @@
 // The screen-reader helpers: VoiceOver hears what Android's live regions say,
 // once per change, and the screen-reader switch is followed while open.
 import { act, screen } from "@testing-library/react-native";
-import { AccessibilityInfo, Platform, Text } from "react-native";
+import { AccessibilityInfo, Dimensions, Platform, Text } from "react-native";
 import { render } from "@/test/render";
-import { useAnnounce, useReduceMotion, useScreenReaderEnabled } from "./a11y";
+import { useAnnounce, useLargeText, useReduceMotion, useScreenReaderEnabled } from "./a11y";
 
 function Say({ line }: { line: string | null }) {
   useAnnounce(line);
@@ -12,6 +12,10 @@ function Say({ line }: { line: string | null }) {
 
 function Motion() {
   return <Text>{useReduceMotion() ? "still" : "moving"}</Text>;
+}
+
+function Size() {
+  return <Text>{useLargeText() ? "large" : "default"}</Text>;
 }
 
 function Reader() {
@@ -88,5 +92,21 @@ describe("useReduceMotion", () => {
     const { unmount } = await render(<Motion />);
     await unmount();
     await act(async () => answer(false));
+  });
+});
+
+describe("useLargeText", () => {
+  const scale = (fontScale: number) => jest.spyOn(Dimensions, "get").mockReturnValue({ width: 390, height: 844, scale: 3, fontScale });
+
+  it("is off at the default and the larger standard sizes", async () => {
+    scale(1.3);
+    await render(<Size />);
+    expect(screen.getByText("default")).toBeOnTheScreen();
+  });
+
+  it("is on from the first accessibility size", async () => {
+    scale(2);
+    await render(<Size />);
+    expect(screen.getByText("large")).toBeOnTheScreen();
   });
 });

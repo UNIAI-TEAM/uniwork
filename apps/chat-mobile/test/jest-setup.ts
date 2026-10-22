@@ -1,4 +1,5 @@
 // Shared setup for the jest-expo component layer (jest.config.js).
+import { Dimensions } from "react-native";
 import { setUpTests } from "react-native-reanimated";
 // The gesture runtime's own Jest mocks: every bottom sheet mounts a GestureHandlerRootView and a pan
 // (components/ui/bottom-sheet.tsx), so every screen with a sheet needs them, not only the gesture tests.
@@ -94,6 +95,11 @@ jest.mock("expo-screen-capture", () => ({
   enableAppSwitcherProtectionAsync: jest.fn(async () => undefined),
   disableAppSwitcherProtectionAsync: jest.fn(async () => undefined),
 }));
+
+// React Native's Jest preset reports a font scale of 2, an accessibility text size: every screen would draw its
+// large-text layout (components/ui/a11y.ts › useLargeText). Tests run at the default size; one about large text
+// sets its own (jest.spyOn(Dimensions, "get")).
+Dimensions.set({ window: { ...Dimensions.get("window"), fontScale: 1 }, screen: { ...Dimensions.get("screen"), fontScale: 1 } });
 
 // The permission gate (components/ui/permission-gate.ts) is not mocked here: a component that asks for a
 // permission goes through the real gate on the expo modules' Jest mocks (expo-audio's above grants the

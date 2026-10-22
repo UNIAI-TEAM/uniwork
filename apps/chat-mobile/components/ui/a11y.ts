@@ -3,9 +3,11 @@
 // changes, VoiceOver never hears it. useAnnounce gives iOS the same moment
 // through announceForAccessibility; on Android the view's live region speaks,
 // so the line is not read twice. useReduceMotion is the one reading of the
-// system's "reduce motion" switch every animation follows.
+// system's "reduce motion" switch every animation follows; useLargeText the one
+// reading of whether the text size is an accessibility size, where rows stack.
 import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Platform } from "react-native";
+import { AccessibilityInfo, Platform, useWindowDimensions } from "react-native";
+import { isLargeText } from "@/lib/type-scale";
 
 /** Says `message` to VoiceOver when it appears or changes (iOS); the caller keeps its live region for TalkBack. */
 export function useAnnounce(message: string | null | undefined): void {
@@ -58,4 +60,12 @@ export function useReduceMotion(): boolean {
     };
   }, []);
   return reduced;
+}
+
+/**
+ * Whether the system text size is one of the accessibility sizes (lib/type-scale.ts › LARGE_TEXT_SCALE), following
+ * the setting while the screen is open: a row that sets a name, icons and a time side by side stacks them then.
+ */
+export function useLargeText(): boolean {
+  return isLargeText(useWindowDimensions().fontScale);
 }

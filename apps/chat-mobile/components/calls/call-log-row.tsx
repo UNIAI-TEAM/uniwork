@@ -7,6 +7,7 @@ import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { PersonAvatar } from "@/components/people/person-avatar";
+import { useLargeText } from "@/components/ui/a11y";
 import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { Separator } from "@/components/ui/separator";
 import { Text } from "@/components/ui/text";
@@ -47,6 +48,8 @@ export function CallLogRow({
   const spokenTime = formatCallTime(log.ended_at, i18n.language);
   const tone = view.missed ? theme.destructive : theme.mutedForeground;
   const direction = t(view.direction === "outgoing" ? "mobile.calls.outgoing" : "mobile.calls.incoming");
+  // At the accessibility text sizes the name and the outcome take two lines each and the time moves under them.
+  const large = useLargeText();
   return (
     <Pressable
       onPress={onPress}
@@ -60,8 +63,8 @@ export function CallLogRow({
         squircle={log.room_kind !== "dm"}
         seed={log.room_kind === "dm" ? (log.peer_user_id ?? log.room_id) : log.room_id}
       />
-      <View className="flex-1 gap-0.5">
-        <Text numberOfLines={1} className={cn("text-body font-semibold", view.missed ? "text-destructive" : "text-foreground")}>
+      <View className="flex-1 gap-0.5" testID="call-log-text">
+        <Text numberOfLines={large ? 2 : 1} className={cn("text-body font-semibold", view.missed ? "text-destructive" : "text-foreground")}>
           {title}
         </Text>
         <View className="flex-row items-center gap-1">
@@ -72,12 +75,21 @@ export function CallLogRow({
             style={{ transform: [{ rotate: "45deg" }] }}
           />
           <Ionicons name={log.video ? "videocam-outline" : "call-outline"} size={14} color={tone} />
-          <Text numberOfLines={1} className={cn("flex-1 text-callout", view.missed ? "text-destructive" : "text-muted-foreground")}>
+          <Text numberOfLines={large ? 2 : 1} className={cn("flex-1 text-callout", view.missed ? "text-destructive" : "text-muted-foreground")}>
             {label}
           </Text>
         </View>
+        {large ? (
+          <Text className="text-footnote text-muted-foreground" testID="call-log-time">
+            {time}
+          </Text>
+        ) : null}
       </View>
-      <Text className="text-footnote text-muted-foreground">{time}</Text>
+      {large ? null : (
+        <Text className="text-footnote text-muted-foreground" testID="call-log-time">
+          {time}
+        </Text>
+      )}
       {callsOn ? (
         <Pressable
           accessibilityRole="button"
