@@ -217,6 +217,18 @@ describe("email verification and providers", () => {
       vi.mocked(fetch).mockResolvedValueOnce(json({ sessions: "drift" }));
       expect(await listSessions()).toEqual([]);
 
+      vi.mocked(fetch).mockResolvedValueOnce(
+        json({
+          sessions: [
+            { id: "dup", current: false, last_seen_at: "2026-01-01T00:00:00Z" },
+            { id: "dup", current: true, last_seen_at: "2026-01-02T00:00:00Z" },
+          ],
+        }),
+      );
+      expect(await listSessions()).toEqual([
+        { id: "dup", user_agent: "", ip: "", created_at: "", last_seen_at: "2026-01-02T00:00:00Z", current: true },
+      ]);
+
       vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
       await revokeSession("s 1");
       expect(String(vi.mocked(fetch).mock.calls.at(-1)?.[0])).toContain("/api/v1/me/sessions/s%201");

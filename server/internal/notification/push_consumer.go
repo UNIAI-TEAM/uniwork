@@ -148,8 +148,11 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	}
 	var failed error
 	for _, sub := range subs {
-		// Calls also reach subscribed browsers whose page is closed. Open pages
-		// with a subscription leave the system banner to this lane to avoid duplicates.
+		// Call invites are the phone's background path (spec M3 §2): open
+		// desktops ring through realtime; web push subscriptions are skipped.
+		if n.Kind == KindChatCallIncoming && !isExpoPushToken(sub.Endpoint) {
+			continue
+		}
 		err := c.sender.Send(ctx, sub, msg)
 		switch {
 		case err == nil:

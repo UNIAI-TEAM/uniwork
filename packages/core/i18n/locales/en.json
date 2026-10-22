@@ -9465,6 +9465,22 @@
         "unsigned": "This build is not code-signed, so your system may warn you the first time you open it.",
         "unavailable": "No installer has been published yet."
       },
+      "apt": {
+        "title": "Install with apt",
+        "intro": "On Ubuntu and Debian (amd64), install either way; later versions then arrive through sudo apt update && sudo apt upgrade.",
+        "script": "Option 1: install script",
+        "scriptNote": "The script adds the UniWork Office apt repository, then installs the app.",
+        "quick": "Option 2: download the .deb",
+        "quickNote": "The package adds the repository itself, so later versions arrive through apt.",
+        "manual": "Manual setup",
+        "setup": "1. Add the repository",
+        "install": "2. Install",
+        "copy": "Copy command: {{step}}",
+        "copied": "Copied",
+        "copyFailed": "Couldn't copy. Select the commands and copy them yourself.",
+        "deb": "If you installed the .deb, this file already exists and you can skip step 1.",
+        "fingerprint": "Key fingerprint"
+      },
       "works": {
         "title": "Works with UniWork",
         "sub": "The app is not apart from the workspace: files go from UniWork to the app and back.",
@@ -11421,6 +11437,8 @@
         "go_to_source_named": "View where attached: {{title}}",
         "preview_failed": "Could not open the file. Try again.",
         "preview_close": "Close",
+        "preview_expand": "Expand to full width",
+        "preview_restore": "Restore size",
         "view_only_notice": "View only · changes will not be saved",
         "download": "Download",
         "save_to_folder": "Save to folder",
@@ -12275,6 +12293,7 @@
     }
   },
   "marketingSeo": {
+    "officeGuide": "Read the UniOffice guide: files, saving and AI",
     "guidesTitle": "Practical guides",
     "about": "About UniWork",
     "data": "Data and AI",

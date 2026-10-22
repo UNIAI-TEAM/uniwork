@@ -1,11 +1,12 @@
 import { execFile } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { loadConfig } from "./config.mjs";
+import { prepareConfig, publicRefreshMessage } from "./tokens.mjs";
 import { attachmentIdsIn, collectAttachmentIds, rewriteAttachmentUrls } from "./files.mjs";
 import { createLock } from "./lock.mjs";
 import {
@@ -730,9 +731,20 @@ function isAlive(pid) {
 }
 
 export async function main() {
-  const config = loadConfig(process.env, (path) => readFileSync(path, "utf8"));
+  const readFile = (path) => readFileSync(path, "utf8");
+  const config = loadConfig(process.env, readFile);
+  let ready;
+  try {
+    ready = await prepareConfig(config, {
+      env: process.env,
+      home: homedir(),
+      readFile,
+    });
+  } catch (error) {
+    return { code: 1, lines: [publicRefreshMessage(error)] };
+  }
   const lock = createLock({ readFileSync, writeFileSync, unlinkSync }, () => process.pid, isAlive);
-  return syncRun({ config, lock, uniai: makeUniai(), uniwork: makeUniwork(config) });
+  return syncRun({ config: ready, lock, uniai: makeUniai(), uniwork: makeUniwork(ready) });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

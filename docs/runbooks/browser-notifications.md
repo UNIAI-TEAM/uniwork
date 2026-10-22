@@ -1,71 +1,67 @@
-# browser-notifications — thông báo hệ thống của trình duyệt
+# Browser system notifications
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UNI-1965 · **File:** `/sw.js`, `GET /api/v1/notifications/push/config`, `POST /api/v1/me/push-subscriptions`
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook triển khai và nghiệm thu UNI-1965 (browser permission + Web Push)
 
-Scope: UNI-1965. The web workspace now invites the person to enable system
-notifications. The browser permission dialog runs only after their click. The
-notification settings page also offers a test while server push is unavailable.
+The web workspace invites the person to enable system notifications. The browser
+permission dialog runs only after their click. The notification settings page
+also offers a test while server push is unavailable.
 
 ## Triệu chứng
 
-Two delivery paths; know which one a report is about.
-
-- An open workspace receives realtime events and can display system banners
-  for new chat messages, mentions, assignments, meeting invitations/reminders
-  and incoming calls. Browser permission must be granted. A visible browser
-  behind another application is unfocused. Incoming-call banners close when
-  the call ends, is answered or the app regains focus.
-- A registered Web Push subscription can receive notifications after the tab
-  is closed. The server now includes browser subscriptions for incoming calls,
-  retaining the ringing check and short call TTL. Open workspaces with a push
-  subscription leave the system banner to that path to avoid duplicates.
+- Tab đang mở nhưng không có banner hệ thống cho tin chat, mention, giao việc,
+  lời mời/nhắc họp hoặc cuộc gọi đến dù người dùng đã bật quyền trình duyệt.
+- Cột **Đẩy** trong Cài đặt → Thông báo biến mất kèm dòng giải thích máy chủ
+  chưa bật push sau khi đóng tab.
+- Đã đăng ký Web Push nhưng đóng tab vẫn không nhận thông báo (hoặc cuộc gọi
+  chỉ rung trên điện thoại, không trùng banner desktop).
 
 ## Kiểm tra
 
-Enable background push in a deployment, then verify it.
+**Hai đường giao hàng**
 
-1. Provision one stable VAPID key pair in the deployment's secret manager.
-   Configure `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` on the **Go backend**.
-   Both are required. Set `VAPID_SUBJECT` to the deployment origin or its
-   contact `mailto:` address. Do not put private keys in public frontend
-   variables, source files, screenshots or logs. Keep the same pair across
-   backend instances and restarts.
-2. Restart the backend, then refresh an authenticated browser. Verify
-   `GET /api/v1/notifications/push/config` reports `enabled: true` with a public
-   key. This branch does not provision or change production secrets.
-3. From the workspace invitation, click **Turn on notifications** and allow the
-   browser request. If permission was already granted, enable **Receive push
-   notifications in this browser** in Settings → Notifications. Registration
-   must create `/sw.js`, a browser PushSubscription and a successful
-   `POST /api/v1/me/push-subscriptions`.
-4. Use HTTPS outside localhost. Verify both site permission and the browser's
-   OS notification settings. Focus assist / Do Not Disturb can hide banners
-   even when browser permission is granted. Do not describe a permission grant
-   or a mocked constructor test as proof that the OS displayed a banner.
+- Workspace đang mở: sự kiện realtime → banner hệ thống (cần quyền trình duyệt).
+  Tab nền vẫn được coi là unfocused. Banner cuộc gọi đóng khi gọi kết thúc, được
+  trả lời hoặc app lấy lại focus.
+- Web Push đã đăng ký: thông báo sau khi đóng tab. Cuộc gọi đến vẫn qua TTL ngắn;
+  tab mở có subscription thì banner hệ thống nhường lane push để tránh trùng.
+
+**Cấu hình server**
+
+1. `GET /api/v1/notifications/push/config` phải trả `enabled: true` và public key
+   sau khi backend có `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`.
+2. HTTPS (ngoài localhost). Kiểm tra quyền site và cài đặt thông báo OS (Focus
+   assist / Do Not Disturb có thể che banner dù quyền trình duyệt đã granted).
+3. Đăng ký push: `/sw.js`, `PushSubscription`, `POST /api/v1/me/push-subscriptions`
+   thành công sau khi bật trong Cài đặt.
 
 ## Khắc phục
 
-Manual acceptance. Use consenting test accounts and synthetic messages; do not
-send messages to production coworkers as a test.
+1. Cấp một cặp VAPID ổn định trong secret manager. Gắn lên **Go backend**:
+   `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (bắt buộc), `VAPID_SUBJECT` (origin
+   hoặc `mailto:`). Không để private key trong biến frontend, repo, ảnh chụp hay
+   log. Giữ cùng cặp trên mọi instance và sau restart.
+2. Restart backend, refresh trình duyệt đã đăng nhập, xác nhận bước Kiểm tra §2.
+3. Từ lời mời trong workspace bấm bật thông báo và allow dialog. Nếu quyền đã
+   có, bật **Receive push notifications in this browser** trong Cài đặt →
+   Thông báo.
 
-- Windows Chrome/Edge and macOS Chrome/Safari: permission starts undecided, the
-  invitation alone does not trigger a browser dialog, and its button does.
-- Send a test from Settings and inspect the actual OS notification center.
-  A rendered settings success message alone is insufficient evidence.
-- With the app unfocused, send a new message and a call from another test
-  account. Selecting the system banner opens the correct conversation. Answer
-  or end the call and verify its open-page banner closes.
-- Check meeting reminders, muted rooms, permission denial and an existing
-  granted permission. Browser settings must remain available after dismissing
-  the invitation.
-- With server push configured and the browser registered, close the tab and
-  repeat. Delivery with the browser process fully quit depends on the browser
-  and OS. Chat pushes retain the existing recent-activity suppression policy;
-  allow that window to expire when verifying closed-tab chat delivery.
+**Nghiệm thu thủ công** (tài khoản test, tin giả; không spam đồng nghiệp production)
+
+- Windows Chrome/Edge, macOS Chrome/Safari: quyền ban đầu `default`, lời mời
+  không tự mở dialog, nút trên lời mời mới mở.
+- Gửi thử từ Cài đặt và xem trung tâm thông báo OS; chỉ toast UI không đủ.
+- App unfocused: tin mới và cuộc gọi từ account test khác; chọn banner mở đúng
+  hội thoại; trả lời/kết thúc gọi thì banner cuộc gọi đóng.
+- Thử nhắc họp, phòng mute, từ chối quyền, quyền đã granted trước đó; cài đặt
+  trình duyệt vẫn vào được sau khi bỏ qua lời mời.
+- Đã cấu hình push + đăng ký browser: đóng tab và lặp lại; giao hàng khi process
+  trình duyệt thoát hẳn phụ thuộc browser/OS. Chat push vẫn áp suppression
+  recent-activity — chờ hết cửa sổ khi kiểm tra delivery tab đóng.
 
 ## Leo thang
 
-No pager. If steps above pass but banners still do not appear on a real OS,
-record browser, OS version and notification settings in the UNI-1965 issue
-and hand it to the web owner; a missing or changed VAPID pair goes to whoever
-owns the deployment's secret manager.
+- VAPID đúng, `push/config` enabled, đăng ký 200 nhưng không delivery: ghi
+  correlation id, endpoint push (không log subscription keys), báo nhóm platform
+  với browser/OS và bước nghiệm thu đã chạy.
+- Lỗi permission bị từ chối vĩnh viễn: hướng dẫn người dùng reset quyền site
+  trong cài đặt trình duyệt; không có đường bypass phía server.
