@@ -9,7 +9,7 @@ type MobileEventsSDI struct {
 // MobileEventSDI is one product event: a name and a result from a closed set,
 // and for the timed ones how long the step took.
 type MobileEventSDI struct {
-	Name       string   `json:"name" enum:"app_open,first_screen,message_send,push_open,call_connect,call_push" description:"Sự kiện: mở app, màn đầu vẽ xong, gửi tin, mở từ push, nối cuộc gọi, push cuộc gọi tới máy" example:"message_send"`
-	Result     string   `json:"result" description:"Kết quả: app_open cold|warm, first_screen ok, message_send sent|failed, push_open chat|call|other, call_connect connected (phòng media đã nối) | failed (bỏ cuộc trước khi media nối), call_push shown|fallback|in_app|ignored|cleared|lost" example:"sent"`
+	Name       string   `json:"name" enum:"app_open,first_screen,message_send,push_open,call_connect,call_push,ota_launch,app_crash" description:"Sự kiện: mở app, màn đầu vẽ xong, gửi tin, mở từ push, nối cuộc gọi, push cuộc gọi tới máy, bản OTA không khởi động được, lần chạy trước crash" example:"message_send"`
+	Result     string   `json:"result" description:"Kết quả: app_open cold|warm, first_screen ok, message_send sent|failed, push_open chat|call|other, call_connect connected (phòng media đã nối) | failed (bỏ cuộc trước khi media nối), call_push shown|fallback|in_app|ignored|cleared|lost, ota_launch emergency (chạy bundle nhúng vì trình khởi động hỏng) | failed_update (bỏ qua một bản OTA không khởi động được), app_crash last_run (lần chạy trước kết thúc bằng crash)" example:"sent"`
 	DurationMs *float64 `json:"duration_ms,omitempty" description:"Mili giây của bước (first_screen; message_send; call_connect từ lúc bắt đầu nối tới lúc phòng media nối); bỏ qua với sự kiện khác" example:"420"`
 }
