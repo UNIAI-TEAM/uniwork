@@ -3,10 +3,19 @@
 import { useState } from "react";
 import { BellRing, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { defaultStorage, getDesktopBridge, showWebNotification } from "@uniwork/core/platform";
+import {
+  defaultStorage,
+  getDesktopBridge,
+  getWebNotificationPermission,
+  requestWebNotificationPermission,
+  showWebNotification,
+  type WebNotificationPermission,
+} from "@uniwork/core/platform";
 import { Button } from "@uniwork/ui/components/ui/button";
 
 const DISMISSED_KEY = "uniwork_desktop_notifications_prompt";
+
+const SHELL_OS = new Set(["macos", "windows", "linux"]);
 
 function wasDismissed(): boolean {
   try {
@@ -33,22 +42,23 @@ export function sendDesktopTestNotification(title: string, body: string): void {
 }
 
 /**
- * The UniChat shell on macOS, once per computer: a bar above the app that
- * asks for notifications while the person is looking. Left alone, macOS asks
- * only when the first message arrives as a banner, usually while they look
- * elsewhere, and a missed or refused prompt silences every banner with nothing
- * the app can read back (Electron reports a refused notification as shown).
- * So "Turn on" sends a test notification, which raises the OS prompt now, and
- * the bar then says what to do if nothing appeared. Windows shows
- * notifications without asking; Settings › Notifications has the same test
- * and settings link for both.
+ * The UniChat shell, once per computer: a bar above the app that asks for
+ * notification permission while the person is looking. Without it, chat
+ * banners never show — only the dock/taskbar badge does — because
+ * `showWebNotification` requires permission "granted". macOS often asks only
+ * when the first banner fires; Windows keeps "default" until
+ * `requestPermission` runs, so this bar calls it explicitly on Windows/Linux.
  */
 export function DesktopNotificationsPrompt() {
   const { t } = useTranslation(undefined, { keyPrefix: "notifications.desktop" });
   const { t: tCommon } = useTranslation(undefined, { keyPrefix: "common" });
   const [step, setStep] = useState<"ask" | "check" | "closed">(() => (wasDismissed() ? "closed" : "ask"));
+  const [permission, setPermission] = useState<WebNotificationPermission>(() => getWebNotificationPermission());
   const bridge = getDesktopBridge();
-  if (bridge?.appInfo.os !== "macos" || step === "closed") return null;
+  const os = bridge?.appInfo.os;
+  // Already allowed before this bar appeared — nothing to ask. After "Turn on"
+  // succeeds, stay through the check step until the person dismisses it.
+  if (!os || !SHELL_OS.has(os) || step === "closed" || (permission === "granted" && step === "ask")) return null;
 
   const close = () => {
     try {
@@ -59,10 +69,19 @@ export function DesktopNotificationsPrompt() {
     setStep("closed");
   };
   const enable = () => {
-    sendDesktopTestNotification(t("test_title"), t("test_body"));
-    setStep("check");
+    void (async () => {
+      const next = await requestWebNotificationPermission();
+      setPermission(next);
+      if (next !== "granted") {
+        setStep("check");
+        return;
+      }
+      sendDesktopTestNotification(t("test_title"), t("test_body"));
+      setStep("check");
+    })();
   };
   const openSettings = bridge.openNotificationSettings;
+  const checkCopy = os === "macos" ? t("check") : t("check_windows");
 
   return (
     // order-first: rendered after the page, shown above it, pushing it down instead of covering its header.
@@ -74,7 +93,7 @@ export function DesktopNotificationsPrompt() {
     >
       <BellRing aria-hidden className="size-4 shrink-0" />
       <p role="status" className="min-w-0 flex-1 text-label text-pretty">
-        {step === "ask" ? t("prompt") : t("check")}
+        {step === "ask" ? t("prompt") : checkCopy}
       </p>
       {step === "ask" ? (
         <Button size="sm" onClick={enable}>
