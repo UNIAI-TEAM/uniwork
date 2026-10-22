@@ -1,8 +1,12 @@
 # UniChat — tài khoản phát hành và nơi đặt từng khóa
 
 > **Trạng thái:** in-progress — danh sách việc cho chủ sở hữu sản phẩm (người đứng tên mọi tài khoản), lập 2026-10-17
-> trong Q1 (UNI-1838, spec `docs/superpowers/specs/2026-10-16-unichat-maturity-pilot-design.md` §4). Chưa tài khoản nào
-> được đăng ký; tick từng ô khi xong và dán bằng chứng (ảnh, ngày duyệt) vào bình luận UNI-1838.
+> trong Q1 (UNI-1838, spec `docs/superpowers/specs/2026-10-16-unichat-maturity-pilot-design.md` §4). Đã có (theo
+> repo, 2026-10-22): tài khoản Expo tổ chức `uniai-team` với dự án EAS `uniwork-chat` (#18, commit `ff84056a7`; một bản
+> build production EAS đã chạy 2026-10-21), Firebase/FCM cho push Android (#13–#14) và chứng chỉ ký OTA đã commit (#26,
+> khoá chờ chuyển vào GitHub). Chưa có: Apple Developer (#1–#9, iOS không phát hành được), Sentry (#25), Environment
+> `chat-mobile-production` (#27). Google Play: xác nhận trong Play Console (repo không chứng minh được). Tick từng ô khi
+> xong và dán bằng chứng (ảnh, ngày duyệt) vào bình luận UNI-1838.
 
 Không dán khóa, mật khẩu hay tệp chứng chỉ vào issue, PR, chat hay tệp trong repo. Giá trị bí mật chỉ đi vào ba nơi:
 GitHub Environment (`Settings → Environments`), EAS credentials (`eas credentials`) và Kubernetes Secret của server.
