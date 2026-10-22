@@ -48,7 +48,7 @@ const deps = vi.hoisted(() => ({
 vi.mock("../app-locale", () => ({ applyStoredLocale: deps.applyStoredLocale }));
 vi.mock("../boot", () => ({ bootRuntime: deps.bootRuntime }));
 vi.mock("../auth/flow", () => ({ authConfig: { scheme: "uniworkchat" }, session: deps.session }));
-vi.mock("../chat-api", () => ({ chatApi: { signalVoiceDecline: deps.signalVoiceDecline } }));
+vi.mock("./call-signals", () => ({ callSignals: { decline: deps.signalVoiceDecline } }));
 const queryClient = vi.hoisted(() => ({
   getQueryCache: () => ({
     subscribe: (listener: (event: { query: { queryKey: readonly unknown[] } }) => void) => {

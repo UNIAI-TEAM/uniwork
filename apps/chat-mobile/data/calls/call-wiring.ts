@@ -35,7 +35,6 @@ import { applyStoredLocale } from "../app-locale";
 import { authConfig, session } from "../auth/flow";
 import { setAppBadge } from "../badge";
 import { bootRuntime } from "../boot";
-import { chatApi } from "../chat-api";
 import { runChatNotificationAction } from "../chat-notification-actions";
 import { createLogger } from "../logger";
 import { callChannelNames } from "../notification-channels";
@@ -47,6 +46,7 @@ import { openDeviceStore } from "../storage/device-store";
 import { getCurrentWorkspace } from "../stores/workspace-store";
 import { callActionFrom, handleCallAction, type CallActionEnv } from "./call-actions";
 import { createNativeCallSync, installNativeCallSync } from "./call-native-sync";
+import { callSignals } from "./call-signals";
 import { installGroupDecline } from "./group-decline";
 import { handleCallPush, incomingSpecFromState, type CallPushEnv } from "./call-push";
 import { callEngine } from "./call-store";
@@ -107,7 +107,7 @@ const actionEnv: CallActionEnv = {
     // A headless runtime: no screen restored the session or set the server URLs.
     bootRuntime();
     if (session.status() === "signed-out" && !(await session.restore())) return;
-    await chatApi.signalVoiceDecline(workspaceId, roomId, callId);
+    await callSignals.decline(workspaceId, roomId, callId);
   },
   now: () => Date.now(),
 };
@@ -263,7 +263,7 @@ export function startNativeCalls(): () => void {
   const stopRingSync = installNativeRingSync(ringSyncEnv);
   // A group call declined on screen stops ringing on the person's other devices too.
   const stopGroupDecline = installGroupDecline(callEngine.store, {
-    decline: (wsId, roomId, callId) => chatApi.signalVoiceDecline(wsId, roomId, callId),
+    decline: (wsId, roomId, callId) => callSignals.decline(wsId, roomId, callId),
     workspaceId: () => callEngine.contextWorkspaceId(),
   });
   for (const pending of nativeCalls.takePendingActions()) void runCallActionTask(pending);

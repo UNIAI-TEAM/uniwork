@@ -225,8 +225,6 @@ export function createChatApi(request: Request) {
     signalVoiceAccept: (wsId: string, roomId: string, callId: string) => voice.signalChatVoiceAccept(wsId, roomId, callId),
     signalVoiceHangup: (wsId: string, roomId: string, callId: string, durationSeconds?: number) =>
       voice.signalChatVoiceHangup(wsId, roomId, callId, durationSeconds),
-    /** The callee says no: a 1-1 call ends, a group call goes on and stops ringing on their other devices. */
-    signalVoiceDecline: (wsId: string, roomId: string, callId: string) => voice.signalChatVoiceDecline(wsId, roomId, callId),
     votePoll: (wsId: string, roomId: string, messageId: string, optionId: string) =>
       messages.voteChatPollMessage(wsId, roomId, messageId, optionId),
     /** A recorded clip from disk: expo-audio writes AAC in MPEG-4, which the server takes as audio/mp4. */

@@ -132,7 +132,6 @@ const cases: Case[] = [
   { name: "signalVoiceInvite video", call: (c) => c.signalVoiceInvite("w1", "r1", "c1", true), path: `${R}/voice/invite`, method: "POST", body: { call_id: "c1", video: true }, good: { status: "ok" }, read: true, fallback: false },
   { name: "signalVoiceAccept", call: (c) => c.signalVoiceAccept("w1", "r1", "c1"), path: `${R}/voice/accept`, method: "POST", body: { call_id: "c1" }, good: { status: "ok" }, read: true, fallback: false },
   { name: "signalVoiceHangup", call: (c) => c.signalVoiceHangup("w1", "r1", "c1"), path: `${R}/voice/hangup`, method: "POST", body: { call_id: "c1" }, good: { status: "ok" }, read: true, fallback: false },
-  { name: "signalVoiceDecline", call: (c) => c.signalVoiceDecline("w1", "r1", "c1"), path: `${R}/voice/decline`, method: "POST", body: { call_id: "c1" }, good: { status: "ok" }, read: true, fallback: false },
   { name: "signalVoiceHangup timed", call: (c) => c.signalVoiceHangup("w1", "r1", "c1", 42), path: `${R}/voice/hangup`, method: "POST", body: { call_id: "c1", duration_seconds: 42 }, good: { status: "ok" }, read: true, fallback: false },
   // Rich kinds (M3): the web's paths and bodies (chat-messages, chat-media, chat-follow-ups, chat-links, tasks).
   {
