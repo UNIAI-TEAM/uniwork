@@ -162,6 +162,11 @@ env:
   KTLINT_VERSION: "1.5.0"
   KTLINT_SHA256: a16be01dcc480aab2f55f444b620142152f66e31564b3b9376506d624c28a2ad
   EXPO_NO_TELEMETRY: "1"
+  # The Gradle daemon's JVM for the release builds below. The prebuild template's 512 MB of metaspace ran out
+  # in lintVital on the dev variant (dev client and launcher on top of every native module): the daemon
+  # threw OutOfMemoryError: Metaspace and then hung the job until its timeout. The runner has 16 GB; exiting on
+  # an OOM turns any repeat into a red build at once instead of an hour-long hang.
+  GRADLE_DAEMON_JVMARGS: "-Xmx4g -XX:MaxMetaspaceSize=1536m -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8"
 
 jobs:
   scope:
@@ -350,7 +355,7 @@ jobs:
         # share the release compilation; Robolectric runs SDK 34 on this JDK 17.
         # :unichat-calls:assembleDebugAndroidTest builds the module's instrumented test APK
         # (src/androidTest), which android-smoke runs on its emulator.
-        run: ./gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest :unichat-calls:assembleDebugAndroidTest --no-daemon -PreactNativeArchitectures=x86_64
+        run: ./gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest :unichat-calls:assembleDebugAndroidTest --no-daemon -PreactNativeArchitectures=x86_64 "-Dorg.gradle.jvmargs=$GRADLE_DAEMON_JVMARGS"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -560,7 +565,7 @@ jobs:
         run: |
           set -euo pipefail
           pnpm exec expo prebuild -p android --no-install --clean
-          (cd android && ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64)
+          (cd android && ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64 "-Dorg.gradle.jvmargs=$GRADLE_DAEMON_JVMARGS")
       - name: Migrate and start the server
         working-directory: server
         run: |
