@@ -23,7 +23,7 @@ describe("apt repository commands", () => {
 
   it("lists the key, the source heredoc and the install line in order", () => {
     const lines = aptInstallCommands("beta");
-    expect(lines[0]).toBe("curl -fsSL https://uniworkos.com/downloads/office/apt/key.gpg | sudo tee /usr/share/keyrings/uniwork-office-archive-keyring.gpg > /dev/null");
+    expect(lines[0]).toBe("sudo curl -fsSL -o /usr/share/keyrings/uniwork-office-archive-keyring.gpg https://uniworkos.com/downloads/office/apt/key.gpg &&");
     expect(lines[1]).toBe("sudo tee /etc/apt/sources.list.d/uniwork-office.sources > /dev/null <<'EOF'");
     expect(lines.slice(2, -2)).toEqual(aptSourcesText("beta").split("\n"));
     expect(lines.at(-2)).toBe("EOF");

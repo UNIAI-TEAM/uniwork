@@ -32,10 +32,12 @@ export function aptSourcesText(suite: AptSuite): string {
 /**
  * Every shell line that adds the repository and installs the app, in order:
  * save the key, write the source, then the final line updates and installs.
+ * The source write is chained behind the key download (`&&`), and curl creates
+ * no file when it fails, so a 404 or a missing curl leaves the machine unchanged.
  */
 export function aptInstallCommands(suite: AptSuite): string[] {
   return [
-    `curl -fsSL ${APT_KEY_URL} | sudo tee ${APT_KEYRING_PATH} > /dev/null`,
+    `sudo curl -fsSL -o ${APT_KEYRING_PATH} ${APT_KEY_URL} &&`,
     `sudo tee ${APT_SOURCES_PATH} > /dev/null <<'EOF'`,
     ...aptSourcesText(suite).split("\n"),
     "EOF",
