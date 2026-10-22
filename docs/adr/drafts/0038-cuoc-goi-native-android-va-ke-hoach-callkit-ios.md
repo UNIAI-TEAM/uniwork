@@ -61,8 +61,16 @@ iOS nhận VoIP push qua PushKit và báo ngay cho CallKit.
    server cần khoá APNs `.p8` và một sender riêng cho token VoIP) + CallKit (`CXProvider.reportNewIncomingCall`
    ngay trong callback PushKit — iOS 13+ giết app nếu không báo) + một module Swift tương ứng
    `modules/unichat-calls` cho iOS, cùng hợp đồng TypeScript. Push kết thúc trên iOS là VoIP push để gọi
-   `reportCall(with:endedAt:reason:)`. Cho tới lúc đó iOS giữ push hiển thị, chạm vào mở màn đổ chuông
-   (không còn tự trả lời).
+   `reportCall(with:endedAt:reason:)`. Cho tới lúc đó gọi điện **tắt trên iPhone** bằng công tắc riêng
+   `unichat_mobile_calls_ios` (mặc định tắt, 2026-10-22): server gộp nó vào `unichat_mobile_calls` của máy gửi
+   `X-Client-OS: ios` (`featureflags.MobileFlagsFor`) và không gửi push đổ chuông tới đăng ký `expo/ios`, vì một
+   iPhone khoá máy chỉ kêu một tiếng và giữ banner "X đang gọi" sau khi cuộc gọi kết thúc. Bật công tắc đó là bước
+   cuối của việc làm CallKit.
+5. **Telecom trên Android (chưa làm).** Đăng ký cuộc gọi với Telecom (`androidx.core:core-telecom` `CallsManager`,
+   self-managed) để Android giữ/kết thúc cuộc gọi VoIP khi có cuộc gọi di động, nút tai nghe Bluetooth/xe hơi
+   nghe-gác, đồng hồ và Android Auto thấy cuộc gọi. Đợi tới khi có máy thật để kiểm: API coroutine, đổi luồng âm
+   thanh sang `CallControlScope.requestEndpointChange`, và một module không biên dịch được trên máy dev là rủi ro
+   lớn hơn lợi ích trước khi checklist thiết bị chạy lần đầu.
 
 ## Hệ quả
 
