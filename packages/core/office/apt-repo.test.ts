@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APT_INSTALL_COMMAND, APT_KEY_FINGERPRINT, APT_KEY_URL, APT_KEYRING_PATH, APT_REPO_URL, aptInstallCommands, aptLatestDebUrl, aptQuickInstallCommand, aptSourcesText } from "./apt-repo";
+import { APT_INSTALL_COMMAND, APT_INSTALL_SCRIPT_URL, APT_KEY_FINGERPRINT, APT_KEY_URL, APT_KEYRING_PATH, APT_REPO_URL, aptInstallCommands, aptLatestDebUrl, aptQuickInstallCommand, aptScriptInstallCommand, aptSourcesText } from "./apt-repo";
 
 describe("apt repository commands", () => {
   it("keeps the repository, key and keyring where the published repository puts them", () => {
@@ -46,5 +46,14 @@ describe("apt repository commands", () => {
 
   it("never pipes a download into a shell", () => {
     expect(aptQuickInstallCommand("dev")).not.toMatch(/\|\s*(sudo\s+)?(ba)?sh/);
+  });
+
+  it.each([
+    ["stable", "curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh"],
+    ["beta", "curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- beta"],
+    ["dev", "curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- dev"],
+  ] as const)("pipes the install script into sh for the %s suite (stable is the script's default)", (suite, command) => {
+    expect(APT_INSTALL_SCRIPT_URL).toBe("https://uniworkos.com/downloads/office/install.sh");
+    expect(aptScriptInstallCommand(suite)).toBe(command);
   });
 });
