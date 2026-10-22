@@ -17,6 +17,7 @@ import { ChatHeader } from "@/components/chat/chat-header";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { GroupPickRow } from "@/components/people/member-rows";
 import { PersonAvatar } from "@/components/people/person-avatar";
+import { ListLoadError, ListSkeleton } from "@/components/ui/list-states";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { useCreateGroup, useInviteGroupMembers } from "@/data/mutations/rooms";
@@ -158,7 +159,13 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
             {t("chat.group_members_label")}
           </Text>
         }
-        ListEmptyComponent={members.isPending ? <ActivityIndicator className="py-8" accessibilityLabel={t("chat.loading_members")} /> : null}
+        ListEmptyComponent={
+          members.isPending ? (
+            <ListSkeleton label={t("chat.loading_members")} />
+          ) : members.isError ? (
+            <ListLoadError title={t("chat.members_load_failed")} onRetry={() => void members.refetch()} />
+          ) : null
+        }
         renderItem={renderPerson}
       />
       <SafeAreaView edges={["bottom"]} className="border-t border-border bg-background px-4 pt-2.5">

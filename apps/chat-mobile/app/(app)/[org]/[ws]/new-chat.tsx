@@ -7,10 +7,11 @@ import { router, Stack } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlashList, type ListRenderItem } from "@shopify/flash-list";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { DmPickRow } from "@/components/people/member-rows";
+import { ListLoadError, ListSkeleton } from "@/components/ui/list-states";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { useResolveDM } from "@/data/mutations/rooms";
@@ -109,7 +110,9 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
         }
         ListEmptyComponent={
           members.isPending ? (
-            <ActivityIndicator className="py-8" accessibilityLabel={t("chat.loading_members")} />
+            <ListSkeleton label={t("chat.loading_members")} />
+          ) : members.isError ? (
+            <ListLoadError title={t("chat.members_load_failed")} onRetry={() => void members.refetch()} />
           ) : (
             <Text className="px-4 py-8 text-center text-callout text-muted-foreground">
               {q.trim() ? t("chat.workspace_members_no_match", { query: q.trim() }) : t("chat.workspace_members_none")}

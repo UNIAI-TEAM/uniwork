@@ -12,8 +12,8 @@ import { ActivityIndicator, RefreshControl, SectionList, View } from "react-nati
 import { CallLogFilters } from "@/components/calls/call-log-filters";
 import { CallLogRow, CallLogSeparator } from "@/components/calls/call-log-row";
 import { useWorkspaceSlugs } from "@/components/chat/use-chat-workspace";
-import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/header";
+import { ListLoadError, ListSkeleton } from "@/components/ui/list-states";
 import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
 import { callLogsOptions } from "@/data/queries/call-logs";
@@ -57,16 +57,9 @@ export default function CallsTab() {
   const missedCount = useMemo(() => missedCallCount(logs.data?.pages.flatMap((page) => page.call_logs) ?? [], userId), [logs.data, userId]);
 
   const empty = logs.isPending ? (
-    <View className="items-center py-12">
-      <ActivityIndicator accessibilityLabel={t("common.loading")} />
-    </View>
+    <ListSkeleton testID="calls-skeleton" />
   ) : logs.isError ? (
-    <View className="items-center gap-3 px-8 py-12">
-      <Text className="text-center text-callout text-destructive">{t("common.error")}</Text>
-      <Button variant="outline" onPress={() => void refetch()}>
-        <Text>{t("common.retry")}</Text>
-      </Button>
-    </View>
+    <ListLoadError title={t("mobile.lists.calls_load_failed")} onRetry={() => void refetch()} testID="calls-error" />
   ) : (
     <Text className="px-8 py-12 text-center text-callout text-muted-foreground">
       {t(filter === "missed" ? "mobile.calls.no_missed" : "mobile.calls.empty")}

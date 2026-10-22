@@ -9,6 +9,7 @@ import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { RoomAvatar } from "@/components/chat/room-avatar";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
+import { ListLoadError, ListSkeleton } from "@/components/ui/list-states";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { useJoinChannel } from "@/data/mutations/rooms";
@@ -65,9 +66,9 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
         refreshing={pulling}
         ListEmptyComponent={
           channels.isPending ? (
-            <ActivityIndicator className="py-8" accessibilityLabel={t("chat.channel.directory_loading")} />
+            <ListSkeleton square label={t("chat.channel.directory_loading")} />
           ) : channels.isError ? (
-            <Text className="px-4 py-8 text-center text-callout text-muted-foreground">{t("chat.channel.directory_load_failed")}</Text>
+            <ListLoadError title={t("chat.channel.directory_load_failed")} onRetry={() => void channels.refetch()} />
           ) : (
             <View className="gap-1 px-8 py-8">
               <Text className="text-center text-body font-display font-bold text-foreground">

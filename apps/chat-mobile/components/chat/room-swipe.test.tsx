@@ -2,7 +2,7 @@
 // room read, left reveals its buttons and holds them open, a tap on the open
 // row or a button closes it, and a recycled cell starts closed.
 import "react-native-gesture-handler/jestSetup";
-import { act, fireEvent, screen } from "@testing-library/react-native";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
 import * as Haptics from "expo-haptics";
 import { Text } from "react-native";
 import { State } from "react-native-gesture-handler";
@@ -69,7 +69,7 @@ describe("RoomSwipe", () => {
     await swipe(-ROOM_SWIPE_BUTTON * 1.5);
     expect(onOpen).toHaveBeenCalledWith(expect.any(Function));
     // The tick as the drag crossed half the buttons' width (jest-expo runs as iOS: a selection feel).
-    expect(Haptics.selectionAsync).toHaveBeenCalled();
+    await waitFor(() => expect(Haptics.selectionAsync).toHaveBeenCalled());
     await fireEvent.press(screen.getByTestId("room-swipe-pin", { includeHiddenElements: true }));
     expect(pin).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("room-swipe-close", { includeHiddenElements: true })).toBeNull();

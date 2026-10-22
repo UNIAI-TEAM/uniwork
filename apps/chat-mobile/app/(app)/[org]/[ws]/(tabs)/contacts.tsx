@@ -10,12 +10,12 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, View } from "react-native";
+import { View } from "react-native";
 import { useWorkspaceSlugs } from "@/components/chat/use-chat-workspace";
 import { ContactList } from "@/components/contacts/contact-list";
 import { OnlineStrip } from "@/components/contacts/online-strip";
-import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/header";
+import { ListLoadError, ListSkeleton } from "@/components/ui/list-states";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
@@ -55,16 +55,9 @@ export default function ContactsTab() {
   const everyone = useMemo(() => (query.trim() ? [] : sections.flatMap((section) => section.data)), [query, sections]);
 
   const empty = members.isPending ? (
-    <View className="items-center py-12">
-      <ActivityIndicator accessibilityLabel={t("common.loading")} />
-    </View>
+    <ListSkeleton testID="contacts-skeleton" />
   ) : members.isError ? (
-    <View className="items-center gap-3 px-8 py-12">
-      <Text className="text-center text-callout text-destructive">{t("common.error")}</Text>
-      <Button variant="outline" onPress={() => void members.refetch()}>
-        <Text>{t("common.retry")}</Text>
-      </Button>
-    </View>
+    <ListLoadError title={t("mobile.lists.contacts_load_failed")} onRetry={() => void members.refetch()} testID="contacts-error" />
   ) : (
     <Text className="px-8 py-12 text-center text-callout text-muted-foreground">
       {t(query.trim() ? "mobile.contacts.no_match" : "mobile.contacts.empty")}
