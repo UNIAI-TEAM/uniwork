@@ -190,7 +190,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/ktlint"
           "$RUNNER_TEMP/ktlint" "apps/chat-mobile/modules/**/*.kt"
       - name: Mobile repo contracts
-        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs
+        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/maestro-retry.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs
 
   doctor-bundle:
     name: expo-doctor and JS bundle budget
@@ -335,13 +335,13 @@ jobs:
           # still shows its copy and reaches its button, and every control on it is named and 48 dp a side.
           script: |
             adb install "${{ runner.temp }}/apk/app-release.apk"
-            cd apps/chat-mobile/maestro && maestro test flows/smoke-launch.yaml
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
             node scripts/mobile-perf.mjs apk "${{ runner.temp }}/apk/app-release.apk" --out "${{ runner.temp }}/perf-apk.json"
             node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 5 --out "${{ runner.temp }}/perf-startup.json"
             node scripts/mobile-perf.mjs check "${{ runner.temp }}/perf-apk.json" "${{ runner.temp }}/perf-startup.json"
             adb shell settings put system font_scale 2.0
             adb shell cmd uimode night yes
-            cd apps/chat-mobile/maestro && maestro test flows/a11y-large-text-dark.yaml
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/a11y-large-text-dark.yaml
             node scripts/mobile-a11y-audit.mjs --package com.uniworkos.chat --out "${{ runner.temp }}/a11y-signin.json"
             adb shell settings put system font_scale 1.0
             adb shell cmd uimode night no
@@ -421,7 +421,7 @@ jobs:
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
       - name: Cold start reaches sign-in on the simulator
         working-directory: apps/chat-mobile/maestro
-        run: maestro --device "$UDID" test flows/smoke-launch.yaml
+        run: ${{ github.workspace }}/scripts/maestro-retry.sh --device "$UDID" test flows/smoke-launch.yaml
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

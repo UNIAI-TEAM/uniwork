@@ -86,6 +86,11 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   chạy lại không nhân đôi). Đỏ ở đây:
   xem bảng trong step summary — số nào vượt, so với run xanh trước để tìm commit; trên máy dev, render của hàng xem bằng
   các test đếm render (mục Kiểm tra 8), chi phí dựng timeline bằng `lib/timeline-perf.test.ts`.
+- **Lượt chạy thiết bị chập chờn.** Mọi lần chạy Maestro trong `mobile-verify.yml` và nightly đi qua
+  `scripts/maestro-retry.sh`: hỏng thì chạy lại một lần; lần hai qua thì xanh nhưng để lại cảnh báo "Flaky device run"
+  và một dòng `flaky:` trong step summary, hai lần hỏng thì đỏ. Một luồng cứ phải nhờ lần chạy lại (thấy trong các
+  summary) là lỗi cần sửa — luồng chờ thiếu, hay app crash lúc có lúc không — không phải nhiễu. Tắt lượt chạy lại khi
+  điều tra: `MAESTRO_ATTEMPTS=1`.
 - Phiên bản công cụ ghim trong workflow: `EAS_CLI_VERSION` (release và OTA, cùng một số), `MAESTRO_VERSION` (nightly, tải zip release
   thay vì script cài), `EXPO_DOCTOR_VERSION`. Nâng trong một PR riêng.
 - Ngân sách bundle: hạ trần khi bundle nhỏ đi; chỉ nâng trong commit thêm sức nặng đó, ghi lý do trong body. Đo tại

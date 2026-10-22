@@ -682,7 +682,8 @@ hai lớp test, `pnpm knip --workspace apps/chat-mobile`, `expo install --check`
 (ghim `KTLINT_VERSION` + checksum, kiểu ở `.editorconfig` › `[*.{kt,kts}]`; trong KDoc đừng viết `/*`, Kotlin coi là
 mở comment lồng), chỉ khi `scripts/mobile-native-scope.mjs`
 nói thay đổi chạm binary) rồi `android-smoke` (cài APK đó lên emulator, chạy
-`maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập, không cần server — `ios-release` làm cùng việc đó trên
+`maestro/flows/smoke-launch.yaml` qua `scripts/maestro-retry.sh` (chạy lại một lần, lần hai qua thì cảnh báo "flaky"
+chứ không im; mọi lượt Maestro trong CI đi qua nó): mở lạnh tới màn đăng nhập, không cần server — `ios-release` làm cùng việc đó trên
 simulator iOS với bản Release ký ad-hoc, cùng điều kiện native; cuối job, ở font_scale 2.0 và dark mode,
 `flows/a11y-large-text-dark.yaml` (màn đăng nhập cuộn được, vẫn tới nút) rồi `scripts/mobile-a11y-audit.mjs` (dump
 uiautomator: mọi điều khiển của app có tên và ≥ 48 dp; hitSlop không thấy được trong dump nên nightly audit phòng ở

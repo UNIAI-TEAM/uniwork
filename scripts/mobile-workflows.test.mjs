@@ -39,18 +39,18 @@ test("mobile-verify can be called and builds the release only through its jobs",
   // Audit "native-module-untested": the calls module's Kotlin is unit-tested in the same Gradle run.
   assert.match(jobsOf(wf).jobs.get("android-release") ?? "", /\.\/gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest /);
   assert.ok(fs.existsSync(path.join(root, "apps/chat-mobile/modules/unichat-calls/android/src/test/java/expo/modules/unichatcalls/CallLaunchTokensTest.kt")));
-  assert.match(wf, /maestro test flows\/smoke-launch\.yaml/, "the cold-start smoke runs the release APK");
+  assert.match(wf, /maestro-retry\.sh test flows\/smoke-launch\.yaml/, "the cold-start smoke runs the release APK");
   // Audit "ios-never-built": every native PR compiles iOS too, for the simulator, without an Apple account.
   const ios = jobsOf(wf).jobs.get("ios-release") ?? "";
   assert.match(ios, /^ {4}runs-on: macos-/m, "iOS builds on macOS");
   assert.match(ios, /expo prebuild -p ios/);
   assert.match(ios, /-configuration Release -sdk iphonesimulator/);
   assert.match(ios, /CODE_SIGN_IDENTITY=- /, "ad-hoc signed: no Apple account");
-  assert.match(ios, /maestro --device "\$UDID" test flows\/smoke-launch\.yaml/, "and boots to sign-in on a simulator");
+  assert.match(ios, /maestro-retry\.sh --device "\$UDID" test flows\/smoke-launch\.yaml/, "and boots to sign-in on a simulator");
   // Accessibility on the device: the largest font scale and dark mode, the flow, then the audit, blocking.
   assert.match(
     wf,
-    /font_scale 2\.0\n\s+adb shell cmd uimode night yes\n\s+cd apps\/chat-mobile\/maestro && maestro test flows\/a11y-large-text-dark\.yaml\n\s+node scripts\/mobile-a11y-audit\.mjs --package com\.uniworkos\.chat --out /,
+    /font_scale 2\.0\n\s+adb shell cmd uimode night yes\n\s+cd apps\/chat-mobile\/maestro && \$\{\{ github\.workspace \}\}\/scripts\/maestro-retry\.sh test flows\/a11y-large-text-dark\.yaml\n\s+node scripts\/mobile-a11y-audit\.mjs --package com\.uniworkos\.chat --out /,
     "the smoke runs the sign-in at the largest text in dark mode and audits it",
   );
   assert.match(wf, /scripts\/mobile-a11y-audit\.test\.mjs/, "the contract step runs the audit's own test");
@@ -69,6 +69,7 @@ test("mobile-verify can be called and builds the release only through its jobs",
   assert.match(wf, /scripts\/mobile-lockfiles\.test\.mjs/, "the contract step rejects a foreign lockfile");
   assert.match(wf, /scripts\/mobile-easignore\.test\.mjs/, "the contract step holds .easignore to the .gitignore files");
   assert.match(wf, /scripts\/mobile-verify-gate\.test\.mjs/, "the contract step runs the gate's own test");
+  assert.match(wf, /scripts\/maestro-retry\.test\.mjs/, "the contract step runs the device-retry test");
   assert.match(wf, /scripts\/branch-protection\.test\.mjs/, "the contract step holds the required checks to the workflows");
   assert.match(wf, /scripts\/mobile-coverage-floor\.test\.mjs/, "the contract step holds the component coverage floor");
   assert.doesNotMatch(wf, /secrets\./, "the PR checks read no secret");
@@ -94,7 +95,7 @@ test("the nightly pins Maestro, fails a scheduled run without its settings, and 
   assert.match(wf, /\.\/gradlew :app:bundleRelease/);
   // The golden chat flow again at the largest text in dark mode, and the room audited (as warnings: its pills
   // reach their target through hit slop, which a dump cannot see).
-  assert.match(wf, /font_scale 2\.0\n\s+adb shell cmd uimode night yes\n\s+cd apps\/chat-mobile\/maestro && maestro test flows\/chat-read-send\.yaml\n\s+node scripts\/mobile-a11y-audit\.mjs/);
+  assert.match(wf, /font_scale 2\.0\n\s+adb shell cmd uimode night yes\n\s+cd apps\/chat-mobile\/maestro && \$\{\{ github\.workspace \}\}\/scripts\/maestro-retry\.sh test flows\/chat-read-send\.yaml\n\s+node scripts\/mobile-a11y-audit\.mjs/);
 });
 
 // The OTA path (audit R3): from CI, after every PR check on the SHA, staged by
@@ -366,4 +367,26 @@ test("the nightly's description of the PR builds names the ABI mobile-verify rea
   const header = read("chat-mobile-verify.yml").split(/^on:$/m)[0].replace(/\n# ?/g, " ");
   assert.match(header, new RegExp(`an ${abi} Android release build`), `the nightly header says ${abi}`);
   assert.doesNotMatch(header, /arm64/, "no stale ABI claim");
+});
+
+// Audit "missed: no flake handling": one retry per device run, through the
+// script that reports a pass on the retry as a flaky run, never silently.
+test("every Maestro run in the mobile workflows goes through scripts/maestro-retry.sh", () => {
+  let runs = 0;
+  for (const file of ["mobile-verify.yml", "chat-mobile-verify.yml"]) {
+    const wf = read(file);
+    assert.doesNotMatch(wf, /(?<![\/\w.-])maestro (?:test|--device)/, `${file}: a bare maestro run has no retry and no flake report`);
+    runs += [...wf.matchAll(/\$\{\{ github\.workspace \}\}\/scripts\/maestro-retry\.sh (?:test|--device)/g)].length;
+  }
+  assert.ok(runs >= 13, `found ${runs} wrapped runs`);
+});
+
+// A contract test that no workflow runs holds nothing: every mobile one is in the checks job's step.
+test("the mobile contract step runs every mobile contract test in scripts/", () => {
+  const step = read("mobile-verify.yml").match(/- name: Mobile repo contracts\n\s+run: node --test ([^\n]+)/)?.[1].split(/\s+/) ?? [];
+  const tests = fs
+    .readdirSync(path.join(root, "scripts"))
+    .filter((f) => /^(mobile-.*|branch-protection|maestro-retry)\.test\.mjs$/.test(f))
+    .map((f) => `scripts/${f}`);
+  assert.deepEqual(tests.filter((t) => !step.includes(t)), [], "add these to the Mobile repo contracts step");
 });
