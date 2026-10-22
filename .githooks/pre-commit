@@ -50,6 +50,21 @@ if [ -n "$go_files" ]; then
   fi
 fi
 
+# --- UniChat mobile's copy of the web's strings --------------------------------
+# apps/chat-mobile/locales is generated from packages/core/i18n/locales
+# (apps/chat-mobile/scripts/sync-i18n.mjs) and lib/i18n.test.ts fails on a stale
+# copy, so a web PR that edits a core string turns the required mobile gate red
+# (develop was red three pushes in a row on 2026-10-22 for exactly this). A
+# hundred milliseconds of node, so it runs at every GATE_LEVEL.
+i18n_files="$(printf '%s\n' "$files" | grep -E '^(packages/core/i18n/locales/|apps/chat-mobile/locales/|apps/chat-mobile/scripts/(sync-i18n|i18n-[a-z]+)\.mjs$)' || true)"
+if [ -n "$i18n_files" ]; then
+  if ! node apps/chat-mobile/scripts/sync-i18n.mjs --check; then
+    echo "✗ UniChat mobile's locales are stale after this change:"
+    echo "  run: node apps/chat-mobile/scripts/sync-i18n.mjs && git add apps/chat-mobile/locales"
+    fail=1
+  fi
+fi
+
 # --- TypeScript: lint + typecheck, scoped to the touched workspaces ----------
 # GATE_LEVEL=fast skips this step: CI still runs lint and typecheck on the PR,
 # and the .env and gofmt checks above are the ones that cannot wait.

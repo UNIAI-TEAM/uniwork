@@ -792,3 +792,16 @@ test("every mobile workflow and every Maestro flow is valid YAML", () => {
     assert.deepEqual(errors, [], path.relative(root, file));
   }
 });
+
+// Audit "Testing & quality gates", missed P2: a web PR that edits a core string left UniChat's generated copy stale and
+// turned the required mobile gate red after the merge (develop, three pushes on 2026-10-22). The commit is stopped
+// where the string changes, at every GATE_LEVEL, before any of the level-dependent steps.
+test("a commit that changes a core string cannot leave UniChat's locales stale", () => {
+  const hook = fs.readFileSync(path.join(root, ".githooks/pre-commit"), "utf8");
+  const step = hook.split("# --- UniChat mobile's copy of the web's strings")[1]?.split("# --- ")[0] ?? "";
+  assert.match(step, /packages\/core\/i18n\/locales\//, "watches the core locales");
+  assert.match(step, /apps\/chat-mobile\/locales\//, "and the generated copy");
+  assert.match(step, /node apps\/chat-mobile\/scripts\/sync-i18n\.mjs --check/);
+  assert.match(step, /fail=1/);
+  assert.ok(hook.indexOf("UniChat mobile's copy") < hook.indexOf('if [ "$GATE_LEVEL" = fast ]'), "outside the GATE_LEVEL switch");
+});
