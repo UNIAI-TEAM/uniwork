@@ -11,8 +11,10 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -483,4 +485,105 @@ func TestDocumentOwnerTransferConcurrent(t *testing.T) {
 	if p := ownerTransferPayloads(t, f, d.ID); len(p) != 2 {
 		t.Fatalf("outbox rows = %d, want 2", len(p))
 	}
+}
+
+// TestDocumentOwnerTransferPinnedBranches pins the branches the first review
+// round found unreached (R1-3, R1-4): My Folder and shelved documents are
+// refused with their own codes, a folder moves without a share, and a
+// chat-origin share of the previous owner becomes a manual one.
+func TestDocumentOwnerTransferPinnedBranches(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "ot07")
+	owner := Human(tn.aclOwner.ID)
+	restricted := func() db.Document {
+		return f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+	}
+	unmoved := func(t *testing.T, id string) {
+		t.Helper()
+		if got := reloadDoc(t, f, id); got.AclOwnerID.String != tn.aclOwner.ID {
+			t.Fatalf("a refused transfer moved the owner: %+v", got.AclOwnerID)
+		}
+		if a := ownerTransferAudits(t, f, id); len(a) != 0 {
+			t.Fatalf("a refused transfer was audited: %+v", a)
+		}
+	}
+
+	t.Run("My Folder is locked", func(t *testing.T) {
+		d := restricted()
+		f.exec(t, `UPDATE documents SET kind = 'folder', system_kind = 'my_folder' WHERE id = $1`, d.ID)
+		_, err := f.svc.TransferOwner(f.ctx, owner, d.ID, DocumentOwnerTransferInput{UserID: tn.member.ID})
+		wantCoded(t, err, "my_folder_locked")
+		unmoved(t, d.ID)
+	})
+
+	t.Run("a shelved document is refused", func(t *testing.T) {
+		d := restricted()
+		shelveAt(t, f, d.ID, tn.aclOwner.ID, time.Now())
+		_, err := f.svc.TransferOwner(f.ctx, owner, d.ID, DocumentOwnerTransferInput{UserID: tn.member.ID})
+		wantCoded(t, err, "document_shelved")
+		unmoved(t, d.ID)
+	})
+
+	t.Run("a folder moves without a share", func(t *testing.T) {
+		d := restricted()
+		f.exec(t, `UPDATE documents SET kind = 'folder' WHERE id = $1`, d.ID)
+		got, err := f.svc.TransferOwner(f.ctx, owner, d.ID, DocumentOwnerTransferInput{UserID: tn.member.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.ACLOwnerID != tn.member.ID || got.PreviousOwnerID != tn.aclOwner.ID || got.PreviousOwnerShareID != "" {
+			t.Fatalf("result = %+v, want the owner moved and no share", got)
+		}
+		after := reloadDoc(t, f, d.ID)
+		if after.AclOwnerID.String != tn.member.ID {
+			t.Fatalf("acl_owner_id = %+v, want the recipient", after.AclOwnerID)
+		}
+		if s := userShares(t, f, after, tn.aclOwner.ID); len(s) != 0 {
+			t.Fatalf("folder shares of the previous owner = %+v, want none", s)
+		}
+	})
+
+	t.Run("an equal chat-origin share is taken over as manual", func(t *testing.T) {
+		d := restricted()
+		chat, err := f.q.InsertDocumentShare(f.ctx, db.InsertDocumentShareParams{
+			ID: util.NewID(), OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
+			DocumentID: d.ID, PrincipalType: DocumentPrincipalUser, PrincipalID: tn.aclOwner.ID,
+			Level: "edit", GrantedBy: tn.creator.ID, GrantedByKind: "human",
+			Origin: DocumentShareOriginChat, SourceKind: nullText(DocumentShareSourceKindChat),
+			SourceRoomID: nullText(util.NewID()), SourceMessageID: nullText(util.NewID()),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := f.svc.TransferOwner(f.ctx, owner, d.ID, DocumentOwnerTransferInput{UserID: tn.member.ID, PreviousOwnerLevel: "edit"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		shares := userShares(t, f, d, tn.aclOwner.ID)
+		if len(shares) != 1 || shares[0].Level != "edit" || shares[0].SourceKind.Valid || shares[0].ID == chat.ID || shares[0].ID != got.PreviousOwnerShareID {
+			t.Fatalf("shares = %+v, result %+v, want one manual edit share replacing the chat one", shares, got)
+		}
+	})
+
+	t.Run("a higher chat-origin share is kept as it is", func(t *testing.T) {
+		d := restricted()
+		chat, err := f.q.InsertDocumentShare(f.ctx, db.InsertDocumentShareParams{
+			ID: util.NewID(), OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
+			DocumentID: d.ID, PrincipalType: DocumentPrincipalUser, PrincipalID: tn.aclOwner.ID,
+			Level: "manage", GrantedBy: tn.creator.ID, GrantedByKind: "human",
+			Origin: DocumentShareOriginChat, SourceKind: nullText(DocumentShareSourceKindChat),
+			SourceRoomID: nullText(util.NewID()), SourceMessageID: nullText(util.NewID()),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := f.svc.TransferOwner(f.ctx, owner, d.ID, DocumentOwnerTransferInput{UserID: tn.member.ID, PreviousOwnerLevel: "edit"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		shares := userShares(t, f, d, tn.aclOwner.ID)
+		if len(shares) != 1 || shares[0].ID != chat.ID || shares[0].Level != "manage" || got.PreviousOwnerShareID != chat.ID {
+			t.Fatalf("shares = %+v, result %+v, want the manage chat share untouched", shares, got)
+		}
+	})
 }

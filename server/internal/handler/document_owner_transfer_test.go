@@ -7,9 +7,21 @@ package handler
 // nothing else - in particular never the document's content.
 
 import (
+	"context"
 	"strconv"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/util"
 )
+
+// manageEveryOwnedDocument is an owner resolver that gives every actor manage
+// on Work Product documents, so an owned document can be opened.
+type manageEveryOwnedDocument struct{}
+
+func (manageEveryOwnedDocument) Resolve(context.Context, service.Actor, string) (service.DocumentLevel, error) {
+	return service.DocumentLevelManage, nil
+}
 
 func TestDocumentOwnerTransferRoute(t *testing.T) {
 	w := newDocsWorld(t)
@@ -94,5 +106,26 @@ func TestDocumentAdminSummaryOwnerKindAndRevision(t *testing.T) {
 	}
 	if _, has := d["owner_kind"]; has {
 		t.Fatalf("owner_kind on an unowned document: %v", d)
+	}
+}
+
+// TestDocumentAdminSummaryOwnerKindForAWorkProductDocument is the other half
+// of §2.5 (review r1 R1-4): a document a Work Product owns names it in
+// owner_kind, so the share dialog can tell it apart.
+func TestDocumentAdminSummaryOwnerKindForAWorkProductDocument(t *testing.T) {
+	w := newDocsWorld(t)
+	w.docs.SetOwnerLevelResolver(manageEveryOwnedDocument{})
+	t.Cleanup(func() { w.docs.SetOwnerLevelResolver(nil) })
+	_, doc := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Của sản phẩm", "kind": "page", "visibility": "restricted"})
+	if _, err := w.pool.Exec(t.Context(), `UPDATE documents SET owner_kind = 'work_product', owner_id = $2 WHERE id = $1`, doc, util.NewID()); err != nil {
+		t.Fatal(err)
+	}
+	res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc+"/admin-summary", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("admin summary: %d %v", res.StatusCode, out)
+	}
+	d := out["document"].(map[string]any)
+	if d["owner_kind"] != "work_product" {
+		t.Fatalf("owner_kind = %v, want work_product: %v", d["owner_kind"], d)
 	}
 }
