@@ -9,12 +9,12 @@ import org.json.JSONObject
 
 /**
  * What a ring needs that only JavaScript knows, kept on the phone so a call push can ring with no JavaScript
- * running (NativeCallPush): whether calls ring at all (the calls switch, a person signed in), the app's link
+ * running (NativeCallPush): whether calls ring at all (the calls switch), the app's link
  * scheme, and the ring's words in the app's language. JavaScript writes it at launch and whenever one of them
  * changes (apps/chat-mobile/data/calls/native-ring.ts); until it has, a ring is left to JavaScript.
  */
 class RingConfig : Record {
-  /** The calls switch on and a person signed in; false makes the native path drop a ring. */
+  /** The calls switch on; false makes the native path drop a ring. */
   @Field
   var enabled: Boolean = false
 

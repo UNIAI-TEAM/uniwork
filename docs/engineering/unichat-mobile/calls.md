@@ -89,11 +89,12 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   của expo-notifications ở -1; `android-manifest.test.ts › messagingServices` giữ thứ tự) và đưa mọi tin FCM qua
   `NativeCallPush.handle` trước: push đổ chuông khi activity của app không ở trước (`AppVisibility`, từ listener của
   `UniChatCallsPackage`) và không có cuộc gọi đang chạy thì hiện ngay thông báo CallStyle, không khởi động Hermes hay
-  đọc phiên; push kết thúc gỡ nó và thông báo dự phòng `call-ring:<id>`; công tắc tắt, đã đăng xuất hay hết cửa sổ thì
+  đọc phiên; push kết thúc gỡ nó và thông báo dự phòng `call-ring:<id>`; công tắc tắt hay hết cửa sổ thì
   không reo. Những gì cần JavaScript quyết — app đang mở (engine biết in_app/bận), đang trong cuộc gọi, chưa có cấu hình
   chuông, hệ thống từ chối thông báo — và mọi push khác đi tiếp tới expo-notifications như cũ. Cấu hình chuông
-  (`RingConfig`: bật khi công tắc gọi bật và có người đăng nhập, scheme, chữ theo ngôn ngữ app) do
-  `data/calls/native-ring.ts` ghi lúc mở app và mỗi khi công tắc, phiên hay ngôn ngữ đổi (`ringSyncEnv` trong
+  (`RingConfig`: bật khi công tắc gọi bật — không theo phiên: máy đã đăng xuất không còn token push, còn phiên đang
+  khôi phục lúc offline không được làm im chuông —, scheme, chữ theo ngôn ngữ app) do
+  `data/calls/native-ring.ts` ghi lúc mở app và mỗi khi công tắc hay ngôn ngữ đổi (`ringSyncEnv` trong
   `call-wiring.ts`); kết quả của đường native (`RingReports`) được đếm khi JavaScript chạy lại: `call_push` `native`, và
   `call_ring` (từ lúc server gọi — `expires_at` trừ cửa sổ 60 s — tới lúc máy reo, cả đường JavaScript với `app`; alert
   `UniChatCallRingSlow`). Task nền JavaScript (`runCallPushTask`) đọc lại cấu hình từ xa đã giữ trước khi quyết, nên

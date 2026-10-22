@@ -35,13 +35,7 @@ const deps = vi.hoisted(() => ({
   session: {
     status: vi.fn(() => "signed-out"),
     restore: vi.fn(async () => true),
-    onChange: vi.fn((listener: (token: string | null) => void) => {
-      deps.sessionListener = listener;
-      return deps.offSession;
-    }),
   },
-  sessionListener: (_token: string | null) => undefined as void,
-  offSession: vi.fn(),
   cacheListener: (_event: { query: { queryKey: readonly unknown[] } }) => undefined as void,
   offCache: vi.fn(),
   restoreRemoteConfig: vi.fn(async () => true),
@@ -423,21 +417,19 @@ describe("onAppStateChange", () => {
 });
 
 describe("the native ring path", () => {
-  it("is configured at start with the switch, the session and the app's words, and counts what it rang meanwhile", () => {
+  it("is configured at start with the switch and the app's words, and counts what it rang meanwhile", () => {
     native.takeRingReports.mockReturnValueOnce([{ result: "cleared", latencyMs: -1 }]);
     const stop = wiring.startNativeCalls();
     expect(native.configureRing).toHaveBeenCalledTimes(1);
-    // Signed out at this point (the session restores after): no native ring yet.
-    expect(native.configureRing).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false, scheme: "uniworkchat" }));
+    // On from the start, whatever the session is doing: a session still restoring never silences a ring.
+    expect(native.configureRing).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true, scheme: "uniworkchat" }));
     expect(analytics.track).toHaveBeenCalledWith({ name: "call_push", result: "cleared" });
-    deps.session.status.mockReturnValue("signed-in");
-    deps.sessionListener("token");
-    expect(native.configureRing).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }));
     // The server turns calling off: the next answer of the remote-config query turns native rings off.
     deps.callsOn = false;
     deps.cacheListener({ query: { queryKey: ["chat", "w-1"] } });
-    expect(native.configureRing).toHaveBeenCalledTimes(2);
+    expect(native.configureRing).toHaveBeenCalledTimes(1);
     deps.cacheListener({ query: { queryKey: ["remote-config"] } });
+    expect(native.configureRing).toHaveBeenCalledTimes(2);
     expect(native.configureRing).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
     // A group call declined on screen is declined on the server too.
     engine.store.setState({ call: { status: "incoming", callId: "g-1", roomId: "r-9", peerName: "Đội", callKind: "group" } });
@@ -445,7 +437,6 @@ describe("the native ring path", () => {
     expect(deps.signalVoiceDecline).toHaveBeenCalledWith("w-1", "r-9", "g-1");
     stop();
     expect(deps.offCache).toHaveBeenCalledTimes(1);
-    expect(deps.offSession).toHaveBeenCalledTimes(1);
   });
 
   it("is written again on a return to the app and when the language changes, and counts rings on the way back", () => {

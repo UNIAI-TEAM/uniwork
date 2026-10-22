@@ -59,7 +59,7 @@ export interface NativeCallAction {
 
 /**
  * What a call push needs to ring with no JavaScript running (RingConfig.kt, kept on the phone): rings at all
- * (calls switch on, someone signed in), the app's link scheme and the notification's words in the app's language.
+ * (the calls switch), the app's link scheme and the notification's words in the app's language.
  */
 export interface NativeRingConfig {
   enabled: boolean;

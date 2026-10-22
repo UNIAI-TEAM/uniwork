@@ -235,26 +235,22 @@ export function onAppStateChange(status: string): void {
 }
 
 /**
- * The native ring path's config follows the calls switch (every update of the remote-config query), the session
- * (a sign-out stops native rings at once) and the language; a return to the app writes it again if anything else
- * moved meanwhile.
+ * The native ring path's config follows the calls switch (every update of the remote-config query) and the
+ * language; a return to the app writes it again if anything else moved meanwhile.
  */
 export const ringSyncEnv: NativeRingSyncEnv = {
   native: nativeCalls,
   t,
   scheme: authConfig.scheme,
   callsOn: () => readMobileFlag(queryClient, "unichat_mobile_calls"),
-  signedIn: () => session.status() !== "signed-out",
   subscribe(listener) {
     const offConfig = queryClient.getQueryCache().subscribe((event) => {
       if (event.query.queryKey[0] === remoteConfigKey[0]) listener();
     });
-    const offSession = session.onChange(() => listener());
     const appState = AppState.addEventListener("change", (status) => status === "active" && listener());
     i18n.on("languageChanged", listener);
     return () => {
       offConfig();
-      offSession();
       appState.remove();
       i18n.off("languageChanged", listener);
     };

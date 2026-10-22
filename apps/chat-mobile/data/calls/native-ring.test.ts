@@ -9,13 +9,12 @@ const t = (key: string, options?: Record<string, unknown>) => (options ? `${key}
 function env(overrides: Partial<NativeRingSyncEnv> = {}) {
   let listener = () => undefined as void;
   const off = vi.fn();
-  const state = { callsOn: true, signedIn: true };
+  const state = { callsOn: true };
   const base: NativeRingSyncEnv = {
     native: { available: true, configureRing: vi.fn() },
     t,
     scheme: "uniworkchat",
     callsOn: () => state.callsOn,
-    signedIn: () => state.signedIn,
     subscribe: (next) => {
       listener = next;
       return off;
@@ -52,8 +51,6 @@ describe("installNativeRingSync", () => {
     state.callsOn = false;
     fire();
     expect(e.native.configureRing).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
-    state.callsOn = true;
-    state.signedIn = false;
     fire();
     expect(e.native.configureRing).toHaveBeenCalledTimes(2);
     stop();

@@ -1,9 +1,11 @@
 // The native ring path's half in JavaScript (modules/unichat-calls › NativeCallPush.kt, review
 // "killed-app-ring-js-dependent"). A call push for a closed or backgrounded Android app rings from the FCM service
 // itself, with no JavaScript started; what it needs that only JavaScript knows is written to the phone here
-// (configureRing): whether calls ring at all — the calls switch (data/remote-config.ts) and someone signed in —,
-// the app's link scheme, and the notification's words in the app's language. Written at launch and again whenever
-// one of them changes, so a switch turned off on the server stops native rings as soon as this phone hears it.
+// (configureRing): whether calls ring at all — the calls switch (data/remote-config.ts) —, the app's link scheme,
+// and the notification's words in the app's language. Written at launch and again whenever one of them changes, so a
+// switch turned off on the server stops native rings as soon as this phone hears it. The session is not part of it:
+// a signed-out phone's push token is gone from the server, and a session still being restored (offline, refreshing)
+// must never silence a ring.
 // What the native path did meanwhile is counted when JavaScript next runs (reportNativeRings): the call_push
 // outcome and, for a ring, how long after the server rang it the phone did (call_ring).
 import { RING_ROOM_PLACEHOLDER } from "@/lib/call-push";
@@ -12,7 +14,7 @@ import type { NativeCalls, NativeRingConfig } from "./native-calls";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-/** The config the native path rings with: on only with the switch on and someone signed in. */
+/** The config the native path rings with: on with the calls switch on. */
 export function nativeRingConfig(t: Translate, state: { enabled: boolean; scheme: string }): NativeRingConfig {
   return {
     enabled: state.enabled,
@@ -32,8 +34,7 @@ export interface NativeRingSyncEnv {
   t: Translate;
   scheme: string;
   callsOn: () => boolean;
-  signedIn: () => boolean;
-  /** Calls `listener` whenever the switch, the session or the language may have changed; returns the unsubscribe. */
+  /** Calls `listener` whenever the switch or the language may have changed; returns the unsubscribe. */
   subscribe: (listener: () => void) => () => void;
 }
 
@@ -42,7 +43,7 @@ export function installNativeRingSync(env: NativeRingSyncEnv): () => void {
   if (!env.native.available) return () => undefined;
   let written = "";
   const write = () => {
-    const config = nativeRingConfig(env.t, { enabled: env.callsOn() && env.signedIn(), scheme: env.scheme });
+    const config = nativeRingConfig(env.t, { enabled: env.callsOn(), scheme: env.scheme });
     const key = JSON.stringify(config);
     if (key === written) return;
     written = key;

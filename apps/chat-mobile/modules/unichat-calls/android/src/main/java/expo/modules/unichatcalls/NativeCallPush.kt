@@ -63,7 +63,7 @@ internal object NativeCallPush {
     /** The incoming-call notification is up. */
     RANG(false),
 
-    /** Calls off, signed out, or the ring is over: nothing rings. */
+    /** Calls switched off, or the ring is over: nothing rings. */
     IGNORED(false),
 
     /** The end of a ring: its notification is down. */
