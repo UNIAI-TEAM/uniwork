@@ -67,6 +67,17 @@ describe("AskUniEditor", () => {
     expect(onSubmit).toHaveBeenCalledWith({ question: "**Đậm**, *nghiêng*, ~~gạch~~ và `a_b` với Việc \\*gấp\\*", mentions: [{ kind: "task", id: "T1" }] });
   });
 
+  it("draws a card inside its node view's wrapper, which the editor's styles keep inline", async () => {
+    mount(false);
+    act(() => {
+      box().editor.commands.insertContent({ type: "askUniMention", attrs: { kind: "project", id: "P1", label: "Website mới" } });
+    });
+    const card = await screen.findByRole("img", { name: /Website mới/ });
+    // shell.css lays out every [data-node-view-wrapper] in .rich-text-editor as display: inline, over the card's inline-flex.
+    expect(card).not.toHaveAttribute("data-node-view-wrapper");
+    expect(card.closest("[data-node-view-wrapper]")).not.toBeNull();
+  });
+
   it("in a list or code block Enter breaks the line; Mod+Enter sends from anywhere", () => {
     const { onSubmit } = mount(false);
     act(() => {

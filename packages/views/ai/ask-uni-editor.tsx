@@ -73,11 +73,14 @@ function AskUniToken({ node, selected }: NodeViewProps) {
   const entityKind = kind === "room" ? "chat" : kind;
   const kindLabel = useKindLabel(entityKind);
   const Icon = entityKindIcon(entityKind);
+  // The editor's shell.css keeps the wrapper itself inline (it wins over a class), so the card is a span inside it.
   return (
-    <NodeViewWrapper as="span" role="img" aria-label={`${kindLabel}: ${label}`} className={cn(CHIP, "cursor-default", selected && "ring-2 ring-ring")}>
-      <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-      <span className="truncate">{label}</span>
-      {kind === "task" ? <TaskStatusLabel taskId={id} /> : null}
+    <NodeViewWrapper as="span" className="inline">
+      <span role="img" aria-label={`${kindLabel}: ${label}`} className={cn(CHIP, "cursor-default", selected && "ring-2 ring-ring")}>
+        <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="truncate">{label}</span>
+        {kind === "task" ? <TaskStatusLabel taskId={id} /> : null}
+      </span>
     </NodeViewWrapper>
   );
 }
