@@ -16,6 +16,16 @@ Model hàng, danh sách tái chế, timeline dài, cửa sổ trượt, ảnh, b
   mới, tạo/thêm nhóm, chi tiết phòng; không màn nào đọc cả tập `onlineUserIds` trừ dải "đang hoạt động" của danh bạ),
   hàng so bằng `sameRoomListRow`, chạm vào hành động trên hàng mới
   nhất cùng key. Đừng truyền closure mới hay object dựng trong render vào một cell: test đếm render đỏ.
+  **Chi phí của một ô tin** (audit per-cell-gesture-and-entering-animations): vuốt để trả lời
+  (`components/chat/swipe-to-reply.tsx`) là một `Gesture.Pan`, một shared value và một animated style mỗi ô — không
+  còn `ReanimatedSwipeable` (hai ô hành động, tap + pan, nhiều shared value mỗi ô); mũi tên chỉ mount khi đang kéo,
+  di chuyển dọc làm pan thất bại nên danh sách vẫn cuộn; toán kéo là worklet thuần `lib/reply-swipe.ts`. Hiệu ứng
+  vào chỉ chạy cho thứ mới thật: một tin đang gửi mờ vào lần đầu bong bóng của nó được vẽ trong tiến trình
+  (`lib/first-sight.ts`), mọi lần mount khác của ô (cuộn về cửa sổ của danh sách) bọc trong
+  `LayoutAnimationConfig skipEntering` nên biểu cảm đã có đứng yên, biểu cảm thêm khi ô đang hiện vẫn nảy; ô không
+  mới không có wrapper animated. Bong bóng nhận trên nền sáng nổi bằng `elevation` trên Android và một đường hairline
+  màu viền trên iOS (bóng không `shadowPath` là một lượt offscreen mỗi bong bóng mỗi khung khi cuộn), một object tĩnh,
+  không dựng mỗi lần render.
   **Danh sách tái chế** (`@shopify/flash-list` 2, chỉ JS — không đổi fingerprint): danh sách phòng, danh bạ
   (`components/contacts/contact-list.tsx`: section dàn phẳng thành ô chữ cái + ô người bằng `contactListItems`, chữ
   cái dính, chữ cái bên phải nhảy bằng `scrollToIndex` — `scrollToLocation` của SectionList không có `getItemLayout`

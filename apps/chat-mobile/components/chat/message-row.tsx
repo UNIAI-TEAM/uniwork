@@ -1,6 +1,6 @@
 // One message in a conversation (spec §2.2; canvas MobileChat): the bubble on
-// the chat wall (mine on the right in brand, others in the card colour with a
-// light shadow), shaped by its place in a run of one sender's bubbles; the
+// the chat wall (mine on the right in brand, others in the card colour lifted off
+// the light wall by a hairline or an elevation), shaped by its place in a run of one sender's bubbles; the
 // sender's name inside the first bubble of a run in a group, the quoted
 // message it answers, its content by kind, time / "Đã sửa" / the seen ticks or
 // a local message's send state at the bubble's foot, reaction pills, the tasks
@@ -9,15 +9,16 @@
 // receipt, with actions for the menu and the quoted message, and a hint on a
 // local message that its tap opens retry / delete.
 import { Ionicons } from "@expo/vector-icons";
-import { memo, type ReactNode } from "react";
+import { memo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { Pressable, View, type AccessibilityActionEvent } from "react-native";
-import Animated, { FadeIn, ZoomIn } from "react-native-reanimated";
+import { Platform, Pressable, StyleSheet, View, type AccessibilityActionEvent } from "react-native";
+import Animated, { FadeIn, LayoutAnimationConfig, ZoomIn } from "react-native-reanimated";
 import { useRipple } from "@/components/ui/ripple";
 import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { bubbleCorners } from "@/lib/conversation-display";
+import { createFirstSight } from "@/lib/first-sight";
 import { senderNameClass } from "@/lib/sender-colors";
 import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { messagePreviewText, messageView, pendingPreviewText } from "@/lib/message-display";
@@ -37,6 +38,16 @@ const MAX_LINK_ACTIONS = 5;
 /** The design language board: a sent message appears in 180 ms; a reaction pops on a spring. */
 const SEND_IN = FadeIn.duration(180);
 const REACTION_IN = ZoomIn.springify().damping(14);
+/** The sends whose bubble this process has drawn: one fades in once, not each time the list re-mounts its cell. */
+const firstSend = createFirstSight(200);
+
+/**
+ * The canvas lifts the incoming bubble off the light wall; the dark wall needs no lift. Android draws it as an
+ * elevation on the render thread; on iOS a shadow without a shadowPath is an offscreen pass per bubble, every frame of
+ * a scroll, so a hairline of the border colour draws the edge instead. Static objects, not one per render.
+ */
+const LIFT_IOS = { borderWidth: StyleSheet.hairlineWidth, borderColor: THEME.light.border };
+const LIFT_ANDROID = { shadowColor: THEME.light.foreground, elevation: 1 };
 
 export interface MessageRowProps {
   message: TimelineMessage;
@@ -110,6 +121,10 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   const reactionSlop = { top: reactionTap.hitSlop, bottom: reactionTap.hitSlop };
   const threadTap = useTapTarget(32);
   const quoteRipple = useRipple();
+  // Decided once per mount: a pending send seen for the first time fades in. Any other mount (a cell scrolled back
+  // into the list's window, a remount after the send) skips its children's entering animations, so the reactions it
+  // already has stand still; one added while the cell is on screen still pops (LayoutAnimationConfig skips only at mount).
+  const [fresh] = useState(() => message.pending !== undefined && firstSend(message.id));
 
   if (record && messageView(record) === "system") {
     return (
@@ -170,141 +185,146 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   const reactions = Object.entries(record?.reactions ?? {}).filter(([, count]) => count > 0);
   const mine = new Set(record?.my_reactions ?? []);
   const meta = own ? "text-chat-bubble-own-meta" : "text-muted-foreground";
-  // The canvas lifts the incoming bubble off the light wall; the dark wall needs no shadow.
-  const lift =
-    own || scheme === "dark"
-      ? null
-      : { shadowColor: theme.foreground, shadowOpacity: 0.08, shadowRadius: 1, shadowOffset: { width: 0, height: 1 }, elevation: 1 };
+  const lift = own || scheme === "dark" ? null : Platform.OS === "ios" ? LIFT_IOS : LIFT_ANDROID;
 
-  return (
-    <Animated.View entering={message.pending ? SEND_IN : undefined}>
-      <View className={cn("px-2.5", compactTop ? "pt-0.5" : "pt-2.5", own ? "items-end" : "items-start", highlighted && "bg-primary/10")}>
-        <View className={cn("max-w-full flex-row items-end gap-1.5", own ? "justify-end" : "justify-start")}>
-          {avatar}
-          <Pressable
-            accessible={!interactive}
-            accessibilityLabel={label}
-            accessibilityHint={hint}
-            accessibilityActions={actions}
-            onAccessibilityAction={onAction}
-            onLongPress={longPress}
-            onPress={message.pending ? () => props.onPressPending(message) : undefined}
-            delayLongPress={200}
-            className={cn(
-              album ? "gap-1 p-[3px]" : "gap-1 px-3 pb-2 pt-1.5",
-              album ? null : "max-w-[72%]",
-              own ? "bg-chat-bubble-own" : "bg-chat-bubble-other",
-              ringed && "border-2 border-primary/25",
-            )}
-            style={[bubbleCorners(own, !compactTop, !continued), lift]}
-          >
-            {showSender ? (
-              <Text className={cn("text-footnote font-semibold", senderNameClass(message.sender), album && "px-2 pt-0.5")} numberOfLines={1}>
-                {senderName}
+  const body = (
+    <View className={cn("px-2.5", compactTop ? "pt-0.5" : "pt-2.5", own ? "items-end" : "items-start", highlighted && "bg-primary/10")}>
+      <View className={cn("max-w-full flex-row items-end gap-1.5", own ? "justify-end" : "justify-start")}>
+        {avatar}
+        <Pressable
+          accessible={!interactive}
+          accessibilityLabel={label}
+          accessibilityHint={hint}
+          accessibilityActions={actions}
+          onAccessibilityAction={onAction}
+          onLongPress={longPress}
+          onPress={message.pending ? () => props.onPressPending(message) : undefined}
+          delayLongPress={200}
+          className={cn(
+            album ? "gap-1 p-[3px]" : "gap-1 px-3 pb-2 pt-1.5",
+            album ? null : "max-w-[72%]",
+            own ? "bg-chat-bubble-own" : "bg-chat-bubble-other",
+            ringed && "border-2 border-primary/25",
+          )}
+          style={[bubbleCorners(own, !compactTop, !continued), lift]}
+        >
+          {showSender ? (
+            <Text className={cn("text-footnote font-semibold", senderNameClass(message.sender), album && "px-2 pt-0.5")} numberOfLines={1}>
+              {senderName}
+            </Text>
+          ) : null}
+          {quote ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("chat.reply_quote_jump", { preview: quote.text })}
+              // Inside a bubble read as one element the quote is its "open_quote" action, not a second stop.
+              accessibilityElementsHidden={!interactive}
+              importantForAccessibility={interactive ? "auto" : "no-hide-descendants"}
+              hitSlop={8}
+              android_ripple={quoteRipple}
+              onPress={() => props.onPressQuote(quote.id)}
+              className={cn(
+                "rounded-[10px] border-l-[3px] px-2 py-1",
+                own ? "border-chat-bubble-own-foreground bg-chat-bubble-own-foreground/15" : "border-primary bg-tint-blue",
+              )}
+            >
+              <Text className={cn("text-footnote font-semibold", own ? "text-chat-bubble-own-foreground" : "text-primary")} numberOfLines={1}>
+                {quote.sender}
               </Text>
+              <Text className={cn("text-footnote", own ? "text-chat-bubble-own-foreground" : "text-muted-foreground")} numberOfLines={2}>
+                {quote.text}
+              </Text>
+            </Pressable>
+          ) : null}
+          {album ? (
+            <AlbumGrid photos={album} ctx={ctx} onLongPress={longPress} />
+          ) : record ? (
+            <MessageContent record={record} own={own} ctx={ctx} onLongPress={longPress} />
+          ) : (
+            <Text className="text-body text-chat-bubble-own-foreground">{preview}</Text>
+          )}
+          <View
+            className={cn("flex-row items-center gap-1 self-end", album && "px-2 pb-1")}
+            accessible={interactive}
+            accessibilityLabel={footLabel}
+          >
+            {record ? (
+              <>
+                <Text className={cn("text-meta", meta)} style={{ fontVariant: ["tabular-nums"] }}>
+                  {[record.edited_at ? t("chat.edited_label") : null, album ? formatMessageTime(footTs, i18n.language) : time]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Text>
+                {/* Seen is a filled badge in the bubble's ink, not only a lighter tint of delivered's two ticks. */}
+                {receipt === "seen" ? (
+                  <Ionicons name="checkmark-done-circle" size={16} color={theme.chatBubbleOwnForeground} testID="receipt-seen" />
+                ) : null}
+                {receipt === "delivered" ? <Ionicons name="checkmark-done" size={15} color={theme.chatBubbleOwnMeta} /> : null}
+                {receipt === "sent" ? <Ionicons name="checkmark" size={15} color={theme.chatBubbleOwnMeta} /> : null}
+              </>
+            ) : message.pending ? (
+              <PendingMeta pending={message.pending} scheme={scheme} />
             ) : null}
-            {quote ? (
+          </View>
+        </Pressable>
+      </View>
+      {reactions.length > 0 ? (
+        <View className={cn("mt-1 flex-row flex-wrap gap-1", own ? "justify-end" : "justify-start", avatar && "ml-9")}>
+          {reactions.map(([emoji, count]) => (
+            <Animated.View key={emoji} entering={REACTION_IN}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={t("chat.reply_quote_jump", { preview: quote.text })}
-                // Inside a bubble read as one element the quote is its "open_quote" action, not a second stop.
-                accessibilityElementsHidden={!interactive}
-                importantForAccessibility={interactive ? "auto" : "no-hide-descendants"}
-                hitSlop={8}
-                android_ripple={quoteRipple}
-                onPress={() => props.onPressQuote(quote.id)}
+                accessibilityLabel={t(mine.has(emoji) ? "chat.message_list.reaction_mine_aria" : "chat.message_list.reaction_aria", {
+                  emoji,
+                  count,
+                })}
+                accessibilityState={{ selected: mine.has(emoji) }}
+                hitSlop={reactionSlop}
+                android_ripple={reactionTap.android_ripple}
+                onPress={() => props.onToggleReaction(message, emoji)}
                 className={cn(
-                  "rounded-[10px] border-l-[3px] px-2 py-1",
-                  own ? "border-chat-bubble-own-foreground bg-chat-bubble-own-foreground/15" : "border-primary bg-tint-blue",
+                  "min-h-[30px] flex-row items-center gap-1 rounded-full border px-2.5",
+                  mine.has(emoji) ? "border-primary bg-tint-blue" : "border-border bg-chat-bubble-other",
                 )}
               >
-                <Text className={cn("text-footnote font-semibold", own ? "text-chat-bubble-own-foreground" : "text-primary")} numberOfLines={1}>
-                  {quote.sender}
-                </Text>
-                <Text className={cn("text-footnote", own ? "text-chat-bubble-own-foreground" : "text-muted-foreground")} numberOfLines={2}>
-                  {quote.text}
-                </Text>
+                <Text className="text-callout">{emoji}</Text>
+                <Text className={cn("text-footnote font-semibold", mine.has(emoji) ? "text-primary" : "text-muted-foreground")}>{count}</Text>
               </Pressable>
-            ) : null}
-            {album ? (
-              <AlbumGrid photos={album} ctx={ctx} onLongPress={longPress} />
-            ) : record ? (
-              <MessageContent record={record} own={own} ctx={ctx} onLongPress={longPress} />
-            ) : (
-              <Text className="text-body text-chat-bubble-own-foreground">{preview}</Text>
-            )}
-            <View
-              className={cn("flex-row items-center gap-1 self-end", album && "px-2 pb-1")}
-              accessible={interactive}
-              accessibilityLabel={footLabel}
-            >
-              {record ? (
-                <>
-                  <Text className={cn("text-meta", meta)} style={{ fontVariant: ["tabular-nums"] }}>
-                    {[record.edited_at ? t("chat.edited_label") : null, album ? formatMessageTime(footTs, i18n.language) : time]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </Text>
-                  {/* Seen is a filled badge in the bubble's ink, not only a lighter tint of delivered's two ticks. */}
-                  {receipt === "seen" ? (
-                    <Ionicons name="checkmark-done-circle" size={16} color={theme.chatBubbleOwnForeground} testID="receipt-seen" />
-                  ) : null}
-                  {receipt === "delivered" ? <Ionicons name="checkmark-done" size={15} color={theme.chatBubbleOwnMeta} /> : null}
-                  {receipt === "sent" ? <Ionicons name="checkmark" size={15} color={theme.chatBubbleOwnMeta} /> : null}
-                </>
-              ) : message.pending ? (
-                <PendingMeta pending={message.pending} scheme={scheme} />
-              ) : null}
-            </View>
-          </Pressable>
+            </Animated.View>
+          ))}
         </View>
-        {reactions.length > 0 ? (
-          <View className={cn("mt-1 flex-row flex-wrap gap-1", own ? "justify-end" : "justify-start", avatar && "ml-9")}>
-            {reactions.map(([emoji, count]) => (
-              <Animated.View key={emoji} entering={REACTION_IN}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t(mine.has(emoji) ? "chat.message_list.reaction_mine_aria" : "chat.message_list.reaction_aria", {
-                    emoji,
-                    count,
-                  })}
-                  accessibilityState={{ selected: mine.has(emoji) }}
-                  hitSlop={reactionSlop}
-                  android_ripple={reactionTap.android_ripple}
-                  onPress={() => props.onToggleReaction(message, emoji)}
-                  className={cn(
-                    "min-h-[30px] flex-row items-center gap-1 rounded-full border px-2.5",
-                    mine.has(emoji) ? "border-primary bg-tint-blue" : "border-border bg-chat-bubble-other",
-                  )}
-                >
-                  <Text className="text-callout">{emoji}</Text>
-                  <Text className={cn("text-footnote font-semibold", mine.has(emoji) ? "text-primary" : "text-muted-foreground")}>{count}</Text>
-                </Pressable>
-              </Animated.View>
-            ))}
-          </View>
-        ) : null}
-        {props.taskIds?.length ? (
-          <View className={avatar ? "ml-9" : undefined}>
-            <TaskCards ctx={ctx} taskIds={props.taskIds} own={own} />
-          </View>
-        ) : null}
-        {showThread && record && record.reply_count > 0 ? (
-          <Pressable
-            accessibilityRole="button"
-            // The label, not the children: the icon's glyph is a character a screen reader would spell.
-            accessibilityLabel={t(record.thread_unread ? "chat.thread_replies_unread" : "chat.thread_replies", { count: record.reply_count })}
-            {...threadTap}
-            onPress={() => props.onPressThread(message)}
-            className={cn("mt-1 min-h-8 flex-row items-center gap-1.5 rounded-full bg-chat-chip px-3", avatar && "ml-9")}
-          >
-            <Ionicons name="chatbubbles-outline" size={15} color={theme.primary} />
-            <Text className="text-footnote font-semibold text-primary">
-              {t(record.thread_unread ? "chat.thread_replies_unread" : "chat.thread_replies", { count: record.reply_count })}
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
-    </Animated.View>
+      ) : null}
+      {props.taskIds?.length ? (
+        <View className={avatar ? "ml-9" : undefined}>
+          <TaskCards ctx={ctx} taskIds={props.taskIds} own={own} />
+        </View>
+      ) : null}
+      {showThread && record && record.reply_count > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          // The label, not the children: the icon's glyph is a character a screen reader would spell.
+          accessibilityLabel={t(record.thread_unread ? "chat.thread_replies_unread" : "chat.thread_replies", { count: record.reply_count })}
+          {...threadTap}
+          onPress={() => props.onPressThread(message)}
+          className={cn("mt-1 min-h-8 flex-row items-center gap-1.5 rounded-full bg-chat-chip px-3", avatar && "ml-9")}
+        >
+          <Ionicons name="chatbubbles-outline" size={15} color={theme.primary} />
+          <Text className="text-footnote font-semibold text-primary">
+            {t(record.thread_unread ? "chat.thread_replies_unread" : "chat.thread_replies", { count: record.reply_count })}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+  return (
+    <LayoutAnimationConfig skipEntering={!fresh}>
+      {fresh ? (
+        <Animated.View entering={SEND_IN} testID="send-in">
+          {body}
+        </Animated.View>
+      ) : (
+        body
+      )}
+    </LayoutAnimationConfig>
   );
 });

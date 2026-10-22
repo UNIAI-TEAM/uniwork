@@ -41,8 +41,8 @@ jest.mock("@react-native-community/netinfo", () => {
   const netInfo = { configure: () => undefined, addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
   return { __esModule: true, default: netInfo, ...netInfo, useNetInfo: () => ({ isConnected: true }) };
 });
-// Swipe-to-reply's pan mixes worklet and JS callbacks, which the gesture runtime's Jest build rejects;
-// its own test is components/chat/swipe-to-reply.test.tsx.
+// Swipe-to-reply is a gesture wrapper around each bubble, not what these routes test; its own test is
+// components/chat/swipe-to-reply.test.tsx.
 jest.mock("@/components/chat/swipe-to-reply", () => ({ SwipeToReply: ({ children }: { children: React.ReactNode }) => children }));
 // Sentry's full-display marker; the SDK ships ESM Jest does not load (and reports nothing without a DSN).
 jest.mock("@/data/sentry", () => ({ ScreenFullyDrawn: () => null }));

@@ -1,10 +1,25 @@
 import { ChatMessageSchema, type ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { fireEvent, screen } from "@testing-library/react-native";
-import { Platform } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { formatMessageTime, type TimelineMessage } from "@/lib/timeline-display";
 import type { PendingSend } from "@/lib/send-pipeline";
 import { render, viText } from "@/test/render";
 import { MessageRow, type MessageRowProps } from "./message-row";
+
+// Reanimated's test mode runs no layout animation, so the skip is read off a stand-in: it wraps its children in a
+// view that says whether the entering animations of what mounts with it are skipped.
+jest.mock("react-native-reanimated", () => {
+  const actual = jest.requireActual<typeof import("react-native-reanimated")>("react-native-reanimated");
+  const { View } = jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    __esModule: true,
+    ...actual,
+    default: actual.default,
+    LayoutAnimationConfig: ({ skipEntering, children }: { skipEntering?: boolean; children: React.ReactNode }) => (
+      <View testID={skipEntering ? "skip-entering" : "play-entering"}>{children}</View>
+    ),
+  };
+});
 
 const TS = Date.UTC(2026, 9, 21, 2, 41);
 const TIME = formatMessageTime(TS, "vi");
@@ -238,6 +253,42 @@ describe("links and bold in a message", () => {
       expect(thread.props.hitSlop).toBe(8);
       const quote = screen.getByRole("button", { name: viText("chat.reply_quote_jump", { preview: "Ảnh hôm qua?" }) });
       for (const control of [reaction, thread, quote]) expect(control.props.nativeBackgroundAndroid).toEqual(expect.objectContaining({ type: "RippleAndroid" }));
+    } finally {
+      jest.restoreAllMocks();
+    }
+  });
+
+  it("fades a send in the first time its bubble mounts only; a remount and a sent message stand still", async () => {
+    const send = { ...pending("sending"), id: "pending:fresh" };
+    const first = await render(<MessageRow {...props(send, { own: true })} />);
+    expect(screen.getByTestId("send-in")).toBeOnTheScreen();
+    expect(screen.getByTestId("play-entering")).toBeOnTheScreen();
+    await first.unmount();
+    // The list re-mounted the cell (scrolled back into its window): no second fade, and its children skip theirs.
+    await render(<MessageRow {...props(send, { own: true })} />);
+    expect(screen.queryByTestId("send-in")).toBeNull();
+    expect(screen.getByTestId("skip-entering")).toBeOnTheScreen();
+  });
+
+  it("mounts a message's reactions still, under a skip of their entering pop", async () => {
+    await render(<MessageRow {...props(sent({ reactions: { "👍": 2 } }))} />);
+    expect(screen.queryByTestId("send-in")).toBeNull();
+    expect(screen.getByTestId("skip-entering")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: viText("chat.message_list.reaction_aria", { emoji: "👍", count: 2 }) })).toBeOnTheScreen();
+  });
+
+  it("lifts an incoming light bubble with a hairline on iOS and an elevation on Android, and nothing else", async () => {
+    const bubbleStyle = () => StyleSheet.flatten(screen.getByLabelText(bubbleLabel("Bình", "Mai họp lúc 9 giờ nhé")).props.style);
+    const { rerender } = await render(<MessageRow {...props(sent())} />);
+    expect(bubbleStyle()).toMatchObject({ borderWidth: StyleSheet.hairlineWidth });
+    expect(bubbleStyle()).not.toHaveProperty("shadowOpacity");
+    await rerender(<MessageRow {...props(sent(), { scheme: "dark" })} />);
+    expect(bubbleStyle()).not.toHaveProperty("borderWidth");
+    jest.replaceProperty(Platform, "OS", "android");
+    try {
+      await rerender(<MessageRow {...props(sent())} />);
+      expect(bubbleStyle()).toMatchObject({ elevation: 1 });
+      expect(bubbleStyle()).not.toHaveProperty("borderWidth");
     } finally {
       jest.restoreAllMocks();
     }
