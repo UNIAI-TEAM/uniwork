@@ -304,36 +304,28 @@ describe("TaskSurface board columns on the table API", () => {
     ]);
   }, 60_000);
 
-  it("My Tasks board stays off the table API, splits columns on the client and says how much is loaded", async () => {
-    const server = serveBoardTable({ counts: {}, myTasks: 120 });
-    renderBoard("board-my", { type: "my", userId: "u1", relation: "all" }, [
+  it("My Tasks board pages each column on the table API and sends the relation", async () => {
+    const server = serveBoardTable({ counts: { todo: 120, done: 3 } });
+    renderBoard("board-my", { type: "my", userId: "u1", relation: "assigned" }, [
       "board",
       "list",
+      "table",
       "swimlane",
     ]);
 
-    expect(await screen.findByText("50 / 120 công việc đã tải", {}, LONG)).toBeInTheDocument();
-    // 50 tasks spread over backlog / todo / in_progress.
-    expect(cardsIn("todo")).toBe(17);
-    // The column counts the loaded cards only, and says so rather than read as its total.
-    expect(
-      within(column("todo")).getByRole("heading", { name: `${i18n.t("tasks.status_todo")}, 17 đã tải` }),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Tải thêm" }));
+    await waitFor(() => expect(cardsIn("todo")).toBe(50), LONG);
+    // The column states its own total, not a flat "50 / 123" for the whole board.
+    expect(heading("todo", 120)).toBeInTheDocument();
+    expect(screen.queryByText(/công việc đã tải/)).toBeNull();
+    await clickColumnLoadMore("todo");
+    await waitFor(() => expect(cardsIn("todo")).toBe(100), LONG);
 
-    expect(await screen.findByText("100 / 120 công việc đã tải", {}, LONG)).toBeInTheDocument();
-    expect(server.paths.some((path) => path.includes("/tasks/table/"))).toBe(false);
-    expect(server.paths.some((path) => path.includes("/tasks/grouped"))).toBe(false);
-  }, 60_000);
-
-  it("My Tasks board says a hidden column's count is the tasks loaded, not its total", async () => {
-    serveBoardTable({ counts: {}, myTasks: 120 });
-    getTaskSurfaceViewStore("board-my-hidden").getState().hideStatus("todo");
-    renderBoard("board-my-hidden", { type: "my", userId: "u1", relation: "all" }, ["board", "list"]);
-
-    expect(await screen.findByText("50 / 120 công việc đã tải", {}, LONG)).toBeInTheDocument();
-    expect(screen.queryByTestId("board-column-todo")).toBeNull();
-    expect(screen.getByText("17 đã tải")).toBeInTheDocument();
+    const bodies = [...server.groupBodies, ...server.rowBodies];
+    expect(bodies.length).toBeGreaterThan(0);
+    for (const body of bodies) {
+      expect(body).toMatchObject({ query: { filter: { relation: "assigned" } } });
+    }
+    expect(server.paths.some((path) => path.includes("/my-tasks"))).toBe(false);
   }, 60_000);
 });
 

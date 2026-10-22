@@ -12,8 +12,8 @@ import { TaskSurface } from "../tasks/surface/task-surface";
 import type { TaskSurfaceMode } from "../tasks/surface/types";
 import { MyTasksHeader } from "./my-tasks-header";
 
-/** Table omitted: workspace `/tasks/table/*` has no my-relation filter yet. */
-const MY_TASKS_MODES: TaskSurfaceMode[] = ["board", "list", "swimlane"];
+/** Same suite modes as `/tasks`, minus gantt; the table API takes the relation filter. */
+const MY_TASKS_MODES: TaskSurfaceMode[] = ["board", "list", "table", "swimlane"];
 
 /** `/my-tasks` host body: my-scoped TaskSurface with four relation tabs. */
 export function MyTasksPageView({

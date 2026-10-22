@@ -33,6 +33,13 @@ describe("tasks/surface/table-query", () => {
       expect(normalizeTableQuery({ filter: { statuses: [] } })).toEqual({});
     });
 
+    it("keeps the relation, which alone makes a filter, and drops an empty one", () => {
+      expect(normalizeTableQuery({ filter: { relation: "assigned" } })).toEqual({
+        filter: { relation: "assigned" },
+      });
+      expect(normalizeTableQuery({ filter: { relation: undefined, statuses: [] } })).toEqual({});
+    });
+
     it("trims search and omits it when only whitespace", () => {
       expect(normalizeTableQuery({ search: "   " })).toEqual({});
       expect(normalizeTableQuery({ search: " a " })).toEqual({ search: "a" });
