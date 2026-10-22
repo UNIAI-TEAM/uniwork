@@ -83,3 +83,35 @@ it("says the queue could not be read, and reads it again", async () => {
   fireEvent.click(screen.getAllByRole("button", { name: "Tải lại" })[0]!);
   expect(await screen.findByText("Quấy rối hoặc bắt nạt")).toBeInTheDocument();
 });
+
+it("an admin takes a reported message down with a reason, never seeing it; a refusal says so", async () => {
+  const user = userEvent.setup();
+  let refuse = true;
+  requestMock.mockImplementation(async (path: string, options?: { method?: string }) => {
+    if (path.endsWith("/me")) return { platform_role: "admin" };
+    if (options?.method === "POST") {
+      if (refuse) { refuse = false; throw new Error("down"); }
+      return { id: "r1", status: "resolved" };
+    }
+    return page;
+  });
+  render(wrapWithNav(<AdminChatReportsView />, nav));
+  await user.click(await screen.findByRole("button", { name: "Gỡ tin nhắn" }));
+  expect(screen.getByRole("dialog")).toHaveTextContent("Gỡ tin nhắn này");
+  fireEvent.change(screen.getByLabelText("Lý do"), { target: { value: "Nội dung quấy rối, gỡ theo điều khoản" } });
+  await user.click(screen.getByRole("button", { name: "Xác nhận" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Chưa gỡ được tin nhắn. Hãy thử lại.");
+  await user.click(screen.getByRole("button", { name: "Xác nhận" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  const posts = requestMock.mock.calls.filter(([, options]) => (options as { method?: string } | undefined)?.method === "POST");
+  expect(posts[1]).toEqual(["/api/v1/admin/chat-reports/r1/remove-message", expect.objectContaining({ body: { reason: "Nội dung quấy rối, gỡ theo điều khoản" } })]);
+});
+
+it("offers no takedown for a report about a person", async () => {
+  requestMock.mockImplementation(async (path: string) =>
+    path.endsWith("/me") ? { platform_role: "admin" } : { ...page, reports: [{ ...report, message_id: null, room_id: null }] },
+  );
+  render(wrapWithNav(<AdminChatReportsView />, nav));
+  expect(await screen.findByRole("button", { name: "Đóng báo cáo" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Gỡ tin nhắn" })).not.toBeInTheDocument();
+});

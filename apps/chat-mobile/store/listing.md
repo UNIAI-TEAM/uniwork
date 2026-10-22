@@ -114,8 +114,8 @@ app và trang đăng ký/đăng nhập web nói đăng nhập (đăng ký) là �
 ## Nội dung do người dùng tạo (Apple 1.2, Play UGC)
 
 Điều khoản sử dụng (`/terms`, neo `#acceptable-use`) cấm nội dung phản cảm và người dùng lạm dụng, không ngoại lệ, và
-cam kết nhà vận hành xem mọi báo cáo trong 24 giờ: tổ chức vô hiệu hoá tài khoản đã đăng theo yêu cầu, hoặc nhà vận
-hành tạm ngưng tổ chức (khi đó không ai trong tổ chức xem được nội dung); người dùng đồng ý điều khoản khi đăng ký và mỗi lần đăng nhập (dòng dưới nút). Tin nhắn chỉ đi giữa thành viên một tổ chức. Báo cáo: nhấn giữ một tin › Báo cáo; chi tiết cuộc trò chuyện riêng ›
+cam kết nhà vận hành xem mọi báo cáo trong 24 giờ: nhà vận hành gỡ tin vi phạm, tổ chức vô hiệu hoá tài khoản đã đăng
+theo yêu cầu, hoặc nhà vận hành tạm ngưng tổ chức (khi đó không ai trong tổ chức xem được nội dung); người dùng đồng ý điều khoản khi đăng ký và mỗi lần đăng nhập (dòng dưới nút). Tin nhắn chỉ đi giữa thành viên một tổ chức. Báo cáo: nhấn giữ một tin › Báo cáo; chi tiết cuộc trò chuyện riêng ›
 Báo cáo; chạm một thành viên trong chi tiết nhóm › Báo cáo — chọn lý do (spam, quấy rối, thù ghét, khiêu dâm, bạo lực,
 tự gây hại, khác), mô tả tuỳ chọn, và có thể chặn luôn. Báo cáo lưu ở server (`chat_reports`) và ghi nhật ký
 `chat.report.created`: chủ sở hữu và quản trị viên tổ chức thấy nó ở web › Cài đặt › Nhật ký hoạt động — lý do, người
@@ -124,10 +124,14 @@ chủ sở hữu/quản trị viên thì cũng thấy). Lời mô tả của ng�
 chứa chữ tự do); chủ sở hữu đọc nó trong bản xuất dữ liệu của tổ chức. **Nhà vận hành** thấy mọi báo cáo trong hàng
 đợi của console (`/admin/chat-reports`: tổ chức, lý do, người và tin bị báo cáo, người báo cáo, thời điểm — không nội
 dung, không lời mô tả) và nhận alert `UniChatReportFiled` khi có báo cáo đang chờ, `UniChatReportOverdue` khi một báo cáo chờ quá 20 giờ (runbook cùng tên); đóng báo cáo kèm lý
-do ghi `chat.report.resolved` vào nhật ký của tổ chức. Người dùng và reviewer cũng báo cáo thẳng qua
-`contact@unicomhub.com` (chính sách riêng tư nói vậy). Chưa ai xoá được tin của người khác (chỉ người gửi xoá tin của
-mình): vô hiệu hoá người đăng chặn họ lại nhưng tin họ đã gửi vẫn hiện; chỉ tạm ngưng tổ chức mới ẩn nội dung (không ai
-trong tổ chức xem được nữa). Công cụ gỡ một tin bị báo cáo chờ owner quyết ai được dùng. Chặn: chi tiết cuộc trò chuyện riêng hoặc thành
+do ghi `chat.report.resolved` vào nhật ký của tổ chức. **Gỡ tin bị báo cáo**: tài khoản platform `admin` bấm "Gỡ tin
+nhắn" trên hàng của báo cáo, ghi lý do (≥ 10 ký tự) — tin biến mất với mọi người như khi người gửi tự xoá (máy đang mở
+nhận `chat.message.deleted`), báo cáo được đóng, nhật ký của tổ chức ghi `chat.message.removed` (ai gỡ, lý do) và
+`admin_actions` giữ thao tác; console vẫn không bao giờ đọc nội dung tin
+(`POST /api/v1/admin/chat-reports/{id}/remove-message`, `AdminService.RemoveReportedMessage`). Người dùng và reviewer cũng
+báo cáo thẳng qua `contact@unicomhub.com` (chính sách riêng tư nói vậy). Trong tổ chức, chỉ người gửi xoá được tin của
+mình: vô hiệu hoá người đăng chặn họ lại nhưng tin họ đã gửi vẫn hiện; gỡ một tin là việc của nhà vận hành, tạm ngưng tổ
+chức ẩn mọi nội dung (không ai trong tổ chức xem được nữa). Cho chủ sở hữu/quản trị viên tổ chức tự gỡ tin chờ owner quyết. Chặn: chi tiết cuộc trò chuyện riêng hoặc thành
 viên nhóm › Chặn nhắn tin (hai bên không nhắn riêng được; cuộc trò chuyện biến khỏi danh sách người chặn); cuộc trò
 chuyện hiện người nào đã chặn. Ghi chú cho reviewer: **Review notes (en)** ở mục "Tài khoản demo cho review".
 
@@ -232,8 +236,9 @@ bản release do `android-manifest.test.ts` giữ.
 > "Report". The organization's owners and admins see each report (reason, the person or message reported, and who
 > reported it) in the web app's Settings › Activity log, and can deactivate the member who posted it. Every report also
 > reaches the operator's moderation queue, and anyone can report content or a user directly to the operator at
-> contact@unicomhub.com. The operator reviews every report within 24 hours: the organization deactivates the offending
-> account at our request, or we suspend the organization, after which none of its content can be seen.
+> contact@unicomhub.com. The operator reviews every report within 24 hours: we take the reported message down for
+> everyone from our moderation console, the organization deactivates the offending account at our request, or we
+> suspend the organization, after which none of its content can be seen.
 
 ## Ảnh chụp và đồ hoạ
 

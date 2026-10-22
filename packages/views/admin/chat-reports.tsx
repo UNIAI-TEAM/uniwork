@@ -2,7 +2,14 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleAlert, Flag } from "lucide-react";
-import { useAdminChatReports, useAdminMe, useResolveAdminChatReport, type AdminChatReport, type AdminChatReportStatus } from "@uniwork/core/admin";
+import {
+  useAdminChatReports,
+  useAdminMe,
+  useRemoveAdminReportedMessage,
+  useResolveAdminChatReport,
+  type AdminChatReport,
+  type AdminChatReportStatus,
+} from "@uniwork/core/admin";
 import { paths } from "@uniwork/core/paths";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -21,30 +28,33 @@ const FILTERS: (AdminChatReportStatus | "")[] = ["open", "resolved", ""];
  * organization's reports, with how many wait and since when against the
  * 24-hour promise of the terms of use. Ids and the reason only: the console
  * never reads a message or the reporter's words; the organization's owner
- * does, and the operator asks them or suspends the organization. support
- * reads; admin closes a report with a reason.
+ * does. An admin closes a report with a reason, or takes the reported message
+ * down for everyone (which closes it too) without ever seeing it; suspending
+ * the organization stays the last resort. support reads.
  */
 export function AdminChatReportsView() {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "admin.chat_reports" });
   const [status, setStatus] = useState<AdminChatReportStatus | "">("open");
   const [offset, setOffset] = useState(0);
-  const [closing, setClosing] = useState<AdminChatReport | null>(null);
+  // The report an admin acts on, and how: close it, or take its message down (which closes it too).
+  const [acting, setActing] = useState<{ row: AdminChatReport; kind: "resolve" | "remove" } | null>(null);
   const [error, setError] = useState("");
   const rows = useAdminChatReports({ status, limit: PAGE, offset });
   const resolve = useResolveAdminChatReport();
+  const remove = useRemoveAdminReportedMessage();
   const me = useAdminMe();
   const canClose = me.data === "admin";
   const when = (iso: string) => (Number.isNaN(Date.parse(iso)) ? iso : new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso)));
   const overdue = (iso: string | null | undefined) => !!iso && Date.now() - Date.parse(iso) > DAY_MS;
 
   async function submit(reason: string) {
-    if (!closing) return;
+    if (!acting) return;
     setError("");
     try {
-      await resolve.mutateAsync({ id: closing.id, reason });
-      setClosing(null);
+      await (acting.kind === "remove" ? remove : resolve).mutateAsync({ id: acting.row.id, reason });
+      setActing(null);
     } catch {
-      setError(t("resolve_error"));
+      setError(t(acting.kind === "remove" ? "remove_error" : "resolve_error"));
     }
   }
 
@@ -106,7 +116,10 @@ export function AdminChatReportsView() {
                   <TableCell className="whitespace-nowrap">{when(row.created_at)}</TableCell>
                   {canClose && (
                     <TableCell>
-                      {row.status === "open" ? <Button variant="outline" onClick={() => { setClosing(row); setError(""); }}>{t("resolve")}</Button> : null}
+                      <div className="flex flex-wrap gap-2">
+                        {row.message_id ? <Button variant="destructive" onClick={() => { setActing({ row, kind: "remove" }); setError(""); }}>{t("remove")}</Button> : null}
+                        {row.status === "open" ? <Button variant="outline" onClick={() => { setActing({ row, kind: "resolve" }); setError(""); }}>{t("resolve")}</Button> : null}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
@@ -120,7 +133,14 @@ export function AdminChatReportsView() {
         <span className="text-caption text-muted-foreground">{t("page", { page: offset / PAGE + 1 })}</span>
         <Button variant="outline" disabled={offset + PAGE >= (rows.data?.total ?? 0) || rows.isFetching} onClick={() => setOffset(offset + PAGE)}>{t("next")}</Button>
       </div>
-      <ReasonDialog open={!!closing} onOpenChange={(open) => { if (!open) setClosing(null); }} title={t("resolve_title")} description={t("resolve_description")} pending={resolve.isPending} onSubmit={(reason) => { void submit(reason); }}>
+      <ReasonDialog
+        open={!!acting}
+        onOpenChange={(open) => { if (!open) setActing(null); }}
+        title={t(acting?.kind === "remove" ? "remove_title" : "resolve_title")}
+        description={t(acting?.kind === "remove" ? "remove_description" : "resolve_description")}
+        pending={resolve.isPending || remove.isPending}
+        onSubmit={(reason) => { void submit(reason); }}
+      >
         {error && <p role="alert" className="text-body text-destructive">{error}</p>}
       </ReasonDialog>
     </>

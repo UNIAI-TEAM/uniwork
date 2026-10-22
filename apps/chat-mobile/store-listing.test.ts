@@ -130,10 +130,13 @@ describe("the generated store metadata", () => {
 describe("the listing's moderation paragraph", () => {
   const moderation = listing.slice(listing.indexOf("Điều khoản sử dụng (`/terms`"), listing.indexOf("## Quyền và chuỗi xin quyền"));
 
-  it("says deactivating the poster stops them but leaves their messages, and only a suspension hides content", () => {
+  it("says deactivating the poster leaves their messages, the operator takes a message down, and suspension hides all", () => {
     expect(moderation).not.toMatch(/gỡ nội dung nghĩa là vô hiệu hoá/);
     expect(moderation).toMatch(/vô hiệu hoá người đăng chặn họ lại nhưng tin họ đã gửi vẫn hiện/);
-    expect(moderation).toMatch(/chỉ tạm ngưng tổ chức mới ẩn nội dung/);
+    // Audit "ugc-filter-takedown": the operator's per-message takedown, the route that does it, and the reviewer note.
+    expect(moderation).toMatch(/gỡ một tin là việc của nhà vận hành/);
+    expect(moderation).toContain("/api/v1/admin/chat-reports/{id}/remove-message");
+    expect(listing).toContain("we take the reported message down for\n> everyone from our moderation console");
   });
 });
 

@@ -46,7 +46,7 @@ const vi: GuideContent = {
     ] },
     { title: "Báo cáo, chặn và cách chúng tôi xử lý", paragraphs: [
       "Trong UniChat, bạn báo cáo một tin nhắn hoặc một người bằng cách nhấn giữ tin nhắn rồi chọn Báo cáo, hoặc từ thông tin cuộc trò chuyện; bạn cũng chặn được người đó. Chủ sở hữu và quản trị viên tổ chức của bạn thấy báo cáo để xử lý trong tổ chức.",
-      `Chúng tôi cũng nhận mọi báo cáo gửi trong ứng dụng, và bạn có thể báo cáo thẳng với chúng tôi qua ${legalEntity.email}. Chúng tôi xem xét mọi báo cáo trong vòng 24 giờ. Khi nội dung vi phạm điều khoản, chúng tôi yêu cầu tổ chức vô hiệu hoá tài khoản đã đăng nó, và tạm ngưng tổ chức — khi đó không ai trong tổ chức xem được nội dung nữa — nếu việc đó không được làm hoặc vi phạm nghiêm trọng.`,
+      `Chúng tôi cũng nhận mọi báo cáo gửi trong ứng dụng, và bạn có thể báo cáo thẳng với chúng tôi qua ${legalEntity.email}. Chúng tôi xem xét mọi báo cáo trong vòng 24 giờ. Khi nội dung vi phạm điều khoản, chúng tôi gỡ nội dung đó khỏi cuộc trò chuyện, yêu cầu tổ chức vô hiệu hoá tài khoản đã đăng nó, và tạm ngưng tổ chức — khi đó không ai trong tổ chức xem được nội dung nữa — nếu việc đó không được làm hoặc vi phạm nghiêm trọng.`,
     ] },
     { title: "Tính năng AI", paragraphs: [
       "Các tính năng AI tạo ra câu trả lời, bản tóm tắt và nội dung có thể sai hoặc thiếu. Hãy kiểm tra kết quả trước khi dựa vào nó hay gửi cho người khác. AI chỉ chạy khi một thành viên yêu cầu; nội dung được gửi tới nhà cung cấp mô hình AI như chính sách quyền riêng tư mô tả, và không được dùng để huấn luyện mô hình AI.",
@@ -105,7 +105,7 @@ const en: GuideContent = {
     ] },
     { title: "Reporting, blocking and how we act", paragraphs: [
       "In UniChat, report a message or a person by long-pressing the message and choosing Report, or from the conversation's details; you can block that person too. Your organization's owners and admins see the report and act on it within the organization.",
-      `We also receive every report made in the apps, and you can report content or a user to us directly at ${legalEntity.email}. We review every report within 24 hours. When the content breaks these terms, we have the organization deactivate the account that posted it, and we suspend the organization — after which no one in it can see the content — if that is not done or the breach is serious.`,
+      `We also receive every report made in the apps, and you can report content or a user to us directly at ${legalEntity.email}. We review every report within 24 hours. When the content breaks these terms, we remove it from the conversation, have the organization deactivate the account that posted it, and suspend the organization — after which no one in it can see the content — if that is not done or the breach is serious.`,
     ] },
     { title: "AI features", paragraphs: [
       "AI features produce answers, summaries and content that can be wrong or incomplete. Check the result before you rely on it or share it. AI runs only when a member asks; content goes to the AI model provider as the privacy policy describes, and it is not used to train AI models.",

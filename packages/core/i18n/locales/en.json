@@ -6271,6 +6271,10 @@
       "resolve_title": "Close this report",
       "resolve_description": "Say what was done: the organization was asked to deactivate the poster, the organization was suspended, or the report was unfounded. The organization's owner sees that the report was handled.",
       "resolve_error": "Couldn't close the report. Try again.",
+      "remove": "Take message down",
+      "remove_title": "Take this message down",
+      "remove_description": "The message disappears for everyone in the conversation, as if its sender had deleted it, and the report closes. The console never shows you the message. Say why: the organization sees that the platform removed it, and who did.",
+      "remove_error": "Couldn't take the message down. Try again.",
       "previous": "Previous",
       "next": "Next",
       "page": "Page {{page}}"

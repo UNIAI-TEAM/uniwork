@@ -14,9 +14,9 @@ describe("terms of use", () => {
 
   // Apple 1.2 and Play's UGC policy: the terms forbid objectionable content and abusive users with
   // no tolerance, and say the operator acts on a report within 24 hours. The store listing's reviewer
-  // note points at #acceptable-use. It promises what exists: the operator's queue sees in-app reports,
-  // an organization deactivates a member, the operator suspends an organization (no one can delete
-  // another member's message today).
+  // note points at #acceptable-use. It promises what exists: the operator's queue sees in-app reports
+  // and takes a reported message down (POST /admin/chat-reports/{id}/remove-message), an organization
+  // deactivates a member, the operator suspends an organization.
   it("forbids objectionable content and abuse at #acceptable-use and commits to act on reports within 24 hours", () => {
     for (const locale of ["en", "vi"] as const) {
       const sections = guideContent("terms", locale).sections;
@@ -26,6 +26,7 @@ describe("terms of use", () => {
       expect(text(locale)).toContain(locale === "vi" ? "trong vòng 24 giờ" : "within 24 hours");
       expect(text(locale)).toContain(locale === "vi" ? "vô hiệu hoá tài khoản đã đăng nó" : "deactivate the account that posted it");
       expect(text(locale)).toContain(locale === "vi" ? "tạm ngưng tổ chức" : "suspend the organization");
+      expect(text(locale)).toContain(locale === "vi" ? "gỡ nội dung đó khỏi cuộc trò chuyện" : "remove it from the conversation");
       expect(text(locale)).toContain(locale === "vi" ? "nhận mọi báo cáo gửi trong ứng dụng" : "receive every report made in the apps");
     }
   });

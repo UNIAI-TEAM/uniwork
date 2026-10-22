@@ -58,3 +58,12 @@ export async function resolveAdminChatReport(id: string, reason: string): Promis
   const raw = await request(`/api/v1/admin/chat-reports/${encodeURIComponent(id)}/resolve`, { method: "POST", body: { reason } });
   return parseWithFallback<{ id: string; status: string } | null>(raw, ResolvedSchema, null, { endpoint: "POST /api/v1/admin/chat-reports/:id/resolve" });
 }
+
+/**
+ * Takes a reported message down for everyone (as its sender's own deletion would) and closes the report, with the
+ * operator's reason; the console never reads the message. null when the server's answer is not a receipt.
+ */
+export async function removeAdminReportedMessage(id: string, reason: string): Promise<{ id: string; status: string } | null> {
+  const raw = await request(`/api/v1/admin/chat-reports/${encodeURIComponent(id)}/remove-message`, { method: "POST", body: { reason } });
+  return parseWithFallback<{ id: string; status: string } | null>(raw, ResolvedSchema, null, { endpoint: "POST /api/v1/admin/chat-reports/:id/remove-message" });
+}

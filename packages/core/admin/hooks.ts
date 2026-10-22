@@ -227,3 +227,18 @@ export function useResolveAdminChatReport() {
     },
   });
 }
+
+/** Takes a reported message down and closes its report; awaits the server's receipt (no optimistic removal). */
+export function useRemoveAdminReportedMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const receipt = await chatReports.removeAdminReportedMessage(id, reason);
+      if (!receipt) throw new Error("The reported message takedown returned no receipt");
+      return receipt;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: adminKeys.chatReportsRoot });
+    },
+  });
+}

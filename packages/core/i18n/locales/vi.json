@@ -6224,6 +6224,10 @@
       "resolve_title": "Đóng báo cáo này",
       "resolve_description": "Ghi việc đã làm: đã yêu cầu tổ chức vô hiệu hoá người đăng, đã tạm ngưng tổ chức, hay báo cáo không có cơ sở. Chủ sở hữu tổ chức thấy báo cáo đã được xử lý.",
       "resolve_error": "Chưa đóng được báo cáo. Hãy thử lại.",
+      "remove": "Gỡ tin nhắn",
+      "remove_title": "Gỡ tin nhắn này",
+      "remove_description": "Tin biến mất với mọi người trong cuộc trò chuyện, như khi người gửi tự xoá, và báo cáo được đóng. Console không bao giờ hiện nội dung tin. Ghi lý do: tổ chức thấy nhà vận hành đã gỡ tin và ai đã gỡ.",
+      "remove_error": "Chưa gỡ được tin nhắn. Hãy thử lại.",
       "previous": "Trước",
       "next": "Tiếp",
       "page": "Trang {{page}}"

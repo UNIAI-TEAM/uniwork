@@ -16,7 +16,7 @@
 
 ## Kiểm tra
 
-1. Mở console `/admin/chat-reports` (vai trò platform `support` đọc được, `admin` mới đóng được): bộ lọc "Đang chờ",
+1. Mở console `/admin/chat-reports` (vai trò platform `support` đọc được, `admin` mới đóng báo cáo hay gỡ tin được): bộ lọc "Đang chờ",
    số báo cáo chờ và báo cáo chờ lâu nhất ở đầu trang. Mỗi dòng có tổ chức, lý do, người bị báo cáo, người báo cáo, tin
    nhắn (nếu có) và thời điểm — không có nội dung tin hay lời mô tả: console không bao giờ đọc nội dung.
 2. Tổ chức nào, đã bị tạm ngưng chưa: bấm tên tổ chức để mở trang chi tiết (thành viên, gói, 20 thao tác admin gần nhất).
@@ -26,12 +26,15 @@
 
 ## Khắc phục
 
-- Nội dung vi phạm điều khoản: yêu cầu chủ sở hữu/quản trị viên của tổ chức gỡ hoặc vô hiệu hoá người đăng (Cài đặt ›
-  Tổ chức trên web). Vô hiệu hoá chặn người đó ngay, **nhưng tin họ đã gửi vẫn hiện**: chưa ai xoá được tin của người
-  khác — chỉ người gửi xoá tin của mình, kể cả chủ sở hữu tổ chức và nhà vận hành cũng không. Nội dung phải biến mất
-  (phạm pháp, nghiêm trọng), tổ chức không làm trong hạn, hay chính chủ sở hữu là người vi phạm: tạm ngưng tổ chức ở
-  `/admin/organizations/<id>` (lý do ≥ 10 ký tự; mọi thành viên nhận 403 `organization_suspended`) — cách duy nhất hôm
-  nay ẩn nội dung.
+- Tin vi phạm điều khoản (theo lý do, mẫu báo cáo, hay xác nhận của chủ sở hữu tổ chức): bấm **"Gỡ tin nhắn"** trên dòng
+  đó (vai trò `admin`), ghi lý do ≥ 10 ký tự. Tin biến mất với mọi người như khi người gửi tự xoá (máy đang mở nhận
+  `chat.message.deleted`), báo cáo được đóng, và cùng một transaction ghi `admin_actions`, audit `chat.message.removed`
+  (ai gỡ, lý do, mã báo cáo) và `chat.report.resolved` trong tổ chức đó; console vẫn không đọc nội dung. Tin người gửi đã
+  tự xoá thì thao tác chỉ đóng báo cáo. Báo cáo về một người (không có tin) không có nút này.
+- Người đăng cần bị chặn: yêu cầu chủ sở hữu/quản trị viên của tổ chức vô hiệu hoá họ (Cài đặt › Tổ chức trên web). Vô
+  hiệu hoá chặn người đó ngay, nhưng tin họ đã gửi vẫn hiện tới khi được gỡ từng tin. Tổ chức không làm trong hạn, vi phạm
+  hàng loạt, hay chính chủ sở hữu là người vi phạm: tạm ngưng tổ chức ở `/admin/organizations/<id>` (lý do ≥ 10 ký tự;
+  mọi thành viên nhận 403 `organization_suspended`) — ẩn mọi nội dung của tổ chức.
 - Xong việc (đã xử lý, hay báo cáo không có cơ sở): bấm "Đóng báo cáo" trên dòng đó, ghi lý do ≥ 10 ký tự (vd. "chủ sở hữu đã
   vô hiệu hoá người đăng lúc 14:20"). Một dòng `admin_actions` và một dòng audit `chat.report.resolved` trong tổ chức đó
   được ghi cùng transaction: chủ sở hữu thấy nhà vận hành đã xử lý.
