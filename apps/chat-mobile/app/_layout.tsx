@@ -22,10 +22,11 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ChatCategorySync } from "@/components/app/chat-category-sync";
 import { loadPrivacySettings, usageStatsEnabled } from "@/components/app/privacy";
 import { PrivacyFloorSync } from "@/components/app/privacy-floor-sync";
 import { PrivacyGuard } from "@/components/app/privacy-guard";
@@ -38,10 +39,11 @@ import { authConfig, session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { bootRuntime } from "@/data/boot";
 import { perfMark } from "@/data/logger";
+import { startNativeCallSession } from "@/data/calls/call-session";
 import { startNativeCalls } from "@/data/calls/call-wiring";
 import { startAppServices, trackFirstScreen, trackPushOpen } from "@/data/app-startup";
 import { nativeCalls } from "@/data/calls/native-calls";
-import { runChatNotificationAction, registerChatMessageCategory } from "@/data/chat-notification-actions";
+import { runChatNotificationAction } from "@/data/chat-notification-actions";
 import { ensureNotificationChannels } from "@/data/notification-channels";
 import { queryClient } from "@/data/query-client";
 import { createDevicePersister, installAccountCache } from "@/data/query-persister";
@@ -68,6 +70,10 @@ void loadLocalePreference();
 void loadPrivacySettings();
 // The call's foreground service follows the call engine; Decline / Hang up taps that waited run now.
 startNativeCalls();
+// The system's call UI (CallKit on iPhone, docs/adr/0038): its Answer, Decline and End, those from the launch a VoIP
+// push made included, and the engine's own answer and end told back to it. An answer opens the call's room as a
+// notification tap would (kept until sign-in on a cold start).
+startNativeCallSession((url) => openUrl(url, true));
 // The encrypted store the outbox and the cached rooms live in, before the session is restored.
 installDeviceStore(openNativeDeviceStore);
 installAccountCache({ queryClient, persister: createDevicePersister(openDeviceStore) });
@@ -104,11 +110,10 @@ function AuthInitializer({ children }: { children: ReactNode }) {
   const signingOut = useRef(false);
   const { t, i18n } = useTranslation();
 
-  // Android's channels (calls, missed calls, mentions, messages, the rest) in the app's language, renamed when it changes;
-  // and a chat message push's Reply and Mark as read buttons, in that language too (data/chat-notification-actions.ts).
+  // Android's channels (calls, missed calls, mentions, messages, the rest) in the app's language, renamed when it
+  // changes. A chat message push's Reply and Mark as read follow the language and the app lock (ChatCategorySync).
   useEffect(() => {
     void ensureNotificationChannels(t, { platform: Platform.OS, native: nativeCalls });
-    void registerChatMessageCategory(t, Platform.OS);
   }, [t, i18n.language]);
 
   useEffect(() => {
@@ -126,10 +131,10 @@ function AuthInitializer({ children }: { children: ReactNode }) {
     const unsubscribe = session.onChange((token) => {
       // A callback that arrives as a deep link adopts the session outside login(): load /me so index.tsx leaves /login.
       if (token) void useAuthStore.getState().adoptSession();
-      // The server ended the session while a user is in (this device revoked elsewhere: socket 4001,
-      // refresh device_revoked): out now, not at the next request. logout() clears the user first,
-      // so the sign-out the app asked for never comes back here.
-      else if (useAuthStore.getState().user) signOut();
+      // The server ended the session (this device revoked elsewhere: socket 4001, refresh device_revoked): the
+      // store records it, so a boot or a sign-in on the way lets nobody in, and someone already in is out now, not at
+      // the next request. logout() clears the user first, so the sign-out the app asked for never comes back here.
+      else if (useAuthStore.getState().sessionEnded()) signOut();
     });
     // The session, the stored person, the workspace and the outbox are read together (data/auth/store.ts).
     void useAuthStore.getState().initialize();
@@ -139,10 +144,14 @@ function AuthInitializer({ children }: { children: ReactNode }) {
     });
     const urlSub = Linking.addEventListener("url", ({ url }) => openUrl(url));
     // The server's push payload carries the web URL of the message in `data.url`; Reply or Mark as read on a chat
-    // notification acts where it was tapped and opens nothing (lib/notification-response.ts).
+    // notification acts where it was tapped and opens nothing, unless the app lock refused the reply in an app the
+    // person is looking at: then the room opens behind the lock (lib/notification-response.ts). iOS brought the app
+    // forward for the action; Android's Reply does not, yet a live app hidden in the background hears it too, and a
+    // room opened there would be read, and its notifications cleared, for nobody.
     const handleResponse = createNotificationResponseHandler({
       openUrl: (url) => openUrl(url, true),
-      runChatAction: (action) => void runChatNotificationAction(action),
+      runChatAction: async (action) =>
+        (await runChatNotificationAction(action)) === "locked" && (Platform.OS !== "android" || AppState.currentState === "active"),
       trackPushOpen,
       clearLast: () => Notifications.clearLastNotificationResponse(),
     });
@@ -214,8 +223,10 @@ function RootLayout() {
                 </UpdateGate>
                 <ToastHost />
                 <PermissionPrimerHost />
-                {/* Above everything the person could read: the app switcher cover and the app lock, with the organization's floor. */}
+                {/* Above everything the person could read: the app switcher cover and the app lock, with the organization's floor;
+                    a chat push's buttons follow that lock. */}
                 <PrivacyFloorSync />
+                <ChatCategorySync />
                 <PrivacyGuard />
               </ThemeProvider>
             </QueryClientProvider>

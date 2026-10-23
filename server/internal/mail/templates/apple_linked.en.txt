@@ -1,0 +1,13 @@
+Subject: Sign in with Apple was linked to your UniWork account
+
+Sign in with Apple linked
+
+Your UniWork account was just signed in with the Apple ID that uses this email address, so that Apple ID now opens your account too. A phone signed in with it:
+
+    Device: {{.Data.Device}}
+    IP address: {{.Data.IP}}
+    When: {{.Data.At.Format "2006-01-02 15:04 MST"}}
+
+Review active sessions: {{.Data.SessionsURL}}
+
+If this was you, nothing to do. If not, revoke the session under Settings → Security now and secure the Apple ID that uses this address.

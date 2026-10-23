@@ -52,11 +52,16 @@ func (s *ChatService) requireMayNotifyRoom(ctx context.Context, senderID string,
 }
 
 // chatMentions is who a message mentions: the members it names, and whether
-// it says @all. Recipients is everyone to notify.
+// it says @all. Recipients is everyone to notify. roomMembers is the room's
+// member list as resolution read it (membersRead), so the send's room message
+// rows reuse it instead of reading it again in the same request (UNI-2141).
 type chatMentions struct {
 	Named      []string
 	All        bool
 	Recipients []string
+
+	roomMembers []string
+	membersRead bool
 }
 
 // resolveMentionRecipients reads the mentions in body. It refuses @all from a
@@ -114,7 +119,10 @@ func (s *ChatService) resolveMentionRecipients(
 			}
 		}
 	}
-	return chatMentions{Named: sortedIDs(named), All: mentionsAll, Recipients: sortedIDs(recipients)}, nil
+	return chatMentions{
+		Named: sortedIDs(named), All: mentionsAll, Recipients: sortedIDs(recipients),
+		roomMembers: roomMemberIDs, membersRead: true,
+	}, nil
 }
 
 func sortedIDs(set map[string]struct{}) []string {

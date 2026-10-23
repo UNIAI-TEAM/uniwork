@@ -52,8 +52,11 @@ Xoá tài khoản, pháp lý, giấy phép, đồng ý AI, báo cáo và chặn,
   `MediaProjectionService` (`tools:node="remove"`); FGS duy nhất là dịch vụ cuộc gọi (`phoneCall|microphone|camera`,
   mục Cuộc gọi native); `android-manifest.test.ts` giữ danh sách quyền và dịch vụ cuối của
   bản release (`scripts/android-manifest.mjs`: introspect của `expo config` với biến thể production + manifest của
-  từng thư viện được link). Thêm quyền/dịch vụ thì sửa test đó, bảng quyền của `store/listing.md` và checklist Play
-  App content của runbook cùng PR.
+  từng thư viện được link). Thư viện Maven mà các module kéo theo (ShortcutBadger, firebase-messaging, androidx.core)
+  cũng thêm quyền lúc Gradle gộp manifest, test đó không thấy: `android-permissions.json` là danh sách đã duyệt của
+  cả binary (mỗi quyền: ai thêm, vì sao giữ, Play hỏi gì) và `scripts/mobile-apk-scan.mjs` đỏ khi APK của CI hay AAB
+  production xin quyền ngoài nó. Thêm quyền/dịch vụ thì sửa test đó, danh sách đó, bảng quyền của `store/listing.md` và
+  checklist Play App content của runbook cùng PR.
 
 - `store/listing.md`: mô tả vi/en, độ tuổi 18+ (khớp chính sách), privacy labels (có dòng xử lý AI và báo cáo),
   xoá tài khoản, nội dung do người dùng tạo, lý do từng quyền và dịch vụ nền, tài khoản
@@ -61,11 +64,15 @@ Xoá tài khoản, pháp lý, giấy phép, đồng ý AI, báo cáo và chặn,
   nhận dữ liệu (như Sentry) thì cập nhật bảng Quyền riêng tư. Hồ sơ phải khớp binary, test giữ:
   `store-listing.test.ts` (chuỗi xin quyền trong bảng = `USAGE_VI`/`USAGE_EN` của `app.config.ts`; iOS privacy manifest
   `IOS_PRIVACY_MANIFEST` — `ios.privacyManifests` — khai đúng các loại dữ liệu và mức linked/purpose của cột Apple App
-  Privacy, không tracking, lý do API cần khai báo), `android-manifest.test.ts` (mọi quyền của manifest bản release có
-  tên trong mục Quyền của listing và ngược lại; `maxSdkVersion` của từng quyền), `privacy-content.test.ts` của web
+  Privacy, không tracking, lý do API cần khai báo), `android-manifest.test.ts` (mọi quyền `android.permission` của
+  manifest bản release và của `android-permissions.json` có tên trong mục Quyền của listing và ngược lại;
+  `maxSdkVersion` của từng quyền), `privacy-content.test.ts` của web
   (chính sách nói từng dòng của bảng Quyền riêng tư). Metadata cho store là code sinh từ listing:
-  `scripts/store-metadata.mjs` viết `store/apple/store.config.json` (EAS Metadata; iPhone bỏ dòng, từ khoá và ghi chú về
+  `scripts/store-metadata.mjs` viết `store/apple/store.config.json` (EAS Metadata; tên trên store là dòng "Tên trên
+  store" của listing, "UniWork Chat" như App Store Connect giữ app, và Play dùng cùng tên; iPhone bỏ dòng, từ khoá và ghi chú về
   gọi khi gọi còn tắt trên iPhone) và `store/play/<locale>/*.txt`, kiểm giới hạn ký tự của store;
   `store-listing.test.ts` chạy `--check`. Sửa chữ ở `listing.md` rồi chạy script, không sửa tệp sinh ra. Feature
-  graphic của Play: `store/play/feature-graphic.png` từ `pnpm brand:build`. Apple 4.8 (Sign in with Apple) chờ tài khoản Apple:
-  `docs/adr/drafts/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md`.
+  graphic của Play: `store/play/feature-graphic.png` từ `pnpm brand:build`. Apple 4.8 (Sign in with Apple): nút Apple native trên
+  màn đăng nhập iPhone, khi server bật nó (ADR [0041](../../adr/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md);
+  `components/auth/apple-sign-in-button.tsx`, `data/auth/flow.ts` › `loginWithApple`); xoá tài khoản thu hồi token Apple ở
+  server.

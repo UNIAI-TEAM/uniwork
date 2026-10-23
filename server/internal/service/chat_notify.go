@@ -79,8 +79,17 @@ func emitChatMentionsAdded(
 // emitChatMessageNotifications writes, in the send transaction, the durable
 // rows the notification consumer turns into inbox items and Web Push: one per
 // mentioned member, one for a DM's peer, one per follower of a thread the
-// message replies to (H1). The ephemeral chat.mention.created frame stays for
-// the open chat page; these reach the person who is not on it.
+// message replies to (H1), and one per other member for a message in a group,
+// channel or workspace room (UNI-2141: every message notifies, as messengers
+// do). The ephemeral chat.mention.created frame stays for the open chat page;
+// these reach the person who is not on it.
+//
+// A room message reaches members the message does not name, and only in a
+// room of at most chatSmallRoomMembers: past it a room notifies its mentions
+// only, as @all does, since a row per member of a 1,000-person channel for
+// every line is spam. A thread reply is not a room message (its followers
+// hear it). The person's mute and the kind's push switch apply at delivery,
+// so turning chat_message's push off is "mentions only" everywhere.
 //
 // @all past chatSmallRoomMembers notifies only the members it also names: a
 // row per member of a 1,000-person room is spam, and the mention badge still
@@ -106,6 +115,17 @@ func emitChatMessageNotifications(
 	}
 	if peer, err := dmPeerUserID(room, senderID); err == nil {
 		add("chat.dm.received", peer)
+	} else if room.Kind != chatRoomKindDM && threadRootID == "" {
+		members, err := chatRoomMessageRecipients(ctx, q, room.ID, m)
+		if err != nil {
+			return err
+		}
+		for _, id := range members {
+			if !skip[id] {
+				skip[id] = true
+				add("chat.message.received", id)
+			}
+		}
 	}
 	if threadRootID != "" {
 		// Muted followers are already left out by the query.
@@ -133,11 +153,35 @@ func emitChatMessageNotifications(
 	return auditRecorder.Emit(ctx, q, Human(senderID), events...)
 }
 
+// chatRoomMessageRecipients is who a room message notifies before the sender
+// and the mentioned are taken out: every member, or nobody past
+// chatSmallRoomMembers. An invited member is listed and left out at delivery,
+// where the rule reads the active membership. It reuses the list mention
+// resolution read for this send when there is one (the same query, before the
+// transaction; a member who left since is dropped at delivery all the same),
+// so a mention does not cost a second read of the room.
+func chatRoomMessageRecipients(ctx context.Context, q *db.Queries, roomID string, m chatMentions) ([]string, error) {
+	ids := slices.Clone(m.roomMembers)
+	if !m.membersRead {
+		var err error
+		if ids, err = q.ListChatRoomMemberUserIDs(ctx, roomID); err != nil {
+			return nil, err
+		}
+	}
+	slices.Sort(ids)
+	ids = slices.DeleteFunc(slices.Compact(ids), func(id string) bool { return id == "" })
+	if len(ids) > chatSmallRoomMembers {
+		return nil, nil
+	}
+	return ids, nil
+}
+
 // The notification group keys of a chat: the consumer merges a room's (or a
 // thread's) unread messages into one row under them, and reading the chat
 // closes that row by the same keys.
 func ChatDMNotifyGroup(roomID string) string      { return "chat_room:" + roomID + ":dm" }
 func ChatMentionNotifyGroup(roomID string) string { return "chat_room:" + roomID + ":mention" }
+func ChatRoomNotifyGroup(roomID string) string    { return "chat_room:" + roomID + ":message" }
 func ChatThreadNotifyGroup(rootID string) string  { return "chat_thread:" + rootID + ":reply" }
 func ChatCallNotifyGroup(roomID string) string    { return "chat_call:" + roomID }
 
@@ -229,7 +273,14 @@ func (s *ChatService) closeVoiceCallRingsTx(ctx context.Context, room db.ChatRoo
 		if err := qtx.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{UserID: id, GroupKeys: groups}); err != nil {
 			return err
 		}
-		events = append(events, ringClosedEvent(room, callID, id))
+		// The person who closed their own ring declined it (a DM's hangup by
+		// the callee, a group's decline), from the device this request came
+		// from; everyone else's ring ended with the call.
+		if id == actorID {
+			events = append(events, ringClosedEvent(room, callID, id, RingClosedDeclined, deviceSession(ctx)))
+		} else {
+			events = append(events, ringClosedEvent(room, callID, id, RingClosedEnded, ""))
+		}
 	}
 	if err := auditRecorder.Emit(ctx, qtx, Human(actorID), events...); err != nil {
 		return err
@@ -237,12 +288,43 @@ func (s *ChatService) closeVoiceCallRingsTx(ctx context.Context, room db.ChatRoo
 	return tx.Commit(ctx)
 }
 
-func ringClosedEvent(room db.ChatRoom, callID, userID string) audit.Event {
+// Why a ring stopped for a person, the closed set chat.voice.ring_closed
+// carries as reason: they answered it, they declined it, or the call ended
+// (hung up, or answered by someone else in a group) with them never in it.
+// An iPhone's CallKit shows it in the call history (ADR 0038 §4).
+const (
+	RingClosedAnswered = "answered"
+	RingClosedDeclined = "declined"
+	RingClosedEnded    = "ended"
+)
+
+// ringClosedEvent is the row that stops userID's phones ringing. sessionID is
+// the device session that answered or declined ("" when the ring closed for
+// another reason, or the request had none): the push lane does not tell that
+// device, which already knows and, on an iPhone, would report the call again.
+func ringClosedEvent(room db.ChatRoom, callID, userID, reason, sessionID string) audit.Event {
 	return audit.Event{
 		Topic: "chat.voice.ring_closed", Version: 1,
-		Payload:        map[string]string{"room_id": room.ID, "call_id": callID, "user_id": userID},
+		Payload: map[string]string{
+			"room_id": room.ID, "call_id": callID, "user_id": userID, "reason": reason, "session_id": sessionID,
+		},
 		OrganizationID: room.OrganizationID, WorkspaceID: roomAnchorWorkspaceID(room),
 	}
+}
+
+type deviceSessionKey struct{}
+
+// WithDeviceSession records on ctx the device session a request runs in (the
+// bearer token's sid, the session_id its push subscriptions carry). The voice
+// signal handlers set it, so the ring_closed row of a ring answered or
+// declined names the device that did it.
+func WithDeviceSession(ctx context.Context, sessionID string) context.Context {
+	return context.WithValue(ctx, deviceSessionKey{}, sessionID)
+}
+
+func deviceSession(ctx context.Context) string {
+	s, _ := ctx.Value(deviceSessionKey{}).(string)
+	return s
 }
 
 // closeAnsweredRing closes the ring row of someone who answered — always, so
@@ -269,7 +351,7 @@ func (s *ChatService) closeAnsweredRingTx(ctx context.Context, room db.ChatRoom,
 		return err
 	}
 	if closed > 0 || rungHere {
-		if err := auditRecorder.Emit(ctx, qtx, Human(userID), ringClosedEvent(room, callID, userID)); err != nil {
+		if err := auditRecorder.Emit(ctx, qtx, Human(userID), ringClosedEvent(room, callID, userID, RingClosedAnswered, deviceSession(ctx))); err != nil {
 			return err
 		}
 	}

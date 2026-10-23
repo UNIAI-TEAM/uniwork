@@ -48,3 +48,27 @@
   dùng. Đăng xuất (auth đã khôi phục xong mà không còn ai) gỡ mức. Tổ chức bắt buộc khoá mà máy không có khoá màn hình:
   màn khoá nói đặt mã/vân tay/khuôn mặt trong Cài đặt của máy (cũng đúng khi người dùng gỡ khoá màn hình sau khi bật).
   Yêu cầu mới tới máy đang mở thì có hiệu lực từ lần mở lạnh hay lần quay lại sau thời gian khoá lại kế tiếp.
+- **Nút của thông báo tin chat theo khoá UniChat** (UNI-2141). Khoá đang bật (của người dùng hay mức của tổ chức) thì
+  không trả lời được từ màn khoá của máy: `components/app/chat-category-sync.tsx` (gắn ở `app/_layout.tsx` cạnh
+  `PrivacyFloorSync`) đăng ký lại category `chat_message` mỗi khi ngôn ngữ, lựa chọn khoá hay mức của tổ chức đổi
+  (`lib/app-lock.ts › notificationActionsLocked`: chưa đọc xong Keychain thì chưa đăng ký — category của lần mở trước
+  giữ nguyên —, đọc hỏng/quá hạn thì coi là khoá). Khi khoá, category **không có Trả lời**: chạm vào thông báo mở đúng
+  phòng sau màn khoá của app, người dùng soạn sau khi mở khoá. Không làm Trả lời thành nút mở app
+  (`opensAppToForeground`): trên Android nút đó mở app đang bị kill thì expo cũng chạy task nền song song — cuộc đua mà
+  expo chỉ chặn cho lần chạm thường (`ExpoHandlingDelegate.handleNotificationResponse`), có thể làm hỏng task nền của
+  chuông cuộc gọi — trong khi lần chạm đã mở phòng. **Đánh dấu đã đọc** giữ (Android chạy ở nền; iOS mở app và thêm
+  `isAuthenticationRequired`, máy phải mở khoá): không hiện gì, không mở gì, không gửi chữ nào, chỉ dời mốc đã đọc.
+  Hàng rào thứ hai ở `data/chat-notification-actions.ts › handleChatNotificationAction`: một câu trả lời có chữ mà
+  khoá đang bật — thông báo đã nằm trên khay trước khi bật khoá (Android dựng nút lúc đăng thông báo), hay category
+  chưa kịp đăng ký lại — bị từ chối (`locked`: không gửi, không đánh dấu đọc, chữ không giữ lại), ở cả task nền lẫn
+  listener. Trên Android thông báo được đăng lại tại chỗ (cùng identifier, nên thay đúng cái vừa trả lời), im lặng, nội
+  dung `mobile.notification_actions.reply_locked` ("Chưa gửi tin trả lời vì UniChat đang khoá. Mở UniChat để trả
+  lời."), giữ tiêu đề và data cũ (chạm vẫn mở phòng, đọc phòng vẫn gỡ nó) với category đã khoá: Android giữ vòng quay
+  "đang gửi" của RemoteInput tới khi app đăng lại thông báo, để nguyên thì người dùng tưởng đã gửi. iOS không cần — iOS
+  đã mở app cho hành động. App chỉ mở phòng (`lib/notification-response.ts`, như lần chạm) khi app đang ở trước mặt:
+  iOS (hành động đưa app lên) hay Android với `AppState` `active` (Trả lời từ thông báo nổi trên app). Android không
+  đưa app lên cho Trả lời, nhưng app còn sống ở nền vẫn nghe listener song song task nền; mở phòng ở đó sẽ đánh dấu đọc
+  (gửi read receipt) và gỡ thông báo của phòng sau lưng người dùng, nên app ở nền không mở gì. Trạng thái khoá đọc
+  thẳng từ Keychain mỗi lần (`data/privacy-settings.ts › savedAppLockOn`, cùng hạn 3 s; hỏng/quá hạn là khoá), vì task
+  nền Android không có store. Mức của tổ chức chỉ tới máy khi app chạy và đọc chính sách; trước đó máy chưa khoá nên
+  nút cũ đúng với trạng thái máy biết.

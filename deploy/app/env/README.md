@@ -68,3 +68,47 @@ kubectl -n uniwork create secret generic uniwork-openai \
 ```
 
 Rotate the key on OpenRouter if it was ever exposed; update the secret and restart `uniwork-be`.
+
+### Apple (UniChat on the iPhone)
+
+Secret `uniwork-apple` holds the two Apple keys of team `XJAM488A6D`; the BE reads
+it through `be.secrets.apns` and `be.secrets.siwa` with `optional: true`, so a
+cluster without it still starts the pod:
+
+| Key | What | Without it |
+|---|---|---|
+| `APNS_KEY_ID`, `APNS_PRIVATE_KEY` | APNs token-auth key (`.p8`, PEM text) for iPhone VoIP call pushes (ADR 0038) | VoIP off, iPhones keep the Expo call push; the BE logs at start that the APNs key is incomplete |
+| `APPLE_SIWA_KEY_ID`, `APPLE_SIWA_PRIVATE_KEY` | Sign in with Apple key (`.p8`, PEM text) that signs Apple's client secret (ADR 0041) | sign-in works, account deletion cannot revoke the Apple grant (logged at start) |
+
+The non-secret half is in `uniwork-be.env`: `APNS_TEAM_ID`, `APPLE_SIWA_TEAM_ID`,
+`APPLE_SIWA_AUDIENCES` (empty turns Sign in with Apple off) and `APNS_VOIP_TOPIC`
+(kept empty: each push uses the token's own `<bundle id>.voip`). iPhone calls
+also need the `unichat_mobile_calls_ios` flag (default off, `/admin`).
+
+Create it from the downloaded `.p8` files, never from values typed on the
+command line (they land in shell history):
+
+```bash
+umask 077; d=$(mktemp -d)
+printf '%s' '<apns key id>' > "$d/apns-key-id"   # key ids are not secret
+printf '%s' '<siwa key id>' > "$d/siwa-key-id"
+kubectl -n uniwork create secret generic uniwork-apple \
+  --from-file=APNS_KEY_ID="$d/apns-key-id" \
+  --from-file=APNS_PRIVATE_KEY=AuthKey_<apns key id>.p8 \
+  --from-file=APPLE_SIWA_KEY_ID="$d/siwa-key-id" \
+  --from-file=APPLE_SIWA_PRIVATE_KEY=AuthKey_<siwa key id>.p8 \
+  --dry-run=client -o yaml | kubectl apply -f -
+rm -r "$d"
+kubectl -n uniwork rollout restart deployment/uniwork-be
+```
+
+A key id is the 10-character id Apple shows beside the key (also in the `.p8`
+file name); it is not secret, but it travels with its key. The PEM keeps its
+real line breaks; `\n` escapes are accepted too.
+
+Rotate: in Certificates, Identifiers & Profiles › Keys create the new key
+(APNs, or Sign in with Apple bound to `com.uniworkos.chat`), apply the Secret
+again with the new id and `.p8` (the command above), restart `uniwork-be`, check
+its start log (`APNs VoIP push enabled` with the new `key_id`; no `sign in with
+apple: token revoke disabled`), then revoke the old key at Apple. The old key
+keeps working until that last step, so nothing fails in between.

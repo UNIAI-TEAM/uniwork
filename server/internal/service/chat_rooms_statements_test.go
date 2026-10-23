@@ -86,9 +86,40 @@ func TestSendRoomMessageStatementCount(t *testing.T) {
 	n := int(counter.n.Load())
 	t.Logf("SendRoomMessage with @mention and priority: %d statements", n)
 	// One fewer GetActiveChatRoomMember and two metadata UPDATEs removed (UNI-1746).
+	// The room message rows reuse the member list mention resolution read, so
+	// notifying every member costs no second read here (UNI-2141).
 	const maxStatements = 18
 	if n > maxStatements {
 		t.Fatalf("send ran %d statements, want ≤ %d", n, maxStatements)
+	}
+}
+
+// TestSendPlainRoomMessageStatementCount bounds a group send with no mention:
+// mention resolution reads nothing, so the room message's own member read
+// (UNI-2141) is the one the send pays for its chat.message.received rows.
+func TestSendPlainRoomMessageStatementCount(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	uc := registerVerified(t, q, NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil), "chat-plain-c@example.com", "C")
+	for _, u := range []db.User{ub, uc} {
+		addOrgMember(t, q, w.OrganizationID, u.ID)
+		addWorkspaceMember(t, q, w.ID, u.ID)
+	}
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "send-plain-perf", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs, counter := countingChatService(t, s)
+	if _, err := cs.SendRoomMessage(ctx, ua.ID, w.ID, group.ID, SendChatMessageInput{Body: "chào cả nhà"}); err != nil {
+		t.Fatal(err)
+	}
+	n := int(counter.n.Load())
+	t.Logf("SendRoomMessage with no mention: %d statements", n)
+	// The same as a mention send: the member read moves from mention
+	// resolution to the room message rows (UNI-2141).
+	const maxStatements = 18
+	if n > maxStatements {
+		t.Fatalf("plain send ran %d statements, want ≤ %d", n, maxStatements)
 	}
 }
 

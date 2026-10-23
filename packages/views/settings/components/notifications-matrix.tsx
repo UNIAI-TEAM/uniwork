@@ -52,6 +52,8 @@ const PUSH_BY_DEFAULT = new Set<Kind>([
   "meeting_starting",
   "chat_mentioned",
   "chat_dm",
+  // UNI-2141: every chat message pushes; push off for it is "mentions only".
+  "chat_message",
   "chat_reminder",
   "chat_call_incoming",
   // UNI-1645: an edit request needs a quick answer and a take-over may leave
@@ -68,10 +70,10 @@ const NO_EMAIL: Partial<Record<Kind, true>> = { document_trashed_by_other: true 
 
 /**
  * Kinds whose email starts off (mirrors the Email default of `DefaultPrefs`):
- * the ones that never email, plus the document_changed digest (UNI-2056),
- * which a person may still switch on.
+ * the ones that never email, plus the document_changed digest (UNI-2056)
+ * and group or channel messages (UNI-2141), which a person may still switch on.
  */
-const EMAIL_OFF_BY_DEFAULT = new Set<Kind>(["document_trashed_by_other", "document_changed"]);
+const EMAIL_OFF_BY_DEFAULT = new Set<Kind>(["document_trashed_by_other", "document_changed", "chat_message"]);
 
 function serverDefault(kind: Kind): NotificationPreference {
   return { kind, in_app: true, push: PUSH_BY_DEFAULT.has(kind), email: !EMAIL_OFF_BY_DEFAULT.has(kind) };

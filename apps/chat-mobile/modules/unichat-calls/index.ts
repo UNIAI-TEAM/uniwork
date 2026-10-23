@@ -1,11 +1,15 @@
-// UniChat's native calls on Android (docs/adr/drafts/0038; Kotlin under
-// android/): the incoming-call notification (CallStyle, full-screen on a
+// UniChat's native calls (docs/adr/0038). Android (Kotlin under android/,
+// the "UniChatCalls" module): the incoming-call notification (CallStyle, full-screen on a
 // locked phone, the ringtone on the "calls" channel), the in-call foreground
 // service, the in-app ringer on the ringtone stream, and Decline / Hang up
 // handed to the "UniChatCallAction" JavaScript task; a call push rung
 // natively before JavaScript starts (UniChatMessagingService), and whether
 // the phone lets a call reach a closed app. Null on iOS, in Expo Go
 // and in tests: data/calls/native-calls.ts turns every call into a no-op then.
+// iOS (Swift under ios/, the "UniChatCallKit" module): PushKit's VoIP token and
+// pushes, each reported to CallKit natively, and CallKit's Answer, Decline and
+// End as events. Null on Android, in Expo Go and in tests. Both halves reach the
+// rest of the app as one NativeCallSession (data/calls/native-call-session.ts).
 import { requireOptionalNativeModule } from "expo";
 
 export interface CallChannelNames {
@@ -140,3 +144,34 @@ export interface UniChatCallsModule {
 }
 
 export const UniChatCalls = requireOptionalNativeModule<UniChatCallsModule>("UniChatCalls");
+
+/**
+ * The iOS half (ios/CallCenter.swift). Events arrive on "onCallEvent" as `{ type, … }`: "token" (a new VoIP token, ""
+ * when PushKit took it back), "answered" / "declined" / "ended" (CallKit's own buttons, with the call's callId, roomId,
+ * workspaceId, orgSlug, wsSlug, callerName and video), "muted" and "held" (callId and the flag), "audio" (active).
+ * Read through lib/call-session-event.ts: nothing native is trusted to keep its shape.
+ */
+export interface UniChatCallKitModule {
+  /** The build declares the `voip` background mode (UNICHAT_IOS_CALLS=1) and the call center runs. */
+  isEnabled(): boolean;
+  /** PushKit's VoIP token in hex; null until PushKit hands one over. */
+  voipToken(): string | null;
+  /** The APNs host the token belongs to: "sandbox" for a development-signed build, "production" otherwise. */
+  apnsEnvironment(): string;
+  bundleId(): string;
+  /** CallKit rings a call nobody has answered yet. */
+  isRinging(): boolean;
+  /** Another call (the phone's own) holds the line. */
+  isHeld(): boolean;
+  /** True once when CallKit's own Answer answered this call; taking it clears it. */
+  takeAnswered(callId: string): boolean;
+  /** Events from before JavaScript listened (a closed app launched by a VoIP push); taking clears them. */
+  takePendingEvents(): unknown[];
+  /** The app's call engine took a call CallKit rings or answered: CallKit answers it too, or stops waiting for it. */
+  answer(callId: string): Promise<void>;
+  /** The call is over for this phone: CallKit's screen goes. */
+  end(callId: string): Promise<void>;
+  addListener(eventName: "onCallEvent", listener: (event: unknown) => void): { remove(): void };
+}
+
+export const UniChatCallKit = requireOptionalNativeModule<UniChatCallKitModule>("UniChatCallKit");
