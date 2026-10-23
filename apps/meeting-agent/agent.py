@@ -5,7 +5,8 @@ Explicit dispatch only (agent_name set), so the worker never joins a room on
 its own; the server dispatches it with a per-meeting uwma_ token. Per microphone
 track: Silero VAD -> STT session -> captions on the uw.caption text stream and
 finals in 2 s batches to /agent/segments; live action items through
-/agent/extract on the §4.4 cadence. Never logs spoken text.
+/agent/extract on the §4.4 cadence. A phone caller the host admits hears the
+spoken scribe notice, alone (scribe/notice.py). Never logs spoken text.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from livekit.agents import AgentServer, AutoSubscribe, JobContext, JobProcess, J
 from livekit.agents.vad import VADEventType
 from livekit.agents.worker import WorkerPermissions
 from livekit.plugins import silero
+from livekit.protocol import models
 
 from scribe import config, metrics
 from scribe.api import ApiError, UniworkClient
@@ -35,6 +37,7 @@ from scribe.job import (
     should_transcribe,
 )
 from scribe.keyterms import KeytermRefresher, build_keyterms
+from scribe.notice import NOTICE_PATH, NoticeLedger, frames_of, read_notice
 from scribe.stt import make_stt
 from scribe.tracing import setup_tracing
 from scribe.transcriber import Caption, Final, TrackTranscriber, start_once
@@ -68,9 +71,15 @@ server = AgentServer(
     shutdown_process_timeout=110,
     prometheus_port=SETTINGS.metrics_port,
     prometheus_multiproc_dir=SETTINGS.metrics_dir,
-    # Spec §4.1: subscribe and publish data; no audio or video; visible in the room.
+    # Spec §4.1: subscribe and publish data; visible in the room. Audio only
+    # for the phone callers' notice (UNI-1995 access): microphone source, a
+    # track only the caller being told may subscribe to; never video.
     permissions=WorkerPermissions(
-        can_publish=False, can_subscribe=True, can_publish_data=True, can_update_metadata=False
+        can_publish=True,
+        can_subscribe=True,
+        can_publish_data=True,
+        can_update_metadata=False,
+        can_publish_sources=[models.TrackSource.MICROPHONE],
     ),
 )
 
@@ -192,6 +201,8 @@ async def entrypoint(ctx: JobContext) -> None:
             kind == rtc.ParticipantKind.PARTICIPANT_KIND_EGRESS,
         ):
             return
+        # A caller admitted before the scribe joined is told now.
+        maybe_notice(p)
         # Spec §4.2: the newcomer's name joins the keyterms; the read runs in
         # the background so their streams open now, and reaches them when it lands.
         keyterm_refresh.request()
@@ -227,6 +238,44 @@ async def entrypoint(ctx: JobContext) -> None:
         log.info("shared mic identity=%s on=%s", p.identity, diarize)
 
     ctx.room.on("participant_attributes_changed", on_attributes)
+
+    # UNI-1995 access (#2): an admitted phone caller hears the notice, alone.
+    # One at a time: the subscription permission is per publisher, not per track.
+    notices = NoticeLedger()
+    notice_lock = asyncio.Lock()
+
+    async def play_notice(identity: str) -> None:
+        async with notice_lock:
+            lp = ctx.room.local_participant
+            pub = None
+            try:
+                rate, channels, pcm = read_notice(NOTICE_PATH)
+                source = rtc.AudioSource(rate, channels)
+                track = rtc.LocalAudioTrack.create_audio_track("uw-scribe-notice", source)
+                only = rtc.ParticipantTrackPermission(participant_identity=identity, allow_all=True)
+                lp.set_track_subscription_permissions(allow_all_participants=False, participant_permissions=[only])
+                pub = await lp.publish_track(track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE))
+                await asyncio.sleep(1)  # the caller's SIP leg subscribes
+                per = rate // 100
+                for chunk in frames_of(pcm, rate, channels):
+                    await source.capture_frame(rtc.AudioFrame(chunk, rate, channels, per))
+                await source.wait_for_playout()
+                log.info("notice played identity=%s", identity)
+            except Exception as e:  # noqa: BLE001 - a failed notice must not end the job
+                notices.failed(identity)
+                log.warning("notice not played identity=%s err=%s", identity, type(e).__name__)
+            finally:
+                if pub is not None:
+                    with contextlib.suppress(Exception):
+                        await lp.unpublish_track(pub.sid)
+
+    def maybe_notice(p: rtc.Participant) -> None:
+        if notices.due(p.identity, getattr(p, "kind", None) == rtc.ParticipantKind.PARTICIPANT_KIND_SIP, p.attributes):
+            task = asyncio.create_task(play_notice(p.identity))
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
+
+    ctx.room.on("participant_attributes_changed", lambda _changed, p: maybe_notice(p))
 
     disconnect: dict[str, str | None] = {"reason": None}
     extractor: dict[str, asyncio.Task | None] = {"task": None}
