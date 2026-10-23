@@ -259,7 +259,8 @@ test("the production AAB is scanned for credentials, its manifest and its permis
             ...(entry.maxSdkVersion ? { "android:maxSdkVersion": String(entry.maxSdkVersion) } : {}),
           },
         })),
-        { tag: "application", attrs: { "android:allowBackup": "false" } },
+        // The TLS pin-set every release binary carries (scripts/mobile-apk-scan.mjs › unpinned).
+        { tag: "application", attrs: { "android:allowBackup": "false", "android:networkSecurityConfig": "" } },
       ],
     };
     const aab = (name, bundle) => {
