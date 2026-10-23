@@ -1,5 +1,6 @@
 // Ported from usf apps/mobile/app/(auth)/login.tsx, re-cut for PKCE: one
-// button opens the system browser; the session store loads /me afterwards.
+// button opens the system browser; the session store loads /me afterwards. On an iPhone, Sign in with Apple sits
+// above it (ADR 0041; Apple's HIG: no lower than the other ways in) and signs in without the browser.
 // Laid out as canvas MobLogin: the mark and the welcome up top, the error and
 // the button at the thumb. At the largest text sizes the page scrolls instead
 // of pushing the button off the screen (Maestro's a11y-large-text-dark flow); there the illustration gives way
@@ -11,12 +12,15 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AppleSignInButton } from "@/components/auth/apple-sign-in-button";
 import { LoginHero } from "@/components/brand/login-hero";
 import { SignInLegalNote } from "@/components/settings/sign-in-legal-note";
 import { useAnnounce } from "@/components/ui/a11y";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
+import type { LoginMethod } from "@/data/auth/machine";
 import { useAuthStore } from "@/data/auth/store";
+import { signInFailureKey } from "@/lib/sign-in-failure";
 import { THEME } from "@/lib/theme";
 import { DISPLAY_MAX_FONT_SCALE } from "@/lib/type-scale";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
@@ -27,19 +31,19 @@ export default function Login() {
   const user = useAuthStore((s) => s.user);
   const login = useAuthStore((s) => s.login);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
   // The error line's live region is TalkBack's; VoiceOver hears it through an announcement.
-  useAnnounce(failed ? t("auth.desktop.unichat_login_failed") : null);
+  useAnnounce(failure ? t(failure) : null);
 
   if (user) return <Redirect href="/" />;
 
-  const onPress = async () => {
+  const onPress = async (method: LoginMethod) => {
     setBusy(true);
-    setFailed(false);
+    setFailure(null);
     try {
-      await login();
-    } catch {
-      setFailed(true);
+      await login(method);
+    } catch (error: unknown) {
+      setFailure(signInFailureKey(method, error));
     } finally {
       setBusy(false);
     }
@@ -61,13 +65,14 @@ export default function Login() {
       </View>
       <View className="flex-1" />
       <View className="gap-3.5 px-6 pb-6">
-        {failed ? (
+        {failure ? (
           <View accessibilityRole="alert" accessibilityLiveRegion="polite" className="flex-row items-center justify-center gap-1.5">
             <Ionicons name="alert-circle-outline" size={16} color={THEME[colorScheme].destructive} />
-            <Text className="shrink text-center text-callout text-destructive">{t("auth.desktop.unichat_login_failed")}</Text>
+            <Text className="shrink text-center text-callout text-destructive">{t(failure)}</Text>
           </View>
         ) : null}
-        <Button disabled={busy} className="min-h-12 rounded-full py-3" onPress={() => void onPress()} testID="login-button">
+        <AppleSignInButton disabled={busy} onPress={() => void onPress("apple")} />
+        <Button disabled={busy} className="min-h-12 rounded-full py-3" onPress={() => void onPress("browser")} testID="login-button">
           <Text className="text-body font-semibold">{t("auth.desktop.unichat_login_button")}</Text>
         </Button>
         <View className="flex-row items-center justify-center gap-1.5">

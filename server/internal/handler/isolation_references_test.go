@@ -605,6 +605,8 @@ var isoRefFieldExempt = map[string]string{
 	"ExchangeOfficeLaunchSessionSDI.deployment_id":   "a configured deployment profile (allowlist), not a row",
 	"DesktopExchangeSDI.client_id":                   "the configured desktop client id (allowlist), not a row; the one-time code with its PKCE verifier is the credential",
 	"DesktopExchangeSDI.deployment_id":               "a configured deployment profile (allowlist), not a row",
+	"AppleSignInSDI.client_id":                       "the configured native client id (allowlist), not a row; Apple's identity token with its nonce is the credential",
+	"AppleSignInSDI.deployment_id":                   "a configured deployment profile (allowlist), not a row",
 	"DesktopLogoutSDI.deployment_id":                 "a configured deployment profile (allowlist); the device row must also carry it, and the device id is attacked by its own case",
 	"DesktopRefreshSDI.deployment_id":                "a configured deployment profile (allowlist); the device row must also carry it",
 	"DesktopRefreshSDI.device_session_id":            "public route: the rotating refresh token is the credential; a wrong token for a device id reaches replay detection, which revokes that device by design",

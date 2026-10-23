@@ -381,6 +381,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // later is this switch plus its translation.
       ["expo-localization", { supportedLocales: ["vi", "en"], supportsRTL: false }],
       "expo-web-browser",
+      // Sign in with Apple on iPhone (ADR 0041, Apple 4.8: the sign-in page offers Google): the
+      // com.apple.developer.applesignin entitlement; EAS turns the capability on for the App ID when it signs.
+      "expo-apple-authentication",
       // Android draws a notification's small icon from its alpha channel only: a one-colour glyph (built by
       // `pnpm brand:build`), tinted with the brand blue. The plugin writes it as the `notification_icon` drawable,
       // which the call notifications look up too (modules/unichat-calls › CallNotifications.smallIcon).

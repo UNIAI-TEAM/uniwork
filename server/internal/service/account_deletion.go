@@ -193,6 +193,8 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
 	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.emailHub, append(closedMailboxes, mailboxes...))
+	// u was read before AnonymizeUser cleared the Apple columns.
+	s.apple.revokeAfterCommit(ctx, userID, u.AppleClientID.String, u.AppleRefreshTokenEnc.String)
 	return nil
 }
 

@@ -135,9 +135,18 @@ type Config struct {
 	devVerificationCode string
 	// APIPublicURL is the origin browsers reach this API on. It builds OAuth
 	// redirect URIs, which providers match byte for byte.
-	APIPublicURL                  string
-	GoogleClientID                string
-	GoogleClientSecret            string
+	APIPublicURL       string
+	GoogleClientID     string
+	GoogleClientSecret string
+	// Sign in with Apple on the phone (ADR 0041): the bundle ids an identity
+	// token may be issued to (APPLE_SIWA_AUDIENCES), and the team, key id
+	// and .p8 key that sign the client secret Apple's token and revoke
+	// endpoints take. No audiences: the route answers 503 and
+	// /auth/providers reports apple=false.
+	AppleSignInAudiences          []string
+	AppleSignInTeamID             string
+	AppleSignInKeyID              string
+	AppleSignInPrivateKey         string
 	MicrosoftCalendarClientID     string
 	MicrosoftCalendarClientSecret string
 	// Email Hub signs in with its own OAuth clients, never the login or
@@ -251,6 +260,15 @@ func (c Config) DevVerificationCode() string {
 // answer 503 and the login page hides the button.
 func (c Config) GoogleEnabled() bool {
 	return c.GoogleClientID != "" && c.GoogleClientSecret != ""
+}
+
+// AppleSignInEnabled: at least one bundle id may sign in with Apple.
+func (c Config) AppleSignInEnabled() bool { return len(c.AppleSignInAudiences) > 0 }
+
+// AppleRevokeConfigured: the key that signs Apple client secrets is set, so a
+// sign-in keeps a refresh token and account deletion can revoke it.
+func (c Config) AppleRevokeConfigured() bool {
+	return c.AppleSignInTeamID != "" && c.AppleSignInKeyID != "" && c.AppleSignInPrivateKey != ""
 }
 
 func (c Config) GoogleRedirectURL() string {
@@ -451,6 +469,10 @@ func Load() (Config, error) {
 		APIPublicURL:                  getenv("API_PUBLIC_URL", "http://localhost:8080"),
 		GoogleClientID:                os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret:            os.Getenv("GOOGLE_CLIENT_SECRET"),
+		AppleSignInAudiences:          splitList(os.Getenv("APPLE_SIWA_AUDIENCES")),
+		AppleSignInTeamID:             os.Getenv("APPLE_SIWA_TEAM_ID"),
+		AppleSignInKeyID:              os.Getenv("APPLE_SIWA_KEY_ID"),
+		AppleSignInPrivateKey:         os.Getenv("APPLE_SIWA_PRIVATE_KEY"),
 		MicrosoftCalendarClientID:     os.Getenv("MICROSOFT_CALENDAR_CLIENT_ID"),
 		MicrosoftCalendarClientSecret: os.Getenv("MICROSOFT_CALENDAR_CLIENT_SECRET"),
 		EmailHubGoogleClientID:        os.Getenv("EMAIL_HUB_GOOGLE_CLIENT_ID"),

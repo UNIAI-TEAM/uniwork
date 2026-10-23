@@ -2517,6 +2517,9 @@ type User struct {
 	AiConsentAt          pgtype.Timestamptz `json:"ai_consent_at"`
 	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
 	AiOptOutAt           pgtype.Timestamptz `json:"ai_opt_out_at"`
+	AppleID              pgtype.Text        `json:"apple_id"`
+	AppleClientID        pgtype.Text        `json:"apple_client_id"`
+	AppleRefreshTokenEnc pgtype.Text        `json:"apple_refresh_token_enc"`
 }
 
 type WebhookInbox struct {

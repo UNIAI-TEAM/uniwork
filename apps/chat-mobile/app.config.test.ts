@@ -88,6 +88,8 @@ describe("app.config per UNICHAT_ENV", () => {
           expect.objectContaining({ image: "./assets/adaptive-icon.png", backgroundColor: "#ffffff", dark: expect.objectContaining({ backgroundColor: "#111111" }) }),
         ],
         "expo-secure-store",
+        // Sign in with Apple's entitlement (com.apple.developer.applesignin) on the iOS binary (ADR 0041).
+        "expo-apple-authentication",
         // A one-colour status-bar glyph with the brand's accent; the call notifications use the same drawable.
         ["expo-notifications", { icon: "./assets/notification-icon.png", color: "#0044E3" }],
         [
