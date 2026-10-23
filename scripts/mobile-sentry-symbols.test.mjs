@@ -89,8 +89,17 @@ test("a debug ID Sentry resolves to an artifact bundle passes, asked of the righ
 
 test("a debug ID Sentry does not know fails, naming the release and the debug ID, after the retries", { skip: noZip }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sentry-symbols-"));
-  // A release file found some other way is not this binary's map.
-  const sentry = await fakeSentry(() => [200, [{ id: "release_file/7", type: "file", resolved_with: "release-old" }]]);
+  // What artifact-lookup answers when the debug ID matches nothing: the newest bundles of the empty release, and
+  // legacy release files. Neither is this binary's map, nor is an entry that does not say how it was found.
+  const sentry = await fakeSentry(() => [
+    200,
+    [
+      { id: "artifact_bundle/9", type: "bundle", resolved_with: "release" },
+      { id: "artifact_bundle/10", type: "bundle" },
+      { id: "release_file/7", type: "bundle", resolved_with: "release-old" },
+      { id: "release_file/8", type: "file", resolved_with: "release-old" },
+    ],
+  ]);
   try {
     const result = await run(fixtureAab(dir, hermesBundle(ID)), sentry.url, { args: ["--attempts", "3"] });
     assert.equal(result.status, 1);
@@ -104,7 +113,7 @@ test("a debug ID Sentry does not know fails, naming the release and the debug ID
 
 test("an upload Sentry is still indexing passes on a later attempt", { skip: noZip }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sentry-symbols-"));
-  const sentry = await fakeSentry((_url, n) => (n === 1 ? [502, { detail: "bad gateway" }] : n === 2 ? [200, []] : [200, [{ id: "artifact_bundle/42", type: "bundle" }]]));
+  const sentry = await fakeSentry((_url, n) => (n === 1 ? [502, { detail: "bad gateway" }] : n === 2 ? [200, []] : [200, [{ id: "artifact_bundle/42", type: "bundle", resolved_with: "debug-id" }]]));
   try {
     const result = await run(fixtureAab(dir, `var a=1;\n//# debugId=${ID}\n`), sentry.url, { args: ["--attempts", "3"] });
     assert.equal(result.status, 0, result.stdout);

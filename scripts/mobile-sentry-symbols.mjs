@@ -90,8 +90,10 @@ async function lookup({ base, org, project, token, debugId, fetchImpl }) {
   if (!response.ok) throw new Error(`Sentry answered HTTP ${response.status}`);
   const body = await response.json();
   if (!Array.isArray(body)) throw new Error("Sentry answered with something other than a list");
-  // A bundle found by its debug ID; `resolved_with` is absent on older servers.
-  return body.filter((item) => item?.type === "bundle" && (item.resolved_with ?? "debug-id") === "debug-id");
+  // Only a bundle found by its debug ID. When the debug ID matches nothing, Sentry falls back to the newest bundles
+  // of the (here empty) release and answers them with `resolved_with: "release"`; legacy release files come back as
+  // "release-old". Neither holds this binary's map, so an entry without `resolved_with: "debug-id"` is not proof.
+  return body.filter((item) => item?.type === "bundle" && item.resolved_with === "debug-id");
 }
 
 function option(argv, name, fallback) {
