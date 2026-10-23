@@ -36,3 +36,6 @@ fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/service/ai_credentials_
 b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.mjs:aws-access-token:820
 b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.mjs:jwt:821
 b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.mjs:generic-api-key:832
+# UniChat Android APK scan fixtures (6e536f4c, UNI-2053). Fake PEM lines in
+# mobile-apk-scan.test.mjs for scanBytes() assertions only; not a credential.
+6e536f4c45f73458c20f97cd5e41dc8d658761ec:scripts/mobile-apk-scan.test.mjs:private-key:51
