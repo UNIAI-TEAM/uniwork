@@ -102,9 +102,12 @@ describe("message frames on an open room", () => {
     realtime.handle(frame("chat.message.created", { room_id: "r1", message_id: "m3", sender_id: "u1" }));
     await vi.waitFor(() => expect(ids(qc)).toEqual(["m1", "m2", "m3"]));
     expect(get).toHaveBeenCalledTimes(1);
+    // A "created" frame for a message already on the timeline costs no GET whoever the viewer is (core's
+    // chat-message-cache, f9cdc3c68): the cached row is the server's answer, and an edit arrives as "updated".
     deps.viewer = () => ({ userId: null, activeRoomId: null });
     realtime.handle(frame("chat.message.created", { room_id: "r1", message_id: "m2", sender_id: "u1" }));
-    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(get).toHaveBeenCalledTimes(1);
   });
 
   it("patches an edit and a thread reply's root, and drops a deleted message", async () => {
