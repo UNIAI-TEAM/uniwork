@@ -14,10 +14,13 @@ export function useAskUniAttachments(wsId: string) {
   const [refused, setRefused] = useState<AskFileRefusal[]>([]);
   // Each distinct reason once, and a new batch replaces the last one's.
   const attach = useCallback((files: File[]) => setRefused([...new Set(add(files))]), [add]);
-  const clearAll = useCallback(() => {
-    clear();
-    setRefused([]);
-  }, [clear]);
+  const clearAll = useCallback(
+    (keys?: string[]) => {
+      clear(keys);
+      setRefused([]);
+    },
+    [clear],
+  );
   return { ...staged, clear: clearAll, refused, attach };
 }
 

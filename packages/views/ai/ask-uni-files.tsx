@@ -54,6 +54,15 @@ export function AskUniQuestionFiles({ files, wsId }: { files: AiAttachment[]; ws
 const UNITS = new Set(["page", "slide", "row", "paragraph", "line"]);
 
 /**
+ * The note's copy: rows as a count (each sheet of a workbook gives its first rows, not one leading range), other units
+ * as the range read from the start, which for one unit is that unit alone.
+ */
+function noteKey(n: AiFileNote): string {
+  if (n.unit === "row") return "read_note_row";
+  return n.read === 1 ? `read_note_${n.unit}_first` : `read_note_${n.unit}`;
+}
+
+/**
  * One line per file UNI read only in part. A unit the client does not know, or a count that makes no sense, says only
  * that the start was read, rather than a raw key or a made-up count.
  */
@@ -62,9 +71,9 @@ export function AskUniFileNotes({ notes }: { notes: AiFileNote[] }) {
   return (
     <>
       {notes.map((n, i) => (
-        <p key={`${i}-${n.name}`} className="mt-2 text-caption text-muted-foreground">
+        <p key={`${i}-${n.name}`} className="mt-2 break-words text-caption text-muted-foreground">
           {UNITS.has(n.unit) && n.read > 0 && n.total > 0
-            ? t(`read_note_${n.unit}`, { count: n.read, read: n.read, total: n.total, name: n.name })
+            ? t(noteKey(n), { read: n.read, total: n.total, name: n.name })
             : t("read_note_partial", { name: n.name })}
         </p>
       ))}

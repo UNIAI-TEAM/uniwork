@@ -132,8 +132,10 @@ export function AskUniAttachmentChip({
 }
 
 /** What a failed upload's server code says, as one of the copies: the upload route's refusals by name, anything else (a proxy's HTML page too) the general failure. */
-function failure(code: string): "too_large" | "type_unsupported" | "failed" {
+function failure(code: string): "too_large" | "type_unsupported" | "unreadable" | "failed" {
   switch (code) {
+    case "ai_attachment_unreadable":
+      return "unreadable";
     case "too_large":
     case "file_too_large":
     case "ai_attachments_too_large":
@@ -165,7 +167,8 @@ export function AskUniAttachmentRow({ attachments }: { attachments: AskUniAttach
                 progress={x.progress}
                 error={x.error ? t(failure(x.error)) : undefined}
                 onRemove={() => remove(x.key)}
-                onRetry={() => retry(x.key)}
+                // Sending the same file again cannot open it: only removing it helps.
+                onRetry={x.error === "ai_attachment_unreadable" ? undefined : () => retry(x.key)}
               />
             </li>
           ))}

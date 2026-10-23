@@ -173,6 +173,10 @@ describe("attaching files to an Ask UNI question", () => {
   });
 
   it("shows a chip with progress for a picked file and sends its id", async () => {
+    // The server takes the question: it runs the turn.
+    requestStreamMock.mockImplementation(
+      (..._args: unknown[]) => Promise.resolve(streamResponse(['event: run\ndata: {"run_id":"r","conversation_id":"c1"}\n\n'])) as never,
+    );
     await mounted();
     fireEvent.click(screen.getByRole("button", { name: "Thêm phạm vi" }));
     fireEvent.click(await screen.findByRole("button", { name: /Tải file lên/ }));
@@ -193,7 +197,7 @@ describe("attaching files to an Ask UNI question", () => {
     await vi.waitFor(() => expect(askBody()).toBeDefined());
     expect(askBody()).toMatchObject({ question: "Tóm tắt file này", attachment_ids: ["id-bao-cao.pdf"] });
     // The files belong to the sent question: the row is empty again, and nothing is cancelled.
-    expect(document.querySelector('[data-slot="ask-uni-composer"] [data-slot="ask-uni-attachment"]')).toBeNull();
+    await waitFor(() => expect(document.querySelector('[data-slot="ask-uni-composer"] [data-slot="ask-uni-attachment"]')).toBeNull());
     expect(deleteAskAttachment).not.toHaveBeenCalled();
   });
 
@@ -261,8 +265,8 @@ describe("attaching files to an Ask UNI question", () => {
       uploads[3]!.reject(new ApiError("off", "ai_attachments_unavailable", 403));
     });
     const text = (name: string) => screen.getByText(name).closest('[data-slot="ask-uni-attachment"]')!.textContent;
-    expect(text("a.pdf")).toContain("File lớn hơn 20 MB");
-    expect(text("b.pdf")).toContain("File lớn hơn 20 MB");
+    expect(text("a.pdf")).toContain("File tối đa 20 MB; ảnh tối đa 7,5 MB");
+    expect(text("b.pdf")).toContain("File tối đa 20 MB; ảnh tối đa 7,5 MB");
     expect(text("c.pdf")).toContain("UNI chưa đọc được loại file này");
     expect(text("d.pdf")).toContain("Tải lên không được");
   });
@@ -298,6 +302,70 @@ describe("attaching files to an Ask UNI question", () => {
     enter();
     expect(onSend.mock.calls[1]![0]).toMatchObject({ question: "Và nữa?", attachment_ids: undefined });
     expect(onSend.mock.calls[1]![1]).toBeUndefined();
+  });
+
+  describe("a question the server has not taken yet", () => {
+    /** The composer, its files uploaded, the question typed and sent; `outcome` is what the send resolves to. */
+    async function sent(outcome: Promise<unknown>) {
+      const onSend = vi.fn(() => outcome);
+      render(
+        wrapWithNav(
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <Composer onSend={onSend} />
+          </WorkspaceProvider>,
+        ),
+      );
+      await screen.findByLabelText("Câu hỏi cho UNI");
+      pick(f("a.pdf"), f("b.pdf"));
+      await act(async () => {
+        uploads[0]!.resolve();
+        uploads[1]!.resolve();
+      });
+      type("Đọc hai file này");
+      enter();
+      await act(async () => {});
+      expect(onSend).toHaveBeenCalledTimes(1);
+    }
+    const chips = () => [...document.querySelectorAll<HTMLElement>('[data-slot="ask-uni-attachment"]')];
+
+    it("keeps the question and its files while the server decides", async () => {
+      await sent(new Promise(() => undefined));
+      expect(box().textContent).toBe("Đọc hai file này");
+      expect(chips()).toHaveLength(2);
+    });
+
+    it("clears both once the server takes the question", async () => {
+      await sent(Promise.resolve({ accepted: true }));
+      await waitFor(() => expect(box().textContent).toBe(""));
+      expect(chips()).toHaveLength(0);
+      expect(deleteAskAttachment).not.toHaveBeenCalled();
+    });
+
+    it("keeps both when the server refuses the question, and says why at the files", async () => {
+      await sent(Promise.resolve({ accepted: false, code: "ai_rate_limited", message: "quá nhanh" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Bạn hỏi quá nhanh, thử lại sau một phút.");
+      expect(box().textContent).toBe("Đọc hai file này");
+      expect(chips().map((c) => c.dataset.status)).toEqual(["ready", "ready"]);
+      expect(sendButton()).not.toHaveAttribute("aria-disabled");
+    });
+
+    it("marks the file an unreadable refusal names, with no retry, and waits for it to go", async () => {
+      await sent(Promise.resolve({ accepted: false, code: "ai_attachment_unreadable", message: 'không đọc được file đính kèm: "b.pdf"' }));
+      await waitFor(() => expect(chips().map((c) => c.dataset.status)).toEqual(["ready", "error"]));
+      const bad = chips()[1]!;
+      expect(bad).toHaveTextContent("UNI không mở được file này (file hỏng hoặc có mật khẩu)");
+      expect(within(bad).queryByRole("button", { name: "Thử lại" })).toBeNull();
+      expect(box().textContent).toBe("Đọc hai file này");
+      expect(sendButton()).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(within(bad).getByRole("button", { name: "Bỏ b.pdf" }));
+      expect(sendButton()).not.toHaveAttribute("aria-disabled");
+    });
+
+    it("says why at the files when an unreadable refusal names no staged file", async () => {
+      await sent(Promise.resolve({ accepted: false, code: "ai_attachment_unreadable", message: 'không đọc được file đính kèm: "cu.pdf"' }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("UNI không mở được một file đính kèm");
+      expect(chips().map((c) => c.dataset.status)).toEqual(["ready", "ready"]);
+    });
   });
 
   it("dropping files on the dock attaches them", async () => {
@@ -352,7 +420,7 @@ describe("attaching files to an Ask UNI question", () => {
     pick(f("big1.pdf", "application/pdf", 21 * 1024 * 1024), f("big2.pdf", "application/pdf", 22 * 1024 * 1024), f("old.doc", "application/msword"));
     const alerts = await screen.findAllByRole("alert");
     // Each distinct reason once, however many files hit it.
-    expect(alerts.map((a) => a.textContent).sort()).toEqual(["File lớn hơn 20 MB", "UNI chưa đọc được loại file này"]);
+    expect(alerts.map((a) => a.textContent).sort()).toEqual(["File tối đa 20 MB; ảnh tối đa 7,5 MB và 8000 × 8000 điểm ảnh", "UNI chưa đọc được loại file này"]);
     expect(uploads).toHaveLength(0);
 
     // A new pick replaces the notice; a sixth file is told about the limit.

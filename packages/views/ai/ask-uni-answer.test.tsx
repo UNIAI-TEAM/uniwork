@@ -317,17 +317,33 @@ describe("AskUniMessageTurn", () => {
     it("writes one note per file UNI read only in part", () => {
       mount(msg({ content: "Tóm tắt đây.", file_notes: [note(), note({ name: "so-lieu.xlsx", unit: "row", read: 200, total: 5000 })] }));
       expect(screen.getByText("UNI đã đọc trang 1–15 trên 80 trang của bao-cao.pdf")).toBeInTheDocument();
-      expect(screen.getByText("UNI đã đọc dòng 1–200 trên 5000 dòng của so-lieu.xlsx")).toBeInTheDocument();
+      expect(screen.getByText("UNI đã đọc 200 trên 5000 dòng của so-lieu.xlsx")).toBeInTheDocument();
+    });
+
+    it("wraps a note with a long unbroken name instead of overflowing the dock", () => {
+      mount(msg({ content: "ok", file_notes: [note({ name: "a".repeat(200) + ".pdf" })] }));
+      expect(screen.getByText(/UNI đã đọc trang 1–15/)).toHaveClass("break-words");
     });
 
     it.each([
       ["page", "UNI đã đọc trang 1–3 trên 9 trang của f"],
       ["slide", "UNI đã đọc slide 1–3 trên 9 slide của f"],
-      ["row", "UNI đã đọc dòng 1–3 trên 9 dòng của f"],
+      ["row", "UNI đã đọc 3 trên 9 dòng của f"],
       ["paragraph", "UNI đã đọc đoạn 1–3 trên 9 đoạn của f"],
       ["line", "UNI đã đọc dòng 1–3 trên 9 dòng của f"],
     ])("words a %s count", (unit, line) => {
       mount(msg({ content: "ok", file_notes: [note({ name: "f", unit, read: 3, total: 9 })] }));
+      expect(screen.getByText(line)).toBeInTheDocument();
+    });
+
+    it.each([
+      ["page", "UNI đã đọc trang 1 trên 9 trang của f"],
+      ["slide", "UNI đã đọc slide 1 trên 9 slide của f"],
+      ["row", "UNI đã đọc 1 trên 9 dòng của f"],
+      ["paragraph", "UNI đã đọc đoạn 1 trên 9 đoạn của f"],
+      ["line", "UNI đã đọc dòng 1 trên 9 dòng của f"],
+    ])("words one %s read without a range", (unit, line) => {
+      mount(msg({ content: "ok", file_notes: [note({ name: "f", unit, read: 1, total: 9 })] }));
       expect(screen.getByText(line)).toBeInTheDocument();
     });
 
@@ -347,13 +363,22 @@ describe("AskUniMessageTurn", () => {
       mount(
         msg({
           content: "ok",
-          file_notes: [note({ read: 15 }), note({ name: "a.pdf", read: 1 }), note({ name: "b.pdf", unit: "slide", read: 4, total: 30 }), note({ name: "c.pdf", read: 0 })],
+          file_notes: [
+            note({ read: 15 }),
+            note({ name: "a.pdf", read: 1 }),
+            note({ name: "b.pdf", unit: "slide", read: 4, total: 30 }),
+            note({ name: "c.pdf", read: 0 }),
+            note({ name: "d.xlsx", unit: "row", read: 1, total: 40 }),
+            note({ name: "e.xlsx", unit: "row", read: 12, total: 40 }),
+          ],
         }),
       );
       expect(screen.getByText("UNI read pages 1–15 of 80 in bao-cao.pdf")).toBeInTheDocument();
       expect(screen.getByText("UNI read page 1 of 80 in a.pdf")).toBeInTheDocument();
       expect(screen.getByText("UNI read slides 1–4 of 30 in b.pdf")).toBeInTheDocument();
       expect(screen.getByText("UNI read only the start of c.pdf")).toBeInTheDocument();
+      expect(screen.getByText("UNI read 1 of 40 rows in d.xlsx")).toBeInTheDocument();
+      expect(screen.getByText("UNI read 12 of 40 rows in e.xlsx")).toBeInTheDocument();
     });
 
     it("writes no note when every file was read whole", () => {
