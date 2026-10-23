@@ -131,9 +131,10 @@ func TestMeetingSearchScoresTheRecord(t *testing.T) {
 	}
 }
 
-// The summary is for the people of the meeting (UNI-1995 access): a member
-// outside it finds the meeting by its items, never by what the summary says,
-// and no read of Ask UNI, MCP or GET summary quotes it to them.
+// The summary is for the people of the meeting (UNI-1995 access), and so is
+// what its pending items say (demo bug 2): a member outside it never finds
+// the meeting by either, no read of Ask UNI, MCP or GET summary quotes them,
+// and a converted item reaches them as the task it became.
 func TestMeetingSummaryStaysWithThePeopleOfTheMeeting(t *testing.T) {
 	x := newMcpToolWorld(t)
 	ctx := context.Background()
@@ -145,12 +146,21 @@ func TestMeetingSummaryStaysWithThePeopleOfTheMeeting(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := x.tools.ask.meetings.AddActionItem(ctx, x.ua.ID, m.ID, AddActionItemInput{Title: "Đặt lịch phỏng vấn ứng viên"}); err != nil {
+	meetings := x.tools.ask.meetings
+	meetings.Tasks = x.tools.ask.tasks // conversion makes a task
+	if _, err := meetings.AddActionItem(ctx, x.ua.ID, m.ID, AddActionItemInput{Title: "Đặt lịch phỏng vấn ứng viên", OwnerText: "Lan"}); err != nil {
 		t.Fatal(err)
 	}
-	addMember(t, x.tools.ask.meetings, x.w.ID, x.ub.ID)
+	conv, err := meetings.AddActionItem(ctx, x.ua.ID, m.ID, AddActionItemInput{Title: "Chốt hợp đồng thuê"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := meetings.ConvertActionItems(ctx, x.ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: conv.Item.ID}}); err != nil {
+		t.Fatal(err)
+	}
+	addMember(t, meetings, x.w.ID, x.ub.ID)
 	outsider := McpPrincipal{UserID: x.ub.ID, OrganizationID: x.w.OrganizationID}
-	said := []string{"Nhóm rà soát tiến độ", "ngân sách marketing", "Tuyển dụng kỹ sư"}
+	said := []string{"Nhóm rà soát tiến độ", "ngân sách marketing", "Tuyển dụng kỹ sư", "phỏng vấn ứng viên", "Lan"}
 	quotes := func(where, s string) {
 		for _, w := range said {
 			if strings.Contains(s, w) {
@@ -158,30 +168,16 @@ func TestMeetingSummaryStaysWithThePeopleOfTheMeeting(t *testing.T) {
 			}
 		}
 	}
-	for _, q := range []string{"ngân sách marketing", "tuyển dụng kỹ sư"} {
+	for _, q := range []string{"ngân sách marketing", "tuyển dụng kỹ sư", "phỏng vấn ứng viên"} {
 		hits, err := x.tools.Search(ctx, outsider, x.w.ID, q)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, h := range hits {
 			if h.Kind == "meeting" && h.ID == m.ID {
-				t.Errorf("%q found the meeting through its summary for an outsider: %q", q, h.Excerpt)
+				t.Errorf("%q found the meeting through its AI content for an outsider: %q", q, h.Excerpt)
 			}
 		}
-	}
-	hits, err := x.tools.Search(ctx, outsider, x.w.ID, "phỏng vấn ứng viên")
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, h := range hits {
-		if h.Kind == "meeting" && h.ID == m.ID {
-			found = true
-			quotes("search hit", h.Excerpt)
-		}
-	}
-	if !found {
-		t.Errorf("an outsider no longer finds the meeting by its item titles: %+v", hits)
 	}
 	from, to := aroundNow()
 	x.p = outsider
@@ -193,14 +189,20 @@ func TestMeetingSummaryStaysWithThePeopleOfTheMeeting(t *testing.T) {
 		t.Fatal(err)
 	}
 	quotes("get_meeting", got.Excerpt)
-	if !strings.Contains(got.Excerpt, "Đặt lịch phỏng vấn ứng viên") {
-		t.Errorf("get_meeting dropped the action items for an outsider: %q", got.Excerpt)
-	}
 	srcs, err := x.tools.ask.meetingContext(ctx, ai.ToolContext{ActorID: x.ub.ID, WorkspaceID: x.w.ID}, m.ID)
 	if err != nil || len(srcs) != 1 {
 		t.Fatalf("meetingContext for an outsider = %+v, %v", srcs, err)
 	}
 	quotes("ask meeting context", srcs[0].Excerpt)
+	for name, excerpt := range map[string]string{"get_meeting": got.Excerpt, "ask meeting context": srcs[0].Excerpt} {
+		if !strings.Contains(excerpt, "- Chốt hợp đồng thuê · đã giao thành task") {
+			t.Errorf("%s dropped the task the meeting handed out for an outsider: %q", name, excerpt)
+		}
+	}
+	host, err := x.tools.ask.meetingContext(ctx, ai.ToolContext{ActorID: x.ua.ID, WorkspaceID: x.w.ID}, m.ID)
+	if err != nil || len(host) != 1 || !strings.Contains(host[0].Excerpt, "Đặt lịch phỏng vấn ứng viên · chưa giao · người được nêu: Lan") {
+		t.Errorf("meetingContext for the host lost the pending item: %+v, %v", host, err)
+	}
 	if _, err := x.tools.ask.meetings.SummaryWithRun(ctx, x.ub.ID, m.ID); !codedIs(err, "meeting_ai_restricted") {
 		t.Errorf("GET summary for an outsider: %v, want meeting_ai_restricted", err)
 	}
