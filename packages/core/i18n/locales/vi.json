@@ -3680,6 +3680,7 @@
       "autoFrom": "Tự tạo từ {{sources}}",
       "generatingStatus": "Đang tạo tóm tắt. Có thể mất tới một phút.",
       "generatedStatus": "Đã tạo tóm tắt.",
+      "generatingVisible": "Đang tạo tóm tắt…",
       "generatingReason": "Đang tạo tóm tắt, chờ xong rồi thử lại",
       "creatingStatus": "Đang tạo việc…",
       "createdStatus_one": "Đã tạo {{count}} việc.",
@@ -4096,6 +4097,9 @@
       "speakersLoadFailed": "Không tải được danh sách người nói."
     },
     "summaryPartial": "Tóm tắt dựa trên một phần cuộc họp: bản ghi lời thoại dài hơn mức AI đọc được một lần.",
+    "summaryTopics": "Chủ đề",
+    "summaryTopicStart": "Bắt đầu lúc {{time}}: xem lời thoại",
+    "summaryOpenQuestions": "Vấn đề còn mở",
     "held": {
       "button": "Ghi nhận đã họp",
       "title": "Ghi nhận cuộc họp đã diễn ra",

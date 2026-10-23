@@ -18,7 +18,10 @@ import {
   SummaryRegenerateConfirm,
 } from "./meeting-summary/summary-generate-controls";
 import { summarySourceFacts, summarySourceList, type SummarySourceTimes } from "./meeting-summary/summary-sources";
+import { SummaryOpenQuestions, SummaryTopics } from "./meeting-summary/summary-topics";
 import { useSummaryGeneration } from "./meeting-summary/use-summary-generation";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 
 /**
  * The AI summary and the decisions (a clerk generates; everyone reads). Shown
@@ -50,6 +53,7 @@ export function MeetingSummaryPanel({
   const reasonId = useId();
 
   const decisions = summary?.decisions ?? [];
+  const shownDay = meetingDayKey(meetingShownWindow(meeting, meeting.status === "ENDED").startsAt);
   const aiOff = !gen.aiOn && gen.capsLoaded;
   const showNeedsSource = gen.showGenerate && !gen.hasSource && !summaryLoading && !summaryFailed;
   // One sentence for an empty summary: why there is none and what would make one.
@@ -80,10 +84,17 @@ export function MeetingSummaryPanel({
         <SummaryFailureNotice gen={gen} />
         {summary ? (
           <div className="space-y-4">
-            <SummaryAttribution summary={summary} times={gen.sourceTimes} meeting={meeting} />
+            <SummaryAttribution summary={summary} times={gen.sourceTimes} shownDay={shownDay} />
+            {gen.serverRunning ? <SummaryRunning /> : null}
             <p className="max-w-prose whitespace-pre-wrap text-pretty text-body text-foreground">{summary.summary}</p>
+            <SummaryTopics meetingId={meetingId} topics={summary.topics ?? []} shownDay={shownDay} />
             <MeetingDecisionsBlock meetingId={meetingId} voted={gen.voted} aiDecisions={decisions} />
+            <SummaryOpenQuestions meetingId={meetingId} questions={summary.open_questions ?? []} />
           </div>
+        ) : summaryQuery.isPending ? (
+          <MeetingTextSkeleton />
+        ) : gen.generating ? (
+          <SummaryRunning skeleton />
         ) : summaryLoading ? (
           <MeetingTextSkeleton />
         ) : summaryFailed ? (
@@ -107,16 +118,15 @@ export function MeetingSummaryPanel({
 function SummaryAttribution({
   summary,
   times,
-  meeting,
+  shownDay,
 }: {
   summary: MeetingSummary;
   times: SummarySourceTimes;
-  meeting: Meeting;
+  /** The day the hero shows: the tooltip is the clock alone on it, the day too otherwise. */
+  shownDay: string;
 }) {
   const { t, i18n } = useTranslation();
   const locale = meetingLocale(i18n.language);
-  // The tooltip is the clock alone on the day the hero shows, the day too otherwise.
-  const shownDay = meetingDayKey(meetingShownWindow(meeting, meeting.status === "ENDED").startsAt);
   const facts = summarySourceFacts(summary.created_at, times);
   const list = summarySourceList(facts.sources, t, locale);
   // "Made automatically" folds into the source sentence: one AI badge, one line.
@@ -163,6 +173,31 @@ function SummaryAttribution({
         <p data-testid="ai-summary-partial" className="text-caption text-muted-foreground">
           {t("meetings.summaryPartial")}
         </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A summary on its way (UNI-1995 #12), for every reader, not only whoever
+ * pressed Generate: the line says it, the live region announced it, and the
+ * skeleton holds the shape of a summary not there yet. Nothing in it is a
+ * status of its own, so it is said once.
+ */
+function SummaryRunning({ skeleton = false }: { skeleton?: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-2" data-testid="summary-run-generating">
+      <p className="flex items-center gap-1.5 text-caption text-muted-foreground">
+        <Spinner />
+        {t("meetings.summaryAi.generatingVisible")}
+      </p>
+      {skeleton ? (
+        <div aria-hidden className="space-y-2">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-11/12" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
       ) : null}
     </div>
   );

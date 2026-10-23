@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Play, Quote } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeeting, useRecordings } from "@uniwork/core/meetings";
@@ -58,9 +58,12 @@ function kindKey(kind: string): string {
 export function MeetingEvidenceChip({
   meetingId,
   evidence,
+  trigger,
 }: {
   meetingId: string;
   evidence: readonly MeetingEvidenceRef[];
+  /** In place of "Evidence N": what the button shows (a topic's start time) and its accessible name. */
+  trigger?: { content: ReactNode; label: string };
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -76,11 +79,17 @@ export function MeetingEvidenceChip({
               size="xs"
               variant="ghost"
               className="text-muted-foreground"
-              aria-label={t("meetings.evidence.chipLabel", { count: evidence.length })}
+              aria-label={trigger?.label ?? t("meetings.evidence.chipLabel", { count: evidence.length })}
             >
-              <Quote aria-hidden />
-              {t("meetings.evidence.chip")}
-              <span className="tabular-nums">{evidence.length}</span>
+              {trigger ? (
+                trigger.content
+              ) : (
+                <>
+                  <Quote aria-hidden />
+                  {t("meetings.evidence.chip")}
+                  <span className="tabular-nums">{evidence.length}</span>
+                </>
+              )}
             </Button>
           }
         />

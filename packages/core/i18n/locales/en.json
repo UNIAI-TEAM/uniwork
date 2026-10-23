@@ -3681,6 +3681,7 @@
       "autoFrom": "Made automatically from {{sources}}",
       "generatingStatus": "Generating the summary. This can take up to a minute.",
       "generatedStatus": "Summary generated.",
+      "generatingVisible": "Generating the summary…",
       "generatingReason": "A summary is being generated; try again once it is done",
       "creatingStatus": "Creating tasks…",
       "createdStatus_one": "Created {{count}} task.",
@@ -4097,6 +4098,9 @@
       "speakersLoadFailed": "Couldn't load the speakers."
     },
     "summaryPartial": "This summary covers part of the meeting: the transcript was longer than the AI reads at once.",
+    "summaryTopics": "Topics",
+    "summaryTopicStart": "Starts at {{time}}: see the transcript",
+    "summaryOpenQuestions": "Open questions",
     "held": {
       "button": "Record as held",
       "title": "Record that the meeting was held",
