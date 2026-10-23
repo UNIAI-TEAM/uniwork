@@ -57,6 +57,10 @@ Server UniWork **không** dựng hạ tầng. Việc của ops (UNI-2030), theo 
    - [ ] **PIN 9 số** (từ UNI-1995: 10^9 khả năng; PIN 6 số rút trước đó vẫn dùng được tới khi đổi PIN hoặc họp xong).
      Kiểm: `SELECT length(dial_in_pin), count(*) FROM meetings WHERE status IN ('SCHEDULED','IN_PROGRESS') GROUP BY 1;`
      — cuộc họp mới phải là 9.
+     Kiểm thêm bằng softphone trên cùng trunk: một cuộc họp còn PIN 6 số và một cuộc họp PIN 9 số cùng đang diễn ra,
+     mỗi PIN + `#` vào đúng phòng của nó (chưa kiểm trên `livekit-sip` thật: PIN kết thúc bằng `#` nên hai độ dài không
+     lẫn nhau theo lý thuyết; nếu bản `livekit-sip` đang chạy gom số theo độ dài cố định, đổi PIN các cuộc họp 6 số trước
+     khi bật cờ).
    - [ ] **Giới hạn sai PIN trong một cuộc gọi** ở `livekit-sip` hoặc SBC: 3 lần rồi ngắt máy. Kiểm bằng softphone: nhập
      sai 3 lần thì cuộc gọi bị ngắt.
    - [ ] **Giới hạn tốc độ theo caller ID** ở nhà mạng hoặc SBC: ≤ 10 cuộc/phút/số, ≤ 100 cuộc/giờ/số; chặn cuộc gọi ẩn
