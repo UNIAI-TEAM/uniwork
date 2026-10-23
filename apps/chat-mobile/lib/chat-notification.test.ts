@@ -34,6 +34,8 @@ describe("chatNotificationAction", () => {
       notificationId: "n1",
       target: { workspaceId: "w", roomId: "r", messageId: "m" },
       text: "ok, 9h nhé",
+      // The notification as shown, so a reply the app lock refuses can put it back (data/chat-notification-actions.ts).
+      shown: { title: "", data },
     });
     const long = chatNotificationAction(response("reply", { userText: "x".repeat(CHAT_MESSAGE_BODY_MAX_LENGTH + 10) }));
     expect(long?.action === "reply" && long.text.length).toBe(CHAT_MESSAGE_BODY_MAX_LENGTH);
@@ -61,6 +63,7 @@ describe("chatNotificationAction", () => {
       notificationId: "n1",
       target: { workspaceId: "w", roomId: "r", messageId: "m" },
       text: "ok",
+      shown: { title: "Minh", data },
     });
     expect(chatNotificationAction(native("mark_read"))).toEqual(chatNotificationAction(response("mark_read")));
     // One response heard by both the listener (data parsed) and the task (dataString) carries one key.

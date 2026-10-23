@@ -26,11 +26,16 @@
 // handleNotificationResponse), and the tap already opens the room. A reply
 // typed into a notification shown before the lock was on (Android draws a
 // notification's buttons when it posts it) is refused here, whatever runtime
-// hears it. Mark as read stays: it shows nothing, opens nothing and sends no
-// words, only moves the read marker; on iOS it also asks for the phone to be
-// unlocked.
+// hears it: nothing is sent or read, and on Android the notification is
+// posted again in place, quietly, saying the reply was not sent (Android keeps
+// the reply field's spinner until the app posts it again, and the person
+// would take the spinner for a send). Mark as read stays: it shows nothing,
+// opens nothing and sends no words, only moves the read marker; on iOS it also
+// asks for the phone to be unlocked.
 import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
 import { CHAT_MESSAGE_CATEGORY, MARK_READ_ACTION, REPLY_ACTION, type ChatNotificationAction } from "@/lib/chat-notification";
+import { i18n } from "@/lib/i18n/singleton";
 import { session } from "./auth/flow";
 import { readLastUser } from "./auth/last-user";
 import { bootRuntime } from "./boot";
@@ -86,6 +91,8 @@ export interface ChatActionEnv {
   send: (input: ChatSendInput) => Promise<void>;
   markRead: (workspaceId: string, roomId: string, userId: string) => Promise<void>;
   dismiss: (notificationId: string) => Promise<void>;
+  /** A reply the app lock refused: its notification says so, without the spinner of a send under way. */
+  refused: (action: Extract<ChatNotificationAction, { action: "reply" }>) => Promise<void>;
 }
 
 export type ChatActionOutcome = "replied" | "read" | "signed-out" | "duplicate" | "locked";
@@ -95,8 +102,11 @@ const handled = new Set<string>();
 export async function handleChatNotificationAction(action: ChatNotificationAction, env: ChatActionEnv): Promise<ChatActionOutcome> {
   if (handled.has(action.key)) return "duplicate";
   handled.add(action.key);
-  // Nothing is sent, read or taken down: the notification stays for the person to open the app from.
-  if (action.action === REPLY_ACTION && (await env.appLocked())) return "locked";
+  // Nothing is sent or read: the notification stays for the person to open the app from, saying so.
+  if (action.action === REPLY_ACTION && (await env.appLocked())) {
+    await env.refused(action);
+    return "locked";
+  }
   const userId = await env.signedInUser();
   if (!userId) return "signed-out";
   const { workspaceId, roomId, threadRootId } = action.target;
@@ -128,6 +138,23 @@ export const appChatActionEnv: ChatActionEnv = {
   // The reply is already in the outbox: a notification that will not come down is only untidy.
   dismiss: (notificationId) =>
     Notifications.dismissNotificationAsync(notificationId).catch(bestEffort("push", "notification not dismissed", "breadcrumb")),
+  // Android only: iOS opened the app for the action (opensAppToForeground), and the room opens there. Posted under
+  // the same identifier, so it replaces the one replied to (expo-notifications notifies with it as the tag); silent,
+  // since the person is looking at it; the category is the locked one by now, Mark as read only.
+  async refused({ notificationId, shown }) {
+    if (Platform.OS !== "android" || !notificationId) return;
+    await Notifications.scheduleNotificationAsync({
+      identifier: notificationId,
+      content: {
+        title: shown.title,
+        body: i18n.t("mobile.notification_actions.reply_locked"),
+        data: shown.data,
+        categoryIdentifier: CHAT_MESSAGE_CATEGORY,
+        sound: false,
+      },
+      trigger: { channelId: "messages" },
+    }).catch(bestEffort("push", "refused reply's notification not posted", "breadcrumb"));
+  },
 };
 
 /** Runs one action, logs how it went and says it; never throws into a listener or a task. */

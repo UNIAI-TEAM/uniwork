@@ -1790,7 +1790,8 @@
       "reply": "Reply",
       "reply_placeholder": "Write a reply…",
       "send": "Send",
-      "mark_read": "Mark as read"
+      "mark_read": "Mark as read",
+      "reply_locked": "Reply not sent: UniChat is locked. Open UniChat to reply."
     },
     "voice": {
       "seek_forward": "Forward {{seconds}} seconds",
