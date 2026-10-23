@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
-import { CircleAlert, FileHeadphone, RefreshCw, Upload } from "lucide-react";
+import { CircleAlert, FileHeadphone, Info, RefreshCw, Trash2, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError, errorClassOf, errorCode } from "@uniwork/core/api";
 import { ChunkedUploadError } from "@uniwork/core/documents/chunked-upload";
+import { useDeleteMeetingTranscription } from "@uniwork/core/meetings/transcript";
 import { useMeetingTranscriptions, useUploadMeetingRecording } from "@uniwork/core/meetings/transcriptions";
 import type { MeetingTranscription } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -80,9 +81,12 @@ export function MeetingRecordingUploadDialog({
   meetingId,
   onOpenChange,
   focusAfterUpload,
+  replacesLive = false,
 }: {
   meetingId: string;
   onOpenChange: (open: boolean) => void;
+  /** The meeting has lines from the room (scribe, captions) that a completed upload replaces (UNI-1995 #11). */
+  replacesLive?: boolean;
   /**
    * Where focus lands once the upload is queued: the button that opened the
    * dialog (a failed run's "Tải lên lại") leaves when the list refetches.
@@ -188,6 +192,11 @@ export function MeetingRecordingUploadDialog({
         >
           <FormDialogHeader title={t("meetings.transcription.title")} description={t("meetings.transcription.description")} />
           <FormDialogBody>
+            {replacesLive ? (
+              <Notice tone="info" icon={Info} layout="inline" live="off">
+                {t("meetings.transcription.replacesLive")}
+              </Notice>
+            ) : null}
             <Field data-invalid={tooLarge || rejected ? true : undefined}>
               <FieldLabel htmlFor={`${id}-file`}>{t("meetings.transcription.fileLabel")}</FieldLabel>
               {/* A styled picker over the native input: the browser's own button
@@ -376,9 +385,20 @@ const ERRORS = new Set(["file_unavailable", "provider_error", "timeout"]);
  * (queued → done, or failed) is announced; a failure reads as an error with
  * the way forward.
  */
-export function MeetingTranscriptionStatus({ meetingId, onRetry }: { meetingId: string; onRetry?: () => void }) {
+export function MeetingTranscriptionStatus({
+  meetingId,
+  onRetry,
+  canDelete = false,
+}: {
+  meetingId: string;
+  onRetry?: () => void;
+  /** A clerk may delete a finished upload with its lines and its recording (UNI-1995 #5). */
+  canDelete?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const { data } = useMeetingTranscriptions(meetingId);
+  const remove = useDeleteMeetingTranscription(meetingId);
+  const [askDelete, setAskDelete] = useState(false);
   const latest: MeetingTranscription | undefined = data?.[0];
   const known = latest && STATUSES.has(latest.status) ? latest : undefined;
   const failed = known?.status === "FAILED";
@@ -391,32 +411,68 @@ export function MeetingTranscriptionStatus({ meetingId, onRetry }: { meetingId: 
     : "";
   const reason =
     failed && known?.error_code && ERRORS.has(known.error_code) ? ` ${t(`meetings.transcription.error.${known.error_code}`)}` : "";
+  const deletable = canDelete && known && !busy;
   return (
-    <div role="status" aria-live="polite" data-testid="meeting-transcription-status" className="empty:hidden">
-      {!known ? null : failed ? (
-        <Notice
-          tone="destructive"
-          icon={CircleAlert}
-          layout="inline"
-          live="off"
-          action={
-            onRetry ? (
-              <Button type="button" size="sm" variant="outline" onClick={onRetry}>
-                <Upload aria-hidden />
-                {t("meetings.transcription.uploadAgain")}
-              </Button>
-            ) : undefined
-          }
+    // The delete button sits beside the live region, not in it; nothing shows while the region is empty.
+    <div className="flex items-center gap-1 has-[>[role=status]:empty]:hidden">
+      <div role="status" aria-live="polite" data-testid="meeting-transcription-status" className="min-w-0 flex-1 empty:hidden">
+        {!known ? null : failed ? (
+          <Notice
+            tone="destructive"
+            icon={CircleAlert}
+            layout="inline"
+            live="off"
+            action={
+              onRetry ? (
+                <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+                  <Upload aria-hidden />
+                  {t("meetings.transcription.uploadAgain")}
+                </Button>
+              ) : undefined
+            }
+          >
+            {/* A long file name has no space to break at. */}
+            <span className="wrap-anywhere">{`${text}.${reason}`}</span>
+          </Notice>
+        ) : (
+          <p className="flex items-center gap-1.5 text-caption text-muted-foreground">
+            {busy ? <Spinner /> : <FileHeadphone aria-hidden className="size-3.5 shrink-0" />}
+            <span className="min-w-0 wrap-anywhere">{text}</span>
+          </p>
+        )}
+      </div>
+      {deletable ? (
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          className="text-muted-foreground"
+          aria-label={t("meetings.transcription.delete")}
+          onClick={() => setAskDelete(true)}
         >
-          {/* A long file name has no space to break at. */}
-          <span className="wrap-anywhere">{`${text}.${reason}`}</span>
-        </Notice>
-      ) : (
-        <p className="flex items-center gap-1.5 text-caption text-muted-foreground">
-          {busy ? <Spinner /> : <FileHeadphone aria-hidden className="size-3.5 shrink-0" />}
-          <span className="min-w-0 wrap-anywhere">{text}</span>
-        </p>
-      )}
+          <Trash2 aria-hidden />
+        </Button>
+      ) : null}
+      {deletable && askDelete ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !remove.isPending) setAskDelete(false);
+          }}
+          title={t("meetings.transcription.deleteTitle")}
+          description={t("meetings.transcription.deleteDescription", { file: known.filename || "—" })}
+          confirmLabel={t("meetings.transcriptDeleteConfirm")}
+          pending={remove.isPending}
+          icon={Trash2}
+          onConfirm={() => {
+            if (remove.isPending) return;
+            remove.mutateAsync(known.id).then(
+              () => setAskDelete(false),
+              () => toast.error(t("meetings.transcriptChangeFailed")),
+            );
+          }}
+        />
+      ) : null}
     </div>
   );
 }

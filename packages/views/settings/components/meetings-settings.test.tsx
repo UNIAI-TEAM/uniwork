@@ -87,6 +87,13 @@ describe("MeetingsSettings (UNI-2026)", () => {
     expect(reads).toBe(2);
   });
 
+  it("shows the organization's transcript retention (UNI-1995 #5)", async () => {
+    serve("owner", [], () => Promise.resolve({ organization_id: ORG, auto_summary_enabled: true, transcript_retention_days: 90 }));
+    renderTab();
+    const select = await screen.findByRole("combobox", { name: t("settings.meetings.retention_label") });
+    await waitFor(() => expect(select).toHaveTextContent(t("settings.meetings.retention_days", { count: 90 })));
+  });
+
   it("tells a member who can change it, without reading the settings", async () => {
     serve("member");
     renderTab();

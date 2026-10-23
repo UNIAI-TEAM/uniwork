@@ -8,13 +8,14 @@ import {
   resolveMeetingRecordingPlayback,
   type MeetingRecordingPlaybackSource,
 } from "@uniwork/core/api/endpoints/meetings";
-import { useRecordings, useTranscript } from "@uniwork/core/meetings";
+import { useRecordings } from "@uniwork/core/meetings";
 import {
   getCachedMeetingRecordingPlayback,
   meetingRecordingPlaybackCacheKey,
   rememberMeetingRecordingPlayback,
   releaseMeetingRecordingPlayback,
 } from "@uniwork/core/meetings/recording-playback-cache";
+import { useFullTranscript } from "@uniwork/core/meetings/transcript";
 import type { MeetingTranscriptSegment } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -26,7 +27,7 @@ import {
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Notice } from "../common/notice";
 import { MeetingSectionLoading } from "./meeting-section-state";
-import { transcriptSpeaker } from "./meeting-transcript-panel";
+import { transcriptSpeaker } from "./transcript/transcript-speaker";
 
 type Translate = ReturnType<typeof useTranslation>["t"];
 
@@ -73,6 +74,18 @@ export function recordingCaptionsVtt(
   return `WEBVTT\n\n${cues.join("\n\n")}\n`;
 }
 
+/**
+ * The captions' language: the one most of the lines carry (the scribe and
+ * uploads tag each line), else the reader's own.
+ */
+export function captionsLanguage(segments: readonly MeetingTranscriptSegment[] | undefined, fallback: string): string {
+  const counts = new Map<string, number>();
+  for (const s of segments ?? []) if (s.language) counts.set(s.language, (counts.get(s.language) ?? 0) + 1);
+  let best = "";
+  for (const [lang, n] of counts) if (n > (counts.get(best) ?? 0)) best = lang;
+  return best || (fallback.startsWith("en") ? "en" : "vi");
+}
+
 export function MeetingRecordingDialog({
   open,
   onOpenChange,
@@ -87,7 +100,7 @@ export function MeetingRecordingDialog({
   /** Seconds into the recording to start at (an evidence chip's spoken line). */
   startAt?: number;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [source, setSource] = useState<MeetingRecordingPlaybackSource | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   // Bumped by Retry: the load effect runs again without closing the dialog.
@@ -95,10 +108,11 @@ export function MeetingRecordingDialog({
   // The presigned URL failed in the player: fetch the file through the API instead.
   const [proxy, setProxy] = useState(false);
   const recording = useRecordings(meetingId, open).data?.find((r) => r.id === recordingId);
-  const segments = useTranscript(meetingId, open).data;
+  // The whole meeting, not the pages a reader loaded: a long recording keeps its first part captioned (UNI-1995 #9).
+  const segments = useFullTranscript(meetingId, open).data;
   const [captionsUrl, setCaptionsUrl] = useState<string | null>(null);
+  const srcLang = useMemo(() => captionsLanguage(segments, i18n.language), [segments, i18n.language]);
 
-  // shortcut: only the transcript pages already loaded become captions; load the whole window if long recordings lose their start.
   const vtt = useMemo(
     () => (segments ? recordingCaptionsVtt(segments, recording?.started_at, recording?.ended_at, t) : null),
     [segments, recording?.started_at, recording?.ended_at, t],
@@ -223,7 +237,7 @@ export function MeetingRecordingDialog({
             onError={handleVideoError}
           >
             {captionsUrl ? (
-              <track kind="captions" src={captionsUrl} srcLang="vi" label={t("meetings.recording_captions")} default />
+              <track kind="captions" src={captionsUrl} srcLang={srcLang} label={t("meetings.recording_captions")} default />
             ) : null}
           </video>
         ) : null}

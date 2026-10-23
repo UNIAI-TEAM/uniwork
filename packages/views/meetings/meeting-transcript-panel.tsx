@@ -1,22 +1,32 @@
 "use client";
-import { useState } from "react";
-import { ChevronDown, CircleAlert, FileHeadphone, ScrollText, Upload } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, CircleAlert, Ellipsis, FileHeadphone, ScrollText, Trash2, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useMeetingCapabilities, useOlderTranscript, useRecordings, useTranscript } from "@uniwork/core/meetings";
+import { useMeetingCapabilities, useRecordings } from "@uniwork/core/meetings";
 import { useMeetingTranscriptions } from "@uniwork/core/meetings/transcriptions";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingTranscriptSegment } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
+import { useOptionalNavigation } from "../navigation";
 import { meetingLocale } from "./meeting-datetime";
 import { formatMeetingDayTime } from "./meeting-detail-format";
-import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { MeetingRecordingUploadDialog, MeetingTranscriptionStatus } from "./meeting-recording-upload";
 import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
 import { MeetingSpeakerLabelsButton } from "./meeting-speaker-labels-dialog";
+import { MeetingTranscriptLines } from "./transcript/meeting-transcript-lines";
+import { TranscriptChangeDialog, type TranscriptChange } from "./transcript/transcript-change-dialog";
+import { transcriptSpeaker } from "./transcript/transcript-speaker";
+import { useTranscriptReader } from "./transcript/use-transcript-reader";
 
 const RECORDING_STATUSES = new Set(["ACTIVE", "PROCESSING", "COMPLETE", "FAILED"]);
 
@@ -39,18 +49,6 @@ export function transcriptFocusTarget(): HTMLElement | null {
 }
 
 /**
- * The name a transcript line shows. A speaker nobody named yet is worded here,
- * in the reader's language: the room mic's "Room mic · Speaker n", an uploaded
- * file's plain "Speaker n" (its label key starts with "upload:").
- */
-export function transcriptSpeaker(s: MeetingTranscriptSegment, t: ReturnType<typeof useTranslation>["t"]): string {
-  const upload = s.speaker_label?.startsWith("upload:") === true;
-  if (s.room_speaker) return t(upload ? "meetings.fileSpeaker" : "meetings.scribe.speakerLabel", { n: s.room_speaker });
-  if (s.speaker_label?.endsWith(":?")) return t(upload ? "meetings.fileSpeakerUnknown" : "meetings.scribe.speakerUnknown");
-  return s.speaker_name || "—";
-}
-
-/**
  * "Transcript": what was said, with when; how to add it (upload a recording
  * of a meeting held without a room, name the speakers) and the room's
  * recordings. Its own card, apart from the summary that reads it.
@@ -67,26 +65,52 @@ export function MeetingTranscriptPanel({
   const { t, i18n } = useTranslation();
   const locale = meetingLocale(i18n.language);
   const meetingId = meeting.id;
-  const transcriptQuery = useTranscript(meetingId);
-  const older = useOlderTranscript(meetingId);
+  const linked = useTranscriptTarget();
+  // The cited line stays marked after the deep link leaves the URL.
+  const [target, setTarget] = useState("");
+  // A cited line opens the page around it; with none, an ended meeting reads from its start.
+  const [around, setAround] = useState("");
+  const reader = useTranscriptReader(meetingId, meeting.status === "ENDED" || around !== "", around);
   const recordingsQuery = useRecordings(meetingId);
   const recordings = recordingsQuery.data ?? [];
   const caps = useMeetingCapabilities(workspaceId);
   const canUpload = canClerk && meeting.status === "ENDED" && caps.data?.transcription === true;
+  const transcriptions = useMeetingTranscriptions(meetingId).data;
   // A failed upload already says what did not happen and carries the retry:
   // the header button and the empty line would offer the same upload twice more.
-  const uploadFailed = useMeetingTranscriptions(meetingId).data?.[0]?.status === "FAILED";
+  const uploadFailed = transcriptions?.[0]?.status === "FAILED";
   const [showTranscript, setShowTranscript] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [playbackId, setPlaybackId] = useState<string | null>(null);
-  const transcript = transcriptQuery.data ?? [];
+  const [playAt, setPlayAt] = useState<{ recordingId: string; seconds?: number } | null>(null);
+  const [change, setChange] = useState<TranscriptChange | null>(null);
+  const transcript = reader.rows;
+  // The room's lines (scribe, captions) that an upload would replace (UNI-1995 #11).
+  const replacesLive = transcript.some((s) => s.source !== "TRANSCRIPTION");
   // The viewer's clock, as every meeting screen reads times (meeting-datetime.ts).
-  const clock = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const clockFormat = useMemo(() => new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }), [locale]);
+  const clock = useCallback((iso: string) => {
+    const at = Date.parse(iso);
+    return Number.isFinite(at) ? clockFormat.format(at) : "";
+  }, [clockFormat]);
+  const speakerOf = useCallback((s: MeetingTranscriptSegment) => transcriptSpeaker(s, t), [t]);
+
+  // A cited line (?segment=): the transcript opens, on the page that holds it
+  // unless that page is loaded already. Only a new link moves the reader.
+  const loaded = useRef(transcript);
+  loaded.current = transcript;
+  useEffect(() => {
+    if (!linked) return;
+    setTarget(linked);
+    setShowTranscript(true);
+    if (!loaded.current.some((s) => s.id === linked)) setAround(linked);
+  }, [linked]);
+
   const empty = canUpload
     ? t("meetings.transcriptEmptyUpload")
     : meeting.status === "ENDED"
       ? t("meetings.transcriptEmptyEnded")
       : t("meetings.transcriptEmpty");
+  const more = reader.hasOlder || reader.hasNewer;
 
   return (
     <PanelCard
@@ -103,13 +127,17 @@ export function MeetingTranscriptPanel({
       }
     >
       <div className="space-y-4" data-testid="meeting-transcript-panel">
-        <MeetingTranscriptionStatus meetingId={meetingId} onRetry={canUpload ? () => setUploadOpen(true) : undefined} />
-        {transcriptQuery.isPending ? (
+        <MeetingTranscriptionStatus
+          meetingId={meetingId}
+          onRetry={canUpload ? () => setUploadOpen(true) : undefined}
+          canDelete={canClerk}
+        />
+        {reader.isPending ? (
           <MeetingTextSkeleton />
-        ) : transcriptQuery.isError && transcript.length === 0 ? (
-          <MeetingSectionError message={t("meetings.transcriptLoadFailed")} onRetry={() => void transcriptQuery.refetch()} />
-        ) : transcript.length === 0 && !older.hasOlder ? (
-          uploadFailed ? null : <p className="text-label text-muted-foreground">{empty}</p>
+        ) : reader.isError && transcript.length === 0 ? (
+          <MeetingSectionError message={t("meetings.transcriptLoadFailed")} onRetry={reader.refetch} />
+        ) : transcript.length === 0 && !more ? (
+          uploadFailed ? null : <p className="text-label text-muted-foreground">{target ? t("meetings.transcriptJumpMissing") : empty}</p>
         ) : (
           <Collapsible open={showTranscript} onOpenChange={setShowTranscript}>
             <div className="flex flex-wrap items-center gap-1">
@@ -119,9 +147,7 @@ export function MeetingTranscriptPanel({
                   <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground aria-expanded:bg-transparent">
                     {showTranscript
                       ? t("meetings.hideTranscript")
-                      : t(older.hasOlder ? "meetings.showTranscriptMore" : "meetings.showTranscript", {
-                          count: transcript.length,
-                        })}
+                      : t(more ? "meetings.showTranscriptMore" : "meetings.showTranscript", { count: transcript.length })}
                     <ChevronDown
                       aria-hidden
                       className={cn("transition-transform duration-standard", showTranscript && "rotate-180")}
@@ -130,42 +156,33 @@ export function MeetingTranscriptPanel({
                 }
               />
               {canClerk ? <MeetingSpeakerLabelsButton meetingId={meetingId} workspaceId={workspaceId} /> : null}
+              {canClerk ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t("meetings.transcriptMoreActions")} />}
+                  >
+                    <Ellipsis aria-hidden className="size-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-48">
+                    <DropdownMenuItem variant="destructive" onClick={() => setChange({ kind: "all" })}>
+                      <Trash2 aria-hidden className="size-4" />
+                      {t("meetings.transcriptDeleteAll")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
             </div>
             <CollapsibleContent>
-              {/* Scrolls on its own so a long meeting does not push the page. */}
-              <ol
-                // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region takes focus so a keyboard can scroll it (axe scrollable-region-focusable)
-                tabIndex={0}
-                aria-label={t("meetings.transcriptTitle")}
-                className="mt-2 max-h-96 space-y-2 overflow-y-auto rounded-lg border border-border p-3"
-                data-testid="meeting-transcript"
-              >
-                {older.hasOlder ? (
-                  <li>
-                    <MeetingFeedLoadOlder
-                      label={t("meetings.transcriptLoadOlder")}
-                      loading={older.isLoadingOlder}
-                      onLoad={older.loadOlder}
-                    />
-                  </li>
-                ) : null}
-                {transcript.map((s) => {
-                  const at = Date.parse(s.spoken_at);
-                  return (
-                    <li key={s.id} className="text-body text-foreground">
-                      <p className="flex flex-wrap items-baseline gap-x-2 text-caption text-muted-foreground">
-                        <span className="font-medium">{transcriptSpeaker(s, t)}</span>
-                        {Number.isFinite(at) ? (
-                          <time dateTime={s.spoken_at} className="tabular-nums">
-                            {clock.format(at)}
-                          </time>
-                        ) : null}
-                      </p>
-                      <p className="text-pretty">{s.text}</p>
-                    </li>
-                  );
-                })}
-              </ol>
+              <MeetingTranscriptLines
+                reader={reader}
+                recordings={recordings}
+                canClerk={canClerk}
+                target={target}
+                speakerOf={speakerOf}
+                clock={clock}
+                onPlay={setPlayAt}
+                onChange={setChange}
+              />
             </CollapsibleContent>
           </Collapsible>
         )}
@@ -186,7 +203,7 @@ export function MeetingTranscriptPanel({
                     {r.started_at ? formatMeetingDayTime(r.started_at, locale) : null}
                   </span>
                   {r.status === "COMPLETE" ? (
-                    <Button type="button" size="sm" variant="link" className="h-auto px-0" onClick={() => setPlaybackId(r.id)}>
+                    <Button type="button" size="sm" variant="link" className="h-auto px-0" onClick={() => setPlayAt({ recordingId: r.id })}>
                       {t("meetings.recording_play")}
                     </Button>
                   ) : r.status === "FAILED" ? (
@@ -204,18 +221,38 @@ export function MeetingTranscriptPanel({
         ) : null}
       </div>
       {uploadOpen ? (
-        <MeetingRecordingUploadDialog meetingId={meetingId} onOpenChange={setUploadOpen} focusAfterUpload={transcriptFocusTarget} />
+        <MeetingRecordingUploadDialog
+          meetingId={meetingId}
+          onOpenChange={setUploadOpen}
+          focusAfterUpload={transcriptFocusTarget}
+          replacesLive={replacesLive}
+        />
       ) : null}
-      {playbackId ? (
+      {playAt ? (
         <MeetingRecordingDialog
           open
           onOpenChange={(open) => {
-            if (!open) setPlaybackId(null);
+            if (!open) setPlayAt(null);
           }}
           meetingId={meetingId}
-          recordingId={playbackId}
+          recordingId={playAt.recordingId}
+          startAt={playAt.seconds}
+        />
+      ) : null}
+      {change ? (
+        <TranscriptChangeDialog
+          meetingId={meetingId}
+          change={change}
+          speakerOf={speakerOf}
+          clock={clock}
+          onClose={() => setChange(null)}
         />
       ) : null}
     </PanelCard>
   );
+}
+
+/** The cited line a deep link names (?segment=<id>, with ?section=transcript). */
+function useTranscriptTarget(): string {
+  return useOptionalNavigation()?.searchParams.get("segment") ?? "";
 }

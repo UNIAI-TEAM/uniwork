@@ -8,6 +8,8 @@ import { formatRelativeTime } from "./meeting-relative-time";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingSummary } from "@uniwork/core/types/meeting";
 import { MeetingDecisionsBlock } from "./meeting-decisions-block";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { Notice } from "../common/notice";
 import { PanelCard } from "../common/panel-card";
 import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
 import { AiBadge } from "./meeting-summary/ai-badge";
@@ -80,6 +82,24 @@ export function MeetingSummaryPanel({
         <SummaryFailureNotice gen={gen} />
         {summary ? (
           <div className="space-y-4">
+            {summary.transcript_changed_at ? (
+              // The transcript was corrected, cut or replaced after this summary (UNI-1995 #5).
+              <Notice
+                tone="info"
+                icon={Info}
+                layout="inline"
+                live="off"
+                action={
+                  gen.showGenerate ? (
+                    <Button type="button" size="sm" variant="outline" onClick={gen.requestGenerate}>
+                      {t("meetings.regenerateSummary")}
+                    </Button>
+                  ) : undefined
+                }
+              >
+                {t("meetings.summaryTranscriptChanged")}
+              </Notice>
+            ) : null}
             <SummaryAttribution summary={summary} times={gen.sourceTimes} meeting={meeting} />
             <p className="max-w-prose whitespace-pre-wrap text-pretty text-body text-foreground">{summary.summary}</p>
             <MeetingDecisionsBlock meetingId={meetingId} voted={gen.voted} aiDecisions={decisions} />

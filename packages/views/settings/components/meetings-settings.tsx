@@ -1,10 +1,11 @@
 "use client";
 
 import { useId } from "react";
-import { ShieldCheck, Sparkles } from "lucide-react";
+import { RotateCcwClock, ShieldCheck, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useMeetingSettings, useSetMeetingAutoSummary } from "@uniwork/core/meetings/settings";
+import { useMeetingSettings, useSetMeetingAutoSummary, useSetMeetingTranscriptRetention } from "@uniwork/core/meetings/settings";
 import { useOrgMembership } from "@uniwork/core/organizations";
+import { Select } from "@uniwork/ui/components/ui/select";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { useWorkspace } from "../../layout/workspace-context";
 import {
@@ -21,6 +22,10 @@ import {
 } from "./settings-layout";
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
+
+/** The windows the server accepts (UNI-1995 #5); "forever" is null. */
+const RETENTION_DAYS = [30, 90, 180, 365] as const;
+const FOREVER = "forever";
 
 /** The write's state as the save indicator words it, the same one the notification matrix shows. */
 const SAVE_STATUS: Record<"idle" | "pending" | "success" | "error", SettingsSaveStatus> = {
@@ -45,7 +50,9 @@ export function MeetingsSettings() {
   const isAdmin = !!membership.data && ADMIN_ROLES.has(membership.data.role);
   const settings = useMeetingSettings(workspace.organization_id, { enabled: isAdmin });
   const setAuto = useSetMeetingAutoSummary(workspace.organization_id);
+  const setRetention = useSetMeetingTranscriptRetention(workspace.organization_id);
   const hintId = useId();
+  const retentionHintId = useId();
 
   if (membership.isLoading) return <SettingsTabSkeleton />;
 
@@ -109,6 +116,53 @@ export function MeetingsSettings() {
           )}
         </SettingsCard>
       </SettingsSection>
+      {/* A failed read is said once, in the section above. */}
+      {settings.isError ? null : (
+        <SettingsSection
+          title={t("retention_title")}
+          action={
+            <SettingsSaveState
+              status={SAVE_STATUS[setRetention.status]}
+              savingLabel={tSave("saving")}
+              savedLabel={tSave("saved")}
+              errorLabel={t("save_failed")}
+            />
+          }
+        >
+          <SettingsCard>
+            {settings.isPending || !settings.data ? (
+              <SettingsRowSkeleton />
+            ) : (
+              <SettingsRow
+                label={
+                  <span className="flex items-center gap-2">
+                    <RotateCcwClock aria-hidden className="size-4 text-muted-foreground" />
+                    {t("retention_label")}
+                  </span>
+                }
+                description={t("retention_description")}
+                descriptionId={retentionHintId}
+              >
+                <div className="w-40">
+                  <Select
+                    aria-label={t("retention_label")}
+                    value={settings.data.transcript_retention_days ? String(settings.data.transcript_retention_days) : FOREVER}
+                    disabled={setRetention.isPending}
+                    onValueChange={(next) => {
+                      if (typeof next !== "string" || setRetention.isPending) return;
+                      void setRetention.mutateAsync(next === FOREVER ? null : Number(next)).catch(() => undefined);
+                    }}
+                    items={[
+                      { value: FOREVER, label: t("retention_forever") },
+                      ...RETENTION_DAYS.map((days) => ({ value: String(days), label: t("retention_days", { count: days }) })),
+                    ]}
+                  />
+                </div>
+              </SettingsRow>
+            )}
+          </SettingsCard>
+        </SettingsSection>
+      )}
     </SettingsTab>
   );
 }

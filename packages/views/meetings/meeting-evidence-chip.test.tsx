@@ -3,9 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
-import { requestMock, wrap } from "../test/api-mock";
+import type { User, Workspace } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../layout/workspace-context";
+import { fakeNav, requestMock, wrap, wrapWithNav } from "../test/api-mock";
 import { formatMeetingDayTime } from "./meeting-detail-format";
-import { formatOffset, MeetingEvidenceChip, recordingOffset } from "./meeting-evidence-chip";
+import { MeetingEvidenceChip } from "./meeting-evidence-chip";
+import { formatOffset, recordingOffset } from "./meeting-recording-offset";
 
 beforeAll(() => {
   initI18n();
@@ -86,6 +89,24 @@ describe("MeetingEvidenceChip", () => {
     // Only the spoken line has a moment in the recording.
     expect(await screen.findByRole("button", { name: "Mở bản ghi tại 1:15" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Mở bản ghi/ })).toHaveLength(1);
+  });
+
+  it("opens the transcript on a cited line (UNI-1995 #14)", async () => {
+    respond([{ kind: "segment", id: "g1", author: "Lan", text: "Chốt thứ Sáu", at: "2026-10-20T02:01:15Z" }], []);
+    const u = userEvent.setup();
+    const nav = fakeNav("/acme/team/meetings/m1");
+    const workspace = { id: "w1", slug: "team", organization_id: "o1", organization_slug: "acme", name: "Team" } as Workspace;
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={{ id: "u1" } as User}>
+          <MeetingEvidenceChip meetingId="m1" evidence={[{ kind: "segment", id: "g1" }]} />
+        </WorkspaceProvider>,
+        nav,
+      ),
+    );
+    await u.click(screen.getByRole("button", { name: "Căn cứ 1 nguồn" }));
+    await u.click(await screen.findByRole("button", { name: "Xem trong lời thoại" }));
+    expect(nav.push).toHaveBeenCalledWith("/acme/team/meetings/m1?section=transcript&segment=g1");
   });
 
   it("names the day of a cited line spoken past the meeting's own day", async () => {
