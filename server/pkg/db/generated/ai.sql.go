@@ -72,6 +72,39 @@ func (q *Queries) AiDeleteConversation(ctx context.Context, id string) error {
 	return err
 }
 
+const aiDeleteConversationAttachments = `-- name: AiDeleteConversationAttachments :many
+DELETE FROM ai_attachments
+WHERE organization_id = $1
+  AND conversation_id = $2
+RETURNING file_id
+`
+
+type AiDeleteConversationAttachmentsParams struct {
+	OrganizationID string `json:"organization_id"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// Returns the file ids so the caller can release them in the file store.
+func (q *Queries) AiDeleteConversationAttachments(ctx context.Context, arg AiDeleteConversationAttachmentsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, aiDeleteConversationAttachments, arg.OrganizationID, arg.ConversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var file_id string
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const aiDeleteConversationFeedback = `-- name: AiDeleteConversationFeedback :exec
 DELETE FROM ai_message_feedback WHERE conversation_id = $1
 `
@@ -183,7 +216,7 @@ func (q *Queries) AiGetConversation(ctx context.Context, id string) (AiConversat
 }
 
 const aiGetMessageInConversation = `-- name: AiGetMessageInConversation :one
-SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model FROM ai_messages WHERE id = $1 AND conversation_id = $2
+SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes FROM ai_messages WHERE id = $1 AND conversation_id = $2
 `
 
 type AiGetMessageInConversationParams struct {
@@ -211,6 +244,7 @@ func (q *Queries) AiGetMessageInConversation(ctx context.Context, arg AiGetMessa
 		&i.Mentions,
 		&i.SupersededAt,
 		&i.Model,
+		&i.FileNotes,
 	)
 	return i, err
 }
@@ -253,10 +287,91 @@ func (q *Queries) AiGetUsageEvent(ctx context.Context, id string) (AiUsageEvent,
 	return i, err
 }
 
+const aiGetUserAttachment = `-- name: AiGetUserAttachment :one
+SELECT id, organization_id, workspace_id, user_id, conversation_id, message_id, file_id, name, mime, size_bytes, kind, created_at FROM ai_attachments
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND user_id = $3
+  AND id = $4
+`
+
+type AiGetUserAttachmentParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	UserID         string `json:"user_id"`
+	ID             string `json:"id"`
+}
+
+// One file the caller attached, in the workspace they asked from.
+func (q *Queries) AiGetUserAttachment(ctx context.Context, arg AiGetUserAttachmentParams) (AiAttachment, error) {
+	row := q.db.QueryRow(ctx, aiGetUserAttachment,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.ID,
+	)
+	var i AiAttachment
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.ConversationID,
+		&i.MessageID,
+		&i.FileID,
+		&i.Name,
+		&i.Mime,
+		&i.SizeBytes,
+		&i.Kind,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const aiInsertAttachment = `-- name: AiInsertAttachment :exec
+INSERT INTO ai_attachments (id, organization_id, workspace_id, user_id, conversation_id, message_id, file_id, name, mime, size_bytes, kind)
+VALUES (
+  $1, $2, $3, $4,
+  $5, $6, $7,
+  $8, $9, $10, $11
+)
+`
+
+type AiInsertAttachmentParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	UserID         string `json:"user_id"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	FileID         string `json:"file_id"`
+	Name           string `json:"name"`
+	Mime           string `json:"mime"`
+	SizeBytes      int64  `json:"size_bytes"`
+	Kind           string `json:"kind"`
+}
+
+func (q *Queries) AiInsertAttachment(ctx context.Context, arg AiInsertAttachmentParams) error {
+	_, err := q.db.Exec(ctx, aiInsertAttachment,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.ConversationID,
+		arg.MessageID,
+		arg.FileID,
+		arg.Name,
+		arg.Mime,
+		arg.SizeBytes,
+		arg.Kind,
+	)
+	return err
+}
+
 const aiInsertMessage = `-- name: AiInsertMessage :one
-INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model
+INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model, file_notes)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+RETURNING id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes
 `
 
 type AiInsertMessageParams struct {
@@ -273,6 +388,7 @@ type AiInsertMessageParams struct {
 	Focus          pgtype.Text `json:"focus"`
 	Mentions       string      `json:"mentions"`
 	Model          string      `json:"model"`
+	FileNotes      string      `json:"file_notes"`
 }
 
 func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams) (AiMessage, error) {
@@ -290,6 +406,7 @@ func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams
 		arg.Focus,
 		arg.Mentions,
 		arg.Model,
+		arg.FileNotes,
 	)
 	var i AiMessage
 	err := row.Scan(
@@ -308,6 +425,7 @@ func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams
 		&i.Mentions,
 		&i.SupersededAt,
 		&i.Model,
+		&i.FileNotes,
 	)
 	return i, err
 }
@@ -458,6 +576,52 @@ func (q *Queries) AiLatestRate(ctx context.Context, arg AiLatestRateParams) (AiM
 	return i, err
 }
 
+const aiListAttachmentsForMessages = `-- name: AiListAttachmentsForMessages :many
+SELECT id, organization_id, workspace_id, user_id, conversation_id, message_id, file_id, name, mime, size_bytes, kind, created_at FROM ai_attachments
+WHERE organization_id = $1
+  AND message_id = ANY($2::text[])
+ORDER BY created_at ASC, id ASC
+`
+
+type AiListAttachmentsForMessagesParams struct {
+	OrganizationID string   `json:"organization_id"`
+	MessageIds     []string `json:"message_ids"`
+}
+
+// The files a set of questions carried, in the order they were attached.
+func (q *Queries) AiListAttachmentsForMessages(ctx context.Context, arg AiListAttachmentsForMessagesParams) ([]AiAttachment, error) {
+	rows, err := q.db.Query(ctx, aiListAttachmentsForMessages, arg.OrganizationID, arg.MessageIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AiAttachment{}
+	for rows.Next() {
+		var i AiAttachment
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.UserID,
+			&i.ConversationID,
+			&i.MessageID,
+			&i.FileID,
+			&i.Name,
+			&i.Mime,
+			&i.SizeBytes,
+			&i.Kind,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const aiListConversationCitations = `-- name: AiListConversationCitations :many
 SELECT citations FROM ai_messages
 WHERE organization_id = $1 AND conversation_id = $2 AND role = 'assistant' AND superseded_at IS NULL
@@ -535,8 +699,8 @@ func (q *Queries) AiListConversations(ctx context.Context, arg AiListConversatio
 }
 
 const aiListMessages = `-- name: AiListMessages :many
-SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model FROM (
-  SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model FROM ai_messages WHERE conversation_id = $1 AND superseded_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 200
+SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes FROM (
+  SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes FROM ai_messages WHERE conversation_id = $1 AND superseded_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 200
 ) m ORDER BY created_at ASC, id ASC
 `
 
@@ -568,6 +732,7 @@ func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]
 			&i.Mentions,
 			&i.SupersededAt,
 			&i.Model,
+			&i.FileNotes,
 		); err != nil {
 			return nil, err
 		}
@@ -856,6 +1021,33 @@ func (q *Queries) AiUsageByDay(ctx context.Context, arg AiUsageByDayParams) ([]A
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAiAttachmentFileIDs = `-- name: ListAiAttachmentFileIDs :many
+SELECT file_id FROM ai_attachments
+WHERE file_id = ANY($1::text[])
+`
+
+// tenant: system
+// The collector's question: which of these files an Ask UNI question still carries.
+func (q *Queries) ListAiAttachmentFileIDs(ctx context.Context, fileIds []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listAiAttachmentFileIDs, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var file_id string
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

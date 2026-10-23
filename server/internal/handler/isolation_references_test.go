@@ -226,6 +226,13 @@ var isoReferences = []isoReference{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "room mention", body: map[string]any{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "room", "id": isoRef("room")}}}},
+	// A's unsent upload named in B's question: B did not upload it, so it is
+	// the same not found as an id that names nothing, A's file stays unsent and
+	// the question stores nothing of B's either. The control sends B's own.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "attachment", body: map[string]any{
+		"question": "ref", "attachment_ids": []any{isoRef("aiUploadAsk")}}, covers: []string{"AskUniSDI.attachment_ids"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "attachment", body: map[string]any{
+		"question": "ref", "attachment_ids": []any{isoRef("aiUploadStream")}}, covers: []string{"AskUniSDI.attachment_ids"}},
 	// B's conversation, A's answer id: the id names no row there, so the stream
 	// refuses before any model call and supersedes nothing of A's or B's. The
 	// own-rows control would supersede B's seeded answer, so it is not sent.

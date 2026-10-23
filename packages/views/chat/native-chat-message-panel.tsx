@@ -20,6 +20,7 @@ import {
   ChatAnchorBar,
   ChatJumpToLatestButton,
   ChatLoadOlderButton,
+  ChatLoadOlderHeaderSpacer,
   ChatOlderMessagesSkeleton,
   ChatThreadBar,
 } from "./native-chat-panel-bars";
@@ -34,11 +35,12 @@ import { CHAT_CONVERSATION_GUTTER } from "./chat-wall";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useChatWall } from "./use-chat-wall";
 import { toastChatError } from "./chat-error-message";
+import { useChatOlderPrefetch } from "./use-chat-older-prefetch";
+import { applyChatScrollAwayHysteresis } from "./use-chat-timeline-scroll";
 import {
   VirtualChatMessageList,
-  pinChatScrollToBottom,
-  updateStickToBottomFromScroll,
   useReaderScrollAt,
+  virtualChatRowEstimatePx,
   virtualChatRowMeasureKey,
 } from "./virtual-chat-message-list";
 import { toChatMessage, type NameContextEntry } from "./native-chat-message-mapping";
@@ -140,6 +142,8 @@ export function NativeChatMessagePanel({
   const readerScrollAtRef = useReaderScrollAt(scrollRef);
   const stickToBottomRef = useRef(true);
   const programmaticScrollRef = useRef(false);
+  const olderPrefetchSentinelRef = useRef<HTMLDivElement | null>(null);
+  const olderLoadLockRef = useRef(false);
   const [inPlaceThread, setThreadRoot] = useState<ChatMessage | null>(null);
   const threadRoot = thread ?? inPlaceThread;
   const sideThreadPanel = thread != null;
@@ -165,8 +169,7 @@ export function NativeChatMessagePanel({
   // Mirrors stickToBottomRef for rendering: the "back to latest" button shows
   // only once the reader has scrolled away from the newest message.
   const [awayFromLatest, setAwayFromLatest] = useState(false);
-  /** Plain list layout at the newest end; only cleared on an intentional scroll-up. */
-  const [pinnedToLatest, setPinnedToLatest] = useState(true);
+  const awayFromLatestRef = useRef(false);
   // The newest message when the reader scrolled away: the jump button counts what came after it.
   const [awaySinceId, setAwaySinceId] = useState<string | null>(null);
   const threadQuery = useChatThreadMessages(workspaceId, roomId, threadRoot?.id ?? "", threadsEnabled && !!threadRoot);
@@ -301,8 +304,8 @@ export function NativeChatMessagePanel({
   const clearAnchor = useCallback(() => {
     stickToBottomRef.current = true;
     programmaticScrollRef.current = false;
+    awayFromLatestRef.current = false;
     setAwayFromLatest(false);
-    setPinnedToLatest(true);
     setAnchorMessages(null);
     setHighlightMessageId(null);
     setLocalAnchor(null);
@@ -317,13 +320,16 @@ export function NativeChatMessagePanel({
   });
 
   useLayoutEffect(() => {
-    if (stickToBottomRef.current && !anchorMessages) setPinnedToLatest(true);
+    if (stickToBottomRef.current && !anchorMessages) {
+      awayFromLatestRef.current = false;
+      setAwayFromLatest(false);
+    }
   }, [anchorMessages, messages.length, messages[messages.length - 1]?.id]);
 
   useEffect(() => {
     stickToBottomRef.current = true;
+    awayFromLatestRef.current = false;
     setAwayFromLatest(false);
-    setPinnedToLatest(true);
     onReplyToChange(null);
     setThreadRoot(null);
     setAnchorMessages(null);
@@ -345,39 +351,35 @@ export function NativeChatMessagePanel({
   const handleHighlightShown = useChatHighlightFlash(highlightMessageId, setHighlightMessageId);
 
   const loadOlder = useCallback(async () => {
-    if (loadingOlder || !hasMore || (!threadRoot && anchorMessages)) return;
+    if (olderLoadLockRef.current || loadingOlder || !hasMore || (!threadRoot && anchorMessages)) return;
+    olderLoadLockRef.current = true;
     stickToBottomRef.current = false;
-    const prevHeight = scrollRef.current?.scrollHeight ?? 0;
-    const result = await fetchNextPage();
-    // Scrolling up again (or the button) retries; nothing was lost.
-    if (result.isFetchNextPageError) toastChatError(result.error, t, t("chat.message_list.load_older_failed"));
-    requestAnimationFrame(() => {
-      const node = scrollRef.current;
-      if (!node) return;
-      node.scrollTop = node.scrollHeight - prevHeight;
-    });
+    try {
+      const result = await fetchNextPage();
+      if (result.isFetchNextPageError) toastChatError(result.error, t, t("chat.message_list.load_older_failed"));
+    } finally {
+      olderLoadLockRef.current = false;
+    }
   }, [anchorMessages, fetchNextPage, hasMore, loadingOlder, t, threadRoot]);
+
+  const prefetchOlderEnabled =
+    awayFromLatest && hasMore && !loadingOlder && (!!threadRoot || !anchorMessages);
+  useChatOlderPrefetch(scrollRef, olderPrefetchSentinelRef, {
+    enabled: prefetchOlderEnabled,
+    loadingOlder,
+    onPrefetch: loadOlder,
+  });
 
   const onScroll = () => {
     if (programmaticScrollRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
-    const userScrolledRecently = Date.now() - readerScrollAtRef.current <= 400;
-    // New rows grew the list while the reader stayed pinned — not a scroll-up.
-    if (stickToBottomRef.current && !userScrolledRecently) {
-      setPinnedToLatest(true);
-      pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef);
-      return;
-    }
-    const nearBottom = updateStickToBottomFromScroll(el, stickToBottomRef);
-    if (!nearBottom && !awayFromLatest) setAwaySinceId(messages[messages.length - 1]?.id ?? null);
-    setAwayFromLatest(!nearBottom);
-    if (nearBottom) setPinnedToLatest(true);
-    else if (userScrolledRecently) setPinnedToLatest(false);
-    // Near-top while stick-to-bottom is usually a layout flash after a reload
-    // before pin runs — never page older history in that state.
-    if (el.scrollTop <= 72 && hasMore && !loadingOlder && !stickToBottomRef.current) {
-      void loadOlder();
+    const transition = applyChatScrollAwayHysteresis(el, stickToBottomRef, awayFromLatestRef);
+    if (transition === "entered-away") {
+      setAwaySinceId(messages[messages.length - 1]?.id ?? null);
+      setAwayFromLatest(true);
+    } else if (transition === "returned-bottom") {
+      setAwayFromLatest(false);
     }
   };
 
@@ -428,6 +430,11 @@ export function NativeChatMessagePanel({
     [layout, messages],
   );
 
+  const getVirtualRowEstimate = useCallback(
+    (index: number) => virtualChatRowEstimatePx(layout[index]),
+    [layout],
+  );
+
   const renderMessage = useCallback(
     (index: number) => {
       const message = messages[index];
@@ -456,6 +463,7 @@ export function NativeChatMessagePanel({
     const el = scrollRef.current;
     if (!el) return;
     stickToBottomRef.current = true;
+    awayFromLatestRef.current = false;
     setAwayFromLatest(false);
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollTo({ top: el.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
@@ -465,10 +473,10 @@ export function NativeChatMessagePanel({
   // button offers it too — scrolling up is not the only way to ask.
   const canLoadOlder = hasMore && (!!threadRoot || !anchorMessages);
   const listHeader =
-    loadingOlder || loadingAnchor ? (
-      <ChatOlderMessagesSkeleton
-        label={loadingAnchor ? t("chat.search_loading_context") : t("chat.loading_older")}
-      />
+    loadingAnchor ? (
+      <ChatOlderMessagesSkeleton label={t("chat.search_loading_context")} />
+    ) : canLoadOlder && loadingOlder ? (
+      <ChatLoadOlderHeaderSpacer busyLabel={t("chat.loading_older")} />
     ) : canLoadOlder ? (
       <ChatLoadOlderButton onClick={() => void loadOlder()} />
     ) : !hasMore && !threadRoot && !anchorMessages && intro ? (
@@ -524,7 +532,7 @@ export function NativeChatMessagePanel({
               sideThreadPanel ? "w-full p-4" : `w-full pt-5 pb-3 ${CHAT_CONVERSATION_GUTTER}`
             }
           >
-            <div className="flex min-h-full flex-col justify-end">
+            <div className="w-full">
             <ChatLinkPreviewsProvider workspaceId={workspaceId} roomId={roomId} messages={messages}>
               <ChatMessageLinksProvider value={linksValue}>
                 <ChatPeerReadAtContext.Provider value={receiptReadAt}>
@@ -533,10 +541,11 @@ export function NativeChatMessagePanel({
                       key={roomId}
                       messages={messages}
                       getItemKey={getVirtualRowKey}
-                      useInlineLayout={pinnedToLatest && !anchorMessages}
+                      getEstimateSize={getVirtualRowEstimate}
                       scrollRef={scrollRef}
                       stickToBottomRef={stickToBottomRef}
                       programmaticScrollRef={programmaticScrollRef}
+                      olderPrefetchSentinelRef={olderPrefetchSentinelRef}
                       highlightMessageId={highlightMessageId}
                       onHighlightShown={handleHighlightShown}
                       header={listHeader}

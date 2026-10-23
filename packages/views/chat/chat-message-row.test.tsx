@@ -123,6 +123,25 @@ describe("ChatMessageRow", () => {
     expect(screen.getByRole("img", { name: "Đã gửi" })).toBeInTheDocument();
   });
 
+  it("shows time on every incoming bubble in a run, not only the last", () => {
+    const ts = new Date("2026-10-23T10:19:00+07:00").getTime();
+    render(
+      wrap(
+        <ChatMessageRow
+          message={message({ id: "mid-in", ts, body: "a" })}
+          senderLabel="Guest"
+          isOwn={false}
+          showReadReceipt={false}
+          showSenderName={false}
+          compactTop
+          lastOfRun={false}
+        />,
+      ),
+    );
+
+    expect(screen.getByText("10:19")).toBeInTheDocument();
+  });
+
   it("shows time and sent receipt while a message is in flight", () => {
     render(
       wrap(

@@ -1,8 +1,10 @@
 "use client";
 
-import { useAiPanelStore } from "@uniwork/core/ai";
+import { Upload } from "lucide-react";
+import { useAiCapabilities, useAiPanelStore } from "@uniwork/core/ai";
 import { useAskUniStream } from "@uniwork/core/ai/stream";
 import { useTranslation } from "react-i18next";
+import { useFileDropZone } from "../editor/use-file-drop-zone";
 import { useWorkspace } from "../layout/workspace-context";
 import { AskUniComposer } from "./ask-uni-composer";
 import { AskUniEmptyState } from "./ask-uni-empty";
@@ -10,6 +12,25 @@ import { AskUniHeader } from "./ask-uni-header";
 import { useAskModelSelection } from "./ask-uni-model-picker";
 import { useEffectiveFocus } from "./ask-uni-page-context";
 import { AskUniThread } from "./ask-uni-thread";
+import { useAskUniAttachments } from "./use-ask-uni-attachments";
+
+/**
+ * Over the dock while files are dragged onto it; it never takes the drop itself. The text pairs `brand-subtle` with
+ * its own foreground: a provider's look re-points `--brand` but not `--brand-subtle` (tokens.css), so `text-brand`
+ * here would sit on the wrong tint.
+ */
+function DropOverlay() {
+  const { t } = useTranslation(undefined, { keyPrefix: "ai.attachments" });
+  return (
+    <div
+      aria-live="polite"
+      className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand bg-brand-subtle text-body-lg font-semibold text-brand-subtle-foreground"
+    >
+      <Upload aria-hidden className="size-5" />
+      {t("drop_overlay")}
+    </div>
+  );
+}
 
 /** The docked Ask UNI panel (flag ask_uni_stream): header, the conversation and the composer. */
 export function AskUniPanel() {
@@ -21,13 +42,24 @@ export function AskUniPanel() {
   const { model, effort, look } = useAskModelSelection(workspace.id);
   const focus = useEffectiveFocus();
   const streaming = stream.state.status === "streaming";
+  // Files are read on the agent path only: the capability says whether the server takes them.
+  const canAttach = !!useAiCapabilities(workspace.id).data?.attachments;
+  const attachments = useAskUniAttachments(workspace.id);
+  const { isDragOver, dropZoneProps } = useFileDropZone({ onDrop: attachments.attach, enabled: canAttach });
+  // The hook prevents the default of every drag it sees, so with attaching off the dock gets none of its handlers.
+  const dropHandlers = canAttach ? dropZoneProps : undefined;
   // A new conversation with nothing in flight starts from suggestions for the open page.
   const empty = conversationId === null && stream.state.status === "idle";
   const askSuggestion = (question: string) =>
-    stream.ask({ question, focus: focus ? { kind: focus.kind, id: focus.id } : undefined, mentions: [], model, effort, locale: i18n.language });
+    void stream.ask({ question, focus: focus ? { kind: focus.kind, id: focus.id } : undefined, mentions: [], model, effort, locale: i18n.language });
   return (
     // A provider's look re-points the panel's colour slots (tokens.css); Auto keeps UNI's.
-    <div className="flex h-full min-h-0 flex-col bg-background" data-slot="ask-uni-panel" data-ask-provider={look ?? undefined}>
+    <div
+      className="relative flex h-full min-h-0 flex-col bg-background"
+      data-slot="ask-uni-panel"
+      data-ask-provider={look ?? undefined}
+      {...dropHandlers}
+    >
       <AskUniHeader />
       <div className="flex min-h-0 flex-1 flex-col" data-slot="ask-uni-body">
         {empty ? (
@@ -40,8 +72,9 @@ export function AskUniPanel() {
             askDefaults={{ model, effort, locale: i18n.language }}
           />
         )}
-        <AskUniComposer onSend={stream.ask} onStop={stream.stop} streaming={streaming} />
+        <AskUniComposer onSend={stream.ask} onStop={stream.stop} streaming={streaming} attachments={canAttach ? attachments : undefined} />
       </div>
+      {isDragOver ? <DropOverlay /> : null}
     </div>
   );
 }

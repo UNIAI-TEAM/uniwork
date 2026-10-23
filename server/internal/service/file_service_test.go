@@ -154,6 +154,35 @@ func TestUploadRefusalsBeforeTheBodyHaveNoSideEffect(t *testing.T) {
 	}
 }
 
+// An Ask UNI attachment goes through the same FileService path as any other
+// purpose: the type comes from the bytes, so a PE named x.pdf is refused and
+// leaves nothing behind (UNI-2119).
+func TestFileServiceUploadsAnAiAttachment(t *testing.T) {
+	h := newFileHarness(t, localFileBackend(), nil)
+
+	up, err := t3Upload(t, h, files.AiAttachment, t3Scope, "ai-att-pdf", "note.pdf", pdfBody("ai-att"))
+	if err != nil {
+		t.Fatalf("upload pdf: %v", err)
+	}
+	if up.File.ContentType != "application/pdf" {
+		t.Errorf("content type = %q, want application/pdf", up.File.ContentType)
+	}
+	if got := fileCountRows(t, h.pool, `SELECT count(*) FROM file_upload_sessions WHERE purpose = 'ai_attachment' AND organization_id = $1 AND workspace_id = $2`, t3Org, t3WS); got != 1 {
+		t.Errorf("ai_attachment sessions = %d, want 1", got)
+	}
+
+	putsBefore, _ := h.store.counts()
+	pe := append([]byte("MZ\x90\x00\x03\x00\x00\x00"), make([]byte, 64)...)
+	_, err = t3Upload(t, h, files.AiAttachment, t3Scope, "ai-att-pe", "x.pdf", pe)
+	t3Code(t, err, files.CodeTypeRejected)
+	if puts, _ := h.store.counts(); puts != putsBefore {
+		t.Errorf("a refused attachment stored %d objects", puts-putsBefore)
+	}
+	if n := fileCountRows(t, h.pool, `SELECT count(*) FROM file_upload_sessions WHERE purpose = 'ai_attachment' AND status = 'canceled' AND failure_code = $1`, files.CodeTypeRejected); n != 1 {
+		t.Errorf("%d refused ai_attachment sessions carry file_type_rejected, want 1", n)
+	}
+}
+
 // Size and MIME fraud: the cap is measured on the stream and the type comes
 // from the bytes, so a lying filename changes nothing, nothing is stored, and
 // the refusal is the key's recorded result.

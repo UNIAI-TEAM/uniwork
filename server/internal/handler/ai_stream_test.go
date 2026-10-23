@@ -20,6 +20,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -403,10 +404,23 @@ func TestAskUniStreamWritesSourcesAndStepLabel(t *testing.T) {
 }
 
 func TestToAiMessageDTOBadStepsJSONIsEmpty(t *testing.T) {
-	m := db.AiMessage{Steps: `[{"tool":"search"},{"tool":5}]`, Followups: `["a",5]`, Mentions: `[{"kind":"x"},{"kind":5}]`, Citations: "[]"}
+	m := db.AiMessage{Steps: `[{"tool":"search"},{"tool":5}]`, Followups: `["a",5]`, Mentions: `[{"kind":"x"},{"kind":5}]`, Citations: "[]", FileNotes: `[{"name":5}]`}
 	out := toAiMessageDTO(m)
-	if out.Steps == nil || len(out.Steps) != 0 || out.Followups == nil || len(out.Followups) != 0 || out.Mentions == nil || len(out.Mentions) != 0 || out.Focus != nil {
+	if out.Steps == nil || len(out.Steps) != 0 || out.Followups == nil || len(out.Followups) != 0 || out.Mentions == nil || len(out.Mentions) != 0 || out.Focus != nil ||
+		out.FileNotes == nil || len(out.FileNotes) != 0 {
 		t.Fatalf("%+v", out)
+	}
+}
+
+// An answer's file notes reach the API as stored; a message without any (or a
+// row from before the column) lists none.
+func TestToAiMessageDTOFileNotes(t *testing.T) {
+	out := toAiMessageDTO(db.AiMessage{Citations: "[]", FileNotes: `[{"name":"bao-cao.pdf","unit":"page","read":15,"total":80}]`})
+	if want := []sdo.AiFileNoteDTO{{Name: "bao-cao.pdf", Unit: "page", Read: 15, Total: 80}}; !slices.Equal(out.FileNotes, want) {
+		t.Fatalf("file notes %+v, want %+v", out.FileNotes, want)
+	}
+	if out := toAiMessageDTO(db.AiMessage{Citations: "[]"}); out.FileNotes == nil || len(out.FileNotes) != 0 {
+		t.Fatalf("no notes: %+v, want []", out.FileNotes)
 	}
 }
 

@@ -168,6 +168,42 @@ describe("ai endpoints", () => {
     expect(drifted.auto_model).toBe("");
   });
 
+  it("message parsing keeps attachments and file_notes, and drops junk", async () => {
+    const att = { id: "a1", name: "q3.pdf", mime: "application/pdf", size: 184320, kind: "pdf" };
+    const note = { name: "q3.pdf", unit: "page", read: 15, total: 80 };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          { ...message, id: "u1", role: "user", attachments: [att, { ...att, id: "a2", size: "big", kind: 3 }] },
+          { ...message, id: "a1x", file_notes: [note, { ...note, read: 0 }] },
+          // An older server sends neither; a drifted one must not drop the turn.
+          { ...message, id: "old" },
+          { ...message, id: "bad", attachments: "x", file_notes: [{ name: 1 }] },
+          { ...message, id: "bad2", attachments: [{ name: "no id" }], file_notes: { a: 1 } },
+        ],
+      }),
+    );
+    const msgs = await listAiMessages("c1");
+    expect(msgs.map((m) => m.id)).toEqual(["u1", "a1x", "old", "bad", "bad2"]);
+    expect(msgs[0]!.attachments).toEqual([att, { ...att, id: "a2", size: 0, kind: "" }]);
+    expect(msgs[0]!.file_notes).toEqual([]);
+    expect(msgs[1]!.file_notes).toEqual([note, { ...note, read: 0 }]);
+    expect(msgs[1]!.attachments).toEqual([]);
+    for (const m of msgs.slice(2)) expect([m.attachments, m.file_notes]).toEqual([[], []]);
+  });
+
+  it("getAiCapabilities reads attachments and a malformed flag hides uploads without disabling AI", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, ask_uni: true, attachments: true }));
+    expect((await getAiCapabilities("ws1")).attachments).toBe(true);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, ask_uni: true }));
+    expect((await getAiCapabilities("ws1")).attachments).toBe(false);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, ask_uni: true, attachments: "yes" }));
+    const drifted = await getAiCapabilities("ws1");
+    expect(drifted).toMatchObject({ enabled: true, ask_uni: true, attachments: false });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: "yes" }));
+    expect((await getAiCapabilities("ws1")).attachments).toBe(false);
+  });
+
   it("ask-models read and write degrade to the sent list on a malformed answer", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ models: ["haiku"] }));
     expect(await getAskModels("o1")).toEqual(["haiku"]);

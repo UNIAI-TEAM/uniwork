@@ -12,6 +12,9 @@ import (
 // there is no way to ask on someone else's behalf.
 //
 //	GET    /api/v1/workspaces/{workspaceID}/ai/capabilities
+//	POST   /api/v1/workspaces/{workspaceID}/ai/attachments
+//	DELETE /api/v1/workspaces/{workspaceID}/ai/attachments/{fileID}
+//	GET    /api/v1/workspaces/{workspaceID}/ai/attachments/{attachmentID}/content
 //	POST   /api/v1/workspaces/{workspaceID}/ai/ask
 //	POST   /api/v1/workspaces/{workspaceID}/ai/ask/stream
 //	GET    /api/v1/workspaces/{workspaceID}/ai/conversations
@@ -32,18 +35,46 @@ func registerAI(r api, h Routes) {
 		sdo:         sdo.AiCapabilitiesSDO{},
 		auth:        true,
 	})
-	r.Post("/workspaces/{workspaceID}/ai/ask", h.AskUni, apiOp{
-		summary:     "Ask UNI",
-		description: "Một lượt hỏi, chỉ đọc, trả lời có trích dẫn [S1]… tới dữ liệu người gọi được xem. 402 ai_quota_exceeded, 429 ai_rate_limited, 503 ai_disabled.",
+	r.Post("/workspaces/{workspaceID}/ai/attachments", h.UploadAiAttachment, apiOp{
+		summary: "Upload a file for an Ask UNI question",
+		description: "Tải một file lên để gắn vào câu hỏi Hỏi UNI kế tiếp (multipart, field file, tối đa 20 MiB; ảnh PNG/JPEG/GIF/WebP, PDF, DOCX, XLSX, PPTX, ODT, TXT, CSV, Markdown; loại xét theo nội dung). " +
+			"File chưa thuộc câu hỏi nào cho tới khi câu hỏi gửi đi; không gửi thì tự dọn sau 24 giờ. Người tải lên là người duy nhất đọc, gắn hoặc hủy file. " +
+			"403 ai_attachments_unavailable khi cờ ask_uni_attachments tắt hoặc lượt hỏi không chạy agent (cờ ask_uni_agent tắt, thiếu công cụ đọc hay model), 413 too_large hoặc file_too_large, 415 file_type_rejected, " +
+			"422 ai_attachments_too_large khi ảnh quá 7,5 MB hay quá 8000 × 8000 điểm ảnh (giới hạn model nhận một ảnh), 422 ai_attachment_unreadable khi phần đầu ảnh không đọc được; file bị từ chối thì không giữ lại.",
+		tags: []string{"ai"},
+		sdi:  sdi.UploadAiAttachmentSDI{},
+		sdo:  sdo.AiAttachmentUploadSDO{},
+		auth: true,
+	})
+	r.Delete("/workspaces/{workspaceID}/ai/attachments/{fileID}", h.CancelAiAttachment, apiOp{
+		summary:     "Cancel an Ask UNI file",
+		description: "Bỏ file đã tải lên mà chưa có câu hỏi nào nhận. Chỉ người tải lên; file của người khác, của workspace khác, hoặc đã gắn vào câu hỏi → 404. Hủy lại vẫn 204.",
 		tags:        []string{"ai"},
-		sdi:         sdi.AskUniSDI{},
-		sdo:         sdo.AskUniSDO{},
+		status:      http.StatusNoContent,
 		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/ai/attachments/{attachmentID}/content", h.DownloadAiAttachment, apiOp{
+		summary: "Download an Ask UNI file",
+		description: "Tải về file một câu hỏi đã gắn, theo id của file trên câu hỏi (attachments[].id của GET …/messages), luôn là attachment và không bị đoán loại. " +
+			"Chỉ người hỏi; file của người khác, của workspace khác, của tổ chức khác, của cuộc trò chuyện đã xóa hoặc id không có → cùng một 404. Không cần cờ ask_uni_attachments: file đã gắn vẫn tải được khi cờ tắt.",
+		tags:     []string{"ai"},
+		produces: "application/octet-stream",
+		auth:     true,
+	})
+	r.Post("/workspaces/{workspaceID}/ai/ask", h.AskUni, apiOp{
+		summary: "Ask UNI",
+		description: "Một lượt hỏi, chỉ đọc, trả lời có trích dẫn [S1]… tới dữ liệu người gọi được xem. Câu hỏi có thể gắn tối đa 5 file đã tải lên qua POST …/ai/attachments (attachment_ids): câu hỏi và các file được lưu cùng lúc, file nào sai thì cả câu bị từ chối và không lưu gì. " +
+			"Mỗi lượt UNI đọc file của câu hỏi và file của các câu hỏi còn trong lịch sử (tối đa 5, file gắn sau được ưu tiên), trong phần token dành cho file; file chỉ đọc một phần được ghi ở file_notes của câu trả lời. " +
+			"400 ai_attachments_invalid, 402 ai_quota_exceeded, 403 ai_attachments_unavailable, 404 khi một id không phải file chưa gắn của chính người hỏi, 422 ai_attachments_too_large, 422 ai_attachment_unreadable khi một file đúng loại nhưng hỏng hoặc có mật khẩu (câu hỏi không được lưu), 422 media_unsupported khi provider đang chạy không đọc được loại file, 429 ai_rate_limited, 503 ai_disabled.",
+		tags: []string{"ai"},
+		sdi:  sdi.AskUniSDI{},
+		sdo:  sdo.AskUniSDO{},
+		auth: true,
 	})
 	r.Post("/workspaces/{workspaceID}/ai/ask/stream", h.AskUniStream, apiOp{
 		summary: "Ask UNI (stream)",
 		description: "Như Ask UNI nhưng trả text/event-stream. Frame: event run, step, delta, citations, done hoặc error (data chỉ có mã). " +
-			"Lỗi trước sự kiện đầu tiên trả JSON như POST …/ai/ask (402, 429 kèm Retry-After, 503); sau đó là event error. Cứ 15 giây có dòng `: ping`.",
+			"Lỗi trước sự kiện đầu tiên trả JSON như POST …/ai/ask (400, 402, 403, 404, 422 gồm ai_attachment_unreadable, 429 kèm Retry-After, 503); sau đó là event error, ví dụ mã media_unsupported khi provider không đọc được file đã gắn. done mang câu trả lời đã lưu, kèm file_notes. Cứ 15 giây có dòng `: ping`.",
 		tags:     []string{"ai"},
 		sdi:      sdi.AskUniSDI{},
 		produces: "text/event-stream",

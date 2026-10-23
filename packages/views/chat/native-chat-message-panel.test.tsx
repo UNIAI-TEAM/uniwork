@@ -82,24 +82,35 @@ import { toast } from "sonner";
 
 // @tanstack/react-virtual needs layout measurements that jsdom cannot provide,
 // so render rows synchronously in this test.
-vi.mock("./virtual-chat-message-list", () => ({
-  // Every scroll here stands for the reader's own.
-  useReaderScrollAt: () => ({ current: Date.now() }),
-  updateStickToBottomFromScroll: (_el: HTMLElement, ref: { current: boolean }) => {
-    ref.current = nearBottom;
-    return nearBottom;
-  },
-  VirtualChatMessageList: ({ messages, header, empty, renderMessage, stickToBottomRef, onHighlightShown }: any) => {
-    listStickRef = stickToBottomRef;
-    listOnHighlightShown = onHighlightShown;
-    return (
-      <>
-        {header}
-        {messages.length === 0 ? empty : messages.map((_: unknown, index: number) => renderMessage(index))}
-      </>
-    );
+vi.mock("./use-chat-timeline-scroll", () => ({
+  applyChatScrollAwayHysteresis: (_el: HTMLElement, stickRef: { current: boolean }) => {
+    stickRef.current = nearBottom;
+    return nearBottom ? "returned-bottom" : "entered-away";
   },
 }));
+
+vi.mock("./virtual-chat-message-list", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./virtual-chat-message-list")>();
+  return {
+    ...actual,
+    // Every scroll here stands for the reader's own.
+    useReaderScrollAt: () => ({ current: Date.now() }),
+    updateStickToBottomFromScroll: (_el: HTMLElement, ref: { current: boolean }) => {
+      ref.current = nearBottom;
+      return nearBottom;
+    },
+    VirtualChatMessageList: ({ messages, header, empty, renderMessage, stickToBottomRef, onHighlightShown }: any) => {
+      listStickRef = stickToBottomRef;
+      listOnHighlightShown = onHighlightShown;
+      return (
+        <>
+          {header}
+          {messages.length === 0 ? empty : messages.map((_: unknown, index: number) => renderMessage(index))}
+        </>
+      );
+    },
+  };
+});
 
 beforeAll(() => {
   initI18n();

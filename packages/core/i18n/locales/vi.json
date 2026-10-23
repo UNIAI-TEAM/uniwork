@@ -235,6 +235,40 @@
           "c0424076a5c7443babfeeb091d77e84d18446fc28": "Tài liệu và UniNote: trình soạn UniNote có thanh định dạng, mẹo cho lần dùng đầu và bảng phím tắt; menu \"/\" và phím tắt Markdown dùng được cả ở dòng sau khi ngắt dòng. Tệp .txt mở được trong trình soạn ở chế độ văn bản thuần. Hộp thoại lưu lần đầu cho chọn thư mục, tài liệu Office có mục In, và hộp thoại chia sẻ rõ ràng hơn, dùng thống nhất chữ \"Riêng tư\". \"Thư mục của tôi\" là một mục duy nhất trong cây thư mục, \"Tôi đã chia sẻ\" chỉ liệt kê mục cao nhất được chia sẻ, ô bình luận hiện @Tên khi nhắc ai đó, và luồng thảo luận có giao diện mới.",
           "c5f3b1fb9b72701e4053bd93ccc2f4e2cc053d750": "Thư viện Tài liệu được chỉnh nhiều chi tiết: nhãn chia sẻ cho người có quyền bình luận, tên thư mục dài được rút gọn, mở đường dẫn của một tài liệu sẽ mở đúng thư mục chứa nó, \"Chia sẻ với workspace\" tách riêng khỏi mục Thư mục, và trạng thái trống phù hợp hơn khi tệp nằm trong các thư mục."
         }
+      },
+      "v1_8_0": {
+        "title": "Chia sẻ tài liệu nhanh hơn, hình nền và biểu cảm nhanh trong Chat, thông báo hệ thống trên trình duyệt",
+        "summary": "Danh sách Tài liệu cho chia sẻ ngay từ từng dòng, chọn nhiều để chia sẻ hoặc tải zip, sắp xếp và lọc tốt hơn, cùng báo cáo quyền truy cập mới. Chat có hình nền chung cho từng phòng, biểu cảm nhanh, gửi được tệp CSV và Markdown, khung trò chuyện mượt hơn khi gửi liên tục và đọc lịch sử, thông báo khi có người bình chọn và bình chọn ghim hoặc thêm lựa chọn được. Trình duyệt có thể hiện thông báo hệ thống cho tin nhắn, nhắc họp và cuộc gọi. Hỏi UNI dùng nhãn trạng thái như trên màn hình, trang Chính sách quyền riêng tư có tại /privacy, bình luận tài liệu cho xem lại phiên bản chứa đoạn được bình luận, và Việc của tôi tải đủ công việc theo từng cột.",
+        "note": "Tắt thông báo của một phòng chỉ chặn chuông với cuộc gọi nhóm và kênh; cuộc gọi trong trò chuyện riêng vẫn đổ chuông. Thông báo khi đã đóng tab trình duyệt chỉ có khi máy chủ được cấu hình thông báo đẩy, và cuộc gọi đến chỉ báo khi UniWork đang mở.",
+        "features": {
+          "c65f3f63676c33fb8ffa3973af36f699c95167a06": "Khi có người bình chọn trong Chat, cuối cuộc trò chuyện hiện một dòng thông báo nhỏ cho biết ai vừa tham gia cuộc bình chọn nào, kèm nút Xem để tới đúng cuộc bình chọn đó; thẻ bình chọn gốc giữ nguyên vị trí và cập nhật số phiếu.",
+          "c12721dfeb1a1ec3d59d6255b2ae6bb92fdb15fa6": "Trang Chính sách quyền riêng tư công khai tại /privacy, có bản tiếng Việt và tiếng Anh: dữ liệu được thu thập, quyền thiết bị, AI, các nhà cung cấp xử lý dữ liệu, thời gian lưu giữ, cách xóa tài khoản hoặc tổ chức và quyền của bạn theo Nghị định 13/2023. Chân trang có đường dẫn tới trang này cùng email hỗ trợ; mục xóa tài khoản có đường dẫn riêng /privacy#delete-account, và bảng trong trang được xếp gọn trên điện thoại.",
+          "ce13f89971f752f4cd450ac462dc44dfdeddfde3b": "Tài liệu: chia sẻ và quản lý quyền truy cập ngay từ một dòng trong danh sách; chọn nhiều tài liệu để chia sẻ cùng lúc hoặc tải về thành một tệp zip (tối đa 100 tài liệu); sắp xếp bằng tiêu đề cột, tên xếp theo thứ tự tiếng Việt, và lọc theo người sửa, thời gian; Gần đây hiện hoạt động mới nhất. Báo cáo quyền truy cập được làm mới với phần tóm tắt, bảng theo người, thu hồi quyền và xuất dữ liệu. Tệp .txt luôn mở được và có thể tạo mới bằng Văn bản thuần. Thư mục ngoài Thư mục của tôi hiện với cả workspace và thành viên tạo được nội dung bên trong, còn tài liệu trong đó vẫn riêng tư cho tới khi được chia sẻ. Thông báo thay đổi tài liệu được gộp theo từng tài liệu, mở danh sách từ chuông thông báo và Trang chủ. Trong Chat, gửi tài liệu sẵn có bằng liên kết qua Đính kèm từ Tài liệu; quyền có được qua Chat bị thu hồi khi người nhận rời phòng. Phím tắt trong UniNote theo Word cho web, Ctrl/Cmd+S lưu ngay.",
+          "c866159078a243ad74975a6cc520072a720e73321": "Hình nền Chat: chọn nền màu, hoa văn có sẵn hoặc ảnh của bạn (dưới khoảng 900 KB) cho từng cuộc trò chuyện từ phần cài đặt của trò chuyện riêng, nhóm hoặc kênh. Mọi thành viên trong phòng thấy cùng một nền; trong trò chuyện riêng cả hai người đổi được, còn ở nhóm và kênh chỉ quản trị phòng đổi được.",
+          "c746cbd4249c4eb107c7fbf9afc44a378382b04d8": "Thông báo hệ thống trên trình duyệt: UniWork mời bạn bật thông báo để nhận tin nhắn mới, nhắc họp và cuộc gọi đến bên ngoài cửa sổ khi ứng dụng còn mở, kèm nút gửi thông báo thử trong Cài đặt › Thông báo. Nhận thông báo cả khi đã đóng tab cần máy chủ được cấu hình thông báo đẩy và không áp dụng cho cuộc gọi đến."
+        },
+        "improvements": {
+          "c831c0910ee27de6a508932005979a31836ebc7b0": "Bình luận tài liệu: khi đoạn được bình luận không còn trong bản hiện tại, bình luận ghi rõ điều đó và cho mở phiên bản còn chứa đoạn này ở chế độ chỉ đọc, rồi quay lại bản hiện tại. Đánh dấu một bình luận là đã giải quyết sẽ báo cho người viết bình luận và chủ sở hữu tài liệu. Mở thông báo về tài liệu bạn không còn quyền truy cập sẽ hiện \"không có quyền\", còn tài liệu đã xóa hiện \"đã xóa\"; mở tài liệu Office từ một bình luận không còn tồn tại vẫn mở được tài liệu. Trong Chat, nút chia sẻ tệp dạng tài liệu và thẻ tài liệu trên tin nhắn của bạn dễ đọc hơn.",
+          "c70c6965823b95e78087da436b7f1f37d2d6220a1": "Cuộc gọi trong Chat: tắt thông báo của một phòng chỉ chặn chuông với cuộc gọi nhóm và kênh; cuộc gọi trong trò chuyện riêng vẫn đổ chuông. Danh sách phòng hiện lượt bình chọn mới nhất ở dòng xem trước.",
+          "c0f496005d5c93547c653dd036fbe607549ea163f": "Bình chọn trong Chat: cuộc bình chọn được tạo với tùy chọn ghim sẽ được ghim lên đầu phòng; khi cuộc bình chọn cho phép thêm lựa chọn và chưa hết hạn, thành viên có thể tự thêm lựa chọn mới. Danh sách người đã bình chọn chỉ được tải khi bạn mở hộp thoại xem người bình chọn.",
+          "cd27f9296f7bf1434f4e6d55e221088886f3e8eec": "Khung trò chuyện và ô soạn tin trong Chat trải theo bề rộng cửa sổ thay vì bị giới hạn ở giữa màn hình.",
+          "c4892d5b67cc9442004c304b002790e52ab95603f": "Trong Chat, rê chuột lên nút trái tim của tin nhắn sẽ hiện thêm một cột biểu cảm nhanh để thả cảm xúc chỉ bằng một lần bấm.",
+          "c9dc4cbdc366fe6b777ab57010b575160c9c6b1d4": "Hướng dẫn UniOffice trên trang giới thiệu có thêm phần thực hành rà soát một tài liệu DOCX với AI và phần xử lý khi không mở được file, không lưu được hoặc không dùng được AI; trang UniOffice có đường dẫn thẳng tới hướng dẫn này.",
+          "c29525a88ddb8c9b912b044b0a8bcd3b7f613a7df": "Chat cho gửi tệp CSV và Markdown (.csv, .md) bên cạnh ảnh, PDF, văn bản thuần, Word và Excel.",
+          "c886caab063dd9967f8098c1a6a9121bcab357ea2": "Hỏi UNI nhận trạng thái của công việc, dự án và cuộc họp bằng nhãn như trên màn hình (ví dụ Cần làm), nên câu trả lời tiếng Việt dùng nhãn này thay vì mã thô như todo hay planned; trạng thái tự đặt của workspace dùng đúng tên bạn đặt.",
+          "cf9cdc3c6868c4a578845c50fa159696378144c29": "Khung trò chuyện trong Chat mượt hơn: tin vừa gửi hiện ngay trong cuộc trò chuyện, gửi nhiều tin liên tiếp không làm khung bị giật; khi đọc lịch sử và tải tin cũ hơn, vị trí đang đọc được giữ nguyên; mọi bong bóng tin, kể cả tin đến trong một chuỗi liên tiếp, đều hiện giờ gửi."
+        },
+        "fixes": {
+          "c00442921bb805d62e2acd4ca821b9961afa5d2b8": "Trên trang giới thiệu, biểu tượng và tên các ứng dụng trong menu điện thoại hiển thị thẳng hàng trở lại.",
+          "c012ad1c97b8e1fe0bdb6476e3db9fda8e288eb7c": "Ảnh gửi riêng trong Chat không còn viền màu bao quanh; ảnh kèm trích dẫn vẫn có viền mỏng, và album ảnh bỏ khoảng đệm thừa.",
+          "c95903b75040d1eeb842587f70e0f88954ca44f9f": "Email Hub: thư gắn sao từ Gmail được đồng bộ chính xác hơn, kể cả khi làm mới toàn bộ tài khoản; thư bạn chuyển vào Thùng rác hoặc Spam từ ứng dụng email khác hiện đúng thư mục mà không phải chờ hay mở các thư mục đó.",
+          "cd4ace5438fda5aaa1dd4d0a9e2b1f3cf05d4f23c": "Sau khi đăng nhập, UniWork chỉ chuyển bạn tới trang đích nằm trong UniWork; đường dẫn đích chứa khoảng trắng, ký tự điều khiển hoặc dấu \\ sẽ đưa bạn về trang mặc định.",
+          "c97190ef880cb0becddefbac601fc868bfd3fe383": "UniChat cho máy tính trên Windows nay hiện lời mời bật thông báo và xin quyền thông báo, thay vì chỉ có chấm đỏ trên thanh tác vụ; nếu không thấy thông báo thử, hãy bật UniChat trong Cài đặt Windows › Hệ thống › Thông báo.",
+          "cf26deea1665f84bf6164e04ca55f138363170372": "Bảng (board) và dạng bảng của Việc của tôi tải công việc theo từng cột như trang công việc của workspace, không còn dừng ở 50 công việc đầu tiên.",
+          "cbd62328c1ab8482fcaec239e846678bdd723c6db": "Danh sách Phiên đăng nhập trong cài đặt bảo mật hiện mỗi phiên một dòng, không còn lặp lại cùng một phiên.",
+          "c59253aa471b10dfba393387e89f84323c95f6590": "Trên trang giới thiệu, bản minh họa công việc trên điện thoại hiện dạng danh sách theo nhóm để thông tin công việc vừa màn hình, không bị cắt ngang.",
+          "cff18730616d298ece7119b09d7576642209166ce": "Sửa lỗi Chat: khi có người trả lời chủ đề của bạn, chủ đề hiện là chưa đọc cho tới khi bạn mở nó, và trạng thái đã đọc không bị lùi lại; thông báo nhắc theo dõi được đánh dấu đã đọc khi bạn hoàn tất hoặc xóa nhắc đó; gợi ý khi gõ @ hiện tối đa 20 người, gõ thêm chữ để lọc; một công việc chỉ nối được với một chủ đề; nhãn ngày ở danh sách phòng tính đúng theo ngày của tin nhắn."
+        }
       }
     }
   },
@@ -5867,7 +5901,12 @@
     "history_error": "Không tải được lịch sử hội thoại",
     "history_retry": "Thử lại",
     "history_current": "Hiện tại",
-    "history_group": { "today": "Hôm nay", "yesterday": "Hôm qua", "week": "7 ngày qua", "older": "Cũ hơn" },
+    "history_group": {
+      "today": "Hôm nay",
+      "yesterday": "Hôm qua",
+      "week": "7 ngày qua",
+      "older": "Cũ hơn"
+    },
     "rename_conversation": "Đổi tên hội thoại",
     "delete_conversation": "Xóa hội thoại",
     "sources": "Nguồn",
@@ -5999,6 +6038,12 @@
       "ai_provider_error": "Dịch vụ AI đang gặp sự cố, thử lại sau ít phút.",
       "ai_provider_timeout": "UNI trả lời quá lâu, thử lại nhé.",
       "ai_tool_not_allowed": "UNI vừa thử một thao tác không được phép, hãy hỏi lại.",
+      "ai_attachments_unavailable": "Chưa dùng được file đính kèm ở đây. Hãy gửi câu hỏi không kèm file.",
+      "ai_attachments_invalid": "File đính kèm không hợp lệ hoặc đã bị gỡ. Hãy gắn lại rồi gửi.",
+      "ai_attachments_too_large": "File đính kèm quá lớn. Mỗi file tối đa 20 MB (ảnh tối đa 7,5 MB và 8000 × 8000 điểm ảnh), tổng tối đa 20 MB.",
+      "ai_attachment_unreadable": "UNI không mở được một file đính kèm (file hỏng hoặc có mật khẩu). Hãy bỏ file đó hoặc gắn bản khác.",
+      "media_unsupported": "UNI chưa đọc được loại file này. Hãy dùng ảnh, PDF, DOCX, XLSX, PPTX hoặc file văn bản.",
+      "not_found": "File không còn dùng được. Hãy gắn lại file rồi gửi.",
       "default": "Không hỏi được lúc này, thử lại sau."
     },
     "close": "Đóng",
@@ -6046,6 +6091,32 @@
         "thread": "Luồng chat",
         "message": "Tin nhắn"
       }
+    },
+    "attachments": {
+      "upload": "Tải file lên",
+      "drop_hint": "hoặc kéo thả",
+      "drop_overlay": "Thả để gắn vào câu hỏi",
+      "remove": "Bỏ {{name}}",
+      "retry": "Thử lại",
+      "uploading": "Đang tải lên",
+      "failed": "Tải lên không được",
+      "too_large": "File tối đa 20 MB; ảnh tối đa 7,5 MB và 8000 × 8000 điểm ảnh",
+      "unreadable": "UNI không mở được file này (file hỏng hoặc có mật khẩu)",
+      "too_many": "Tối đa 5 file mỗi câu hỏi",
+      "total_too_large": "Tổng dung lượng quá 20 MB",
+      "type_unsupported": "UNI chưa đọc được loại file này",
+      "download": "Tải {{name}}",
+      "download_failed": "Không tải được {{name}}, thử lại nhé.",
+      "read_note_page": "UNI đã đọc trang 1–{{read}} trên {{total}} trang của {{name}}",
+      "read_note_page_first": "UNI đã đọc trang 1 trên {{total}} trang của {{name}}",
+      "read_note_slide": "UNI đã đọc slide 1–{{read}} trên {{total}} slide của {{name}}",
+      "read_note_slide_first": "UNI đã đọc slide 1 trên {{total}} slide của {{name}}",
+      "read_note_row": "UNI đã đọc {{read}} trên {{total}} dòng của {{name}}",
+      "read_note_paragraph": "UNI đã đọc đoạn 1–{{read}} trên {{total}} đoạn của {{name}}",
+      "read_note_paragraph_first": "UNI đã đọc đoạn 1 trên {{total}} đoạn của {{name}}",
+      "read_note_line": "UNI đã đọc dòng 1–{{read}} trên {{total}} dòng của {{name}}",
+      "read_note_line_first": "UNI đã đọc dòng 1 trên {{total}} dòng của {{name}}",
+      "read_note_partial": "UNI chỉ đọc được phần đầu của {{name}}"
     },
     "ask_about_task": "Hỏi UNI về task này",
     "ask_about_meeting": "Hỏi UNI về cuộc họp này",
