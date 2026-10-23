@@ -134,8 +134,10 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   `values-vi` tiếng Việt — mà `scripts/sync-i18n.mjs` sinh từ cùng chuỗi `mobile.notify.channel_*`), kênh cũ `chat`
   bị xoá; server chọn kênh theo kind (`push_expo.go › pushChannel`) — đổi âm thanh/độ ưu tiên của kênh thì phải đổi id.
   Thông báo tin chat (DM, nhắc tên, trả lời chủ đề) mang category `chat_message` và id workspace/phòng/tin/chủ đề
-  (server `push_expo.go › ChatMessageCategory`, `chatData`); app đăng ký category đó lúc mở và khi đổi ngôn ngữ
-  (`data/chat-notification-actions.ts`): **Trả lời** (ô nhập) gửi qua outbox như mọi lần gửi rồi đánh dấu phòng đã đọc,
+  (server `push_expo.go › ChatMessageCategory`, `chatData`); app đăng ký category đó lúc mở, khi đổi ngôn ngữ và khi
+  khoá UniChat bật/tắt (`components/app/chat-category-sync.tsx`, `data/chat-notification-actions.ts`; khoá đang bật
+  thì chỉ còn Đánh dấu đã đọc, câu trả lời gõ vào thông báo cũ bị từ chối — `device-privacy.md`):
+  **Trả lời** (ô nhập) gửi qua outbox như mọi lần gửi rồi đánh dấu phòng đã đọc,
   **Đánh dấu đã đọc** xếp lượt đọc; cả hai gỡ thông báo, không mở app trên Android (task nền thông báo —
   `runCallPushTask` chuyển tiếp — hoặc listener của app đang chạy; mỗi hành động chạy một lần), mở app trên iOS (iOS
   không giao câu trả lời cho JS khi app bị kill và hành động ở nền). `lib/chat-notification.ts` đọc phản hồi (thuần)
