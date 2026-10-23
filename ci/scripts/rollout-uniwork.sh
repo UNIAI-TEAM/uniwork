@@ -9,6 +9,7 @@ fi
 : "${BE_DIGEST:?BE_DIGEST required}"
 : "${FE_DIGEST:?FE_DIGEST required}"
 : "${OFFICE_ENGINE_DIGEST:?OFFICE_ENGINE_DIGEST required}"
+: "${MEETING_AGENT_DIGEST:?MEETING_AGENT_DIGEST required}"
 : "${IMAGE_TAG:?IMAGE_TAG required}"
 case "${BE_DIGEST}${FE_DIGEST}${OFFICE_ENGINE_DIGEST}" in
   *sha256:*) ;;
@@ -17,8 +18,11 @@ esac
 [[ "${BE_DIGEST}" == sha256:* ]] || { echo "REFUSE: BE_DIGEST" >&2; exit 2; }
 [[ "${FE_DIGEST}" == sha256:* ]] || { echo "REFUSE: FE_DIGEST" >&2; exit 2; }
 [[ "${OFFICE_ENGINE_DIGEST}" == sha256:* ]] || { echo "REFUSE: OFFICE_ENGINE_DIGEST" >&2; exit 2; }
+[[ "${MEETING_AGENT_DIGEST}" == sha256:* ]] || { echo "REFUSE: MEETING_AGENT_DIGEST" >&2; exit 2; }
 
 # Office engine is always part of the release (values officeEngine.enabled=true).
+# The meeting agent image is pinned on every release; its Deployment renders only
+# with meetingAgent.enabled (go-live checklist docs/ops/MEETINGS_AI_GO_LIVE.md).
 # Non-secret engine env: deploy/app/env/uniwork-office-engine.env
 # Secret uniwork-office-engine must already exist (see deploy/app/env/README.md).
 helm upgrade --install uniwork "${ROOT}/deploy/app/uniwork" \
@@ -31,7 +35,9 @@ helm upgrade --install uniwork "${ROOT}/deploy/app/uniwork" \
   --set fe.image.tag="${IMAGE_TAG}" \
   --set fe.image.digest="${FE_DIGEST}" \
   --set-string officeEngine.image.tag="${IMAGE_TAG}" \
-  --set-string officeEngine.image.digest="${OFFICE_ENGINE_DIGEST}"
+  --set-string officeEngine.image.digest="${OFFICE_ENGINE_DIGEST}" \
+  --set-string meetingAgent.image.tag="${IMAGE_TAG}" \
+  --set-string meetingAgent.image.digest="${MEETING_AGENT_DIGEST}"
 
 kubectl -n uniwork rollout status deploy/uniwork-be --timeout=300s
 kubectl -n uniwork rollout status deploy/uniwork-fe --timeout=300s

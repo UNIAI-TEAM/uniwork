@@ -19,7 +19,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compos
 | `otel-collector` | 4317 | Nhận OTLP/gRPC từ API; exporter `debug` in span ra `docker compose logs otel-collector`. Tempo/Jaeger để sẵn dạng comment trong `deploy/otel-collector.yaml` |
 | `prometheus` | 9091 | Scrape `server:9090` (job `uniwork-api`) và probe `/readyz` qua `blackbox` (job `readyz`); nạp `deploy/alerts.yml` |
 | `blackbox` | — | `prom/blackbox-exporter`, module `http_2xx`, chỉ để probe `/readyz` |
-| `grafana` | 3001 | Đăng nhập `admin` / `GRAFANA_ADMIN_PASSWORD`; anonymous tắt; sáu dashboard nạp tự động từ `deploy/grafana/dashboards` (thư mục *UniWork*) |
+| `grafana` | 3001 | Đăng nhập `admin` / `GRAFANA_ADMIN_PASSWORD`; anonymous tắt; bảy dashboard nạp tự động từ `deploy/grafana/dashboards` (thư mục *UniWork*) |
 | `loki` | 3100 | Tùy chọn. Datasource đã khai báo; ship log bằng promtail/Docker log driver, API không tự ghi vào Loki |
 
 File này ghi đè env của `server`: `METRICS_ADDR=0.0.0.0:9090`,

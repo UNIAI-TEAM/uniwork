@@ -55,6 +55,9 @@ plan: `docs/superpowers/plans/2026-10-20-meeting-scribe-s1-base.md`; ADR 0038.
   attribute `uw.caption_lang` do server đặt, gom final theo ngôn ngữ đích, tối đa 1 lần gọi
   `/agent/translate` mỗi giây mỗi ngôn ngữ, phát `uw.caption.<L>`, không thử lại), `api.py` (client token `uwma_`, thử lại 5xx), `keyterms.py` (A2),
   `stt.py` (`FakeSTT`, `make_stt`), `health.py` (`uw.scribe_state`), `config.py`, `notice.py` (ai được nghe lời báo, đọc WAV, cắt khung 10 ms).
+- `eval/` — bộ đánh giá chất lượng STT trên cuộc họp thật (WER, độ phủ thực thể, độ trễ, tỉ lệ
+  phiên/giây nói; live và batch); không vào image. Bật `meeting_scribe` cho khách chỉ sau khi
+  nó ra `Đạt`: `eval/README.md`.
 
 ## Chạy
 

@@ -132,6 +132,10 @@ assemblyai.STT(
   tiếng Việt và chuyển Việt–Anh, độ trễ phụ đề thật (STT + mạng), so sánh `mode`
   `max_accuracy` với `balanced`, keyterms tên người, đóng/mở phiên với `Terminate` thật, và
   tỉ lệ `session_duration_seconds` / giây nói để kiểm hóa đơn.
+- **Công cụ đo** (2026-10-23): `apps/meeting-agent/eval/` phát lại 2–5 giờ cuộc họp thật qua
+  đúng đường live và batch, ra WER và độ phủ thực thể theo giọng vùng miền và loại micro, p95 độ
+  trễ và tỉ lệ phiên / giây nói; điền mục 3, 5b, 6 ở §1 từ `report.md` của nó. Bật
+  `meeting_scribe` cho khách chỉ sau khi nó ra Đạt (`docs/ops/MEETINGS_AI_GO_LIVE.md`).
 - **Chủ sản phẩm / sales:** giới hạn phiên mới mỗi phút của AssemblyAI (trả phí 100+) cho giờ
   cao điểm đầu cuộc họp đông; DPA và vùng xử lý (spec cha §7.5; có endpoint EU).
 

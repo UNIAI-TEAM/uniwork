@@ -23,6 +23,8 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `MeetingDialInRefusedCalls` | 2 | cuộc gọi điện thoại vào họp bị ngắt vì PIN cũ/rule lạ (> 10 trong 10 phút): nghi dò PIN | [MeetingDialInRefusedCalls.md](MeetingDialInRefusedCalls.md) |
 | `MeetingScribeSttErrors` | 3 | > 5% phiên STT của thư ký AI lỗi trong 10 phút | [MeetingScribeSttErrors.md](MeetingScribeSttErrors.md) |
 | `MeetingScribeRunsSilent` | 3 | ≥ 2 lần chạy thư ký ACTIVE, phòng có người, 3 phút không có lời thoại | [MeetingScribeRunsSilent.md](MeetingScribeRunsSilent.md) |
+| `MeetingScribeCapacityHigh` | 2 | mọi worker thư ký AI trên 60% tải, hoặc lần gọi không worker nào nhận, suốt 10 phút | [MeetingScribeCapacityHigh.md](MeetingScribeCapacityHigh.md) |
+| `MeetingAutoSummaryFailing` | 3 | > 20% tóm tắt tự động sau họp thất bại trong 1 giờ (≥ 5 lượt) | [MeetingAutoSummaryFailing.md](MeetingAutoSummaryFailing.md) |
 | `QueueLagUnreadable` | 2 | không đọc được lag outbox hoặc webhook inbox suốt 5 phút | [QueueLagUnreadable.md](QueueLagUnreadable.md) |
 | `RealtimePublishSlow` | 3 | p95 commit → frame > 1 s | [RealtimePublishSlow.md](RealtimePublishSlow.md) |
 | `RealtimeSlowEvictions` | 3 | > 25 client WebSocket bị đuổi trong 10 phút | [RealtimeSlowEvictions.md](RealtimeSlowEvictions.md) |
