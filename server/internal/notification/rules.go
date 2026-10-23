@@ -180,7 +180,7 @@ var rules = map[string]rule{
 	"chat.follow_up.created": ruleChatFollowUpCreated,
 	"chat.reminder.due":      ruleChatReminderDue,
 	"email_hub.new_mail":     ruleEmailHubNewMail,
-	"meeting.ended":          ruleMeetingEnded,
+	"meeting.ended":          both(ruleMeetingEnded, ruleEndedRecap),
 	// UNI-2026: the auto summary made none, so the reminder comes after all;
 	// a summary the system made tells the host and the secretaries.
 	"meeting.auto_summary_failed": ruleMeetingEnded,

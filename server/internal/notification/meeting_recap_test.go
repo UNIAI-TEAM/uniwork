@@ -162,3 +162,35 @@ func TestRecapOnFinalizedMinutes(t *testing.T) {
 		t.Fatalf("vi minutes title = %q", got)
 	}
 }
+
+// A summary made while the meeting still runs tells the participants
+// nothing yet and keeps the once-per-meeting claim free; the meeting's end
+// sends the recap, once, and a summary after that adds none.
+func TestRecapWaitsForTheMeetingToEnd(t *testing.T) {
+	f := newFixture(t)
+	meetingID, attendee, _ := f.recapMeeting(t)
+	setStatus := func(s string) {
+		if _, err := f.pool.Exec(f.ctx, `UPDATE meetings SET status = $2 WHERE id = $1`, meetingID, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setStatus("IN_PROGRESS")
+	f.storeSummary(t, "sum-live-"+meetingID, meetingID, f.member.ID, "human")
+	f.handleLast(t, "summary.created")
+	if n := len(f.inbox(t, attendee.ID)); n != 0 {
+		t.Fatalf("recap while the meeting runs: %d", n)
+	}
+	setStatus("ENDED")
+	f.emit(t, "meeting.ended", `{"meeting_id":"`+meetingID+`","workspace_id":"`+f.wsID+`"}`)
+	f.handleLast(t, "meeting.ended")
+	got := f.inbox(t, attendee.ID)
+	if len(got) != 1 || got[0].Kind != KindMeetingRecapReady || got[0].ResourceID != meetingID {
+		t.Fatalf("attendee inbox after the end = %+v", got)
+	}
+	f.readAll(t, attendee.ID)
+	f.storeSummary(t, "sum-after-"+meetingID, meetingID, f.member.ID, "human")
+	f.handleLast(t, "summary.created")
+	if n := len(f.inbox(t, attendee.ID)); n != 1 {
+		t.Fatalf("recaps after a summary past the end = %d, want 1", n)
+	}
+}

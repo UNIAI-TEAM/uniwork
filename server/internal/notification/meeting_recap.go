@@ -69,9 +69,27 @@ func recapDrafts(r *recipients, m db.Meeting, groupKey string, params map[string
 // summary, whoever made it. Once per meeting: a regenerated summary tells
 // nobody again. Only the meeting's newest summary counts.
 func ruleSummaryRecap(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	return summaryRecap(ctx, e, ev, p, p["summary_id"])
+}
+
+// ruleEndedRecap sends the recap of a summary a clerk made while the
+// meeting still ran, which ruleSummaryRecap held back; the shared group key
+// keeps it to one recap per meeting.
+func ruleEndedRecap(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	return summaryRecap(ctx, e, ev, p, "")
+}
+
+// summaryRecap recaps an ended meeting that has a summary; summaryID, when
+// set, must be the meeting's newest.
+func summaryRecap(ctx context.Context, e env, ev outbox.Row, p map[string]string, summaryID string) ([]Draft, error) {
 	m, err := recapMeeting(ctx, e, ev, p)
 	if m == nil || err != nil {
 		return nil, err
+	}
+	// A mid-meeting summary would recap a meeting people are still in and
+	// spend the claim the summary after the meeting needs.
+	if m.Status != "ENDED" {
+		return nil, nil
 	}
 	sum, err := e.q.GetLatestMeetingSummary(ctx, m.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -80,7 +98,7 @@ func ruleSummaryRecap(ctx context.Context, e env, ev outbox.Row, p map[string]st
 	if err != nil {
 		return nil, err
 	}
-	if sum.ID != p["summary_id"] {
+	if summaryID != "" && sum.ID != summaryID {
 		return nil, nil
 	}
 	r, err := recapRecipients(ctx, e, ev, *m)
