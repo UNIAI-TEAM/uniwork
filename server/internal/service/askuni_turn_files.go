@@ -38,11 +38,16 @@ func (s *AskUNIService) turnFilePlan(ctx context.Context, scope files.Scope, win
 
 // turnAttachments is the files a turn reads: the current question's, then
 // those of the questions in window (the conversation's own rows that history
-// replays), newest question first, askMaxAttachments at most. Of a question
-// that does not fit whole, the files attached later win. Each question keeps
-// its attach order.
+// replays), newest question first, askMaxAttachments at most and
+// askMaxAttachmentsBytes in all. Of a question that does not fit whole, the
+// files attached later win; an earlier file that would pass the byte cap is
+// skipped for older, smaller ones. Each question keeps its attach order.
 func (s *AskUNIService) turnAttachments(ctx context.Context, orgID string, window []db.AiMessage, current []AskAttachment) ([]AskAttachment, error) {
 	picked := slices.Clone(current)
+	var total int64 // the current question's files are already within the cap
+	for _, a := range current {
+		total += a.Size
+	}
 	var questions []string
 	for _, m := range window {
 		if m.Role == "user" {
@@ -62,10 +67,18 @@ func (s *AskUNIService) turnAttachments(ctx context.Context, orgID string, windo
 	}
 	for i := len(questions) - 1; i >= 0 && len(picked) < askMaxAttachments; i-- {
 		fs := byQuestion[questions[i]]
-		if room := askMaxAttachments - len(picked); len(fs) > room {
-			fs = fs[len(fs)-room:]
+		var kept []AskAttachment
+		for j := len(fs) - 1; j >= 0 && len(picked)+len(kept) < askMaxAttachments; j-- {
+			// Every round resends the turn's files: past 20 MB a call nears the
+			// vendor's request limit (32 MB at Anthropic) and every follow-up would fail.
+			if total+fs[j].Size > askMaxAttachmentsBytes {
+				continue
+			}
+			total += fs[j].Size
+			kept = append(kept, fs[j])
 		}
-		picked = append(picked, fs...)
+		slices.Reverse(kept)
+		picked = append(picked, kept...)
 	}
 	return picked, nil
 }
@@ -85,10 +98,13 @@ func (s *AskUNIService) readTurnFiles(ctx context.Context, scope files.Scope, pi
 		if err != nil {
 			return nil, fmt.Errorf("ask uni: open file %s: %w", a.FileID, err)
 		}
-		body, err := io.ReadAll(r.Body)
+		body, err := io.ReadAll(io.LimitReader(r.Body, askMaxAttachmentsBytes+1))
 		_ = r.Close()
 		if err != nil {
 			return nil, fmt.Errorf("ask uni: read file %s: %w", a.FileID, err)
+		}
+		if len(body) > askMaxAttachmentsBytes { // an upload cannot be this big; the store is wrong
+			return nil, fmt.Errorf("ask uni: file %s is over %d bytes", a.FileID, askMaxAttachmentsBytes)
 		}
 		out = append(out, askFileBytes{AskAttachment: a, Body: body})
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"slices"
 	"strings"
 	"testing"
@@ -378,5 +379,82 @@ func TestTurnAttachmentsPreferTheNewest(t *testing.T) {
 	}
 	if want := []string{"c1.txt", "b1.txt", "b2.txt", "a2.txt", "a3.txt"}; !slices.Equal(names, want) {
 		t.Fatalf("turn files %v, want %v", names, want)
+	}
+}
+
+// A turn with no file never takes a file reader: with every reader held it
+// still answers at once.
+func TestAskAgentWithoutFilesSkipsTheReaderCap(t *testing.T) {
+	s, fake, _, ua, _, w := attachAgentFixture(t)
+	scriptRounds(fake, 0, "Xong.", provider.CompletionResponse{InputTokens: 10})
+	for range cap(s.fileReaders) {
+		s.fileReaders <- struct{}{}
+	}
+	defer func() {
+		for range cap(s.fileReaders) {
+			<-s.fileReaders
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	started := time.Now()
+	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Có gì mới?", Locale: "vi", Dock: true})
+	if err != nil || res.Message.Content != "Xong." {
+		t.Fatalf("readers held, no file: %v, stored %+v; want the answer", err, res.Message)
+	}
+	if took := time.Since(started); took > 10*time.Second {
+		t.Fatalf("a turn without files waited %s", took)
+	}
+}
+
+// A turn's files stay within 20 MB in all, since every round resends them:
+// the current question's come first, then the newest earlier file that fits,
+// and an older one that would pass the cap is left out.
+func TestAskAgentKeepsATurnsFilesWithin20MB(t *testing.T) {
+	s, fake, _, ua, _, w := attachAgentFixture(t)
+	ctx := context.Background()
+	const big = 11 << 20
+	older, newer := pdfOfSize(1, big), pdfOfSize(2, big)
+	scriptRounds(fake, 0, "Đã đọc.", provider.CompletionResponse{InputTokens: 10})
+	first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "một", Locale: "vi", Dock: true, AttachmentIDs: []string{uploadAskFile(t, s, ua.ID, w.ID, "cu.pdf", older)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: "hai", Locale: "vi", Dock: true, AttachmentIDs: []string{uploadAskFile(t, s, ua.ID, w.ID, "moi.pdf", newer)}}); err != nil {
+		t.Fatal(err)
+	}
+	reqs := scriptRounds(fake, 0, "Xong.", provider.CompletionResponse{InputTokens: 10})
+	note := uploadAskFile(t, s, ua.ID, w.ID, "ghi-chu.txt", []byte("Hạn chót thứ Sáu."))
+	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: "ba", Locale: "vi", Dock: true, AttachmentIDs: []string{note}}); err != nil {
+		t.Fatal(err)
+	}
+	q := (*reqs)[0].Messages[len((*reqs)[0].Messages)-1]
+	if len(q.Parts) != 1 || !bytes.Equal(q.Parts[0].Data, newer) {
+		t.Fatalf("the turn sent %d parts, want only the newer earlier PDF", len(q.Parts))
+	}
+	if !strings.Contains(q.Content, "ghi-chu.txt") || !strings.Contains(q.Content, "moi.pdf") || strings.Contains(q.Content, "cu.pdf") {
+		t.Fatalf("the files section lists the wrong files:\n%s", q.Content)
+	}
+}
+
+// endlessOpen is a store that serves a body with no end.
+type endlessOpen struct{ files.Service }
+
+func (endlessOpen) Open(context.Context, files.OpenInput) (files.Reader, error) {
+	return files.Reader{Body: io.NopCloser(endless{})}, nil
+}
+
+type endless struct{}
+
+func (endless) Read(p []byte) (int, error) { return len(p), nil }
+
+// A body past the 20 MB an upload may have is the store's fault: an internal
+// error, read no further than one byte past the cap.
+func TestReadTurnFilesRefusesABodyOverTheCap(t *testing.T) {
+	s := &AskUNIService{files: endlessOpen{}}
+	_, err := s.readTurnFiles(context.Background(), files.Scope{}, []AskAttachment{{FileID: "f1"}})
+	var ce CodedError
+	if err == nil || errors.Is(err, ai.ErrAttachmentUnreadable) || errors.As(err, &ce) {
+		t.Fatalf("an endless body: %v, want an uncoded internal error", err)
 	}
 }
