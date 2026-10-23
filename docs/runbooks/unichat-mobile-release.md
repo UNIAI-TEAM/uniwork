@@ -362,7 +362,10 @@ dưới `…<os>.ota.<id>`, mục Phát OTA; tên có OS vì số build iOS và 
    credential đó vì nó đã nằm trong một artifact trên EAS, build lại; chỉ khi chắc là dương tính giả mới thêm vào
    `apps/chat-mobile/apk-scan-baseline.json` kèm lý do; `dex-class-missing` là R8 đã bỏ một lớp mã native tìm theo tên,
    như `livekit.org.jni_zero.JniInit` khiến 0.3.0 (11) chết khi mở: thêm luật `-keep` mà lỗi in ra vào
-   `ANDROID_KEEP_RULES`, bump `version`, build lại) → kiểm Sentry đã có release `com.uniworkos.chat@<version>+<version code>` (Gradle tải source map
+   `ANDROID_KEEP_RULES`, bump `version`, build lại; `permission-unlisted` là bản build xin một quyền ngoài
+   `apps/chat-mobile/android-permissions.json`, thường do nâng thư viện: không cần thì chặn bằng `blockedPermissions`
+   trong `app.config.ts`, cần thì thêm vào danh sách kèm ai thêm, vì sao giữ, Play hỏi gì, và cập nhật `store/listing.md`
+   › Quyền cùng mục App content dưới đây nếu Play cần khai) → kiểm Sentry đã có release `com.uniworkos.chat@<version>+<version code>` (Gradle tải source map
    và symbol dưới tên đó; không có là tải hỏng, đỏ) → `eas submit --profile production-internal --id <build>`: đúng
    binary đó lên **internal track của app production** `com.uniworkos.chat`. Summary ghi version code.
 2. **Thử** bản đó trên internal track của app production (người thử nội bộ, checklist máy thật bên dưới).
@@ -526,7 +529,9 @@ máy mở lạnh không có mạng vẫn theo công tắc và mức tối thiể
 
 **Play Console App content và App Store Connect (trước bản production đầu tiên; làm lại khi quyền, dịch vụ hay dữ liệu
 đổi).** Nguồn chữ là `apps/chat-mobile/store/listing.md`; danh sách quyền và dịch vụ của bản release là
-`apps/chat-mobile/android-manifest.test.ts` (in lại bằng `node apps/chat-mobile/scripts/android-manifest.mjs`). Đánh dấu
+`apps/chat-mobile/android-manifest.test.ts` (in lại bằng `node apps/chat-mobile/scripts/android-manifest.mjs`), cộng các
+quyền thư viện Maven gộp vào mà chỉ binary có — danh sách đầy đủ, mỗi quyền một lý do và cột Play cần gì, là
+`apps/chat-mobile/android-permissions.json`, `scripts/mobile-apk-scan.mjs` giữ nó trên APK và AAB thật. Đánh dấu
 từng mục khi đã nộp:
 
 - [ ] **Privacy policy**: `https://app.uniworkos.com/privacy` (tiếng Việt `/vi/privacy`). Trang phải nói đúng những gì

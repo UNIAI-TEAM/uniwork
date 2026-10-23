@@ -9,7 +9,7 @@ import { MOBILE_PATHS } from "./mobile-native-scope.mjs";
 import { ABI } from "./mobile-ftl-devices.mjs";
 import { JOBS as GATE_JOBS } from "./mobile-verify-gate.mjs";
 import { REQUIRED_DEX_CLASSES } from "./mobile-apk-scan.mjs";
-import { fakeDex } from "./mobile-apk-scan.fixture.mjs";
+import { fakeDex, protoXml } from "./mobile-apk-scan.fixture.mjs";
 
 // The release path of UniChat mobile (docs/runbooks/unichat-mobile-release.md,
 // ADR 0043): what the four workflows promise, held so an edit cannot quietly
@@ -236,7 +236,7 @@ test("the production build is verified, built from a main tag once, proved in Se
 });
 
 // Audit "Security & privacy", no-ci-binary-security-scan: the AAB that would be submitted is scanned first.
-test("the production AAB is scanned for credentials before it is submitted", () => {
+test("the production AAB is scanned for credentials, its manifest and its permissions before it is submitted", () => {
   const wf = read("chat-mobile-production.yml");
   const order = ["- id: build", "- name: Security scan of the built bundle", "- name: Submit this binary"].map((step) => wf.indexOf(step));
   assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), "build, then scan, then submit");
@@ -246,12 +246,31 @@ test("the production AAB is scanned for credentials before it is submitted", () 
     const bin = path.join(dir, "bin");
     fs.mkdirSync(bin);
     fs.writeFileSync(path.join(bin, "curl"), '#!/bin/sh\nwhile [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2;; *) shift;; esac; done\ncp "$FAKE_AAB" "$out"\n', { mode: 0o755 });
+    const reviewed = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/android-permissions.json"), "utf8")).permissions;
+    const bundleManifest = {
+      tag: "manifest",
+      attrs: { package: "com.uniworkos.chat" },
+      children: [
+        ...reviewed.map((entry) => ({
+          tag: entry.tag ?? "uses-permission",
+          attrs: {
+            "android:name": entry.name.replace("{package}", "com.uniworkos.chat"),
+            ...(entry.minSdkVersion ? { "android:minSdkVersion": String(entry.minSdkVersion) } : {}),
+            ...(entry.maxSdkVersion ? { "android:maxSdkVersion": String(entry.maxSdkVersion) } : {}),
+          },
+        })),
+        { tag: "application", attrs: { "android:allowBackup": "false" } },
+      ],
+    };
     const aab = (name, bundle) => {
       const src = path.join(dir, name);
       fs.mkdirSync(path.join(src, "base", "assets"), { recursive: true });
       fs.writeFileSync(path.join(src, "base", "assets", "index.android.bundle"), bundle);
       fs.mkdirSync(path.join(src, "base", "dex"));
       fs.writeFileSync(path.join(src, "base", "dex", "classes.dex"), fakeDex(REQUIRED_DEX_CLASSES.map((entry) => entry.descriptor)));
+      // A manifest that asks for exactly the reviewed permissions (apps/chat-mobile/android-permissions.json).
+      fs.mkdirSync(path.join(src, "base", "manifest"));
+      fs.writeFileSync(path.join(src, "base", "manifest", "AndroidManifest.xml"), protoXml(bundleManifest));
       execFileSync("zip", ["-qr", "../" + name + ".aab", "base"], { cwd: src });
       return path.join(dir, `${name}.aab`);
     };

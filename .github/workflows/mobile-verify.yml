@@ -28,8 +28,9 @@ name: Mobile Verify
 #                   (scripts/mobile-apk-scan.mjs: no credential in any file,
 #                   not debuggable, no backup or cleartext, no component other
 #                   apps reach without a permission beyond
-#                   apps/chat-mobile/apk-scan-baseline.json, every class
-#                   native code finds by name still in the dex).
+#                   apps/chat-mobile/apk-scan-baseline.json, no permission
+#                   outside apps/chat-mobile/android-permissions.json, every
+#                   class native code finds by name still in the dex).
 #                   Only when the change reaches the binary
 #                   (scripts/mobile-native-scope.mjs): the app's code, config
 #                   or assets, the install graph, or a packages/core file the
@@ -376,7 +377,8 @@ jobs:
           { echo "### UniChat Android release APK (x86_64)"; echo; ls -l *.apk | awk '{printf "- `%s`: %.1f MB\n", $9, $5/1048576}'; } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Security scan of the release APK
         # Audit "Security & privacy", no-ci-binary-security-scan: what Gradle merged and the bundler shipped, read from
-        # the APK itself (aapt2 from the runner's Android SDK). Blocks on a finding outside apk-scan-baseline.json.
+        # the APK itself (aapt2 from the runner's Android SDK). Blocks on a finding outside apk-scan-baseline.json and on
+        # a permission (a library's included) that android-permissions.json does not review.
         run: node scripts/mobile-apk-scan.mjs apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
       - uses: actions/upload-artifact@v4
         with:

@@ -179,6 +179,17 @@ lần khởi động lại), `FOREGROUND_SERVICE` cùng `FOREGROUND_SERVICE_PHON
 `maxSdkVersion`; chỉ có nghĩa tới Android 11 — từ Android 12 tai nghe Bluetooth đi qua `BLUETOOTH_CONNECT` ở bảng trên).
 `android-manifest.test.ts` giữ cả `maxSdkVersion` của từng quyền: hiện không quyền nào có.
 
+Thư viện Maven mà các module kéo theo cũng thêm quyền khi Gradle gộp manifest, đều là quyền thường hoặc quyền riêng
+của hãng, cấp lúc cài, không hộp thoại, không khai báo riêng trên Play: số chưa đọc trên biểu tượng app
+(`ShortcutBadger` của `expo-notifications`) xin `READ_APP_BADGE` và quyền badge của từng launcher (Samsung, HTC, Sony,
+Huawei, OPPO, Apex, Solid, EverythingMe); `firebase-messaging` xin quyền nhận tin FCM của Google Play services
+(`com.google.android.c2dm.permission.RECEIVE`), đường mọi push đi qua; `androidx.core` khai và xin quyền mức chữ ký
+`<package>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` để chỉ chính app gửi được tới receiver nó đăng ký lúc chạy. Quyền
+ràng buộc dịch vụ install referrer của Play (`installreferrer` qua `expo-application`) **bị gỡ** (`blockedPermissions`):
+app không đọc nguồn cài đặt. Danh sách đầy đủ của bản release, mỗi quyền một lý do, là
+`apps/chat-mobile/android-permissions.json`; `scripts/mobile-apk-scan.mjs` đọc manifest đã gộp của chính APK/AAB và đỏ
+khi bản build xin một quyền ngoài danh sách đó.
+
 **iOS privacy manifest** (`app.config.ts › IOS_PRIVACY_MANIFEST`, đặt vào `ios.privacyManifests`): không tracking; dữ liệu
 thu thập đúng từng dòng Apple App Privacy của bảng "Quyền riêng tư" ở trên (`store-listing.test.ts` so hai bên); lý do
 dùng API cần khai báo: UserDefaults `CA92.1`, file timestamp `C617.1` và `3B52.1`, system boot time `35F9.1`, disk space
