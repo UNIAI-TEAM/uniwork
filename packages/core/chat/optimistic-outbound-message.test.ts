@@ -7,6 +7,7 @@ import {
   buildOptimisticRoomMessageRecord,
   commitOptimisticRoomSend,
   insertOptimisticRoomMessageIfLoaded,
+  optimisticCreatedAtIso,
   removeOptimisticRoomMessage,
 } from "./optimistic-outbound-message";
 import { flattenRoomTimeline, type RoomTimeline } from "./room-timeline-pages";
@@ -31,6 +32,14 @@ const row = (id: string, minute: number, extra: Partial<ChatMessageRecord> = {})
 const key = chatKeys.roomMessages("ws1", "room1");
 
 describe("optimistic outbound room messages", () => {
+  it("assigns strictly increasing created_at while spamming in one tick", () => {
+    const a = Date.parse(optimisticCreatedAtIso());
+    const b = Date.parse(optimisticCreatedAtIso());
+    const c = Date.parse(optimisticCreatedAtIso());
+    expect(b).toBeGreaterThan(a);
+    expect(c).toBeGreaterThan(b);
+  });
+
   it("inserts a pending row into a loaded timeline", () => {
     const qc = new QueryClient();
     qc.setQueryData<RoomTimeline>(key, { pages: [[row("m1", 1)]], pageParams: [null] });

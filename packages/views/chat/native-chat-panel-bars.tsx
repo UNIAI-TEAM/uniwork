@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { useFollowChatThread, useUnfollowChatThread } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastChatError } from "./chat-error-message";
 
@@ -130,21 +129,11 @@ export function ChatJumpToLatestButton({ onClick, newCount = 0 }: { onClick: () 
  * Asks for older history without scrolling to the top — for a keyboard, a
  * switch or a screen reader, where "scroll up to load" never fires.
  */
-/** Same footprint as {@link ChatLoadOlderButton} so paging does not shift the scrollport. */
-export function ChatLoadOlderProgress({ label }: { label: string }) {
+/** Reserved height while older pages prefetch — no visible loading chrome (Telegram-style). */
+export function ChatLoadOlderHeaderSpacer({ busyLabel }: { busyLabel?: string }) {
   return (
-    <div className="flex min-h-14 justify-center pb-2">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="rounded-full bg-chat-chip px-3 text-chat-chip-foreground"
-        aria-disabled
-        disabled
-      >
-        <Spinner data-icon="inline-start" />
-        {label}
-      </Button>
+    <div className="min-h-14 shrink-0 pb-2" aria-hidden={busyLabel ? undefined : true}>
+      {busyLabel ? <span className="sr-only">{busyLabel}</span> : null}
     </div>
   );
 }

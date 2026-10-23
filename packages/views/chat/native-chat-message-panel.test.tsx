@@ -82,6 +82,13 @@ import { toast } from "sonner";
 
 // @tanstack/react-virtual needs layout measurements that jsdom cannot provide,
 // so render rows synchronously in this test.
+vi.mock("./use-chat-timeline-scroll", () => ({
+  applyChatScrollAwayHysteresis: (_el: HTMLElement, stickRef: { current: boolean }) => {
+    stickRef.current = nearBottom;
+    return nearBottom ? "returned-bottom" : "entered-away";
+  },
+}));
+
 vi.mock("./virtual-chat-message-list", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./virtual-chat-message-list")>();
   return {

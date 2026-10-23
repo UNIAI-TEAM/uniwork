@@ -16,9 +16,9 @@ export function chatMessageLabelId(messageId: string): string {
   return `chat-msg-label-${messageId}`;
 }
 
-/** Mine: time and receipts on every bubble (Telegram). Theirs: only the run's last row. */
-export function showChatBubbleTime(isOwn: boolean, lastOfRun: boolean): boolean {
-  return isOwn || lastOfRun;
+/** Time on every bubble so rapid sends look the same for sender and receiver. */
+export function showChatBubbleTime(_isOwn: boolean, _lastOfRun: boolean): boolean {
+  return true;
 }
 
 /**
@@ -133,8 +133,8 @@ export const ChatPeerReadAtContext = createContext<string | null>(null);
 
 /**
  * Time, edited mark, delivery state and read receipt — the one line of meta a
- * message carries. Shown on the last message of a run (and always while a
- * message is on its way). Inside a bubble it sits at the bottom-right in the
+ * message carries. Shown on every bubble (and always while a message is on
+ * its way). Inside a bubble it sits at the bottom-right in the
  * bubble's own meta colour; `onWall` draws it as a small chip on the chat
  * wall instead (under a sticker, GIF or anything drawn without a bubble).
  * `inline="float"` floats it at the end of the text's last line, dropped to

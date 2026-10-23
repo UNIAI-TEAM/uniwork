@@ -19,6 +19,7 @@ import {
 } from "./chat-cache-records";
 import { isDefaultWorkspaceChannel } from "./chat-room-helpers";
 import { markStaleUnlessObserved, roomTimelineFetchInFlight } from "./room-timeline-cache";
+import { stripPendingFromTimeline } from "./optimistic-outbound-message";
 import { insertCreatedTimelineMessage, mapRoomTimeline, replaceTimelineMessage, roomTimelineHas, type RoomTimeline } from "./room-timeline-pages";
 
 /**
@@ -107,9 +108,11 @@ export function createChatMessageCache(host: ChatMessageCacheHost) {
       patchThreadReplyCaches(qc, wsId, roomId, message, rootId);
       return;
     }
-    patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) =>
-      created ? insertCreatedTimelineMessage(existing, message) : replaceTimelineMessage(existing, message),
-    );
+    patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) => {
+      const base =
+        created && message.client_msg_id ? stripPendingFromTimeline(existing, message.client_msg_id) : existing;
+      return created ? insertCreatedTimelineMessage(base, message) : replaceTimelineMessage(base, message);
+    });
   }
 
   /**
