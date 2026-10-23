@@ -33,10 +33,17 @@ func (s *AskUNIService) turnFilePlan(ctx context.Context, scope files.Scope, win
 	if err := takeSlot(ctx, s.fileTurns); err != nil {
 		return askFilePlan{}, release, err
 	}
+	// Deferred so a panic while reading gives the slot back too.
+	held := false
+	defer func() {
+		if !held {
+			<-s.fileTurns
+		}
+	}()
 	if plan, err = s.readTurnPlan(ctx, scope, picked); err != nil {
-		<-s.fileTurns
 		return askFilePlan{}, release, err
 	}
+	held = true
 	return plan, func() { <-s.fileTurns }, nil
 }
 

@@ -511,3 +511,34 @@ func TestReadTurnFilesRefusesABodyOverTheCap(t *testing.T) {
 		t.Fatalf("an endless body: %v, want an uncoded internal error", err)
 	}
 }
+
+// openPanics is a file store whose reads panic, as a bug deep in a reader might.
+type openPanics struct{ files.Service }
+
+func (openPanics) Open(context.Context, files.OpenInput) (files.Reader, error) {
+	panic("store bug")
+}
+
+// A panic while a turn reads its files still gives its file turn back: the
+// slot is the process's, and a lost one is lost until restart.
+func TestTurnFilePlanGivesTheFileTurnBackOnAPanic(t *testing.T) {
+	s, _, _, ua, _, w := attachAgentFixture(t)
+	ctx := context.Background()
+	ws := db.GetWorkspaceWithOrgRow{ID: w.ID, OrganizationID: w.OrganizationID}
+	current, err := s.askAttachments(ctx, ua.ID, ws, []string{uploadAskFile(t, s, ua.ID, w.ID, "a.txt", []byte("nội dung"))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.files = openPanics{s.files}
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("the store's panic did not reach the caller")
+			}
+		}()
+		_, _, _ = s.turnFilePlan(ctx, files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: w.ID}, nil, current)
+	}()
+	if n := len(s.fileTurns); n != 0 {
+		t.Fatalf("%d file turns held after a panic", n)
+	}
+}
