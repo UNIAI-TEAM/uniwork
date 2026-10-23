@@ -54,8 +54,30 @@ internal class ShadeProbe(private val device: UiDevice, private val context: Con
 
   private fun shell(command: String): String = runCatching { device.executeShellCommand(command) }.getOrElse { "($command failed: $it)" }
 
+  /**
+   * Each section has its own budget, so a long service dump or log cannot push the texts System UI drew out of the
+   * message. The log reads the events buffer too: the notification service writes notification_enqueue, _cancel (with
+   * its reason) and _visibility there, each naming the package, so it tells a ring System UI never showed from one it
+   * showed and then lost.
+   */
   private fun diagnose(): String = buildString {
-    appendLine("--- screen")
+    section("screen", SCREEN_CHARS, screen())
+    section("texts on screen (package: text | description)", TEXT_CHARS, texts())
+    section("what this app still sees", ACTIVE_CHARS, active())
+    section("notification service, ${context.packageName}", RECORD_CHARS, records(shell("dumpsys notification --noredact")))
+    section("log", LOG_CHARS, log(), keepEnd = true)
+  }
+
+  private fun StringBuilder.section(title: String, budget: Int, body: String, keepEnd: Boolean = false) {
+    appendLine("--- $title")
+    when {
+      body.length <= budget -> append(body)
+      keepEnd -> append("(cut)\n").append(body.takeLast(budget))
+      else -> append(body.take(budget)).append("\n(cut)\n")
+    }
+  }
+
+  private fun screen(): String = buildString {
     appendLine(
       "provisioned=${shell("settings get global device_provisioned").trim()} " +
         "user_setup_complete=${shell("settings get secure user_setup_complete").trim()} " +
@@ -66,22 +88,18 @@ internal class ShadeProbe(private val device: UiDevice, private val context: Con
     shell("dumpsys window").lines()
       .filter { "mCurrentFocus" in it || "mFocusedApp" in it || "KeyguardShowing" in it || "isKeyguardShowing" in it }
       .distinct().take(8).forEach { appendLine(it.trim()) }
+  }
 
-    appendLine("--- what this app still sees")
-    val active = runCatching { context.getSystemService(NotificationManager::class.java).activeNotifications.toList() }.getOrDefault(emptyList())
-    active.forEach { appendLine("id=${it.id} tag=${it.tag} category=${it.notification.category} channel=${it.notification.channelId}") }
-    if (active.isEmpty()) appendLine("(no active notifications)")
+  private fun active(): String = buildString {
+    val listed = runCatching { context.getSystemService(NotificationManager::class.java).activeNotifications.toList() }.getOrDefault(emptyList())
+    listed.forEach { appendLine("id=${it.id} tag=${it.tag} category=${it.notification.category} channel=${it.notification.channelId}") }
+    if (listed.isEmpty()) appendLine("(no active notifications)")
+  }
 
-    appendLine("--- notification service, ${context.packageName}")
-    append(records(shell("dumpsys notification --noredact")))
-
-    appendLine("--- log")
-    shell("logcat -d -v brief -t 4000").lines().filter { line -> LOG_KEYS.any { it in line } || context.packageName in line }
-      .takeLast(MAX_LOG_LINES).forEach { appendLine(it) }
-
-    appendLine("--- texts on screen (package: text | description)")
-    append(texts())
-  }.take(MAX_CHARS)
+  private fun log(): String = shell("logcat -d -b main,system,crash,events -v brief -t 6000").lines()
+    .filter { line -> LOG_KEYS.any { it in line } || context.packageName in line }
+    .takeLast(MAX_LOG_LINES)
+    .joinToString("\n", postfix = "\n")
 
   /** The service's lines that name this package, each with the detail lines under it and the section it sits in. */
   private fun records(dump: String): String = buildString {
@@ -91,7 +109,7 @@ internal class ShadeProbe(private val device: UiDevice, private val context: Con
     var lines = 0
     for (line in dump.lines()) {
       if (lines >= MAX_RECORD_LINES) break
-      if (SECTION.matches(line)) section = line.trim()
+      if (SECTION.matches(line) || line.trimStart().startsWith("mArchive=")) section = line.trim()
       when {
         context.packageName in line -> {
           if (section != printedSection) {
@@ -124,7 +142,11 @@ internal class ShadeProbe(private val device: UiDevice, private val context: Con
   }
 
   private companion object {
-    const val MAX_CHARS = 14_000
+    const val SCREEN_CHARS = 1_500
+    const val TEXT_CHARS = 3_000
+    const val ACTIVE_CHARS = 800
+    const val RECORD_CHARS = 4_500
+    const val LOG_CHARS = 5_000
     const val MAX_LOG_LINES = 60
     const val MAX_RECORD_LINES = 80
     const val RECORD_DETAIL_LINES = 14
@@ -141,6 +163,7 @@ internal class ShadeProbe(private val device: UiDevice, private val context: Con
       "NotifBindPipeline",
       "NotifInflat",
       "NotificationContentInflater",
+      "NotifContentInflater",
       "RowContentBindStage",
       "InflationException",
       "Couldn't create icon",
