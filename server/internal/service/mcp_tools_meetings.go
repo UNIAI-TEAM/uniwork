@@ -469,6 +469,27 @@ func (in mcpUpdateMeetingIn) parse() (UpdateMeetingInput, error) {
 	return upd, nil
 }
 
+// mcpMeetingEditUndoable refuses an edit its undo could not put back: the
+// connector sends from values back, and shows no more than these limits.
+func mcpMeetingEditUndoable(in mcpUpdateMeetingIn, before db.Meeting) error {
+	// Undo sends from back, and get_meeting shows no more than this: a longer
+	// description replaced here could not be restored.
+	if err := mcpDescriptionUndoable(in.Description, before.Description); err != nil {
+		return err
+	}
+	// The same for a title and a zone: the tool refuses to send back a title over
+	// its cap or a zone that is not an IANA one, so it does not replace either.
+	if in.Title.Set && utf8.RuneCountInString(before.Title) > mcpMaxMeetingTitleRunes {
+		return McpInvalidArgs{Msg: "the meeting's title is too long to change safely here; edit it in UniWork"}
+	}
+	if in.Timezone.Set {
+		if _, err := mcpZone(before.Timezone); err != nil {
+			return McpInvalidArgs{Msg: "the meeting's timezone is not an IANA zone this tool could send back, so it is not changed here; edit it in UniWork"}
+		}
+	}
+	return nil
+}
+
 // UpdateMeeting changes one meeting in one command. The service checks the
 // revision again under the row lock, so a meeting changed after the read below
 // is refused and nothing is written. Nobody is notified: meeting.updated has
@@ -482,20 +503,8 @@ func (s *McpToolService) UpdateMeeting(ctx context.Context, p McpPrincipal, in m
 	if err != nil {
 		return McpWriteResult{}, err
 	}
-	// Undo sends from back, and get_meeting shows no more than this: a longer
-	// description replaced here could not be restored.
-	if err := mcpDescriptionUndoable(in.Description, before.Description); err != nil {
+	if err := mcpMeetingEditUndoable(in, before); err != nil {
 		return McpWriteResult{}, err
-	}
-	// The same for a title and a zone: the tool refuses to send back a title over
-	// its cap or a zone that is not an IANA one, so it does not replace either.
-	if in.Title.Set && utf8.RuneCountInString(before.Title) > mcpMaxMeetingTitleRunes {
-		return McpWriteResult{}, McpInvalidArgs{Msg: "the meeting's title is too long to change safely here; edit it in UniWork"}
-	}
-	if in.Timezone.Set {
-		if _, err := mcpZone(before.Timezone); err != nil {
-			return McpWriteResult{}, McpInvalidArgs{Msg: "the meeting's timezone is not an IANA zone this tool could send back, so it is not changed here; edit it in UniWork"}
-		}
 	}
 	// Read before the write: a failure after it would read as a failed update.
 	base, err := s.ask.base(ctx, in.WorkspaceID)
