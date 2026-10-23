@@ -540,14 +540,14 @@ describe("fingerprint.config.js", () => {
   });
 });
 
-// Audit "ios-dormant-calls-bg-audio" (Apple 2.5.4, 2.3.1): calls are off on iPhone until CallKit and PushKit ship, so an
-// iPhone binary declares no background audio a reviewer could not exercise, and no server switch can turn calling on
-// in a binary reviewed without it.
+// Audit "ios-dormant-calls-bg-audio" (Apple 2.5.4, 2.3.1): an iPhone binary declares no background audio or VoIP a
+// reviewer could not exercise, and no server switch can turn calling on in a binary reviewed without it. Calls on
+// iPhone (CallKit and PushKit, docs/adr/0038) are a build made with UNICHAT_IOS_CALLS=1.
 describe("calls on iPhone are a build capability", () => {
-  const withIosModule = () => {
+  const withModule = (platforms: string[]) => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "unichat-ios-calls-"));
     fs.mkdirSync(path.join(root, "modules/unichat-calls"), { recursive: true });
-    fs.writeFileSync(path.join(root, "modules/unichat-calls/expo-module.config.json"), JSON.stringify({ platforms: ["android", "ios"] }));
+    fs.writeFileSync(path.join(root, "modules/unichat-calls/expo-module.config.json"), JSON.stringify({ platforms }));
     return root;
   };
 
@@ -559,18 +559,24 @@ describe("calls on iPhone are a build capability", () => {
     expect(config.plugins).toContainEqual(["./plugins/with-unichat-calls", { iosCalls: false }]);
   });
 
-  it("refuses UNICHAT_IOS_CALLS=1 while the call module has no iOS half", () => {
+  it("refuses UNICHAT_IOS_CALLS=1 where the call module has no iOS half", () => {
     vi.stubEnv("UNICHAT_IOS_CALLS", "1");
-    expect(() => build()).toThrow(/CallKit/);
-    expect(() => iosCallsBuilt(__dirname)).toThrow(/CallKit/);
+    expect(() => build(withModule(["android"]))).toThrow(/CallKit/);
+    expect(() => iosCallsBuilt(withModule(["android"]))).toThrow(/CallKit/);
   });
 
-  it("declares background audio and tells the app once the module ships iOS", () => {
+  it("allows it now that the call module ships its iOS half", () => {
     vi.stubEnv("UNICHAT_IOS_CALLS", "1");
-    const config = build(withIosModule());
-    expect(config.ios?.infoPlist?.UIBackgroundModes).toEqual(["audio"]);
-    expect(config.extra?.iosCalls).toBe(true);
-    expect(config.plugins).toContainEqual(["./plugins/with-unichat-calls", { iosCalls: true }]);
+    expect(iosCallsBuilt(__dirname)).toBe(true);
+  });
+
+  it("declares background audio and VoIP and tells the app once the module ships iOS", () => {
+    vi.stubEnv("UNICHAT_IOS_CALLS", "1");
+    for (const config of [build(withModule(["android", "ios"])), build()]) {
+      expect(config.ios?.infoPlist?.UIBackgroundModes).toEqual(["audio", "voip"]);
+      expect(config.extra?.iosCalls).toBe(true);
+      expect(config.plugins).toContainEqual(["./plugins/with-unichat-calls", { iosCalls: true }]);
+    }
   });
 
   it("is set by no EAS profile", () => {
@@ -593,6 +599,20 @@ describe("calls on iPhone are a build capability", () => {
     const plist = (JSON.parse(out) as { ios: { infoPlist: Record<string, unknown> } }).ios.infoPlist;
     expect(plist.UIBackgroundModes).toEqual(["processing"]);
     expect(plist.BGTaskSchedulerPermittedIdentifiers).toEqual(["com.expo.modules.backgroundtask.processing"]);
+  });
+
+  // The same Info.plist of a build with calls: PushKit's `voip` and the call's `audio` beside `processing`, nothing
+  // else (ios/CallCenter.swift starts only where `voip` is declared).
+  it("leaves the release Info.plist of a build with calls with voip and audio added", { timeout: 120_000 }, () => {
+    const out = execFileSync(process.execPath, [createRequire(__filename).resolve("expo/bin/cli"), "config", "--type", "introspect", "--json"], {
+      cwd: __dirname,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 16 * 1024 * 1024,
+      env: { ...process.env, UNICHAT_ENV: "production", UNICHAT_API_URL: "https://api.example.invalid", UNICHAT_APP_URL: "https://app.example.invalid", UNICHAT_IOS_CALLS: "1", EAS_BUILD: "", EXPO_NO_TELEMETRY: "1", EXPO_OFFLINE: "1" },
+    });
+    const plist = (JSON.parse(out) as { ios: { infoPlist: { UIBackgroundModes: string[] } } }).ios.infoPlist;
+    expect([...plist.UIBackgroundModes].sort()).toEqual(["audio", "processing", "voip"]);
   });
 });
 
