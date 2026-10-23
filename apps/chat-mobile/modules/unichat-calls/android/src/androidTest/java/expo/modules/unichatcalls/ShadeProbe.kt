@@ -84,6 +84,9 @@ internal class ShadeProbe(private val device: UiDevice, private val context: Con
         "heads_up=${shell("settings get global heads_up_notifications_enabled").trim()} " +
         "zen_mode=${shell("settings get global zen_mode").trim()}"
     )
+    // The width decides what a notification header has room for: a text squeezed to zero width is not visible to
+    // the user and UI Automator leaves it out, so a text missing below can be one the screen had no room for.
+    appendLine("${shell("wm size").trim()} ${shell("wm density").trim()} font_scale=${shell("settings get system font_scale").trim()}")
     shell("dumpsys power").lines().filter { "mWakefulness=" in it || "mInteractive=" in it }.forEach { appendLine(it.trim()) }
     shell("dumpsys window").lines()
       .filter { "mCurrentFocus" in it || "mFocusedApp" in it || "KeyguardShowing" in it || "isKeyguardShowing" in it }

@@ -202,7 +202,10 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   (`src/androidTest`, UiAutomator): cuộc gọi đến đăng qua `CallNotifications` hiện trong khay của System UI như một cuộc
   gọi có Nghe/Từ chối và biến mất khi huỷ, và cùng thông báo đó tới từ một push FCM qua `NativeCallPush` không có
   JavaScript (`NativeCallPushRingTest`); `android-release` build APK test (`:unichat-calls:assembleDebugAndroidTest`),
-  `android-smoke` cài và chạy nó trên emulator (`am instrument`, đỏ nếu không `OK (`). Hai thư mục test nằm ngoài
+  `android-smoke` cài và chạy nó trên emulator (`am instrument`, đỏ nếu không `OK (`). APK test mang nhãn của app
+  (`UniChat`, `src/androidTest/AndroidManifest.xml`): đầu thông báo CallStyle là "người gọi • tên app • giờ" và Android
+  chỉ co tên người gọi cho vừa, nên nhãn mặc định (tên gói, 30 ký tự) chiếm hết đầu thông báo trên emulator 320 dp và
+  người gọi bị co về rộng 0, UI Automator không thấy. Hai thư mục test nằm ngoài
   fingerprint (`fingerprint.config.js › ignorePaths`): thêm test không tách runtime.
   Hằng đêm `chat-mobile-verify.yml › android-two-party` chạy `maestro/flows/call-answer-incoming.yaml` với FCM thật trên
   emulator Google APIs, khi app ở nền và khi tiến trình bị kill: thông báo CallStyle, Nghe, nối, gác máy.
