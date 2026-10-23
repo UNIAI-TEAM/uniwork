@@ -356,7 +356,7 @@ function VirtualizedChatMessageList({
     // Prepend preserve (and pin-to-bottom) own scrollTop for a few frames.
     if (programmaticScrollRef.current) return;
     const pending = pendingVirtualScrollRestoreRef?.current;
-    if (pending != null) {
+    if (pending != null && pendingVirtualScrollRestoreRef) {
       pendingVirtualScrollRestoreRef.current = null;
       applyVirtualScrollRestore(el, pending);
       remeasureVirtualRows(el, virtualizer);
