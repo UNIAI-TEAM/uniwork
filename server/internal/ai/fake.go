@@ -26,6 +26,8 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 	}
 	var text string
 	switch {
+	case strings.Contains(req.System, "Name this conversation"):
+		text = "Fake title"
 	case strings.Contains(req.System, "You are UNI") && len(req.Tools) > 0:
 		return fakeAgentReply(req)
 	case strings.Contains(req.System, "You are UNI"):

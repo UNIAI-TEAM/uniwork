@@ -246,12 +246,24 @@ describe("token contract", () => {
       const brand = /--brand:\s*([^;]+);/.exec(b)?.[1];
       expect(primary, `${selector} primary`).toBe(brand);
     }
-    for (const selector of ["html:not(.dark)[data-accent]", ":where([data-accent]) .dark,\nhtml.dark[data-accent]"]) {
+    for (const selector of ["html:not(.dark)[data-accent]", ":where([data-accent]) .dark,\nhtml.dark[data-accent]", '[data-ask-provider="anthropic"]']) {
       const b = block(selector);
       expect(b, `${selector} does not re-derive --primary`).toMatch(/--primary:\s*var\(--brand\);/);
       expect(b, `${selector} does not re-derive --primary-foreground`).toMatch(/--primary-foreground:\s*var\(--brand-foreground\);/);
     }
   });
+
+  // Ask UNI's Claude look re-points the dock's slots at its own palette; text
+  // and the send button's arrow must stay readable on it in both themes.
+  for (const selector of [":root", ".dark"]) {
+    it(`keeps Ask UNI's Claude look readable in ${selector}`, () => {
+      for (const background of ["--ask-anthropic-canvas", "--ask-anthropic-canvas-top", "--ask-anthropic-input", "--ask-anthropic-bubble"]) {
+        expect(contrast(value(selector, "--foreground"), value(selector, background)), `--foreground on ${background}`).toBeGreaterThanOrEqual(4.5);
+      }
+      // The arrow is an icon, so the non-text minimum applies.
+      expect(contrast(value(selector, "--ask-anthropic-foreground"), value(selector, "--ask-anthropic"))).toBeGreaterThanOrEqual(3);
+    });
+  }
 
   it("holds the CSS motion set to lib/motion.ts", () => {
     // base.css animates with these; motion/react animates with the JS

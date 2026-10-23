@@ -40,6 +40,7 @@ import { MeetingAttendanceCard } from "./meeting-attendance-card";
 import { MeetingAskBox } from "./meeting-copilot/meeting-ask-box";
 import { MeetingDetailAside, MeetingDetailRoster } from "./meeting-detail-aside";
 import { AskUniFocusButton } from "../ai/ask-uni-focus-button";
+import { useAskUniPageContext } from "../ai/ask-uni-page-context";
 import { MeetingDetailHero, type MeetingNextStep } from "./meeting-detail-hero";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
 import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
@@ -88,6 +89,8 @@ export function MeetingDetailView({
   // page shows them live, so it holds the meeting open like the room does.
   useMeetingScope(meetingId);
   const { data: meeting, isError, error, isPending, refetch } = useMeeting(meetingId);
+  // The docked panel of a room is not the page; only the detail page is the context.
+  useAskUniPageContext(meeting && layout === "page" ? { kind: "meeting", id: meetingId, label: meeting.title } : null);
   const { data: invitations } = useInvitations(meetingId);
   const { data: participants } = useParticipants(meetingId);
   const { data: joinRequests } = useJoinRequests(meetingId);

@@ -292,6 +292,7 @@ func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, 
 	overdue := asksOverdue(query)
 	today := s.now().UTC().Truncate(24 * time.Hour)
 	names := s.memberNames(ctx, tc)
+	statuses := s.taskStatusLabels(ctx, tc)
 	var items []scored
 
 	tasks, err := s.tasks.List(ctx, tc.ActorID, tc.WorkspaceID)
@@ -310,7 +311,7 @@ func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, 
 		if sc == 0 && !(overdue && isOverdue) && len(ts) > 0 {
 			continue
 		}
-		items = append(items, scored{src: taskSource(base, t, names), score: sc, when: t.UpdatedAt.Time})
+		items = append(items, scored{src: taskSource(base, t, names, statuses), score: sc, when: t.UpdatedAt.Time})
 	}
 
 	meetings, err := s.meetings.List(ctx, tc.ActorID, tc.WorkspaceID)
@@ -329,7 +330,7 @@ func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, 
 		if sc == 0 && len(ts) > 0 {
 			continue
 		}
-		excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", m.Status, m.StartsAt.Time.Format(time.RFC3339), m.Description)
+		excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", statusLabel(viMeetingStatus, m.Status), m.StartsAt.Time.Format(time.RFC3339), m.Description)
 		if rec.summary != "" {
 			excerpt += "\nTóm tắt: " + rec.summary
 		}
@@ -501,9 +502,9 @@ func (s *AskUNIService) addIdentifierHits(ctx context.Context, tc ai.ToolContext
 	return items, nil
 }
 
-func taskSource(base string, t taskRow, names map[string]string) ai.Source {
+func taskSource(base string, t taskRow, names, statuses map[string]string) ai.Source {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Trạng thái: %s · Ưu tiên: %s", t.Status, t.Priority)
+	fmt.Fprintf(&b, "Trạng thái: %s · Ưu tiên: %s", statusLabel(statuses, t.Status), t.Priority)
 	if t.DueDate.Valid {
 		fmt.Fprintf(&b, " · Hạn: %s", t.DueDate.Time.Format("2006-01-02"))
 	}
@@ -528,7 +529,7 @@ func (s *AskUNIService) taskContext(ctx context.Context, tc ai.ToolContext, task
 	if err != nil {
 		return nil, err
 	}
-	src := taskSource(base, t, s.memberNames(ctx, tc))
+	src := taskSource(base, t, s.memberNames(ctx, tc), s.taskStatusLabels(ctx, tc))
 	comments, err := s.tasks.Comments(ctx, tc.ActorID, taskID)
 	if err != nil {
 		return nil, err
@@ -556,7 +557,7 @@ func (s *AskUNIService) meetingContext(ctx context.Context, tc ai.ToolContext, m
 	if err != nil {
 		return nil, err
 	}
-	excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", m.Status, m.StartsAt.Time.Format(time.RFC3339), m.Description)
+	excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", statusLabel(viMeetingStatus, m.Status), m.StartsAt.Time.Format(time.RFC3339), m.Description)
 	sum, err := s.meetings.Summary(ctx, tc.ActorID, meetingID)
 	if codedIs(err, "meeting_ai_restricted") {
 		sum, err = nil, nil // the meeting's items stay; its summary is for the people of the meeting

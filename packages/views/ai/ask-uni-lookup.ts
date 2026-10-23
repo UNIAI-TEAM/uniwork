@@ -8,11 +8,15 @@ import { useMeetings } from "@uniwork/core/meetings";
 import { tableRowsPageBody, tableRowsPageQuery } from "@uniwork/core/tasks/surface/table-query";
 import { useProjects, useSearchProjects } from "@uniwork/core/tasks";
 import { useMembers } from "@uniwork/core/workspaces";
+import { foldText } from "./ask-uni-text";
 
 /** One thing a question can name or be scoped to. */
 export interface LookupItem {
   id: string;
   title: string;
+  /** Tasks only. */
+  status?: string;
+  assignee?: { name: string; avatarUrl?: string };
 }
 
 /** A search answer and whether a fresher one is still on its way (typing settling or a request in flight). */
@@ -24,8 +28,7 @@ interface Matches {
 const LIMIT = 5;
 const SEARCH_DEBOUNCE_MS = 200;
 
-const norm = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-const has = (hay: string, needle: string) => norm(hay).includes(norm(needle));
+const has = (hay: string, needle: string) => foldText(hay).includes(foldText(needle));
 
 export function useMemberMatches(wsId: string, q: string): LookupItem[] {
   const members = useMembers(wsId).data ?? [];
@@ -49,7 +52,14 @@ export function useTaskMatches(wsId: string, q: string, enabled: boolean): Match
   });
   const rows = useQuery({ ...tableRowsPageQuery(wsId, body), enabled: enabled && !!wsId && search !== "" });
   return {
-    items: search === "" ? [] : (rows.data?.rows ?? []).map((r) => ({ id: r.task.id, title: r.task.title })),
+    items: search === "" ? [] : (rows.data?.rows ?? []).map((r) => ({
+          id: r.task.id,
+          title: r.task.title,
+          status: r.task.status,
+          assignee: r.task.assignee
+            ? { name: r.task.assignee.display_name, avatarUrl: r.task.assignee.avatar_url }
+            : undefined,
+        })),
     loading: enabled && q.trim() !== "" && (q.trim() !== search || rows.isFetching),
   };
 }

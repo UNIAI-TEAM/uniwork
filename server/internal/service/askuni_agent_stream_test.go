@@ -76,20 +76,20 @@ func TestAskAgentStreamsStepsDeltasCitationsDone(t *testing.T) {
 	}
 	// 14 runes in 4-rune deltas: the answer streams live, and no trailing
 	// delta repeats it.
-	if want := []string{"run", "step", "delta", "delta", "delta", "delta", "citations", "done"}; !slices.Equal(eventNames(events), want) {
+	if want := []string{"run", "step", "sources", "delta", "delta", "delta", "delta", "citations", "done"}; !slices.Equal(eventNames(events), want) {
 		t.Fatalf("events %v, want %v", eventNames(events), want)
 	}
-	if want := (AskStepEvent{Round: 1, Phase: "tool", Tool: "search", Counts: map[string]int{"task": 2}}); !reflect.DeepEqual(*events[1].Step, want) {
+	if want := (AskStepEvent{Round: 1, Phase: "tool", Tool: "search", Label: "banner", Counts: map[string]int{"task": 2}}); !reflect.DeepEqual(*events[1].Step, want) {
 		t.Fatalf("step %+v, want %+v", *events[1].Step, want)
 	}
 	if got := joinDeltas(events[lastStep(events):]); got != res.Message.Content || got != "Có 2 việc [S1]" {
 		t.Fatalf("deltas after the last step %q, stored %q", got, res.Message.Content)
 	}
-	if len(res.Citations) != 1 || !slices.Equal(events[6].Citations, res.Citations) {
-		t.Fatalf("citations %+v vs %+v", events[6].Citations, res.Citations)
+	if len(res.Citations) != 1 || !slices.Equal(events[7].Citations, res.Citations) {
+		t.Fatalf("citations %+v vs %+v", events[7].Citations, res.Citations)
 	}
-	if events[7].Done == nil || events[7].Done.Message.ID != res.Message.ID {
-		t.Fatalf("done %+v", events[7].Done)
+	if events[8].Done == nil || events[8].Done.Message.ID != res.Message.ID {
+		t.Fatalf("done %+v", events[8].Done)
 	}
 }
 

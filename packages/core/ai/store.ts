@@ -14,9 +14,13 @@ interface AiPanelStore {
   open: boolean;
   conversationId: string | null;
   pendingFocus: AskUniPanelFocus | null;
-  /** Full-page mode takes the whole main area; never persisted. */
-  fullPage: boolean;
   workspaceId: string | null;
+  /** The object the open page shows; set by the page itself, never persisted. */
+  page: AskUniPanelFocus | null;
+  /** The object picked by hand (the "+" menu or an entry point); wins over `page`. */
+  focus: AskUniPanelFocus | null;
+  /** `kind:id` of a page whose chip the reader removed. */
+  pageDismissed: string | null;
   /** The focus each conversation was started with: the server does not return it, so it holds for this session. */
   focusByConversation: Record<string, AskUniPanelFocus>;
   /** The latest conversation asked about each meeting, so a meeting's Ask box finds its answer again. */
@@ -24,7 +28,6 @@ interface AiPanelStore {
   /** A conversation belongs to one workspace: switching workspace forgets the open one. */
   bindWorkspace: (wsId: string) => void;
   setOpen: (open: boolean) => void;
-  setFullPage: (fullPage: boolean) => void;
   toggle: () => void;
   /** Opening another conversation (or a new one) drops a focus that was meant for a fresh question. */
   select: (conversationId: string | null) => void;
@@ -37,6 +40,10 @@ interface AiPanelStore {
   /** A deleted conversation must not be continued from a meeting's Ask box. */
   forgetConversation: (conversationId: string) => void;
   clearPendingFocus: () => void;
+  setFocus: (focus: AskUniPanelFocus | null) => void;
+  /** Moving to another object forgets the dismissal; a same-object update (a rename) keeps it. */
+  setPage: (page: AskUniPanelFocus | null) => void;
+  dismissPage: () => void;
 }
 
 function remembered(s: AiPanelStore, conversationId: string, focus: AskUniPanelFocus) {
@@ -49,13 +56,23 @@ function remembered(s: AiPanelStore, conversationId: string, focus: AskUniPanelF
 
 const EMPTY: Pick<
   AiPanelStore,
-  "open" | "conversationId" | "pendingFocus" | "fullPage" | "workspaceId" | "focusByConversation" | "conversationByMeeting"
+  | "open"
+  | "conversationId"
+  | "pendingFocus"
+  | "workspaceId"
+  | "page"
+  | "focus"
+  | "pageDismissed"
+  | "focusByConversation"
+  | "conversationByMeeting"
 > = {
   open: false,
   conversationId: null,
   pendingFocus: null,
-  fullPage: false,
   workspaceId: null,
+  page: null,
+  focus: null,
+  pageDismissed: null,
   focusByConversation: {},
   conversationByMeeting: {},
 };
@@ -67,13 +84,13 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
     set((s) =>
       s.workspaceId === wsId
         ? s
-        : { workspaceId: wsId, ...(s.workspaceId === null ? {} : { conversationId: null, pendingFocus: null }) },
+        : { workspaceId: wsId, ...(s.workspaceId === null ? {} : { conversationId: null, pendingFocus: null, focus: null }) },
     ),
-  setOpen: (open) => set({ open, ...(open ? {} : { pendingFocus: null, fullPage: false }) }),
-  setFullPage: (fullPage) => set({ fullPage }),
+  setOpen: (open) => set({ open, ...(open ? {} : { pendingFocus: null }) }),
   toggle: () =>
-    set((s) => ({ open: !s.open, pendingFocus: s.open ? null : s.pendingFocus, fullPage: s.open ? false : s.fullPage })),
-  select: (conversationId) => set({ conversationId, pendingFocus: null }),
+    set((s) => ({ open: !s.open, pendingFocus: s.open ? null : s.pendingFocus })),
+  select: (conversationId) =>
+    set(conversationId === null ? { conversationId, pendingFocus: null, focus: null } : { conversationId, pendingFocus: null }),
   openWithFocus: (focus) => set({ open: true, conversationId: null, pendingFocus: focus }),
   openConversation: (conversationId, focus) =>
     set((s) => ({ open: true, conversationId, pendingFocus: null, ...remembered(s, conversationId, focus) })),
@@ -87,4 +104,8 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
       ),
     })),
   clearPendingFocus: () => set({ pendingFocus: null }),
+  setFocus: (focus) => set({ focus }),
+  setPage: (page) =>
+    set((s) => ({ page, pageDismissed: page && `${page.kind}:${page.id}` === s.pageDismissed ? s.pageDismissed : null })),
+  dismissPage: () => set((s) => ({ pageDismissed: s.page ? `${s.page.kind}:${s.page.id}` : null })),
 }));

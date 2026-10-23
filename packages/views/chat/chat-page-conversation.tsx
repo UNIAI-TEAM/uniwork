@@ -2,6 +2,7 @@
 
 import type { ReactNode, RefObject } from "react";
 import { useAskUniOpener } from "../ai/ask-uni-focus-button";
+import { useAskUniPageContext } from "../ai/ask-uni-page-context";
 import { ChatRoomComposer, type ChatComposerHandle, type ComposerAttachAction } from "./chat-composer";
 import { chatComposerBlockProps } from "./chat-composer-placeholder";
 import { ChatUnreadProvider } from "./chat-day-separator";
@@ -86,6 +87,7 @@ export function ChatPageConversation({
   const edit = useChatInlineEdit({ workspaceId, roomId: activeRoomId, nameContext });
   // Threads, mentions and sender names belong to rooms with more than two people.
   const many = target.kind !== "dm";
+  useAskUniPageContext({ kind: "room", id: activeRoomId, label: headerTitle });
   const askUni = useAskUniOpener({ kind: "room", id: activeRoomId, label: headerTitle }, workspaceId);
 
   return (

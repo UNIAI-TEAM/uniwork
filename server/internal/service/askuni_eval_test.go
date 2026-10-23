@@ -45,6 +45,12 @@ type evalCase struct {
 	ControlQuestion string   `json:"control_question"`
 	Rubric          string   `json:"rubric"`
 	MustNot         []string `json:"must_not"`
+	// ExpectInPrompt is text some request of the ask must hold: the status
+	// label the model has to read (UNI-2137).
+	ExpectInPrompt []string `json:"expect_in_prompt"`
+	// ForbidWords are raw status keys the answer must not hold as words; a
+	// Vietnamese answer says the label the screen shows.
+	ForbidWords []string `json:"forbid_words"`
 }
 
 func loadEvalCases(t *testing.T) []evalCase {
@@ -74,6 +80,7 @@ type evalWorld struct {
 	reqs    []provider.CompletionRequest // every request the provider saw (fake or recorded live)
 	model   string                       // AskInput.Model and Effort of every ask
 	effort  string
+	dock    bool // AskInput.Dock of every ask: copilot_answer@4 and its follow-ups
 }
 
 // useAgent switches the service to the agent loop (ask_uni_agent on for the
@@ -300,9 +307,16 @@ func lastPrompt(req provider.CompletionRequest) string {
 	return strings.Join(parts, "\n")
 }
 
+// freshRateLimit clears the service's in-memory ask counts. The seed has no
+// Redis, so Ask counts askRateLimit asks a minute per person in memory, and the
+// eval asks the same person far more often than that. The limit is
+// TestRateLimitWithoutRedis's to hold; every eval ask must reach the answer.
+func (e *evalWorld) freshRateLimit() { e.s.askMem.Clear() }
+
 // ask runs one case; convs carries conversation ids so follow-ups share one.
 func (e *evalWorld) ask(t *testing.T, c evalCase, convs map[string]string) evalRun {
 	t.Helper()
+	e.freshRateLimit()
 	q := evalRef.ReplaceAllStringFunc(c.Question, func(m string) string {
 		return e.refs[evalRef.FindStringSubmatch(m)[1]]
 	})
@@ -311,7 +325,7 @@ func (e *evalWorld) ask(t *testing.T, c evalCase, convs map[string]string) evalR
 		calls = e.fake.Calls
 	}
 	start := time.Now()
-	res, err := e.s.Ask(context.Background(), e.asker.ID, e.w.ID, AskInput{ConversationID: convs[c.FollowUpOf], Question: q, Locale: c.Locale, Model: e.model, Effort: e.effort})
+	res, err := e.s.Ask(context.Background(), e.asker.ID, e.w.ID, AskInput{ConversationID: convs[c.FollowUpOf], Question: q, Locale: c.Locale, Model: e.model, Effort: e.effort, Dock: e.dock})
 	run := evalRun{res: res, err: err, latency: time.Since(start)}
 	if err == nil {
 		convs[c.ID] = res.ConversationID
@@ -379,6 +393,14 @@ func checkFakeCase(t *testing.T, e *evalWorld, c evalCase, convs map[string]stri
 	if got := res.Message.Notice.String; (c.Notice != "" || len(c.ExpectTitle) > 0) && got != wantNotice {
 		t.Errorf("notice = %q, want %q (citations %+v)", got, wantNotice, res.Citations)
 	}
+	for _, want := range c.ExpectInPrompt {
+		if !strings.Contains(run.seen, want) {
+			t.Errorf("no request to the model holds %q:\n%s", want, run.seen)
+		}
+	}
+	if raw := rawWords(res.Message.Content, c.ForbidWords); len(raw) > 0 {
+		t.Errorf("answer holds the raw %v: %s", raw, res.Message.Content)
+	}
 	if c.Injection {
 		checkInjectionIsContained(t, run.prompt)
 	}
@@ -408,6 +430,7 @@ func checkControl(t *testing.T, e *evalWorld, c evalCase) {
 	if c.ControlQuestion != "" {
 		q = c.ControlQuestion
 	}
+	e.freshRateLimit()
 	res, err := e.s.Ask(context.Background(), user, wsID, AskInput{Question: q, Locale: c.Locale})
 	if err != nil {
 		t.Fatalf("control for %s: %v", c.ID, err)
@@ -417,6 +440,18 @@ func checkControl(t *testing.T, e *evalWorld, c evalCase) {
 			t.Fatalf("control for %s: %s did not cite %q, so the seed is wrong and the refusal proves nothing: %+v", c.ID, c.ControlAs, want, res.Citations)
 		}
 	}
+}
+
+// rawWords is every word of words the answer holds as a whole word: "todo" in
+// "việc todo", not in "todolist".
+func rawWords(answer string, words []string) []string {
+	var found []string
+	for _, w := range words {
+		if regexp.MustCompile(`(^|[^\pL\pN_])` + regexp.QuoteMeta(w) + `($|[^\pL\pN_])`).MatchString(answer) {
+			found = append(found, w)
+		}
+	}
+	return found
 }
 
 func citesTitle(cs []AskCitation, title string) bool {
@@ -502,21 +537,22 @@ func TestAskUniEvalLive(t *testing.T) {
 	agent := os.Getenv("ASKUNI_EVAL_AGENT") == "1"
 	e.useAgent(t, agent)
 	e.model, e.effort = os.Getenv("ASKUNI_EVAL_MODEL"), os.Getenv("ASKUNI_EVAL_EFFORT")
+	e.dock = os.Getenv("ASKUNI_EVAL_DOCK") == "1"
 
 	var b strings.Builder
 	mode := "P0"
 	if agent {
 		mode = "agent (P1)"
 	}
-	fmt.Fprintf(&b, "# Ask UNI evaluation (live, %s, model %q, effort %q)\n\n", mode, e.model, e.effort)
+	fmt.Fprintf(&b, "# Ask UNI evaluation (live, %s, model %q, effort %q, dock %t)\n\n", mode, e.model, e.effort, e.dock)
 	b.WriteString("| Id | Câu hỏi | Câu trả lời | Nguồn | Rubric | Must not | Provider | Model | Prompt | In | Out | Số lời gọi | Cache đọc | Cost micros | Latency | Đúng? |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
 	cell := func(s string) string {
 		return strings.NewReplacer("|", `\|`, "\n", "<br>").Replace(s)
 	}
 	convs := map[string]string{}
 	var cost int64
-	var priced, security, securityOK int
-	var failed []string
+	var priced, security, securityOK, worded int
+	var failed, raw []string
 	for _, c := range cases {
 		run := e.ask(t, c, convs)
 		answer, sources, prov, model, prompt := "", "", "", "", ""
@@ -574,6 +610,12 @@ func TestAskUniEvalLive(t *testing.T) {
 				priced++
 			}
 		}
+		if len(c.ForbidWords) > 0 {
+			worded++
+			if w := rawWords(answer, c.ForbidWords); len(w) > 0 {
+				raw = append(raw, c.ID+" ("+strings.Join(w, ", ")+")")
+			}
+		}
 		if c.Security {
 			security++
 			if !leaked {
@@ -602,6 +644,10 @@ func TestAskUniEvalLive(t *testing.T) {
 		// theirs too). The grader still reads every security answer.
 		fmt.Fprintf(&b, "\nCâu bảo mật: %d/%d không lộ tiêu đề bị cấm (%.0f%%) so với ngưỡng 100%%.\n", securityOK, security, 100*float64(securityOK)/float64(security))
 	}
+	if worded > 0 {
+		// A raw status key in a Vietnamese answer makes the case wrong (UNI-2137).
+		fmt.Fprintf(&b, "\nMã trạng thái thô trong câu trả lời: %d/%d ca có kiểm (%s); mỗi ca có mã thô là sai.\n", len(raw), worded, strings.Join(raw, "; "))
+	}
 	if err := os.WriteFile(out, []byte(b.String()), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -612,5 +658,8 @@ func TestAskUniEvalLive(t *testing.T) {
 	}
 	if priced == 0 {
 		t.Error("no priced model call in the run: check the provider key and model rates")
+	}
+	if len(raw) > 0 {
+		t.Errorf("%d answer(s) hold a raw status key: %s", len(raw), strings.Join(raw, "; "))
 	}
 }

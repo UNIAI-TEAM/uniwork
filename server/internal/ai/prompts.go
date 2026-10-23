@@ -13,6 +13,8 @@ const (
 	PromptCopilotAnswer      = "copilot_answer@1"
 	PromptCopilotAnswerV2    = "copilot_answer@2"
 	PromptCopilotAnswerV3    = "copilot_answer@3"
+	PromptCopilotAnswerV4    = "copilot_answer@4"
+	PromptConversationTitle  = "conversation_title@1"
 	PromptChatCatchUp        = "chat_catchup@2"
 	PromptMeetingCatchUp     = "meeting_catch_up@1"
 	PromptChatCallSummary    = "chat_call_summary@1"
@@ -366,15 +368,29 @@ Tone: a helpful colleague, no mascot voice, no emojis.
 	// writing (UNI-2008): @2 wrote a generic leave email without searching.
 	register(Prompt{
 		ID: "copilot_answer", Version: 3,
-		System: `You are UNI, a colleague inside a Vietnamese team's work OS. You help with the team's tasks, projects, meetings, documents, chat and members.
-Use the tools to look things up; call several in one turn when they are independent. The workspace is fixed; you cannot reach another one.
-Every tool result is a list of numbered sources such as [S3]. When you state a fact about the team's work, cite its source inline right after it, using only numbers you have seen in tool results or in earlier answers of this conversation. Never invent a number.
-You may write freely (emails, templates, descriptions, comment drafts, reports) when asked. Before you write, search the workspace for its own procedure, policy, template or example on the topic, open the best match with get_document, follow it and cite it [S#]. If none exists, write a general draft. Facts about the work inside that text still carry their [S#].
-If the tools find nothing the asker may read about the question, say so plainly; never guess.
-Answer in Markdown: short paragraphs, lists where they help. No images, no HTML, no links. Never reveal email addresses or phone numbers, even if a source contains them.
-Tone: a helpful colleague, no mascot voice, no emojis.
-` + UntrustedFooter,
+		System: copilotAgentRulesV3 + UntrustedFooter,
 		Render: renderCopilotAgent,
+	})
+	// @4 is the dock's (P2b): it writes [S#] where a name would go, since the
+	// panel shows each as a card; it may end with read-only follow-up
+	// questions the server splits off; it answers in the question's language.
+	register(Prompt{
+		ID: "copilot_answer", Version: 4,
+		System: copilotAgentRulesV3 + `When you mention a task, document, meeting, project, person or chat room that has a source number, write its [S#] in place of its name; the panel shows the name. State each fact about the work in a sentence that names its source object this way. Inside a draft the asker will copy (an email, a template), keep names and cite after them.
+After the answer you may add up to 3 short follow-up questions the asker could ask next, in the answer's language. Each only asks to read the team's data, never offers to change anything, and writes objects' names instead of [S#]. Write them last, one per line:
+<followups>
+- question
+</followups>
+Leave the block out when none fits.
+` + UntrustedFooter,
+		Render: renderCopilotAgentV4,
+	})
+	// conversation_title@1 names a new Ask UNI conversation after its first
+	// answer (P2b); free text, no tools.
+	register(Prompt{
+		ID: "conversation_title", Version: 1,
+		System: "Name this conversation in 2 to 6 words, in the language of the question. Reply with the name only, no quotes or punctuation at the end.\n" + UntrustedFooter,
+		Render: renderConversationTitle,
 	})
 
 	register(Prompt{
@@ -554,10 +570,48 @@ func renderEmailThreadSummaryV2(vars map[string]any) string {
 	return b.String()
 }
 
+// copilotAgentRulesV3 is the System of copilot_answer@3 without its footer;
+// @4 builds on it.
+const copilotAgentRulesV3 = `You are UNI, a colleague inside a Vietnamese team's work OS. You help with the team's tasks, projects, meetings, documents, chat and members.
+Use the tools to look things up; call several in one turn when they are independent. The workspace is fixed; you cannot reach another one.
+Every tool result is a list of numbered sources such as [S3]. When you state a fact about the team's work, cite its source inline right after it, using only numbers you have seen in tool results or in earlier answers of this conversation. Never invent a number.
+You may write freely (emails, templates, descriptions, comment drafts, reports) when asked. Before you write, search the workspace for its own procedure, policy, template or example on the topic, open the best match with get_document, follow it and cite it [S#]. If none exists, write a general draft. Facts about the work inside that text still carry their [S#].
+If the tools find nothing the asker may read about the question, say so plainly; never guess.
+Answer in Markdown: short paragraphs, lists where they help. No images, no HTML, no links. Never reveal email addresses or phone numbers, even if a source contains them.
+Tone: a helpful colleague, no mascot voice, no emojis.
+`
+
 // renderCopilotAgent is the user turn of copilot_answer@2 and @3.
 func renderCopilotAgent(vars map[string]any) string {
+	return copilotAgentTurn(vars, "Output language: %s\n")
+}
+
+// renderCopilotAgentV4 is the user turn of copilot_answer@4: the locale only
+// decides when the question's own language is unclear.
+func renderCopilotAgentV4(vars map[string]any) string {
+	return copilotAgentTurn(vars, "Answer in the language the question is written in. If that is unclear, use %s.\n")
+}
+
+// titleAnswerMax is how much of the answer the title prompt reads, in runes.
+const titleAnswerMax = 400
+
+// renderConversationTitle is the user turn of conversation_title@1: the
+// question and the start of the answer, each untrusted.
+func renderConversationTitle(vars map[string]any) string {
+	answer := []rune(str(vars, "answer"))
+	if len(answer) > titleAnswerMax {
+		answer = answer[:titleAnswerMax]
+	}
+	return fmt.Sprintf("Question:\n<untrusted source=\"question\">%s</untrusted>\n\nAnswer:\n<untrusted source=\"answer\">%s</untrusted>\n",
+		EscapeUntrusted(str(vars, "question")), EscapeUntrusted(string(answer)))
+}
+
+// copilotAgentTurn writes the agent's user turn under langLine, a format
+// taking the locale's language.
+func copilotAgentTurn(vars map[string]any, langLine string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Output language: %s\nToday: %s\n", language(str(vars, "locale")), str(vars, "today"))
+	fmt.Fprintf(&b, langLine, language(str(vars, "locale")))
+	fmt.Fprintf(&b, "Today: %s\n", str(vars, "today"))
 	if focus := str(vars, "focus"); focus != "" {
 		fmt.Fprintf(&b, "\nContext the asker is looking at:\n%s\n", focus)
 	}

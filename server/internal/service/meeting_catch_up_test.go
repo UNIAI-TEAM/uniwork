@@ -186,7 +186,8 @@ func TestMeetingCatchUpSharedAcrossNodesThroughRedis(t *testing.T) {
 	if _, err := s.MeetingCatchUp(context.Background(), ua.ID, m.ID, "vi"); err != nil {
 		t.Fatal(err)
 	}
-	other := *s
+	// A second node: its own service over the same database and gateway, sharing the brief through Redis.
+	other := NewAskUNIService(s.pool, s.q, s.ws, s.orgs, s.tasks, s.meetings, s.chat, s.gw, s.rdb)
 	other.catchUps = newBriefCache(rdb, meetingCatchUpTTL, s.gw.CallTimeout())
 	if _, err := other.MeetingCatchUp(context.Background(), ua.ID, m.ID, "vi"); err != nil {
 		t.Fatal(err)
@@ -209,12 +210,13 @@ func TestMeetingCatchUpSecondNodeAwaitsTheFirst(t *testing.T) {
 	m := liveCatchUpMeeting(t, s, ua.ID, w.ID)
 	catchUpSegment(t, s, m, "AGENT", "An", "Chốt demo thứ Sáu", 20*time.Minute)
 	fake.Delay = 1500 * time.Millisecond
-	other := *s
+	// A second node: its own service over the same database and gateway, sharing the brief through Redis.
+	other := NewAskUNIService(s.pool, s.q, s.ws, s.orgs, s.tasks, s.meetings, s.chat, s.gw, s.rdb)
 	other.catchUps = newBriefCache(rdb, meetingCatchUpTTL, s.gw.CallTimeout())
 
 	var wg sync.WaitGroup
 	errs := make([]error, 2)
-	for i, node := range []*AskUNIService{s, &other} {
+	for i, node := range []*AskUNIService{s, other} {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

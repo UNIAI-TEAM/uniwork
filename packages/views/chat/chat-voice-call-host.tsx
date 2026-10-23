@@ -29,8 +29,6 @@ type ChatVoiceCallContextValue = {
     callKind: VoiceCallKind,
     options?: { withCamera?: boolean },
   ) => Promise<boolean>;
-  acceptCall: () => Promise<boolean>;
-  declineCall: () => Promise<void>;
   inCall: boolean;
   /** Panel, pill or fullscreen; the chat's call bar shows while it is the pill. */
   panelMode: VoiceCallPanelMode;
@@ -166,14 +164,12 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
     () => ({
       voiceCall: voice.voiceCall,
       startCall,
-      acceptCall,
-      declineCall: voice.declineCall,
       inCall: voice.inCall,
       panelMode,
       expandCall,
       hangUp,
     }),
-    [voice.voiceCall, voice.declineCall, voice.inCall, startCall, acceptCall, panelMode, expandCall, hangUp],
+    [voice.voiceCall, voice.inCall, startCall, panelMode, expandCall, hangUp],
   );
 
   const incomingDeviceError =

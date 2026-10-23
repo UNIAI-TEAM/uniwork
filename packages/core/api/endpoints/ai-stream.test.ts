@@ -84,6 +84,26 @@ describe("askUniStream", () => {
     expect(events[2]).toMatchObject({ usage: { cache_write_tokens: 4 } });
   });
 
+  it("skips malformed sources, followups and title frames and reads on", async () => {
+    const events = await collect(
+      sse([
+        frame("sources", { sources: [{ source_id: "S1", title: 3 }] }),
+        frame("followups", { followups: "nope" }),
+        frame("title", { title: "x" }),
+        frame("step", { round: 1, phase: "tool", tool: "search", label: "viec tre", counts: { task: 1 } }),
+        frame("sources", { sources: [{ source_id: "S1", kind: "task", title: "A", href: "/a", object_id: "t1" }] }),
+        frame("followups", { followups: ["a?"] }),
+        frame("done", { message, usage: {} }),
+        frame("title", { conversation_id: "c1", title: "Việc trễ" }),
+      ]),
+    );
+    expect(events.map((e) => e.type)).toEqual(["step", "sources", "followups", "done", "title"]);
+    expect(events[0]).toMatchObject({ label: "viec tre" });
+    expect(events[1]).toMatchObject({ sources: [{ source_id: "S1", object_id: "t1" }] });
+    expect(events[4]).toEqual({ type: "title", conversationId: "c1", title: "Việc trễ" });
+    expect(events[3]).toMatchObject({ message: { steps: [], followups: [], focus: null, mentions: [] } });
+  });
+
   it("ignores comment lines", async () => {
     const events = await collect(sse([": ping\n\n", frame("delta", { text: "a" }), ": ping\n\n"]));
     expect(events).toEqual([{ type: "delta", text: "a" }]);

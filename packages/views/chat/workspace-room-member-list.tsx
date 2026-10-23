@@ -177,7 +177,7 @@ export function WorkspaceRoomMemberList({
                       onMute={() => moderation.mute(member.user_id)}
                       onUnmute={() => moderation.unmute(member.user_id)}
                       onKick={() =>
-                        moderation.requestRemove(member.user_id, label, t("workspace.removeConfirm", { name: label }), {
+                        moderation.requestRemove(member.user_id, t("workspace.removeConfirm", { name: label }), {
                           description: workspaceName
                             ? t("chat.remove_workspace_member_description", { name: label, workspace: workspaceName })
                             : t("chat.remove_workspace_member_description_generic", { name: label }),

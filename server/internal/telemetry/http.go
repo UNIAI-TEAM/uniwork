@@ -48,5 +48,5 @@ func HTTP(next http.Handler) http.Handler {
 }
 
 func isProbe(path string) bool {
-	return path == "/healthz" || path == "/readyz" || path == "/health"
+	return path == "/healthz" || path == "/readyz" || path == "/health" || path == "/api/v1/healthz"
 }

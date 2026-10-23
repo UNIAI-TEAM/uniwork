@@ -145,7 +145,7 @@ func (s *ChatService) SendThreadReply(
 	if err := validateChatMessageBody(in.Body); err != nil {
 		return ChatMessageRow{}, err
 	}
-	room, err := s.authorizeRoomMember(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
@@ -232,7 +232,7 @@ func (s *ChatService) SendThreadReply(
 	}
 
 	now := repliedAt.Time
-	if err := s.ensureThreadFollowerTx(ctx, q, orgID, anchorWS, room.ID, threadRootID, root.SenderID, chatThreadFollowAuthor, &now); err != nil {
+	if err := s.ensureThreadFollowerTx(ctx, q, orgID, anchorWS, room.ID, threadRootID, root.SenderID, chatThreadFollowAuthor, nil); err != nil {
 		return ChatMessageRow{}, err
 	}
 	if err := s.ensureThreadFollowerTx(ctx, q, orgID, anchorWS, room.ID, threadRootID, userID, chatThreadFollowReplied, &now); err != nil {

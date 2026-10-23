@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/files"
 )
 
 func TestUpdateChatRoomWallpaperPreset_DMMemberAllowed(t *testing.T) {
@@ -30,7 +32,7 @@ func TestUpdateChatRoomWallpaperPreset_GroupMemberForbidden(t *testing.T) {
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
 	// A group holds at least two people besides its creator.
-	uc := chatTestUser(t, q, w, "wallpaper-c@example.com")
+	uc := chatTestUser(t, q, w, "wallpaper-group-c@example.com")
 	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{
 		Name:          "wallpaper group",
 		MemberUserIDs: []string{ub.ID, uc.ID},
@@ -48,14 +50,22 @@ func TestUpdateChatRoomWallpaperPreset_GroupMemberForbidden(t *testing.T) {
 
 // A room's custom wallpaper goes through the shared upload session, whose
 // purpose checks must name chat_room_wallpaper (9991792900000006).
-func TestChatRoomWallpaperUploadIsStored(t *testing.T) {
+func TestUploadRoomWallpaper_GroupCreator(t *testing.T) {
 	f := groupAvatarFixture(t)
 	ctx := context.Background()
-	if _, err := f.s.UploadRoomWallpaper(ctx, f.ua.ID, f.w.ID, f.group.ID, "nen.png", bytes.NewReader(workspaceIconPNG)); err != nil {
-		t.Fatal(err)
+	sum, err := f.s.UploadRoomWallpaper(ctx, f.ua.ID, f.w.ID, f.group.ID, "wall.png", bytes.NewReader(workspaceIconPNG))
+	if err != nil {
+		t.Fatalf("upload: %v", err)
 	}
 	room, err := f.q.GetChatRoomByID(ctx, f.group.ID)
 	if err != nil || !room.WallpaperFileID.Valid {
 		t.Fatalf("room after upload: %+v err=%v", room, err)
+	}
+	wallID := files.FileID(room.WallpaperFileID.String)
+	if sum.WallpaperURL != "fake://presign/"+string(wallID) {
+		t.Fatalf("wallpaper url = %q", sum.WallpaperURL)
+	}
+	if sum.WallpaperPreset != "custom" {
+		t.Fatalf("preset = %q, want custom", sum.WallpaperPreset)
 	}
 }
