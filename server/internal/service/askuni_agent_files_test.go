@@ -313,31 +313,90 @@ func TestAskAgentStorageFailureIsNotUnreadable(t *testing.T) {
 	}
 }
 
-// At most askFileReaders turns read their files at once. A turn waiting for a
-// reader gives up with its context, before any model call.
-func TestAskAgentWaitsForAFileReaderWithinItsContext(t *testing.T) {
+// holdSlots takes every slot of sem until the test ends.
+func holdSlots(t *testing.T, sem chan struct{}) {
+	t.Helper()
+	for range cap(sem) {
+		sem <- struct{}{}
+	}
+	t.Cleanup(func() {
+		for range cap(sem) {
+			<-sem
+		}
+	})
+}
+
+// At most askFileTurns turns run with files at once. A turn waiting for one
+// gives up with its context, before any model call.
+func TestAskAgentWaitsForAFileTurnWithinItsContext(t *testing.T) {
 	s, fake, _, ua, _, w := attachAgentFixture(t)
 	f := uploadAskFile(t, s, ua.ID, w.ID, "bao-cao.pdf", pdfOfPages(2))
 	scriptRounds(fake, 0, "Xong.", provider.CompletionResponse{InputTokens: 10})
-	for range cap(s.fileReaders) {
-		s.fileReaders <- struct{}{}
-	}
-	defer func() {
-		for range cap(s.fileReaders) {
-			<-s.fileReaders
-		}
-	}()
+	holdSlots(t, s.fileTurns)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	started := time.Now()
 	_, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Tóm tắt", Locale: "vi", Dock: true, AttachmentIDs: []string{f}})
 	if !errors.Is(err, context.DeadlineExceeded) || fake.Calls != 0 {
-		t.Fatalf("readers held: %v after %d calls, want the context's deadline and no call", err, fake.Calls)
+		t.Fatalf("file turns held: %v after %d calls, want the context's deadline and no call", err, fake.Calls)
 	}
 	if took := time.Since(started); took > 5*time.Second {
 		t.Fatalf("the turn waited %s past its context", took)
 	}
 	requireNoQuestionStored(t, s, f)
+}
+
+// One turn reads and fits its files at a time. A turn waiting for that gives
+// up with its context, before any model call, and gives its file turn back.
+func TestAskAgentWaitsForTheFileReadWithinItsContext(t *testing.T) {
+	s, fake, _, ua, _, w := attachAgentFixture(t)
+	f := uploadAskFile(t, s, ua.ID, w.ID, "bao-cao.pdf", pdfOfPages(2))
+	scriptRounds(fake, 0, "Xong.", provider.CompletionResponse{InputTokens: 10})
+	holdSlots(t, s.fileReads)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	_, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Tóm tắt", Locale: "vi", Dock: true, AttachmentIDs: []string{f}})
+	if !errors.Is(err, context.DeadlineExceeded) || fake.Calls != 0 {
+		t.Fatalf("file read held: %v after %d calls, want the context's deadline and no call", err, fake.Calls)
+	}
+	if n := len(s.fileTurns); n != 0 {
+		t.Fatalf("%d file turns still held after the turn gave up", n)
+	}
+	requireNoQuestionStored(t, s, f)
+}
+
+// A turn with files holds its file turn through every model call of the run
+// and gives it back when the run ends, answered or refused.
+func TestAskAgentHoldsAFileTurnForTheWholeRun(t *testing.T) {
+	s, fake, _, ua, _, w := attachAgentFixture(t)
+	scriptRounds(fake, 1, "Xong.", provider.CompletionResponse{InputTokens: 10})
+	script := fake.Reply
+	var held []int // file turns held during each call of the run
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		if !titleCall(req) {
+			held = append(held, len(s.fileTurns))
+		}
+		return script(req)
+	}
+	f := uploadAskFile(t, s, ua.ID, w.ID, "bao-cao.pdf", pdfOfPages(2))
+	res, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Tóm tắt", Locale: "vi", Dock: true, AttachmentIDs: []string{f}})
+	if err != nil || res.Message.Content != "Xong." {
+		t.Fatalf("Ask: %v, %+v", err, res.Message)
+	}
+	if len(held) != 2 || held[0] != 1 || held[1] != 1 {
+		t.Fatalf("file turns held per call %v, want one through both rounds", held)
+	}
+	if n := len(s.fileTurns); n != 0 {
+		t.Fatalf("%d file turns held after the run", n)
+	}
+	// A file the reader cannot open ends the turn before any call; the slot comes back.
+	bad := uploadAskFile(t, s, ua.ID, w.ID, "hong.pdf", pdfBody("broken"))
+	if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Đọc giúp", Locale: "vi", Dock: true, AttachmentIDs: []string{bad}}); !errors.Is(err, ai.ErrAttachmentUnreadable) {
+		t.Fatalf("damaged file: %v, want ai_attachment_unreadable", err)
+	}
+	if n := len(s.fileTurns); n != 0 {
+		t.Fatalf("%d file turns held after a refused turn", n)
+	}
 }
 
 // A turn reads the current question's files, then those of the questions in
@@ -382,25 +441,19 @@ func TestTurnAttachmentsPreferTheNewest(t *testing.T) {
 	}
 }
 
-// A turn with no file never takes a file reader: with every reader held it
-// still answers at once.
-func TestAskAgentWithoutFilesSkipsTheReaderCap(t *testing.T) {
+// A turn with no file never takes a file turn or the file read: with every
+// slot held it still answers at once.
+func TestAskAgentWithoutFilesSkipsTheFileCaps(t *testing.T) {
 	s, fake, _, ua, _, w := attachAgentFixture(t)
 	scriptRounds(fake, 0, "Xong.", provider.CompletionResponse{InputTokens: 10})
-	for range cap(s.fileReaders) {
-		s.fileReaders <- struct{}{}
-	}
-	defer func() {
-		for range cap(s.fileReaders) {
-			<-s.fileReaders
-		}
-	}()
+	holdSlots(t, s.fileTurns)
+	holdSlots(t, s.fileReads)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	started := time.Now()
 	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Có gì mới?", Locale: "vi", Dock: true})
 	if err != nil || res.Message.Content != "Xong." {
-		t.Fatalf("readers held, no file: %v, stored %+v; want the answer", err, res.Message)
+		t.Fatalf("file slots held, no file: %v, stored %+v; want the answer", err, res.Message)
 	}
 	if took := time.Since(started); took > 10*time.Second {
 		t.Fatalf("a turn without files waited %s", took)

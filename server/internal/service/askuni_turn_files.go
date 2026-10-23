@@ -10,30 +10,56 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// askFileReaders bounds the turns reading their files at once, across the
-// process: one PDF or Office read can hold 0.25-0.5 GiB for about a second.
-const askFileReaders = 2
+// askFileTurns bounds the turns that run with files at once, in the process.
+// The backend is one pod of 512 MiB (ADR 0025), and a turn with files keeps
+// up to 20 MB of them in every model call it makes, about 27 MB more as the
+// call's JSON; reading them (one at a time, fileReads) may add 48 MiB more.
+const askFileTurns = 2
 
 // turnFilePlan is what a turn gives the model from its files (UNI-2119): those
-// turnAttachments picks, read from the store and fit into askFileTokenShare.
-// Reading and fitting hold one of the process's file readers; a turn waiting
-// for one gives up with ctx. A turn with no file never waits.
-func (s *AskUNIService) turnFilePlan(ctx context.Context, scope files.Scope, window []db.AiMessage, current []AskAttachment) (askFilePlan, error) {
+// turnAttachments picks, read from the store and fit into askFileTokenShare. A
+// turn with files holds one of the process's file turns from here until it
+// calls release, when its run ends: its files ride every call of the run.
+// Reading and fitting them hold the process's one file read besides, so one
+// file is opened at a time. A turn waiting for either gives up with ctx. A
+// turn with no file never waits, and its release does nothing.
+func (s *AskUNIService) turnFilePlan(ctx context.Context, scope files.Scope, window []db.AiMessage, current []AskAttachment) (plan askFilePlan, release func(), err error) {
+	release = func() {}
 	picked, err := s.turnAttachments(ctx, scope.OrganizationID, window, current)
 	if err != nil || len(picked) == 0 {
+		return askFilePlan{}, release, err
+	}
+	if err := takeSlot(ctx, s.fileTurns); err != nil {
+		return askFilePlan{}, release, err
+	}
+	if plan, err = s.readTurnPlan(ctx, scope, picked); err != nil {
+		<-s.fileTurns
+		return askFilePlan{}, release, err
+	}
+	return plan, func() { <-s.fileTurns }, nil
+}
+
+// readTurnPlan reads and fits picked while holding the process's file read.
+func (s *AskUNIService) readTurnPlan(ctx context.Context, scope files.Scope, picked []AskAttachment) (askFilePlan, error) {
+	if err := takeSlot(ctx, s.fileReads); err != nil {
 		return askFilePlan{}, err
 	}
-	select {
-	case s.fileReaders <- struct{}{}:
-	case <-ctx.Done():
-		return askFilePlan{}, ctx.Err()
-	}
-	defer func() { <-s.fileReaders }()
+	defer func() { <-s.fileReads }()
 	loaded, err := s.readTurnFiles(ctx, scope, picked)
 	if err != nil {
 		return askFilePlan{}, err
 	}
 	return planAskFiles(loaded, askFileTokenShare)
+}
+
+// takeSlot takes a slot of sem, or gives up when ctx ends.
+func takeSlot(ctx context.Context, sem chan struct{}) error {
+	select {
+	case sem <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // turnAttachments is the files a turn reads: the current question's, then

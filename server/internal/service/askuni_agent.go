@@ -387,12 +387,15 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	}
 	var plan askFilePlan
 	if len(base.Files) > 0 || s.attachmentsEnabled(runCtx, userID, w) {
-		if plan, err = s.turnFilePlan(runCtx, files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: w.ID}, window, base.Files); err != nil {
+		var release func()
+		if plan, release, err = s.turnFilePlan(runCtx, files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: w.ID}, window, base.Files); err != nil {
 			if errors.Is(err, ai.ErrAttachmentUnreadable) {
 				outcome = "rejected"
 			}
 			return AskResult{}, err
 		}
+		// Held until the run returns, before the title call that follows it.
+		defer release()
 	}
 	withFiles := len(plan.Files) > 0
 	base.FileNotes = plan.Notes

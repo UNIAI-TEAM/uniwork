@@ -47,8 +47,9 @@ type AskUNIService struct {
 	agentMetrics AskAgentMetrics
 	// askMem holds askCount's hits when there is no Redis (askMemIncrement).
 	askMem sync.Map // key -> *askMemRateEntry
-	// fileReaders holds a slot per turn reading its files (askFileReaders).
-	fileReaders chan struct{}
+	// fileTurns holds a slot per turn running with files (askFileTurns), and
+	// fileReads the one slot reading and fitting them (turnFilePlan).
+	fileTurns, fileReads chan struct{}
 	// life ends when Shutdown runs; every agent run is cancelled with it.
 	life     context.Context
 	shutdown context.CancelCauseFunc
@@ -78,9 +79,10 @@ func NewAskUNIService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, o
 	return &AskUNIService{
 		pool: pool, q: q, ws: ws, orgs: orgs, tasks: tasks, meetings: meetings, chat: chat, gw: gw,
 		ent: NewEntitlementService(pool, q), rdb: rdb, now: time.Now,
-		agentRuns:   newUniworkConcurrency(rdb, "ai:ask:", askAgentPodMax, askAgentOrgMax, askAgentGlobalMax, askAgentDeadline+10*time.Second),
-		fileReaders: make(chan struct{}, askFileReaders),
-		life:        life, shutdown: shutdown,
+		agentRuns: newUniworkConcurrency(rdb, "ai:ask:", askAgentPodMax, askAgentOrgMax, askAgentGlobalMax, askAgentDeadline+10*time.Second),
+		fileTurns: make(chan struct{}, askFileTurns),
+		fileReads: make(chan struct{}, 1),
+		life:      life, shutdown: shutdown,
 	}
 }
 
