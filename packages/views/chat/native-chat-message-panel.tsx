@@ -20,6 +20,7 @@ import {
   ChatAnchorBar,
   ChatJumpToLatestButton,
   ChatLoadOlderButton,
+  ChatLoadOlderProgress,
   ChatOlderMessagesSkeleton,
   ChatThreadBar,
 } from "./native-chat-panel-bars";
@@ -37,6 +38,7 @@ import { toastChatError } from "./chat-error-message";
 import {
   VirtualChatMessageList,
   pinChatScrollToBottom,
+  preserveScrollAfterPrependOverFrames,
   updateStickToBottomFromScroll,
   useReaderScrollAt,
   virtualChatRowMeasureKey,
@@ -140,6 +142,8 @@ export function NativeChatMessagePanel({
   const readerScrollAtRef = useReaderScrollAt(scrollRef);
   const stickToBottomRef = useRef(true);
   const programmaticScrollRef = useRef(false);
+  /** Captured when leaving inline layout so virtual mount does not jump to scrollTop 0. */
+  const pendingVirtualScrollRestoreRef = useRef<number | null>(null);
   const [inPlaceThread, setThreadRoot] = useState<ChatMessage | null>(null);
   const threadRoot = thread ?? inPlaceThread;
   const sideThreadPanel = thread != null;
@@ -301,6 +305,7 @@ export function NativeChatMessagePanel({
   const clearAnchor = useCallback(() => {
     stickToBottomRef.current = true;
     programmaticScrollRef.current = false;
+    pendingVirtualScrollRestoreRef.current = null;
     setAwayFromLatest(false);
     setPinnedToLatest(true);
     setAnchorMessages(null);
@@ -322,6 +327,7 @@ export function NativeChatMessagePanel({
 
   useEffect(() => {
     stickToBottomRef.current = true;
+    pendingVirtualScrollRestoreRef.current = null;
     setAwayFromLatest(false);
     setPinnedToLatest(true);
     onReplyToChange(null);
@@ -347,15 +353,14 @@ export function NativeChatMessagePanel({
   const loadOlder = useCallback(async () => {
     if (loadingOlder || !hasMore || (!threadRoot && anchorMessages)) return;
     stickToBottomRef.current = false;
-    const prevHeight = scrollRef.current?.scrollHeight ?? 0;
+    const nodeBefore = scrollRef.current;
+    const prevHeight = nodeBefore?.scrollHeight ?? 0;
+    const prevTop = nodeBefore?.scrollTop ?? 0;
     const result = await fetchNextPage();
     // Scrolling up again (or the button) retries; nothing was lost.
     if (result.isFetchNextPageError) toastChatError(result.error, t, t("chat.message_list.load_older_failed"));
-    requestAnimationFrame(() => {
-      const node = scrollRef.current;
-      if (!node) return;
-      node.scrollTop = node.scrollHeight - prevHeight;
-    });
+    const node = scrollRef.current;
+    if (node) preserveScrollAfterPrependOverFrames(node, prevHeight, prevTop, programmaticScrollRef);
   }, [anchorMessages, fetchNextPage, hasMore, loadingOlder, t, threadRoot]);
 
   const onScroll = () => {
@@ -373,7 +378,10 @@ export function NativeChatMessagePanel({
     if (!nearBottom && !awayFromLatest) setAwaySinceId(messages[messages.length - 1]?.id ?? null);
     setAwayFromLatest(!nearBottom);
     if (nearBottom) setPinnedToLatest(true);
-    else if (userScrolledRecently) setPinnedToLatest(false);
+    else if (userScrolledRecently) {
+      if (pinnedToLatest) pendingVirtualScrollRestoreRef.current = el.scrollTop;
+      setPinnedToLatest(false);
+    }
     // Near-top while stick-to-bottom is usually a layout flash after a reload
     // before pin runs — never page older history in that state.
     if (el.scrollTop <= 72 && hasMore && !loadingOlder && !stickToBottomRef.current) {
@@ -465,10 +473,10 @@ export function NativeChatMessagePanel({
   // button offers it too — scrolling up is not the only way to ask.
   const canLoadOlder = hasMore && (!!threadRoot || !anchorMessages);
   const listHeader =
-    loadingOlder || loadingAnchor ? (
-      <ChatOlderMessagesSkeleton
-        label={loadingAnchor ? t("chat.search_loading_context") : t("chat.loading_older")}
-      />
+    loadingAnchor ? (
+      <ChatOlderMessagesSkeleton label={t("chat.search_loading_context")} />
+    ) : loadingOlder ? (
+      <ChatLoadOlderProgress label={t("chat.loading_older")} />
     ) : canLoadOlder ? (
       <ChatLoadOlderButton onClick={() => void loadOlder()} />
     ) : !hasMore && !threadRoot && !anchorMessages && intro ? (
@@ -537,6 +545,7 @@ export function NativeChatMessagePanel({
                       scrollRef={scrollRef}
                       stickToBottomRef={stickToBottomRef}
                       programmaticScrollRef={programmaticScrollRef}
+                      pendingVirtualScrollRestoreRef={pendingVirtualScrollRestoreRef}
                       highlightMessageId={highlightMessageId}
                       onHighlightShown={handleHighlightShown}
                       header={listHeader}

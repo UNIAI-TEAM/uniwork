@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useFollowChatThread, useUnfollowChatThread } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastChatError } from "./chat-error-message";
 
@@ -129,10 +130,29 @@ export function ChatJumpToLatestButton({ onClick, newCount = 0 }: { onClick: () 
  * Asks for older history without scrolling to the top — for a keyboard, a
  * switch or a screen reader, where "scroll up to load" never fires.
  */
+/** Same footprint as {@link ChatLoadOlderButton} so paging does not shift the scrollport. */
+export function ChatLoadOlderProgress({ label }: { label: string }) {
+  return (
+    <div className="flex min-h-14 justify-center pb-2">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-full bg-chat-chip px-3 text-chat-chip-foreground"
+        aria-disabled
+        disabled
+      >
+        <Spinner data-icon="inline-start" />
+        {label}
+      </Button>
+    </div>
+  );
+}
+
 export function ChatLoadOlderButton({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="flex justify-center pb-2">
+    <div className="flex min-h-14 justify-center pb-2">
       {/* A chip on the chat wall, like the day separators. */}
       <Button
         type="button"
@@ -151,7 +171,7 @@ export function ChatLoadOlderButton({ onClick }: { onClick: () => void }) {
 /** Older history arrives in the message's own shape. */
 export function ChatOlderMessagesSkeleton({ label }: { label: string }) {
   return (
-    <div className="pb-3" role="status" aria-busy>
+    <div className="min-h-14 pb-2" role="status" aria-busy>
       <span className="sr-only">{label}</span>
       <div className="flex items-start gap-2">
         <Skeleton className="size-8.5 shrink-0 rounded-full" />

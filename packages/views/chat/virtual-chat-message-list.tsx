@@ -2,6 +2,7 @@
 
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -12,8 +13,97 @@ import {
 
 const DEFAULT_ESTIMATE_PX = 88;
 
+/** Restores scrollTop after inline → virtual swap (virtual mount resets the scroller to ~0). */
+export function applyVirtualScrollRestore(scrollEl: HTMLDivElement, scrollTop: number): void {
+  const apply = () => {
+    const max = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+    if (max === 0 && scrollTop > 0) {
+      requestAnimationFrame(apply);
+      return;
+    }
+    scrollEl.scrollTop = Math.min(Math.max(0, scrollTop), max);
+  };
+  apply();
+}
+
+/** Keeps the same messages in view after older rows are prepended above the header. */
+export function preserveScrollAfterPrepend(
+  scrollEl: HTMLDivElement,
+  scrollHeightBefore: number,
+  scrollTopBefore: number,
+): void {
+  const delta = scrollEl.scrollHeight - scrollHeightBefore;
+  scrollEl.scrollTop = Math.max(0, scrollTopBefore + delta);
+}
+
+/** Virtual remeasure and images settle over a few frames — one rAF is not enough. */
+export function preserveScrollAfterPrependOverFrames(
+  scrollEl: HTMLDivElement,
+  scrollHeightBefore: number,
+  scrollTopBefore: number,
+  programmaticScrollRef: RefObject<boolean>,
+  onEachFrame?: () => void,
+): void {
+  programmaticScrollRef.current = true;
+  const apply = () => {
+    preserveScrollAfterPrepend(scrollEl, scrollHeightBefore, scrollTopBefore);
+    onEachFrame?.();
+  };
+  apply();
+  requestAnimationFrame(() => {
+    apply();
+    requestAnimationFrame(() => {
+      apply();
+      programmaticScrollRef.current = false;
+    });
+  });
+}
+
+type TimelineLayoutSnap = { length: number; firstId: string; scrollHeight: number; scrollTop: number };
+
+function timelinePrepended(
+  messages: { id: string }[],
+  snap: TimelineLayoutSnap,
+  stickToBottomRef: RefObject<boolean>,
+): boolean {
+  return (
+    messages.length > snap.length &&
+    messages[0]?.id !== snap.firstId &&
+    snap.scrollHeight > 0 &&
+    !stickToBottomRef.current
+  );
+}
+
+function usePreserveScrollOnPrepend(
+  messages: { id: string }[],
+  scrollRef: RefObject<HTMLDivElement | null>,
+  stickToBottomRef: RefObject<boolean>,
+  programmaticScrollRef: RefObject<boolean>,
+  onPrependLayout?: (scrollEl: HTMLDivElement) => void,
+): void {
+  const snapRef = useRef<TimelineLayoutSnap>({ length: 0, firstId: "", scrollHeight: 0, scrollTop: 0 });
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || messages.length === 0) return;
+    const snap = snapRef.current;
+    if (timelinePrepended(messages, snap, stickToBottomRef)) {
+      onPrependLayout?.(el);
+      preserveScrollAfterPrependOverFrames(el, snap.scrollHeight, snap.scrollTop, programmaticScrollRef, () => {
+        onPrependLayout?.(el);
+      });
+    }
+    snap.length = messages.length;
+    snap.firstId = messages[0]?.id ?? "";
+    snap.scrollHeight = el.scrollHeight;
+    snap.scrollTop = el.scrollTop;
+  }, [messages.length, messages[0]?.id, onPrependLayout, programmaticScrollRef, scrollRef, stickToBottomRef]);
+}
+
 interface ChatMessageListProps {
   messages: { id: string }[];
+  /** Set in onScroll right before unpinned layout; consumed once when virtual mounts. */
+  pendingVirtualScrollRestoreRef?: RefObject<number | null>;
   /**
    * Stable ids alone are not enough: grouping flips lastOfRun on the previous
    * row when a new bubble arrives, which changes height — the virtualizer must
@@ -194,6 +284,7 @@ function InlineChatMessageList({
   const resolveItemKey = getItemKey ?? ((index: number) => messages[index]?.id ?? index);
 
   usePinOnNewMessages(messages, scrollRef, stickToBottomRef, programmaticScrollRef, highlightMessageId, true);
+  usePreserveScrollOnPrepend(messages, scrollRef, stickToBottomRef, programmaticScrollRef);
   useResizePinToBottom(scrollRef, contentRef, stickToBottomRef, programmaticScrollRef, messages.length);
 
   useEffect(() => {
@@ -227,6 +318,7 @@ function VirtualizedChatMessageList({
   scrollRef,
   stickToBottomRef,
   programmaticScrollRef,
+  pendingVirtualScrollRestoreRef,
   highlightMessageId,
   onHighlightShown,
   header,
@@ -249,10 +341,32 @@ function VirtualizedChatMessageList({
   });
 
   const lastMessageId = messages[messages.length - 1]?.id;
+  const remeasure = useCallback(
+    (scrollEl: HTMLDivElement) => {
+      remeasureVirtualRows(scrollEl, virtualizer);
+    },
+    [virtualizer],
+  );
+
+  usePreserveScrollOnPrepend(messages, scrollRef, stickToBottomRef, programmaticScrollRef, remeasure);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el || messages.length === 0) return;
+    // Prepend preserve (and pin-to-bottom) own scrollTop for a few frames.
+    if (programmaticScrollRef.current) return;
+    const pending = pendingVirtualScrollRestoreRef?.current;
+    if (pending != null) {
+      pendingVirtualScrollRestoreRef.current = null;
+      applyVirtualScrollRestore(el, pending);
+      remeasureVirtualRows(el, virtualizer);
+      requestAnimationFrame(() => {
+        if (!scrollRef.current) return;
+        applyVirtualScrollRestore(scrollRef.current, pending);
+        remeasureVirtualRows(scrollRef.current, virtualizer);
+      });
+      return;
+    }
     remeasureVirtualRows(el, virtualizer);
     if (highlightMessageId || !stickToBottomRef.current) return;
     pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef);
@@ -266,6 +380,7 @@ function VirtualizedChatMessageList({
     lastMessageId,
     measureGeneration,
     messages.length,
+    pendingVirtualScrollRestoreRef,
     programmaticScrollRef,
     scrollRef,
     stickToBottomRef,
