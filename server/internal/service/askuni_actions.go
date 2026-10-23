@@ -67,7 +67,9 @@ type askInverse struct {
 
 // askDraftRow is one proposed change, held in memory until the turn ends.
 // TargetRevision is the revision prepare read (nil for a new object, or one
-// that a {{row:N.id}} reference stands for).
+// that a {{row:N.id}} reference stands for). Read is every other existing
+// object whose title prepare put in a field (a parent task, a parent page):
+// the taint rules weigh it like the target (R8). It is never stored.
 type askDraftRow struct {
 	Tool           string
 	Args           json.RawMessage
@@ -76,6 +78,7 @@ type askDraftRow struct {
 	TargetRevision *int64
 	Level          string
 	Preview        AskProposalPreview
+	Read           []AskContextRef
 }
 
 type askWriteTool struct {

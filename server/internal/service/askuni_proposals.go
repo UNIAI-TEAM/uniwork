@@ -57,6 +57,9 @@ var (
 	errProposalExpired    = CodedError{Code: "proposal_expired", Status: http.StatusConflict}
 	errProposalNotPending = CodedError{Code: "proposal_not_pending", Status: http.StatusConflict}
 	errProposalRefPending = CodedError{Code: "proposal_ref_pending", Status: http.StatusConflict}
+	// errProposalNotAuto is an auto decision on a row Auto mode may not apply:
+	// not level 1, tainted, or proposed outside auto mode.
+	errProposalNotAuto = CodedError{Code: "proposal_not_auto", Status: http.StatusConflict}
 )
 
 // AskProposal is one row as its card reads it. Status is the state as read:
@@ -377,6 +380,11 @@ func (s *AskUNIService) ApplyProposal(ctx context.Context, userID, proposalID st
 func (s *AskUNIService) applyRow(ctx context.Context, userID string, row db.AgentActionProposal, decision string) (AskProposal, error) {
 	if err := s.proposalMember(ctx, userID, row); err != nil {
 		return AskProposal{}, err
+	}
+	// Defense in depth for Auto mode (R11): the stored row must say it may run
+	// unasked, whatever the caller decided.
+	if decision == AskModeAuto && (row.RiskLevel != askLevel1 || row.Tainted || row.Mode != AskModeAuto) {
+		return AskProposal{}, errProposalNotAuto
 	}
 	if row.Status != proposalPending {
 		return AskProposal{}, errProposalNotPending

@@ -155,6 +155,7 @@ func (s *AskUNIService) prepareCreateDocument(ctx context.Context, tc ai.ToolCon
 	}
 	fields := []AskProposalField{{Field: "title", Type: "text", To: title}}
 	visibility := "private"
+	var read []AskContextRef // the parent page whose title a field shows
 	switch {
 	case in.ParentID == "":
 	case len(refs) > 0:
@@ -169,6 +170,7 @@ func (s *AskUNIService) prepareCreateDocument(ctx context.Context, tc ai.ToolCon
 			return askDraftRow{}, err
 		}
 		fields = append(fields, AskProposalField{Field: "parent_id", Type: "text", To: parent.Document.Title})
+		read = []AskContextRef{{Kind: "document", ID: parent.Document.ID, Title: parent.Document.Title}}
 		// A folder is never a source of visibility; only a page passes its own on.
 		if v, _ := createHomeRow("", &parent.Document); v == documentVisibilityWorkspace {
 			visibility = "workspace"
@@ -179,7 +181,7 @@ func (s *AskUNIService) prepareCreateDocument(ctx context.Context, tc ai.ToolCon
 		level = askLevel2
 	}
 	return askDraftRow{
-		Tool: "create_document", Args: stored, TargetKind: "document", Level: level,
+		Tool: "create_document", Args: stored, TargetKind: "document", Level: level, Read: read,
 		Preview: AskProposalPreview{
 			Target: AskContextRef{Kind: "document", Title: title}, Fields: fields, Body: askDocBody(in.Content), Refs: refs,
 			Audience: AskAudience{Visibility: visibility, Notifies: []AskContextRef{}},

@@ -61,6 +61,9 @@ func (s *AskUNIService) EditProposal(ctx context.Context, userID, proposalID str
 	if err != nil {
 		return AskProposal{}, err
 	}
+	if err := s.askEditClash(ctx, row, d); err != nil {
+		return AskProposal{}, err
+	}
 	preview, err := json.Marshal(d.Preview)
 	if err != nil {
 		return AskProposal{}, err

@@ -140,9 +140,10 @@ func (s *AskUNIService) askMeetingTarget(ctx context.Context, tc ai.ToolContext,
 }
 
 // askMeetingClash refuses a row on a meeting an earlier row of this turn
-// cancels: it would fail at apply. A second row on an existing meeting is the
-// loop's to refuse (askSameTarget); this is what remains for a meeting made
-// this turn, which a {{row:N.id}} names and which has no revision to outdate.
+// cancels: it would fail at apply. A row that carries a revision after another
+// row on the same meeting is the loop's to refuse (askTargetClash); this also
+// covers the rows that carry none (an invite) and a meeting made this turn,
+// which a {{row:N.id}} names.
 func askMeetingClash(meetingID string, earlier []askDraftRow) error {
 	for i, r := range earlier {
 		var a struct {

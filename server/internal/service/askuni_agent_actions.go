@@ -103,36 +103,55 @@ func (s *AskUNIService) agentWriteCall(ctx context.Context, w *askWrites, tool a
 	}
 	label = clipLabel(row.Preview.Target.Title)
 	items = askTargetRead(row)
-	if err := askSameTarget(row, w.rows); err != nil {
-		code, _ := agentError(err)
-		return "error: " + code, "error", label, items, nil
+	for i, r := range w.rows {
+		if askTargetClash(r, row) {
+			return fmt.Sprintf("error: invalid_args: row %d of this turn already changes this %s; make every change to one object in one call", i+1, row.TargetKind), "error", label, items, nil
+		}
 	}
 	w.rows = append(w.rows, row)
 	return askRecordedLine(len(w.rows), row), "ok", label, items, nil
 }
 
-// askTargetRead is the existing object prepare read, as the taint rules see a
-// read tool's item: its title and before-values reach the model. A room is
-// only its name, a label (R8); a row on an object this turn makes read nothing.
+// askTargetRead is what prepare read, as the taint rules see a read tool's
+// items: the existing target, whose title and before-values reach the model,
+// and every other object whose title a field shows (askDraftRow.Read). A room
+// is only its name, a label (R8); an object this turn makes read nothing.
 func askTargetRead(row askDraftRow) []agentItem {
-	if _, audited := askAuditKinds[row.TargetKind]; !audited || row.TargetID == "" {
-		return nil
+	read := append([]AskContextRef{{Kind: row.TargetKind, ID: row.TargetID, Title: row.Preview.Target.Title}}, row.Read...)
+	var out []agentItem
+	for _, r := range read {
+		if _, audited := askAuditKinds[r.Kind]; audited && r.ID != "" {
+			out = append(out, agentItem{Kind: r.Kind, Key: r.Kind + "/" + r.ID, ID: r.ID, Title: r.Title})
+		}
 	}
-	return []agentItem{{Kind: row.TargetKind, Key: row.TargetKind + "/" + row.TargetID, ID: row.TargetID, Title: row.Preview.Target.Title}}
+	return out
 }
 
-// askSameTarget refuses a second row on an existing object: it would carry the
-// revision the first row outdates and fail at apply. A row on an object made
-// this turn names no TargetID and may follow others.
-func askSameTarget(row askDraftRow, earlier []askDraftRow) error {
-	if row.TargetID == "" {
-		return nil
+// askTargetClash says whether row b, applied after row a, carries the
+// revision of an existing object a changes: b would fail at apply. A row with
+// no revision (a comment, an invite, a message) or on an object made this
+// turn may follow others on the same object.
+func askTargetClash(a, b askDraftRow) bool {
+	return b.TargetRevision != nil && b.TargetID != "" && a.TargetKind == b.TargetKind && a.TargetID == b.TargetID
+}
+
+// askEditClash is askTargetClash for an edited row, against the answer's
+// other pending rows in position order: the edit is refused, the row unchanged.
+func (s *AskUNIService) askEditClash(ctx context.Context, row db.AgentActionProposal, d askDraftRow) error {
+	answer, err := s.answerRows(ctx, s.q, row)
+	if err != nil {
+		return err
 	}
-	i := slices.IndexFunc(earlier, func(r askDraftRow) bool { return r.TargetKind == row.TargetKind && r.TargetID == row.TargetID })
-	if i < 0 {
-		return nil
+	for _, r := range answer {
+		if r.ID == row.ID || r.Status != proposalPending || r.Position == askAnswerPosition {
+			continue
+		}
+		o := draftOfRow(r)
+		if (r.Position < row.Position && askTargetClash(o, d)) || (r.Position > row.Position && askTargetClash(d, o)) {
+			return McpInvalidArgs{Msg: fmt.Sprintf("row %d of this answer also changes this %s; make every change to one object in one row", r.Position, d.TargetKind)}
+		}
 	}
-	return McpInvalidArgs{Msg: fmt.Sprintf("row %d of this turn already changes this %s; make every change to one object in one call", i+1, row.TargetKind)}
+	return nil
 }
 
 // askMakers are the tools whose row makes an object later rows may name.
@@ -151,7 +170,7 @@ var askMakers = func() map[string]bool {
 // Titles and values are the objects' own text, escaped like any untrusted line.
 func askRecordedLine(n int, row askDraftRow) string {
 	var b strings.Builder
-	b.WriteString("proposal row " + strconv.Itoa(n) + " recorded: " + row.Tool + ` "` + ai.EscapeUntrustedLine(oneLine(row.Preview.Target.Title)) + `"`)
+	b.WriteString("proposal row " + strconv.Itoa(n) + " recorded: " + row.Tool + ` "` + askQuoted(row.Preview.Target.Title) + `"`)
 	var parts []string
 	for _, f := range row.Preview.Fields {
 		part := f.Field + ": "
@@ -187,7 +206,15 @@ func askRecordedValue(v any) string {
 	if r := []rune(s); len(r) > askRecordedValueMax {
 		s = string(r[:askRecordedValueMax]) + "…"
 	}
-	return ai.EscapeUntrustedLine(s)
+	return askQuoted(s)
+}
+
+// askQuoted is an object's own text on one line of server text: escaped like
+// any untrusted line, with \ and " escaped so a quote in it cannot end the
+// quoted title and pose as server text.
+func askQuoted(s string) string {
+	s = ai.EscapeUntrustedLine(oneLine(s))
+	return strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s)
 }
 
 // insertTurnProposals writes a turn's rows for its answer msgID, from position
@@ -290,7 +317,7 @@ func (s *AskUNIService) historyProposals(ctx context.Context, orgID string, rows
 		}
 		lines := make([]string, len(ps))
 		for j, p := range ps {
-			lines[j] = fmt.Sprintf(`Proposals: row %d %s "%s" — %s`, p.Position, p.Tool, oneLine(p.Preview.Target.Title), p.Status)
+			lines[j] = fmt.Sprintf(`Proposals: row %d %s "%s" — %s`, p.Position, p.Tool, askQuoted(p.Preview.Target.Title), p.Status)
 		}
 		hist[i].Content += "\n" + ai.WrapUntrusted("prior_proposals", strings.Join(lines, "\n"))
 	}

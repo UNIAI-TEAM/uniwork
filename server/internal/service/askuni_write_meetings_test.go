@@ -298,8 +298,8 @@ func TestAskWriteMeetingSameTurnConflicts(t *testing.T) {
 	// outdates: the loop refuses any second row on one existing meeting
 	first := askPrepare(t, s, tc, "update_meeting", fmt.Sprintf(`{"meeting_id":%q,"title":"Một"}`, m.ID))
 	second := askPrepare(t, s, tc, "update_meeting", fmt.Sprintf(`{"meeting_id":%q,"title":"Hai"}`, m.ID), first)
-	if err := askSameTarget(second, []askDraftRow{first}); !errors.As(err, new(McpInvalidArgs)) {
-		t.Errorf("second edit: err = %v", err)
+	if !askTargetClash(first, second) {
+		t.Error("a second edit of one meeting is not refused")
 	}
 	// a state the service would refuse is no row
 	for _, c := range []struct{ tool, args string }{

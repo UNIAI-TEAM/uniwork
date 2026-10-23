@@ -140,6 +140,8 @@ type askNames struct {
 	statuses map[string]string
 	projects map[string]string
 	labels   map[string]string
+	// read is the existing tasks whose titles a field shows (askDraftRow.Read).
+	read []AskContextRef
 }
 
 func (s *AskUNIService) names(ctx context.Context, tc ai.ToolContext, earlier []askDraftRow) *askNames {
@@ -207,6 +209,7 @@ func (n *askNames) task(id string) any {
 		return t
 	}
 	if t, err := n.s.reads.GetTask(n.ctx, principalOf(n.tc), n.tc.WorkspaceID, id); err == nil {
+		n.read = append(n.read, AskContextRef{Kind: "task", ID: t.ID, Title: t.Title})
 		return t.Title
 	}
 	return id
@@ -318,7 +321,7 @@ func (s *AskUNIService) prepareCreateTask(ctx context.Context, tc ai.ToolContext
 		level = askLevel2
 	}
 	return askDraftRow{
-		Tool: "create_task", Args: stored, TargetKind: "task", Level: level,
+		Tool: "create_task", Args: stored, TargetKind: "task", Level: level, Read: n.read,
 		Preview: AskProposalPreview{
 			Target: AskContextRef{Kind: "task", Title: in.Title}, Fields: fields, Refs: refs,
 			Audience: AskAudience{Visibility: "workspace", Notifies: n.notified(in.AssigneeID)},
@@ -444,7 +447,7 @@ func (s *AskUNIService) prepareUpdateTask(ctx context.Context, tc ai.ToolContext
 		return askDraftRow{}, McpInvalidArgs{Msg: "nothing to change: every field already has the value asked for"}
 	}
 
-	row := askDraftRow{Tool: "update_task", Args: stored, TargetKind: "task", Level: askLevel2, Preview: AskProposalPreview{Fields: fields, Refs: refs}}
+	row := askDraftRow{Tool: "update_task", Args: stored, TargetKind: "task", Level: askLevel2, Read: n.read, Preview: AskProposalPreview{Fields: fields, Refs: refs}}
 	people := []string{}
 	if in.AssigneeID.Set && optValue(in.AssigneeID) != before.AssigneeID {
 		people = append(people, optValue(in.AssigneeID))
