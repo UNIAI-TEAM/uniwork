@@ -4,14 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Square, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiPanelStore } from "@uniwork/core/ai";
-import type { AskUniInput } from "@uniwork/core/types";
+import { askDisplayAttachments } from "@uniwork/core/ai/attachments";
+import type { AiAttachment, AskUniInput } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useWorkspace } from "../layout/workspace-context";
+import { AskUniAttachmentRow } from "./ask-uni-attachment-chip";
 import { entityKindIcon } from "./ask-uni-entity";
 import { AskUniEditor, type AskUniEditorHandle, type AskUniQuestion } from "./ask-uni-editor";
 import { AskUniModelPicker, useAskModelSelection } from "./ask-uni-model-picker";
 import { useEffectiveFocus, useShownPage } from "./ask-uni-page-context";
 import { AskUniScopePicker } from "./ask-uni-scope-picker";
+import type { AskUniAttachments } from "./use-ask-uni-attachments";
 
 const MAX_MENTIONS = 5;
 const EMPTY: AskUniQuestion = { question: "", mentions: [] };
@@ -29,15 +32,21 @@ function Chip({ label, remove, onRemove, icon: Icon }: { label: string; remove: 
   );
 }
 
-/** The docked panel's composer: one frame with the focus chip, the question box (`@` cards in the text) and the buttons. */
+/**
+ * The docked panel's composer: one frame with the focus chip, the files, the question box (`@` cards in the text) and
+ * the buttons. `attachments` turns on file attaching (the "+" menu's upload row, pasted images and the chip row);
+ * without it the composer takes no files.
+ */
 export function AskUniComposer({
   onSend,
   onStop,
   streaming,
+  attachments,
 }: {
-  onSend: (input: AskUniInput) => void;
+  onSend: (input: AskUniInput, display?: { attachments: AiAttachment[] }) => void;
   onStop: () => void;
   streaming: boolean;
+  attachments?: AskUniAttachments;
 }) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "ai" });
   const { workspace } = useWorkspace();
@@ -87,21 +96,29 @@ export function AskUniComposer({
   const placeholderKind = sent?.kind;
   const pageLabel = shownPage ? t("page_chip", { label: shownPage.label || kindLabel(shownPage.kind) }) : "";
 
+  // A file still uploading is not yet a file, and a failed one would silently drop out: the question waits for both.
+  const filesWait = !!attachments && (attachments.busy || attachments.blocked);
   const send = ({ question, mentions }: AskUniQuestion) => {
-    if (!question || streaming) return;
-    onSend({
-      question,
-      conversation_id: conversationId ?? undefined,
-      focus: sent ? { kind: sent.kind, id: sent.id } : undefined,
-      mentions,
-      model,
-      effort,
-      locale: i18n.language,
-    });
+    if (!question || streaming || filesWait) return;
+    const ids = attachments?.ids ?? [];
+    onSend(
+      {
+        question,
+        conversation_id: conversationId ?? undefined,
+        focus: sent ? { kind: sent.kind, id: sent.id } : undefined,
+        mentions,
+        attachment_ids: ids.length > 0 ? ids : undefined,
+        model,
+        effort,
+        locale: i18n.language,
+      },
+      ids.length > 0 ? { attachments: askDisplayAttachments(attachments?.files ?? []) } : undefined,
+    );
     box.current?.clear();
+    attachments?.clear();
   };
 
-  const canSend = draft.question !== "";
+  const canSend = draft.question !== "" && !filesWait;
   return (
     <div ref={root} className="bg-background p-3" data-slot="ask-uni-composer">
       <div
@@ -133,6 +150,7 @@ export function AskUniComposer({
             />
           </div>
         ) : null}
+        {attachments ? <AskUniAttachmentRow attachments={attachments} /> : null}
         <AskUniEditor
           ref={box}
           wsId={workspace.id}
@@ -140,6 +158,7 @@ export function AskUniComposer({
           maxMentions={MAX_MENTIONS}
           onSubmit={send}
           onChange={setDraft}
+          onPasteFiles={attachments?.attach}
         />
         <div className="flex flex-wrap items-center gap-1">
           <AskUniScopePicker
@@ -148,6 +167,7 @@ export function AskUniComposer({
               return false;
             }}
             onPick={(p) => setFocus({ kind: p.kind, id: p.id, label: p.title })}
+            onFiles={attachments?.attach}
           />
           <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
             <AskUniModelPicker />

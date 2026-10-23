@@ -6096,6 +6096,19 @@
         "message": "Message"
       }
     },
+    "attachments": {
+      "upload": "Upload files",
+      "drop_hint": "or drag and drop",
+      "drop_overlay": "Drop to attach to your question",
+      "remove": "Remove {{name}}",
+      "retry": "Retry",
+      "uploading": "Uploading",
+      "failed": "Upload failed",
+      "too_large": "File is over 20 MB",
+      "too_many": "Up to 5 files per question",
+      "total_too_large": "Files add up to more than 20 MB",
+      "type_unsupported": "UNI can't read this file type yet"
+    },
     "ask_about_task": "Ask UNI about this task",
     "ask_about_meeting": "Ask UNI about this meeting",
     "ask_about_document": "Ask UNI about this document",

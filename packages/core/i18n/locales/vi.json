@@ -6047,6 +6047,19 @@
         "message": "Tin nhắn"
       }
     },
+    "attachments": {
+      "upload": "Tải file lên",
+      "drop_hint": "hoặc kéo thả",
+      "drop_overlay": "Thả để gắn vào câu hỏi",
+      "remove": "Bỏ {{name}}",
+      "retry": "Thử lại",
+      "uploading": "Đang tải lên",
+      "failed": "Tải lên không được",
+      "too_large": "File lớn hơn 20 MB",
+      "too_many": "Tối đa 5 file mỗi câu hỏi",
+      "total_too_large": "Tổng dung lượng quá 20 MB",
+      "type_unsupported": "UNI chưa đọc được loại file này"
+    },
     "ask_about_task": "Hỏi UNI về task này",
     "ask_about_meeting": "Hỏi UNI về cuộc họp này",
     "ask_about_document": "Hỏi UNI về tài liệu này",
