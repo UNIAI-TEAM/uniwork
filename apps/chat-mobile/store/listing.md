@@ -2,12 +2,16 @@
 
 Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-1838); `scripts/store-metadata.mjs` sinh từ
 đây `store/apple/store.config.json` (EAS Metadata, `eas metadata:push`) và `store/play/<ngôn ngữ>/*.txt` (main store
-listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự của từng store; `store-listing.test.ts` đỏ khi chúng cũ. Tên hiển thị "UniChat", định danh
-`com.uniworkos.chat` (bản `internal` dùng `com.uniworkos.chat.staging`, tên "UniChat (Staging)"). Lý do và luật: spec
+listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự của từng store; `store-listing.test.ts` đỏ khi chúng cũ. Tên trên cả hai store là "UniWork Chat":
+App Store Connect giữ app dưới tên đó vì "UniChat" đã có người giữ (`docs/evidence/unichat/release-accounts.md`), và
+`eas metadata:push` gửi tên khác là xin đổi sang một tên không được phép. Tên dưới biểu tượng trên máy vẫn là "UniChat",
+định danh `com.uniworkos.chat` (bản `internal` dùng `com.uniworkos.chat.staging`, tên "UniChat (Staging)"). Lý do và luật: spec
 `docs/superpowers/specs/2026-10-16-chat-native-apps-design.md` §3.1, §3.4, §11; quy trình nộp:
 `docs/runbooks/unichat-mobile-release.md`. Chữ ở đây là bản nháp; chủ sở hữu duyệt trước lần nộp production (Q1).
 
 ## Mô tả
+
+**Tên trên store (≤ 30 ký tự):** UniWork Chat
 
 **vi — phụ đề (≤ 30 ký tự):** Nhắn tin và gọi cho cả đội
 
@@ -174,6 +178,17 @@ lần khởi động lại), `FOREGROUND_SERVICE` cùng `FOREGROUND_SERVICE_PHON
 `FOREGROUND_SERVICE_CAMERA` (dịch vụ cuộc gọi, mục dưới), `BLUETOOTH` và `BLUETOOTH_ADMIN` (LiveKit khai, không có
 `maxSdkVersion`; chỉ có nghĩa tới Android 11 — từ Android 12 tai nghe Bluetooth đi qua `BLUETOOTH_CONNECT` ở bảng trên).
 `android-manifest.test.ts` giữ cả `maxSdkVersion` của từng quyền: hiện không quyền nào có.
+
+Thư viện Maven mà các module kéo theo cũng thêm quyền khi Gradle gộp manifest, đều là quyền thường hoặc quyền riêng
+của hãng, cấp lúc cài, không hộp thoại, không khai báo riêng trên Play: số chưa đọc trên biểu tượng app
+(`ShortcutBadger` của `expo-notifications`) xin `READ_APP_BADGE` và quyền badge của từng launcher (Samsung, HTC, Sony,
+Huawei, OPPO, Apex, Solid, EverythingMe); `firebase-messaging` xin quyền nhận tin FCM của Google Play services
+(`com.google.android.c2dm.permission.RECEIVE`), đường mọi push đi qua; `androidx.core` khai và xin quyền mức chữ ký
+`<package>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` để chỉ chính app gửi được tới receiver nó đăng ký lúc chạy. Quyền
+ràng buộc dịch vụ install referrer của Play (`installreferrer` qua `expo-application`) **bị gỡ** (`blockedPermissions`):
+app không đọc nguồn cài đặt. Danh sách đầy đủ của bản release, mỗi quyền một lý do, là
+`apps/chat-mobile/android-permissions.json`; `scripts/mobile-apk-scan.mjs` đọc manifest đã gộp của chính APK/AAB và đỏ
+khi bản build xin một quyền ngoài danh sách đó.
 
 **iOS privacy manifest** (`app.config.ts › IOS_PRIVACY_MANIFEST`, đặt vào `ios.privacyManifests`): không tracking; dữ liệu
 thu thập đúng từng dòng Apple App Privacy của bảng "Quyền riêng tư" ở trên (`store-listing.test.ts` so hai bên); lý do

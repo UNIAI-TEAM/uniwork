@@ -3,8 +3,8 @@
 // store/listing.md, so the listing reviewed in a PR is the listing the stores get:
 //
 // - store/apple/store.config.json — EAS Metadata for App Store Connect (`eas metadata:push`, the path is
-//   eas.json › submit.production.ios.metadataPath): title, subtitle, description, keywords and URLs in vi
-//   and en-US, the categories, the reviewer's notes. The iOS description leaves out the calls line while
+//   eas.json › submit.production.ios.metadataPath): title (the name App Store Connect holds the app under),
+//   subtitle, description, keywords and URLs in vi and en-US, the categories, the reviewer's notes. The iOS description leaves out the calls line while
 //   calls are off on iPhone (listing.md › Quyền: Apple 2.3.1, metadata matches the app). The demo account's
 //   password never lives here: App Store Connect holds it.
 // - store/play/<locale>/{title,short_description,full_description}.txt — Play Console's main store listing
@@ -21,7 +21,6 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const storeDir = path.resolve(here, "../store");
 const SITE = "https://app.uniworkos.com";
-const TITLE = "UniChat";
 // What the iOS copy drops while calls are off on iPhone (unichat_mobile_calls_ios): the description's
 // calls line and the review notes' calls paragraph.
 const CALLS_LINE = { vi: /^- Gọi thoại và video/, en: /^- Voice and video calls/ };
@@ -70,6 +69,8 @@ function limit(value, max, what) {
 }
 
 export function storeMetadata(listing) {
+  // One name in both stores: the one App Store Connect holds the app under (listing.md, top).
+  const title = labelled(listing, "Tên trên store (≤ 30 ký tự):**");
   const copy = {
     vi: {
       subtitle: labelled(listing, "vi — phụ đề (≤ 30 ký tự):**"),
@@ -95,7 +96,7 @@ export function storeMetadata(listing) {
       .join("\n");
   const page = (lang, route) => `${SITE}${lang === "vi" ? `/vi${route}` : route}`;
   const info = (lang) => ({
-    title: limit(TITLE, 30, "title"),
+    title: limit(title, 30, "title"),
     subtitle: limit(copy[lang].iosSubtitle, 30, `${lang} App Store subtitle`),
     description: limit(ios(lang), 4000, `${lang} App Store description`),
     keywords: keywords
@@ -122,7 +123,7 @@ export function storeMetadata(listing) {
     ].map(([locale, lang]) => [
       locale,
       {
-        "title.txt": limit(TITLE, 30, "Play title"),
+        "title.txt": limit(title, 30, "Play title"),
         "short_description.txt": limit(limit(copy[lang].subtitle, 30, `${lang} subtitle`), 80, `${lang} Play short description`),
         "full_description.txt": limit(copy[lang].description, 4000, `${lang} Play full description`),
       },

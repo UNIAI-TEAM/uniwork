@@ -1,10 +1,19 @@
 // What a UniChat release build asks of Android and runs in the background,
-// resolved from this config and the native libraries it links
+// resolved from this config and the native libraries it autolinks
 // (scripts/android-manifest.mjs). Every line here is a Play Console App
 // content declaration (docs/runbooks/unichat-mobile-release.md › Play Console
 // App content): a new permission or foreground service changes this list in
 // the same commit as the native change, together with store/listing.md and
 // the runbook's declaration table.
+//
+// The resolver reads source manifests, and of the Maven libraries those
+// modules pull in only the ones MAVEN_MANIFESTS holds (WorkManager), so it
+// cannot see what the others add when Gradle merges (ShortcutBadger's
+// launcher badge permissions, firebase-messaging's c2dm RECEIVE, androidx.core's
+// DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION): the binary carries those too.
+// android-permissions.json is the reviewed list of the binary's whole set;
+// scripts/mobile-apk-scan.mjs holds the real APK and AAB to it, and the
+// cases below hold this resolver's view to it.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -30,7 +39,7 @@ let release: ReturnType<typeof report> | undefined;
 const releaseReport = () => (release ??= report());
 
 describe("the release build's Android manifest", () => {
-  it("asks for these permissions and no others", { timeout: 120_000 }, () => {
+  it("asks for these permissions itself and through the libraries it autolinks", { timeout: 120_000 }, () => {
     const manifest = releaseReport();
     expect(manifest.permissions).toEqual([
       "android.permission.ACCESS_NETWORK_STATE",
@@ -66,12 +75,16 @@ describe("the release build's Android manifest", () => {
     // BLUETOOTH_CONNECT takes over), and the storage ones that expo-file-system and expo-image-picker cap at 32 are
     // removed outright below. A cap that appears or goes changes what Play reviews: it fails here.
     expect(manifest.maxSdkVersion).toEqual({});
-    // A call never draws over other apps, and UniChat reads no shared storage (app.config.ts › blockedPermissions).
+    // A call never draws over other apps, UniChat reads no shared storage and no install referrer (app.config.ts ›
+    // blockedPermissions).
     expect(manifest.removedPermissions).toEqual([
       "android.permission.READ_EXTERNAL_STORAGE",
       "android.permission.READ_MEDIA_IMAGES",
       "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.WRITE_EXTERNAL_STORAGE",
+      // installreferrer (a Maven dependency of expo-application): only getInstallReferrerAsync binds Play's referrer
+      // service, and UniChat never calls it.
+      "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
     ]);
     // Nothing leaves the phone in a backup or a device transfer, and no cleartext exception exists: Android 9+
     // refuses http:// by default and a release build only knows https:// servers (app.config.ts › serverUrl).
@@ -160,23 +173,45 @@ describe("Maven libraries' manifests", () => {
   });
 });
 
-// store/listing.md › "Quyền và chuỗi xin quyền" answers review for every permission the release build carries: a
-// row of its table, or the paragraph of normal permissions under it. A permission the manifest gains without a word
-// there, or a name the listing keeps after the manifest dropped it (a removed one may stay, struck through), fails.
+type Reviewed = { name: string; tag?: string; minSdkVersion?: number; maxSdkVersion?: number };
+const reviewed = (JSON.parse(fs.readFileSync(path.join(__dirname, "android-permissions.json"), "utf8")) as { permissions: Reviewed[] }).permissions;
+
+describe("android-permissions.json, the binary's reviewed permissions", () => {
+  it("lists every permission this config and its autolinked libraries ask for, under the same cap", { timeout: 120_000 }, () => {
+    const manifest = releaseReport();
+    const listed = new Map(reviewed.map((entry) => [entry.name, entry]));
+    expect(manifest.permissions.filter((name) => !listed.has(name)), "add each with from, reason and play").toEqual([]);
+    for (const name of manifest.permissions) {
+      expect(listed.get(name)?.maxSdkVersion, name).toBe(manifest.maxSdkVersion[name] === undefined ? undefined : Number(manifest.maxSdkVersion[name]));
+    }
+  });
+
+  it("lists none that app.config.ts blocks", { timeout: 120_000 }, () => {
+    const blocked = new Set(releaseReport().removedPermissions);
+    expect(reviewed.filter((entry) => blocked.has(entry.name)).map((entry) => entry.name)).toEqual([]);
+  });
+});
+
+// store/listing.md › "Quyền và chuỗi xin quyền" answers review for every android.permission the release build carries
+// (the resolver's and the reviewed list's, which has the Maven libraries' too): a row of its table, or the paragraph of
+// normal permissions under it. A permission the binary gains without a word there, or a name the listing keeps after
+// the binary dropped it (a removed one may stay, struck through), fails.
 describe("the store listing's permission section", () => {
   const listing = fs.readFileSync(path.join(__dirname, "store/listing.md"), "utf8");
   const section = listing.slice(listing.indexOf("## Quyền và chuỗi xin quyền"), listing.indexOf("## Tài khoản demo"));
   const named = new Set([...section.matchAll(/`([A-Z][A-Z0-9_]+)`/g)].map((m) => m[1]!));
   const short = (name: string) => name.replace(/^android\.permission\./, "");
 
+  const androidReviewed = reviewed.map((entry) => entry.name).filter((name) => name.startsWith("android.permission."));
+
   it("names every permission of the release manifest", { timeout: 120_000 }, () => {
-    const missing = releaseReport().permissions.map(short).filter((name) => !named.has(name));
+    const missing = [...new Set([...releaseReport().permissions, ...androidReviewed])].map(short).filter((name) => !named.has(name));
     expect(missing, "add a row or a word in store/listing.md › Quyền").toEqual([]);
   });
 
   it("names no permission the release manifest neither asks for nor removes", { timeout: 120_000 }, () => {
     const manifest = releaseReport();
-    const known = new Set([...manifest.permissions, ...manifest.removedPermissions].map(short));
+    const known = new Set([...manifest.permissions, ...androidReviewed, ...manifest.removedPermissions].map(short));
     expect([...named].filter((name) => !known.has(name))).toEqual([]);
   });
 });

@@ -56,7 +56,9 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   cỡ chữ theo vai trò (`lib/type-scale.test.ts`); hàng đặt tên, dấu và giờ cạnh nhau thì xếp chồng ở cỡ chữ trợ năng
   (`useLargeText`), menu/sheet dài thì cuộn trong chiều cao còn lại (`lib/action-menu-layout.ts`, `ActionSheet`).
 - Quyền native, dịch vụ nền và loại dữ liệu khớp `store/listing.md` (`android-manifest.test.ts`,
-  `store-listing.test.ts`); thêm quyền thì sửa bảng ở đó, checklist ở `docs/runbooks/unichat-mobile-release.md`.
+  `store-listing.test.ts`); thêm quyền thì sửa bảng ở đó, checklist ở `docs/runbooks/unichat-mobile-release.md`. Mọi
+  quyền binary Android xin, kể cả quyền thư viện Maven gộp vào, có trong `android-permissions.json` kèm ai thêm, vì sao
+  giữ, Play hỏi gì (`scripts/mobile-apk-scan.mjs` đọc APK/AAB thật); không cần thì chặn bằng `blockedPermissions`.
 - Mọi tin FCM vào `UniChatMessagingService` trước (`modules/unichat-calls`, ưu tiên trên dịch vụ của expo-notifications,
   `android-manifest.test.ts › messagingServices`): push đổ chuông reo không cần JavaScript, phần còn lại đi tiếp với `tag` của server nhấc lên chỗ
   expo-notifications đọc (`PushTag.kt`: mỗi push của phòng thay thông báo của phòng);

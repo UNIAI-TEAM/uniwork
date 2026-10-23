@@ -295,11 +295,15 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // DETECT_SCREEN_CAPTURE stays: on Android 14+ the module registers its ScreenCaptureCallback when it is created,
       // and without that install-time permission the registration throws while the bundle loads and the app dies at
       // launch (CI's API 35 emulator, 2026-10-23). It is a normal permission: no prompt, nothing for Play to review.
+      // expo-application links installreferrer, whose manifest asks to bind Play's install-referrer service: only
+      // getInstallReferrerAsync uses it, and UniChat never asks how it was installed. What stays, a Maven library's
+      // included, is reviewed one by one in android-permissions.json (scripts/mobile-apk-scan.mjs reads the binary).
       blockedPermissions: [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
+        "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
       ],
       // No cloud backup of the app's files: unsent attachments sit in plain files under documents/outbox, and a
       // restored session store cannot open on another phone anyway (its Keystore key never leaves this one).
