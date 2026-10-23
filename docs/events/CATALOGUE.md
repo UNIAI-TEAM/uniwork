@@ -98,6 +98,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.follow_up.deleted` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | — | user | outbox |
 | `chat.message.mentioned` | 1 | `room_id`, `message_id`, `user_id`, `thread_root_id` | — | - | outbox |
 | `chat.dm.received` | 1 | `room_id`, `message_id`, `user_id` | — | - | outbox |
+| `chat.message.received` | 1 | `room_id`, `message_id`, `user_id` | — | - | outbox |
 | `chat.thread.reply_received` | 1 | `room_id`, `message_id`, `user_id`, `thread_root_id` | — | - | outbox |
 | `chat.voice.invite_received` | 1 | `room_id`, `call_id`, `user_id` | — | - | outbox |
 | `chat.voice.ring_closed` | 1 | `room_id`, `call_id`, `user_id` | — | - | outbox |
@@ -144,7 +145,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `member.removed` | 1 | `organization_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `member.role_changed` | 1 | `organization_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `notification.created` | 1 | `notification_id`, `user_id` | — | user | outbox |
-| `notification.push` | 1 | `notification_id`, `user_id` | — | - | outbox |
+| `notification.push` | 1 | `notification_id`, `user_id`, `message_id` | — | - | outbox |
 | `organization.created` | 1 | `organization_id` | — | user | outbox |
 | `organization.updated` | 1 | `organization_id` | — | user | outbox |
 | `organization.suspended` | 1 | `organization_id`, `user_id` | — | user | outbox |

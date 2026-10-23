@@ -1742,6 +1742,8 @@
       "channel_messages_hint": "Direct messages and replies in threads you follow.",
       "channel_general": "Other notifications",
       "channel_general_hint": "Tasks, documents, reminders and other updates.",
+      "channel_quiet": "Follow-up messages",
+      "channel_quiet_hint": "Messages that arrive right after one that just alerted, in the same conversation: shown quietly, without sound or vibration.",
       "full_screen_calls": "Show incoming calls full screen",
       "full_screen_calls_hint": "Android is blocking the ringing screen on a locked phone, so calls only show as a notification. Turn it back on so you don't miss calls.",
       "background_battery": "Let UniChat run in the background",

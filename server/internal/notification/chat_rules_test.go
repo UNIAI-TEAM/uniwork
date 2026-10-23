@@ -123,7 +123,7 @@ func TestThreadReplyReachesAPublicChannelFollowerOutsideTheChannel(t *testing.T)
 
 // A DM, a mention and a thread reply reach the inbox through the outbox, one
 // row per room (or thread) however many messages arrive before it is read,
-// and push only for the first (H1).
+// and every message pushes (H1, UNI-2141).
 func TestChatMessagesReachTheInbox(t *testing.T) {
 	f := newFixture(t)
 	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
@@ -151,8 +151,19 @@ func TestChatMessagesReachTheInbox(t *testing.T) {
 	if !contains(got[0].Params, `"actor":"Chủ Nhóm"`) {
 		t.Fatalf("dm params = %s", got[0].Params)
 	}
-	if n := len(f.events(t, TopicPush)) - pushBefore; n != 1 {
-		t.Fatalf("a burst of two DMs pushed %d times, want 1", n)
+	// Every message pushes on its own (each push names its message); the
+	// open row still merges them for the inbox.
+	pushes := f.events(t, TopicPush)[pushBefore:]
+	if len(pushes) != 2 {
+		t.Fatalf("a burst of two DMs pushed %d times, want 2", len(pushes))
+	}
+	for _, ev := range pushes {
+		if p := payloadOf(t, ev); p["notification_id"] != got[0].ID || p["message_id"] == "" {
+			t.Fatalf("burst push payload = %v, want the merged row and its message", p)
+		}
+	}
+	if a, b := payloadOf(t, pushes[0])["message_id"], payloadOf(t, pushes[1])["message_id"]; a == b {
+		t.Fatalf("both pushes name message %s", a)
 	}
 	if len(f.inbox(t, f.owner.ID)) != 0 {
 		t.Fatal("the sender was notified of their own DM")

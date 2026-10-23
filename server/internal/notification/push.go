@@ -46,6 +46,11 @@ type PushMessage struct {
 	// Android phones take its message notifications out of the tray and set
 	// the icon's count to Badge. A browser never sees it.
 	Cleared RoomCleared `json:"-"`
+	// Quiet is a chat message that follows one the phone alerted for less than
+	// chatAlertWindow ago in the same room (or thread): it shows, grouped
+	// with the room's, without a sound or a vibration. A browser replaces the
+	// room's notification by its tag without renotifying anyway.
+	Quiet bool `json:"-"`
 }
 
 // RoomCleared names the room a "read elsewhere" push is about. Ids only.
@@ -65,6 +70,12 @@ type ChatPush struct {
 	RoomID       string
 	MessageID    string
 	ThreadRootID string
+	// Unread is how many messages the room's open row holds when it is more
+	// than this one, and Summary says it in the person's language ("3 tin
+	// nhắn mới"): Android replaces the room's notification with each push, so
+	// its title carries the count. Zero and "" for a single message.
+	Unread  int
+	Summary string
 }
 
 // The kinds of CallPush. An invite and an end reach Android as data-only,

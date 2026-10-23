@@ -172,7 +172,8 @@ func (h *handlers) subscribePush(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	err := h.Notifications.SubscribePush(r.Context(), middleware.UserID(r.Context()), middleware.SessionID(r.Context()), in.Endpoint, in.Keys.P256dh, in.Keys.Auth, r.UserAgent(), in.Platform, in.CallUI)
+	err := h.Notifications.SubscribePush(r.Context(), middleware.UserID(r.Context()), middleware.SessionID(r.Context()), in.Endpoint, in.Keys.P256dh, in.Keys.Auth, r.UserAgent(), in.Platform,
+		notification.PushCaps{CallUI: in.CallUI, ChatQuiet: in.ChatQuiet})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

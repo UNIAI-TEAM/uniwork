@@ -64,9 +64,10 @@ interface Opts {
 
 /**
  * the Expo push token goes in `endpoint`; `platform` is required for it, and
- * `call_ui` says an Android build draws its own incoming call (server SDI)
+ * `call_ui` says an Android build draws its own incoming call, `chat_quiet` that it has the quiet chat channel
+ * and replaces a room's notification with each push (server SDI)
  */
-export type PushSubscription = PushSubscriptionBody & { platform: string; call_ui?: boolean };
+export type PushSubscription = PushSubscriptionBody & { platform: string; call_ui?: boolean; chat_quiet?: boolean };
 
 const createRequestId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 

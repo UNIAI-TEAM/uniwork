@@ -1920,27 +1920,29 @@ type MeetingTranscriptSegment struct {
 }
 
 type Notification struct {
-	ID             string             `json:"id"`
-	UserID         string             `json:"user_id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    pgtype.Text        `json:"workspace_id"`
-	Kind           string             `json:"kind"`
-	GroupKey       string             `json:"group_key"`
-	ResourceType   string             `json:"resource_type"`
-	ResourceID     string             `json:"resource_id"`
-	ActorKind      string             `json:"actor_kind"`
-	ActorID        string             `json:"actor_id"`
-	TitleKey       string             `json:"title_key"`
-	Params         string             `json:"params"`
-	Count          int32              `json:"count"`
-	CorrelationID  pgtype.Text        `json:"correlation_id"`
-	ReadAt         pgtype.Timestamptz `json:"read_at"`
-	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
-	PushedAt       pgtype.Timestamptz `json:"pushed_at"`
-	DigestedAt     pgtype.Timestamptz `json:"digested_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	PhonePushedAt  pgtype.Timestamptz `json:"phone_pushed_at"`
+	ID              string             `json:"id"`
+	UserID          string             `json:"user_id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     pgtype.Text        `json:"workspace_id"`
+	Kind            string             `json:"kind"`
+	GroupKey        string             `json:"group_key"`
+	ResourceType    string             `json:"resource_type"`
+	ResourceID      string             `json:"resource_id"`
+	ActorKind       string             `json:"actor_kind"`
+	ActorID         string             `json:"actor_id"`
+	TitleKey        string             `json:"title_key"`
+	Params          string             `json:"params"`
+	Count           int32              `json:"count"`
+	CorrelationID   pgtype.Text        `json:"correlation_id"`
+	ReadAt          pgtype.Timestamptz `json:"read_at"`
+	ArchivedAt      pgtype.Timestamptz `json:"archived_at"`
+	PushedAt        pgtype.Timestamptz `json:"pushed_at"`
+	DigestedAt      pgtype.Timestamptz `json:"digested_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	PhonePushedAt   pgtype.Timestamptz `json:"phone_pushed_at"`
+	PushedMessageID pgtype.Text        `json:"pushed_message_id"`
+	PushedMessageAt pgtype.Timestamptz `json:"pushed_message_at"`
 }
 
 type NotificationDelivery struct {

@@ -183,6 +183,23 @@ func TestNotificationEndpoints(t *testing.T) {
 	if res.StatusCode != 400 {
 		t.Fatalf("subscribe expo without platform: %d", res.StatusCode)
 	}
+	// An Android build says what it can do; the marks land on the subscription.
+	res, _ = doJSON(t, srv, "POST", "/api/v1/me/push-subscriptions", member, map[string]any{
+		"endpoint": "ExponentPushToken[droid]", "keys": map[string]string{}, "platform": "android", "call_ui": true, "chat_quiet": true})
+	if res.StatusCode != 200 {
+		t.Fatalf("subscribe android with its marks: %d", res.StatusCode)
+	}
+	subs, err := q.ListActivePushSubscriptions(ctx, memberID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marked := false
+	for _, s := range subs {
+		marked = marked || (s.Endpoint == "ExponentPushToken[droid]" && s.UserAgent.String == "expo/android; call-ui; chat-quiet")
+	}
+	if !marked {
+		t.Fatalf("android subscription lost its marks: %+v", subs)
+	}
 
 	// Timezone rides on PATCH /me and is validated as an IANA name.
 	res, _ = doJSON(t, srv, "PATCH", "/api/v1/me", member, map[string]string{"timezone": "Mars/Olympus"})

@@ -1,6 +1,6 @@
 import { CHAT_MESSAGE_BODY_MAX_LENGTH } from "@uniwork/core/chat/client-msg-id";
 import { describe, expect, it } from "vitest";
-import { chatNotificationAction, chatPushTarget } from "./chat-notification";
+import { chatNotificationAction, chatPushTarget, isQuietPush } from "./chat-notification";
 
 const data = { url: "https://app/o/w/chat?room=r&message=m", tag: "chat_room:r:dm", workspace_id: "w", room_id: "r", message_id: "m" };
 const response = (actionIdentifier: string, extra: Record<string, unknown> = {}, content: unknown = data) => ({
@@ -30,7 +30,7 @@ describe("chatNotificationAction", () => {
   it("reads a reply, trimmed and capped at a message's length, keyed to its notification", () => {
     expect(chatNotificationAction(response("reply", { userText: "  ok, 9h nhé  " }))).toEqual({
       action: "reply",
-      key: "n1:reply",
+      key: "n1:m:reply",
       notificationId: "n1",
       target: { workspaceId: "w", roomId: "r", messageId: "m" },
       text: "ok, 9h nhé",
@@ -39,10 +39,18 @@ describe("chatNotificationAction", () => {
     expect(long?.action === "reply" && long.text.length).toBe(CHAT_MESSAGE_BODY_MAX_LENGTH);
   });
 
+  it("keys each push of a room apart: Android replaces the room's notification under one id", () => {
+    // Every message of a room pushes under the room's tag (server UNI-2141), so a reply to the next message
+    // comes from a notification with the same id and must not read as the one already handled.
+    const next = response("reply", { userText: "ok" }, { ...data, message_id: "m2" });
+    expect(chatNotificationAction(next)?.key).toBe("n1:m2:reply");
+    expect(chatNotificationAction(next)?.key).not.toBe(chatNotificationAction(response("reply", { userText: "ok" }))?.key);
+  });
+
   it("reads a mark as read, keyed to the message when the notification has no id", () => {
     expect(chatNotificationAction({ actionIdentifier: "mark_read", notification: { request: { content: { data } } } })).toEqual({
       action: "mark_read",
-      key: "m:mark_read",
+      key: ":m:mark_read",
       notificationId: "",
       target: { workspaceId: "w", roomId: "r", messageId: "m" },
     });
@@ -57,7 +65,7 @@ describe("chatNotificationAction", () => {
     });
     expect(chatNotificationAction(native("reply", { userText: "ok" }))).toEqual({
       action: "reply",
-      key: "n1:reply",
+      key: "n1:m:reply",
       notificationId: "n1",
       target: { workspaceId: "w", roomId: "r", messageId: "m" },
       text: "ok",
@@ -76,5 +84,15 @@ describe("chatNotificationAction", () => {
     expect(chatNotificationAction(response("reply"))).toBeNull();
     expect(chatNotificationAction(response("mark_read", {}, { url: "x" }))).toBeNull();
     expect(chatNotificationAction(null)).toBeNull();
+  });
+});
+
+describe("isQuietPush", () => {
+  it("is a chat follow-up the server sent without a sound, in either shape", () => {
+    expect(isQuietPush({ ...data, quiet: "1" })).toBe(true);
+    expect(isQuietPush({ dataString: JSON.stringify({ ...data, quiet: "1" }) })).toBe(true);
+    expect(isQuietPush(data)).toBe(false);
+    expect(isQuietPush({ ...data, quiet: "0" })).toBe(false);
+    expect(isQuietPush(null)).toBe(false);
   });
 });

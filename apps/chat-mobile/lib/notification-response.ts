@@ -3,7 +3,7 @@
 // response over: the running app's listener, and — for the tap that launched a
 // killed app — Notifications.getLastNotificationResponse(), read once at boot,
 // so that tap never depends on a listener being registered in time. Both can
-// hand over the same response: each (notification, action) runs once, and the
+// hand over the same response: each (notification, message, action) runs once, and the
 // launch response is cleared once handled so a JavaScript reload does not
 // replay it. Pure: the platform's calls are passed in.
 import type { NotificationResponse } from "expo-notifications";
@@ -29,7 +29,10 @@ export interface NotificationResponseDeps {
 export function createNotificationResponseHandler(deps: NotificationResponseDeps): (response: TappedResponse) => void {
   const handled = new Set<string>();
   return (response) => {
-    const key = `${response.notification.request.identifier}|${response.actionIdentifier}`;
+    // Android names a pushed notification by its tag, the server's group key (UniChatMessagingService lifts it), so
+    // every message of a room arrives under one id: the message it shows tells one push's tap from the next one's.
+    const messageId = response.notification.request.content.data?.message_id;
+    const key = `${response.notification.request.identifier}|${typeof messageId === "string" ? messageId : ""}|${response.actionIdentifier}`;
     if (handled.has(key)) return;
     handled.add(key);
     deps.clearLast();

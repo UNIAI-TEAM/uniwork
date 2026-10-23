@@ -39,6 +39,9 @@ type PushSubscribeSDI struct {
 	Keys     PushKeysSDI `json:"keys"`
 	Platform string      `json:"platform,omitempty" description:"ios | android, bắt buộc khi endpoint là token Expo" example:"ios"`
 	CallUI   bool        `json:"call_ui,omitempty" description:"true khi bản Android tự vẽ cuộc gọi đến (UniChat 0.3.0 trở lên): push đổ chuông và kết thúc tới máy đó là data-only; thiếu thì máy nhận push hiển thị như trước" example:"true"`
+	// ChatQuiet: the build created the chat_quiet channel and its FCM service
+	// lifts data.tag, so a room's pushes replace one notification (UNI-2141).
+	ChatQuiet bool `json:"chat_quiet,omitempty" description:"true khi bản Android đã tạo kênh chat_quiet: tin chat tới trong vòng 30 giây sau một tin đã reo của cùng phòng hiện im lặng trên kênh đó, và mỗi push của phòng thay thông báo của phòng (tiêu đề kèm số tin); thiếu thì máy không nhận các tin im lặng ấy và tiêu đề không kèm số tin" example:"true"`
 }
 
 // PushUnsubscribeSDI is DELETE /api/v1/me/push-subscriptions.

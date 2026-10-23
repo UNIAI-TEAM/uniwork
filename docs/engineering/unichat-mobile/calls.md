@@ -129,11 +129,39 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   (`lib/notification-presentation.ts`: push của workspace đang mở thì im, khác thì banner). `data/boot.ts` là phần
   boot chung (Sentry, `configureRuntime`, header) mà task nền cũng gọi; `data/app-locale.ts` cho task nền nói đúng ngôn
   ngữ. Kênh Android (`lib/notification-channels.ts`, `data/notification-channels.ts`): `calls`, `call_ongoing` (native),
-  `missed_calls`, `mentions`, `messages`, `general`, dịch theo ngôn ngữ app lúc mở và khi đổi ngôn ngữ (hai kênh native,
+  `missed_calls`, `mentions`, `messages`, `general`, `chat_quiet`, dịch theo ngôn ngữ app lúc mở và khi đổi ngôn ngữ (hai kênh native,
   khi máy reo trước lần chạy JavaScript đầu, lấy tên từ `res/values*/strings.xml` của module — `values` tiếng Anh,
   `values-vi` tiếng Việt — mà `scripts/sync-i18n.mjs` sinh từ cùng chuỗi `mobile.notify.channel_*`), kênh cũ `chat`
   bị xoá; server chọn kênh theo kind (`push_expo.go › pushChannel`) — đổi âm thanh/độ ưu tiên của kênh thì phải đổi id.
-  Thông báo tin chat (DM, nhắc tên, trả lời chủ đề) mang category `chat_message` và id workspace/phòng/tin/chủ đề
+  Mỗi tin chat (DM, nhắc tên, trả lời thread, và tin thường trong nhóm/kênh/phòng workspace) là một push (UNI-2141;
+  trước đó chỉ tin đầu của một hàng thông báo còn mở, và tin nhóm/kênh không nhắc tên thì không báo gì):
+  `Consumer.write` của server ghi `notification.push` cho mọi tin, kể cả khi hàng gộp, kèm `message_id`; tắt thông báo
+  phòng, tắt push theo loại, người gửi và đang đọc phòng (presence) vẫn chặn như cũ. Tin thường trong phòng không phải DM
+  là loại `chat_message` (`chat.message.received`, `emitChatMessageNotifications`): mỗi thành viên khác mà tin không
+  nhắc tên một hàng, gom theo phòng (`chat_room:<id>:message`, đọc phòng thì đóng), chỉ khi phòng có tối đa
+  `chatSmallRoomMembers` (50) thành viên — phòng lớn hơn chỉ báo khi được nhắc tên, như @all; trả lời thread chỉ tới
+  người theo dõi thread. Push mặc định bật, email tổng hợp mặc định tắt; tắt push của "Tin nhắn trong nhóm và kênh" ở
+  Cài đặt › Thông báo là "chỉ khi được nhắc tên" cho mọi phòng (chưa có mức riêng từng phòng ngoài tắt thông báo phòng). Lane push (nhiều
+  worker, nhiều node) giành quyền gửi một tin bằng một câu lệnh dưới khoá của hàng trước khi gửi
+  (`ClaimChatNotificationPush`): chỉ được khi hàng chưa đọc và tin đứng sau tin đã giành gần nhất theo thứ tự của phòng
+  (`pushed_message_at` = `chat_messages.created_at` theo đồng hồ DB, rồi `pushed_message_id`; không so ULID vì id sinh
+  theo đồng hồ từng node). Nên push lặp, push của tin cũ hơn tin đã giành, hay hai worker chạy cùng lúc không gửi
+  trùng; gửi lỗi thì trả lại quyền (`ReleaseChatNotificationPush`) để lần thử lại gửi như lần đầu. Gom theo phòng: iPhone nhận `threadId` (aps.thread-id) = `group_key` của hàng và xếp chồng
+  các push của phòng. Android: expo-notifications đặt tên thông báo theo `data["tag"]` ở cấp ngoài của tin FCM
+  (`FirebaseMessagingDelegate.getNotificationIdentifier`), còn Expo gửi data của server thành một chuỗi JSON dưới
+  `body`, nên `UniChatMessagingService` nhấc `tag` (= `group_key`) từ chuỗi đó lên trước khi chuyển cho
+  expo-notifications (`PushTag.kt`, test `PushTagTest`) — mỗi push thay thông báo của phòng, và chỉ bản có bước nhấc
+  này (cùng bản đăng ký `chat_quiet`) mới nhận tiêu đề thêm "· N tin nhắn mới"; bản cũ vẫn mỗi push một thông báo,
+  tiêu đề trơn. Một đợt tin chỉ reo một lần mỗi `chatAlertWindow` (30 s, `push_consumer.go`): `phone_pushed_at`
+  là lần cuối điện thoại reo cho hàng, đặt cùng lúc giành quyền và tính theo đồng hồ DB; tin tới trong cửa sổ là tin im (`quiet` = `1` trong data): iPhone không
+  `sound`, mức `passive`; Android đi kênh `chat_quiet` (độ ưu tiên mặc định, không chuông, không rung — không để mức thấp, vì Android 10+
+  dồn thông báo mức thấp vào mục "Im lặng" thu gọn và bỏ biểu tượng trên thanh trạng thái), chỉ tới bản đã
+  đăng ký `chat_quiet: true` (`data/push.ts`, user agent `…; chat-quiet`) — bản cũ không có kênh đó sẽ hiện trên kênh
+  dự phòng có chuông, nên không nhận tin im; listener khi app mở cũng không phát tiếng cho tin im
+  (`foregroundBehavior`). Đọc phòng đóng hàng, nên tin đầu sau khi đọc luôn reo. Khoá của hành động thông báo là
+  `<id thông báo>:<id tin>:<hành động>` (`lib/chat-notification.ts`), và khoá chống chạm hai lần cũng có id tin
+  (`lib/notification-response.ts`): Android giữ một id cho mọi push của phòng.
+  Thông báo tin chat (DM, nhắc tên, tin nhóm/kênh, trả lời thread) mang category `chat_message` và id workspace/phòng/tin/chủ đề
   (server `push_expo.go › ChatMessageCategory`, `chatData`); app đăng ký category đó lúc mở và khi đổi ngôn ngữ
   (`data/chat-notification-actions.ts`): **Trả lời** (ô nhập) gửi qua outbox như mọi lần gửi rồi đánh dấu phòng đã đọc,
   **Đánh dấu đã đọc** xếp lượt đọc; cả hai gỡ thông báo, không mở app trên Android (task nền thông báo —
@@ -153,8 +181,8 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   category `chat_message` (Trả lời có RemoteInput) do expo dựng (`NotificationsService.createNotificationResponseIntent`)
   để `runChatNotificationAction` và `data.url` của lần chạm còn chạy; ẩn xem trước (`hiddenPushTitle`, thân rỗng) giữ
   phẳng. Còn thiếu ở server: data push chat chỉ có id, nên MessagingStyle không có tên người gửi và tên phòng tách
-  riêng (cần `sender_name`, `room_name`, loại phòng — chỉ khi không ẩn xem trước); và mỗi nhóm mở chỉ push một lần
-  (`pushed_at`), nên hội thoại chỉ có tin đầu tới khi phòng được đọc. Hoãn vì: không build/kiểm được Android ở máy làm
+  riêng (cần `sender_name`, `room_name`, loại phòng — chỉ khi không ẩn xem trước); mỗi tin giờ đã có push riêng
+  (UNI-2141), nên MessagingStyle chỉ cần nối các push cùng tag thay vì thay. Hoãn vì: không build/kiểm được Android ở máy làm
   việc này, và một lỗi ở bước bọc làm hỏng Trả lời/chạm trên mọi push chat; làm sau công tắc mobile mới (keys.go +
   `MOBILE_FLAG_DEFAULTS`), có test Robolectric giữ tag/id/extra/nút, và checklist máy thật Android 11+ (mục Hội thoại
   cần `setShortcutId` với shortcut động dài hạn).

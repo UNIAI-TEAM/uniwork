@@ -78,10 +78,16 @@ describe("registerPushToken", () => {
   it("tells the server an Android build draws its own incoming call, so call pushes come data-only", async () => {
     const { registerPushToken } = await load();
     await registerPushToken({ api, projectId: "p1", platform: "android", callUI: true });
-    expect(api.subscribePush).toHaveBeenLastCalledWith({ endpoint: "ExponentPushToken[abc]", keys: { p256dh: "", auth: "" }, platform: "android", call_ui: true });
+    expect(api.subscribePush).toHaveBeenLastCalledWith({
+      endpoint: "ExponentPushToken[abc]",
+      keys: { p256dh: "", auth: "" },
+      platform: "android",
+      call_ui: true,
+      chat_quiet: true,
+    });
     // Without the native module (callUI false) the server keeps the visible call push; an iPhone never says it.
     await registerPushToken({ api, projectId: "p1", platform: "android", callUI: false });
-    expect(api.subscribePush).toHaveBeenLastCalledWith({ endpoint: "ExponentPushToken[abc]", keys: { p256dh: "", auth: "" }, platform: "android" });
+    expect(api.subscribePush).toHaveBeenLastCalledWith({ endpoint: "ExponentPushToken[abc]", keys: { p256dh: "", auth: "" }, platform: "android", chat_quiet: true });
     await registerPushToken({ api, projectId: "p1", platform: "ios", callUI: true });
     expect(api.subscribePush).toHaveBeenLastCalledWith({ endpoint: "ExponentPushToken[abc]", keys: { p256dh: "", auth: "" }, platform: "ios" });
   });
@@ -221,7 +227,13 @@ describe("watchPushTokenRotation", () => {
     emitDeviceToken("fcm-2");
     await flush();
     expect(api.subscribePush).toHaveBeenCalledTimes(2);
-    expect(api.subscribePush).toHaveBeenLastCalledWith({ endpoint: "ExponentPushToken[new]", keys: { p256dh: "", auth: "" }, platform: "android", call_ui: true });
+    expect(api.subscribePush).toHaveBeenLastCalledWith({
+      endpoint: "ExponentPushToken[new]",
+      keys: { p256dh: "", auth: "" },
+      platform: "android",
+      call_ui: true,
+      chat_quiet: true,
+    });
     // Never a prompt: only a permission already granted counts.
     expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
     expect(api.unsubscribePush).toHaveBeenCalledWith({ endpoint: "ExponentPushToken[abc]" });

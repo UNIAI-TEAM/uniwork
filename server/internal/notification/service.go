@@ -391,10 +391,11 @@ func (s *Service) SetPreferences(ctx context.Context, userID string, prefs []Kin
 // SubscribePush registers (or refreshes) a browser's push subscription, or
 // the mobile app's Expo token, which needs neither VAPID nor keys. sessionID
 // is the caller's token `sid`, so revoking that device closes the push too.
-// callUI is an Android build saying it draws its own incoming call: only then
-// do call pushes reach it data-only (push_expo.go › expoMessageFor). The app
+// caps is what an Android build says it can do (PushCaps): draw its own
+// incoming call, so call pushes reach it data-only (push_expo.go ›
+// expoMessageFor), and show a chat follow-up on its quiet channel. The app
 // registers on every launch, so an updated build marks its token at once.
-func (s *Service) SubscribePush(ctx context.Context, userID, sessionID, endpoint, p256dh, auth, userAgent, platform string, callUI bool) error {
+func (s *Service) SubscribePush(ctx context.Context, userID, sessionID, endpoint, p256dh, auth, userAgent, platform string, caps PushCaps) error {
 	if strings.HasPrefix(endpoint, "Expo") {
 		if !isExpoPushToken(endpoint) {
 			return service.Invalid("token Expo không hợp lệ")
@@ -404,7 +405,7 @@ func (s *Service) SubscribePush(ctx context.Context, userID, sessionID, endpoint
 		}
 		_, err := s.q.UpsertPushSubscription(ctx, db.UpsertPushSubscriptionParams{
 			ID: util.NewID(), UserID: userID, Endpoint: endpoint, P256dh: "", Auth: "",
-			UserAgent: optText(expoUserAgent(platform, callUI)), SessionID: optText(sessionID),
+			UserAgent: optText(expoUserAgent(platform, caps)), SessionID: optText(sessionID),
 		})
 		return err
 	}

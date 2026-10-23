@@ -177,6 +177,9 @@ var catalogue = []EventDef{
 	// chat page still hears chat.mention.created and chat.message.created.
 	{Topic: "chat.message.mentioned", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.dm.received", Version: 1, Payload: []string{"room_id", "message_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	// A message in a group, channel or workspace room of at most
+	// chatSmallRoomMembers, one row per other member it does not name (UNI-2141).
+	{Topic: "chat.message.received", Version: 1, Payload: []string{"room_id", "message_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_received", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.voice.invite_received", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	// A call stopped ringing for one person (answered, declined, ended): the
@@ -373,9 +376,10 @@ var catalogue = []EventDef{
 	{Topic: "quota.threshold", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 
 	// Notifications (F-07). created goes to the recipient's own connections so
-	// the badge refreshes; push is infrastructure work for the push consumer.
+	// the badge refreshes; push is infrastructure work for the push consumer,
+	// and names the chat message it is about (one push per message, UNI-2141).
 	{Topic: "notification.created", Version: 1, Payload: []string{"notification_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
-	{Topic: "notification.push", Version: 1, Payload: []string{"notification_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "notification.push", Version: 1, Payload: []string{"notification_id", "user_id", "message_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// AI gateway (F-09): a usage row completed; Settings → AI refreshes.
 	{Topic: "ai.usage.updated", Version: 1, Payload: []string{"organization_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},

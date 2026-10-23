@@ -248,6 +248,66 @@ UPDATE notifications SET pushed_at = COALESCE(pushed_at, now()), phone_pushed_at
 WHERE id = $1
 RETURNING (read_at IS NOT NULL)::bool AS read;
 
+-- name: ClaimChatNotificationPush :one
+-- tenant: system
+-- Claims one message's push of a chat row before it is sent (UNI-2141): every
+-- message of a room pushes, and the push lane runs several workers on several
+-- nodes, so the claim is one statement under the row's lock. It succeeds only
+-- while the row is unread and the message comes after the last one claimed, in
+-- the room's order (created_at, then id: ids are minted on each node's clock,
+-- created_at on the database's); no row back means send nothing. With a phone
+-- among the person's devices, phone_pushed_at is when a phone last ALERTED for
+-- the row: the claim moves it, and answers alerted, only when the last alert is
+-- alert_window_seconds old, so a burst alerts once and the window runs on the
+-- database's clock. The prev_ columns are the row before the claim, for
+-- ReleaseChatNotificationPush.
+WITH old AS (
+  SELECT cur.id, cur.pushed_at, cur.pushed_message_id, cur.pushed_message_at, cur.phone_pushed_at, cur.read_at
+  FROM notifications AS cur WHERE cur.id = sqlc.arg('id')
+  FOR UPDATE
+)
+UPDATE notifications AS n SET
+  pushed_at = COALESCE(old.pushed_at, now()),
+  pushed_message_id = sqlc.arg('message_id')::text,
+  pushed_message_at = sqlc.arg('message_at')::timestamptz,
+  phone_pushed_at = CASE
+    WHEN sqlc.arg('phone')::bool AND (
+      old.phone_pushed_at IS NULL
+      OR old.phone_pushed_at <= now() - make_interval(secs => sqlc.arg('alert_window_seconds')::float8)
+    ) THEN now()
+    ELSE old.phone_pushed_at
+  END
+FROM old
+WHERE n.id = old.id
+  AND old.read_at IS NULL
+  AND (
+    old.pushed_message_at IS NULL
+    OR (old.pushed_message_at, COALESCE(old.pushed_message_id, ''))
+      < (sqlc.arg('message_at')::timestamptz, sqlc.arg('message_id')::text)
+  )
+RETURNING
+  old.pushed_at AS prev_pushed_at,
+  old.pushed_message_id AS prev_message_id,
+  old.pushed_message_at AS prev_message_at,
+  old.phone_pushed_at AS prev_phone_pushed_at,
+  (n.phone_pushed_at IS DISTINCT FROM old.phone_pushed_at)::bool AS alerted;
+
+-- name: ReleaseChatNotificationPush :exec
+-- tenant: system
+-- Gives a claim back when its push failed, so the lane's retry of the row
+-- sends it (and alerts) as the first try would have. Only while the claim is
+-- still the row's: a newer message claimed since is left as it is.
+UPDATE notifications SET
+  pushed_at = sqlc.narg('prev_pushed_at')::timestamptz,
+  pushed_message_id = sqlc.narg('prev_message_id')::text,
+  pushed_message_at = sqlc.narg('prev_message_at')::timestamptz,
+  phone_pushed_at = sqlc.narg('prev_phone_pushed_at')::timestamptz
+WHERE id = sqlc.arg('id') AND pushed_message_id = sqlc.arg('message_id')::text;
+
+-- name: IsNotificationRead :one
+-- tenant: system
+SELECT (read_at IS NOT NULL)::bool AS read FROM notifications WHERE id = $1;
+
 -- name: ListDigestCandidateUsers :many
 -- tenant: system
 SELECT DISTINCT n.user_id FROM notifications n
