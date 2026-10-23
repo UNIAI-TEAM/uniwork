@@ -305,15 +305,18 @@ func (s *ChatService) ensureVoiceRoomMember(ctx context.Context, room db.ChatRoo
 	default:
 		return ErrForbidden
 	}
-	if _, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+	_, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: room.ID, UserID: userID,
-	}); err == nil {
+	})
+	if err == nil {
 		return nil
-	} else if !errors.Is(err, pgx.ErrNoRows) {
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
 	anchorWS := roomAnchorWorkspaceID(room)
-	return s.ensureRoomMember(ctx, room, anchorWS, userID, "member")
+	_, err = s.addRoomMember(ctx, s.q, room, anchorWS, userID, "member")
+	return err
 }
 
 func (s *ChatService) userCanJoinVoiceRoom(ctx context.Context, room db.ChatRoom, userID string) (bool, error) {

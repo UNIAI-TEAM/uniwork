@@ -18,7 +18,6 @@ import type { VoiceCallPanelMode } from "./voice-call-floating-panel";
 import { voiceCallPrimaryLeaveEndsForAll } from "@uniwork/core/chat/voice-call-kind";
 import { prepareVideoCapture, prepareVoiceCapture } from "./voice-call-media";
 import { VoiceCallOverlay, type VoiceCallKind } from "./voice-call-overlay";
-import { acceptVoiceCallWithFallback } from "./voice-call-accept";
 import type { VoiceCallDeviceError, VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 
 type ChatVoiceCallContextValue = {
@@ -30,8 +29,6 @@ type ChatVoiceCallContextValue = {
     callKind: VoiceCallKind,
     options?: { withCamera?: boolean },
   ) => Promise<boolean>;
-  acceptCall: () => Promise<boolean>;
-  declineCall: () => Promise<void>;
   inCall: boolean;
   /** Panel, pill or fullscreen; the chat's call bar shows while it is the pill. */
   panelMode: VoiceCallPanelMode;
@@ -167,14 +164,12 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
     () => ({
       voiceCall: voice.voiceCall,
       startCall,
-      acceptCall,
-      declineCall: voice.declineCall,
       inCall: voice.inCall,
       panelMode,
       expandCall,
       hangUp,
     }),
-    [voice.voiceCall, voice.declineCall, voice.inCall, startCall, acceptCall, panelMode, expandCall, hangUp],
+    [voice.voiceCall, voice.inCall, startCall, panelMode, expandCall, hangUp],
   );
 
   const incomingDeviceError =
@@ -189,7 +184,7 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
         workspaceId={workspaceId}
         state={voice.voiceCall}
         incomingDeviceError={incomingDeviceError}
-        onAccept={() => void acceptVoiceCallWithFallback(acceptCall, voice.declineCall)}
+        onAccept={() => void acceptCall()}
         onDecline={() => void voice.declineCall()}
         onLeave={voice.leaveCall}
         onDisconnected={voice.finalizeCallOnDisconnect}

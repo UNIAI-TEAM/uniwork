@@ -355,7 +355,7 @@ export function ChatPageView({ workspaceId, currentUserId, desktopOpen }: { work
     [nameContext, rawRoomPreviews],
   );
 
-  const { startCall, acceptCall, declineCall, inCall } = useChatVoiceCall();
+  const { startCall, inCall } = useChatVoiceCall();
   const { handleStartVoiceCall, handleStartVideoCall } = useChatVoiceHandlers({
     targetKind: target.kind,
     activeRoomId,
@@ -363,8 +363,6 @@ export function ChatPageView({ workspaceId, currentUserId, desktopOpen }: { work
     activeGroup,
     activeChannel,
     startCall,
-    acceptCall,
-    declineCall,
   });
   // "Minh đang nhập…": who types goes by the given name, as the list says it (canvas).
   const typingNames = useMemo(

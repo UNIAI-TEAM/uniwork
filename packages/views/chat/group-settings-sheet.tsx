@@ -366,7 +366,6 @@ export function GroupSettingsSheet({
                             onKick={() =>
                               moderation.requestRemove(
                                 member.key,
-                                member.label,
                                 t("chat.group_kick_confirm", { name: member.label }),
                               )
                             }

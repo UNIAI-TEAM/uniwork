@@ -2843,7 +2843,7 @@ func (q *Queries) LockChatRoom(ctx context.Context, id string) error {
 
 const markChatThreadRead = `-- name: MarkChatThreadRead :exec
 UPDATE chat_thread_followers
-SET last_read_at = $3, updated_at = now()
+SET last_read_at = GREATEST(last_read_at, $3::timestamptz), updated_at = now()
 WHERE thread_root_id = $1 AND user_id = $2
 `
 
@@ -3665,7 +3665,7 @@ ON CONFLICT (thread_root_id, user_id) DO UPDATE SET
     WHEN EXCLUDED.reason = 'replied' THEN EXCLUDED.reason
     ELSE EXCLUDED.reason
   END,
-  last_read_at = COALESCE(EXCLUDED.last_read_at, chat_thread_followers.last_read_at)
+  last_read_at = GREATEST(chat_thread_followers.last_read_at, EXCLUDED.last_read_at)
 `
 
 type UpsertChatThreadFollowerParams struct {

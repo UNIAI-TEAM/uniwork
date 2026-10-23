@@ -4360,7 +4360,7 @@
     "file_download": "Download file",
     "file_drop_hint": "Drop a file to send",
     "file_drop_detail": "Images, PDF, Word, Excel or text · up to {{max}} each",
-    "file_type_unsupported": "Unsupported file type. Use an image, PDF, or plain text.",
+    "file_type_unsupported": "Unsupported file type. Use an image, PDF, plain text, CSV, or Markdown.",
     "voice_record_failed": "Could not record audio. Check microphone access and try again.",
     "info_panel": {
       "title_group": "Group info",
