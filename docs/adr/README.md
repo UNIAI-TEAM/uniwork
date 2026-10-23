@@ -90,3 +90,8 @@ dự phòng. Chờ tài khoản Apple Developer.
 
 [0025](0025-mot-process-cho-api-va-worker.md) chưa có guard test (test chạy hai bản của mỗi
 job, land cùng việc làm worker an toàn đa replica); đến lúc đó 0025 không thêm luật vào `CLAUDE.md`.
+
+`drafts/0044-hoi-uni-ghi-qua-de-xuat-tren-server-va-ba-che-do-quyen.md` (UNI-2148, 2026-10-23, `proposed`):
+Hỏi UNI ghi qua đề xuất lưu trên server, ba chế độ quyền, lượt bị nhiễm thì phải hỏi; mở rộng 0033 sang
+kênh Hỏi UNI. Spec Hỏi UNI v2 gọi nó là "ADR 0034"; số đó đã dùng nên lấy 0044. Chờ chủ sản phẩm duyệt
+cùng kế hoạch `docs/superpowers/plans/2026-10-23-ask-uni-p3.md`.
