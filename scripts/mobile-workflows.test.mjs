@@ -485,6 +485,17 @@ test("every PR that needs the signed-in flows runs them against a server it star
   }
   // Screenshots and server logs only: Maestro's own log holds the typed password.
   assert.match(job, /~\/\.maestro\/tests\/\*\*\/\*\.png/);
+  // A flow that dies into an error screen says why: the device log of a failed flow, taken before the emulator goes
+  // (scripts/maestro-retry.sh › MAESTRO_LOGCAT), in a buffer big enough for both attempts, without the password's
+  // lines, its JavaScript lines in the job log, and both files in the artifact.
+  assert.match(job, /^ {10}MAESTRO_LOGCAT: \$\{\{ runner\.temp \}\}\/logcat\.txt$/m);
+  assert.match(job, /^ {12}adb logcat -G 16M\b/m);
+  assert.match(job, /grep -vF -- "\$MAESTRO_TEST_PASSWORD" "\$log"/);
+  assert.match(job, /ReactNativeJS\|ReactNative\|AndroidRuntime/);
+  assert.match(job, /^ {12}\$\{\{ runner\.temp \}\}\/logcat\.txt$/m);
+  assert.match(job, /^ {12}\$\{\{ runner\.temp \}\}\/logcat-js\.txt$/m);
+  const logStep = job.indexOf("name: The device log of a failed flow");
+  assert.ok(logStep > 0 && logStep < job.indexOf("name: maestro-e2e"), "the log is cut down before the artifact is uploaded");
 });
 
 test("mobile-verify declares the force_native input the release passes", () => {

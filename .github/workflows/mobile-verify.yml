@@ -606,6 +606,10 @@ jobs:
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
       - name: Signed-in flows on an emulator
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          # A flow that fails for good appends the device's log here (scripts/maestro-retry.sh): a JavaScript error an
+          # error boundary caught shows only as its fallback screen, and the emulator is gone after this step.
+          MAESTRO_LOGCAT: ${{ runner.temp }}/logcat.txt
         with:
           api-level: 35
           # google_apis carries Chrome, which hosts the sign-in Custom Tab.
@@ -618,20 +622,38 @@ jobs:
             adb install apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
             adb shell am set-debug-app --persistent com.android.chrome
             adb shell 'echo "chrome --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
+            adb logcat -G 16M || echo "::warning::logcat kept its default buffer; a long failure may have rotated out"
+            adb logcat -c
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/chat-read-send.yaml
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/offline-send-relaunch.yaml
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/background-resume.yaml
       - if: failure()
         run: tail -n 150 "$RUNNER_TEMP/server.log" "$RUNNER_TEMP/web.log"
+      - name: The device log of a failed flow
+        if: failure()
+        run: |
+          log="$RUNNER_TEMP/logcat.txt"
+          [ -f "$log" ] || { echo "No device log: no flow failed for good on the emulator."; exit 0; }
+          # Maestro typed the seeded account's password: no line holding it leaves the runner.
+          if [ -n "${MAESTRO_TEST_PASSWORD:-}" ]; then
+            grep -vF -- "$MAESTRO_TEST_PASSWORD" "$log" > "$log.redacted" || true
+            mv "$log.redacted" "$log"
+          fi
+          # The JavaScript side (console.error of a caught render error, a fatal JS exception) and native crashes.
+          grep -E ' [VDIWEF] (ReactNativeJS|ReactNative|AndroidRuntime) *:' "$log" > "$RUNNER_TEMP/logcat-js.txt" || true
+          tail -n 200 "$RUNNER_TEMP/logcat-js.txt"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: maestro-e2e
-          # Screenshots and the server logs only: Maestro's command log records the typed test password.
+          # Screenshots, the server logs and the device log without the password's lines: Maestro's command log records
+          # the typed test password.
           path: |
             ~/.maestro/tests/**/*.png
             ${{ runner.temp }}/server.log
             ${{ runner.temp }}/web.log
+            ${{ runner.temp }}/logcat.txt
+            ${{ runner.temp }}/logcat-js.txt
           if-no-files-found: ignore
           retention-days: 7
 

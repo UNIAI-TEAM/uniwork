@@ -8,8 +8,11 @@ import path from "node:path";
 // scripts/maestro-retry.sh: one retry for a device run, never a silent one.
 const script = path.join(import.meta.dirname, "maestro-retry.sh");
 
-/** Runs the script with a fake `maestro` that fails its first `failures` calls. */
-function run(failures, env = {}) {
+/**
+ * Runs the script with a fake `maestro` that fails its first `failures` calls, and a fake `adb` whose log is one line.
+ * `logcat: true` points MAESTRO_LOGCAT at a file in the run's directory and returns what was written there.
+ */
+function run(failures, env = {}, { logcat = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "maestro-retry-"));
   try {
     const count = path.join(dir, "count");
@@ -19,9 +22,11 @@ function run(failures, env = {}) {
       `#!/bin/sh\nn=$(($(cat "${count}") + 1))\necho "$n" > "${count}"\necho "maestro $*"\n[ "$n" -gt ${failures} ]\n`,
       { mode: 0o755 },
     );
+    fs.writeFileSync(path.join(dir, "adb"), '#!/bin/sh\necho "adb $* | E ReactNativeJS: TypeError: boom"\n', { mode: 0o755 });
     const summary = path.join(dir, "summary");
+    const log = path.join(dir, "logcat.txt");
     const result = spawnSync("bash", [script, "test", "flows/smoke-launch.yaml"], {
-      env: { PATH: `${dir}:${process.env.PATH}`, GITHUB_STEP_SUMMARY: summary, ...env },
+      env: { PATH: `${dir}:${process.env.PATH}`, GITHUB_STEP_SUMMARY: summary, ...(logcat ? { MAESTRO_LOGCAT: log } : {}), ...env },
       encoding: "utf8",
     });
     return {
@@ -29,6 +34,7 @@ function run(failures, env = {}) {
       out: result.stdout,
       calls: Number(fs.readFileSync(count, "utf8")),
       summary: fs.existsSync(summary) ? fs.readFileSync(summary, "utf8") : "",
+      logcat: fs.existsSync(log) ? fs.readFileSync(log, "utf8") : null,
     };
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -60,6 +66,17 @@ test("a run that fails twice fails, and MAESTRO_ATTEMPTS=1 turns the retry off",
   const once = run(1, { MAESTRO_ATTEMPTS: "1" });
   assert.equal(once.status, 1);
   assert.equal(once.calls, 1);
+});
+
+// CI's Android flow showed the workspace's error screen and nothing else: the JavaScript error was only in logcat,
+// and the emulator was gone by the time a later step could ask for it.
+test("a run that fails for good dumps the device log where MAESTRO_LOGCAT says, and only then", () => {
+  const failed = run(2, {}, { logcat: true });
+  assert.equal(failed.status, 1);
+  assert.match(failed.logcat ?? "", /^--- adb logcat -d after: maestro test flows\/smoke-launch\.yaml$/m);
+  assert.match(failed.logcat ?? "", /^adb logcat -d -v threadtime \| E ReactNativeJS: TypeError: boom$/m);
+  assert.equal(run(1, {}, { logcat: true }).logcat, null, "a pass on the retry dumps nothing");
+  assert.equal(run(2).logcat, null, "without MAESTRO_LOGCAT (iOS) nothing calls adb");
 });
 
 // Review P2: the retry reruns a flow from its first command. A flow that turns airplane mode on and fails before it

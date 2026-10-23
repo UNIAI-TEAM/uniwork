@@ -99,8 +99,12 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   gọi API ở `10.0.2.2:8080` (địa chỉ của runner nhìn từ emulator, nên chế độ máy bay cắt được thật), Chrome mở trang web
   ở `localhost:3000` qua `adb reverse` (secure context như site thật). Chạy `chat-read-send.yaml`,
   `offline-send-relaunch.yaml` và `background-resume.yaml` qua `scripts/maestro-retry.sh`; không đọc secret nào. Artifact
-  `maestro-e2e`: ảnh chụp và log server/web (không log Maestro: nó ghi mật khẩu được gõ). Đỏ ở đây mà nightly xanh:
-  thường là seed lệch API (log server trong artifact) hay trang web đổi chữ mà `lib/maestro-flows.test.ts` chưa thấy.
+  `maestro-e2e`: ảnh chụp và log server/web (không log Maestro: nó ghi mật khẩu được gõ), và khi một flow đỏ hẳn thì
+  log máy: `scripts/maestro-retry.sh` chép `adb logcat -d` vào `logcat.txt` (`MAESTRO_LOGCAT`) trước khi emulator tắt,
+  bước sau bỏ mọi dòng chứa mật khẩu và lọc `ReactNativeJS`/`ReactNative`/`AndroidRuntime` ra `logcat-js.txt` (in luôn
+  vào log job). Màn "This screen hit a problem" là lỗi render một error boundary đã bắt: câu lỗi JavaScript nằm ở
+  `logcat-js.txt`, không ở ảnh chụp. Đỏ ở đây mà nightly xanh: thường là seed lệch API (log server trong artifact) hay
+  trang web đổi chữ mà `lib/maestro-flows.test.ts` chưa thấy.
   Lần chạy xanh đầu tiên trên GitHub là việc owner xem trước khi bật branch protection (mục trên): job chưa từng chạy
   trên runner thật.
 - **Máy thật hằng tuần** (`chat-mobile-device-farm.yml`, Firebase Test Lab, audit "no-real-device-farm"): mỗi thứ Hai

@@ -10,6 +10,13 @@
 #
 #   scripts/maestro-retry.sh test flows/smoke-launch.yaml
 #   MAESTRO_ATTEMPTS=1 scripts/maestro-retry.sh test …   (no retry)
+#   MAESTRO_LOGCAT=/tmp/logcat.txt scripts/maestro-retry.sh test …
+#
+# With MAESTRO_LOGCAT set (an Android run), a flow that fails for good appends
+# the device's log (`adb logcat -d`) to that file: a JavaScript error an error
+# boundary caught leaves only its fallback in the screenshots, and the error
+# itself only in logcat (ReactNativeJS). The emulator is gone once the job's
+# emulator step ends, so the dump has to happen here.
 set -u
 
 attempts="${MAESTRO_ATTEMPTS:-2}"
@@ -26,6 +33,9 @@ while :; do
   fi
   if [ "$attempt" -ge "$attempts" ]; then
     echo "::error title=Device run failed::maestro $* failed $attempts time(s)"
+    if [ -n "${MAESTRO_LOGCAT:-}" ]; then
+      { echo "--- adb logcat -d after: maestro $*"; adb logcat -d -v threadtime; } >> "$MAESTRO_LOGCAT" 2>&1 || echo "::warning::adb logcat -d failed; no device log for maestro $*"
+    fi
     exit 1
   fi
   echo "::warning::maestro $* failed on attempt $attempt of $attempts; running it again"
