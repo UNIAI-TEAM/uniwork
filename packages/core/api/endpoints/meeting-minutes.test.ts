@@ -5,6 +5,7 @@ import {
   createMeetingMinutes,
   finalizeMeetingMinutes,
   getMeetingMinutes,
+  refreshMeetingMinutes,
   reopenMeetingMinutes,
 } from "./meeting-minutes";
 
@@ -20,6 +21,7 @@ const finalized = {
   finalized_version: 2,
   edited_since_finalized: true,
   can_edit: true,
+  pending_items: 2,
 };
 
 describe("meeting minutes endpoints", () => {
@@ -40,12 +42,14 @@ describe("meeting minutes endpoints", () => {
     await createMeetingMinutes("m 1", "en");
     await finalizeMeetingMinutes("m 1");
     await reopenMeetingMinutes("m 1");
+    await refreshMeetingMinutes("m 1");
     const calls = vi.mocked(fetch).mock.calls.map(([url, init]) => [String(url), init?.method ?? "GET"]);
     expect(calls).toEqual([
       ["http://api.test/api/v1/meetings/m%201/minutes", "GET"],
       ["http://api.test/api/v1/meetings/m%201/minutes", "POST"],
       ["http://api.test/api/v1/meetings/m%201/minutes/finalize", "POST"],
       ["http://api.test/api/v1/meetings/m%201/minutes/reopen", "POST"],
+      ["http://api.test/api/v1/meetings/m%201/minutes/refresh", "POST"],
     ]);
     expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1]![1]?.body))).toEqual({ locale: "en" });
   });
@@ -67,8 +71,14 @@ describe("meeting minutes endpoints", () => {
       finalized: false,
       edited_since_finalized: false,
       can_edit: false,
+      pending_items: 0,
     });
     vi.mocked(fetch).mockResolvedValueOnce(json("nope"));
     expect(await finalizeMeetingMinutes("m1")).toBeNull();
+    // A pending count that is not a count reads as none; an old server sends none.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ minutes: { ...finalized, pending_items: "two" } }));
+    expect((await refreshMeetingMinutes("m1"))?.pending_items).toBe(0);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ minutes: { ...finalized, pending_items: -1 } }));
+    expect((await getMeetingMinutes("m1"))?.pending_items).toBe(0);
   });
 });

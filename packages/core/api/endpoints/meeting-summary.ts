@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MeetingSummarySchema, type MeetingSummary } from "../../types/meeting";
+import { MeetingSummaryRunSchema, MeetingSummarySchema, type MeetingSummary, type MeetingSummaryRun } from "../../types/meeting";
 import { ApiError, request } from "../http";
 import { parseWithFallback } from "../schema";
 
@@ -7,14 +7,28 @@ const enc = encodeURIComponent;
 
 const SummaryResponse = z.object({ summary: MeetingSummarySchema.nullable() });
 
-export async function getMeetingSummary(meetingId: string): Promise<MeetingSummary | null> {
+const IDLE_RUN: MeetingSummaryRun = { status: "idle", at: null, attempts: 0 };
+
+const SummaryStateResponse = z.object({
+  summary: MeetingSummarySchema.nullable().catch(null),
+  /** Absent on a server before UNI-1995: idle. */
+  run: MeetingSummaryRunSchema.optional().transform((r) => r ?? IDLE_RUN),
+});
+
+/** A meeting's latest summary and whether one is being made. */
+export interface MeetingSummaryState {
+  summary: MeetingSummary | null;
+  run: MeetingSummaryRun;
+}
+
+export async function getMeetingSummary(meetingId: string): Promise<MeetingSummaryState> {
   try {
     const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary`);
-    return parseWithFallback(raw, SummaryResponse, { summary: null }, { endpoint: "getMeetingSummary" }).summary;
+    return parseWithFallback(raw, SummaryStateResponse, { summary: null, run: IDLE_RUN }, { endpoint: "getMeetingSummary" });
   } catch (err) {
     // Older servers returned 404 when no summary existed yet.
     if (err instanceof ApiError && err.status === 404 && err.code === "not_found") {
-      return null;
+      return { summary: null, run: IDLE_RUN };
     }
     throw err;
   }

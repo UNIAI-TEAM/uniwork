@@ -53,6 +53,11 @@ export function useFinalizeMeetingMinutes(meetingId: string) {
   return useMinutesMutation(meetingId, () => api.finalizeMeetingMinutes(meetingId));
 }
 
+/** Facts-only refresh of draft minutes: tasks, votes and the roll as they now stand. */
+export function useRefreshMeetingMinutes(meetingId: string) {
+  return useMinutesMutation(meetingId, () => api.refreshMeetingMinutes(meetingId));
+}
+
 export function useReopenMeetingMinutes(meetingId: string) {
   return useMinutesMutation(meetingId, () => api.reopenMeetingMinutes(meetingId));
 }

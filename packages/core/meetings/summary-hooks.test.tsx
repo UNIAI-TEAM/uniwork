@@ -3,12 +3,22 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/http";
-import { meetingCatchUpKey, summaryQueryRetry, useMeetingCatchUp, useMeetingEvidenceOf } from "./summary-hooks";
+import {
+  SUMMARY_RUN_POLL_MS,
+  meetingCatchUpKey,
+  summaryQueryRetry,
+  useMeetingCatchUp,
+  useMeetingEvidenceOf,
+  useMeetingSummary,
+  useMeetingSummaryRun,
+} from "./summary-hooks";
 
 const catchUp = vi.hoisted(() => vi.fn());
+const getSummary = vi.hoisted(() => vi.fn());
 vi.mock("../api/endpoints/meeting-summary", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   createMeetingCatchUp: catchUp,
+  getMeetingSummary: getSummary,
 }));
 const evidence = vi.hoisted(() => vi.fn());
 vi.mock("../api/endpoints/meeting-evidence", () => ({ getMeetingEvidence: evidence }));
@@ -19,6 +29,33 @@ describe("summaryQueryRetry", () => {
     expect(summaryQueryRetry(0, new ApiError("boom", "internal", 500))).toBe(true);
     expect(summaryQueryRetry(0, new TypeError("Failed to fetch"))).toBe(true);
     expect(summaryQueryRetry(3, new ApiError("boom", "internal", 500))).toBe(false);
+  });
+});
+
+describe("useMeetingSummaryRun", () => {
+  it("shares one answer with useMeetingSummary and reads it again while a summary is being made", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const made = { id: "s1", meeting_id: "m1", summary: "Đã chốt", decisions: [] };
+    getSummary
+      .mockResolvedValueOnce({ summary: null, run: { status: "running", at: "2026-10-23T02:00:00Z", attempts: 1 } })
+      .mockResolvedValue({ summary: made, run: { status: "idle", at: null, attempts: 1 } });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client: qc }, children);
+    const { result } = renderHook(() => ({ run: useMeetingSummaryRun("m1"), summary: useMeetingSummary("m1") }), { wrapper });
+    await waitFor(() => expect(result.current.run.data?.status).toBe("running"));
+    expect(result.current.summary.data).toBeNull();
+    expect(getSummary).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SUMMARY_RUN_POLL_MS);
+    });
+    await waitFor(() => expect(result.current.run.data?.status).toBe("idle"));
+    expect(result.current.summary.data).toEqual(made);
+    // Idle: no more polling.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SUMMARY_RUN_POLL_MS * 3);
+    });
+    expect(getSummary).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 });
 

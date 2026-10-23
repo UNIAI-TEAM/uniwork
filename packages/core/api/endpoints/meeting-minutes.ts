@@ -17,6 +17,8 @@ const MinutesSchema = z.object({
   edited_since_finalized: z.boolean().catch(false),
   /** The caller may edit the page (finalizing and reopening need it). */
   can_edit: z.boolean().catch(false),
+  /** Action items still pending (neither converted nor dismissed): warn before finalizing. */
+  pending_items: z.number().int().nonnegative().catch(0),
 });
 
 /** A meeting's minutes (spec meeting follow-through §6.6); null when it has none. */
@@ -42,6 +44,11 @@ export async function createMeetingMinutes(meetingId: string, locale: string): P
 
 export async function finalizeMeetingMinutes(meetingId: string): Promise<MeetingMinutes | null> {
   return parseMinutes(await request(`${base(meetingId)}/finalize`, { method: "POST" }), "finalizeMeetingMinutes");
+}
+
+/** Rewrites the fact sections of draft minutes (roll, votes, assigned tasks); 409 minutes_finalized once finalized. */
+export async function refreshMeetingMinutes(meetingId: string): Promise<MeetingMinutes | null> {
+  return parseMinutes(await request(`${base(meetingId)}/refresh`, { method: "POST" }), "refreshMeetingMinutes");
 }
 
 export async function reopenMeetingMinutes(meetingId: string): Promise<MeetingMinutes | null> {

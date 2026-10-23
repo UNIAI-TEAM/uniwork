@@ -7,7 +7,8 @@ import type { MeetingCatchUp } from "../api/endpoints/meeting-summary";
 import type { MeetingEvidenceRef } from "../types/meeting";
 import { meetingKeys } from "./hooks";
 
-export type { MeetingCatchUp } from "../api/endpoints/meeting-summary";
+export type { MeetingCatchUp, MeetingSummaryState } from "../api/endpoints/meeting-summary";
+export type { MeetingSummaryRun, MeetingSummaryTopic } from "../types/meeting";
 
 /**
  * A 4xx answer (no access, an old server's 404 for "no summary yet") comes
@@ -19,12 +20,34 @@ export function summaryQueryRetry(failureCount: number, error: unknown): boolean
   return failureCount < 3;
 }
 
+/** The meeting's latest summary; null when it has none. */
 export function useMeetingSummary(meetingId: string) {
   return useQuery({
     queryKey: meetingKeys.summary(meetingId),
     queryFn: () => api.getMeetingSummary(meetingId),
     enabled: !!meetingId,
     retry: summaryQueryRetry,
+    select: (s: api.MeetingSummaryState) => s.summary,
+  });
+}
+
+/** How often the summary is read again while one is being made. */
+export const SUMMARY_RUN_POLL_MS = 10_000;
+
+/**
+ * Whether a summary is being made (UNI-1995 #12), from the same answer as
+ * useMeetingSummary. While it runs or is queued the answer is read again every
+ * SUMMARY_RUN_POLL_MS: a failure that settles sends no event, a new summary
+ * does (summary.created) and refetches at once.
+ */
+export function useMeetingSummaryRun(meetingId: string) {
+  return useQuery({
+    queryKey: meetingKeys.summary(meetingId),
+    queryFn: () => api.getMeetingSummary(meetingId),
+    enabled: !!meetingId,
+    retry: summaryQueryRetry,
+    select: (s: api.MeetingSummaryState) => s.run,
+    refetchInterval: (q) => (q.state.data && q.state.data.run.status !== "idle" ? SUMMARY_RUN_POLL_MS : false),
   });
 }
 
