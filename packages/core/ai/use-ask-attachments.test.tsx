@@ -58,7 +58,7 @@ const keyOf = (r: { current: ReturnType<typeof useAskAttachments> }, name: strin
 
 describe("useAskAttachments", () => {
   it("exposes the limits and an accept list with extensions and MIME types, without .doc", () => {
-    expect([ASK_FILE_MAX_BYTES, ASK_FILES_TOTAL_MAX_BYTES, ASK_FILES_MAX]).toEqual([20 * MB, 20 * MB, 5]);
+    expect([ASK_FILE_MAX_BYTES, ASK_FILES_TOTAL_MAX_BYTES, ASK_FILES_MAX]).toEqual([{ image: 7_500_000, file: 20 * MB }, 20 * MB, 5]);
     const accept = ASK_FILE_ACCEPT.split(",");
     expect(accept).toEqual(expect.arrayContaining([".pdf", ".docx", ".md", "image/png", "text/csv", "application/pdf"]));
     expect(accept).not.toContain(".doc");
@@ -88,6 +88,37 @@ describe("useAskAttachments", () => {
     expect(reasons).toEqual(["too_many"]);
     expect(result.current.files).toHaveLength(ASK_FILES_MAX);
     expect(uploadAskAttachment).toHaveBeenCalledTimes(ASK_FILES_MAX);
+  });
+
+  it("caps an image at what the model takes, 7.5 MB, and any other file at 20 MB", () => {
+    const { result } = setup();
+    let reasons: string[] = [];
+    act(() => {
+      reasons = result.current.add([
+        f("anh.png", 7_500_001, "image/png"),
+        f("chup.jpg", 7_500_001, ""), // known by its extension alone
+        f("bao-cao.pdf", 7_500_001),
+        f("vua.webp", 7_500_000, "image/webp"),
+      ]);
+    });
+    expect(reasons).toEqual(["too_large", "too_large"]);
+    expect(result.current.files.map((x) => x.file.name)).toEqual(["bao-cao.pdf", "vua.webp"]);
+  });
+
+  it("clears only the files a sent question carried, and marks a file the server would not take", async () => {
+    const { result } = setup();
+    act(() => void result.current.add([f("a.pdf"), f("b.pdf")]));
+    await act(async () => uploads.forEach((u) => u.resolve({})));
+    const a = keyOf(result, "a.pdf");
+    act(() => result.current.fail(keyOf(result, "b.pdf"), "ai_attachment_unreadable"));
+    expect(result.current.files.map((x) => [x.file.name, x.status, x.error])).toEqual([
+      ["a.pdf", "ready", undefined],
+      ["b.pdf", "error", "ai_attachment_unreadable"],
+    ]);
+    expect(result.current).toMatchObject({ ids: ["id-a.pdf"], blocked: true });
+    act(() => result.current.clear([a]));
+    expect(result.current.files.map((x) => x.file.name)).toEqual(["b.pdf"]);
+    expect(deleteAskAttachment).not.toHaveBeenCalled();
   });
 
   it("judges a file by extension or MIME, and judges a call against what an earlier call staged", () => {

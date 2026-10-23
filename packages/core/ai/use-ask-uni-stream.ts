@@ -33,6 +33,14 @@ export interface AskStreamState {
   errorCode: string | null;
 }
 
+/**
+ * Whether the server took a turn's question: `accepted` once it says it runs
+ * the turn (`run`, or `done`), never once it refused or the turn ended before
+ * that. A refused question is not stored, so whoever sent it keeps it; `code`
+ * and `message` are the refusal's (null when the turn was aborted).
+ */
+export type AskOutcome = { accepted: true } | { accepted: false; code: string | null; message: string };
+
 const IDLE: AskStreamState = {
   status: "idle",
   question: "",
@@ -93,7 +101,7 @@ export function useAskUniStream(wsId: string) {
   }, [conversationId, abort]);
 
   const ask = useCallback(
-    (input: AskUniInput, display?: { attachments: AiAttachment[] }) => {
+    (input: AskUniInput, display?: { attachments: AiAttachment[] }): Promise<AskOutcome> => {
       abort();
       const mySeq = seq.current;
       const controller = new AbortController();
@@ -104,11 +112,22 @@ export function useAskUniStream(wsId: string) {
       setState({ ...IDLE, status: "streaming", question: input.question, conversationId: input.conversation_id ?? null, regenerateOf, model: input.model ?? "", attachments });
       let finished = false;
       const current = () => seq.current === mySeq && !controller.signal.aborted;
+      let settle: (o: AskOutcome) => void = () => undefined;
+      const outcome = new Promise<AskOutcome>((resolve) => {
+        let settled = false;
+        settle = (o) => {
+          if (!settled) resolve(o);
+          settled = true;
+        };
+      });
+      // An aborted turn (a newer one, stop, unmount) took nothing the caller can rely on.
+      controller.signal.addEventListener("abort", () => settle({ accepted: false, code: null, message: "" }));
 
       const onEvent = (e: AskUniStreamEvent) => {
         if (!current()) return;
         switch (e.type) {
           case "run":
+            settle({ accepted: true });
             turnConversation.current = e.conversationId;
             setState((s) => ({ ...s, conversationId: e.conversationId }));
             if (useAiPanelStore.getState().conversationId === null) useAiPanelStore.getState().select(e.conversationId);
@@ -134,6 +153,7 @@ export function useAskUniStream(wsId: string) {
             break;
           case "done": {
             finished = true;
+            settle({ accepted: true });
             const conversationId = turnConversation.current ?? useAiPanelStore.getState().conversationId;
             if (conversationId && regenerateOf) {
               // The question is already stored; the new answer takes the old one's place.
@@ -170,6 +190,7 @@ export function useAskUniStream(wsId: string) {
           }
           case "error":
             finished = true;
+            settle({ accepted: false, code: e.code, message: "" });
             refreshAfterEnd();
             setState((s) => ({ ...s, status: "error", errorCode: e.code }));
             break;
@@ -180,14 +201,18 @@ export function useAskUniStream(wsId: string) {
         () => {
           if (current() && !finished) refreshAfterEnd();
           if (current() && !finished) setState((s) => ({ ...s, status: "error", errorCode: "stream_ended" }));
+          settle({ accepted: false, code: "stream_ended", message: "" });
         },
         (err: unknown) => {
           // After done the stream stays open only for the title frame; losing it loses nothing.
           if (!current() || finished) return;
           refreshAfterEnd();
-          setState((s) => ({ ...s, status: "error", errorCode: errorCode(err) ?? "internal" }));
+          const code = errorCode(err) ?? "internal";
+          setState((s) => ({ ...s, status: "error", errorCode: code }));
+          settle({ accepted: false, code, message: err instanceof Error ? err.message : "" });
         },
       );
+      return outcome;
     },
     [abort, qc, wsId, refreshAfterEnd],
   );

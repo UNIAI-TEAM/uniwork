@@ -5,8 +5,9 @@ import { deleteAskAttachment, uploadAskAttachment } from "../api/endpoints/ai-at
 import { errorCode } from "../api/http";
 import type { AiAttachment, AskUploadedFile } from "../types/ai";
 
-// The server's limits (20 << 20 each, 5 files); the server checks them again, this only spares the round trip.
-export const ASK_FILE_MAX_BYTES = 20 * 1024 * 1024;
+// The server's limits (5 files of 20 << 20, an image of 7.5 MB); the server checks them again, this only spares the
+// round trip. An image is capped lower because the model takes one of at most 10 MB once base64-encoded.
+export const ASK_FILE_MAX_BYTES = { image: 7_500_000, file: 20 * 1024 * 1024 } as const;
 export const ASK_FILES_MAX = 5;
 export const ASK_FILES_TOTAL_MAX_BYTES = 20 * 1024 * 1024;
 
@@ -43,17 +44,26 @@ export interface StagedAskFile {
   error?: string;
 }
 
+const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+
+function extensionOf(file: File): string {
+  const dot = file.name.lastIndexOf(".");
+  return dot < 0 ? "" : file.name.slice(dot).toLowerCase();
+}
+
 // Browsers give no MIME for .md and odd ones for .csv, so a file passes on either its extension or its MIME type.
 function typeSupported(file: File): boolean {
-  const dot = file.name.lastIndexOf(".");
-  const extension = dot < 0 ? "" : file.name.slice(dot).toLowerCase();
-  return EXTENSIONS.includes(extension) || MIMES.includes(file.type.split(";")[0]!.trim().toLowerCase());
+  return EXTENSIONS.includes(extensionOf(file)) || MIMES.includes(file.type.split(";")[0]!.trim().toLowerCase());
+}
+
+function isImage(file: File): boolean {
+  return file.type.startsWith("image/") || IMAGE_EXTENSIONS.includes(extensionOf(file));
 }
 
 /** Why a file cannot join `count` staged files totalling `bytes`, or null. */
 function refusal(file: File, count: number, bytes: number): AskFileRefusal | null {
   if (!typeSupported(file)) return "type_unsupported";
-  if (file.size > ASK_FILE_MAX_BYTES) return "too_large";
+  if (file.size > (isImage(file) ? ASK_FILE_MAX_BYTES.image : ASK_FILE_MAX_BYTES.file)) return "too_large";
   if (count >= ASK_FILES_MAX) return "too_many";
   if (bytes + file.size > ASK_FILES_TOTAL_MAX_BYTES) return "total_too_large";
   return null;
@@ -181,20 +191,29 @@ export function useAskAttachments(wsId: string) {
     [patch, upload],
   );
 
-  // After a send. The uploaded files now belong to the sent question, so they stay on the server;
-  // a request still in flight is cut, and cancelled if the server answers anyway.
-  const clear = useCallback(() => {
-    for (const ctrl of requests.current.values()) ctrl.abort();
-    requests.current.clear();
-    commit([]);
-  }, [commit]);
+  // After a send, the files it carried (`keys`), or all of them. The uploaded files now belong to the sent question,
+  // so they stay on the server; a request still in flight is cut, and cancelled if the server answers anyway.
+  const clear = useCallback(
+    (keys?: string[]) => {
+      const gone = keys ? list.current.filter((x) => keys.includes(x.key)) : list.current;
+      for (const x of gone) {
+        requests.current.get(x.key)?.abort();
+        requests.current.delete(x.key);
+      }
+      commit(keys ? list.current.filter((x) => !keys.includes(x.key)) : []);
+    },
+    [commit],
+  );
+
+  // A file the server would not take with a question (`ai_attachment_unreadable`): it stays, marked, until removed.
+  const fail = useCallback((key: string, error: string) => patch(key, { status: "error", error }), [patch]);
 
   // A file belongs to the workspace it was uploaded to: leaving it forgets the list.
-  useEffect(() => clear, [wsId, clear]);
+  useEffect(() => () => clear(), [wsId, clear]);
 
   const ids = useMemo(() => files.flatMap((x) => (x.status === "ready" && x.uploaded ? [x.uploaded.file_id] : [])), [files]);
   const busy = files.some((x) => x.status === "uploading");
   const blocked = files.some((x) => x.status === "error");
 
-  return { files, add, remove, retry, clear, ids, busy, blocked };
+  return { files, add, remove, retry, clear, fail, ids, busy, blocked };
 }

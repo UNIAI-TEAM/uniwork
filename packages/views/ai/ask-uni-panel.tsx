@@ -51,7 +51,7 @@ export function AskUniPanel() {
   // A new conversation with nothing in flight starts from suggestions for the open page.
   const empty = conversationId === null && stream.state.status === "idle";
   const askSuggestion = (question: string) =>
-    stream.ask({ question, focus: focus ? { kind: focus.kind, id: focus.id } : undefined, mentions: [], model, effort, locale: i18n.language });
+    void stream.ask({ question, focus: focus ? { kind: focus.kind, id: focus.id } : undefined, mentions: [], model, effort, locale: i18n.language });
   return (
     // A provider's look re-points the panel's colour slots (tokens.css); Auto keeps UNI's.
     <div

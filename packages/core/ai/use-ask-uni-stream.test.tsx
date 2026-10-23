@@ -60,7 +60,7 @@ afterEach(() => {
 describe("useAskUniStream", () => {
   it("accumulates deltas and clears the draft on step", () => {
     const { result } = setup();
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     expect(result.current.state).toMatchObject({ status: "streaming", question: "q" });
     emit({ type: "delta", text: "hel" });
     emit({ type: "delta", text: "lo" });
@@ -76,7 +76,7 @@ describe("useAskUniStream", () => {
 
   it("sources merge by source_id and followups land in state", () => {
     const { result } = setup();
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     emit({ type: "sources", sources: [{ source_id: "S1", quote: "", kind: "task", title: "a", href: "" }] });
     emit({ type: "sources", sources: [{ source_id: "S2", quote: "", kind: "task", title: "b", href: "" }, { source_id: "S1", quote: "", kind: "task", title: "a2", href: "" }] });
     expect(Object.keys(result.current.state.sources)).toEqual(["S1", "S2"]);
@@ -88,7 +88,7 @@ describe("useAskUniStream", () => {
   it("regenerate replaces the old answer and echoes no question", () => {
     const { result, qc } = setup();
     qc.setQueryData(aiKeys.messages("c1"), [msg({ id: "u1", role: "user", content: "q" }), msg({ id: "old" })]);
-    act(() => result.current.ask({ question: "q", conversation_id: "c1", regenerate_message_id: "old" }));
+    act(() => void result.current.ask({ question: "q", conversation_id: "c1", regenerate_message_id: "old" }));
     expect(result.current.state.regenerateOf).toBe("old");
     emit({ type: "done", message: msg({ id: "new" }), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
     expect(qc.getQueryData<{ id: string }[]>(aiKeys.messages("c1"))?.map((m) => m.id)).toEqual(["u1", "new"]);
@@ -97,7 +97,7 @@ describe("useAskUniStream", () => {
   it("a regenerate that ends in error keeps the old answer in the cache", () => {
     const { result, qc } = setup();
     qc.setQueryData(aiKeys.messages("c1"), [msg({ id: "u1", role: "user", content: "q" }), msg({ id: "old", content: "cũ" })]);
-    act(() => result.current.ask({ question: "q", conversation_id: "c1", regenerate_message_id: "old" }));
+    act(() => void result.current.ask({ question: "q", conversation_id: "c1", regenerate_message_id: "old" }));
     emit({ type: "run", runId: "r", conversationId: "c1" });
     emit({ type: "error", code: "ai_provider_error" });
     expect(result.current.state).toMatchObject({ status: "error", errorCode: "ai_provider_error", regenerateOf: "old" });
@@ -106,7 +106,7 @@ describe("useAskUniStream", () => {
 
   it("a network error after done keeps the finished turn and its follow-ups", async () => {
     const { result } = setup();
-    act(() => result.current.ask({ question: "q", conversation_id: "c1" }));
+    act(() => void result.current.ask({ question: "q", conversation_id: "c1" }));
     emit({ type: "followups", followups: ["Tiếp?"] });
     emit({ type: "done", message: msg(), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
     // The stream stays open for the title frame; the connection drops instead.
@@ -117,7 +117,7 @@ describe("useAskUniStream", () => {
 
   it("a title after done invalidates every conversation list and the turn stays finished", () => {
     const { result, qc } = setup();
-    act(() => result.current.ask({ question: "q", conversation_id: "c1" }));
+    act(() => void result.current.ask({ question: "q", conversation_id: "c1" }));
     emit({ type: "done", message: msg(), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
     expect(result.current.state.status).toBe("done");
     const invalidate = vi.spyOn(qc, "invalidateQueries");
@@ -130,25 +130,25 @@ describe("useAskUniStream", () => {
 
   it("run selects the conversation of a new thread", () => {
     const { result } = setup();
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     emit({ type: "run", runId: "r", conversationId: "c9" });
     expect(useAiPanelStore.getState().conversationId).toBe("c9");
   });
 
   it("state names the conversation the turn was asked in", () => {
     const { result } = setup();
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     expect(result.current.state.conversationId).toBeNull();
     emit({ type: "run", runId: "r", conversationId: "c9" });
     expect(result.current.state.conversationId).toBe("c9");
-    act(() => result.current.ask({ question: "again", conversation_id: "c3" }));
+    act(() => void result.current.ask({ question: "again", conversation_id: "c3" }));
     expect(result.current.state.conversationId).toBe("c3");
   });
 
   it("done writes the turn into the messages cache and refreshes the rest", () => {
     const { result, qc } = setup();
     const invalidate = vi.spyOn(qc, "invalidateQueries");
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     emit({ type: "run", runId: "r", conversationId: "c1" });
     emit({ type: "citations", citations: [] });
     emit({ type: "done", message: msg(), usage: { input_tokens: 1, output_tokens: 1, cache_read_tokens: 0, cache_write_tokens: 0 } });
@@ -174,7 +174,7 @@ describe("useAskUniStream", () => {
     const { result, qc } = setup();
     const display = { attachments: [{ id: "f1", name: "q3.pdf", mime: "application/pdf", size: 8, kind: "pdf" }] };
     expect(result.current.state.attachments).toEqual([]);
-    act(() => result.current.ask({ question: "q", conversation_id: "c1", attachment_ids: ["f1"] }, display));
+    act(() => void result.current.ask({ question: "q", conversation_id: "c1", attachment_ids: ["f1"] }, display));
     expect(askUniStream).toHaveBeenCalledWith("ws1", expect.objectContaining({ attachment_ids: ["f1"] }), expect.anything());
     expect(result.current.state.attachments).toEqual(display.attachments);
     const note = { name: "q3.pdf", unit: "page", read: 15, total: 80 };
@@ -187,7 +187,7 @@ describe("useAskUniStream", () => {
       ["assistant", [], [note]],
     ]);
     // A question without files shows none, and the next ask forgets the last turn's.
-    act(() => result.current.ask({ question: "next", conversation_id: "c1" }));
+    act(() => void result.current.ask({ question: "next", conversation_id: "c1" }));
     expect(result.current.state.attachments).toEqual([]);
     emit({ type: "done", message: msg({ id: "m2" }), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
     expect(qc.getQueryData<{ attachments: unknown[] }[]>(aiKeys.messages("c1"))?.at(-2)?.attachments).toEqual([]);
@@ -195,7 +195,7 @@ describe("useAskUniStream", () => {
 
   it("a done with notice stopped ends as stopped", () => {
     const { result } = setup();
-    act(() => result.current.ask({ question: "q", conversation_id: "c1" }));
+    act(() => void result.current.ask({ question: "q", conversation_id: "c1" }));
     emit({ type: "done", message: msg({ notice: "stopped" }), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
     expect(result.current.state.status).toBe("stopped");
   });
@@ -203,7 +203,7 @@ describe("useAskUniStream", () => {
   it("stop aborts and refetches messages", () => {
     const { result, qc } = setup();
     const invalidate = vi.spyOn(qc, "invalidateQueries");
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     emit({ type: "run", runId: "r", conversationId: "c1" });
     act(() => result.current.stop());
     expect(opts.signal.aborted).toBe(true);
@@ -216,7 +216,7 @@ describe("useAskUniStream", () => {
   it("stopping a regenerate refetches the conversation's messages, with no run frame needed", () => {
     const { result, qc } = setup();
     const invalidate = vi.spyOn(qc, "invalidateQueries");
-    act(() => result.current.ask({ question: "q", conversation_id: "c1", regenerate_message_id: "old" }));
+    act(() => void result.current.ask({ question: "q", conversation_id: "c1", regenerate_message_id: "old" }));
     act(() => result.current.stop());
     expect(result.current.state.status).toBe("stopped");
     expect(invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))).toContain(JSON.stringify(aiKeys.messages("c1")));
@@ -227,7 +227,7 @@ describe("useAskUniStream", () => {
     try {
       const { result, qc } = setup();
       const invalidate = vi.spyOn(qc, "invalidateQueries");
-      act(() => result.current.ask({ question: "q" }));
+      act(() => void result.current.ask({ question: "q" }));
       emit({ type: "run", runId: "r", conversationId: "c1" });
       act(() => result.current.stop());
       const keys = () => invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
@@ -253,10 +253,10 @@ describe("useAskUniStream", () => {
       const { result, qc, unmount } = setup();
       const invalidate = vi.spyOn(qc, "invalidateQueries");
       const count = () => invalidate.mock.calls.filter((c) => JSON.stringify(c[0]?.queryKey) === JSON.stringify(aiKeys.messages("c1"))).length;
-      act(() => result.current.ask({ question: "q" }));
+      act(() => void result.current.ask({ question: "q" }));
       emit({ type: "run", runId: "r", conversationId: "c1" });
       act(() => result.current.stop());
-      act(() => result.current.ask({ question: "next", conversation_id: "c2" }));
+      act(() => void result.current.ask({ question: "next", conversation_id: "c2" }));
       act(() => void vi.advanceTimersByTime(2000));
       expect(count()).toBe(1);
       act(() => result.current.stop());
@@ -270,7 +270,7 @@ describe("useAskUniStream", () => {
 
   it("aborts on workspace change and ignores late events", async () => {
     const { result, qc, rerender } = setup();
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     const first = opts;
     emit({ type: "run", runId: "r", conversationId: "c1" });
     act(() => rerender({ ws: "ws2" }));
@@ -286,16 +286,16 @@ describe("useAskUniStream", () => {
 
   it("aborts on unmount", () => {
     const { result, unmount } = setup();
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     unmount();
     expect(opts.signal.aborted).toBe(true);
   });
 
   it("a new ask aborts the one in flight", () => {
     const { result } = setup();
-    act(() => result.current.ask({ question: "one" }));
+    act(() => void result.current.ask({ question: "one" }));
     const first = opts;
-    act(() => result.current.ask({ question: "two" }));
+    act(() => void result.current.ask({ question: "two" }));
     expect(first.signal.aborted).toBe(true);
     act(() => first.onEvent({ type: "delta", text: "stale" }));
     expect(result.current.state).toMatchObject({ question: "two", draft: "" });
@@ -303,23 +303,71 @@ describe("useAskUniStream", () => {
 
   it("error event sets errorCode", () => {
     const { result, qc } = setup();
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     emit({ type: "error", code: "ai_quota_exceeded" });
     expect(invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))).toContain(JSON.stringify(aiKeys.conversations("ws1")));
     expect(result.current.state).toMatchObject({ status: "error", errorCode: "ai_quota_exceeded" });
   });
 
+  describe("whether the server took the question", () => {
+    // ask() is what the composer awaits: it keeps the question and its files until the server runs the turn.
+    const asked = (r: { current: ReturnType<typeof useAskUniStream> }) => {
+      let outcome!: Promise<unknown>;
+      act(() => {
+        outcome = r.current.ask({ question: "q" });
+      });
+      return outcome;
+    };
+
+    it("takes it once the server runs the turn", async () => {
+      const { result } = setup();
+      const outcome = asked(result);
+      emit({ type: "run", runId: "r", conversationId: "c1" });
+      emit({ type: "error", code: "ai_provider_error" }); // a failure after the run does not undo it
+      await expect(outcome).resolves.toEqual({ accepted: true });
+    });
+
+    it("is refused, with the server's code and sentence, when the request is turned down", async () => {
+      const { result } = setup();
+      const outcome = asked(result);
+      act(() => fail(new ApiError('không đọc được file đính kèm: "a.pdf"', "ai_attachment_unreadable", 422)));
+      await expect(outcome).resolves.toEqual({ accepted: false, code: "ai_attachment_unreadable", message: 'không đọc được file đính kèm: "a.pdf"' });
+    });
+
+    it("is refused when the stream fails or ends before the run", async () => {
+      const first = setup();
+      const failed = asked(first.result);
+      emit({ type: "error", code: "ai_rate_limited" });
+      await expect(failed).resolves.toEqual({ accepted: false, code: "ai_rate_limited", message: "" });
+      first.unmount();
+      const second = setup();
+      const ended = asked(second.result);
+      await act(async () => finish());
+      await expect(ended).resolves.toEqual({ accepted: false, code: "stream_ended", message: "" });
+    });
+
+    it("reports nothing when the turn is stopped or replaced before the run", async () => {
+      const { result } = setup();
+      const stopped = asked(result);
+      act(() => result.current.stop());
+      await expect(stopped).resolves.toEqual({ accepted: false, code: null, message: "" });
+      const replaced = asked(result);
+      void asked(result);
+      await expect(replaced).resolves.toEqual({ accepted: false, code: null, message: "" });
+    });
+  });
+
   it("a thrown mapped error sets errorCode", async () => {
     const { result } = setup();
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     act(() => fail(new ApiError("x", "ai_unavailable", 503)));
     await waitFor(() => expect(result.current.state).toMatchObject({ status: "error", errorCode: "ai_unavailable" }));
   });
 
   it.each(["done", "stopped", "error"] as const)("a new conversation after a %s first turn is idle again", (end) => {
     const { result } = setup();
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     emit({ type: "run", runId: "r1", conversationId: "c1" });
     if (end === "error") emit({ type: "error", code: "internal" });
     else emit({ type: "done", message: msg({ notice: end === "stopped" ? "stopped" : "" }), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
@@ -330,7 +378,7 @@ describe("useAskUniStream", () => {
 
   it("a new conversation mid-turn aborts it", () => {
     const { result } = setup();
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     emit({ type: "run", runId: "r1", conversationId: "c1" });
     act(() => useAiPanelStore.getState().select(null));
     expect(opts.signal.aborted).toBe(true);
@@ -339,7 +387,7 @@ describe("useAskUniStream", () => {
 
   it("a stream that ends without done or error is an error", async () => {
     const { result } = setup();
-    act(() => result.current.ask({ question: "q" }));
+    act(() => void result.current.ask({ question: "q" }));
     act(() => finish());
     await waitFor(() => expect(result.current.state).toMatchObject({ status: "error", errorCode: "stream_ended" }));
   });
