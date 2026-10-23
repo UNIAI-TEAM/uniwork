@@ -23,6 +23,18 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   `restore`, `app/_layout.tsx` gọi `adoptSession()`), song song `initialize()`: `/me` không trả lời (offline, 5xx,
   timeout) thì không đổi gì, trả lời về người khác người đang vào thì bỏ qua — nếu không nó ghi `null` đè người dùng
   đã lưu và lần mở lại khi offline rơi về màn đăng nhập (`maestro/flows/offline-send-relaunch.yaml`).
+  **Máy trạng thái** (UNI-2141 B6): mọi thay đổi `user`/`isLoading`/`status` của auth store là một bước của reducer
+  thuần `data/auth/machine.ts` (trạng thái `booting` → `restoring` → `signedInOffline`/`signedIn`, `signingOut`,
+  `signedOut`; sự kiện `bootStarted`, `storedPersonRead`, `cacheRestored`, `meAnswered`, `sessionEmitted`,
+  `loginStarted`/`loginCompleted`, `logout`, `accountDeleted`, `wiped`, `profileUpdated`); `data/auth/store.ts` chỉ
+  chạy hiệu ứng (mạng, Keychain, kho máy) rồi đưa kết quả về làm sự kiện. Một `/me` duy nhất trên đường dây cho cả
+  boot, revalidate và lần nhận người dùng. `onChange(null)` đi qua `sessionEnded()`: store ghi nhận phán quyết, nên
+  boot hay lần đăng nhập đang chạy không cho ai vào, và trả `true` khi có người trong để `app/_layout.tsx` đăng xuất.
+  `data/auth/machine.test.ts` duyệt mọi thứ tự của một lần mở lạnh (có/không credential, người đã lưu, mạng, token
+  phát lúc restore, phán quyết) và giữ bất biến: offline không rơi về màn đăng nhập khi còn phiên và người đã lưu;
+  phán quyết luôn đăng xuất; không ai được vào khi store đã biết phiên kết thúc; chỉ đăng xuất (của người dùng, của
+  server, hay mở lạnh không credential) hoặc xoá tài khoản mới xoá outbox. Hai lỗ mô hình tìm ra đã đóng: `/me` của
+  lần đăng nhập trả lời sau phán quyết, hay sau `logout()`, không còn cho người vào.
   `restoreAccountCache` gộp hai lần gọi cho cùng người và chỉ lần gọi cuối
   được ghi đĩa (một lần dừng — đăng xuất, cài lại — làm lần khôi phục đang chạy không hydrate, không ghi).
   Splash (`expo-splash-screen`, plugin trong `app.config.ts`) giữ tới khi `isLoading` tắt, tối đa 8 s

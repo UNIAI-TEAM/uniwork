@@ -296,6 +296,25 @@ describe("auth store", () => {
     expect(apiMock.getMe).not.toHaveBeenCalled();
   });
 
+  // The first start of this build (nobody stored) with a fresh token: the restore's emit starts the sign-in's /me,
+  // and the boot, which needs /me too, joins it and ends with its answer.
+  it("initialize: the restore's own emit and a boot with nobody stored share one /me and one cache restore", async () => {
+    let answer: (u: typeof user) => void = () => undefined;
+    apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    sessionMock.restore.mockImplementationOnce(async () => {
+      void useAuthStore.getState().adoptSession();
+      return true;
+    });
+    const boot = useAuthStore.getState().initialize();
+    await vi.waitFor(() => expect(useAuthStore.getState().status).toBe("restoring"));
+    expect(useAuthStore.getState().isLoading).toBe(true);
+    answer(user);
+    await boot;
+    expect(useAuthStore.getState()).toMatchObject({ user, isLoading: false, status: "signedIn" });
+    expect(apiMock.getMe).toHaveBeenCalledTimes(1);
+    expect(cacheMock.restoreAccountCache).toHaveBeenCalledExactlyOnceWith("u1");
+  });
+
   it("adoptSession: /me answering about someone else than the person already in is not adopted", async () => {
     let answer: (u: typeof user) => void = () => undefined;
     apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
@@ -305,6 +324,37 @@ describe("auth store", () => {
     await adopt;
     expect(useAuthStore.getState().user?.id).toBe("u2");
     expect(cacheMock.restoreAccountCache).not.toHaveBeenCalled();
+  });
+
+  // The model (machine.test.ts) found it: a sign-in's /me that answers after the server ended the session let the
+  // person in with no session, until the next request's 401.
+  it("adoptSession: a /me answered after the server ended the session lets nobody in", async () => {
+    let answer: (u: typeof user) => void = () => undefined;
+    apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const adopt = useAuthStore.getState().adoptSession();
+    sessionMock.status.mockReturnValue("signed-out");
+    answer(user);
+    await adopt;
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(cacheMock.restoreAccountCache).not.toHaveBeenCalled();
+  });
+
+  it("a sign-out while a sign-in's /me is on the wire: its late answer lets nobody back in", async () => {
+    let answer: (u: typeof user) => void = () => undefined;
+    apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const login = useAuthStore.getState().login();
+    await vi.waitFor(() => expect(apiMock.getMe).toHaveBeenCalledTimes(1));
+    await useAuthStore.getState().logout();
+    answer(user);
+    await login;
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(cacheMock.restoreAccountCache).not.toHaveBeenCalled();
+  });
+
+  it("sessionEnded: the server's verdict asks for a sign-out only when someone is in", () => {
+    expect(useAuthStore.getState().sessionEnded()).toBe(false);
+    useAuthStore.setState({ user });
+    expect(useAuthStore.getState().sessionEnded()).toBe(true);
   });
 
   it("initialize: a 401 ends the session only once the session itself is signed out; a blip keeps it", async () => {
