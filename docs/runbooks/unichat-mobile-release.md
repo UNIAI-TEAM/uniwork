@@ -155,6 +155,13 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   `node scripts/mobile-perf.mjs tighten --profile <android|android-2gb|ios-simulator> runs/*/*.json` in đề xuất và
   `--write` ghi: mỗi trần = số tệ nhất + 15 %, không bao giờ cao hơn trần cũ, profile rời `provisional` khi mọi chỉ số
   có đủ 5 run. Commit đó trích URL các run; từ đó trần chỉ hạ, và chỉ nâng trong commit thêm sức nặng, ghi lý do.
+  Ngoại lệ đã đặt tay một lần (vì `tighten` chỉ đọc run xanh và chỉ hạ): `ios-simulator` (hai trần mở lạnh, 2026-10-23)
+  và ba trần mở lạnh của `android` (UNI-2142, 2026-10-23). `TotalTime` 3000 và `first-screen` 6000 đo cùng một khoảnh
+  khắc, và trần 3000 đánh rớt khoảng 1/9 run sạch (3092 và 3329 trong 25 job 2026-10-22/23; cùng một commit cho 2056 và
+  2748); nay là trung vị tệ nhất của 25 job đó + 15 %: `TotalTime` 3829, `first-screen` 3534, `js-boot` 2069. Với
+  nhiễu ~22 % giữa các run trên emulator này, một trần tuyệt đối cho một run chỉ bắt hồi quy thô (+50 % bắt khoảng
+  1/3, +100 % khoảng 4/5), không bắt +30 %. Để bắt được, đọc `cpuBusyPercent` và `controlTtidMs` của 5 run đo kiểu mới:
+  nếu nhiễu trong run và giữa các run đã giảm thì `tighten` từ chính các run đó.
   Trần tạm có hạn: qua `provisionalUntil` (2026-12-31) mà profile còn trong `provisional` thì
   `scripts/mobile-perf.test.mjs` đỏ — đo rồi `tighten`, không lùi ngày nếu không ghi lý do trong body commit.
   **A/B danh sách tin** (`unichat_mobile_timeline_recycled`, FlashList 2 thay FlatList đảo ngược): (1) nightly như

@@ -358,3 +358,11 @@ test("the summary shows each start metric's spread over the runs and the control
   assert.ok(!lines.some((l) => l.includes("APK")), "a number with no samples has no spread");
 });
 
+// TotalTime is held until the splash lifts, right before the first-screen mark; js-boot comes before both. A TotalTime
+// ceiling under the first screen's gated the same moment twice, the tighter one by accident (3000 against 6000 flaked).
+// android-2gb is a guess the nightly has not measured yet: it is set from its own runs, not by analogy.
+test("perf-budget.json › android: the start ceilings follow the order of the moments they time", () => {
+  const { android } = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/perf-budget.json"), "utf8"));
+  assert.ok(android.coldStartJsBootMs <= android.coldStartFirstScreenMs, "js-boot before the first screen");
+  assert.ok(android.coldStartFirstScreenMs <= android.coldStartTtidMs, "the first screen before the lifted splash's frame");
+});
