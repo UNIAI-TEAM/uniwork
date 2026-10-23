@@ -508,7 +508,9 @@ Khi spec này được duyệt, sửa `2026-10-20-meeting-follow-through-design.
 - **§5.3:** bỏ `recording_id` và cột `speakers` (dùng `meeting_speaker_labels`).
 - **§6.4:** route gán người nói chuyển sang §7.2 spec này.
 - **§7.3 chọn nguồn:** hợp `AGENT` với `TRANSCRIPTION` (mỗi file lấy lần `COMPLETE` mới
-  nhất), xếp theo `spoken_at`; `CAPTION` chỉ dùng khi không có cả hai.
+  nhất), xếp theo `spoken_at`; `CAPTION` chỉ dùng khi không có cả hai. *Sửa 2026-10-23
+  (UNI-1995 #11):* file tải lên **thay** lời thoại `AGENT`/`CAPTION`, không hợp; xem §7.3
+  của spec cha.
 - **D6:** việc `LIVE` không bị thay khi tạo lại tóm tắt.
 - **§7.8 (ngân sách họp dài)** giữ nguyên, chuyển sang đợt S1 của spec này.
 - **§12:** đợt 5a (UNI-2000) bị thay bằng các đợt S0–S7 dưới đây và đóng lại; 5a + 5b
