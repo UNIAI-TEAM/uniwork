@@ -220,7 +220,11 @@ func (s *MeetingService) summaryErrorCount(reason string) {
 // could starve the pool (and it breaks behind a transaction-pooling proxy).
 // The claim and the release are one short statement each and hold nothing in
 // between; a node that dies mid-run leaves a lease that expires on its own.
-func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting, lease time.Duration) (func(), error) {
+//
+// release takes the run's outcome: a run that failed leaves its refusal code
+// on the row (FailMeetingSummaryRun) for every viewer's panel, since the run
+// may outlive the request that started it; any other outcome deletes it.
+func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting, lease time.Duration) (func(error), error) {
 	runID := util.NewID()
 	_, err := s.q.ClaimMeetingSummaryRun(ctx, db.ClaimMeetingSummaryRunParams{
 		OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID, LeaseSeconds: lease.Seconds(),
@@ -231,15 +235,37 @@ func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting, leas
 	if err != nil {
 		return nil, err
 	}
-	return func() {
+	return func(outcome error) {
 		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), summaryReleaseTimeout)
 		defer cancel()
-		if err := s.q.ReleaseMeetingSummaryRun(rctx, db.ReleaseMeetingSummaryRunParams{
-			OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID,
-		}); err != nil {
+		var err error
+		if code := summaryFailureCode(outcome); code != "" {
+			err = s.q.FailMeetingSummaryRun(rctx, db.FailMeetingSummaryRunParams{
+				OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID, FailureCode: code,
+			})
+		} else {
+			err = s.q.ReleaseMeetingSummaryRun(rctx, db.ReleaseMeetingSummaryRunParams{
+				OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID,
+			})
+		}
+		if err != nil {
 			slog.Warn("meetings: summary run lease not released, it expires on its own", "meeting_id", m.ID, "err", err)
 		}
 	}, nil
+}
+
+// summaryFailureCode is the refusal code a failed run leaves for the panel,
+// "" for a stored summary and for the auto summary's "not due" (not a
+// failure). A cause without a code (a read that failed) is ai_failed.
+func summaryFailureCode(err error) string {
+	if err == nil || errors.Is(err, errAutoSummaryNotDue) {
+		return ""
+	}
+	var ce CodedError
+	if errors.As(err, &ce) && ce.Code != "" {
+		return ce.Code
+	}
+	return "ai_failed"
 }
 
 // storeSummary writes the summary, its action items, its meeting timeline

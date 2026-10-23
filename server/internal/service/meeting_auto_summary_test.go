@@ -115,7 +115,7 @@ func TestSummarizeAutoSharesTheManualLease(t *testing.T) {
 	if _, queued := autoQueue(t, s, m.ID); queued || outboxTopicCount(t, s, topicAutoSummaryFailed, m.ID) != 0 {
 		t.Fatalf("queued=%v reminders=%d", queued, outboxTopicCount(t, s, topicAutoSummaryFailed, m.ID))
 	}
-	release()
+	release(nil)
 }
 
 // §4.5: ending queues the meeting, 10 s out, or 90 s while a scribe run is

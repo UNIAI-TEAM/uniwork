@@ -298,6 +298,14 @@ type MeetingSummaryRunDTO struct {
 	Status   string  `json:"status" enum:"idle,queued,running" description:"running = đang tạo; queued = hệ thống sẽ tự tạo (chờ dòng cuối hoặc chờ thử lại); idle = không có lần tạo nào" example:"running"`
 	At       *string `json:"at" description:"RFC 3339: lúc bắt đầu (running) hoặc lúc đến hạn (queued); null khi idle" example:"2026-10-20T02:15:00Z"`
 	Attempts int     `json:"attempts" description:"Số lần hệ thống đã thử tự tạo" example:"1"`
+	// UNI-1995 #12: a clerk's run outlives its request, so its failure is read here.
+	Failure *MeetingSummaryRunFailureDTO `json:"failure" description:"Lần tạo gần nhất hỏng (mã lỗi như POST trả); null khi không có hoặc đã có lần tạo mới"`
+}
+
+// MeetingSummaryRunFailureDTO is the last summary run's failure.
+type MeetingSummaryRunFailureDTO struct {
+	Code string `json:"code" description:"Mã lỗi như POST .../summary trả: ai_failed, ai_timeout, ai_rate_limited, ai_quota_exceeded, summary_no_source, …" example:"ai_timeout"`
+	At   string `json:"at" description:"RFC 3339: lúc lần tạo hỏng" example:"2026-10-20T02:16:00Z"`
 }
 
 // MeetingSettingsSDO is the organization's meeting settings (UNI-2026).

@@ -1205,7 +1205,17 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 	w.call(t, "POST", live+"/chat", tn.token, map[string]any{"message": m + " meeting chat"})
 	out = w.call(t, "POST", live+"/transcript", tn.token, map[string]any{"text": m + " spoken line"})
 	tn.ids["transcriptSegment"] = isoID(t, out, "segment")
-	w.call(t, "POST", live+"/summary", tn.token, map[string]any{"locale": "en"})
+	w.call(t, "POST", live+"/summary", tn.token, map[string]any{"locale": "en"}, http.StatusAccepted)
+	// The run goes on after the answer (UNI-1995 #12); its rows exist once it ends.
+	for deadline := time.Now().Add(30 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		run, _ := w.call(t, "GET", live+"/summary", tn.token, nil)["run"].(map[string]any)
+		if run["status"] == "idle" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s's summary run did not end: %v", tn.tag, run)
+		}
+	}
 	out = w.call(t, "POST", live+"/motions", tn.token, map[string]any{
 		"title": m + " Live motion", "ballot_mode": "PUBLIC", "threshold": "MAJORITY", "base": "PRESENT",
 	})

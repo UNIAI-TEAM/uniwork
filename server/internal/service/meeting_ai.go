@@ -226,6 +226,9 @@ func (s *MeetingService) SummaryWithRun(ctx context.Context, userID, meetingID s
 	case st.QueuedDueAt.Valid:
 		out.Run = SummaryRun{Status: SummaryRunQueued, At: st.QueuedDueAt.Time, Attempts: int(st.Attempts)}
 	}
+	if st.FailedAt.Valid {
+		out.Run.FailedAt, out.Run.FailureCode = st.FailedAt.Time, st.FailureCode
+	}
 	return out, nil
 }
 
@@ -248,11 +251,15 @@ const (
 // clerk's run or the system's), queued is the system's summary waiting for
 // its due time (the meeting's last lines, or a retry's backoff). At is when
 // the run started, or when the queued one is due; Attempts counts the
-// system's tries so far.
+// system's tries so far. FailedAt and FailureCode are the last run's
+// failure while no run holds the lease (the refusal code a clerk would have
+// been answered with); zero once a summary is stored or a run starts.
 type SummaryRun struct {
-	Status   string
-	At       time.Time
-	Attempts int
+	Status      string
+	At          time.Time
+	Attempts    int
+	FailedAt    time.Time
+	FailureCode string
 }
 
 func (s *MeetingService) latestSummary(ctx context.Context, meetingID string) (*db.MeetingSummary, error) {
@@ -314,6 +321,7 @@ func (s *MeetingService) Capabilities(ctx context.Context, userID, workspaceID s
 // (claimSummaryRun): a second one answers 409 summary_in_progress instead of
 // paying the model twice. Every failure carries a fixed message and a code
 // the client translates (summaryFailure); the cause is logged, ids only.
+// Summarize waits for the run; the HTTP route starts it (StartSummary).
 func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, locale string) (db.MeetingSummary, error) {
 	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
 	if err != nil {
@@ -322,27 +330,90 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	return s.summarize(ctx, m, Human(userID), locale)
 }
 
+// StartSummary is POST /meetings/{id}/summary (UNI-1995 #12): Summarize's
+// gates and lease answer at once, and the run itself goes on without the
+// request, so a clerk who closes the tab does not cancel a run every viewer
+// is waiting for. It answers the meeting's summary view with the run
+// running; the run ends in summary.created, or in a failure GET summary
+// carries (SummaryRun.FailureCode). The run keeps the request's values (the
+// correlation id reaches its audit row) and its own deadline (the lease).
+func (s *MeetingService) StartSummary(ctx context.Context, userID, meetingID, locale string) (SummaryView, error) {
+	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
+	if err != nil {
+		return SummaryView{}, err
+	}
+	budget, release, err := s.claimSummary(ctx, m)
+	if err != nil {
+		return SummaryView{}, err
+	}
+	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	stop := context.AfterFunc(s.summaryLife, cancel)
+	s.summaryRuns.Add(1)
+	go func() {
+		defer s.summaryRuns.Done()
+		defer cancel()
+		defer stop()
+		_, err := s.runSummary(runCtx, m, Human(userID), locale, budget)
+		release(err)
+	}()
+	return s.SummaryWithRun(ctx, userID, meetingID)
+}
+
+// StopSummaryRuns waits up to grace for the runs StartSummary left, then
+// cancels the rest (each settles its usage row and gives its lease back) and
+// waits for them to end. false when one is still running after that.
+func (s *MeetingService) StopSummaryRuns(grace time.Duration) bool {
+	done := make(chan struct{})
+	go func() { s.summaryRuns.Wait(); close(done) }()
+	select {
+	case <-done:
+		return true
+	case <-time.After(grace):
+	}
+	s.stopSummaries()
+	select {
+	case <-done:
+		return true
+	case <-time.After(summaryStoreTimeout + summaryReleaseTimeout):
+		return false
+	}
+}
+
 // summarize is the body Summarize and SummarizeAuto share: the plan and model
 // gates, the run lease, the sources, the model call and the store, all on
 // behalf of actor.
 func (s *MeetingService) summarize(ctx context.Context, m db.Meeting, actor Actor, locale string) (db.MeetingSummary, error) {
-	meetingID := m.ID
-	if err := s.requireFeature(ctx, m, FeatureMeetingAISummary); err != nil {
-		return db.MeetingSummary{}, err
-	}
-	if !s.AI.Enabled() {
-		s.summaryErrorCount(summaryReasonNotConfigured)
-		return db.MeetingSummary{}, errSummaryNotConfigured()
-	}
-	if m.Status != MeetingInProgress && m.Status != MeetingEnded {
-		return db.MeetingSummary{}, errInvalidState()
-	}
-	budget := s.summaryBudget()
-	release, err := s.claimSummaryRun(ctx, m, budget.lease)
+	budget, release, err := s.claimSummary(ctx, m)
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
-	defer release()
+	row, err := s.runSummary(ctx, m, actor, locale, budget)
+	release(err)
+	return row, err
+}
+
+// claimSummary is the part of a run that answers at once: the plan and
+// model gates, the meeting's state and the run lease.
+func (s *MeetingService) claimSummary(ctx context.Context, m db.Meeting) (summaryBudgetPlan, func(error), error) {
+	if err := s.requireFeature(ctx, m, FeatureMeetingAISummary); err != nil {
+		return summaryBudgetPlan{}, nil, err
+	}
+	if !s.AI.Enabled() {
+		s.summaryErrorCount(summaryReasonNotConfigured)
+		return summaryBudgetPlan{}, nil, errSummaryNotConfigured()
+	}
+	if m.Status != MeetingInProgress && m.Status != MeetingEnded {
+		return summaryBudgetPlan{}, nil, errInvalidState()
+	}
+	budget := s.summaryBudget()
+	release, err := s.claimSummaryRun(ctx, m, budget.lease)
+	return budget, release, err
+}
+
+// runSummary reads the sources, asks the model and stores the record, inside
+// the lease claimSummary took.
+func (s *MeetingService) runSummary(ctx context.Context, m db.Meeting, actor Actor, locale string, budget summaryBudgetPlan) (db.MeetingSummary, error) {
+	meetingID := m.ID
 	// summarizeAuto's "a clerk's summary stands" read ran before the lease: a
 	// clerk's run may have stored one and released in between.
 	if actor == autoSummaryActor {

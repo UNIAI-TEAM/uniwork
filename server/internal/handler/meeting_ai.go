@@ -72,6 +72,9 @@ func toSummaryRunDTO(r service.SummaryRun) sdo.MeetingSummaryRunDTO {
 		v := r.At.UTC().Format(time.RFC3339)
 		out.At = &v
 	}
+	if !r.FailedAt.IsZero() {
+		out.Failure = &sdo.MeetingSummaryRunFailureDTO{Code: r.FailureCode, At: r.FailedAt.UTC().Format(time.RFC3339)}
+	}
 	return out
 }
 
@@ -176,12 +179,16 @@ func (h *handlers) getMeetingSummary(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
+	respondJSON(w, 200, toSummaryViewSDO(v))
+}
+
+func toSummaryViewSDO(v service.SummaryView) sdo.MeetingSummarySDO {
 	out := sdo.MeetingSummarySDO{Run: toSummaryRunDTO(v.Run)}
 	if v.Summary != nil {
 		dto := toSummaryDTO(*v.Summary, v.TopicStarts)
 		out.Summary = &dto
 	}
-	respondJSON(w, 200, out)
+	return out
 }
 
 // summaryLocale maps the requested output language onto the closed set the
@@ -198,14 +205,14 @@ func (h *handlers) createSummary(w http.ResponseWriter, r *http.Request) {
 	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	s, err := h.Meetings.Summarize(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), summaryLocale(in.Locale))
+	// The run goes on after this answer (UNI-1995 #12): it ends in
+	// summary.created, or in the failure GET summary's run carries.
+	v, err := h.Meetings.StartSummary(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), summaryLocale(in.Locale))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	// The run that made it has ended; topic start times come with the next GET.
-	dto := toSummaryDTO(s, nil)
-	respondJSON(w, 200, sdo.MeetingSummarySDO{Summary: &dto, Run: sdo.MeetingSummaryRunDTO{Status: service.SummaryRunIdle}})
+	respondJSON(w, http.StatusAccepted, toSummaryViewSDO(v))
 }
 
 func (h *handlers) meetingCatchUp(w http.ResponseWriter, r *http.Request) {

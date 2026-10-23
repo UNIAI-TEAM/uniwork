@@ -227,7 +227,22 @@ func TestSummaryWithRunReportsTheRun(t *testing.T) {
 	if v, _ := s.SummaryWithRun(ctx, ua.ID, m.ID); v.Run.Status != SummaryRunRunning || v.Run.At.IsZero() {
 		t.Fatalf("running view = %+v", v.Run)
 	}
-	release()
+	release(errSummaryTimeout())
+	// The failed run gave its lease back and left its code for every viewer.
+	if v, _ := s.SummaryWithRun(ctx, ua.ID, m.ID); v.Run.Status != SummaryRunIdle || v.Run.FailureCode != "ai_timeout" || v.Run.FailedAt.IsZero() {
+		t.Fatalf("failed view = %+v", v.Run)
+	}
+	again, err := s.claimSummaryRun(ctx, m, time.Minute)
+	if err != nil {
+		t.Fatalf("a failed run kept the lease: %v", err)
+	}
+	if v, _ := s.SummaryWithRun(ctx, ua.ID, m.ID); v.Run.Status != SummaryRunRunning || v.Run.FailureCode != "" {
+		t.Fatalf("the next run still shows the old failure: %+v", v.Run)
+	}
+	again(nil)
+	if n := countSummaryRows(t, s, `SELECT count(*) FROM meeting_summary_runs WHERE meeting_id = $1`, m.ID); n != 0 {
+		t.Fatalf("a finished run left %d rows", n)
+	}
 	if err := s.q.QueueMeetingAutoSummary(ctx, db.QueueMeetingAutoSummaryParams{MeetingID: m.ID, OrganizationID: m.OrganizationID, AfterSeconds: 30}); err != nil {
 		t.Fatal(err)
 	}

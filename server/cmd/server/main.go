@@ -908,6 +908,12 @@ func main() {
 		log.Warn("http shutdown", "err", err)
 	}
 	<-wsDrained
+	// A clerk's summary run outlives its request (UNI-1995 #12): the runs in
+	// flight get time to store, then the rest are cancelled, so each settles
+	// its usage row and gives its lease back before the pool closes.
+	if !meetingSvc.StopSummaryRuns(20 * time.Second) {
+		log.Warn("meetings: summary runs did not stop in time")
+	}
 	stopWorker()
 	select {
 	case <-outboxDone:

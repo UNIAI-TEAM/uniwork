@@ -284,11 +284,14 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	r.With(summaryLimit).Post("/meetings/{meetingID}/summary", h.CreateSummary, apiOp{
 		summary: "Generate AI summary from transcript and notes", tags: []string{"meetings"},
 		description: "Chủ trì, thư ký hoặc admin workspace (clerk). Mỗi cuộc họp chỉ chạy một lần tóm tắt tại một thời điểm. " +
+			"202: lần tạo đã nhận và chạy tiếp ở server dù người bấm đóng tab; trả tóm tắt hiện có (hoặc null) với run.status running. " +
+			"Kết thúc bằng sự kiện summary.created, hoặc bằng run.failure (mã lỗi bên dưới) ở GET .../summary. " +
 			"Việc AI đề xuất thay các việc AI còn chờ xử lý; việc đã giao, đã bỏ qua, việc thêm tay giữ nguyên. " +
-			"Lỗi: 403 not_meeting_clerk, 403 entitlement_required (gói không có meeting.ai_summary), 402 ai_quota_exceeded, " +
-			"409 summary_no_source / summary_in_progress, 429 rate_limited (bucket ai-meeting-summary: 6 lượt/phút/người, Retry-After) " +
-			"hoặc ai_rate_limited (fields.retry_after), 502 ai_failed, 503 ai_not_configured, 504 ai_timeout.",
-		sdi: sdi.CreateSummarySDI{}, sdo: sdo.MeetingSummarySDO{}, auth: true,
+			"Lỗi trả ngay: 403 not_meeting_clerk, 403 entitlement_required (gói không có meeting.ai_summary), " +
+			"409 summary_in_progress, 429 rate_limited (bucket ai-meeting-summary: 6 lượt/phút/người, Retry-After), 503 ai_not_configured. " +
+			"Lỗi của lần tạo (run.failure.code): summary_no_source, ai_quota_exceeded, ai_rate_limited, ai_failed, ai_timeout.",
+		status: http.StatusAccepted,
+		sdi:    sdi.CreateSummarySDI{}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/evidence", h.MeetingEvidence, apiOp{
 		summary: "The cited lines behind a summary's decisions and action items", tags: []string{"meetings"},
