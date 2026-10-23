@@ -41,3 +41,11 @@ b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.
 # release artifact. Not a credential. Later commits split the header so the
 # fixture no longer matches; this pins only the commit that added it.
 6e536f4c45f73458c20f97cd5e41dc8d658761ec:scripts/mobile-apk-scan.test.mjs:private-key:51
+# UNI-2141 PushKit test fixtures: fixed 64-hex-digit fake device tokens in the
+# APNs VoIP sender and ring tests, never a credential (a PushKit token only
+# addresses a device; it grants nothing). generic-api-key matches them on
+# entropy. CI scans every remote branch, so the commits that introduced them
+# fail every PR until they are listed here.
+a06ec2f47eae0845a2a72de4f0c343e1c8522710:server/internal/notification/chat_call_voip_test.go:generic-api-key:65
+a06ec2f47eae0845a2a72de4f0c343e1c8522710:server/internal/notification/push_apns_test.go:generic-api-key:30
+770a35260973d4860be8adb139cc4b273634cc6e:server/internal/notification/chat_call_voip_test.go:generic-api-key:248
