@@ -5,56 +5,108 @@ import * as chat from "../api/endpoints/chat";
 import type { ChatDocumentShareLevel, ChatRoomRecord, ChatUserLookup } from "../api/endpoints/chat";
 import { ApiError } from "../api/http";
 import { runWithChatSendRetry } from "./send-retry";
-import { usePendingChatMessagesStore } from "./pending-messages-store";
 import { lookupChatUserCached } from "./user-lookup";
 import { useAuthStore } from "../auth/store";
 import { documentKeys } from "../documents/keys";
-import { chatKeys } from "./chat-keys";
 import { patchRoomSidebarFromMessage } from "./chat-cache-records";
-import { applyChatMessageResponse, insertCreatedRoomMessage, patchChatMessageDeleted } from "./realtime-cache";
+import { chatKeys } from "./chat-keys";
+import {
+  buildOptimisticRoomMessageRecord,
+  commitOptimisticRoomSend,
+  insertOptimisticRoomMessageIfLoaded,
+  removeOptimisticRoomMessage,
+} from "./optimistic-outbound-message";
+import { usePendingChatMessagesStore } from "./pending-messages-store";
+import {
+  applyChatMessageResponse,
+  insertCreatedRoomMessage,
+  invalidateRoomSharedSummary,
+  patchChatMessageDeleted,
+} from "./realtime-cache";
+
+type RoomSendVariables = {
+  roomId: string;
+  body?: string;
+  client_msg_id?: string;
+  reply_to_message_id?: string;
+  poll?: {
+    question: string;
+    options: string[];
+    settings?: {
+      deadline_at?: string | null;
+      pin_to_top?: boolean;
+      allow_multiple?: boolean;
+      allow_add_options?: boolean;
+      hide_results_until_vote?: boolean;
+      hide_voters?: boolean;
+    };
+  };
+  reminder?: {
+    body: string;
+    remind_at: string;
+    repeat?: string;
+  };
+  note?: {
+    body: string;
+    pin_to_top?: boolean;
+  };
+  post?: {
+    title: string;
+    body: string;
+    pin_to_top?: boolean;
+  };
+  priority?: "important" | "urgent";
+};
 
 export function useSendChatRoomMessage(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: {
-      roomId: string;
-      body?: string;
-      client_msg_id?: string;
-      reply_to_message_id?: string;
-      poll?: {
-        question: string;
-        options: string[];
-        settings?: {
-          deadline_at?: string | null;
-          pin_to_top?: boolean;
-          allow_multiple?: boolean;
-          allow_add_options?: boolean;
-          hide_results_until_vote?: boolean;
-          hide_voters?: boolean;
-        };
-      };
-      reminder?: {
-        body: string;
-        remind_at: string;
-        repeat?: string;
-      };
-      note?: {
-        body: string;
-        pin_to_top?: boolean;
-      };
-      post?: {
-        title: string;
-        body: string;
-        pin_to_top?: boolean;
-      };
-      priority?: "important" | "urgent";
-    }) => runWithChatSendRetry(() => chat.sendChatRoomMessage(workspaceId, input.roomId, input)),
+    mutationFn: (input: RoomSendVariables) =>
+      runWithChatSendRetry(() => chat.sendChatRoomMessage(workspaceId, input.roomId, input)),
+    onMutate: async (variables) => {
+      const user = useAuthStore.getState().user;
+      if (!user || !variables.client_msg_id || !variables.body) {
+        return { usedPendingFallback: false as const };
+      }
+      const optimistic = buildOptimisticRoomMessageRecord(workspaceId, variables, {
+        id: user.id,
+        display_name: user.display_name,
+      });
+      if (!optimistic) return { usedPendingFallback: false as const };
+      const inserted = insertOptimisticRoomMessageIfLoaded(qc, workspaceId, variables.roomId, optimistic);
+      if (!inserted) {
+        usePendingChatMessagesStore.getState().upsert({
+          workspaceId,
+          roomId: variables.roomId,
+          client_msg_id: variables.client_msg_id,
+          body: variables.body,
+          senderId: user.id,
+          createdAt: Date.now(),
+          reply_to_message_id: variables.reply_to_message_id,
+          priority: variables.priority,
+          status: "sending",
+        });
+      }
+      return { usedPendingFallback: !inserted, client_msg_id: variables.client_msg_id };
+    },
+    onError: (_err, variables) => {
+      if (!variables.client_msg_id) return;
+      removeOptimisticRoomMessage(qc, workspaceId, variables.roomId, variables.client_msg_id);
+      usePendingChatMessagesStore.getState().remove(variables.client_msg_id);
+    },
     onSuccess: (data, variables) => {
       if (variables.client_msg_id) {
         usePendingChatMessagesStore.getState().remove(variables.client_msg_id);
       }
       if (data) {
-        insertCreatedRoomMessage(qc, workspaceId, variables.roomId, data);
+        const timelineLoaded =
+          qc.getQueryData(chatKeys.roomMessages(workspaceId, variables.roomId)) !== undefined;
+        if (variables.client_msg_id && timelineLoaded) {
+          commitOptimisticRoomSend(qc, workspaceId, variables.roomId, variables.client_msg_id, data);
+          invalidateRoomSharedSummary(qc, workspaceId, variables.roomId);
+        } else {
+          insertCreatedRoomMessage(qc, workspaceId, variables.roomId, data);
+        }
         qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(workspaceId), (old) =>
           patchRoomSidebarFromMessage(old, variables.roomId, data),
         );

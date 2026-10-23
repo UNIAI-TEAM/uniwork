@@ -196,6 +196,8 @@ export function createChatMessageCache(host: ChatMessageCacheHost) {
         return;
       }
       const knownBefore = roomTimelineHas(qc.getQueryData<RoomTimeline>(keys.roomMessages(wsId, roomId)), messageId);
+      // The send path already inserted this id; the WS echo need not GET it again.
+      if (knownBefore && created) return;
       const message = await host.getMessage(wsId, roomId, messageId);
       if (!message) return;
       patchMessageCaches(qc, wsId, roomId, message, created);
