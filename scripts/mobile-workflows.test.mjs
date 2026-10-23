@@ -505,6 +505,11 @@ test("every PR that needs the signed-in flows runs them against a server it star
   }
   // Screenshots and server logs only: Maestro's own log holds the typed password.
   assert.match(job, /~\/\.maestro\/tests\/\*\*\/\*\.png/);
+  assert.doesNotMatch(job, /^ {12}~\/\.maestro\/tests\/\*\*$/m, "never the whole Maestro output");
+  // UNI-2142: each failed run's maestro.log and device log, which scripts/maestro-retry.sh copies without the
+  // password's lines, so a dropped adb transport can be told from an app failure in the artifact.
+  assert.match(job, /^ {10}MAESTRO_ATTEMPT_LOGS: \$\{\{ runner\.temp \}\}\/maestro-attempts$/m);
+  assert.match(job, /^ {12}\$\{\{ runner\.temp \}\}\/maestro-attempts\/\*\*$/m);
   // A flow that dies into an error screen says why: the device log of a failed flow, taken before the emulator goes
   // (scripts/maestro-retry.sh › MAESTRO_LOGCAT), in a buffer big enough for both attempts, without the password's
   // lines, its JavaScript lines in the job log, and both files in the artifact.
@@ -516,6 +521,17 @@ test("every PR that needs the signed-in flows runs them against a server it star
   assert.match(job, /^ {12}\$\{\{ runner\.temp \}\}\/logcat-js\.txt$/m);
   const logStep = job.indexOf("name: The device log of a failed flow");
   assert.ok(logStep > 0 && logStep < job.indexOf("name: maestro-e2e"), "the log is cut down before the artifact is uploaded");
+});
+
+// UNI-2142: the emulator's adb transport drops for under half a second as a Maestro session starts, on any emulator
+// job; both PR emulator jobs let scripts/maestro-retry.sh restart adb and rerun such a run outside the app's attempts.
+test("both PR emulator jobs let a run that lost the adb transport get a fresh adb server", () => {
+  const { jobs } = jobsOf(read("mobile-verify.yml"));
+  for (const id of ["android-smoke", "android-e2e"]) {
+    const job = jobs.get(id) ?? "";
+    assert.match(job, /reactivecircus\/android-emulator-runner@v2/, `${id} runs an emulator`);
+    assert.match(job, /^ {10}MAESTRO_ADB_RECOVER: "1"$/m, id);
+  }
 });
 
 test("mobile-verify declares the force_native input the release passes", () => {

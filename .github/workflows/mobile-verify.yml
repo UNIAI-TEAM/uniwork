@@ -441,8 +441,10 @@ jobs:
       - name: Cold start on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
-          # An emulator whose adbd dropped ("device offline") is reconnected before each Maestro attempt
-          # (scripts/maestro-retry.sh); it stayed offline for the retry otherwise (UNI-2142).
+          # A Maestro run whose own log shows the emulator's adb transport dropped ("device offline" on its first
+          # command) gets a fresh adb server and runs again without spending an attempt (scripts/maestro-retry.sh,
+          # UNI-2142): the drop lasts under half a second, Maestro 2.11.0 does not ride it out, and the plain retry
+          # met it again on the same emulator.
           MAESTRO_ADB_RECOVER: "1"
         with:
           api-level: 35
@@ -631,8 +633,11 @@ jobs:
           # The web (3000) and API (8080) on the runner, mapped again before every attempt (scripts/maestro-retry.sh):
           # a failed attempt can restart adbd, and the retry then met localhost refused in the sign-in Custom Tab.
           MAESTRO_ADB_REVERSE: "3000 8080"
-          # And reconnected first if adbd dropped, as in android-smoke.
+          # And a fresh adb server for a run that lost the transport, as in android-smoke.
           MAESTRO_ADB_RECOVER: "1"
+          # Every failed run's maestro.log and device log, without the password's lines: Maestro clears logcat at each
+          # flow start, so MAESTRO_LOGCAT holds only the last attempt, and its own log is not uploaded otherwise.
+          MAESTRO_ATTEMPT_LOGS: ${{ runner.temp }}/maestro-attempts
         with:
           api-level: 35
           # google_apis carries Chrome, which hosts the sign-in Custom Tab.
@@ -672,9 +677,10 @@ jobs:
         with:
           name: maestro-e2e
           # Screenshots, the server logs and the device log without the password's lines: Maestro's command log records
-          # the typed test password.
+          # the typed test password, so only the copies scripts/maestro-retry.sh redacted (maestro-attempts) go.
           path: |
             ~/.maestro/tests/**/*.png
+            ${{ runner.temp }}/maestro-attempts/**
             ${{ runner.temp }}/server.log
             ${{ runner.temp }}/web.log
             ${{ runner.temp }}/logcat.txt
