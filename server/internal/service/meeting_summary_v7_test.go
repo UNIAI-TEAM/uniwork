@@ -473,3 +473,16 @@ func TestSummarizeKeepsTheBetterStoredRecord(t *testing.T) {
 		t.Fatalf("a record without the handled item was refused: %v", err)
 	}
 }
+
+// The record's budget is a ceiling the model may stay under, so it must not
+// squeeze a normal meeting: a 5k-character transcript (~8 minutes of
+// speech) got a single topic, and the 28-minute demo meeting three.
+func TestSummarySizeForLeavesRoomForTheSubjects(t *testing.T) {
+	for _, c := range []struct{ runes, topics, points int }{
+		{0, 2, 2}, {5000, 3, 2}, {14000, 4, 2}, {30000, 8, 4}, {500000, 12, 6},
+	} {
+		if got := summarySizeFor(c.runes); got.Topics != c.topics || got.Points != c.points {
+			t.Errorf("summarySizeFor(%d) = %+v, want %d topics of %d points", c.runes, got, c.topics, c.points)
+		}
+	}
+}

@@ -78,14 +78,16 @@ const summaryMarkerRunes = 32
 
 // summarySizeFor scales the record to the input it summarizes (benchmark
 // #8): about one TL;DR sentence more per 8k runes (~10 minutes of speech),
-// one topic per 4k runes, from a stand-up's 2 sentences and 1 topic to a
-// long meeting's 8 sentences, 12 topics and 6 points each.
+// one topic more per 5k runes and one point more per 15k, from a
+// stand-up's 2 sentences and 2 topics to a long meeting's 8 sentences, 12
+// topics and 6 points each. They are ceilings the prompt lets the model stay
+// under, so they leave room for every subject a meeting of that length has.
 func summarySizeFor(runes int) ai.SummarySize {
 	clamp := func(v, lo, hi int) int { return min(max(v, lo), hi) }
 	return ai.SummarySize{
 		Sentences: clamp(2+runes/8000, 2, 8),
-		Topics:    clamp(runes/4000, 1, 12),
-		Points:    clamp(2+runes/30000, 2, 6),
+		Topics:    clamp(2+runes/5000, 2, 12),
+		Points:    clamp(2+runes/15000, 2, 6),
 	}
 }
 
