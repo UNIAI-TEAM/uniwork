@@ -224,6 +224,23 @@ func TestAskUniOnlyTheAskerDecidesAProposal(t *testing.T) {
 		// Another member of the same organization: the row names nothing.
 		res, out := w.call(t, w.member, a.method, a.path, a.body)
 		wantError(t, a.name+" by a colleague", res, out, http.StatusNotFound, "not_found")
+		// The answer is the one an id that names nothing gets, byte for byte.
+		fakePath, fakeBody := a.path, a.body
+		raw, _ := json.Marshal(a.body)
+		for _, id := range []string{id(0), conv, msg} {
+			fake := util.NewID()
+			fakePath = strings.ReplaceAll(fakePath, id, fake)
+			raw = []byte(strings.ReplaceAll(string(raw), id, fake))
+		}
+		if a.body != nil {
+			_ = json.Unmarshal(raw, &fakeBody)
+		}
+		_, nothing := w.call(t, w.member, a.method, fakePath, fakeBody)
+		got, _ := json.Marshal(out)
+		want, _ := json.Marshal(nothing)
+		if string(got) != string(want) {
+			t.Errorf("%s by a colleague answers %s, an id that names nothing answers %s", a.name, got, want)
+		}
 		if f, _ := out["error"].(map[string]any)["fields"]; f != nil {
 			t.Errorf("%s by a colleague carries fields %v: a refusal names no row", a.name, f)
 		}
@@ -395,7 +412,26 @@ func TestProposalApplyRateLimitIs429(t *testing.T) {
 func TestAskUniActionsOffRefusesEveryRoute(t *testing.T) {
 	w := newPropWorld(t)
 	row := w.createRow(t, 1, "Chờ")
+	rejected := w.createRow(t, 2, "Đã bỏ")
+	if res, out := w.call(t, w.owner, "POST", "/api/v1/ai/proposals/"+rejected.ID+"/reject", nil); res.StatusCode != 200 {
+		t.Fatalf("reject: %d %v", res.StatusCode, out)
+	}
+	expired := w.createRow(t, 3, "Hết hạn")
+	if _, err := w.pool.Exec(context.Background(), `UPDATE agent_action_proposals SET expires_at = now() - interval '1 minute' WHERE id = $1`, expired.ID); err != nil {
+		t.Fatal(err)
+	}
 	w.actions.Store(false)
+	// A row that is no longer pending, or is past its hour, is no excuse for
+	// answering anything but the kill switch (R2).
+	for _, id := range []string{rejected.ID, expired.ID} {
+		res, out := w.call(t, w.owner, "POST", "/api/v1/ai/proposals/"+id+"/apply", nil)
+		wantError(t, "apply of a settled or expired row", res, out, http.StatusForbidden, "ai_actions_disabled")
+	}
+	// The bad body of a route that names no proposal gets the kill switch too.
+	res, out := w.call(t, w.owner, "PUT", "/api/v1/me/ask-uni-mode", map[string]any{"mode": "yolo"})
+	wantError(t, "a bad mode with the flag off", res, out, http.StatusForbidden, "ai_actions_disabled")
+	res, out = w.call(t, w.owner, "PUT", "/api/v1/orgs/askprop/ai/ask-write-policy", map[string]any{"ceiling": "yolo"})
+	wantError(t, "a bad ceiling with the flag off", res, out, http.StatusForbidden, "ai_actions_disabled")
 	msgPath := "/api/v1/ai/conversations/" + w.conv + "/messages/" + w.msg
 	routes := []struct {
 		method, path string
@@ -455,5 +491,41 @@ func TestAskUniListsCarryProposalsTaintAndActions(t *testing.T) {
 	a, _ := caps["actions"].(map[string]any)
 	if a["enabled"] != true || a["ceiling"] != "plan" || a["mode"] != "ask" {
 		t.Errorf("capabilities.actions = %v, want enabled, plan ceiling, ask mode", a)
+	}
+}
+
+// An apply-all that stops on a row whose command was refused is 409 with that
+// row's code and every row of the answer in error.fields.proposals; a stop that
+// is a refusal, even beside a row that failed earlier, is answered as the
+// refusal and names the failed row of an earlier call to nobody.
+func TestApplyAllReportsTheRowThatStoppedTheRun(t *testing.T) {
+	w := newPropWorld(t)
+	_, task := w.call(t, w.owner, "POST", "/api/v1/workspaces/"+w.wsID+"/tasks", map[string]any{"title": "Đích"})
+	taskID := task["task"].(map[string]any)["id"].(string)
+	stale := int64(999)
+	staleRow := func(pos int) db.AgentActionProposal {
+		return w.seed(t, pos, "update_task", fmt.Sprintf(`{"task_id":%q,"status":"done"}`, taskID), "pending", taskID, &stale)
+	}
+	all := "/api/v1/ai/conversations/" + w.conv + "/messages/" + w.msg + "/proposals/apply"
+
+	// A stale row inside apply-all: the row failed in this run.
+	s1, later := staleRow(1), w.createRow(t, 2, "Sau")
+	res, out := w.call(t, w.owner, "POST", all, map[string]any{"proposal_ids": []string{s1.ID, later.ID}})
+	wantError(t, "a stale row in apply-all", res, out, http.StatusConflict, "revision_conflict")
+	rows, _ := out["error"].(map[string]any)["fields"].(map[string]any)["proposals"].([]any)
+	if len(rows) != 2 || rows[0].(map[string]any)["status"] != "failed" || rows[0].(map[string]any)["error_code"] != "revision_conflict" || rows[1].(map[string]any)["status"] != "pending" {
+		t.Fatalf("error.fields.proposals = %v, want the failed row then the one left pending", rows)
+	}
+
+	// The failed row of that call, then a later row refused: the answer is the
+	// refusal, not the earlier failure.
+	expired := w.createRow(t, 3, "Hết hạn")
+	if _, err := w.pool.Exec(context.Background(), `UPDATE agent_action_proposals SET expires_at = now() - interval '1 minute' WHERE id = $1`, expired.ID); err != nil {
+		t.Fatal(err)
+	}
+	res, out = w.call(t, w.owner, "POST", all, map[string]any{"proposal_ids": []string{later.ID, expired.ID}})
+	wantError(t, "a refusal beside an earlier failure", res, out, http.StatusConflict, "proposal_expired")
+	if f := out["error"].(map[string]any)["fields"]; f != nil {
+		t.Errorf("a refusal carries fields %v, want none", f)
 	}
 }

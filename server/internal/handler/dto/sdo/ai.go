@@ -114,7 +114,7 @@ type AiMessageDTO struct {
 	FileNotes []AiFileNoteDTO `json:"file_notes" description:"Trên câu trả lời: các file của lượt hỏi UNI chỉ đọc một phần (vì vượt phần token dành cho file), theo thứ tự đọc; rỗng khi đọc đủ, khi không có file và ở tin nhắn của người hỏi" example:"[{\"name\":\"bao-cao-quy-3.pdf\",\"unit\":\"page\",\"read\":15,\"total\":80}]"`
 	// Proposals is filled by the list of messages and the proposal event; the
 	// done event's message carries none.
-	Proposals []AiProposalDTO `json:"proposals" description:"Các dòng UNI đề xuất thay đổi trong câu trả lời, theo position; rỗng ở mọi tin khác"`
+	Proposals []AiProposalDTO `json:"proposals" description:"Các dòng UNI đề xuất thay đổi trong câu trả lời, theo position; rỗng ở mọi tin khác" example:"[]"`
 	CreatedAt string          `json:"created_at" example:"2026-09-06T08:00:00Z"`
 }
 
@@ -268,9 +268,9 @@ type ChatCatchUpSDO struct {
 
 // AiProposalChangeDTO is one field a proposal changed, as an applied row reports it.
 type AiProposalChangeDTO struct {
-	Field string `json:"field" example:"status"`
-	From  any    `json:"from"`
-	To    any    `json:"to"`
+	Field string `json:"field" description:"Tên trường đã đổi" example:"status"`
+	From  any    `json:"from" description:"Giá trị trước, dạng đọc được" example:"todo"`
+	To    any    `json:"to" description:"Giá trị sau, dạng đọc được" example:"done"`
 }
 
 // AiProposalResultDTO is what an applied row did; zero values on a row not applied.
@@ -286,8 +286,8 @@ type AiProposalResultDTO struct {
 type AiProposalFieldDTO struct {
 	Field   string   `json:"field" description:"Client dịch nhãn theo ai.proposal.field.<field>" example:"status"`
 	Type    string   `json:"type" description:"text, markdown, date, datetime, enum, person, project hoặc labels" example:"enum"`
-	From    any      `json:"from"`
-	To      any      `json:"to"`
+	From    any      `json:"from" description:"Giá trị trước, dạng đọc được (tên người, dự án, nhãn, trạng thái), không phải mã" example:"Cần làm"`
+	To      any      `json:"to" description:"Giá trị sau, dạng đọc được" example:"Hoàn thành"`
 	Options []string `json:"options,omitempty" description:"Các giá trị chọn được khi type là enum"`
 }
 
@@ -320,8 +320,8 @@ type AiProposalDTO struct {
 	Mode      string               `json:"mode" description:"Chế độ của lượt đã đề xuất: ask, plan hoặc auto" example:"ask"`
 	Status    string               `json:"status" description:"pending, applying, applied, rejected, failed, undoing, undone; thêm expired (pending quá hạn 24 giờ) và unknown (applying/undoing quá 2 phút) tính lúc đọc" example:"pending"`
 	Decision  string               `json:"decision" description:"Cách dòng được quyết: confirmed, plan, auto hoặc answer; rỗng khi chưa quyết" example:""`
-	Preview   AiProposalPreviewDTO `json:"preview"`
-	Result    AiProposalResultDTO  `json:"result"`
+	Preview   AiProposalPreviewDTO `json:"preview" description:"Những gì thẻ cho xem trước khi ghi gì"`
+	Result    AiProposalResultDTO  `json:"result" description:"Những gì dòng đã làm; giá trị rỗng khi chưa áp dụng"`
 	CanUndo   bool                 `json:"can_undo" description:"true khi dòng đã áp dụng và còn Hoàn tác" example:"false"`
 	ErrorCode string               `json:"error_code" description:"Mã lỗi của dòng failed: not_found, invalid_args, revision_conflict, apply_failed…; rỗng khi không lỗi" example:""`
 	Tainted   bool                 `json:"tainted" description:"Lượt đã đọc thứ không phải lời của người hỏi" example:"false"`
@@ -333,7 +333,7 @@ type AiProposalDTO struct {
 // the run, the answer is 409 with the row's code and these rows in
 // error.fields.proposals.
 type AiProposalListSDO struct {
-	Proposals []AiProposalDTO `json:"proposals"`
+	Proposals []AiProposalDTO `json:"proposals" description:"Mọi dòng của câu trả lời theo position, ở trạng thái sau lần gọi"`
 }
 
 // AskUniModeSDO is PUT /api/v1/me/ask-uni-mode.

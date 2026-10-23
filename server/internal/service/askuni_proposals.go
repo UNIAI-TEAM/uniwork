@@ -364,6 +364,14 @@ func (s *AskUNIService) ApplyProposal(ctx context.Context, userID, proposalID st
 	if err != nil {
 		return AskProposal{}, err
 	}
+	// The kill switch answers before any state does (R2); applyRow gates again,
+	// spending the budget, once the row is known to run.
+	if err := s.proposalMember(ctx, userID, row); err != nil {
+		return AskProposal{}, err
+	}
+	if err := s.askGate(ctx, proposalContext(row), false); err != nil {
+		return AskProposal{}, err
+	}
 	decision := "confirmed"
 	if row.Position == askAnswerPosition {
 		decision = "answer"
@@ -578,7 +586,8 @@ func (s *AskUNIService) ApplyMessageProposals(ctx context.Context, userID, conve
 		if !chosen[r.ID] {
 			continue
 		}
-		if _, stopped = s.applyRow(ctx, userID, r, decision); stopped != nil {
+		if _, err := s.applyRow(ctx, userID, r, decision); err != nil {
+			stopped = AskStoppedBy{ProposalID: r.ID, Err: err}
 			break
 		}
 	}
@@ -598,6 +607,17 @@ func (s *AskUNIService) ApplyMessageProposals(ctx context.Context, userID, conve
 	}
 	return m[messageID], stopped
 }
+
+// AskStoppedBy is what ApplyMessageProposals returns when a chosen row stopped
+// the run: the row that did, and why. Callers match the cause with errors.Is
+// and errors.As as before.
+type AskStoppedBy struct {
+	ProposalID string
+	Err        error
+}
+
+func (e AskStoppedBy) Error() string { return e.Err.Error() }
+func (e AskStoppedBy) Unwrap() error { return e.Err }
 
 // RejectProposal is Bỏ qua: pending → rejected, audited.
 func (s *AskUNIService) RejectProposal(ctx context.Context, userID, proposalID string) (AskProposal, error) {

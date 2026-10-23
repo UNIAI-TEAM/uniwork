@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -110,23 +111,43 @@ func (h *handlers) applyAiMessageProposals(w http.ResponseWriter, r *http.Reques
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	if len(in.ProposalIDs) > 10 {
-		respondError(w, http.StatusBadRequest, "invalid_request", "proposal_ids has more than 10 rows")
+	if len(in.ProposalIDs) > service.AskMaxProposalRows {
+		respondError(w, http.StatusBadRequest, "invalid_request", "proposal_ids has more rows than an answer holds")
 		return
 	}
 	ps, err := h.AskUNI.ApplyMessageProposals(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "conversationID"), chi.URLParam(r, "messageID"), in.ProposalIDs)
 	if err != nil {
-		var failed *service.AskProposal
-		for i := range ps {
-			if ps[i].Status == "failed" {
-				failed = &ps[i]
-				break
+		// Only the row that stopped this run can have failed in it: a row that
+		// failed earlier, or a later refusal, is answered as what it is.
+		var stop service.AskStoppedBy
+		if errors.As(err, &stop) {
+			for i := range ps {
+				if ps[i].ID == stop.ProposalID && failedInThisRun(ps[i], stop.Err) {
+					h.proposalFailure(w, stop.Err, "proposals", aiProposalDTOs(ps), &ps[i])
+					return
+				}
 			}
+			err = stop.Err
 		}
-		h.proposalFailure(w, err, "proposals", aiProposalDTOs(ps), failed)
+		h.mapServiceError(w, err)
 		return
 	}
 	respondJSON(w, 200, sdo.AiProposalListSDO{Proposals: aiProposalDTOs(ps)})
+}
+
+// failedInThisRun is whether row failed because err, the error that stopped
+// the run on it, is its own failure: the code it stored, or apply_failed for a
+// command error that is no refusal. A failed row that is named again stops
+// the run with proposal_not_pending, which is not that.
+func failedInThisRun(row service.AskProposal, err error) bool {
+	if row.Status != "failed" {
+		return false
+	}
+	var ce service.CodedError
+	if errors.As(err, &ce) {
+		return ce.Code == row.ErrorCode
+	}
+	return row.ErrorCode == "apply_failed"
 }
 
 func (h *handlers) saveAiAnswerAsDocument(w http.ResponseWriter, r *http.Request) {
@@ -145,11 +166,14 @@ func (h *handlers) refuseAskActionsOff(w http.ResponseWriter, r *http.Request, o
 }
 
 func (h *handlers) setAskUniMode(w http.ResponseWriter, r *http.Request) {
-	var in sdi.AskUniModeSDI
-	if !decode(w, r, &in, maxJSONBody) {
+	// User-scoped on purpose: the mode names no organization, and it is
+	// clamped to the organization's ceiling when a question is asked or a row
+	// applied, so an organization override of the flag still governs those.
+	if h.refuseAskActionsOff(w, r, "") {
 		return
 	}
-	if h.refuseAskActionsOff(w, r, "") {
+	var in sdi.AskUniModeSDI
+	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	mode, err := h.AskUNI.SetAskUniMode(r.Context(), middleware.UserID(r.Context()), in.Mode)
@@ -181,11 +205,11 @@ func (h *handlers) setOrgAskWritePolicy(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	var in sdi.AskWritePolicySDI
-	if !decode(w, r, &in, maxJSONBody) {
+	if h.refuseAskActionsOff(w, r, orgID) {
 		return
 	}
-	if h.refuseAskActionsOff(w, r, orgID) {
+	var in sdi.AskWritePolicySDI
+	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	ceiling, err := h.AskUNI.SetAskWritePolicy(r.Context(), middleware.UserID(r.Context()), orgID, in.Ceiling)

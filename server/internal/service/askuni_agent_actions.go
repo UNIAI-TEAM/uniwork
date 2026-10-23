@@ -22,6 +22,10 @@ import (
 // level-1 rows of an untainted turn through applyRow, and only then do the
 // rows reach the asker, each in its current state.
 
+// AskMaxProposalRows is askMaxProposalRows for the API: the most rows one
+// answer holds, so the most one apply-all may name.
+const AskMaxProposalRows = askMaxProposalRows
+
 const (
 	// askMaxProposalRows caps a turn's rows (ADR 0044 §3); the call after
 	// them is answered "error: too_many_changes", unrun.
