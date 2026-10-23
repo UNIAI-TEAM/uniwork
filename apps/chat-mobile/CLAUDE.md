@@ -44,6 +44,7 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   cache đĩa qua schema mạng (`data/persisted-schema.lock.json`). Schema đổi thì quyết định bump version.
 - `data/server-contract.test.ts`: mỗi trường schema app đọc là một trường JSON của SDO Go trả nó; mỗi flag trong
   `MOBILE_FLAG_DEFAULTS` là flag `Mobile: true` của `server/internal/featureflags/keys.go`.
+- `scripts/mobile-route-catalogue.test.mjs`: mọi path `/api/v1` app gọi (kể cả core nó chạy) là route router đăng ký.
 - Không nuốt lỗi: `.catch(bestEffort(...))` (`data/report.ts`) hoặc `settled()` (`lib/settled.ts`); log qua
   `data/logger.ts` (`no-console` ở nơi khác); lỗi một thao tác là `toast.error(...)`.
 - Không `any`, không `x!` trong `app/`/`components/`; dòng mã nguồn ≤ 150 ký tự (`max-len`); file ≤ 500 dòng.
