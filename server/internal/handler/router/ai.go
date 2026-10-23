@@ -12,6 +12,8 @@ import (
 // there is no way to ask on someone else's behalf.
 //
 //	GET    /api/v1/workspaces/{workspaceID}/ai/capabilities
+//	POST   /api/v1/workspaces/{workspaceID}/ai/attachments
+//	DELETE /api/v1/workspaces/{workspaceID}/ai/attachments/{fileID}
 //	POST   /api/v1/workspaces/{workspaceID}/ai/ask
 //	POST   /api/v1/workspaces/{workspaceID}/ai/ask/stream
 //	GET    /api/v1/workspaces/{workspaceID}/ai/conversations
@@ -30,6 +32,23 @@ func registerAI(r api, h Routes) {
 		description: "enabled=false khi server không có provider (client ẩn nút); quota token AI của tổ chức trong tháng.",
 		tags:        []string{"ai"},
 		sdo:         sdo.AiCapabilitiesSDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/ai/attachments", h.UploadAiAttachment, apiOp{
+		summary: "Upload a file for an Ask UNI question",
+		description: "Tải một file lên để gắn vào câu hỏi Hỏi UNI kế tiếp (multipart, field file, tối đa 20 MiB; ảnh PNG/JPEG/GIF/WebP, PDF, DOCX, XLSX, PPTX, ODT, TXT, CSV, Markdown; loại xét theo nội dung). " +
+			"File chưa thuộc câu hỏi nào cho tới khi câu hỏi gửi đi; không gửi thì tự dọn sau 24 giờ. Người tải lên là người duy nhất đọc, gắn hoặc hủy file. " +
+			"403 ai_attachments_unavailable khi cờ ask_uni_attachments hoặc ask_uni_agent tắt, 413 too_large hoặc file_too_large, 415 file_type_rejected.",
+		tags: []string{"ai"},
+		sdi:  sdi.UploadAiAttachmentSDI{},
+		sdo:  sdo.AiAttachmentUploadSDO{},
+		auth: true,
+	})
+	r.Delete("/workspaces/{workspaceID}/ai/attachments/{fileID}", h.CancelAiAttachment, apiOp{
+		summary:     "Cancel an Ask UNI file",
+		description: "Bỏ file đã tải lên mà chưa có câu hỏi nào nhận. Chỉ người tải lên; file của người khác, của workspace khác, hoặc đã gắn vào câu hỏi → 404. Hủy lại vẫn 204.",
+		tags:        []string{"ai"},
+		status:      http.StatusNoContent,
 		auth:        true,
 	})
 	r.Post("/workspaces/{workspaceID}/ai/ask", h.AskUni, apiOp{

@@ -72,7 +72,7 @@ func (h *handlers) aiCapabilities(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.AiCapabilitiesSDO{
 		Enabled: c.Enabled, AskUni: c.AskUni, MeetingSummary: c.MeetingSummary,
 		Quota:  sdo.AiQuotaDTO{UsedTokens: c.UsedTokens, LimitTokens: c.LimitTokens},
-		Models: models, AutoModel: c.AutoModel,
+		Models: models, AutoModel: c.AutoModel, Attachments: c.Attachments,
 	})
 }
 

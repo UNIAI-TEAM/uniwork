@@ -66,6 +66,9 @@ var (
 	// call is priced and charged because the vendor billed it.
 	ErrRefused          = &Error{Code: "ai_refused", Status: http.StatusUnprocessableEntity, Msg: "mô hình từ chối trả lời yêu cầu này"}
 	ErrContextForbidden = &Error{Code: "ai_context_forbidden", Status: 403, Msg: "bạn không có quyền xem dữ liệu này"}
+	// ErrAttachmentsUnavailable is a file sent to Ask UNI while ask_uni_attachments
+	// (or the agent it needs) is off for the asker (UNI-2119).
+	ErrAttachmentsUnavailable = &Error{Code: "ai_attachments_unavailable", Status: 403, Msg: "Hỏi UNI chưa nhận file đính kèm"}
 
 	// BYOK proxy (UNI-1008). Messages never carry the key or the vendor URL.
 	ErrProviderNotSupported = &Error{Code: "provider_not_supported", Status: 400, Msg: "nhà cung cấp này không dùng được qua proxy cho thao tác này"}

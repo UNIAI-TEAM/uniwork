@@ -285,6 +285,8 @@ type Routes struct {
 	UnsubscribePush            http.HandlerFunc
 
 	AiCapabilities       http.HandlerFunc
+	UploadAiAttachment   http.HandlerFunc
+	CancelAiAttachment   http.HandlerFunc
 	GetOrgAskModels      http.HandlerFunc
 	SetOrgAskModels      http.HandlerFunc
 	AskUni               http.HandlerFunc

@@ -15,6 +15,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -33,6 +34,7 @@ type AskUNIService struct {
 	emailHub *EmailHubService
 	docs     *DocumentService
 	flags    McpFlags
+	files    files.Service   // nil until SetFiles; Ask UNI attachments read as off without it
 	reads    *McpToolService // nil until SetReadTools; the agent's tools read through it
 	gw       *ai.Gateway
 	ent      *EntitlementService
@@ -88,6 +90,9 @@ type AICapabilities struct {
 	// organization; AutoModel is the key Auto resolves to ("" when none).
 	Models    []AskModelOption
 	AutoModel string
+	// Attachments is whether the asker may send files with a question: the
+	// attachments and agent flags are both on for them.
+	Attachments bool
 }
 
 type AskInput struct {
@@ -201,6 +206,7 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 		return out, nil
 	}
 	out.AskUni = true
+	out.Attachments = s.attachmentsEnabled(ctx, userID, w)
 	out.Models, out.AutoModel = s.askModelOptions(ctx, w.OrganizationID)
 	out.MeetingSummary = s.ent.Can(ctx, w.OrganizationID, FeatureMeetingAISummary) == nil
 	snap, err := s.ent.Snapshot(ctx, w.OrganizationID)

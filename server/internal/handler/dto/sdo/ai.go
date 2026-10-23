@@ -16,6 +16,19 @@ type AiCapabilitiesSDO struct {
 	// organization's switch; auto_model is the key Auto resolves to.
 	Models    []AiModelOptionDTO `json:"models" description:"Model Claude chạy được cho Hỏi UNI, theo thứ tự hiển thị"`
 	AutoModel string             `json:"auto_model" description:"Khóa model mà Tự động dùng; rỗng nếu không trùng model nào" example:"sonnet"`
+	// Attachments is false while ask_uni_attachments or ask_uni_agent is off
+	// for the caller; the client then hides the upload entry.
+	Attachments bool `json:"attachments" description:"true khi người gọi được gắn file vào câu hỏi (cờ ask_uni_attachments và ask_uni_agent đều bật); false thì client ẩn nút tải file" example:"true"`
+}
+
+// AiAttachmentUploadSDO is POST /api/v1/workspaces/{workspaceID}/ai/attachments:
+// a file stored for the caller's next question, not yet attached to one.
+type AiAttachmentUploadSDO struct {
+	FileID string `json:"file_id" description:"ULID tệp; gửi trong attachment_ids của câu hỏi, hoặc DELETE …/ai/attachments/{fileID} để bỏ" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
+	Name   string `json:"name" description:"Tên tệp đã làm sạch" example:"bao-cao-quy-3.pdf"`
+	MIME   string `json:"mime" description:"Loại tệp xét theo nội dung, không theo tên hay Content-Type của client" example:"application/pdf"`
+	Size   int64  `json:"size" description:"Số byte" example:"184320"`
+	Kind   string `json:"kind" description:"image, pdf hoặc text: cách Hỏi UNI đọc tệp này" example:"pdf"`
 }
 
 // AiModelOptionDTO is one selectable Ask UNI model.

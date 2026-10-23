@@ -230,6 +230,11 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.EmailHub.AI = d.Meetings.AI
 	d.EmailHub.Tasks = d.Tasks
 	d.AskUNI.SetEmailHub(d.EmailHub)
+	// Ask UNI files (UNI-2119): the upload route needs the file store and the
+	// two flags, which the loop below turns on for everyone. The documents
+	// and read-tool halves stay unwired, so the asks keep their P0 path.
+	d.AskUNI.SetFiles(fs)
+	d.AskUNI.SetFlags(d.FeatureFlags)
 	d.CalendarConnections = service.NewCalendarConnectionService(pool, q, d.Workspaces, box, config.Config{
 		FrontendOrigin: "http://localhost:3000",
 	})
@@ -913,6 +918,10 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/ai/ask", tn.token, map[string]any{"question": m + " question"})
 	tn.ids["conversation"] = isoString(t, out, "conversation_id")
 	tn.ids["aiAnswer"] = out["message"].(map[string]any)["id"].(string)
+	// A file the owner uploaded for their next question and has not sent: the
+	// cancel route's own row, and the control that the route works at all.
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/ai/attachments", tn.token, isoMultipart{filename: "brief.pdf", contentType: "application/pdf", content: tinyPDF})
+	tn.ids["aiUpload"] = isoString(t, out, "file_id")
 	w.call(t, "PUT", "/api/v1/ai/conversations/"+tn.ids["conversation"]+"/messages/"+tn.ids["aiAnswer"]+"/feedback", tn.token, map[string]any{"rating": "up"}, http.StatusNoContent)
 }
 
