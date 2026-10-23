@@ -91,7 +91,7 @@ type AICapabilities struct {
 	Models    []AskModelOption
 	AutoModel string
 	// Attachments is whether the asker may send files with a question: the
-	// attachments and agent flags are both on for them.
+	// attachments flag is on and their turn would run the agent (agentOn).
 	Attachments bool
 }
 

@@ -230,11 +230,13 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.EmailHub.AI = d.Meetings.AI
 	d.EmailHub.Tasks = d.Tasks
 	d.AskUNI.SetEmailHub(d.EmailHub)
-	// Ask UNI files (UNI-2119): the upload route needs the file store and the
-	// two flags, which the loop below turns on for everyone. The documents
-	// and read-tool halves stay unwired, so the asks keep their P0 path.
+	// Ask UNI files (UNI-2119): the upload route is offered only where the turn
+	// runs the agent, so Ask UNI gets the file store, the flags (the loop below
+	// turns every one on) and the read tools, as main.go wires them. The asks
+	// below then take the agent path, as they do in production with the flag on.
 	d.AskUNI.SetFiles(fs)
 	d.AskUNI.SetFlags(d.FeatureFlags)
+	d.AskUNI.SetReadTools(d.McpTools)
 	d.CalendarConnections = service.NewCalendarConnectionService(pool, q, d.Workspaces, box, config.Config{
 		FrontendOrigin: "http://localhost:3000",
 	})

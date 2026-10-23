@@ -46,21 +46,19 @@ func askAttachmentKind(mime string) string {
 	return "text"
 }
 
-// attachmentsEnabled is whether this asker may send files: the attachments
-// flag and the agent flag, both read for the person and the workspace's
-// organization as the agent flag is, and a file store to put them in.
+// attachmentsEnabled is whether this asker's turn would run the agent with
+// files readable: agentOn (the agent flag, the read tools and a copilot_agent
+// model, as the turn itself decides), the attachments flag read the same way
+// for the person and the workspace's organization, and a file store to put
+// them in. A turn that would fall back to P0 cannot read a file.
 func (s *AskUNIService) attachmentsEnabled(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow) bool {
-	if s.files == nil || s.flags == nil {
+	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
+	if s.files == nil || !s.agentOn(ctx, tc) {
 		return false
 	}
 	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID})
-	for _, key := range []string{askAttachmentsFlag, askAgentFlag} {
-		f, _ := featureflags.Lookup(key)
-		if !s.flags.IsEnabled(ctx, key, f.Default) {
-			return false
-		}
-	}
-	return true
+	f, _ := featureflags.Lookup(askAttachmentsFlag)
+	return s.flags.IsEnabled(ctx, askAttachmentsFlag, f.Default)
 }
 
 func (s *AskUNIService) authorizeAttachments(ctx context.Context, userID, workspaceID string) (db.GetWorkspaceWithOrgRow, error) {
@@ -133,8 +131,10 @@ func (s *AskUNIService) CancelAttachment(ctx context.Context, userID, workspaceI
 	err = s.files.CancelUpload(ctx, files.CancelInput{
 		Actor: Human(userID), Scope: files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}, FileID: files.FileID(fileID),
 	})
+	// One answer for every file that is not the asker's to cancel: filesError
+	// would name the id (file_not_found), which tells a stranger it exists.
 	var fe *files.Error
-	if errors.As(err, &fe) && fe.Code == files.CodeAlreadyClaimed {
+	if errors.As(err, &fe) && (fe.Code == files.CodeAlreadyClaimed || fe.Code == files.CodeNotFound) {
 		return ErrNotFound
 	}
 	return filesError(err)

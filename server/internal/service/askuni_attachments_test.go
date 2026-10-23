@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/storage"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -34,7 +35,9 @@ func (f *attachFlags) IsEnabled(ctx context.Context, key string, def bool) bool 
 }
 
 // attachFixture is askFixture with a real FileService over a local store,
-// the second user a plain member of the workspace, and both flags on.
+// the agent wired as the other agent tests wire it (read tools and the fake
+// provider's model), the second user a plain member of the workspace, and
+// both flags on.
 func attachFixture(t *testing.T) (*AskUNIService, *attachFlags, db.User, db.User, db.Workspace) {
 	t.Helper()
 	s, _, ua, ub, w := askFixture(t)
@@ -50,9 +53,18 @@ func attachFixture(t *testing.T) (*AskUNIService, *attachFlags, db.User, db.User
 		t.Fatal(err)
 	}
 	s.SetFiles(fs)
+	s.SetReadTools(NewMcpToolService(s.q, s, NewHomeService(s.q, s.ws), s.ws, "https://app.example.test"))
 	flags := &attachFlags{org: w.OrganizationID, user: ua.ID, attachments: true, agent: true}
 	s.SetFlags(flags)
 	return s, flags, ua, ub, w
+}
+
+// oneNotFound is the answer of a cancel that is not the asker's to make: the
+// bare ErrNotFound the API renders as 404 not_found, never a coded
+// file_not_found, which would name the id.
+func oneNotFound(err error) bool {
+	var ce CodedError
+	return errors.Is(err, ErrNotFound) && !errors.As(err, &ce)
 }
 
 func uploadSession(t *testing.T, s *AskUNIService, fileID string) db.FileUploadSession {
@@ -131,8 +143,8 @@ func TestCancelAttachmentOnlyByTheUploader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CancelAttachment(ctx, ub.ID, w.ID, up.FileID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("another member: %v, want not found", err)
+	if err := s.CancelAttachment(ctx, ub.ID, w.ID, up.FileID); !oneNotFound(err) {
+		t.Fatalf("another member: %v, want the bare not found", err)
 	}
 	if got := uploadSession(t, s, up.FileID).Status; got != string(files.SessionStaged) {
 		t.Fatalf("session after a refused cancel = %q, want staged", got)
@@ -143,8 +155,8 @@ func TestCancelAttachmentOnlyByTheUploader(t *testing.T) {
 	if got := uploadSession(t, s, up.FileID).Status; got != string(files.SessionCanceled) {
 		t.Fatalf("session after the uploader's cancel = %q, want canceled", got)
 	}
-	if err := s.CancelAttachment(ctx, ua.ID, w.ID, "01J8X4NOSUCHFILE00000000000"); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("unknown id: %v, want not found", err)
+	if err := s.CancelAttachment(ctx, ua.ID, w.ID, "01J8X4NOSUCHFILE00000000000"); !oneNotFound(err) {
+		t.Fatalf("unknown id: %v, want the bare not found", err)
 	}
 }
 
@@ -162,11 +174,27 @@ func TestCancelAttachmentRefusesWhatIsNotAnUnclaimedAskUpload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CancelAttachment(ctx, ua.ID, w.ID, string(other.File.ID)); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("another purpose: %v, want not found", err)
+	if err := s.CancelAttachment(ctx, ua.ID, w.ID, string(other.File.ID)); !oneNotFound(err) {
+		t.Fatalf("another purpose: %v, want the bare not found", err)
 	}
 	if got := uploadSession(t, s, string(other.File.ID)).Status; got != string(files.SessionStaged) {
 		t.Fatalf("a file of another purpose ended up %q, want staged", got)
+	}
+
+	// The same person's upload in another tenant is no more theirs to cancel
+	// from here.
+	elsewhere, err := s.files.Upload(ctx, files.UploadInput{
+		Actor: Human(ua.ID), Purpose: files.AiAttachment, Scope: files.Scope{OrganizationID: "other-org", WorkspaceID: "other-ws"},
+		IdempotencyKey: "cancel-other-tenant", Filename: "other.pdf", Body: bytes.NewReader(pdfBody("elsewhere")),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CancelAttachment(ctx, ua.ID, w.ID, string(elsewhere.File.ID)); !oneNotFound(err) {
+		t.Fatalf("another tenant: %v, want the bare not found", err)
+	}
+	if got := uploadSession(t, s, string(elsewhere.File.ID)).Status; got != string(files.SessionStaged) {
+		t.Fatalf("another tenant's file ended up %q, want staged", got)
 	}
 
 	up, err := s.UploadAttachment(ctx, ua.ID, w.ID, "note.pdf", bytes.NewReader(pdfBody("claimed")))
@@ -186,13 +214,51 @@ func TestCancelAttachmentRefusesWhatIsNotAnUnclaimedAskUpload(t *testing.T) {
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CancelAttachment(ctx, ua.ID, w.ID, up.FileID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("a claimed file: %v, want not found", err)
+	if err := s.CancelAttachment(ctx, ua.ID, w.ID, up.FileID); !oneNotFound(err) {
+		t.Fatalf("a claimed file: %v, want the bare not found", err)
 	}
 	if got := uploadSession(t, s, up.FileID).Status; got != string(files.SessionClaimed) {
 		t.Fatalf("a claimed file ended up %q, want claimed", got)
 	}
 }
+
+// An upload is offered only where the turn would run the agent: both flags on
+// is not enough when the read tools are unwired or the provider has no
+// copilot_agent model, because the turn then falls back to P0, which reads no
+// file.
+func TestAttachmentsNeedTheAgentToRun(t *testing.T) {
+	for name, breakAgent := range map[string]func(s *AskUNIService){
+		"read tools unwired": func(s *AskUNIService) { s.SetReadTools(nil) },
+		"no copilot_agent model": func(s *AskUNIService) {
+			s.gw = ai.NewGateway(s.q, unmodelledProvider{&provider.Fake{}}, NewAIQuota(s.ent), nil, ai.Options{})
+		},
+	} {
+		// One fixture per case: each takes the test database's lock.
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			s, _, ua, _, w := attachFixture(t)
+			if _, err := s.UploadAttachment(ctx, ua.ID, w.ID, "ok.pdf", bytes.NewReader(pdfBody("ok"))); err != nil {
+				t.Fatalf("with the agent wired the upload failed: %v", err)
+			}
+			breakAgent(s)
+			c, err := s.Capabilities(ctx, ua.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.Attachments {
+				t.Error("both flags on, but Attachments = true although the turn would not run the agent")
+			}
+			if _, err := s.UploadAttachment(ctx, ua.ID, w.ID, "no.pdf", bytes.NewReader(pdfBody("no"))); !errors.Is(err, ai.ErrAttachmentsUnavailable) {
+				t.Errorf("upload = %v, want ai_attachments_unavailable", err)
+			}
+		})
+	}
+}
+
+// unmodelledProvider is a provider the model policy has no default for.
+type unmodelledProvider struct{ *provider.Fake }
+
+func (unmodelledProvider) Name() string { return "no-such-provider" }
 
 func TestCapabilitiesReportAttachments(t *testing.T) {
 	s, flags, ua, _, w := attachFixture(t)

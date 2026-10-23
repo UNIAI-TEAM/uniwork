@@ -16,9 +16,9 @@ type AiCapabilitiesSDO struct {
 	// organization's switch; auto_model is the key Auto resolves to.
 	Models    []AiModelOptionDTO `json:"models" description:"Model Claude chạy được cho Hỏi UNI, theo thứ tự hiển thị"`
 	AutoModel string             `json:"auto_model" description:"Khóa model mà Tự động dùng; rỗng nếu không trùng model nào" example:"sonnet"`
-	// Attachments is false while ask_uni_attachments or ask_uni_agent is off
-	// for the caller; the client then hides the upload entry.
-	Attachments bool `json:"attachments" description:"true khi người gọi được gắn file vào câu hỏi (cờ ask_uni_attachments và ask_uni_agent đều bật); false thì client ẩn nút tải file" example:"true"`
+	// Attachments is false while ask_uni_attachments is off for the caller or
+	// their turn would not run the agent; the client then hides the upload entry.
+	Attachments bool `json:"attachments" description:"true khi người gọi được gắn file vào câu hỏi: cờ ask_uni_attachments bật và lượt hỏi chạy agent (cờ ask_uni_agent bật, công cụ đọc và model đã cấu hình); false thì client ẩn nút tải file" example:"true"`
 }
 
 // AiAttachmentUploadSDO is POST /api/v1/workspaces/{workspaceID}/ai/attachments:
