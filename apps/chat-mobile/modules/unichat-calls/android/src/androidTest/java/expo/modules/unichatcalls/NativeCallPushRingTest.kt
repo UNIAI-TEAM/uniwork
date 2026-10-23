@@ -70,7 +70,7 @@ class NativeCallPushRingTest {
     assertEquals(NativeCallPush.Outcome.RANG, NativeCallPush.handle(context, ring, now, appInFront = false))
 
     shade.awaitInShade(CALLER, TIMEOUT_MS, "the caller shows in the shade")
-    shade.assertShown(By.text(Pattern.compile("(?i)answer")), TIMEOUT_MS, "Answer")
+    shade.assertShown(By.text(Pattern.compile("(?is).*answer.*")), TIMEOUT_MS, "Answer")
 
     val end = expo("type" to "call_end", "call_id" to CALL_ID, "room_id" to "room-1")
     assertEquals(NativeCallPush.Outcome.CLEARED, NativeCallPush.handle(context, end, System.currentTimeMillis(), appInFront = false))

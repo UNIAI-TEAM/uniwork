@@ -64,8 +64,8 @@ class IncomingCallNotificationTest {
     assertNotNull("the full-screen intent survives the system's checks", active.notification.fullScreenIntent)
 
     shade.awaitInShade(CALLER, TIMEOUT_MS, "the caller shows in the shade")
-    shade.assertShown(By.text(Pattern.compile("(?i)answer")), TIMEOUT_MS, "Answer")
-    shade.assertShown(By.text(Pattern.compile("(?i)decline")), TIMEOUT_MS, "Decline")
+    shade.assertShown(By.text(Pattern.compile("(?is).*answer.*")), TIMEOUT_MS, "Answer")
+    shade.assertShown(By.text(Pattern.compile("(?is).*decline.*")), TIMEOUT_MS, "Decline")
 
     CallNotifications.cancelIncoming(context, CALL_ID)
     shade.assertGone(By.text(CALLER), TIMEOUT_MS, "cancelling the ring takes it out of the shade")
