@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -99,4 +101,107 @@ func TestMeetingAIContentIsForThePeopleOfTheMeeting(t *testing.T) {
 	if audited != 2 {
 		t.Fatalf("audit rows = %d, want 2 (share, unshare)", audited)
 	}
+}
+
+// TestMeetingActionItemsAreTaskReferencesOutsideTheMeeting (UNI-1995 access,
+// demo bug 2): what the scribe drew from the transcript is AI content too. A
+// member outside the meeting reads only the items that became tasks, and
+// each as the task it became (the task's own title, state, assignee, due):
+// no pending or dismissed item, no owner or due phrase, no description,
+// priority or evidence. The counts stay. The people of the meeting, a
+// workspace admin and everyone once it is shared read every item in full.
+func TestMeetingActionItemsAreTaskReferencesOutsideTheMeeting(t *testing.T) {
+	s, ua, ub, w, m := summaryTasksFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(s.pool, s.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	uc := registerVerified(t, s.q, as, "c@example.com", "C")
+	if err := s.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, OrganizationID: w.OrganizationID, UserID: uc.ID, Role: "admin"}); err != nil {
+		t.Fatal(err)
+	}
+	seedSummary(t, s, m, ua.ID,
+		ai.ActionItem{Title: "Đặt cọc hội trường", Owner: "B", Due: "thứ Sáu", Description: "Anh B nói ngân sách 30 triệu", Priority: "high"},
+		ai.ActionItem{Title: "Gọi nhà cung cấp âm thanh", Owner: "B", Description: "Theo lời chị A"},
+		ai.ActionItem{Title: "Việc trùng lặp"},
+	)
+	items := itemsByTitle(t, s, ua.ID, m)
+	due := "2999-01-02"
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: items["Đặt cọc hội trường"].Item.ID, AssigneeID: &ub.ID, DueDate: &due}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DismissActionItem(ctx, ua.ID, m.ID, items["Việc trùng lặp"].Item.ID, "trùng với việc tuần trước"); err != nil {
+		t.Fatal(err)
+	}
+	ev, _ := json.Marshal([]EvidenceRef{{Kind: "note", ID: "01J8X4K2M0N1P2Q3R4S5T6U7V8"}})
+	if _, err := s.pool.Exec(ctx, `UPDATE meeting_action_items SET evidence = $1 WHERE meeting_id = $2`, string(ev), m.ID); err != nil {
+		t.Fatal(err)
+	}
+	// The task moved on since: its title is its own now.
+	if _, err := s.pool.Exec(ctx, `UPDATE tasks SET title = 'Đặt cọc 30% hội trường' WHERE id = $1`, links[0].TaskID); err != nil {
+		t.Fatal(err)
+	}
+
+	full, err := s.ActionItems(ctx, ua.ID, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restricted, err := s.ActionItems(ctx, ub.ID, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restricted.Counts != full.Counts {
+		t.Errorf("counts outside the meeting = %+v, want the meeting's %+v", restricted.Counts, full.Counts)
+	}
+	if len(restricted.Items) != 1 {
+		t.Fatalf("items outside the meeting = %+v, want the one converted item", restricted.Items)
+	}
+	got := restricted.Items[0]
+	want := ActionItemView{
+		Item: db.MeetingActionItem{
+			ID: got.Item.ID, OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID, MeetingID: m.ID,
+			Source: ActionItemSourceAI, Position: got.Item.Position, Title: "Đặt cọc 30% hội trường",
+			TaskID: got.Item.TaskID, CreatedAt: got.Item.CreatedAt,
+		},
+		Status: ActionItemConverted, Task: got.Task,
+	}
+	if got.Item != want.Item || got.Status != want.Status || got.Evidence != nil || got.SuggestedAssigneeID != nil || got.SuggestedDueDate != nil {
+		t.Errorf("converted item outside the meeting = %+v, want only the task reference %+v", got, want)
+	}
+	if got.Task == nil || got.Task.ID != links[0].TaskID || got.Task.Title != "Đặt cọc 30% hội trường" ||
+		got.Task.AssigneeID == nil || *got.Task.AssigneeID != ub.ID || got.Task.DueDate == nil || *got.Task.DueDate != due {
+		t.Errorf("task reference = %+v", got.Task)
+	}
+
+	wantFull := func(who, userID string) {
+		t.Helper()
+		v, err := s.ActionItems(ctx, userID, m.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(v.Items) != 3 {
+			t.Fatalf("%s reads %d items, want 3", who, len(v.Items))
+		}
+		for _, it := range v.Items {
+			if it.Item.Title == "Đặt cọc hội trường" && (it.Item.Description == "" || it.Item.OwnerText != "B" || len(it.Evidence) != 1) {
+				t.Errorf("%s reads a reduced item: %+v", who, it)
+			}
+		}
+	}
+	wantFull("host", ua.ID)
+	wantFull("workspace admin", uc.ID)
+	p, err := s.Invite(ctx, ua.ID, m.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantFull("invited member", ub.ID)
+	if err := s.RemoveParticipant(ctx, ua.ID, m.ID, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.ActionItems(ctx, ub.ID, m.ID); err != nil || len(v.Items) != 1 {
+		t.Fatalf("removed member reads %d items (%v), want the converted one", len(v.Items), err)
+	}
+	if _, err := s.SetAIContentShared(ctx, ua.ID, m.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	wantFull("member, shared meeting", ub.ID)
 }

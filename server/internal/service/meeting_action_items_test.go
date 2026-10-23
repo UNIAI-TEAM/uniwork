@@ -404,7 +404,7 @@ func TestActionItemLifecycle(t *testing.T) {
 	if err := s.DismissActionItem(ctx, ua.ID, m.ID, it.ID, " Đã có người làm "); err != nil {
 		t.Fatal(err)
 	}
-	got := itemsByTitle(t, s, ub.ID, m)["Đặt phòng"]
+	got := itemsByTitle(t, s, ua.ID, m)["Đặt phòng"]
 	if got.Status != ActionItemDismissed || got.Item.DismissReason != "Đã có người làm" || got.Item.DismissedBy.String != ua.ID ||
 		got.SuggestedAssigneeID != nil {
 		t.Fatalf("dismissed = %+v", got)
@@ -455,7 +455,7 @@ func TestActionItemsDescribeTheirTasks(t *testing.T) {
 		ai.ActionItem{Title: "In tài liệu"},
 		ai.ActionItem{Title: "Gọi khách"},
 	)
-	items := itemsByTitle(t, s, ub.ID, m)
+	items := itemsByTitle(t, s, ua.ID, m)
 	first := items["Gửi báo cáo"]
 	if first.Item.OwnerText != "B" || first.Item.DueText != "ngày mai" || first.Item.Source != ActionItemSourceAI {
 		t.Fatalf("stored fields: %+v", first)
@@ -487,14 +487,14 @@ func TestActionItemsDescribeTheirTasks(t *testing.T) {
 	if err := s.DismissActionItem(ctx, ua.ID, m.ID, items["Đặt phòng"].Item.ID, ""); err != nil {
 		t.Fatal(err)
 	}
-	v, err := s.ActionItems(ctx, ub.ID, m.ID)
+	v, err := s.ActionItems(ctx, ua.ID, m.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if v.Counts != (ActionItemCounts{Pending: 0, Converted: 3, Dismissed: 1, TasksDone: 1, TasksOverdue: 1}) {
 		t.Fatalf("counts = %+v", v.Counts)
 	}
-	got := itemsByTitle(t, s, ub.ID, m)["Gửi báo cáo"]
+	got := itemsByTitle(t, s, ua.ID, m)["Gửi báo cáo"]
 	if got.Status != ActionItemConverted || got.Task == nil || got.Task.ID != links[0].TaskID || got.Task.Title != "Gửi báo cáo" ||
 		!got.Task.Overdue || got.Task.Done || got.Task.AssigneeID == nil || *got.Task.AssigneeID != ub.ID ||
 		got.Task.DueDate == nil || *got.Task.DueDate != past || got.SuggestedAssigneeID != nil {
