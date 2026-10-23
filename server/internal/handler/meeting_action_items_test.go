@@ -121,7 +121,8 @@ func TestMeetingActionItemsHTTP(t *testing.T) {
 	if res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/evidence?refs=page:"+noteID, member, nil); res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("malformed refs: %d %v", res.StatusCode, out)
 	}
-	res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/summary", member, nil)
+	// The summary is AI content, for the people of the meeting (UNI-1995 access).
+	res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/summary", host, nil)
 	if res.StatusCode != http.StatusOK || out["summary"] != nil {
 		t.Fatalf("no summary yet: %d %v", res.StatusCode, out)
 	}

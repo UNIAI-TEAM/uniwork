@@ -160,7 +160,7 @@ func (s *MeetingService) transcriptPage(ctx context.Context, userID, meetingID s
 // ---- AI summary --------------------------------------------------------------
 
 func (s *MeetingService) Summary(ctx context.Context, userID, meetingID string) (*db.MeetingSummary, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+	if _, err := s.authorizeAIContent(ctx, userID, meetingID); err != nil {
 		return nil, err
 	}
 	return s.latestSummary(ctx, meetingID)
@@ -171,7 +171,7 @@ func (s *MeetingService) Summary(ctx context.Context, userID, meetingID string) 
 // #12), so every viewer sees "being generated" instead of "no summary", and
 // nobody clicks into a 409.
 func (s *MeetingService) SummaryWithRun(ctx context.Context, userID, meetingID string) (SummaryView, error) {
-	m, _, err := s.authorize(ctx, userID, meetingID)
+	m, err := s.authorizeAIContent(ctx, userID, meetingID)
 	if err != nil {
 		return SummaryView{}, err
 	}

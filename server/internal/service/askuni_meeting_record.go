@@ -94,14 +94,22 @@ type meetingSearchText struct {
 
 // meetingSearchTexts reads it for the meetings found, keyed by meeting id.
 // The meetings are the asker's own list (already behind the workspace gate).
-func (s *AskUNIService) meetingSearchTexts(ctx context.Context, meetings []db.Meeting) (map[string]meetingSearchText, error) {
+// The summary, decisions and topics count only for a meeting whose AI content
+// the asker may read (aiContentReader); item titles stay workspace-visible.
+func (s *AskUNIService) meetingSearchTexts(ctx context.Context, userID string, meetings []db.Meeting) (map[string]meetingSearchText, error) {
 	out := map[string]meetingSearchText{}
 	if len(meetings) == 0 {
 		return out, nil
 	}
 	ids := make([]string, len(meetings))
+	byID := make(map[string]db.Meeting, len(meetings))
 	for i, m := range meetings {
 		ids[i] = m.ID
+		byID[m.ID] = m
+	}
+	mem, err := s.ws.RequireMember(ctx, meetings[0].WorkspaceID, userID)
+	if err != nil {
+		return nil, err
 	}
 	rows, err := s.q.ListWorkspaceMeetingSearchTexts(ctx, db.ListWorkspaceMeetingSearchTextsParams{
 		OrganizationID: meetings[0].OrganizationID, WorkspaceID: meetings[0].WorkspaceID, MeetingIds: ids,
@@ -110,17 +118,30 @@ func (s *AskUNIService) meetingSearchTexts(ctx context.Context, meetings []db.Me
 		return nil, err
 	}
 	for _, r := range rows {
-		parts := []string{r.Summary, r.ItemTitles}
-		var decisions []string
-		_ = json.Unmarshal([]byte(summaryDecisionTexts(r.Decisions)), &decisions)
-		parts = append(parts, decisions...)
-		for _, t := range DecodeSummaryTopics(r.Topics) {
-			parts = append(parts, t.Title)
-			for _, p := range t.Points {
-				parts = append(parts, p.Text)
+		parts := []string{r.ItemTitles}
+		summary := ""
+		if r.Summary != "" {
+			// shortcut: one participant read per summarised meeting; batch it if
+			// a workspace's meeting list grows past a few hundred.
+			ok, err := s.meetings.aiContentReader(ctx, byID[r.MeetingID], mem, userID)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				parts = append(parts, r.Summary)
+				var decisions []string
+				_ = json.Unmarshal([]byte(summaryDecisionTexts(r.Decisions)), &decisions)
+				parts = append(parts, decisions...)
+				for _, t := range DecodeSummaryTopics(r.Topics) {
+					parts = append(parts, t.Title)
+					for _, p := range t.Points {
+						parts = append(parts, p.Text)
+					}
+				}
+				summary = capRunes(r.Summary, meetingSearchExcerptRunes, "…")
 			}
 		}
-		out[r.MeetingID] = meetingSearchText{content: strings.Join(parts, "\n"), summary: capRunes(r.Summary, meetingSearchExcerptRunes, "…")}
+		out[r.MeetingID] = meetingSearchText{content: strings.Join(parts, "\n"), summary: summary}
 	}
 	return out, nil
 }

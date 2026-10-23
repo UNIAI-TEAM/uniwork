@@ -172,6 +172,9 @@ func (s *McpToolService) GetMeeting(ctx context.Context, p McpPrincipal, workspa
 	// excerpt: the excerpt is the summary alone.
 	out.Excerpt = ""
 	sum, err := s.ask.meetings.Summary(ctx, p.UserID, m.ID)
+	if codedIs(err, "meeting_ai_restricted") {
+		sum, err = nil, nil // the meeting is the workspace's; its summary is for the people of the meeting
+	}
 	if err != nil {
 		return McpMeeting{}, hidden(err)
 	}
@@ -243,7 +246,7 @@ func (s *McpToolService) ListMeetings(ctx context.Context, p McpPrincipal, in mc
 	for i, r := range rows {
 		listed[i] = r.Meeting
 	}
-	said, err := s.ask.meetingSearchTexts(ctx, listed)
+	said, err := s.ask.meetingSearchTexts(ctx, p.UserID, listed)
 	if err != nil {
 		return McpMeetingList{}, err
 	}

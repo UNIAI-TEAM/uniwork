@@ -370,6 +370,14 @@ func TestMcpToolsShapeEveryItem(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// The excerpt quotes the meeting's own items, not the raw proposal (benchmark #17);
+	// an ended meeting takes them.
+	if _, err := x.tools.ask.pool.Exec(ctx, `UPDATE meetings SET status = $2 WHERE id = $1`, meeting.ID, MeetingEnded); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := x.tools.ask.meetings.AddActionItem(ctx, x.ua.ID, meeting.ID, AddActionItemInput{Title: "Gửi biên bản"}); err != nil {
+		t.Fatal(err)
+	}
 	mt, err := x.tools.GetMeeting(ctx, x.p, x.w.ID, meeting.ID)
 	if err != nil || mt.Kind != "meeting" || mt.ID != meeting.ID || mt.URL != meetingURL || mt.WorkspaceID != x.w.ID ||
 		!strings.Contains(mt.Excerpt, "Tóm tắt: Đã chốt OKR quý") || !strings.Contains(mt.Excerpt, "Giữ ngân sách") || !strings.Contains(mt.Excerpt, "Gửi biên bản") {

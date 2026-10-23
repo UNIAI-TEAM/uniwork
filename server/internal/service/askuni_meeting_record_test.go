@@ -130,3 +130,81 @@ func TestMeetingSearchScoresTheRecord(t *testing.T) {
 		}
 	}
 }
+
+// The summary is for the people of the meeting (UNI-1995 access): a member
+// outside it finds the meeting by its items, never by what the summary says,
+// and no read of Ask UNI, MCP or GET summary quotes it to them.
+func TestMeetingSummaryStaysWithThePeopleOfTheMeeting(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	m := endedMeeting(t, x, "Họp giao ban thứ Hai")
+	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: x.w.OrganizationID, Summary: "Nhóm rà soát tiến độ.",
+		Decisions: `[{"text":"Giữ ngân sách marketing ở 2 tỷ","evidence":[]}]`, ActionItems: `[]`,
+		Topics: `[{"title":"Tuyển dụng kỹ sư","start":null,"points":[]}]`, OpenQuestions: `[]`, Model: "fake", CreatedBy: x.ua.ID, CreatedByKind: "human",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := x.tools.ask.meetings.AddActionItem(ctx, x.ua.ID, m.ID, AddActionItemInput{Title: "Đặt lịch phỏng vấn ứng viên"}); err != nil {
+		t.Fatal(err)
+	}
+	addMember(t, x.tools.ask.meetings, x.w.ID, x.ub.ID)
+	outsider := McpPrincipal{UserID: x.ub.ID, OrganizationID: x.w.OrganizationID}
+	said := []string{"Nhóm rà soát tiến độ", "ngân sách marketing", "Tuyển dụng kỹ sư"}
+	quotes := func(where, s string) {
+		for _, w := range said {
+			if strings.Contains(s, w) {
+				t.Errorf("%s quotes the summary (%q) to a member outside the meeting:\n%s", where, w, s)
+			}
+		}
+	}
+	for _, q := range []string{"ngân sách marketing", "tuyển dụng kỹ sư"} {
+		hits, err := x.tools.Search(ctx, outsider, x.w.ID, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, h := range hits {
+			if h.Kind == "meeting" && h.ID == m.ID {
+				t.Errorf("%q found the meeting through its summary for an outsider: %q", q, h.Excerpt)
+			}
+		}
+	}
+	hits, err := x.tools.Search(ctx, outsider, x.w.ID, "phỏng vấn ứng viên")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, h := range hits {
+		if h.Kind == "meeting" && h.ID == m.ID {
+			found = true
+			quotes("search hit", h.Excerpt)
+		}
+	}
+	if !found {
+		t.Errorf("an outsider no longer finds the meeting by its item titles: %+v", hits)
+	}
+	from, to := aroundNow()
+	x.p = outsider
+	for _, it := range x.meetingList(t, from, to, "").Meetings {
+		quotes("list_meetings", it.Excerpt)
+	}
+	got, err := x.tools.GetMeeting(ctx, outsider, x.w.ID, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	quotes("get_meeting", got.Excerpt)
+	if !strings.Contains(got.Excerpt, "Đặt lịch phỏng vấn ứng viên") {
+		t.Errorf("get_meeting dropped the action items for an outsider: %q", got.Excerpt)
+	}
+	srcs, err := x.tools.ask.meetingContext(ctx, ai.ToolContext{ActorID: x.ub.ID, WorkspaceID: x.w.ID}, m.ID)
+	if err != nil || len(srcs) != 1 {
+		t.Fatalf("meetingContext for an outsider = %+v, %v", srcs, err)
+	}
+	quotes("ask meeting context", srcs[0].Excerpt)
+	if _, err := x.tools.ask.meetings.SummaryWithRun(ctx, x.ub.ID, m.ID); !codedIs(err, "meeting_ai_restricted") {
+		t.Errorf("GET summary for an outsider: %v, want meeting_ai_restricted", err)
+	}
+	if v, err := x.tools.ask.meetings.SummaryWithRun(ctx, x.ua.ID, m.ID); err != nil || v.Summary == nil {
+		t.Errorf("GET summary for the host = %+v, %v", v, err)
+	}
+}

@@ -319,7 +319,7 @@ func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, 
 	}
 	// A meeting is found by what it said too (benchmark #14): its latest
 	// summary, decisions, topics and open action items' titles.
-	said, err := s.meetingSearchTexts(ctx, meetings)
+	said, err := s.meetingSearchTexts(ctx, tc.ActorID, meetings)
 	if err != nil {
 		return nil, err
 	}
@@ -558,6 +558,9 @@ func (s *AskUNIService) meetingContext(ctx context.Context, tc ai.ToolContext, m
 	}
 	excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", m.Status, m.StartsAt.Time.Format(time.RFC3339), m.Description)
 	sum, err := s.meetings.Summary(ctx, tc.ActorID, meetingID)
+	if codedIs(err, "meeting_ai_restricted") {
+		sum, err = nil, nil // the meeting's items stay; its summary is for the people of the meeting
+	}
 	if err != nil {
 		return nil, err
 	}
