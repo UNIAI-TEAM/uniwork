@@ -185,24 +185,6 @@ func summaryDecisionTexts(raw string) string {
 	return string(b)
 }
 
-// summaryActionItemTitles is the raw action items of a summary row as a JSON
-// array of their titles: the evidence labels of @5 ("S2") would collide with
-// Ask UNI's own source labels and only cost runes in an excerpt.
-func summaryActionItemTitles(raw string) string {
-	var items []struct {
-		Title string `json:"title"`
-	}
-	_ = json.Unmarshal([]byte(raw), &items)
-	titles := []string{}
-	for _, it := range items {
-		if t := strings.TrimSpace(it.Title); t != "" {
-			titles = append(titles, t)
-		}
-	}
-	b, _ := json.Marshal(titles)
-	return string(b)
-}
-
 // ParseEvidenceRefs reads the refs query of GET /meetings/{id}/evidence:
 // comma-separated kind:id pairs, at most maxEvidenceRefs. "" is none.
 func ParseEvidenceRefs(raw string) ([]EvidenceRef, error) {

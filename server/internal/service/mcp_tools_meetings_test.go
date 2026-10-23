@@ -411,7 +411,12 @@ func TestMcpGetMeetingExcerptIsTheSummaryAlone(t *testing.T) {
 	if strings.Contains(got.Excerpt, `"S2"`) || strings.Contains(got.Excerpt, "01N") {
 		t.Errorf("excerpt carries evidence: %.200s", got.Excerpt)
 	}
-	for _, w := range []string{"Tóm tắt: Đã chốt OKR quý", `Quyết định: ["Giữ ngân sách"]`, `Việc cần làm: ["Gửi biên bản"]`} {
+	// The raw proposal stored with the summary is never quoted as the
+	// meeting's items (benchmark #17, TestMeetingExcerptQuotesTheRealActionItems).
+	if strings.Contains(got.Excerpt, "Gửi biên bản") {
+		t.Errorf("excerpt quotes the raw proposal: %.200s", got.Excerpt)
+	}
+	for _, w := range []string{"Tóm tắt: Đã chốt OKR quý", `Quyết định: ["Giữ ngân sách"]`} {
 		if !strings.Contains(got.Excerpt, w) {
 			t.Errorf("excerpt does not hold %q: %.200s", w, got.Excerpt)
 		}
@@ -420,7 +425,7 @@ func TestMcpGetMeetingExcerptIsTheSummaryAlone(t *testing.T) {
 	// [S1], [S2], so a summary's evidence labels must not reach it.
 	srcs, err := x.tools.ask.meetingContext(ctx, ai.ToolContext{ActorID: x.ua.ID, WorkspaceID: x.w.ID}, m.ID)
 	if err != nil || len(srcs) != 1 || strings.Contains(srcs[0].Excerpt, `"S2"`) ||
-		!strings.Contains(srcs[0].Excerpt, `Quyết định: ["Giữ ngân sách"]`) || !strings.Contains(srcs[0].Excerpt, `Việc cần làm: ["Gửi biên bản"]`) {
+		!strings.Contains(srcs[0].Excerpt, `Quyết định: ["Giữ ngân sách"]`) || strings.Contains(srcs[0].Excerpt, "Gửi biên bản") {
 		t.Errorf("Ask UNI meeting excerpt = %+v (%v)", srcs, err)
 	}
 	if strings.Contains(got.Excerpt, "ẹẹẹ") || deref(got.Description) != long || got.DescriptionTruncated {

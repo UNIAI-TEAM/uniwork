@@ -123,12 +123,6 @@ func TestDecodeSummaryDecisions(t *testing.T) {
 		t.Errorf("summaryDecisionTexts = %s", got)
 	}
 	// Excerpts quote item titles only: no @5 labels, which would read as Ask UNI's own [S2].
-	if got := summaryActionItemTitles(`[{"title":"Gửi báo cáo","owner":"An","evidence":["S2","N1"]},{"title":" "}]`); got != `["Gửi báo cáo"]` {
-		t.Errorf("summaryActionItemTitles = %s", got)
-	}
-	if got := summaryActionItemTitles(`not json`); got != `[]` {
-		t.Errorf("summaryActionItemTitles(broken) = %s", got)
-	}
 }
 
 // TestMeetingEvidenceSources: a member reads the cited lines in the order
