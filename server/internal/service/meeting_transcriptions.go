@@ -291,7 +291,7 @@ func (s *MeetingService) RequestTranscription(ctx context.Context, userID, meeti
 // Transcriptions lists the meeting's transcriptions, newest first, for
 // anyone who may read its transcript.
 func (s *MeetingService) Transcriptions(ctx context.Context, userID, meetingID string) ([]db.MeetingTranscription, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+	if _, err := s.authorizeAIContent(ctx, userID, meetingID); err != nil {
 		return nil, err
 	}
 	return s.q.ListMeetingTranscriptions(ctx, meetingID)

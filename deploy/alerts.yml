@@ -134,6 +134,16 @@ groups:
           description: "{{ $value }} lần gọi thư ký AI thất bại hoặc lần chạy bị đánh FAILED trong 15 phút: các phòng đó quay về phụ đề Web Speech và không có transcript của thư ký."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingScribeCannotJoin.md
 
+      - alert: MeetingDialInRefusedCalls
+        expr: sum(increase(uniwork_meetings_total{event="dial_in_call_refused"}[10m])) > 10
+        for: 2m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Nhiều cuộc gọi điện thoại vào họp bị từ chối"
+          description: "{{ $value | printf \"%.0f\" }} cuộc gọi vào phòng họp qua PIN cũ, rule lạ hoặc cuộc họp đã kết thúc bị ngắt trong 10 phút: có thể có người dò PIN trên trunk dùng chung mọi tổ chức."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingDialInRefusedCalls.md
+
       - alert: RealtimeSlowEvictions
         expr: sum(increase(uniwork_realtime_slow_evictions_total[10m])) > 25
         for: 5m

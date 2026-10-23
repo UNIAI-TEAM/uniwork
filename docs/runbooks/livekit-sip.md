@@ -1,8 +1,8 @@
 # livekit-sip — gọi vào họp bằng điện thoại
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — dựng và vận hành hạ tầng SIP của UNI-2030 cho tính năng UNI-2029 · **File:** `server/internal/service/meeting_dial_in.go`, `server/internal/meetings/livekit.go` (`CreateDialInRule`, `DeleteDialInRule`)
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** alert `MeetingDialInRefusedCalls` (runbook riêng) — dựng và vận hành hạ tầng SIP của UNI-2030 cho tính năng UNI-2029 · **File:** `server/internal/service/meeting_dial_in.go`, `server/internal/meetings/livekit.go` (`CreateDialInRule`, `DeleteDialInRule`)
 
-Người gọi bấm số tổng đài, nhập mã PIN 6 số của cuộc họp rồi bấm `#`; dịch vụ `livekit-sip` đưa họ vào phòng
+Người gọi bấm số tổng đài, nhập mã PIN của cuộc họp (9 số; PIN 6 số rút trước UNI-1995 vẫn dùng được) rồi bấm `#`; dịch vụ `livekit-sip` đưa họ vào phòng
 `uw_mtg_<meetingID>` theo một **dispatch rule `direct`** mà server UniWork tạo khi cuộc họp bắt đầu và xoá khi kết
 thúc (tên rule `uniwork <meetingID>`, `hide_phone_number = true`, chỉ trên trunk `MEETING_SIP_TRUNK_ID`). Server rút
 mọi quyền nghe/nói của người gọi ngay khi nhận webhook `participant_joined` (kind SIP) và đưa họ vào hàng chờ của chủ
@@ -51,11 +51,31 @@ Server UniWork **không** dựng hạ tầng. Việc của ops (UNI-2030), theo 
    staging: bắt đầu một cuộc họp → gọi số → nhập PIN + `#` → chủ trì thấy "Điện thoại ••• 1234" trong hàng chờ → duyệt
    → nghe/nói hai chiều → thư ký AI ghi lời người gọi → kết thúc họp → `lk sip dispatch list` không còn rule `uniwork …`.
 
-7. **Chống dò PIN** (PIN 6 số: 10^6 khả năng, chỉ có rule khi cuộc họp đang diễn ra):
-   - giới hạn số lần nhập PIN sai trong một cuộc gọi (cấu hình `livekit-sip` hoặc SBC; đề xuất 3 lần rồi ngắt máy);
-   - giới hạn tốc độ theo số gọi đến (caller ID) ở nhà mạng hoặc SBC (đề xuất ≤ 10 cuộc/phút/số, ≤ 100 cuộc/giờ/số);
-   - alert khi tỉ lệ nhập sai PIN vượt ngưỡng (đề xuất > 20 lần sai trong 5 phút trên một trunk), lấy từ log/metric của
-     `livekit-sip` hoặc SBC; khi alert bắn: chặn số gọi ở SBC và đổi PIN các cuộc họp đang diễn ra nếu cần.
+7. **Chống dò PIN** — mục go-live: cờ `meeting_dial_in` **chỉ bật cho tổ chức khách hàng khi cả bốn ô dưới đây đã
+   được kiểm và ghi tên người kiểm, ngày** (trong issue UNI-2030). Một trunk phục vụ mọi tổ chức, nên một người dò PIN
+   trúng là gõ cửa được cuộc họp của tổ chức khác, và nghe được vài trăm ms (tệ nhất ~15 s) trước khi bị giữ.
+   - [ ] **PIN 9 số** (từ UNI-1995: 10^9 khả năng; PIN 6 số rút trước đó vẫn dùng được tới khi đổi PIN hoặc họp xong).
+     Kiểm: `SELECT length(dial_in_pin), count(*) FROM meetings WHERE status IN ('SCHEDULED','IN_PROGRESS') GROUP BY 1;`
+     — cuộc họp mới phải là 9.
+     Kiểm thêm bằng softphone trên cùng trunk: một cuộc họp còn PIN 6 số và một cuộc họp PIN 9 số cùng đang diễn ra,
+     mỗi PIN + `#` vào đúng phòng của nó (chưa kiểm trên `livekit-sip` thật: PIN kết thúc bằng `#` nên hai độ dài không
+     lẫn nhau theo lý thuyết; nếu bản `livekit-sip` đang chạy gom số theo độ dài cố định, đổi PIN các cuộc họp 6 số trước
+     khi bật cờ).
+   - [ ] **Giới hạn sai PIN trong một cuộc gọi** ở `livekit-sip` hoặc SBC: 3 lần rồi ngắt máy. Kiểm bằng softphone: nhập
+     sai 3 lần thì cuộc gọi bị ngắt.
+   - [ ] **Giới hạn tốc độ theo caller ID** ở nhà mạng hoặc SBC: ≤ 10 cuộc/phút/số, ≤ 100 cuộc/giờ/số; chặn cuộc gọi ẩn
+     số nếu nhà mạng cho. Kiểm bằng 11 cuộc gọi liên tiếp từ một số trong một phút.
+   - [ ] **Alert sai PIN** từ log/metric của `livekit-sip` hoặc SBC (> 20 lần sai trong 5 phút trên một trunk) nối vào
+     cùng kênh on-call. UniWork không thấy lần sai PIN hoàn toàn (không khớp rule nào thì không vào phòng, không có
+     webhook); UniWork chỉ đếm phần nó thấy: `uniwork_meetings_total{event="dial_in_call_refused"}` (cuộc gọi vào qua PIN
+     cũ, rule lạ hoặc cuộc họp đã kết thúc, bị ngắt máy) có alert `MeetingDialInRefusedCalls`
+     (`docs/runbooks/MeetingDialInRefusedCalls.md`), và `dial_in_call_knocked` (mỗi lần gõ cửa của người gọi) để so.
+   Khi alert bắn: chặn số gọi ở SBC và đổi PIN các cuộc họp đang diễn ra nếu cần.
+
+8. **Thông báo thư ký AI cho người gọi.** Khi chủ trì nhận người gọi vào và cuộc họp có thư ký AI, agent phát một đoạn
+   âm thanh tiếng Việt ngắn chỉ cho người gọi đó nghe (quyền subscribe track theo identity):
+   `apps/meeting-agent/assets/sip-notice-vi.wav`, văn bản trong `apps/meeting-agent/scribe/notice.py`. Kiểm bằng softphone
+   ở bước 6: sau khi được duyệt, người gọi nghe lời báo một lần; người trong phòng web không nghe thấy.
 
 Giới hạn đã biết (chủ sản phẩm đã được báo):
 
@@ -63,7 +83,8 @@ Giới hạn đã biết (chủ sản phẩm đã được báo):
   Cloud, dispatch rule không mang quyền), nên người gọi vào thẳng phòng rồi mới bị rút quyền. Thường là một vòng webhook +
   một RPC (vài trăm ms); nếu webhook bị LiveKit bỏ (hàng đợi đầy) hoặc lệnh giữ lỗi, vòng quét 15 giây giữ lại — tệ nhất
   khoảng 15 giây người có PIN nghe/nói được trước khi bị giữ.
-- Lời nhắc nhập PIN là giọng tiếng Anh mặc định của `livekit-sip`.
+- Lời nhắc nhập PIN là giọng tiếng Anh mặc định của `livekit-sip`; lời báo thư ký AI (bước 8) là tiếng Việt, chỉ phát
+  khi thư ký đang ở trong phòng lúc người gọi được nhận.
 - Người gọi chờ duyệt nghe im lặng (không có nhạc chờ hay lời báo).
 - Mỗi cuộc gọi là một lần gõ cửa: gọi lại sau khi rớt máy phải được duyệt lại.
 - Người gọi ẩn số (không có caller ID) dùng chung một danh tính trong cuộc họp: chủ trì gỡ một người như vậy là chặn mọi

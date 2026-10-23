@@ -1856,7 +1856,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionMeetingSettingsChanged: func(t *testing.T, f *auditFixture) {
 			f.build(t)
 			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
-			if _, err := s.SetMeetingAutoSummary(f.ctx, Human(f.owner.ID), f.orgID, new(false)); err != nil {
+			if _, err := s.SetMeetingSettings(f.ctx, Human(f.owner.ID), f.orgID, MeetingSettingsInput{AutoSummaryEnabled: new(false)}); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1869,6 +1869,18 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err := s.SetScribe(f.ctx, f.owner.ID, m.ID, false); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1995 access: the host shares one meeting's AI content with the workspace.
+		audit.ActionMeetingAISharingChanged: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.SetAIContentShared(f.ctx, f.owner.ID, m.ID, true); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -2218,6 +2230,7 @@ func auditActions() []string {
 		audit.ActionMeetingSummaryCreated,
 		audit.ActionMeetingSettingsChanged,
 		audit.ActionMeetingScribeToggled,
+		audit.ActionMeetingAISharingChanged,
 		audit.ActionMeetingSharedMicToggled,
 		audit.ActionMeetingSpeakerLabelAssigned,
 		audit.ActionMeetingHeldRecorded,

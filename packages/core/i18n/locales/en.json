@@ -599,7 +599,16 @@
         "auto_summary_label": "Summarize meetings when they end",
         "auto_summary_description": "When a meeting ends, UNI writes its summary and suggested tasks and tells the host and secretaries. When off, the host gets a reminder to make the summary after each meeting.",
         "save_failed": "Couldn't save the change. Try again.",
-        "read_failed": "Couldn't read the meeting settings."
+        "read_failed": "Couldn't read the meeting settings.",
+        "scribe_title": "AI scribe",
+        "scribe_policy_label": "AI scribe in meetings",
+        "scribe_policy_description": "The AI scribe writes the transcript, shows captions and summarizes meetings; the audio is processed outside Vietnam.",
+        "scribe_policy_on": "On for every meeting",
+        "scribe_policy_on_hint": "The AI scribe joins every meeting; the host can turn it off for one meeting.",
+        "scribe_policy_opt_in": "Host turns it on",
+        "scribe_policy_opt_in_hint": "Meetings created from now on have no AI scribe until the host turns it on when scheduling or in the room.",
+        "scribe_policy_off": "Off for the organization",
+        "scribe_policy_off_hint": "No meeting has the AI scribe; meetings in progress lose it within about 15 seconds."
       },
     "documents": {
       "title": "Documents",
@@ -4057,7 +4066,7 @@
       "chipOff": "AI scribe is off",
       "chipShort": "AI scribe",
       "chipFailedShort": "Not transcribing",
-      "explain": "The AI scribe listens to each person in the room, writes the meeting transcript and shows captions to everyone. It never speaks, has no camera and is not counted as a participant.",
+      "explain": "The AI scribe listens to each person in the room, writes the meeting transcript and shows captions to everyone. Only the people in the meeting and admins can read the transcript; the audio is processed outside Vietnam. It never speaks, has no camera and is not counted as a participant.",
       "explainJoining": "The AI scribe is joining. Once in, it writes the meeting transcript and shows captions to everyone.",
       "explainFailed": "The AI scribe couldn't join, so nothing is being transcribed. It tries again on its own in a few minutes.",
       "explainOff": "This meeting has no AI scribe. Captions use the speech recognition on each person's device.",
@@ -4094,7 +4103,24 @@
       "speakerSaveFailed": "This name wasn't saved.",
       "speakersEmpty": "No speakers to name yet.",
       "speakersLoading": "Loading speakers",
-      "speakersLoadFailed": "Couldn't load the speakers."
+      "speakersLoadFailed": "Couldn't load the speakers.",
+      "noticeTitle": "This meeting has the AI scribe",
+      "noticeBody": "The AI scribe turns what everyone says in the room into a transcript. The organization hosting the meeting keeps it on UniWork, and only the people in the meeting and admins can read it. The audio goes to a speech-to-text service outside Vietnam.",
+      "noticeAck": "Got it",
+      "formLabel": "AI scribe",
+      "formHint": "Writes the transcript, shows captions and summarizes the meeting. The audio is processed outside Vietnam.",
+      "createdScribeNotSet": "The meeting was created, but the AI scribe wasn't changed. Change it on the meeting page."
+    },
+    "aiAccess": {
+      "title": "AI scribe and AI content",
+      "scribeLabel": "AI scribe",
+      "scribeHint": "Writes the transcript, shows captions and summarizes the meeting.",
+      "scribeOffByPolicy": "Your organization turned the AI scribe off for every meeting.",
+      "shareLabel": "Share AI content with the workspace",
+      "shareHint": "The transcript, the AI summary and its citations. When off, only the host, secretaries, invitees and workspace admins can read them.",
+      "restrictedTitle": "AI content is for the people in the meeting",
+      "restrictedBody": "Only the host, secretaries, invitees and workspace admins can read this meeting's transcript and AI summary.",
+      "saveFailed": "Couldn't save the change. Try again."
     },
     "summaryPartial": "This summary covers part of the meeting: the transcript was longer than the AI reads at once.",
     "held": {

@@ -69,6 +69,7 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 	if errors.Is(err, pgx.ErrNoRows) {
 		if ev.Type == "conference.participant_joined" && ev.ParticipantKind == ParticipantKindSIP && s.provider != nil {
 			// A stale rule dialled a caller into a meeting that is over.
+			s.count("dial_in_call_refused")
 			s.hangUpConnection(ctx, ev.RoomName, ev.ParticipantSID)
 		}
 		return nil // no open conference for this room: nothing to apply

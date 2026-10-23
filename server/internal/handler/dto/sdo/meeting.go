@@ -38,6 +38,10 @@ type MeetingDTO struct {
 	QuorumPercent    *int16 `json:"quorum_percent" description:"Tỉ lệ có mặt tối thiểu (%), null = không yêu cầu" example:"60"`
 	ScribeEnabled    bool   `json:"scribe_enabled" description:"Thư ký AI bật cho cuộc họp này (mặc định bật; chủ trì/admin tắt được)"`
 	ScribeStatus     string `json:"scribe_status,omitempty" description:"Trạng thái lần chạy mới nhất của thư ký AI (chỉ có ở GET chi tiết): DISPATCHED | ACTIVE | FINISHED | FAILED" example:"ACTIVE"`
+	AIContentShared  bool   `json:"ai_content_shared" description:"Chủ trì hoặc thư ký đã chia sẻ nội dung AI (transcript, tóm tắt, trích dẫn, tóm tắt cho người vào muộn) với cả workspace; false = chỉ người của cuộc họp đọc được"`
+	// AIContentReadable is per caller, so only the detail GET and the
+	// sharing switch carry it.
+	AIContentReadable *bool `json:"ai_content_readable,omitempty" description:"Chỉ có ở GET chi tiết và PUT ai-sharing: người gọi đọc được nội dung AI của cuộc họp (chủ trì, thư ký, người được mời/được nhận vào chưa bị gỡ, quản trị workspace; hoặc cuộc họp đã chia sẻ)"`
 }
 
 type NoteDTO struct {
@@ -136,6 +140,7 @@ type PublicInviteLinkSDO struct {
 	GuestSession string `json:"guest_session,omitempty"`
 	LinkState    string `json:"link_state" description:"Trạng thái liên kết: active, expired, revoked hoặc exhausted (hết lượt, chỉ với AUTO_ADMIT)" example:"active"`
 	MeetingState string `json:"meeting_state" description:"Cuộc họp còn vào được không: open, ended, canceled hoặc past_scheduled_end" example:"open"`
+	Scribe       bool   `json:"scribe" description:"Thư ký AI sẽ ghi lời cuộc họp này (bật cho cuộc họp và có cho tổ chức): trang mời báo cho khách trước khi vào" example:"true"`
 }
 
 type JoinRequestDTO struct {
@@ -270,6 +275,7 @@ type MeetingSummaryDTO struct {
 type MeetingSettingsSDO struct {
 	OrganizationID     string  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
 	AutoSummaryEnabled bool    `json:"auto_summary_enabled" description:"Hệ thống tự tạo tóm tắt khi cuộc họp kết thúc" example:"true"`
+	ScribePolicy       string  `json:"scribe_policy" description:"Chính sách thư ký AI: on | opt_in | off" example:"on"`
 	UpdatedBy          *string `json:"updated_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	UpdatedByKind      *string `json:"updated_by_kind,omitempty" description:"human, agent hoặc system" example:"human"`
 	UpdatedAt          *string `json:"updated_at,omitempty" example:"2026-10-21T09:00:00Z"`
@@ -422,7 +428,8 @@ type MeetingCapabilitiesSDO struct {
 	Recording bool `json:"recording"`
 	Scribe    bool `json:"scribe" description:"Thư ký AI (agent ghi lời) có cho workspace này: server chạy agent, cờ meeting_scribe bật, gói có meeting.transcription"`
 	// Transcription: uploads may be transcribed in batch (UNI-2001).
-	Transcription bool `json:"transcription" description:"Ghi lời file ghi âm tải lên có cho workspace này: có nhà cung cấp, cờ meeting_transcription bật, gói có meeting.transcription"`
+	Transcription bool   `json:"transcription" description:"Ghi lời file ghi âm tải lên có cho workspace này: có nhà cung cấp, cờ meeting_transcription bật, gói có meeting.transcription"`
+	ScribePolicy  string `json:"scribe_policy" description:"Chính sách thư ký AI của tổ chức: on (mặc định, cuộc họp mới có thư ký) | opt_in (cuộc họp mới tắt thư ký, chủ trì bật khi lên lịch hoặc trong phòng) | off (không bao giờ có thư ký)" example:"on"`
 }
 
 // MeetingDialInSDO is how to call into one meeting by phone (UNI-2029).

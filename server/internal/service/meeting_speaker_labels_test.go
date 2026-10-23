@@ -178,8 +178,15 @@ func TestSpeakerLabelsAssignAndNameTheTranscript(t *testing.T) {
 	if _, err := s.AssignSpeakerLabel(ctx, ua.ID, m.ID, l.ID, &ua.ID, ptr("Chị Lan")); codeOf(err) != "invalid_input" {
 		t.Fatalf("both user and name: %v", err)
 	}
-	// A plain member of the workspace may read labels but not assign them.
+	// A plain participant may read labels but not assign them; a member
+	// outside the meeting may not even read them (UNI-1995 access).
 	addMember(t, s, m.WorkspaceID, outsider)
+	if _, err := s.SpeakerLabels(ctx, outsider, m.ID); codeOf(err) != "meeting_ai_restricted" {
+		t.Fatalf("uninvited member reads labels: %v", err)
+	}
+	if _, err := s.Invite(ctx, ua.ID, m.ID, outsider); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.SpeakerLabels(ctx, outsider, m.ID); err != nil {
 		t.Fatalf("member reads labels: %v", err)
 	}

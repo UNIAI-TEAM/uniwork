@@ -493,6 +493,36 @@ describe("MeetingDetailView", () => {
     expect(notesSlot).not.toBeNull();
   });
 
+  // UNI-1995 access (#4): what was said is for the people of the meeting.
+  it("shows a member outside the meeting who the AI content is for, and never asks for it", async () => {
+    const asked: string[] = [];
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      asked.push(p);
+      if (p.endsWith("/me")) {
+        return Promise.resolve({ membership: { user_id: "u-host", role: "member", source: "membership" } });
+      }
+      if (p === "/api/v1/meetings/m1") {
+        return Promise.resolve({
+          meeting: { ...meeting, host_user_id: "u-other", status: "ENDED", ai_content_readable: false },
+        });
+      }
+      if (p.endsWith("/action-items")) {
+        return Promise.resolve({
+          items: [{ id: "a0", source: "AI", title: "Gửi biên bản", status: "PENDING", evidence: [{ kind: "segment", id: "g1" }] }],
+          counts: { pending: 1, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 },
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByTestId("meeting-ai-restricted")).toBeInTheDocument();
+    // The action items stay with the workspace; the lines they cite do not.
+    expect(await screen.findByText("Gửi biên bản")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Căn cứ \d/ })).not.toBeInTheDocument();
+    expect(asked.some((p) => p.endsWith("/transcript") || p.endsWith("/summary"))).toBe(false);
+  });
+
   it("hides roster and invite-link mutations after the meeting has ended", async () => {
     requestMock.mockImplementation((path: unknown) => {
       const p = String(path);

@@ -313,6 +313,9 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	if err != nil {
 		return db.Meeting{}, err
 	}
+	if m, err = s.createdScribeOff(ctx, q, m, userID); err != nil {
+		return db.Meeting{}, err
+	}
 	if _, err := s.addHostParticipant(ctx, q, m, userID); err != nil {
 		return db.Meeting{}, err
 	}

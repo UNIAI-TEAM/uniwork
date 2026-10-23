@@ -397,7 +397,7 @@ func (q *Queries) ListMeetingRecordings(ctx context.Context, meetingID string) (
 }
 
 const listOverdueInProgressMeetings = `-- name: ListOverdueInProgressMeetings :many
-SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind, m.quorum_percent, m.attendance_finalized_at, m.attendance_finalized_by, m.organization_id, m.scribe_off_at, m.scribe_off_by, m.minutes_document_id, m.minutes_finalized_at, m.minutes_finalized_by, m.minutes_finalized_version_id, m.dial_in_pin, m.sip_dispatch_rule_id FROM meetings m
+SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind, m.quorum_percent, m.attendance_finalized_at, m.attendance_finalized_by, m.organization_id, m.scribe_off_at, m.scribe_off_by, m.minutes_document_id, m.minutes_finalized_at, m.minutes_finalized_by, m.minutes_finalized_version_id, m.dial_in_pin, m.sip_dispatch_rule_id, m.ai_content_shared_at, m.ai_content_shared_by FROM meetings m
 WHERE m.status = 'IN_PROGRESS'
   AND m.ends_at < $1
   AND (
@@ -466,6 +466,8 @@ func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, arg ListOve
 			&i.MinutesFinalizedVersionID,
 			&i.DialInPin,
 			&i.SipDispatchRuleID,
+			&i.AiContentSharedAt,
+			&i.AiContentSharedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -782,4 +784,69 @@ func (q *Queries) ListTranscriptSegmentsLatest(ctx context.Context, arg ListTran
 		return nil, err
 	}
 	return items, nil
+}
+
+const setMeetingAIContentShared = `-- name: SetMeetingAIContentShared :one
+UPDATE meetings SET
+  ai_content_shared_at = CASE WHEN $1::bool THEN COALESCE(ai_content_shared_at, now()) ELSE NULL END,
+  ai_content_shared_by = CASE WHEN $1::bool THEN COALESCE(ai_content_shared_by, $2::text) ELSE NULL END,
+  updated_at = now()
+WHERE id = $3
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by
+`
+
+type SetMeetingAIContentSharedParams struct {
+	Shared bool   `json:"shared"`
+	By     string `json:"by"`
+	ID     string `json:"id"`
+}
+
+// tenant: by-id
+// shared = true stamps the first share and keeps it; false clears it. The
+// caller passed the clerk gate on this meeting (UNI-1995 access).
+func (q *Queries) SetMeetingAIContentShared(ctx context.Context, arg SetMeetingAIContentSharedParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, setMeetingAIContentShared, arg.Shared, arg.By, arg.ID)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.RoomName,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.MeetingType,
+		&i.HostUserID,
+		&i.ActualStartAt,
+		&i.ActualEndAt,
+		&i.Timezone,
+		&i.AllowJoinRequest,
+		&i.PreferredProviderKey,
+		&i.Version,
+		&i.UpdatedBy,
+		&i.CanceledBy,
+		&i.CanceledAt,
+		&i.CancelReason,
+		&i.ProjectID,
+		&i.CreatedByKind,
+		&i.QuorumPercent,
+		&i.AttendanceFinalizedAt,
+		&i.AttendanceFinalizedBy,
+		&i.OrganizationID,
+		&i.ScribeOffAt,
+		&i.ScribeOffBy,
+		&i.MinutesDocumentID,
+		&i.MinutesFinalizedAt,
+		&i.MinutesFinalizedBy,
+		&i.MinutesFinalizedVersionID,
+		&i.DialInPin,
+		&i.SipDispatchRuleID,
+		&i.AiContentSharedAt,
+		&i.AiContentSharedBy,
+	)
+	return i, err
 }

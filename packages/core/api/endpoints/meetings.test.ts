@@ -26,6 +26,7 @@ import {
   stopRecording,
   updateMeeting,
   setMeetingScribe,
+  setMeetingAISharing,
   extendMeeting,
 } from "./meetings";
 
@@ -225,6 +226,20 @@ describe("meetings D08b endpoints", () => {
     expect(await getMeetingCapabilities("ws1")).toEqual({ ai_summary: true, recording: false, scribe: true });
     vi.mocked(fetch).mockResolvedValueOnce(json({ ai_summary: "yes" }));
     expect(await getMeetingCapabilities("ws1")).toEqual({});
+  });
+
+  it("setMeetingAISharing puts shared and degrades to null on drift", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ meeting: { ...meeting, ai_content_shared: true, ai_content_readable: true } }))
+      .mockResolvedValueOnce(json({ meeting: { id: 1 } }))
+      .mockResolvedValueOnce(json(null));
+    expect(await setMeetingAISharing("m1", true)).toMatchObject({ id: "m1", ai_content_shared: true, ai_content_readable: true });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/meetings/m1/ai-sharing");
+    expect(init?.method).toBe("PUT");
+    expect(JSON.parse(String(init?.body))).toEqual({ shared: true });
+    await expect(setMeetingAISharing("m1", false)).resolves.toBeNull();
+    await expect(setMeetingAISharing("m1", false)).resolves.toBeNull();
   });
 
   it("setMeetingScribe puts enabled and degrades to null on drift", async () => {

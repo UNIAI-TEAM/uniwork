@@ -624,6 +624,7 @@ func New(d Deps) http.Handler {
 		MeetingActivity:                h.meetingActivity,
 		AppendTranscript:               h.appendTranscript,
 		SetMeetingScribe:               h.setMeetingScribe,
+		SetMeetingAISharing:            h.setMeetingAISharing,
 		GetMeetingSettings:             h.getMeetingSettings,
 		SetMeetingSettings:             h.setMeetingSettings,
 		SetParticipantSharedMic:        h.setParticipantSharedMic,

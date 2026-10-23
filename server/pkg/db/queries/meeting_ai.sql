@@ -139,3 +139,14 @@ SELECT (
 SELECT * FROM meeting_transcript_segments
 WHERE organization_id = sqlc.arg(organization_id) AND meeting_id = sqlc.arg(meeting_id)
   AND id = ANY(sqlc.arg(ids)::text[]);
+
+-- name: SetMeetingAIContentShared :one
+-- tenant: by-id
+-- shared = true stamps the first share and keeps it; false clears it. The
+-- caller passed the clerk gate on this meeting (UNI-1995 access).
+UPDATE meetings SET
+  ai_content_shared_at = CASE WHEN sqlc.arg('shared')::bool THEN COALESCE(ai_content_shared_at, now()) ELSE NULL END,
+  ai_content_shared_by = CASE WHEN sqlc.arg('shared')::bool THEN COALESCE(ai_content_shared_by, sqlc.arg('by')::text) ELSE NULL END,
+  updated_at = now()
+WHERE id = sqlc.arg('id')
+RETURNING *;

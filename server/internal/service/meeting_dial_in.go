@@ -19,6 +19,9 @@ import (
 )
 
 // Dial-in by phone (spec 2026-10-20-meeting-scribe-agent-design §5.4, B10).
+// PINs are 9 digits since UNI-1995 access (#24; older 6-digit ones still
+// work): one trunk serves every tenant, so the PIN space is what a dialer
+// cycling guesses has to search.
 // While a meeting is in progress a LiveKit SIP dispatch rule routes callers
 // who enter its PIN into its room. A caller arrives in the room itself — the
 // lobby cannot hold a SIP participant, and moving one between rooms is a
@@ -494,6 +497,7 @@ func (s *MeetingService) dialInCallerJoined(ctx context.Context, q *db.Queries, 
 	if err != nil {
 		return err
 	}
+	s.count("dial_in_call_knocked")
 	return q.SetJoinRequestProviderSid(ctx, db.SetJoinRequestProviderSidParams{ID: jr.ID, ParticipantSid: ev.ParticipantSID})
 }
 
@@ -528,6 +532,10 @@ func (s *MeetingService) settleDialInCaller(ctx context.Context, sess db.Meeting
 	}
 	_, mine, err := s.pendingKnock(ctx, s.q, sess.MeetingID, ev.Identity, ev.ParticipantSID)
 	if err == nil && !mine {
+		// A PIN of an ended meeting, a rotated PIN, a rule no meeting owns, or
+		// a removed caller: the brute-force signal UniWork sees
+		// (alert MeetingDialInRefusedCalls).
+		s.count("dial_in_call_refused")
 		s.hangUp(ctx, ev.RoomName, conn.Identity)
 		return
 	}

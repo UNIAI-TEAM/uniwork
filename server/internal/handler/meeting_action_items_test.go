@@ -109,10 +109,17 @@ func TestMeetingActionItemsHTTP(t *testing.T) {
 	if ev, ok := first["evidence"].([]any); !ok || len(ev) != 0 {
 		t.Fatalf("manual item evidence: %v", first["evidence"])
 	}
-	// Any member reads a cited line through the evidence route; a malformed
-	// reference list is 400.
+	// A cited line is AI content: a member outside the meeting is refused
+	// (UNI-1995 access); invited, they read it; a malformed reference list is 400.
 	_, out = doJSON(t, srv, "POST", "/api/v1/meetings/"+meetingID+"/notes", host, map[string]any{"body": "Nhớ gửi bản nháp"})
 	noteID := out["note"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/evidence?refs=note:"+noteID, member, nil)
+	if res.StatusCode != http.StatusForbidden || errorCode(out) != "meeting_ai_restricted" {
+		t.Fatalf("evidence for a member outside the meeting: %d %v", res.StatusCode, out)
+	}
+	if res, out = doJSON(t, srv, "POST", "/api/v1/meetings/"+meetingID+"/invitations", host, map[string]any{"user_id": memberID}); res.StatusCode >= 300 {
+		t.Fatalf("invite member: %d %v", res.StatusCode, out)
+	}
 	res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/evidence?refs=note:"+noteID, member, nil)
 	if got, _ := out["items"].([]any); res.StatusCode != http.StatusOK || len(got) != 1 ||
 		got[0].(map[string]any)["text"] != "Nhớ gửi bản nháp" || got[0].(map[string]any)["author"] != "Host" || got[0].(map[string]any)["at"] == "" {

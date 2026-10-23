@@ -193,3 +193,29 @@ func TestAskMeetingFocusKeepsTheBestLinesWithinOneExcerpt(t *testing.T) {
 		t.Fatalf("excerpt (%d runes) lacks the best line or exceeds one excerpt:\n%s", utf8.RuneCountInString(ex), ex)
 	}
 }
+
+// UNI-1995 access: a workspace member outside the meeting reads its
+// transcript through Ask UNI as absent, and a question focused on the
+// meeting keeps the meeting's context without what was said; invited, they
+// read it like the host.
+func TestMeetingTranscriptToolIsForThePeopleOfTheMeeting(t *testing.T) {
+	s, _, ua, ub, w := askFixture(t)
+	addMember(t, s.meetings, w.ID, ub.ID)
+	m := liveCatchUpMeeting(t, s, ua.ID, w.ID)
+	catchUpSegment(t, s, m, "AGENT", "An", "Kết quả đánh giá của Bình", 10*time.Minute)
+	tc := ai.ToolContext{ActorID: ub.ID, OrganizationID: m.OrganizationID, WorkspaceID: w.ID}
+	args := fmt.Sprintf(`{"meeting_id":%q,"from":"","to":"","query":""}`, m.ID)
+	if got := runTranscriptTool(t, s, tc, args); !isError(got, "not_found") {
+		t.Fatalf("uninvited member read the transcript: %+v", got)
+	}
+	srcs, err := s.focusTranscript(context.Background(), tc, m.ID, "đánh giá thế nào?")
+	if err != nil || len(srcs) != 0 {
+		t.Fatalf("focus for an uninvited member = %+v, %v; want nothing and no error", srcs, err)
+	}
+	if _, err := s.meetings.Invite(context.Background(), ua.ID, m.ID, ub.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := runTranscriptTool(t, s, tc, args); len(got) != 1 || !strings.Contains(got[0].Text, "Kết quả đánh giá") {
+		t.Fatalf("invited member: %+v", got)
+	}
+}

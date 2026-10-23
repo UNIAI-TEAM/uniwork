@@ -598,7 +598,16 @@
         "auto_summary_label": "Tự tạo tóm tắt khi họp xong",
         "auto_summary_description": "Khi cuộc họp kết thúc, UNI tự tạo tóm tắt và việc đề xuất rồi báo chủ trì và thư ký. Khi tắt, chủ trì nhận lời nhắc tự tạo tóm tắt sau mỗi cuộc họp.",
         "save_failed": "Không lưu được thay đổi. Thử lại.",
-        "read_failed": "Không đọc được cài đặt cuộc họp."
+        "read_failed": "Không đọc được cài đặt cuộc họp.",
+        "scribe_title": "Thư ký AI",
+        "scribe_policy_label": "Thư ký AI trong cuộc họp",
+        "scribe_policy_description": "Thư ký AI ghi lời thoại, hiện phụ đề và tóm tắt cuộc họp; âm thanh được xử lý ở ngoài Việt Nam.",
+        "scribe_policy_on": "Bật cho mọi cuộc họp",
+        "scribe_policy_on_hint": "Thư ký AI vào mọi cuộc họp; chủ trì tắt được cho từng cuộc họp.",
+        "scribe_policy_opt_in": "Chủ trì tự bật",
+        "scribe_policy_opt_in_hint": "Cuộc họp tạo từ nay không có Thư ký AI cho tới khi chủ trì bật lúc lên lịch hoặc trong phòng.",
+        "scribe_policy_off": "Tắt cho cả tổ chức",
+        "scribe_policy_off_hint": "Không cuộc họp nào có Thư ký AI; phòng đang họp mất Thư ký AI trong khoảng 15 giây."
       },
     "documents": {
       "title": "Tài liệu",
@@ -4056,7 +4065,7 @@
       "chipOff": "Thư ký AI đã tắt",
       "chipShort": "Thư ký AI",
       "chipFailedShort": "Chưa ghi lời",
-      "explain": "Thư ký AI nghe từng người trong phòng, ghi bản ghi lời thoại của cuộc họp và hiện phụ đề cho mọi người. Thư ký AI không nói, không bật camera và không được tính là người tham gia.",
+      "explain": "Thư ký AI nghe từng người trong phòng, ghi bản ghi lời thoại của cuộc họp và hiện phụ đề cho mọi người. Bản ghi chỉ người tham dự và quản trị viên đọc được; âm thanh được xử lý ở ngoài Việt Nam. Thư ký AI không nói, không bật camera và không được tính là người tham gia.",
       "explainJoining": "Thư ký AI đang vào phòng. Khi vào xong, Thư ký AI ghi bản ghi lời thoại và hiện phụ đề cho mọi người.",
       "explainFailed": "Thư ký AI chưa vào được phòng nên chưa ghi lời thoại. Hệ thống tự thử lại sau ít phút.",
       "explainOff": "Cuộc họp này không có Thư ký AI. Phụ đề dùng giọng nói trên máy của từng người.",
@@ -4093,7 +4102,24 @@
       "speakerSaveFailed": "Chưa lưu được tên này.",
       "speakersEmpty": "Chưa có người nói nào cần gán tên.",
       "speakersLoading": "Đang tải danh sách người nói",
-      "speakersLoadFailed": "Không tải được danh sách người nói."
+      "speakersLoadFailed": "Không tải được danh sách người nói.",
+      "noticeTitle": "Cuộc họp này có Thư ký AI",
+      "noticeBody": "Thư ký AI ghi lời mọi người nói trong phòng thành bản ghi lời thoại. Bản ghi do tổ chức chủ trì cuộc họp lưu trên UniWork, chỉ người tham dự và quản trị viên đọc được. Âm thanh được gửi tới dịch vụ chuyển giọng nói thành chữ xử lý ở ngoài Việt Nam.",
+      "noticeAck": "Đã hiểu",
+      "formLabel": "Thư ký AI",
+      "formHint": "Ghi lời thoại, hiện phụ đề và tóm tắt cuộc họp. Âm thanh được xử lý ở ngoài Việt Nam.",
+      "createdScribeNotSet": "Đã tạo cuộc họp nhưng chưa đổi được Thư ký AI. Đổi lại trên trang cuộc họp."
+    },
+    "aiAccess": {
+      "title": "Thư ký AI và nội dung AI",
+      "scribeLabel": "Thư ký AI",
+      "scribeHint": "Ghi lời thoại, hiện phụ đề và tóm tắt cuộc họp.",
+      "scribeOffByPolicy": "Tổ chức đã tắt Thư ký AI cho mọi cuộc họp.",
+      "shareLabel": "Chia sẻ nội dung AI với cả workspace",
+      "shareHint": "Bản ghi lời thoại, tóm tắt AI và trích dẫn. Khi tắt, chỉ chủ trì, thư ký, người được mời và quản trị viên workspace đọc được.",
+      "restrictedTitle": "Nội dung AI chỉ dành cho người tham dự",
+      "restrictedBody": "Bản ghi lời thoại và tóm tắt AI của cuộc họp này chỉ chủ trì, thư ký, người được mời và quản trị viên workspace đọc được.",
+      "saveFailed": "Không lưu được thay đổi. Thử lại."
     },
     "summaryPartial": "Tóm tắt dựa trên một phần cuộc họp: bản ghi lời thoại dài hơn mức AI đọc được một lần.",
     "held": {

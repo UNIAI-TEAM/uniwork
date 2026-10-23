@@ -269,6 +269,7 @@ export function MeetingActionItemsSection({
   meetingId,
   projectId,
   canClerk,
+  aiRestricted = false,
   variant = "panel",
   selection,
 }: {
@@ -277,6 +278,8 @@ export function MeetingActionItemsSection({
   /** The meeting's project: new tasks start there while it still exists. */
   projectId?: string;
   canClerk: boolean;
+  /** The viewer may not read the meeting's AI content (meeting.ai_content_readable false): no evidence chips. */
+  aiRestricted?: boolean;
   variant?: ActionItemsVariant;
   /** Ticks kept by a screen that unmounts this section; else kept here. */
   selection?: ActionItemSelection;
@@ -361,7 +364,7 @@ export function MeetingActionItemsSection({
                   key={item.id}
                   item={item}
                   variant={variant}
-                  evidence={<MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />}
+                  evidence={aiRestricted ? null : <MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />}
                 />
               ))}
             </ul>
@@ -379,7 +382,7 @@ export function MeetingActionItemsSection({
                 variant={variant}
                 taskHref={item.task && wsPaths ? wsPaths.task(item.task.id) : null}
                 assigneeName={memberOf(item.task?.assignee_id)?.display_name}
-                evidence={<MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />}
+                evidence={aiRestricted ? null : <MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />}
               />
             ))}
           </ul>

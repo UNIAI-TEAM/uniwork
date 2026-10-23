@@ -16,6 +16,12 @@ const liveKitWebhookPath = "/integrations/livekit/webhook"
 // bucket router.go builds (UNI-1853 M9). minutesOrg names the meeting's
 // organization so minutesFlag (meeting_minutes, UNI-2003) honours its
 // overrides.
+// aiContentReaders is who may read a meeting's AI content (UNI-1995 access):
+// the six gated reads name it in their description.
+const aiContentReaders = "Nội dung AI của cuộc họp: chỉ chủ trì, thư ký, người tham gia còn ACTIVE (được mời, được nhận vào hoặc đã dự, chưa bị gỡ), " +
+	"quản trị workspace (owner/admin tổ chức tính là quản trị), hoặc mọi thành viên workspace khi cuộc họp bật chia sẻ nội dung AI (PUT .../ai-sharing). " +
+	"Thành viên khác nhận 403 meeting_ai_restricted."
+
 func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag func(http.Handler) http.Handler) {
 	r.Get("/workspaces/{workspaceID}/meetings", h.ListMeetings, apiOp{
 		summary: "List meetings", tags: []string{"meetings"}, sdi: sdi.ListMeetingsSDI{}, sdo: sdo.MeetingListSDO{}, auth: true,
@@ -166,7 +172,8 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Get("/meetings/{meetingID}/transcript", h.ListTranscript, apiOp{
 		summary: "List transcript segments (newest page first; ?before= older, ?after= delta)", tags: []string{"meetings"},
-		sdi: sdi.MeetingFeedSDI{}, sdo: sdo.TranscriptListSDO{}, auth: true,
+		description: aiContentReaders,
+		sdi:         sdi.MeetingFeedSDI{}, sdo: sdo.TranscriptListSDO{}, auth: true,
 	})
 	r.Get("/orgs/{orgID}/meetings/settings", h.GetMeetingSettings, apiOp{
 		summary:     "Read the organization meeting settings",
@@ -174,14 +181,19 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 		tags:        []string{"meetings"}, sdo: sdo.MeetingSettingsSDO{}, auth: true,
 	})
 	r.Put("/orgs/{orgID}/meetings/settings", h.SetMeetingSettings, apiOp{
-		summary:     "Switch the summary the system makes when a meeting ends",
-		description: "Bật/tắt tóm tắt tự tạo khi họp xong cho cả tổ chức. Chỉ owner/admin tổ chức; áp cho cuộc họp kết thúc từ nay, cuộc họp đang chờ tóm tắt cũng kiểm lại trước khi chạy. Tắt thì chủ trì nhận nhắc tóm tắt như cũ. Đổi giá trị ghi audit meeting.settings_changed.",
+		summary:     "Change the organization's meeting settings (auto summary, AI scribe policy)",
+		description: "Chỉ owner/admin tổ chức; gửi một hoặc cả hai trường, trường thiếu giữ nguyên. auto_summary_enabled: bật/tắt tóm tắt tự tạo khi họp xong, áp cho cuộc họp kết thúc từ nay (cuộc họp đang chờ tóm tắt cũng kiểm lại trước khi chạy; tắt thì chủ trì nhận nhắc như cũ). scribe_policy: on | opt_in | off; off gỡ thư ký khỏi mọi phòng đang họp trong vòng quét 15 giây, opt_in áp cho cuộc họp tạo từ nay. Đổi giá trị ghi audit meeting.settings_changed.",
 		tags:        []string{"meetings"}, sdi: sdi.SetMeetingSettingsSDI{}, sdo: sdo.MeetingSettingsSDO{}, auth: true,
 	})
 	r.Put("/meetings/{meetingID}/scribe", h.SetMeetingScribe, apiOp{
 		summary:     "Switch the AI scribe off or on for one meeting",
-		description: "Chủ trì hoặc quản trị workspace; cuộc họp SCHEDULED hoặc IN_PROGRESS. Mặc định bật; đang họp thì thư ký được gỡ khỏi phòng hoặc gọi vào ngay. Ghi audit meeting.scribe_toggled và phát scribe.updated.",
+		description: "Chủ trì hoặc quản trị workspace; cuộc họp SCHEDULED hoặc IN_PROGRESS. Mặc định bật (tổ chức đặt scribe_policy=opt_in thì cuộc họp mới tắt); đang họp thì thư ký được gỡ khỏi phòng hoặc gọi vào ngay. 409 scribe_off_by_policy: tổ chức đã tắt thư ký (scribe_policy=off), chỉ tắt được, không bật được. Ghi audit meeting.scribe_toggled và phát scribe.updated.",
 		tags:        []string{"meetings"}, sdi: sdi.SetMeetingScribeSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
+	})
+	r.Put("/meetings/{meetingID}/ai-sharing", h.SetMeetingAISharing, apiOp{
+		summary:     "Share a meeting's AI content with the workspace, or keep it to the meeting",
+		description: "Chủ tọa, thư ký hoặc quản trị workspace; mọi trạng thái. Nội dung AI (transcript, tóm tắt AI, dòng trích dẫn, tóm tắt cho người vào muộn, Ask UNI/MCP đọc transcript) mặc định chỉ dành cho chủ trì, thư ký, người được mời hoặc được nhận vào chưa bị gỡ và quản trị workspace; shared=true mở cho mọi thành viên workspace. Người khác đọc nội dung đó nhận 403 meeting_ai_restricted. Đổi giá trị ghi audit meeting.ai_sharing_changed và phát meeting.updated.",
+		tags:        []string{"meetings"}, sdi: sdi.SetMeetingAISharingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
 	})
 	r.Put("/meetings/{meetingID}/participants/{participantID}/shared-mic", h.SetParticipantSharedMic, apiOp{
 		summary:     "Mark or unmark a participant as the room's shared microphone (clerk)",
@@ -190,7 +202,7 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Get("/meetings/{meetingID}/speaker-labels", h.ListSpeakerLabels, apiOp{
 		summary:     "List the speaker labels of a meeting's transcript, assigned or not",
-		description: "Ai đọc được transcript thì đọc được nhãn. Nhãn chưa gán có assigned_name trống.",
+		description: "Ai đọc được transcript thì đọc được nhãn. Nhãn chưa gán có assigned_name trống. " + aiContentReaders,
 		tags:        []string{"meetings"}, sdo: sdo.SpeakerLabelListSDO{}, auth: true,
 	})
 	r.Put("/meetings/{meetingID}/speaker-labels/{speakerLabelID}", h.AssignSpeakerLabel, apiOp{
@@ -219,7 +231,7 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Get("/meetings/{meetingID}/transcriptions", h.ListMeetingTranscriptions, apiOp{
 		summary:     "List a meeting's transcriptions",
-		description: "Ai đọc được transcript thì đọc được: mỗi tệp tải lên một lần ghi lời, mới nhất trước, có trạng thái, thời lượng và lỗi.",
+		description: "Ai đọc được transcript thì đọc được: mỗi tệp tải lên một lần ghi lời, mới nhất trước, có trạng thái, thời lượng và lỗi. " + aiContentReaders,
 		tags:        []string{"meetings"}, sdo: sdo.MeetingTranscriptionListSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/dial-in", h.MeetingDialIn, apiOp{
@@ -238,7 +250,7 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Get("/meetings/{meetingID}/summary", h.GetMeetingSummary, apiOp{
 		summary:     "Latest AI summary",
-		description: "Bản tóm tắt mới nhất (null khi chưa có): tóm tắt và kết luận. Việc đề xuất đọc ở GET .../action-items.",
+		description: "Bản tóm tắt mới nhất (null khi chưa có): tóm tắt và kết luận. Việc đề xuất đọc ở GET .../action-items. " + aiContentReaders,
 		tags:        []string{"meetings"}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
 	r.With(summaryLimit).Post("/meetings/{meetingID}/summary", h.CreateSummary, apiOp{
@@ -252,7 +264,7 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Get("/meetings/{meetingID}/evidence", h.MeetingEvidence, apiOp{
 		summary: "The cited lines behind a summary's decisions and action items", tags: []string{"meetings"},
-		description: "Mọi thành viên workspace. Đọc các đoạn transcript, ghi chú, tin nhắn mà kết luận hoặc việc dẫn làm căn cứ " +
+		description: aiContentReaders + " Đọc các đoạn transcript, ghi chú, tin nhắn mà kết luận hoặc việc dẫn làm căn cứ " +
 			"(evidence của GET .../summary và GET .../action-items). Căn cứ không thuộc cuộc họp hoặc đã xoá thì vắng. " +
 			"Lỗi: 400 khi refs sai dạng hoặc quá 20.",
 		sdi: sdi.MeetingEvidenceSDI{}, sdo: sdo.MeetingEvidenceSDO{}, auth: true,
@@ -319,8 +331,8 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 		sdo:         sdo.MeetingMinutesSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/catch-up", h.MeetingCatchUp, apiOp{
-		summary: "Brief a late joiner on what they missed (workspace members)",
-		description: "Chỉ thành viên workspace (khách 403); cuộc họp IN_PROGRESS (khác -> 409 invalid_meeting_state). Tóm tắt lời nói (quy tắc nguồn transcript) và ghi chú từ đầu họp qua ai.Gateway (capability meeting_catch_up, trừ tín dụng AI); mỗi ý trỏ về đoạn lời và giờ nói. " +
+		summary: "Brief a late joiner on what they missed (people of the meeting)",
+		description: aiContentReaders + " Khách 403; cuộc họp IN_PROGRESS (khác -> 409 invalid_meeting_state). Tóm tắt lời nói (quy tắc nguồn transcript) và ghi chú từ đầu họp qua ai.Gateway (capability meeting_catch_up, trừ tín dụng AI); mỗi ý trỏ về đoạn lời và giờ nói. " +
 			"Kết quả dùng chung theo cuộc họp và ngôn ngữ trong 2 phút, nên nhiều người vào muộn chỉ tốn một lần gọi; trả về cho riêng người gọi, không lưu. " +
 			"Lỗi: 402 ai_quota_exceeded, 429 rate_limited, 502 ai_failed, 503 ai_not_configured, 504 ai_timeout.",
 		tags: []string{"meetings"}, sdi: sdi.MeetingCatchUpSDI{}, sdo: sdo.MeetingCatchUpSDO{}, auth: true,

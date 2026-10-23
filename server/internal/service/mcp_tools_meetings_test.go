@@ -1601,3 +1601,25 @@ func TestMcpMeetingChangedNamesAReadThatFailed(t *testing.T) {
 		t.Errorf("note = %q", res.Note)
 	}
 }
+
+// UNI-1995 access: get_meeting answers a member outside the meeting with the
+// meeting and without its AI summary.
+func TestMcpGetMeetingHidesTheSummaryFromMembersOutsideTheMeeting(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	p := x.member(t)
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Đánh giá", "")
+	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
+		ID: util.NewID(), MeetingID: m.ID, Summary: "Bình chưa đạt KPI", Decisions: `[]`, ActionItems: `[]`,
+		Model: "fake", CreatedBy: x.ua.ID, CreatedByKind: "human", OrganizationID: x.w.OrganizationID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := x.tools.GetMeeting(ctx, p, x.w.ID, m.ID)
+	if err != nil || got.Title != "Đánh giá" || got.Excerpt != "" {
+		t.Fatalf("member outside the meeting: title %q excerpt %q (%v)", got.Title, got.Excerpt, err)
+	}
+	if got, err := x.tools.GetMeeting(ctx, x.p, x.w.ID, m.ID); err != nil || !strings.Contains(got.Excerpt, "Bình chưa đạt KPI") {
+		t.Fatalf("host: excerpt %q (%v)", got.Excerpt, err)
+	}
+}

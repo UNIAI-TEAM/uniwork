@@ -19,6 +19,7 @@ import {
   SettingsTabSkeleton,
   type SettingsSaveStatus,
 } from "./settings-layout";
+import { MeetingsScribePolicySection } from "./meetings-scribe-policy";
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 
@@ -32,7 +33,7 @@ const SAVE_STATUS: Record<"idle" | "pending" | "success" | "error", SettingsSave
 
 /**
  * Organization meeting settings (UNI-2026, scribe spec §4.5 D16): whether the
- * system summarizes a meeting once it ends. Same gate and same shape as the
+ * system summarizes a meeting once it ends, and the AI scribe policy (UNI-1995). Same gate and same shape as the
  * document settings: owners/admins see the switch, which starts from the
  * server's answer (an untouched organization answers on); everyone else gets
  * one sentence saying who can change it.
@@ -109,6 +110,7 @@ export function MeetingsSettings() {
           )}
         </SettingsCard>
       </SettingsSection>
+      {settings.data ? <MeetingsScribePolicySection organizationId={workspace.organization_id} settings={settings.data} /> : null}
     </SettingsTab>
   );
 }

@@ -15,8 +15,9 @@ import (
 )
 
 // get_meeting_transcript (scribe spec §5.2, B8): a stretch of one meeting's
-// transcript, read as the asker through the meeting's own gate (authorize,
-// RequireMember), under the parent spec's §7.3 source rule. It only reads.
+// transcript, read as the asker through the meeting's AI-content gate
+// (authorizeAIContent: the people of the meeting, UNI-1995 access), under the
+// parent spec's §7.3 source rule. It only reads.
 
 const (
 	askToolTranscript = "get_meeting_transcript"
@@ -69,7 +70,7 @@ func (s *AskUNIService) meetingTranscript(ctx context.Context, tc ai.ToolContext
 	if err != nil {
 		return m, nil, false, err
 	}
-	if m, err = s.meetings.Get(ctx, tc.ActorID, strings.TrimSpace(a.MeetingID)); err != nil {
+	if m, err = s.meetings.authorizeAIContent(ctx, tc.ActorID, strings.TrimSpace(a.MeetingID)); err != nil {
 		return m, nil, false, err
 	}
 	if m.WorkspaceID != tc.WorkspaceID {
@@ -158,7 +159,10 @@ var focusStopwords = map[string]bool{
 // most of the question's words (newest first among equals), else the newest
 // ones, in time order; nothing when there is no transcript.
 func (s *AskUNIService) focusTranscript(ctx context.Context, tc ai.ToolContext, meetingID, question string) ([]ai.Source, error) {
-	m, err := s.meetings.Get(ctx, tc.ActorID, meetingID)
+	m, err := s.meetings.authorizeAIContent(ctx, tc.ActorID, meetingID)
+	if codedIs(err, "meeting_ai_restricted") {
+		return nil, nil // the meeting's own context stays; what was said is not the asker's
+	}
 	if err != nil {
 		return nil, err
 	}

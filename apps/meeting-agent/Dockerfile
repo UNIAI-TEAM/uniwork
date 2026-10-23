@@ -7,6 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY agent.py .
 COPY scribe ./scribe
+COPY assets ./assets
 RUN useradd --uid 1000 --create-home scribe
 USER 1000
 EXPOSE 8081
