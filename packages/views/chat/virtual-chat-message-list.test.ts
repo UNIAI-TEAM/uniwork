@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { virtualChatRowEstimatePx, virtualChatRowMeasureKey } from "./virtual-chat-message-list";
 
 describe("virtualChatRowEstimatePx", () => {
-  it("uses a smaller estimate for compact mid-run bubbles", () => {
-    const midRun = { lastOfRun: false, compactTop: true };
-    const endRun = { lastOfRun: true, compactTop: true };
-    expect(virtualChatRowEstimatePx(midRun)).toBeLessThan(virtualChatRowEstimatePx(endRun));
+  it("uses a smaller estimate for compact stacked bubbles", () => {
+    const compact = { lastOfRun: false, compactTop: true };
+    const loose = { lastOfRun: true, compactTop: false };
+    expect(virtualChatRowEstimatePx(compact)).toBeLessThan(virtualChatRowEstimatePx(loose));
   });
 });
 

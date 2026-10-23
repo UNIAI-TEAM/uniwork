@@ -19,8 +19,7 @@ export function virtualChatRowEstimatePx(layout?: {
   opensDay?: boolean;
 }): number {
   if (!layout) return DEFAULT_ESTIMATE_PX;
-  let px = layout.compactTop ? 40 : 56;
-  if (!layout.lastOfRun) px -= 10;
+  let px = layout.compactTop ? 44 : 56;
   if (layout.opensDay) px += 36;
   return Math.max(32, px);
 }
