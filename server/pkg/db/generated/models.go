@@ -64,6 +64,7 @@ type AiConversation struct {
 	Title          string             `json:"title"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	TitleSource    string             `json:"title_source"`
 }
 
 type AiMessage struct {
@@ -76,6 +77,12 @@ type AiMessage struct {
 	UsageEventID   pgtype.Text        `json:"usage_event_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	Notice         pgtype.Text        `json:"notice"`
+	Steps          string             `json:"steps"`
+	Followups      string             `json:"followups"`
+	Focus          pgtype.Text        `json:"focus"`
+	Mentions       string             `json:"mentions"`
+	SupersededAt   pgtype.Timestamptz `json:"superseded_at"`
+	Model          string             `json:"model"`
 }
 
 type AiMessageFeedback struct {

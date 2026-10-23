@@ -158,15 +158,11 @@ func withProviders(ps ...files.ReferenceProvider) gcOption {
 	return func(o *FileServiceOptions) { o.ReferenceProviders = ps }
 }
 
+// productionProviders is the composition root's own list, so a provider added
+// there reaches the GC tests too. The chat and meeting providers ignore their
+// receiver, so nil services are enough.
 func productionProviders() []files.ReferenceProvider {
-	return []files.ReferenceProvider{
-		NewTaskAttachmentProvider(), NewUserAvatarProvider(), chatFileReferenceProvider{},
-		chatVoiceRecordingProvider{}, MeetingRecordingProvider{}, AuditExportReferenceProvider(),
-		PrivacyExportReferenceProvider(), DocumentDownloadReferenceProvider(),
-		DocumentVersionReferenceProvider{}, DocumentAssetReferenceProvider{}, OfficeJobOutputProvider{},
-		WorkspaceIconProvider{}, ChatRoomAvatarProvider{}, ChatRoomWallpaperProvider{}, ChatLinkPreviewImageProvider{},
-		AskUniAttachmentProvider{},
-	}
+	return FileReferenceProviders(nil, nil)
 }
 
 func newGCHarness(t *testing.T, mode FileGCMode, opts ...gcOption) *gcHarness {

@@ -3,7 +3,21 @@ import { useAiPanelStore } from "./store";
 
 describe("ai panel store", () => {
   afterEach(() => {
-    useAiPanelStore.setState({ open: false, conversationId: null, pendingFocus: null, workspaceId: null });
+    useAiPanelStore.setState({ open: false, conversationId: null, pendingFocus: null, focus: null, workspaceId: null });
+  });
+
+  it("setFocus stores the hand-picked focus; a new conversation and a workspace change clear it", () => {
+    const s = useAiPanelStore.getState();
+    s.bindWorkspace("w1");
+    s.setFocus({ kind: "task", id: "t1", label: "A" });
+    expect(useAiPanelStore.getState().focus).toEqual({ kind: "task", id: "t1", label: "A" });
+    s.select("c1");
+    expect(useAiPanelStore.getState().focus).not.toBeNull();
+    s.select(null);
+    expect(useAiPanelStore.getState().focus).toBeNull();
+    s.setFocus({ kind: "task", id: "t1" });
+    s.bindWorkspace("w2");
+    expect(useAiPanelStore.getState().focus).toBeNull();
   });
 
   it("drops the selected conversation and focus when the workspace changes", () => {
@@ -25,21 +39,25 @@ describe("ai panel store", () => {
   });
 });
 
-describe("ai panel full page", () => {
-  afterEach(() => useAiPanelStore.setState({ open: false, fullPage: false }));
+describe("ai panel page context", () => {
+  const T = { kind: "task", id: "t1", label: "A" } as const;
+  const U = { kind: "task", id: "t2", label: "B" } as const;
+  afterEach(() => useAiPanelStore.setState({ page: null, pageDismissed: null }));
 
-  it("closing the panel leaves full-page mode", () => {
+  it("a dismissed page stays dismissed on a same-key update and returns on another page", () => {
     const s = useAiPanelStore.getState();
-    s.setOpen(true);
-    s.setFullPage(true);
-    expect(useAiPanelStore.getState().fullPage).toBe(true);
-    s.setOpen(false);
-    expect(useAiPanelStore.getState().fullPage).toBe(false);
+    s.setPage(T);
+    s.dismissPage();
+    expect(useAiPanelStore.getState().pageDismissed).toBe("task:t1");
+    s.setPage({ ...T, label: "Renamed" });
+    expect(useAiPanelStore.getState()).toMatchObject({ page: { label: "Renamed" }, pageDismissed: "task:t1" });
+    s.setPage(U);
+    expect(useAiPanelStore.getState().pageDismissed).toBeNull();
   });
 
-  it("toggling closed also leaves full-page mode", () => {
-    useAiPanelStore.setState({ open: true, fullPage: true });
-    useAiPanelStore.getState().toggle();
-    expect(useAiPanelStore.getState().fullPage).toBe(false);
+  it("setPage(null) clears the page", () => {
+    useAiPanelStore.getState().setPage(T);
+    useAiPanelStore.getState().setPage(null);
+    expect(useAiPanelStore.getState().page).toBeNull();
   });
 });

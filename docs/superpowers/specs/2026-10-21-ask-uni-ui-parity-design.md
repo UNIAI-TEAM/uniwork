@@ -1,6 +1,6 @@
 # UniWork — Hỏi UNI: giao diện như ClickUp Brain (bổ sung spec Hỏi UNI v2)
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-21; kế hoạch: `docs/superpowers/plans/2026-10-21-ask-uni-p2b.md` (duyệt 2026-10-21); chưa có issue.
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-21; kế hoạch: `docs/superpowers/plans/2026-10-21-ask-uni-p2b.md` (duyệt 2026-10-21); issue UNI-2059. Cả 19 task đã làm xong và qua duyệt ngày 2026-10-22; chờ PR (chưa shipped).
 
 **Ngày:** 2026-10-21
 **Bổ sung cho:** `docs/superpowers/specs/2026-10-16-ask-uni-agent-design.md` (gọi tắt "spec gốc"). File này thay một số quyết định ở §5.1 của spec gốc (xem §6); phần còn lại của spec gốc giữ nguyên.

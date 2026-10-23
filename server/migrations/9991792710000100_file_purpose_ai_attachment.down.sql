@@ -1,9 +1,7 @@
 -- Sessions of the purpose being removed would fail the narrower checks.
 DELETE FROM file_upload_sessions WHERE purpose = 'ai_attachment';
 
--- Back to the checks before ai_attachment. chat_room_wallpaper stays: its
--- sessions are valid rows the earlier checks never allowed, and dropping it
--- would make this rollback fail on any room that set a custom wallpaper.
+-- Back to the checks 9991792710000050 left.
 ALTER TABLE file_upload_sessions DROP CONSTRAINT file_upload_sessions_purpose_check;
 ALTER TABLE file_upload_sessions ADD CONSTRAINT file_upload_sessions_purpose_check
   CHECK (purpose IN ('user_avatar', 'task_attachment', 'task_description_image',

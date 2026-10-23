@@ -5841,13 +5841,23 @@
     "history_with": "Lịch sử hội thoại: {{title}}",
     "resize": "Đổi độ rộng Hỏi UNI",
     "history_empty": "Chưa có hội thoại nào",
+    "history_search": "Tìm hội thoại",
+    "history_no_match": "Không có hội thoại nào khớp",
+    "history_error": "Không tải được lịch sử hội thoại",
+    "history_retry": "Thử lại",
+    "history_current": "Hiện tại",
+    "history_group": { "today": "Hôm nay", "yesterday": "Hôm qua", "week": "7 ngày qua", "older": "Cũ hơn" },
     "rename_conversation": "Đổi tên hội thoại",
-    "full_page": "Mở rộng toàn trang",
-    "exit_full_page": "Thu về thanh bên",
     "delete_conversation": "Xóa hội thoại",
     "sources": "Nguồn",
     "you": "Bạn",
     "uni": "UNI",
+    "meta": {
+      "uni": "UNI"
+    },
+    "followups": {
+      "label": "Gợi ý hỏi tiếp"
+    },
     "usage_tokens": "{{in}} vào · {{out}} ra",
     "notice": {
       "no_sources": "Chưa có dữ liệu nào bạn được xem khớp với câu hỏi này.",
@@ -5858,17 +5868,88 @@
       "stopped": "Đã dừng trước khi trả lời xong.",
       "interrupted": "Câu trả lời bị gián đoạn nên chưa đầy đủ."
     },
-    "steps": {
-      "seen": "Đã xem {{list}}",
-      "task_other": "{{count}} task",
-      "meeting_other": "{{count}} cuộc họp",
-      "document_other": "{{count}} tài liệu",
-      "project_other": "{{count}} dự án",
-      "chat_other": "{{count}} đoạn chat"
+    "progress": {
+      "search": "Đang tìm…",
+      "search_label": "Đang tìm “{{label}}”…",
+      "list_tasks": "Đang xem danh sách task…",
+      "list_tasks_label": "Đang xem danh sách task “{{label}}”…",
+      "get_task": "Đang đọc task…",
+      "get_task_label": "Đang đọc task “{{label}}”…",
+      "list_meetings": "Đang xem danh sách cuộc họp…",
+      "list_meetings_label": "Đang xem danh sách cuộc họp “{{label}}”…",
+      "get_meeting": "Đang đọc cuộc họp…",
+      "get_meeting_label": "Đang đọc cuộc họp “{{label}}”…",
+      "list_projects": "Đang xem danh sách dự án…",
+      "list_projects_label": "Đang xem danh sách dự án “{{label}}”…",
+      "get_project": "Đang đọc dự án…",
+      "get_project_label": "Đang đọc dự án “{{label}}”…",
+      "get_document": "Đang đọc tài liệu…",
+      "get_document_label": "Đang đọc tài liệu “{{label}}”…",
+      "list_chat_rooms": "Đang xem danh sách phòng chat…",
+      "list_chat_rooms_label": "Đang xem danh sách phòng chat “{{label}}”…",
+      "read_chat_room": "Đang đọc phòng chat…",
+      "read_chat_room_label": "Đang đọc phòng chat “{{label}}”…",
+      "list_members": "Đang xem danh sách thành viên…",
+      "list_members_label": "Đang xem danh sách thành viên “{{label}}”…",
+      "member_workload": "Đang xem khối lượng việc của thành viên…",
+      "member_workload_label": "Đang xem khối lượng việc của “{{label}}”…",
+      "thinking": "UNI đang suy nghĩ…",
+      "retry": "Đang kiểm tra lại câu trả lời…",
+      "writing": "Đang viết câu trả lời…",
+      "default": "Đang xử lý…"
+    },
+    "steps_done": {
+      "search": "Đã tìm",
+      "search_label": "Đã tìm “{{label}}”",
+      "list_tasks": "Đã xem danh sách task",
+      "list_tasks_label": "Đã xem danh sách task “{{label}}”",
+      "get_task": "Đã đọc task",
+      "get_task_label": "Đã đọc task “{{label}}”",
+      "list_meetings": "Đã xem danh sách cuộc họp",
+      "list_meetings_label": "Đã xem danh sách cuộc họp “{{label}}”",
+      "get_meeting": "Đã đọc cuộc họp",
+      "get_meeting_label": "Đã đọc cuộc họp “{{label}}”",
+      "list_projects": "Đã xem danh sách dự án",
+      "list_projects_label": "Đã xem danh sách dự án “{{label}}”",
+      "get_project": "Đã đọc dự án",
+      "get_project_label": "Đã đọc dự án “{{label}}”",
+      "get_document": "Đã đọc tài liệu",
+      "get_document_label": "Đã đọc tài liệu “{{label}}”",
+      "list_chat_rooms": "Đã xem danh sách phòng chat",
+      "list_chat_rooms_label": "Đã xem danh sách phòng chat “{{label}}”",
+      "read_chat_room": "Đã đọc phòng chat",
+      "read_chat_room_label": "Đã đọc phòng chat “{{label}}”",
+      "list_members": "Đã xem danh sách thành viên",
+      "list_members_label": "Đã xem danh sách thành viên “{{label}}”",
+      "member_workload": "Đã xem khối lượng việc của thành viên",
+      "member_workload_label": "Đã xem khối lượng việc của “{{label}}”",
+      "default": "Đã xử lý",
+      "retry": "Đã kiểm tra lại câu trả lời",
+      "summary_other": "Xong sau {{count}} bước"
     },
     "cite": {
       "label": "Nguồn {{n}}",
       "open": "Mở"
+    },
+    "sources_count_other": "Nguồn ({{count}})",
+    "entity": {
+      "kind": {
+        "task": "Task",
+        "document": "Tài liệu",
+        "meeting": "Cuộc họp",
+        "project": "Dự án",
+        "member": "Người",
+        "members": "Người",
+        "chat": "Đoạn chat",
+        "other": "Đối tượng"
+      },
+      "unavailable": "Không còn xem được đối tượng này.",
+      "assignee": "Người phụ trách",
+      "unassigned": "Chưa giao",
+      "due": "Hạn",
+      "priority": "Ưu tiên",
+      "project": "Dự án",
+      "status": "Trạng thái"
     },
     "actions": {
       "copy": "Sao chép",
@@ -5911,26 +5992,28 @@
     "composer_label": "Câu hỏi cho UNI",
     "stop": "Dừng",
     "mention": {
-      "people": "Người",
-      "tasks": "Task",
-      "documents": "Tài liệu",
-      "meetings": "Cuộc họp",
-      "projects": "Dự án",
+      "limit": "Chỉ nhắc được tối đa {{max}} đối tượng trong một câu hỏi."
+    },
+    "picker": {
+      "list": "Chọn đối tượng",
+      "tabs_label": "Loại đối tượng",
+      "tabs": {
+        "all": "Tất cả",
+        "task": "Task",
+        "document": "Tài liệu",
+        "meeting": "Cuộc họp",
+        "project": "Dự án",
+        "member": "Người",
+        "room": "Phòng chat"
+      },
       "empty": "Không có kết quả",
-      "list": "Gợi ý nhắc tới",
-      "remove": "Bỏ {{name}}",
-      "limit": "Chỉ nhắc được tối đa {{max}} đối tượng trong một câu hỏi.",
-      "count": "{{count}} gợi ý"
+      "enter_hint": "Chọn",
+      "count_other": "{{count}} kết quả"
     },
     "scope": {
       "add": "Thêm phạm vi",
       "title": "Giới hạn câu hỏi vào",
-      "search": "Tìm dự án, cuộc họp, tài liệu, phòng chat",
-      "projects": "Dự án",
-      "meetings": "Cuộc họp",
-      "documents": "Tài liệu",
-      "rooms": "Phòng chat",
-      "empty": "Không có kết quả",
+      "search": "Tìm task, dự án, cuộc họp, tài liệu, phòng chat",
       "remove": "Bỏ phạm vi {{name}}",
       "kind": {
         "task": "Task",
@@ -5948,10 +6031,17 @@
     "ask_about_document": "Hỏi UNI về tài liệu này",
     "ask_about_project": "Hỏi UNI về dự án này",
     "ask_about_room": "Hỏi UNI về cuộc trò chuyện này",
+    "placeholder_task": "Hỏi về task này…",
+    "placeholder_meeting": "Hỏi về cuộc họp này…",
+    "placeholder_document": "Hỏi về tài liệu này…",
+    "placeholder_project": "Hỏi về dự án này…",
+    "placeholder_room": "Hỏi về cuộc trò chuyện này…",
+    "page_chip": "Trang này: {{label}}",
     "model": {
       "label": "Chọn model",
       "auto": "Tự động",
       "auto_current": "Tự động · Hiện tại: {{model}}",
+      "auto_description": "UNI chọn model hợp với từng câu hỏi.",
       "effort": "Mức nỗ lực",
       "effort_auto": "Tự động",
       "effort_low": "Thấp",
@@ -5976,6 +6066,52 @@
       "opus": {
         "name": "Opus 5.5",
         "description": "Suy luận sâu nhất, hợp câu hỏi phức tạp nhưng chậm và tốn hạn mức hơn."
+      }
+    },
+    "empty": {
+      "title": "Hỏi UNI về công việc",
+      "title_anthropic": "Cần Claude tìm hiểu gì?",
+      "task": {
+        "1": "Tóm tắt task này",
+        "2": "Task này đang vướng ở đâu?",
+        "3": "Ai nên nhận task này?",
+        "4": "Việc nào liên quan đến task này?"
+      },
+      "project": {
+        "1": "Tóm tắt tiến độ dự án này",
+        "2": "Việc nào của dự án đang trễ?",
+        "3": "Ai đang làm nhiều việc nhất trong dự án?",
+        "4": "Việc nào chưa có người làm?"
+      },
+      "meeting": {
+        "1": "Tóm tắt cuộc họp này",
+        "2": "Cuộc họp này chốt những gì?",
+        "3": "Việc nào được giao trong cuộc họp?",
+        "4": "Cần chuẩn bị gì cho cuộc họp?"
+      },
+      "document": {
+        "1": "Tóm tắt tài liệu này",
+        "2": "Tài liệu này nói gì về hạn chót?",
+        "3": "Việc nào liên quan đến tài liệu này?",
+        "4": "Ai phụ trách nội dung này?"
+      },
+      "room": {
+        "1": "Tóm tắt trao đổi gần đây",
+        "2": "Có việc nào được nhắc mà chưa thành task?",
+        "3": "Ai đang chờ trả lời?",
+        "4": "Chốt được gì trong phòng này?"
+      },
+      "other": {
+        "1": "Việc nào của tôi sắp trễ?",
+        "2": "Hôm nay tôi nên làm gì trước?",
+        "3": "Tóm tắt các cuộc họp tuần này",
+        "4": "Việc nào đang chờ tôi duyệt?"
+      },
+      "more": {
+        "1": "Ai đang có nhiều việc nhất?",
+        "2": "Dự án nào đang chậm tiến độ?",
+        "3": "Tuần tới có những cuộc họp nào?",
+        "4": "Việc ưu tiên cao nào còn đang mở?"
       }
     }
   },

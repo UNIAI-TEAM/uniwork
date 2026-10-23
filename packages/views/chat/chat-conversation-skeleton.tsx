@@ -4,7 +4,11 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
+import { DEFAULT_CHAT_WALLPAPER } from "@uniwork/core/chat/chat-wallpaper";
+import { resolveChatWallSurface, type ChatWallSurface } from "@uniwork/core/chat/chat-wallpaper-resolve";
 import { useChatWall } from "./use-chat-wall";
+
+const defaultChatWall = resolveChatWallSurface(DEFAULT_CHAT_WALLPAPER);
 
 /* Alternating sides and widths so the loading shape reads as a conversation,
    not a list — the same rhythm the real bubbles land in. */
@@ -49,9 +53,14 @@ export function ChatMessagesSkeleton({ className }: { className?: string }) {
  * shapes are hidden from assistive tech; one status line says what is going on.
  * `notices` (a load failure) sit under the header, as on an open room (canvas).
  */
-export function ChatConversationSkeleton({ notices, roomId }: { notices?: ReactNode; roomId?: string | null }) {
+function ChatConversationSkeletonFrame({
+  chatWall,
+  notices,
+}: {
+  chatWall: ChatWallSurface;
+  notices?: ReactNode;
+}) {
   const { t } = useTranslation();
-  const chatWall = useChatWall(roomId);
   return (
     <div aria-busy className={cn("flex min-h-0 flex-1 flex-col", chatWall.className)} style={chatWall.style}>
       {/* The live region is the status line alone, so a strip shown in here is not read twice. */}
@@ -76,4 +85,17 @@ export function ChatConversationSkeleton({ notices, roomId }: { notices?: ReactN
       </div>
     </div>
   );
+}
+
+function ChatConversationSkeletonWithRoom({ notices, roomId }: { notices?: ReactNode; roomId: string }) {
+  const chatWall = useChatWall(roomId);
+  return <ChatConversationSkeletonFrame chatWall={chatWall} notices={notices} />;
+}
+
+/** Loading shell for a room being opened; without a room id uses the default wall (no query). */
+export function ChatConversationSkeleton({ notices, roomId }: { notices?: ReactNode; roomId?: string | null }) {
+  if (roomId) {
+    return <ChatConversationSkeletonWithRoom roomId={roomId} notices={notices} />;
+  }
+  return <ChatConversationSkeletonFrame chatWall={defaultChatWall} notices={notices} />;
 }

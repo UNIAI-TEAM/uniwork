@@ -360,6 +360,18 @@
   --call-accent: #2f6bf0;
   --call-speaking: #7aa7ff;
   --call-ring: #2dd4bf;
+
+  /* Ask UNI while a Claude model is picked: Anthropic's own warm palette, as
+     ClickUp Brain uses it. --ask-input is the composer's fill, see-through
+     unless a provider look sets it. */
+  --ask-anthropic: #d97757;
+  --ask-anthropic-foreground: #ffffff;
+  --ask-anthropic-canvas-top: #faf9f5;
+  --ask-anthropic-canvas: #f5f4ec;
+  --ask-anthropic-input: #ffffff;
+  --ask-anthropic-input-border: #f8e7dc;
+  --ask-anthropic-bubble: #f0eee7;
+  --ask-input: transparent;
 }
 
 .dark {
@@ -590,6 +602,15 @@
   --call-accent: #2f6bf0;
   --call-speaking: #7aa7ff;
   --call-ring: #2dd4bf;
+
+  --ask-anthropic: #d97757;
+  --ask-anthropic-foreground: #ffffff;
+  --ask-anthropic-canvas-top: #262624;
+  --ask-anthropic-canvas: #231f1c;
+  --ask-anthropic-input: #30302e;
+  --ask-anthropic-input-border: #513e36;
+  --ask-anthropic-bubble: #141413;
+  --ask-input: transparent;
 }
 
 /* Accent themes. The second theming axis: light/dark picks the palette, the
@@ -648,6 +669,26 @@ html.dark[data-accent] {
   /* Light lifts the sidebar hover toward the accent, dark deepens it; keeping
      the #1e1e1e base preserves that direction instead of inverting it. */
   --sidebar-accent: color-mix(in oklab, var(--brand) 7%, #1e1e1e);
+}
+
+/* Ask UNI's provider look (ClickUp Brain parity): the dock carries
+   data-ask-provider while a provider's model is picked, and re-points its own
+   slots at that provider's palette, so every control inside follows with no
+   class of its own. The --ask-anthropic-* values come from :root or .dark as
+   the dock inherits them. Menus portaled out of the dock keep the app's look.
+   --primary moves with --brand, as in every block that moves either. */
+[data-ask-provider="anthropic"] {
+  --brand: var(--ask-anthropic);
+  --brand-foreground: var(--ask-anthropic-foreground);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+  --ring: var(--brand);
+  --background: var(--ask-anthropic-canvas);
+  --border: var(--ask-anthropic-input-border);
+  --surface-selected: var(--ask-anthropic-bubble);
+  --surface-selected-foreground: var(--foreground);
+  --ask-input: var(--ask-anthropic-input);
+  background-image: linear-gradient(180deg, var(--ask-anthropic-canvas-top) 0%, var(--ask-anthropic-canvas) 100%);
 }
 
 /* Text size (Settings → Preferences): one multiplier the reading steps of the

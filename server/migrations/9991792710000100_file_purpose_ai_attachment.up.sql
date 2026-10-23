@@ -1,10 +1,8 @@
 -- ai_attachment (UNI-2119): a file attached to an Ask UNI question. It belongs
 -- to one workspace, so it joins the org+workspace branch beside
 -- document_file. Both checks are restated in full, as every purpose change
--- before this did. chat_room_wallpaper is listed too: its migration added the
--- purpose to FileService but never to these checks, so a wallpaper upload
--- would have been refused here; like the other chat rooms it names an
--- organization and an optional workspace.
+-- before this did, keeping chat_room_wallpaper where
+-- 9991792710000050 put it.
 ALTER TABLE file_upload_sessions DROP CONSTRAINT file_upload_sessions_purpose_check;
 ALTER TABLE file_upload_sessions ADD CONSTRAINT file_upload_sessions_purpose_check
   CHECK (purpose IN ('user_avatar', 'task_attachment', 'task_description_image',

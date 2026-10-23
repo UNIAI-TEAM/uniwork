@@ -15,6 +15,7 @@ const (
 	CapMeetingSummarization Capability = "meeting_summarization"
 	CapCopilotAnswer        Capability = "copilot_answer"
 	CapCopilotAgent         Capability = "copilot_agent"
+	CapCopilotTitle         Capability = "copilot_title"
 	CapChatCatchUp          Capability = "chat_catchup"
 	CapChatCallSummary      Capability = "chat_call_summary"
 	CapEmailThreadSummary   Capability = "email_thread_summary"
@@ -59,6 +60,7 @@ var policies = map[Capability]ModelPolicy{
 	CapMeetingSummarization: {Default: flagship, MaxTokens: 4096, Temperature: 0},
 	CapCopilotAnswer:        {Default: flagship, MaxTokens: 1500, Temperature: 0},
 	CapCopilotAgent:         {Default: copilotAgent, MaxTokens: 4096, Temperature: 0},
+	CapCopilotTitle:         {Default: fast, MaxTokens: 32, Temperature: 0},
 	CapChatCatchUp:          {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapChatCallSummary:      {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapEmailThreadSummary:   {Default: flagship, MaxTokens: 2048, Temperature: 0},

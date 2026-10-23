@@ -13,9 +13,12 @@ import { parseWithFallback } from "../schema";
 
 export type AskUniStreamEvent =
   | { type: "run"; runId: string; conversationId: string }
-  | { type: "step"; round: number; phase: "tool" | "retry" | (string & {}); tool: string; counts: Record<string, number> }
+  | { type: "step"; round: number; phase: "tool" | "retry" | (string & {}); tool: string; label: string; counts: Record<string, number> }
   | { type: "delta"; text: string }
   | { type: "citations"; citations: AiCitation[] }
+  | { type: "sources"; sources: AiCitation[] }
+  | { type: "followups"; followups: string[] }
+  | { type: "title"; conversationId: string; title: string }
   | { type: "done"; message: AiMessage; usage: AiStreamUsage }
   | { type: "error"; code: string };
 
@@ -31,6 +34,7 @@ const SCHEMAS: Record<string, (raw: unknown) => AskUniStreamEvent | null> = {
       round: z.number(),
       phase: z.string(),
       tool: z.string().catch(""),
+      label: z.string().catch(""),
       counts: z.record(z.string(), z.number()).catch({}),
     });
     const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:step" });
@@ -45,6 +49,21 @@ const SCHEMAS: Record<string, (raw: unknown) => AskUniStreamEvent | null> = {
     const s = z.object({ citations: z.array(AiCitationSchema) });
     const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:citations" });
     return r && { type: "citations", citations: r.citations };
+  },
+  sources: (raw) => {
+    const s = z.object({ sources: z.array(AiCitationSchema) });
+    const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:sources" });
+    return r && { type: "sources", sources: r.sources };
+  },
+  followups: (raw) => {
+    const s = z.object({ followups: z.array(z.string()) });
+    const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:followups" });
+    return r && { type: "followups", followups: r.followups };
+  },
+  title: (raw) => {
+    const s = z.object({ conversation_id: z.string(), title: z.string().catch("") });
+    const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:title" });
+    return r && { type: "title", conversationId: r.conversation_id, title: r.title };
   },
   done: (raw) => {
     const s = z.object({

@@ -158,8 +158,7 @@ export function formatChatSidebarTime(
 
   const startOfDay = (value: Date) =>
     new Date(value.getFullYear(), value.getMonth(), value.getDate());
-  const dayDiff =
-    (startOfDay(now).getTime() - startOfDay(date).getTime()) / (24 * 60 * 60 * 1000);
+  const dayDiff = Math.round((startOfDay(now).getTime() - startOfDay(date).getTime()) / 86_400_000);
 
   if (dayDiff === 0) {
     return sidebarTimeFormatter(options.locale, "time").format(date);

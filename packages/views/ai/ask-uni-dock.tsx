@@ -20,7 +20,7 @@ const TOUCH_AUTO = "!touch-auto";
 
 /**
  * Wraps the main content so Ask UNI docks beside it (R10). The content sits in
- * the same panel whether the dock is open, full page or a phone sheet, so the
+ * the same panel whether the dock is open or a phone sheet, so the
  * user's page is never remounted by it. `enabled` is the ask_uni_stream flag:
  * off, the group is the same single panel and nothing else renders, so a flag
  * that flips after the shell mounted (config arrives late) only adds siblings.
@@ -30,7 +30,7 @@ export function AskUniDock({ enabled: enabledByFlag, children }: { enabled: bool
   const isMobile = useIsMobile();
   const { workspace } = useWorkspace();
   const enabled = !!useAiCapabilities(workspace.id).data?.enabled;
-  const { open, fullPage, workspaceId, bindWorkspace, setOpen } = useAiPanelStore();
+  const { open, workspaceId, bindWorkspace, setOpen } = useAiPanelStore();
   useEffect(() => {
     if (enabledByFlag) bindWorkspace(workspace.id);
   }, [enabledByFlag, workspace.id, bindWorkspace]);
@@ -43,18 +43,17 @@ export function AskUniDock({ enabled: enabledByFlag, children }: { enabled: bool
         <ResizablePanel
           id="content"
           minSize="30%"
-          hidden={docked && fullPage}
           className={`flex min-w-0 flex-col !overflow-hidden ${TOUCH_AUTO}`}
         >
           {children}
         </ResizablePanel>
         {docked ? (
           <>
-            {!fullPage ? <ResizableHandle withHandle aria-label={t("ai.resize")} /> : null}
+            <ResizableHandle withHandle aria-label={t("ai.resize")} />
             <ResizablePanel
               id="ask-uni"
               minSize="400px"
-              maxSize={fullPage ? undefined : "640px"}
+              maxSize="640px"
               defaultSize="440px"
               className={`min-w-0 !overflow-hidden border-l border-border ${TOUCH_AUTO}`}
             >

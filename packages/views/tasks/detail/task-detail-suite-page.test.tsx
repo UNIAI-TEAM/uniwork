@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { setSessionUser, resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
@@ -176,6 +176,9 @@ describe("TaskDetailSuitePage", () => {
     render(shell(withAskUniDock(<TaskDetailSuitePage workspaceId="w1" taskId="t1" />)));
     fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về task này" }));
     expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "task", id: "t1", label: "Ship detail shell" });
+    expect(useAiPanelStore.getState().page).toEqual({ kind: "task", id: "t1", label: "Ship detail shell" });
+    cleanup();
+    expect(useAiPanelStore.getState().page).toBeNull();
   });
 
   it("đặt công việc cha từ menu thao tác, có tìm kiếm", async () => {

@@ -19,9 +19,42 @@ import (
 func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	var cites []service.AskCitation
 	_ = json.Unmarshal([]byte(m.Citations), &cites)
-	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: make([]sdo.AiCitationDTO, 0, len(cites)), Notice: m.Notice.String, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
+	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: citationDTOs(cites), Notice: m.Notice.String, Model: m.Model, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
+	out.Steps, out.Followups, out.Mentions = []sdo.AiStepDTO{}, []string{}, []sdo.AiContextRefDTO{}
+	// A column that is NULL or does not decode reads as empty, never an error.
+	for _, st := range decodeList[service.AskStep](m.Steps) {
+		counts := st.Counts
+		if counts == nil {
+			counts = map[string]int{}
+		}
+		out.Steps = append(out.Steps, sdo.AiStepDTO{Tool: st.Tool, Label: st.Label, Counts: counts})
+	}
+	out.Followups = decodeList[string](m.Followups)
+	for _, r := range decodeList[service.AskContextRef](m.Mentions) {
+		out.Mentions = append(out.Mentions, sdo.AiContextRefDTO{Kind: r.Kind, ID: r.ID, Title: r.Title})
+	}
+	var focus service.AskContextRef
+	if m.Focus.Valid && json.Unmarshal([]byte(m.Focus.String), &focus) == nil && focus.ID != "" {
+		out.Focus = &sdo.AiContextRefDTO{Kind: focus.Kind, ID: focus.ID, Title: focus.Title}
+	}
+	return out
+}
+
+// decodeList is the JSON list in raw; a value that does not decode is empty,
+// never half filled.
+func decodeList[T any](raw string) []T {
+	out := []T{}
+	if json.Unmarshal([]byte(raw), &out) != nil || out == nil {
+		return []T{}
+	}
+	return out
+}
+
+// citationDTOs is cites as the API names them; never nil.
+func citationDTOs(cites []service.AskCitation) []sdo.AiCitationDTO {
+	out := make([]sdo.AiCitationDTO, 0, len(cites))
 	for _, c := range cites {
-		out.Citations = append(out.Citations, sdo.AiCitationDTO{SourceID: c.SourceID, Quote: c.Quote, Kind: c.Kind, Title: c.Title, Href: c.Href})
+		out = append(out, sdo.AiCitationDTO{SourceID: c.SourceID, Quote: c.Quote, Kind: c.Kind, Title: c.Title, Href: c.Href, ObjectID: c.ObjectID})
 	}
 	return out
 }
@@ -34,7 +67,7 @@ func (h *handlers) aiCapabilities(w http.ResponseWriter, r *http.Request) {
 	}
 	models := make([]sdo.AiModelOptionDTO, 0, len(c.Models))
 	for _, m := range c.Models {
-		models = append(models, sdo.AiModelOptionDTO{Key: m.Key, Speed: m.Speed, Intelligence: m.Intelligence, Cost: m.Cost, Enabled: m.Enabled})
+		models = append(models, sdo.AiModelOptionDTO{Key: m.Key, Provider: m.Provider, Speed: m.Speed, Intelligence: m.Intelligence, Cost: m.Cost, Enabled: m.Enabled})
 	}
 	respondJSON(w, 200, sdo.AiCapabilitiesSDO{
 		Enabled: c.Enabled, AskUni: c.AskUni, MeetingSummary: c.MeetingSummary,
@@ -81,7 +114,7 @@ func (h *handlers) setOrgAskModels(w http.ResponseWriter, r *http.Request) {
 
 // askInputFromSDI maps the body both ask routes share.
 func askInputFromSDI(in sdi.AskUniSDI) service.AskInput {
-	askIn := service.AskInput{ConversationID: in.ConversationID, Question: in.Question, Locale: in.Locale, Model: in.Model, Effort: in.Effort}
+	askIn := service.AskInput{ConversationID: in.ConversationID, Question: in.Question, Locale: in.Locale, Model: in.Model, Effort: in.Effort, Regenerate: in.RegenerateMessageID}
 	if in.Focus != nil {
 		askIn.Focus = &ai.Focus{Kind: in.Focus.Kind, ID: in.Focus.ID}
 	}
@@ -157,7 +190,7 @@ func (h *handlers) chatCatchUp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) listAiConversations(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.AskUNI.ListConversations(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"))
+	rows, err := h.AskUNI.ListConversations(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), r.URL.Query().Get("q"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
