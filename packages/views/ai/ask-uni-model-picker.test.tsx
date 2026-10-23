@@ -31,51 +31,73 @@ beforeEach(() => {
 });
 
 describe("AskUniModelPicker", () => {
-  it("lists Auto first with the current model, then the enabled models", async () => {
+  it("lists Auto first with the current model, then the enabled models, each beside its mark", async () => {
     mount();
     const menu = await openMenu();
-    const items = within(menu).getAllByRole("menuitemradio");
-    expect(items.map((i) => i.textContent)).toEqual([
+    const rows = within(menu).getAllByRole("menuitem");
+    expect(rows.map((r) => r.textContent)).toEqual([
       expect.stringContaining("Tự động · Hiện tại: Sonnet 5.5"),
       expect.stringContaining("Haiku 5.5"),
       expect.stringContaining("Sonnet 5.5"),
       expect.stringContaining("Opus 5.5"),
     ]);
+    expect(rows.map((r) => r.querySelector("[data-mark]")?.getAttribute("data-mark"))).toEqual(["uni", "anthropic", "anthropic", "anthropic"]);
     expect(within(menu).queryByText("fable")).toBeNull();
   });
 
-  it("hover shows the detail card with three five-step bars", async () => {
+  it("a row's flyout shows the model's card with three five-step bars", async () => {
     mount();
     const menu = await openMenu();
-    fireEvent.pointerEnter(within(menu).getByRole("menuitemradio", { name: /Haiku 5.5/ }));
-    fireEvent.mouseEnter(within(menu).getByRole("menuitemradio", { name: /Haiku 5.5/ }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /Haiku 5.5/ }));
     expect(await screen.findByText("Nhanh và nhẹ nhất, hợp câu hỏi ngắn và tra cứu nhanh.")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Tốc độ 5/5" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Trí tuệ 3/5" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Chi phí 1/5" })).toBeInTheDocument();
   });
 
-  it("the effort submenu sets low, medium and high", async () => {
+  it("a click picks the row's model, and its flyout sets the effort and closes", async () => {
     mount();
     const menu = await openMenu();
-    fireEvent.click(within(menu).getByRole("menuitem", { name: /Mức nỗ lực/ }));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Vừa" }));
-    expect(useAskModelChoice.getState().effort).toBe("medium");
-    const again = await openMenu();
-    fireEvent.click(within(again).getByRole("menuitem", { name: /Mức nỗ lực/ }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /Haiku 5.5/ }));
+    expect(useAskModelChoice.getState().model).toBe("haiku");
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "Cao" }));
-    expect(useAskModelChoice.getState().effort).toBe("high");
+    expect(useAskModelChoice.getState()).toMatchObject({ model: "haiku", effort: "high" });
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    const again = await openMenu();
+    fireEvent.click(within(again).getByRole("menuitem", { name: /Tự động/ }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Vừa" }));
+    expect(useAskModelChoice.getState()).toMatchObject({ model: "", effort: "medium" });
+  });
+
+  it("marks the chosen row current and shows its effort there", async () => {
+    useAskModelChoice.setState({ model: "opus", effort: "low" });
+    mount();
+    const menu = await openMenu();
+    const opus = within(menu).getByRole("menuitem", { name: /Opus 5.5/ });
+    expect(opus).toHaveAttribute("aria-current", "true");
+    expect(opus).toHaveTextContent("Thấp");
+    expect(within(menu).getByRole("menuitem", { name: /Haiku 5.5/ })).not.toHaveAttribute("aria-current");
   });
 
   it("choosing Opus shows the quota note and the choice is remembered", async () => {
     mount();
     const menu = await openMenu();
-    fireEvent.click(within(menu).getByRole("menuitemradio", { name: /Opus 5.5/ }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /Opus 5.5/ }));
     expect(useAskModelChoice.getState().model).toBe("opus");
     expect(await screen.findByText("Opus dùng nhiều hạn mức token hơn các model khác.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Chọn model/ })).toHaveTextContent("Opus 5.5");
     await act(async () => {});
     expect(JSON.stringify(Object.values(localStorage))).toContain("opus");
+  });
+
+  it("the trigger wears the chosen model's mark, UNI's for Auto", async () => {
+    mount();
+    const trigger = await screen.findByRole("button", { name: /^Chọn model/ });
+    await waitFor(() => expect(trigger.querySelector("[data-mark]")).toHaveAttribute("data-mark", "uni"));
+    act(() => {
+      useAskModelChoice.setState({ model: "sonnet" });
+    });
+    await waitFor(() => expect(trigger.querySelector("[data-mark]")).toHaveAttribute("data-mark", "anthropic"));
   });
 
   it("names the trigger with the visible model text (label in name)", async () => {

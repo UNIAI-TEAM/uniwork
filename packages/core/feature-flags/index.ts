@@ -19,6 +19,7 @@ export { StaticProvider } from "./static-provider";
 export { ChainProvider } from "./chain-provider";
 export { COMPOSIO_MCP_APPS_FLAG } from "./keys";
 export { usePublicConfig } from "./use-public-config";
+export { PublicConfigFlagsProvider } from "./public-config-flags";
 export {
   FeatureFlagsProvider,
   useFeatureFlagService,

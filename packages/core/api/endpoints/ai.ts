@@ -69,8 +69,8 @@ export async function chatCatchUp(wsId: string, body: ChatCatchUpInput): Promise
   });
 }
 
-export async function listAiConversations(wsId: string): Promise<AiConversation[]> {
-  const raw = await request(`/api/v1/workspaces/${wsId}/ai/conversations`);
+export async function listAiConversations(wsId: string, q?: string): Promise<AiConversation[]> {
+  const raw = await request(`/api/v1/workspaces/${wsId}/ai/conversations${q ? `?q=${encodeURIComponent(q)}` : ""}`);
   return parseWithFallback<{ conversations: AiConversation[] }>(
     raw,
     ConversationsResponse,

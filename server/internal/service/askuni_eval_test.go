@@ -74,6 +74,7 @@ type evalWorld struct {
 	reqs    []provider.CompletionRequest // every request the provider saw (fake or recorded live)
 	model   string                       // AskInput.Model and Effort of every ask
 	effort  string
+	dock    bool // AskInput.Dock of every ask: copilot_answer@4 and its follow-ups
 }
 
 // useAgent switches the service to the agent loop (ask_uni_agent on for the
@@ -311,7 +312,7 @@ func (e *evalWorld) ask(t *testing.T, c evalCase, convs map[string]string) evalR
 		calls = e.fake.Calls
 	}
 	start := time.Now()
-	res, err := e.s.Ask(context.Background(), e.asker.ID, e.w.ID, AskInput{ConversationID: convs[c.FollowUpOf], Question: q, Locale: c.Locale, Model: e.model, Effort: e.effort})
+	res, err := e.s.Ask(context.Background(), e.asker.ID, e.w.ID, AskInput{ConversationID: convs[c.FollowUpOf], Question: q, Locale: c.Locale, Model: e.model, Effort: e.effort, Dock: e.dock})
 	run := evalRun{res: res, err: err, latency: time.Since(start)}
 	if err == nil {
 		convs[c.ID] = res.ConversationID
@@ -502,13 +503,14 @@ func TestAskUniEvalLive(t *testing.T) {
 	agent := os.Getenv("ASKUNI_EVAL_AGENT") == "1"
 	e.useAgent(t, agent)
 	e.model, e.effort = os.Getenv("ASKUNI_EVAL_MODEL"), os.Getenv("ASKUNI_EVAL_EFFORT")
+	e.dock = os.Getenv("ASKUNI_EVAL_DOCK") == "1"
 
 	var b strings.Builder
 	mode := "P0"
 	if agent {
 		mode = "agent (P1)"
 	}
-	fmt.Fprintf(&b, "# Ask UNI evaluation (live, %s, model %q, effort %q)\n\n", mode, e.model, e.effort)
+	fmt.Fprintf(&b, "# Ask UNI evaluation (live, %s, model %q, effort %q, dock %t)\n\n", mode, e.model, e.effort, e.dock)
 	b.WriteString("| Id | Câu hỏi | Câu trả lời | Nguồn | Rubric | Must not | Provider | Model | Prompt | In | Out | Số lời gọi | Cache đọc | Cost micros | Latency | Đúng? |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
 	cell := func(s string) string {
 		return strings.NewReplacer("|", `\|`, "\n", "<br>").Replace(s)

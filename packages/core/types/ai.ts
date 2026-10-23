@@ -3,6 +3,8 @@ import { z } from "zod";
 /** Mirrors server/internal/handler/dto/sdo/ai.go. Lenient on the wire. */
 export const AiModelOptionSchema = z.object({
   key: z.string(),
+  // Whose model it is ("anthropic", …); "" when unknown, which reads as UNI's own look.
+  provider: z.string().catch(""),
   speed: z.number().catch(0),
   intelligence: z.number().catch(0),
   cost: z.number().catch(0),
@@ -33,8 +35,20 @@ export const AiCitationSchema = z.object({
   kind: z.string().optional().default(""),
   title: z.string().optional().default(""),
   href: z.string().optional().default(""),
+  object_id: z.string().optional(),
 });
 export type AiCitation = z.infer<typeof AiCitationSchema>;
+export type AiSource = AiCitation;
+
+export const AiStepSchema = z.object({
+  tool: z.string().catch(""),
+  label: z.string().catch(""),
+  counts: z.record(z.string(), z.number()).catch({}),
+});
+export type AiStep = z.infer<typeof AiStepSchema>;
+
+export const AiContextRefSchema = z.object({ kind: z.string(), id: z.string(), title: z.string().catch("") });
+export type AiContextRef = z.infer<typeof AiContextRefSchema>;
 
 export const AiMessageSchema = z.object({
   id: z.string(),
@@ -43,6 +57,13 @@ export const AiMessageSchema = z.object({
   // Machine code for an answer with no text (e.g. "no_sources"); the client renders it in the reader's language.
   notice: z.string().catch(""),
   citations: z.array(AiCitationSchema).optional().default([]),
+  // A malformed side list never drops the answer.
+  steps: z.array(AiStepSchema).catch([]),
+  followups: z.array(z.string()).catch([]),
+  focus: AiContextRefSchema.nullable().catch(null),
+  mentions: z.array(AiContextRefSchema).catch([]),
+  // The model key the asker chose for an answer; "" for Auto and for answers stored before it was kept.
+  model: z.string().catch(""),
   created_at: z.string().optional().default(""),
 });
 export type AiMessage = Omit<z.infer<typeof AiMessageSchema>, "role"> & { role: "user" | "assistant" | (string & {}) };
@@ -85,7 +106,7 @@ export const AiUsageSummarySchema = z.object({
 export type AiUsageSummary = z.infer<typeof AiUsageSummarySchema>;
 
 interface AskUniContextRef {
-  kind: "task" | "meeting" | "document" | "project" | "member";
+  kind: "task" | "meeting" | "document" | "project" | "member" | "room";
   id: string;
 }
 
@@ -103,6 +124,8 @@ export interface AskUniInput {
   model?: string;
   /** "" or absent = medium. */
   effort?: string;
+  /** Re-run this answer: the server uses the stored question and supersedes the old answer. */
+  regenerate_message_id?: string;
 }
 
 export const AskModelsSchema = z.object({ models: z.array(z.string()) });

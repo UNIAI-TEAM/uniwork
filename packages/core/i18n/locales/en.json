@@ -5845,13 +5845,23 @@
     "history_with": "Conversation history: {{title}}",
     "resize": "Resize Ask UNI",
     "history_empty": "No conversations yet",
+    "history_search": "Search conversations",
+    "history_no_match": "No matching conversations",
+    "history_error": "Could not load the conversation history",
+    "history_retry": "Retry",
+    "history_current": "Current",
+    "history_group": { "today": "Today", "yesterday": "Yesterday", "week": "Last 7 days", "older": "Older" },
     "rename_conversation": "Rename conversation",
-    "full_page": "Expand to full page",
-    "exit_full_page": "Back to the sidebar",
     "delete_conversation": "Delete conversation",
     "sources": "Sources",
     "you": "You",
     "uni": "UNI",
+    "meta": {
+      "uni": "UNI"
+    },
+    "followups": {
+      "label": "Suggested follow-ups"
+    },
     "usage_tokens": "{{in}} in · {{out}} out",
     "notice": {
       "no_sources": "Nothing you can see in this workspace matches this question yet.",
@@ -5862,22 +5872,90 @@
       "stopped": "Stopped before the answer was finished.",
       "interrupted": "The answer was interrupted, so it is incomplete."
     },
-    "steps": {
-      "seen": "Looked at {{list}}",
-      "task_one": "{{count}} task",
-      "task_other": "{{count}} tasks",
-      "meeting_one": "{{count}} meeting",
-      "meeting_other": "{{count}} meetings",
-      "document_one": "{{count}} document",
-      "document_other": "{{count}} documents",
-      "project_one": "{{count}} project",
-      "project_other": "{{count}} projects",
-      "chat_one": "{{count}} chat",
-      "chat_other": "{{count}} chats"
+    "progress": {
+      "search": "Searching…",
+      "search_label": "Searching “{{label}}”…",
+      "list_tasks": "Looking through tasks…",
+      "list_tasks_label": "Looking through tasks “{{label}}”…",
+      "get_task": "Reading a task…",
+      "get_task_label": "Reading task “{{label}}”…",
+      "list_meetings": "Looking through meetings…",
+      "list_meetings_label": "Looking through meetings “{{label}}”…",
+      "get_meeting": "Reading a meeting…",
+      "get_meeting_label": "Reading meeting “{{label}}”…",
+      "list_projects": "Looking through projects…",
+      "list_projects_label": "Looking through projects “{{label}}”…",
+      "get_project": "Reading a project…",
+      "get_project_label": "Reading project “{{label}}”…",
+      "get_document": "Reading a document…",
+      "get_document_label": "Reading document “{{label}}”…",
+      "list_chat_rooms": "Looking through chat rooms…",
+      "list_chat_rooms_label": "Looking through chat rooms “{{label}}”…",
+      "read_chat_room": "Reading a chat room…",
+      "read_chat_room_label": "Reading chat room “{{label}}”…",
+      "list_members": "Looking through members…",
+      "list_members_label": "Looking through members “{{label}}”…",
+      "member_workload": "Checking a member's workload…",
+      "member_workload_label": "Checking the workload of “{{label}}”…",
+      "thinking": "UNI is thinking…",
+      "retry": "Double-checking the answer…",
+      "writing": "Writing the answer…",
+      "default": "Working…"
+    },
+    "steps_done": {
+      "search": "Searched",
+      "search_label": "Searched “{{label}}”",
+      "list_tasks": "Looked through tasks",
+      "list_tasks_label": "Looked through tasks “{{label}}”",
+      "get_task": "Read a task",
+      "get_task_label": "Read task “{{label}}”",
+      "list_meetings": "Looked through meetings",
+      "list_meetings_label": "Looked through meetings “{{label}}”",
+      "get_meeting": "Read a meeting",
+      "get_meeting_label": "Read meeting “{{label}}”",
+      "list_projects": "Looked through projects",
+      "list_projects_label": "Looked through projects “{{label}}”",
+      "get_project": "Read a project",
+      "get_project_label": "Read project “{{label}}”",
+      "get_document": "Read a document",
+      "get_document_label": "Read document “{{label}}”",
+      "list_chat_rooms": "Looked through chat rooms",
+      "list_chat_rooms_label": "Looked through chat rooms “{{label}}”",
+      "read_chat_room": "Read a chat room",
+      "read_chat_room_label": "Read chat room “{{label}}”",
+      "list_members": "Looked through members",
+      "list_members_label": "Looked through members “{{label}}”",
+      "member_workload": "Checked a member's workload",
+      "member_workload_label": "Checked the workload of “{{label}}”",
+      "default": "Worked",
+      "retry": "Double-checked the answer",
+      "summary_one": "Done in {{count}} step",
+      "summary_other": "Done in {{count}} steps"
     },
     "cite": {
       "label": "Source {{n}}",
       "open": "Open"
+    },
+    "sources_count_one": "Sources ({{count}})",
+    "sources_count_other": "Sources ({{count}})",
+    "entity": {
+      "kind": {
+        "task": "Task",
+        "document": "Document",
+        "meeting": "Meeting",
+        "project": "Project",
+        "member": "Person",
+        "members": "Person",
+        "chat": "Chat",
+        "other": "Item"
+      },
+      "unavailable": "This item is no longer available to you.",
+      "assignee": "Assignee",
+      "unassigned": "Unassigned",
+      "due": "Due",
+      "priority": "Priority",
+      "project": "Project",
+      "status": "Status"
     },
     "actions": {
       "copy": "Copy",
@@ -5920,26 +5998,29 @@
     "composer_label": "Question for UNI",
     "stop": "Stop",
     "mention": {
-      "people": "People",
-      "tasks": "Tasks",
-      "documents": "Documents",
-      "meetings": "Meetings",
-      "projects": "Projects",
+      "limit": "A question can mention at most {{max}} items."
+    },
+    "picker": {
+      "list": "Pick an item",
+      "tabs_label": "Kind of item",
+      "tabs": {
+        "all": "All",
+        "task": "Task",
+        "document": "Documents",
+        "meeting": "Meetings",
+        "project": "Projects",
+        "member": "People",
+        "room": "Chat rooms"
+      },
       "empty": "No results",
-      "list": "Mention suggestions",
-      "remove": "Remove {{name}}",
-      "limit": "A question can mention at most {{max}} items.",
-      "count": "{{count}} suggestions"
+      "enter_hint": "Select",
+      "count_one": "{{count}} result",
+      "count_other": "{{count}} results"
     },
     "scope": {
       "add": "Add scope",
       "title": "Limit the question to",
-      "search": "Search projects, meetings, documents, chat rooms",
-      "projects": "Projects",
-      "meetings": "Meetings",
-      "documents": "Documents",
-      "rooms": "Chat rooms",
-      "empty": "No results",
+      "search": "Search tasks, projects, meetings, documents, chat rooms",
       "remove": "Remove scope {{name}}",
       "kind": {
         "task": "Task",
@@ -5957,10 +6038,17 @@
     "ask_about_document": "Ask UNI about this document",
     "ask_about_project": "Ask UNI about this project",
     "ask_about_room": "Ask UNI about this chat",
+    "placeholder_task": "Ask about this task…",
+    "placeholder_meeting": "Ask about this meeting…",
+    "placeholder_document": "Ask about this document…",
+    "placeholder_project": "Ask about this project…",
+    "placeholder_room": "Ask about this chat…",
+    "page_chip": "This page: {{label}}",
     "model": {
       "label": "Choose a model",
       "auto": "Auto",
       "auto_current": "Auto · Currently: {{model}}",
+      "auto_description": "UNI picks the right model for each question.",
       "effort": "Effort",
       "effort_auto": "Auto",
       "effort_low": "Low",
@@ -5985,6 +6073,52 @@
       "opus": {
         "name": "Opus 5.5",
         "description": "The deepest reasoning, good for complex questions but slower and heavier on quota."
+      }
+    },
+    "empty": {
+      "title": "Ask UNI about your work",
+      "title_anthropic": "What should Claude look into?",
+      "task": {
+        "1": "Summarize this task",
+        "2": "Where is this task stuck?",
+        "3": "Who should take this task?",
+        "4": "What work is related to this task?"
+      },
+      "project": {
+        "1": "Summarize this project's progress",
+        "2": "Which project tasks are late?",
+        "3": "Who has the most work in this project?",
+        "4": "Which tasks have no owner?"
+      },
+      "meeting": {
+        "1": "Summarize this meeting",
+        "2": "What did this meeting decide?",
+        "3": "What was assigned in this meeting?",
+        "4": "What should I prepare for this meeting?"
+      },
+      "document": {
+        "1": "Summarize this document",
+        "2": "What does this document say about the deadline?",
+        "3": "What work is related to this document?",
+        "4": "Who owns this content?"
+      },
+      "room": {
+        "1": "Summarize recent discussion",
+        "2": "Is anything mentioned that is not a task yet?",
+        "3": "Who is waiting for a reply?",
+        "4": "What was settled in this room?"
+      },
+      "other": {
+        "1": "Which of my tasks are due soon?",
+        "2": "What should I do first today?",
+        "3": "Summarize this week's meetings",
+        "4": "What is waiting for my approval?"
+      },
+      "more": {
+        "1": "Who has the most on their plate?",
+        "2": "Which projects are falling behind?",
+        "3": "Which meetings are coming up next week?",
+        "4": "Which high-priority tasks are still open?"
       }
     }
   },

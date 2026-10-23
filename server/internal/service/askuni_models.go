@@ -34,7 +34,9 @@ var askModels = []askModel{
 // AskModelOption is one entry of the capabilities' model list: every model
 // the gateway can run, enabled or not for the organization.
 type AskModelOption struct {
-	Key                 string
+	Key string
+	// Provider is the gateway's provider, whose model this key runs on.
+	Provider            string
 	Speed, Intelligence int
 	Cost                int
 	Enabled             bool
@@ -187,7 +189,7 @@ func (s *AskUNIService) askModelOptions(ctx context.Context, orgID string) ([]As
 			autoKey = m.Key
 		}
 		opts = append(opts, AskModelOption{
-			Key: m.Key, Speed: m.Speed, Intelligence: m.Intelligence, Enabled: slices.Contains(keys, m.Key),
+			Key: m.Key, Provider: s.gw.Provider(), Speed: m.Speed, Intelligence: m.Intelligence, Enabled: slices.Contains(keys, m.Key),
 			Cost: askCostTier(rate.InputMicrosPerMtok + rate.OutputMicrosPerMtok),
 		})
 	}

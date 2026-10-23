@@ -71,15 +71,16 @@ export const LOGO_MIN_SIZE: Record<LogoVariant, number> = {
 
 function Mark({ art, fill }: { art: MarkArt; fill: string }) {
   const id = useId();
+  // data-part names each drawn shape so a screen may move them one by one (the Ask UNI welcome does).
   const shapes = (
     <>
       {art.heads.map((h, i) => (
-        <circle key={`h${i}`} cx={h.cx} cy={h.cy} r={h.r} />
+        <circle key={`h${i}`} data-part="head" cx={h.cx} cy={h.cy} r={h.r} />
       ))}
       {art.bodies.map((b, i) => (
-        <rect key={`b${i}`} x={b.x} y={b.y} width={b.width} height={b.height} rx={b.rx} />
+        <rect key={`b${i}`} data-part="body" x={b.x} y={b.y} width={b.width} height={b.height} rx={b.rx} />
       ))}
-      <path d={art.ribbon} />
+      <path data-part="ribbon" d={art.ribbon} />
     </>
   );
   return (
@@ -100,7 +101,7 @@ function Mark({ art, fill }: { art: MarkArt; fill: string }) {
       {art.depth ? (
         // The ribbon crosses in front of both figures. Re-drawing it clipped to
         // the figures is the whole depth treatment; there is no second artwork.
-        <g clipPath={`url(#${id}-figures)`}>
+        <g data-part="shade" clipPath={`url(#${id}-figures)`}>
           <path d={art.ribbon} opacity={0.45} className={MARK_SHADE_CLASS} />
         </g>
       ) : null}

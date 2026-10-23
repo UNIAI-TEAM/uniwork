@@ -52,7 +52,8 @@ test("business env files carry no secrets", () => {
   assert.equal(be.get("MINIO_REGION"), "us-east-1");
   assert.equal(be.get("S3_KEY_PREFIX"), "develop/");
   assert.equal(be.get("APP_ENV"), "development");
-  assert.equal(be.get("TRUSTED_PROXIES"), "172.30.19.0/24");
+  assert.equal(be.get("TRUSTED_PROXIES"), "10.230.19.0/24");
+  assert.equal(be.get("PREVIEW_ORIGIN"), "https://preview.unicomhub.com");
   assert.equal(be.get("OFFICE_ENGINE_URL"), "");
 
   const office = assignments("deploy/app-dev/env/uniwork-office-engine.env");
@@ -77,6 +78,7 @@ test("business env files carry no secrets", () => {
 test("compose files pin registry images", () => {
   const compose = fs.readFileSync(path.join(root, "deploy/app-dev/docker-compose.yml"), "utf8");
   assert.match(compose, /^name: uniwork-app-dev$/m);
+  assert.match(compose, /subnet: 10\.230\.19\.0\/24/);
   assert.equal(/^\s*build\s*:/m.test(compose), false);
   assert.equal(/^\s{2}(postgres|redis|minio)\s*:/m.test(compose), false);
 

@@ -129,7 +129,7 @@ func TestAskStreamAgentEmitsRunFirstWithItsRunID(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The search round reports a step; the answer streams live (Task 4).
-	if want := []string{"run", "step", "delta", "citations", "done"}; !slices.Equal(eventNames(events), want) {
+	if want := []string{"run", "step", "sources", "delta", "citations", "done"}; !slices.Equal(eventNames(events), want) {
 		t.Fatalf("events %v, want %v", eventNames(events), want)
 	}
 	if res.RunID == "" || events[0].Run.RunID != res.RunID {

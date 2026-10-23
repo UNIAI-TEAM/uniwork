@@ -9,7 +9,9 @@ export { useAiPanelStore } from "./store";
 export const aiKeys = {
   all: ["ai"] as const,
   capabilities: (wsId: string) => ["ai", "capabilities", wsId] as const,
-  conversations: (wsId: string) => ["ai", "conversations", wsId] as const,
+  // No q keeps the bare key, so list-prefix invalidations match every q variant.
+  conversations: (wsId: string, q?: string) =>
+    (q ? ["ai", "conversations", wsId, q] : ["ai", "conversations", wsId]) as readonly string[],
   messages: (conversationId: string) => ["ai", "messages", conversationId] as const,
   askModels: (orgId: string) => ["ai", "ask-models", orgId] as const,
   usages: () => ["ai", "usage"] as const,
@@ -27,10 +29,12 @@ export function useAiCapabilities(wsId: string, enabled = true) {
   });
 }
 
-export function useAiConversations(wsId: string, enabled = true) {
+export function useAiConversations(wsId: string, enabled = true, q?: string) {
   return useQuery({
-    queryKey: aiKeys.conversations(wsId),
-    queryFn: () => api.listAiConversations(wsId),
+    queryKey: aiKeys.conversations(wsId, q),
+    queryFn: () => api.listAiConversations(wsId, q),
+    // Keep rows through a search, but never another workspace's (key slot 2 is wsId).
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[2] === wsId ? prev : undefined),
     enabled,
   });
 }
@@ -60,6 +64,11 @@ export function useAskUni(wsId: string) {
         content: vars.question,
         citations: [],
         notice: "",
+        steps: [],
+        followups: [],
+        focus: null,
+        mentions: [],
+        model: "",
         created_at: res.message.created_at,
       };
       qc.setQueryData<AiMessage[]>(aiKeys.messages(res.conversation_id), (old) => [...(old ?? []), userEcho, res.message]);
