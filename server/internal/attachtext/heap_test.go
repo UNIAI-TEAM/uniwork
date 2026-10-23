@@ -158,28 +158,39 @@ func scannedPDF(pages, imageBytes int) []byte {
 	return p.finish(3 + 3*pages)
 }
 
-// A scanned document near the 20 MB cap opens, and is cut to the pages kept.
-// pdfcpu holds its streams, so the room a parse gets grows with the file: it
-// must cover what the file needs plus another file turn's model call (about
-// 27 MB of JSON), which runs alongside and counts in the same heap.
+// A scanned document near the 20 MB cap opens, and what is sent keeps the
+// pages kept. pdfcpu holds its streams, so the room a parse gets grows with the
+// file: it must cover what the file needs plus another file turn's model call
+// (about 27 MB of JSON), which runs alongside and counts in the same heap. A
+// file with an owner password is rewritten whole, so its copy is as large as
+// the file, which is where a write buffer that grew as it went cost most.
 func TestReadPDFOpensAScannedFileNearTheCap(t *testing.T) {
-	data := scannedPDF(16, 1_300_000)
-	if len(data) > 20<<20 {
-		t.Fatalf("fixture is %d bytes, over the 20 MiB cap", len(data))
-	}
-	var pages int
-	var out []byte
-	var err error
-	grew := peakHeap(t, func() { pages, out, err = ReadPDF(data, 15) })
-	t.Logf("%.1f MiB scanned PDF: heap grew %.1f MiB", float64(len(data))/(1<<20), float64(grew)/(1<<20))
-	if room := pdfHeapLimit(len(data)); room < grew+32<<20 {
-		t.Errorf("a parse of this file may grow %d MiB; it needs %d plus 32 for another turn", room>>20, grew>>20)
-	}
-	if err != nil || pages != 16 {
-		t.Fatalf("ReadPDF = %d pages, %v, want 16 and no error", pages, err)
-	}
-	if n := pagesOf(t, out); n != 15 {
-		t.Fatalf("kept %d pages, want 15", n)
+	for _, tc := range []struct {
+		name        string
+		data        []byte
+		pages, kept int
+	}{
+		{"16 pages cut to 15", scannedPDF(16, 1_300_000), 16, 15},
+		{"2 pages with an owner password", withOwnerPassword(t, scannedPDF(2, 9_748_000)), 2, 2},
+		{"10 pages with an owner password", withOwnerPassword(t, scannedPDF(10, 2_089_600)), 10, 10},
+	} {
+		if len(tc.data) > 20<<20 {
+			t.Fatalf("%s: fixture is %d bytes, over the 20 MiB cap", tc.name, len(tc.data))
+		}
+		var pages int
+		var out []byte
+		var err error
+		grew := peakHeap(t, func() { pages, out, err = ReadPDF(tc.data, 15) })
+		t.Logf("%s, %.1f MiB: heap grew %.1f MiB", tc.name, float64(len(tc.data))/(1<<20), float64(grew)/(1<<20))
+		if room := pdfHeapLimit(len(tc.data)); room < grew+32<<20 {
+			t.Errorf("%s: a parse of this file may grow %d MiB; it needs %d plus 32 for another turn", tc.name, room>>20, grew>>20)
+		}
+		if err != nil || pages != tc.pages {
+			t.Fatalf("%s: ReadPDF = %d pages, %v, want %d and no error", tc.name, pages, err, tc.pages)
+		}
+		if n := pagesOf(t, out); n != tc.kept {
+			t.Fatalf("%s: kept %d pages, want %d", tc.name, n, tc.kept)
+		}
 	}
 }
 

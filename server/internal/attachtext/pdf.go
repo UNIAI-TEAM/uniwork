@@ -84,8 +84,14 @@ func ReadPDF(data []byte, keep int) (pages int, out []byte, err error) {
 		if err != nil {
 			return result{}, err
 		}
-		var b bytes.Buffer
-		if err := api.WriteContext(ctx, dst, &b); err != nil {
+		// The copy is written into one buffer the size of the file, with a
+		// little headroom: a cut or decrypted copy is no larger than the file,
+		// so it never grows. A growing bytes.Buffer keeps its old array
+		// alongside one about twice as large while it copies (and, built with
+		// -race, a third array as well), which took a file rewritten whole to
+		// over four times its size.
+		b := bytes.NewBuffer(make([]byte, 0, len(data)+len(data)/16))
+		if err := api.WriteContext(ctx, dst, b); err != nil {
 			return result{}, err
 		}
 		return result{src.PageCount, b.Bytes()}, nil
@@ -94,9 +100,12 @@ func ReadPDF(data []byte, keep int) (pages int, out []byte, err error) {
 }
 
 // pdfHeapLimit is what a parse of a size-byte file may add to the heap. pdfcpu
-// holds a copy of every stream and a cut file writes them again, so a scanned
-// document needs about two and a half times its size; the rest is the
-// allowance for parsed objects. A 20 MB file gets about 108 MiB.
+// holds a copy of every stream (once the size) and a cut or decrypted file is
+// written into a buffer allocated once (once the size again), so a scanned
+// document needs a little over twice its size live. The rest, 48 MiB and once
+// the size, is the allowance for parsed objects and leaves room for another
+// file turn's model call (about 27 MB of JSON) in the same heap. A 20 MB file
+// gets about 108 MiB.
 func pdfHeapLimit(size int) uint64 {
 	return maxPDFHeapGrowth + 3*uint64(size)
 }
