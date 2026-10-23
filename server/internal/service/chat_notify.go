@@ -116,7 +116,7 @@ func emitChatMessageNotifications(
 	if peer, err := dmPeerUserID(room, senderID); err == nil {
 		add("chat.dm.received", peer)
 	} else if room.Kind != chatRoomKindDM && threadRootID == "" {
-		members, err := chatRoomMessageRecipients(ctx, q, room.ID)
+		members, err := chatRoomMessageRecipients(ctx, q, room.ID, m)
 		if err != nil {
 			return err
 		}
@@ -156,11 +156,17 @@ func emitChatMessageNotifications(
 // chatRoomMessageRecipients is who a room message notifies before the sender
 // and the mentioned are taken out: every member, or nobody past
 // chatSmallRoomMembers. An invited member is listed and left out at delivery,
-// where the rule reads the active membership.
-func chatRoomMessageRecipients(ctx context.Context, q *db.Queries, roomID string) ([]string, error) {
-	ids, err := q.ListChatRoomMemberUserIDs(ctx, roomID)
-	if err != nil {
-		return nil, err
+// where the rule reads the active membership. It reuses the list mention
+// resolution read for this send when there is one (the same query, before the
+// transaction; a member who left since is dropped at delivery all the same),
+// so a mention does not cost a second read of the room.
+func chatRoomMessageRecipients(ctx context.Context, q *db.Queries, roomID string, m chatMentions) ([]string, error) {
+	ids := slices.Clone(m.roomMembers)
+	if !m.membersRead {
+		var err error
+		if ids, err = q.ListChatRoomMemberUserIDs(ctx, roomID); err != nil {
+			return nil, err
+		}
 	}
 	slices.Sort(ids)
 	ids = slices.DeleteFunc(slices.Compact(ids), func(id string) bool { return id == "" })
