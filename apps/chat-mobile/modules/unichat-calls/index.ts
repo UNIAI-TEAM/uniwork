@@ -167,7 +167,7 @@ export interface UniChatCallKitModule {
   takeAnswered(callId: string): boolean;
   /** Events from before JavaScript listened (a closed app launched by a VoIP push); taking clears them. */
   takePendingEvents(): unknown[];
-  /** The person answered in the app a call CallKit rings too. */
+  /** The app's call engine took a call CallKit rings or answered: CallKit answers it too, or stops waiting for it. */
   answer(callId: string): Promise<void>;
   /** The call is over for this phone: CallKit's screen goes. */
   end(callId: string): Promise<void>;

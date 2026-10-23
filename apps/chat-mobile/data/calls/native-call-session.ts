@@ -17,7 +17,11 @@ export interface NativeCallSession {
   readonly platform: "android" | "ios" | "none";
   /** The system's call UI rings a call nobody has answered yet: the app's own ringer stays quiet. */
   ringing(): boolean;
-  /** The person answered this call in the app: the system's UI takes it as answered (and, on iOS, its audio). */
+  /**
+   * The app's call engine took this call (it starts to connect it): answered in the app, the system's UI takes it as
+   * answered (and, on iOS, its audio); answered on CallKit, CallKit stops waiting for the app to take it (iOS gives up
+   * a CallKit answer no app took, ios/CallCenter.swift › takeWindow).
+   */
   answered(callId: string): void;
   /** The person declined it in the app: the system's ring goes. */
   declined(callId: string): void;

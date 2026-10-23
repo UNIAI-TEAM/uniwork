@@ -896,8 +896,13 @@ hai tài khoản cùng tổ chức, A gọi B; B là iPhone):
 
 - [ ] B mở app một lần sau khi cài (đã đăng nhập), rồi kill app (vuốt khỏi đa nhiệm) và khoá máy; A gọi 1-1: màn cuộc
   gọi đến của iOS hiện trên màn khoá trong 1–3 s với tên A, nhạc chuông của máy.
-- [ ] Trượt để nghe trên màn khoá: màn của iOS chuyển sang đang gọi, tiếng hai chiều có trong vài giây (app nối LiveKit ở
-  nền), A thấy B đã nghe; mở khoá và chạm biểu tượng UniChat trên màn của iOS: app mở đúng màn cuộc gọi.
+- [ ] Trượt để nghe trên màn khoá (app đã kill, máy khoá), **không mở app**: màn của iOS chuyển sang đang gọi, tiếng hai
+  chiều có trong vài giây (app nối LiveKit ở nền), A thấy B đã nghe; mở khoá và chạm biểu tượng UniChat trên màn của
+  iOS: app mở đúng màn cuộc gọi. Không có tiếng và A vẫn thấy đang đổ chuông: lần mở app ở nền không nối scene nên
+  JavaScript không chạy (`calls-ios.md` › Native); ghi vào checklist go/no-go, kiểm tiếp: sau khoảng 30 s màn của iOS
+  báo cuộc gọi thất bại và tự đóng (không treo "đang gọi"), A thấy B từ chối khi B mở app. Có lỗi này thì runbook và mô
+  tả cho người dùng phải nói "mở UniChat để nghe" cho tới khi có bản sửa.
+- [ ] Trượt để nghe trên màn khoá rồi A gác ngay, trước khi B có tiếng: màn của iOS trên máy B đi mất, không treo.
 - [ ] Gác máy trên màn của iOS: A thấy cuộc gọi kết thúc; A gác trước: màn của iOS trên máy B đi mất.
 - [ ] Từ chối trên màn khoá (app đã kill): A thấy "từ chối" trong vài giây, không đợi hết chuông; trên máy B không có
   màn cuộc gọi đến thứ hai nào sáng lên sau đó (một `end` gửi nhầm tới iPhone đã từ chối là một cuộc gọi ma). Làm lại

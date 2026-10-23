@@ -41,6 +41,16 @@ chi tiết phía server ở `calls.md` (mục "Cuộc gọi trên iPhone"). Đư
   trước khi JavaScript nghe (app đóng được push mở) nằm trong hàng đợi (32 mục) tới `takePendingEvents`. Nghe hay kết
   thúc do chính app yêu cầu (`answer`, `end`) không phát lại sự kiện. Nghe trên CallKit còn ghi "đã nghe" cho
   `takeAnswered(callId)` (một lần), thứ duy nhất cho tab Chat tự nghe một cuộc gọi.
+- Cuộc gọi nghe trên CallKit là của JavaScript khi engine nhận nó (`answer(callId)`, lúc engine chuyển cuộc gọi đến
+  sang đang nối, `call-session-sync.ts`). Chưa nhận thì: `end` của lượt đổ chuông gỡ nó xuống (người gọi gác, máy khác
+  nghe trước), và sau `takeWindow` (30 s) CallKit kết thúc nó (`failed`); cả hai rút "đã nghe" (cả sự kiện đang chờ) và
+  phát `ended`, nên JavaScript chạy sau đó báo từ chối thay vì nối một cuộc gọi đã mất. Lý do: app bật scene support
+  (`expo-build-properties` `ios.enableSceneSupport`, iOS 27 bắt buộc), React Native chỉ khởi trong
+  `ExpoAppSceneDelegate.scene(_:willConnectTo:)`, và một lần iOS mở app đã kill ở nền để giao VoIP push có thể không nối
+  scene nào: Nghe trên màn khoá khi đó không có JavaScript để nối LiveKit. Chưa kiểm trên máy thật (runbook › Cuộc gọi
+  trên iPhone); nếu đúng là vậy, nghe cuộc gọi khi app đã kill cần mở app (chạm UniChat trên màn của iOS) trong 30 s,
+  và việc khởi React Native không giao diện từ subscriber là việc riêng (màn cuộc gọi nối LiveKit, nên cần cả cây React,
+  không chỉ runtime).
 - Âm thanh: khi CallKit thực hiện Nghe, phiên `AVAudioSession` là `playAndRecord` (`voiceChat`, hay `videoChat` + loa
   ngoài cho video; Bluetooth HFP/A2DP); khi CallKit kích hoạt/nhả phiên thì sự kiện `audio` tới JavaScript.
 - `ApnsEnvironment.swift`: môi trường APNs của token đọc từ profile ký nhúng trong app (`aps-environment: development`

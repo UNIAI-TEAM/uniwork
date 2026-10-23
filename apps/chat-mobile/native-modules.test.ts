@@ -340,6 +340,27 @@ describe("every VoIP push is reported to CallKit (ios/CallCenter.swift)", () => 
     expect(after).toMatch(/if case \.end\(let reason\) = outcome \{\s*provider\.reportCall\(with: id, endedAt: nil, reason: reason\)/);
   });
 
+  // A VoIP launch of a closed app may connect no scene, and with scene support React Native starts only in one
+  // (ExpoAppSceneDelegate): CallKit's Answer then waits for JavaScript that never runs, the call shows connected with
+  // no audio, and an end push could not take it down. JavaScript says it took a call through answer(callId:) (the
+  // engine's incoming → connecting, call-session-sync.ts); until then the answer is CallKit's alone.
+  it("gives up a CallKit answer JavaScript never takes, and lets an end push take it down until it does", () => {
+    const answer = body("func provider(_ provider: CXProvider, perform action: CXAnswerCallAction)");
+    expect(answer).toMatch(/asyncAfter\(deadline: \.now\(\) \+ CallCenter\.takeWindow\)[^}]*giveUp\(/);
+    const giveUp = body("private func giveUp(_ id: UUID)");
+    expect(giveUp).toMatch(/guard let call = tracked\(id\), call\.answered, !call\.taken else/);
+    expect(giveUp).toContain("reportCall(with: id, endedAt: nil, reason: .failed)");
+    expect(giveUp).toContain("abandoned(");
+    const abandoned = body("private func abandoned(_ call: TrackedCall)");
+    expect(abandoned).toContain("answeredCalls.remove(call.push.callId)");
+    expect(abandoned).toContain('emit(callEvent("ended", call.push))');
+    const decide = body("private func decide(");
+    expect(decide).toMatch(/if held\.answered \{\s*return held\.taken \|\| push\.kind != \.end \? \.keep : \.end\(push\.endedReason\)/);
+    const taken = body("func answer(callId: String)");
+    expect(taken.indexOf("$0.taken = true")).toBeGreaterThan(0);
+    expect(taken.indexOf("$0.taken = true")).toBeLessThan(taken.indexOf("!found.call.answered"));
+  });
+
   it("ends a call with the reason the end push gives", () => {
     const push = readFileSync(path.join(modulesRoot, "unichat-calls/ios/VoipCallPush.swift"), "utf8");
     expect(push).toMatch(/case "answered":\s*return \.answeredElsewhere/);

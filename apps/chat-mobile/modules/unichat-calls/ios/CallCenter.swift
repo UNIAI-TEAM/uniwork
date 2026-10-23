@@ -13,6 +13,10 @@ import PushKit
 /// - Answer, Decline and the in-call End on CallKit's screens go to JavaScript as events ("answered", "declined",
 ///   "ended"); events from before JavaScript listens (a closed app launched by the push) wait in `pending`. An answer
 ///   or end the app itself asked for (answer(callId:) and end(callId:)) is not echoed back.
+/// - JavaScript takes a call CallKit answered by answering it too (answer(callId:), when its call engine starts to
+///   connect it). One it never takes is given up after `takeWindow`, and an end push takes it down until then: a VoIP
+///   launch of a closed app may connect no scene, and with scene support React Native starts only in one, so nothing
+///   may be there to join the call.
 /// - The audio session: configured for a call when CallKit's answer is performed, and its activation handed to
 ///   JavaScript ("audio"), which tells WebRTC (RTCAudioSession.audioSessionDidActivate) before LiveKit takes it.
 ///
@@ -30,6 +34,8 @@ final class CallCenter: NSObject, @unchecked Sendable {
     /// The app asked CallKit to answer or end it: CallKit's action is not told to JavaScript again.
     var answeredByApp = false
     var endedByApp = false
+    /// JavaScript's call engine took it (answer(callId:)): it joins the call, and ends it when it is over.
+    var taken = false
   }
 
   /// What becomes of a push once CallKit has it.
@@ -47,6 +53,9 @@ final class CallCenter: NSObject, @unchecked Sendable {
   private static let pendingCap = 32
   /// Calls that ended here, newest last: a retried invite of one rings no more.
   private static let endedCap = 64
+  /// How long a call CallKit answered waits for JavaScript to take it: the app's launch, the session's restore and the
+  /// call's room, before the engine's own 20 s to connect (VOICE_CALL_CONNECTING_TIMEOUT_MS) start.
+  static let takeWindow: TimeInterval = 30
 
   private let lock = NSLock()
   private var started = false
@@ -153,12 +162,17 @@ final class CallCenter: NSObject, @unchecked Sendable {
 
   // MARK: - The app's requests (main queue)
 
-  /// The person answered in the app a call CallKit also rings: CallKit answers it too, and activates the audio.
+  /// The app's call engine took a call CallKit also rings or answered: answered in the app, CallKit answers it too, and
+  /// activates the audio; answered on CallKit, the call is JavaScript's now (`taken`).
   func answer(callId: String) {
-    guard let found = find(callId), !found.call.answered, !found.call.answeredByApp else {
+    guard let found = find(callId) else {
       return
     }
     let id = found.id
+    update(id) { $0.taken = true }
+    guard !found.call.answered, !found.call.answeredByApp else {
+      return
+    }
     update(id) { $0.answeredByApp = true }
     controller.request(CXTransaction(action: CXAnswerCallAction(call: id))) { _ in }
   }
@@ -256,6 +270,16 @@ final class CallCenter: NSObject, @unchecked Sendable {
     return event
   }
 
+  /// A call CallKit answered and let go before JavaScript took it: JavaScript must not join it later (its answer, waiting
+  /// or not yet taken, is withdrawn) and hears it ended, which declines it to the server (data/calls/call-session.ts).
+  private func abandoned(_ call: TrackedCall) {
+    lock.lock()
+    answeredCalls.remove(call.push.callId)
+    pending.removeAll { ($0["type"] as? String) == "answered" && ($0["callId"] as? String) == call.push.callId }
+    lock.unlock()
+    emit(callEvent("ended", call.push))
+  }
+
   // MARK: - Reporting a push (main queue)
 
   private func report(_ push: VoipCallPush?, completion: @escaping () -> Void) {
@@ -302,8 +326,10 @@ final class CallCenter: NSObject, @unchecked Sendable {
       return .end(.failed)
     }
     if let held {
+      // Answered here: JavaScript's to end once it took it (the server sends no end to the session that answered); an
+      // end before then is the call's (the caller hung up, another device answered first).
       if held.answered {
-        return .keep
+        return held.taken || push.kind != .end ? .keep : .end(push.endedReason)
       }
       if push.kind == .end {
         return .end(push.endedReason)
@@ -321,10 +347,16 @@ final class CallCenter: NSObject, @unchecked Sendable {
 
   /// A call ended at its report: CallKit holds it no more, and a retried invite of it rings no more.
   private func forget(_ id: UUID, push: VoipCallPush?) {
-    if untrack(id) == nil, let callId = push?.callId {
-      lock.lock()
-      rememberEnded(callId)
-      lock.unlock()
+    guard let call = untrack(id) else {
+      if let callId = push?.callId {
+        lock.lock()
+        rememberEnded(callId)
+        lock.unlock()
+      }
+      return
+    }
+    if call.answered {
+      abandoned(call)
     }
   }
 
@@ -357,6 +389,16 @@ final class CallCenter: NSObject, @unchecked Sendable {
     }
     provider?.reportCall(with: id, endedAt: nil, reason: .unanswered)
     _ = untrack(id)
+  }
+
+  /// CallKit answered a call JavaScript has not taken in `takeWindow`: no app joins it, so CallKit lets it go.
+  private func giveUp(_ id: UUID) {
+    guard let call = tracked(id), call.answered, !call.taken else {
+      return
+    }
+    provider?.reportCall(with: id, endedAt: nil, reason: .failed)
+    _ = untrack(id)
+    abandoned(call)
   }
 
   /// CallKit's audio for a call: voice through the earpiece (video through the speaker), Bluetooth headsets allowed.
@@ -440,6 +482,10 @@ extension CallCenter: CXProviderDelegate {
       answeredCalls.insert(call.push.callId)
       lock.unlock()
       emit(callEvent("answered", call.push))
+      let id = action.callUUID
+      DispatchQueue.main.asyncAfter(deadline: .now() + CallCenter.takeWindow) { [weak self] in
+        self?.giveUp(id)
+      }
     }
     action.fulfill()
   }
