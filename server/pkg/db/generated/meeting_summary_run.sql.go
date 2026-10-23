@@ -19,7 +19,8 @@ VALUES (
   now() + make_interval(secs => $4::float8)
 )
 ON CONFLICT (organization_id, meeting_id) DO UPDATE
-SET run_id = EXCLUDED.run_id, started_at = now(), expires_at = EXCLUDED.expires_at
+SET run_id = EXCLUDED.run_id, started_at = now(), expires_at = EXCLUDED.expires_at,
+    failed_at = NULL, failure_code = ''
 WHERE meeting_summary_runs.expires_at <= now()
 RETURNING run_id
 `
@@ -52,6 +53,31 @@ func (q *Queries) ClaimMeetingSummaryRun(ctx context.Context, arg ClaimMeetingSu
 	return run_id, err
 }
 
+const failMeetingSummaryRun = `-- name: FailMeetingSummaryRun :exec
+UPDATE meeting_summary_runs
+SET expires_at = now(), failed_at = now(), failure_code = $1
+WHERE organization_id = $2 AND meeting_id = $3 AND run_id = $4
+`
+
+type FailMeetingSummaryRunParams struct {
+	FailureCode    string `json:"failure_code"`
+	OrganizationID string `json:"organization_id"`
+	MeetingID      string `json:"meeting_id"`
+	RunID          string `json:"run_id"`
+}
+
+// A failed run gives its lease back and leaves its refusal code for the
+// panel (GET summary); only the run that holds the lease writes it.
+func (q *Queries) FailMeetingSummaryRun(ctx context.Context, arg FailMeetingSummaryRunParams) error {
+	_, err := q.db.Exec(ctx, failMeetingSummaryRun,
+		arg.FailureCode,
+		arg.OrganizationID,
+		arg.MeetingID,
+		arg.RunID,
+	)
+	return err
+}
+
 const getMeetingSummaryRunState = `-- name: GetMeetingSummaryRunState :one
 SELECT
   (SELECT r.started_at FROM meeting_summary_runs r
@@ -59,7 +85,11 @@ SELECT
   (SELECT a.due_at FROM meeting_auto_summaries a
     WHERE a.organization_id = $1 AND a.meeting_id = $2)::timestamptz AS queued_due_at,
   COALESCE((SELECT a.attempts FROM meeting_auto_summaries a
-    WHERE a.organization_id = $1 AND a.meeting_id = $2), 0)::int AS attempts
+    WHERE a.organization_id = $1 AND a.meeting_id = $2), 0)::int AS attempts,
+  (SELECT r.failed_at FROM meeting_summary_runs r
+    WHERE r.organization_id = $1 AND r.meeting_id = $2 AND r.expires_at <= now())::timestamptz AS failed_at,
+  COALESCE((SELECT r.failure_code FROM meeting_summary_runs r
+    WHERE r.organization_id = $1 AND r.meeting_id = $2 AND r.expires_at <= now() AND r.failed_at IS NOT NULL), '')::text AS failure_code
 `
 
 type GetMeetingSummaryRunStateParams struct {
@@ -71,16 +101,24 @@ type GetMeetingSummaryRunStateRow struct {
 	RunningSince pgtype.Timestamptz `json:"running_since"`
 	QueuedDueAt  pgtype.Timestamptz `json:"queued_due_at"`
 	Attempts     int32              `json:"attempts"`
+	FailedAt     pgtype.Timestamptz `json:"failed_at"`
+	FailureCode  string             `json:"failure_code"`
 }
 
 // What the summary panel shows while no summary is stored yet (UNI-1995
 // benchmark #12): a run holding a live lease (a clerk's or the system's), and
 // the system's queued summary with when it is next due (a retry waits out its
-// backoff there).
+// backoff there); and the last run's failure while no run holds the lease.
 func (q *Queries) GetMeetingSummaryRunState(ctx context.Context, arg GetMeetingSummaryRunStateParams) (GetMeetingSummaryRunStateRow, error) {
 	row := q.db.QueryRow(ctx, getMeetingSummaryRunState, arg.OrganizationID, arg.MeetingID)
 	var i GetMeetingSummaryRunStateRow
-	err := row.Scan(&i.RunningSince, &i.QueuedDueAt, &i.Attempts)
+	err := row.Scan(
+		&i.RunningSince,
+		&i.QueuedDueAt,
+		&i.Attempts,
+		&i.FailedAt,
+		&i.FailureCode,
+	)
 	return i, err
 }
 

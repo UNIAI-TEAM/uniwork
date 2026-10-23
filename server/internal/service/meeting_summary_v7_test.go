@@ -227,7 +227,22 @@ func TestSummaryWithRunReportsTheRun(t *testing.T) {
 	if v, _ := s.SummaryWithRun(ctx, ua.ID, m.ID); v.Run.Status != SummaryRunRunning || v.Run.At.IsZero() {
 		t.Fatalf("running view = %+v", v.Run)
 	}
-	release()
+	release(errSummaryTimeout())
+	// The failed run gave its lease back and left its code for every viewer.
+	if v, _ := s.SummaryWithRun(ctx, ua.ID, m.ID); v.Run.Status != SummaryRunIdle || v.Run.FailureCode != "ai_timeout" || v.Run.FailedAt.IsZero() {
+		t.Fatalf("failed view = %+v", v.Run)
+	}
+	again, err := s.claimSummaryRun(ctx, m, time.Minute)
+	if err != nil {
+		t.Fatalf("a failed run kept the lease: %v", err)
+	}
+	if v, _ := s.SummaryWithRun(ctx, ua.ID, m.ID); v.Run.Status != SummaryRunRunning || v.Run.FailureCode != "" {
+		t.Fatalf("the next run still shows the old failure: %+v", v.Run)
+	}
+	again(nil)
+	if n := countSummaryRows(t, s, `SELECT count(*) FROM meeting_summary_runs WHERE meeting_id = $1`, m.ID); n != 0 {
+		t.Fatalf("a finished run left %d rows", n)
+	}
 	if err := s.q.QueueMeetingAutoSummary(ctx, db.QueueMeetingAutoSummaryParams{MeetingID: m.ID, OrganizationID: m.OrganizationID, AfterSeconds: 30}); err != nil {
 		t.Fatal(err)
 	}
@@ -407,5 +422,87 @@ func TestSplitSummaryTranscript(t *testing.T) {
 	chunks, cut = splitSummaryTranscript(lines(100, 100), 1000, 4)
 	if len(chunks) > 4 || !cut {
 		t.Fatalf("10 budgets in 4 parts: %d chunks, cut %v", len(chunks), cut)
+	}
+}
+
+// The run's own deadline (its lease minus a minute) covers the calls a long
+// meeting makes one after another at the summary's per-call timeout: the map
+// step's rounds and the combining call. At the smallest budget it used to be
+// 5 minutes for up to three 3-minute calls.
+func TestSummaryRunDeadlineFitsEveryCall(t *testing.T) {
+	s := &MeetingService{AI: ai.NewGateway(nil, &provider.Fake{}, nil, nil, ai.Options{Timeout: time.Minute})}
+	call := s.AI.CallTimeoutFor(ai.CapMeetingSummarization)
+	rounds := (summaryMaxParts+summaryPartConcurrency-1)/summaryPartConcurrency + 1
+	for _, runes := range []int{0, 240000} {
+		s.rt.SummaryMaxRunes = runes
+		if b := s.summaryBudget(); b.lease-time.Minute < time.Duration(rounds)*call {
+			t.Errorf("max runes %d: run deadline %s for %d calls of %s", runes, b.lease-time.Minute, rounds, call)
+		}
+	}
+}
+
+// Demo bug (UNI-1995 #12): a run that answered a thinner record (topics with
+// no points and no decisions, items or open questions where the stored record
+// had them) replaced the better stored summary. It is now refused as
+// incomplete and the stored summary stays; a record with fewer items because
+// people handled them since is still stored.
+func TestSummarizeKeepsTheBetterStoredRecord(t *testing.T) {
+	const good = `{"tldr":"Chốt ship thứ Sáu.","topics":[{"title":"Phát hành","start_label":"S1","points":[{"text":"Ship thứ Sáu","evidence":["S1"]}]}],"decisions":[{"text":"Ship thứ Sáu","evidence":["S1"]}],"action_items":[{"title":"Gửi bản build","owner":"An","due":"thứ Sáu","description":"","priority":"","evidence":["S1"],"draft":""}],"open_questions":[]}`
+	reply := good
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: reply, Model: "fake", OutputTokens: 40}
+	}}
+	s, ua, m, met := summaryFixture(t, fake, ai.Options{})
+	ctx := context.Background()
+	first, err := s.Summarize(ctx, ua.ID, m.ID, "vi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A clerk's own item is never in the stored record: it must not switch
+	// the "items lost" check off (reviewer, UNI-1995 #12).
+	if _, err := s.AddActionItem(ctx, ua.ID, m.ID, AddActionItemInput{Title: "Đặt phòng họp"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, thin := range []struct{ name, text string }{
+		{"topics only, without points", `{"tldr":"Chốt ship.","topics":[{"title":"Phát hành","start_label":"S1","points":[]}],"decisions":[],"action_items":[],"open_questions":[]}`},
+		{"items lost while nothing was handled", `{"tldr":"Chốt ship.","topics":[],"decisions":[{"text":"Ship thứ Sáu","evidence":["S1"]}],"action_items":[],"open_questions":[]}`},
+	} {
+		reply = thin.text
+		met.reasons = nil
+		if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); !codedIs(err, "ai_failed") {
+			t.Fatalf("%s: err = %v, want ai_failed", thin.name, err)
+		}
+		if latest, err := s.q.GetLatestMeetingSummary(ctx, m.ID); err != nil || latest.ID != first.ID {
+			t.Fatalf("%s: latest summary = %s (%v), want the stored %s", thin.name, latest.ID, err, first.ID)
+		}
+		if len(met.reasons) != 1 || met.reasons[0] != summaryReasonIncomplete {
+			t.Fatalf("%s: reasons = %v", thin.name, met.reasons)
+		}
+	}
+	// Once the item is handled, a record without items is the right answer.
+	var itemID string
+	if err := s.pool.QueryRow(ctx, `SELECT id FROM meeting_action_items WHERE meeting_id = $1 AND source = 'AI'`, m.ID).Scan(&itemID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DismissActionItem(ctx, ua.ID, m.ID, itemID, "đã xong"); err != nil {
+		t.Fatal(err)
+	}
+	// and a short meeting's topic without points is not a thinner record.
+	reply = `{"tldr":"Chốt ship.","topics":[{"title":"Phát hành","start_label":"S1","points":[]}],"decisions":[{"text":"Ship thứ Sáu","evidence":["S1"]}],"action_items":[],"open_questions":[]}`
+	if next, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); err != nil || next.ID == first.ID {
+		t.Fatalf("a record without the handled item was refused: %v", err)
+	}
+}
+
+// The record's budget is a ceiling the model may stay under, so it must not
+// squeeze a normal meeting: a 5k-character transcript (~8 minutes of
+// speech) got a single topic, and the 28-minute demo meeting three.
+func TestSummarySizeForLeavesRoomForTheSubjects(t *testing.T) {
+	for _, c := range []struct{ runes, topics, points int }{
+		{0, 2, 2}, {5000, 3, 2}, {14000, 4, 2}, {30000, 8, 4}, {500000, 12, 6},
+	} {
+		if got := summarySizeFor(c.runes); got.Topics != c.topics || got.Points != c.points {
+			t.Errorf("summarySizeFor(%d) = %+v, want %d topics of %d points", c.runes, got, c.topics, c.points)
+		}
 	}
 }

@@ -13,7 +13,7 @@ import (
 // provider can, otherwise Complete (with one delta of the whole text).
 func (g *Gateway) invoke(ctx context.Context, req Request, creq provider.CompletionRequest) (provider.CompletionResponse, error) {
 	if req.OnDelta == nil {
-		cctx, cancel := context.WithTimeout(ctx, g.opts.Timeout)
+		cctx, cancel := context.WithTimeout(ctx, g.CallTimeoutFor(req.Capability))
 		defer cancel()
 		return g.p.Complete(cctx, creq)
 	}

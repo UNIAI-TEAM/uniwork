@@ -65,10 +65,31 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   await endMeeting(page, api, host.token, first.id);
 
   const summarize = () => page.request.post(`${api}/api/v1/meetings/${first.id}/summary`, { headers: auth, data: { locale: "vi" } });
+  // POST answers 202 with the run running (UNI-1995 #12); the items are
+  // stored when it ends. The lease is taken before the 202, so a run that
+  // is no longer "running" has ended (an auto run may still be "queued").
+  const summaryRunEnded = async (what: string) => {
+    let failure: unknown = null;
+    await expect
+      .poll(
+        async () => {
+          const view = await ok<{ run: { status: string; failure: unknown } }>(
+            await page.request.get(`${api}/api/v1/meetings/${first.id}/summary`, { headers: auth }),
+            `${what}: summary run`,
+          );
+          failure = view.run.failure;
+          return view.run.status;
+        },
+        { message: `${what}: the summary run ends`, timeout: 60_000 },
+      )
+      .not.toBe("running");
+    expect(failure, `${what}: the summary run failed`).toBeNull();
+  };
   const summarized = await summarize();
   expect(summarized.status() === 503 && inCI, "CI runs AI_PROVIDER=fake: the summary must not answer 503").toBe(false);
   test.skip(summarized.status() === 503, "AI provider not configured on this server (AI_PROVIDER=fake)");
   await ok(summarized, "summarize");
+  await summaryRunEnded("summarize");
   // Another provider on the server answers without the notes' items.
   const firstItems = await ok<{ items: unknown[] }>(
     await page.request.get(`${api}/api/v1/meetings/${first.id}/action-items`, { headers: auth }),
@@ -125,6 +146,7 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
 
   // Host: a new summary replaces only what nobody handled.
   await ok(await summarize(), "summarize again");
+  await summaryRunEnded("summarize again");
   await page.reload();
   await expect(section.getByRole("heading", { name: "Chờ xử lý (1)" })).toBeVisible({ timeout: 20_000 });
   await expect(section.getByRole("heading", { name: "Đã giao (3)" })).toBeVisible();

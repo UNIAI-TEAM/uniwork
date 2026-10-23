@@ -1998,6 +1998,8 @@ type MeetingSummaryRun struct {
 	RunID          string             `json:"run_id"`
 	StartedAt      pgtype.Timestamptz `json:"started_at"`
 	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	FailedAt       pgtype.Timestamptz `json:"failed_at"`
+	FailureCode    string             `json:"failure_code"`
 }
 
 type MeetingSummaryTaskLink struct {

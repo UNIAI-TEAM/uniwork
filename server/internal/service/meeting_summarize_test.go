@@ -513,3 +513,95 @@ func TestSummaryNoteLinesShareTheBudget(t *testing.T) {
 		t.Fatalf("notes past the budget: %d lines, %d runes (budget %d)", len(lines), used, summaryNotesRunes)
 	}
 }
+
+// Demo bug (UNI-1995 #12): a clerk's run was bound to the request that
+// started it, so closing the tab cancelled the model call while every other
+// viewer kept seeing "being generated". StartSummary claims the lease and
+// answers at once; the run goes on without the request, a second click is
+// still refused while it runs, and the run's end (a summary, or a failure
+// with its code) reaches GET summary. Shutdown waits for it, then cancels.
+func TestStartSummaryOutlivesTheRequest(t *testing.T) {
+	answer := make(chan struct{})
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		<-answer
+		return provider.CompletionResponse{Text: `{"summary":"Đã chốt.","decisions":[],"action_items":[{"title":"Gửi báo cáo"}]}`, Model: "fake"}
+	}}
+	s, ua, m, _ := summaryFixture(t, fake, ai.Options{})
+	ctx, closeTab := context.WithCancel(context.Background())
+	v, err := s.StartSummary(ctx, ua.ID, m.ID, "vi")
+	if err != nil || v.Run.Status != SummaryRunRunning || v.Summary != nil {
+		t.Fatalf("start = %+v, %v; want running, no summary yet", v.Run, err)
+	}
+	if _, err := s.StartSummary(context.Background(), ua.ID, m.ID, "vi"); !codedIs(err, "summary_in_progress") {
+		t.Fatalf("a second click = %v, want summary_in_progress", err)
+	}
+	closeTab()
+	close(answer)
+	if !s.StopSummaryRuns(10 * time.Second) {
+		t.Fatal("the run did not end")
+	}
+	got, err := s.SummaryWithRun(context.Background(), ua.ID, m.ID)
+	if err != nil || got.Summary == nil || got.Summary.Summary != "Đã chốt." || got.Run.Status != SummaryRunIdle || got.Run.FailureCode != "" {
+		t.Fatalf("after the tab closed: %+v %+v %v", got.Summary, got.Run, err)
+	}
+	if n := countSummaryRows(t, s, `SELECT count(*) FROM outbox_events WHERE topic = 'summary.created'`); n != 1 {
+		t.Fatalf("summary.created events = %d, want 1", n)
+	}
+}
+
+func TestStartSummaryLeavesItsFailureForEveryViewer(t *testing.T) {
+	fake := &provider.Fake{Err: errors.New("vendor down")}
+	s, ua, m, _ := summaryFixture(t, fake, ai.Options{})
+	if _, err := s.StartSummary(context.Background(), ua.ID, m.ID, "vi"); err != nil {
+		t.Fatal(err)
+	}
+	if !s.StopSummaryRuns(10 * time.Second) {
+		t.Fatal("the run did not end")
+	}
+	v, err := s.SummaryWithRun(context.Background(), ua.ID, m.ID)
+	if err != nil || v.Run.Status != SummaryRunIdle || v.Run.FailureCode != "ai_failed" || v.Run.FailedAt.IsZero() {
+		t.Fatalf("after a failed run: %+v %v", v.Run, err)
+	}
+}
+
+// A run outside the request has no chimw.Recoverer above it: a panic in it
+// must end as a failed run every viewer sees, not take the process down
+// with the lease left running (reviewer, UNI-1995 #12).
+func TestStartSummaryRecoversAPanickingRun(t *testing.T) {
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		panic("boom")
+	}}
+	s, ua, m, met := summaryFixture(t, fake, ai.Options{})
+	if _, err := s.StartSummary(context.Background(), ua.ID, m.ID, "vi"); err != nil {
+		t.Fatal(err)
+	}
+	if !s.StopSummaryRuns(10 * time.Second) {
+		t.Fatal("the run did not end")
+	}
+	v, err := s.SummaryWithRun(context.Background(), ua.ID, m.ID)
+	if err != nil || v.Run.Status != SummaryRunIdle || v.Run.FailureCode != "ai_failed" {
+		t.Fatalf("after a panicking run: %+v %v", v.Run, err)
+	}
+	if len(met.reasons) != 1 || met.reasons[0] != summaryReasonPanic {
+		t.Fatalf("reasons = %v, want [%s]", met.reasons, summaryReasonPanic)
+	}
+}
+
+func TestStopSummaryRunsCancelsWhatOutlivesTheGrace(t *testing.T) {
+	fake := &provider.Fake{Delay: time.Minute}
+	s, ua, m, _ := summaryFixture(t, fake, ai.Options{})
+	if _, err := s.StartSummary(context.Background(), ua.ID, m.ID, "vi"); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	if !s.StopSummaryRuns(50 * time.Millisecond) {
+		t.Fatal("a cancelled run did not end")
+	}
+	if time.Since(start) > 20*time.Second {
+		t.Fatalf("shutdown waited %s for a run it should have cancelled", time.Since(start))
+	}
+	// The cancelled run gave its lease back: the next node's click runs.
+	if v, _ := s.SummaryWithRun(context.Background(), ua.ID, m.ID); v.Run.Status != SummaryRunIdle {
+		t.Fatalf("after shutdown: %+v", v.Run)
+	}
+}

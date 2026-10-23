@@ -95,12 +95,31 @@ describe("meeting summary endpoints", () => {
     ]);
   });
 
-  it("createMeetingSummary sends the locale and degrades to null on drift", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ summary }));
-    expect((await createMeetingSummary("m1", "vi"))?.summary).toBe("S");
+  it("createMeetingSummary sends the locale and reads the run it started (202)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary, run: { status: "running", at: "2026-10-23T02:00:00Z", attempts: 0, failure: null } }, 202));
+    const started = await createMeetingSummary("m1", "vi");
     expect(sentBody()).toEqual({ locale: "vi" });
-    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { summary: 1 } }));
-    expect(await createMeetingSummary("m1", "en")).toBeNull();
+    expect(started.summary?.summary).toBe("S");
+    expect(started.run).toEqual({ status: "running", at: "2026-10-23T02:00:00Z", attempts: 0, failure: null });
+  });
+
+  it("createMeetingSummary degrades on drift: a bad summary reads null, a body it cannot read reads running", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { summary: 1 }, run: { status: "running", at: null, attempts: 0 } }, 202));
+    const drifted = await createMeetingSummary("m1", "en");
+    expect(drifted.summary).toBeNull();
+    expect(drifted.run.status).toBe("running");
+    // The server accepted the run: an unreadable answer must not read as "nothing is happening".
+    vi.mocked(fetch).mockResolvedValueOnce(json("nope", 202));
+    expect(await createMeetingSummary("m1", "en")).toEqual({ summary: null, run: { status: "running", at: null, attempts: 0 } });
+  });
+
+  it("getMeetingSummary reads the last run's failure, and a malformed one reads none", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: null, run: { status: "idle", at: null, attempts: 0, failure: { code: "ai_timeout", at: "2026-10-23T02:03:00Z" } } }));
+    expect((await getMeetingSummary("m1")).run.failure).toEqual({ code: "ai_timeout", at: "2026-10-23T02:03:00Z" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: null, run: { status: "idle", at: null, attempts: 0, failure: { code: 7 } } }));
+    const drifted = await getMeetingSummary("m1");
+    expect(drifted.run.status).toBe("idle");
+    expect(drifted.run.failure ?? null).toBeNull();
   });
 
   it("createMeetingCatchUp posts the locale and keeps each point's time", async () => {

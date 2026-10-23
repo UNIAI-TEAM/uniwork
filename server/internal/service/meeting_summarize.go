@@ -74,6 +74,8 @@ const (
 	summaryReasonParse         = "parse"
 	summaryReasonEmpty         = "empty"
 	summaryReasonStore         = "store"
+	summaryReasonIncomplete    = "incomplete"
+	summaryReasonPanic         = "panic"
 )
 
 // The refusals Summarize answers with. The message is fixed and never quotes
@@ -219,7 +221,11 @@ func (s *MeetingService) summaryErrorCount(reason string) {
 // could starve the pool (and it breaks behind a transaction-pooling proxy).
 // The claim and the release are one short statement each and hold nothing in
 // between; a node that dies mid-run leaves a lease that expires on its own.
-func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting, lease time.Duration) (func(), error) {
+//
+// release takes the run's outcome: a run that failed leaves its refusal code
+// on the row (FailMeetingSummaryRun) for every viewer's panel, since the run
+// may outlive the request that started it; any other outcome deletes it.
+func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting, lease time.Duration) (func(error), error) {
 	runID := util.NewID()
 	_, err := s.q.ClaimMeetingSummaryRun(ctx, db.ClaimMeetingSummaryRunParams{
 		OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID, LeaseSeconds: lease.Seconds(),
@@ -230,15 +236,37 @@ func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting, leas
 	if err != nil {
 		return nil, err
 	}
-	return func() {
+	return func(outcome error) {
 		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), summaryReleaseTimeout)
 		defer cancel()
-		if err := s.q.ReleaseMeetingSummaryRun(rctx, db.ReleaseMeetingSummaryRunParams{
-			OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID,
-		}); err != nil {
+		var err error
+		if code := summaryFailureCode(outcome); code != "" {
+			err = s.q.FailMeetingSummaryRun(rctx, db.FailMeetingSummaryRunParams{
+				OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID, FailureCode: code,
+			})
+		} else {
+			err = s.q.ReleaseMeetingSummaryRun(rctx, db.ReleaseMeetingSummaryRunParams{
+				OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID,
+			})
+		}
+		if err != nil {
 			slog.Warn("meetings: summary run lease not released, it expires on its own", "meeting_id", m.ID, "err", err)
 		}
 	}, nil
+}
+
+// summaryFailureCode is the refusal code a failed run leaves for the panel,
+// "" for a stored summary and for the auto summary's "not due" (not a
+// failure). A cause without a code (a read that failed) is ai_failed.
+func summaryFailureCode(err error) string {
+	if err == nil || errors.Is(err, errAutoSummaryNotDue) {
+		return ""
+	}
+	var ce CodedError
+	if errors.As(err, &ce) && ce.Code != "" {
+		return ce.Code
+	}
+	return "ai_failed"
 }
 
 // storeSummary writes the summary, its action items, its meeting timeline
@@ -339,6 +367,27 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, actor A
 		return db.MeetingSummary{}, err
 	}
 	return row, nil
+}
+
+// summaryRegression says why next is a thinner record than the stored prev,
+// "" when it is not. The model sometimes answers a long meeting with every
+// list empty (its topics then often lack points too); storing that would
+// replace a better record people may have read. A topic without points alone
+// is not thin: a short meeting's single topic is often answered that way.
+// Fewer action items are fine when the meeting holds items people handled
+// (handled): those are left out of the prompt on purpose, so a stored record
+// of items only may be followed by one with no list at all.
+func summaryRegression(prev db.MeetingSummary, next ai.MeetingSummary, handled bool) string {
+	if len(DecodeSummaryDecisions(prev.Decisions))+len(DecodeSummaryDecisions(prev.OpenQuestions)) > 0 &&
+		len(next.Decisions)+len(next.ActionItems)+len(next.OpenQuestions) == 0 {
+		return "no decisions, action items or open questions"
+	}
+	var prevItems []json.RawMessage
+	_ = json.Unmarshal([]byte(prev.ActionItems), &prevItems)
+	if len(prevItems) > 0 && len(next.ActionItems) == 0 && !handled {
+		return "no action items"
+	}
+	return ""
 }
 
 // summaryNoteLines renders the meeting's notes for the prompt as
@@ -478,16 +527,20 @@ func refineLiveItem(ctx context.Context, q *db.Queries, m db.Meeting, d db.Meeti
 // manual, live ones a person converted or set aside), never to propose again,
 // and the pending live items as drafts it may refine in place (benchmark
 // #21). The pending AI items are left out; the new summary replaces them.
-func (s *MeetingService) summaryPromptItems(ctx context.Context, m db.Meeting) ([]string, []db.MeetingActionItem, error) {
+// handled reports an AI or live item a person converted or set aside: the
+// only items a stored record may carry that the new one is told not to
+// repeat (summaryRegression). A clerk's own item never reaches a record, and
+// a pending draft is in the prompt to be refined.
+func (s *MeetingService) summaryPromptItems(ctx context.Context, m db.Meeting) (titles []string, drafts []db.MeetingActionItem, handled bool, err error) {
 	rows, err := s.q.ListMeetingActionItems(ctx, db.ListMeetingActionItemsParams{OrganizationID: m.OrganizationID, MeetingID: m.ID})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
-	titles := make([]string, 0, len(rows))
-	var drafts []db.MeetingActionItem
+	titles = make([]string, 0, len(rows))
 	for _, r := range rows {
 		it := r.MeetingActionItem
 		pending := actionItemStatus(it, r.TaskLive) == ActionItemPending
+		handled = handled || (!pending && it.Source != ActionItemSourceManual)
 		switch {
 		case pending && it.Source == ActionItemSourceAI:
 			continue
@@ -505,7 +558,7 @@ func (s *MeetingService) summaryPromptItems(ctx context.Context, m db.Meeting) (
 	if len(titles) > summaryExistingItems {
 		titles = titles[len(titles)-summaryExistingItems:]
 	}
-	return titles, drafts, nil
+	return titles, drafts, handled, nil
 }
 
 // summaryDraftLines labels the drafts for the prompt.

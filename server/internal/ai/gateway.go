@@ -182,6 +182,12 @@ func (g *Gateway) CallTimeout() time.Duration {
 	return g.opts.Timeout
 }
 
+// CallTimeoutFor bounds one non-streamed call of a capability:
+// AI_TIMEOUT_SECONDS times its policy's TimeoutScale.
+func (g *Gateway) CallTimeoutFor(c Capability) time.Duration {
+	return g.CallTimeout() * time.Duration(max(policies[c].TimeoutScale, 1))
+}
+
 // ModelSelectable reports whether a person may pick model: it is on the
 // allowlist (including AI_MODEL_ALLOW) and priced for this provider, so a pick
 // can never route to a model nobody priced.

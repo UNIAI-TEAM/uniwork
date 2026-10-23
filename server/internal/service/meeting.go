@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -121,6 +122,12 @@ type MeetingService struct {
 	uploads *DocumentService
 	// captions spaces caption translation calls (UNI-2028).
 	captions captionSpacing
+	// summaryRuns are the clerks' summary runs StartSummary left running;
+	// stopSummaries ends summaryLife, which every one of them watches
+	// (StopSummaryRuns, at shutdown).
+	summaryRuns   sync.WaitGroup
+	summaryLife   context.Context
+	stopSummaries context.CancelFunc
 }
 
 // organizationOf resolves the tenant a meeting belongs to, for the gate.
@@ -165,7 +172,9 @@ func NewMeetingService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, 
 		rt.WebhookConcurrency = 8
 	}
 	nodeID := util.NewID()
-	return &MeetingService{pool: pool, q: q, ws: ws, pub: pub, provider: provider, rt: rt, outboxNodeID: nodeID, ent: NewEntitlementService(pool, q)}
+	life, stop := context.WithCancel(context.Background())
+	return &MeetingService{pool: pool, q: q, ws: ws, pub: pub, provider: provider, rt: rt, outboxNodeID: nodeID, ent: NewEntitlementService(pool, q),
+		summaryLife: life, stopSummaries: stop}
 }
 
 // GuestHMACKey exposes the guest cookie signing key for lobby WebSocket auth.

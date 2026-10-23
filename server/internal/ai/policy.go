@@ -50,6 +50,9 @@ type ModelPolicy struct {
 	Default     map[string]string // provider name → model
 	MaxTokens   int
 	Temperature float64
+	// TimeoutScale multiplies AI_TIMEOUT_SECONDS for one call (0 is 1): a
+	// capability whose answer runs to MaxTokens needs the time to write it.
+	TimeoutScale int
 }
 
 var (
@@ -72,7 +75,10 @@ var policies = map[Capability]ModelPolicy{
 	// evidence) runs past 4k tokens of Vietnamese; a cut answer is billed and
 	// then retried once in brief mode (benchmark #6). Live items: a burst of
 	// 5-6 items with descriptions.
-	CapMeetingSummarization: {Default: flagship, MaxTokens: 12000, Temperature: 0},
+	// A 28-minute meeting's record is ~6-8k output tokens, 70-90 s on
+	// claude-opus-5; 12k tokens take about twice that (3 minutes at the
+	// default AI_TIMEOUT_SECONDS of 60).
+	CapMeetingSummarization: {Default: flagship, MaxTokens: 12000, Temperature: 0, TimeoutScale: 3},
 	CapMeetingLiveItems:     {Default: fast, MaxTokens: 3000, Temperature: 0},
 	CapCaptionTranslate:     {Default: fast, MaxTokens: 2048, Temperature: 0},
 	CapCopilotAnswer:        {Default: flagship, MaxTokens: 1500, Temperature: 0},

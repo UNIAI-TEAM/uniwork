@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMeetingCapabilities, useMeetingChat, useNotes, useTranscript } from "@uniwork/core/meetings";
 import { useMeetingMotions } from "@uniwork/core/meetings/motions";
-import { useCreateMeetingSummary, useMeetingSummary, useMeetingSummaryRun } from "@uniwork/core/meetings/summary";
+import { ApiError } from "@uniwork/core/api/http";
+import { useCreateMeetingSummary, useMeetingSummary, useMeetingSummaryRun, type MeetingSummaryRun } from "@uniwork/core/meetings/summary";
 import { useAnnouncement } from "./summary-generate-controls";
 import { summaryErrorRetryable, summaryErrorText } from "./summary-error-copy";
 import { hasSummarySource, type SummarySourceTimes } from "./summary-sources";
@@ -13,8 +14,9 @@ import { hasSummarySource, type SummarySourceTimes } from "./summary-sources";
  * Copilot) share about the summary itself: whether AI is on, what the model
  * would read (transcript, notes, chat and closed votes, the server's own
  * test), and the generate flow: confirm before replacing a summary people
- * may have read, a polite announcement while the model works (up to a
- * minute), and an actionable error that stays on the card until the next run.
+ * may have read, a polite announcement while the model works (the run goes
+ * on on the server after the click), and an actionable error that stays on
+ * the card until the next run.
  */
 export function useSummaryGeneration({
   workspaceId,
@@ -34,8 +36,9 @@ export function useSummaryGeneration({
   const chatQuery = useMeetingChat(meetingId);
   const { data: motions } = useMeetingMotions(meetingId);
   const generate = useCreateMeetingSummary(meetingId);
-  // The server's own run (the automatic summary, or another clerk's): every viewer sees it.
-  const serverRunning = (useMeetingSummaryRun(meetingId).data?.status ?? "idle") !== "idle";
+  // The server's run (this clerk's, another's or the automatic summary): every viewer sees it.
+  const serverRun = useMeetingSummaryRun(meetingId).data;
+  const serverRunning = (serverRun?.status ?? "idle") !== "idle";
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [announcement, announce] = useAnnouncement();
   // The last run's failure, said in place: a quota or plan refusal must not fade with a toast.
@@ -76,18 +79,37 @@ export function useSummaryGeneration({
       ? t("meetings.summaryNeedsSource")
       : null;
 
-  // A run this screen did not start is said here; this screen's own says it in `run` below.
+  /** Says a failed run on the card and in the live region (one channel, no toast on top). */
+  const fail = useCallback(
+    (err: unknown) => {
+      const text = summaryErrorText(err, t, "generate");
+      setFailure({ text, retryable: summaryErrorRetryable(err), summaryId });
+      announce(text);
+    },
+    [announce, summaryId, t],
+  );
+  /**
+   * A run's end (UNI-1995 #12: it outlives the click, so it ends here, not on
+   * the POST): a new summary is announced, a failure is said with its code.
+   */
+  const settle = useCallback(
+    (ended: MeetingSummaryRun | undefined, landed: boolean) => {
+      if (landed) announce(t("meetings.summaryAi.generatedStatus"));
+      else if (ended?.failure) fail(new ApiError("", ended.failure.code, 0));
+    },
+    [announce, fail, t],
+  );
+
+  // A run this screen started is announced by `run` below; any other is announced here.
   const ownRun = useRef(false);
   const watchedRun = useRef<{ running: boolean; summaryId?: string }>({ running: false });
   useEffect(() => {
     const was = watchedRun.current;
     watchedRun.current = { running: serverRunning, summaryId: serverRunning ? summaryId : was.summaryId };
     if (serverRunning && !was.running && !ownRun.current) announce(t("meetings.summaryAi.generatingStatus"));
-    if (!serverRunning && was.running && !ownRun.current && summaryId && summaryId !== was.summaryId) {
-      announce(t("meetings.summaryAi.generatedStatus"));
-    }
+    if (!serverRunning && was.running) settle(serverRun, !!summaryId && summaryId !== was.summaryId);
     if (!serverRunning && !generate.isPending) ownRun.current = false;
-  }, [announce, generate.isPending, serverRunning, summaryId, t]);
+  }, [announce, generate.isPending, serverRun, serverRunning, settle, summaryId, t]);
 
   const run = useCallback(() => {
     ownRun.current = true;
@@ -95,15 +117,14 @@ export function useSummaryGeneration({
     setFailure(null);
     announce(t("meetings.summaryAi.generatingStatus"));
     generate.mutate(i18n.language.startsWith("en") ? "en" : "vi", {
-      onSuccess: () => announce(t("meetings.summaryAi.generatedStatus")),
-      onError: (err) => {
-        // One channel: the live region says it, the card shows it; no toast on top.
-        const text = summaryErrorText(err, t, "generate");
-        setFailure({ text, retryable: summaryErrorRetryable(err), summaryId });
-        announce(text);
+      // Usually still running; one that already ended is settled here, since no poll will see it end.
+      onSuccess: (started) => {
+        if (started.run.status === "idle") settle(started.run, !!started.summary && started.summary.id !== summaryId);
       },
+      // A refusal the server answers at once: plan, permission, a run under way, a rate limit.
+      onError: fail,
     });
-  }, [announce, generate, i18n.language, summaryId, t]);
+  }, [announce, fail, generate, i18n.language, settle, summaryId, t]);
 
   /** Generate now, or ask first when it would replace an existing summary. */
   const requestGenerate = useCallback(() => {
