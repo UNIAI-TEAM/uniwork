@@ -1,6 +1,6 @@
 {
   "$comment": "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedCodeChars (the ratchet) or move target in a reviewed PR.",
-  "copiedCodeChars": 139201,
+  "copiedCodeChars": 139307,
   "target": {
     "copiedCodeChars": 54000,
     "by": "2027-02-28",
