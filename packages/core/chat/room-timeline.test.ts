@@ -12,7 +12,9 @@ import {
   keepRoomTimelineHead,
   olderRoomPageParam,
   refreshLoadedRoomTimelines,
+  refreshRoomTimelineOnOpen,
   replaceTimelineMessage,
+  ROOM_TIMELINE_STALE_MS,
   type RoomTimeline,
 } from "./room-timeline";
 
@@ -185,5 +187,51 @@ describe("refreshLoadedRoomTimelines", () => {
     refreshLoadedRoomTimelines(qc, "ws1");
     await vi.waitFor(() => expect(qc.getQueryState(key)?.isInvalidated).toBe(true));
     expect(list).not.toHaveBeenCalled();
+  });
+});
+
+describe("refreshRoomTimelineOnOpen", () => {
+  const key = chatKeys.roomMessages("ws1", "room1");
+
+  it("drops older pages but skips invalidate while the newest page is still fresh", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(key, timeline([msg("c", 3)], [msg("a", 1), msg("b", 2)]));
+    qc.getQueryCache().find({ queryKey: key, exact: true })!.setState({
+      dataUpdatedAt: Date.now(),
+    });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    refreshRoomTimelineOnOpen(qc, "ws1", "room1");
+
+    expect(ids(qc.getQueryData(key))).toEqual(["c"]);
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("invalidates when the cache is older than the stale window", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(key, timeline([msg("b", 2)]));
+    const query = qc.getQueryCache().find({ queryKey: key, exact: true })!;
+    query.setState({
+      ...query.state,
+      dataUpdatedAt: Date.now() - ROOM_TIMELINE_STALE_MS - 1,
+    });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    refreshRoomTimelineOnOpen(qc, "ws1", "room1");
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+  });
+
+  it("always invalidates on reconnect even when the cache is still fresh", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(key, timeline([msg("b", 2)]));
+    qc.getQueryCache().find({ queryKey: key, exact: true })!.setState({
+      dataUpdatedAt: Date.now(),
+    });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    refreshRoomTimelineOnOpen(qc, "ws1", "room1", { force: true });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
   });
 });

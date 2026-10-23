@@ -132,11 +132,23 @@ export function keepRoomTimelineHead(data: RoomTimeline): RoomTimeline {
   return { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) };
 }
 
+/** Matches `useChatRoomMessages` staleTime — reopening within this window skips a refetch. */
+export const ROOM_TIMELINE_STALE_MS = 5_000;
+
 /** Opening a room: forget the older pages scrolled in last time and refresh the newest. */
-export function refreshRoomTimelineOnOpen(qc: QueryClient, wsId: string, roomId: string): void {
+export function refreshRoomTimelineOnOpen(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  options?: { force?: boolean },
+): void {
   const key = chatKeys.roomMessages(wsId, roomId);
   const data = qc.getQueryData<RoomTimeline>(key);
+  const updatedAt = qc.getQueryCache().find({ queryKey: key, exact: true })?.state.dataUpdatedAt ?? 0;
+  const skipRefetch =
+    !options?.force && data !== undefined && Date.now() - updatedAt < ROOM_TIMELINE_STALE_MS;
   if (data) qc.setQueryData<RoomTimeline>(key, keepRoomTimelineHead(data));
+  if (skipRefetch) return;
   void qc.invalidateQueries({ queryKey: key });
 }
 
@@ -250,6 +262,8 @@ export function refreshLoadedRoomTimelines(qc: QueryClient, wsId: string): void 
   for (const [queryKey, data] of qc.getQueriesData({ queryKey: chatKeys.roomMessagesRoot(wsId) })) {
     const roomId = queryKey[3];
     if (data === undefined || typeof roomId !== "string" || !roomId) continue;
-    if (markStaleUnlessObserved(qc, chatKeys.roomMessages(wsId, roomId))) refreshRoomTimelineOnOpen(qc, wsId, roomId);
+    if (markStaleUnlessObserved(qc, chatKeys.roomMessages(wsId, roomId))) {
+      refreshRoomTimelineOnOpen(qc, wsId, roomId, { force: true });
+    }
   }
 }

@@ -36,6 +36,21 @@ describe("updateStickToBottomFromScroll", () => {
   });
 });
 
+describe("pinned scroll while content grows", () => {
+  it("does not clear stick when distance from bottom spikes before pin runs", () => {
+    const stick = { current: true };
+    const el = {
+      scrollTop: 1000,
+      scrollHeight: 5000,
+      clientHeight: 500,
+    } as HTMLDivElement;
+    // List grew under the reader: temporarily "far" from bottom until scrollTop catches up.
+    expect(updateStickToBottomFromScroll(el, stick)).toBe(false);
+    expect(stick.current).toBe(false);
+    // Caller that pins on growth must not run updateStickToBottomFromScroll first (panel onScroll).
+  });
+});
+
 describe("pinChatScrollToBottom", () => {
   afterEach(() => vi.unstubAllGlobals());
 

@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   type ReactNode,
   type RefObject,
@@ -11,8 +12,16 @@ import {
 
 const DEFAULT_ESTIMATE_PX = 88;
 
-interface VirtualChatMessageListProps {
+interface ChatMessageListProps {
   messages: { id: string }[];
+  /**
+   * Stable ids alone are not enough: grouping flips lastOfRun on the previous
+   * row when a new bubble arrives, which changes height — the virtualizer must
+   * remeasure, not reuse the old slot size (otherwise rows overlap).
+   */
+  getItemKey?: (index: number) => string | number;
+  /** Pinned at the newest end: plain list layout (Telegram-smooth rapid sends). */
+  useInlineLayout?: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   stickToBottomRef: RefObject<boolean>;
   /** When true, onScroll must not clear stick-to-bottom (panel reads this). */
@@ -23,6 +32,17 @@ interface VirtualChatMessageListProps {
   header?: ReactNode;
   empty?: ReactNode;
   renderMessage: (index: number) => ReactNode;
+}
+
+/** Keys a row for @tanstack/react-virtual — include layout flags that change height. */
+export function virtualChatRowMeasureKey(
+  message: { id: string; clientMsgId?: string } | undefined,
+  layout: { lastOfRun: boolean; compactTop: boolean } | undefined,
+  index: number,
+): string | number {
+  if (!message || !layout) return index;
+  const stableId = message.clientMsgId ?? message.id;
+  return `${stableId}:${layout.lastOfRun ? "L" : "m"}:${layout.compactTop ? "c" : "n"}`;
 }
 
 /**
@@ -43,7 +63,6 @@ export function pinChatScrollToBottom(
     if (stickToBottomRef.current) scrollEl.scrollTop = scrollEl.scrollHeight;
   };
   apply();
-  // measureElement grows the spacer after paint; keep pinning for two frames.
   requestAnimationFrame(() => {
     if (!stickToBottomRef.current) {
       programmaticScrollRef.current = false;
@@ -78,13 +97,10 @@ export function updateStickToBottomFromScroll(
     stickToBottomRef.current = true;
     return true;
   }
-  // User scrolled into the middle of history (away from both ends' flash zone).
   if (scrollEl.scrollTop > nearBottomPx) {
     stickToBottomRef.current = false;
     return false;
   }
-  // scrollTop≈0 with a long list: either still waiting to pin, or already reading
-  // the oldest page — keep the previous stick flag unchanged.
   return stickToBottomRef.current;
 }
 
@@ -106,44 +122,50 @@ export function useReaderScrollAt(scrollRef: RefObject<HTMLDivElement | null>): 
   return at;
 }
 
-/** Renders only visible chat rows to keep long histories smooth. */
-export function VirtualChatMessageList({
-  messages,
-  scrollRef,
-  stickToBottomRef,
-  programmaticScrollRef,
-  highlightMessageId,
-  onHighlightShown,
-  header,
-  empty,
-  renderMessage,
-}: VirtualChatMessageListProps) {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const virtualizer = useVirtualizer({
-    count: messages.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => DEFAULT_ESTIMATE_PX,
-    getItemKey: (index) => messages[index]?.id ?? index,
-    overscan: 12,
-    // React 19 warns when flushSync runs during ref/measure callbacks.
-    useFlushSync: false,
-  });
+function remeasureVirtualRows(
+  scrollEl: HTMLDivElement,
+  virtualizer: { getVirtualItems: () => { index: number }[]; measureElement: (el: Element) => void },
+): void {
+  for (const row of virtualizer.getVirtualItems()) {
+    const node = scrollEl.querySelector(`[data-index="${row.index}"]`);
+    if (node instanceof Element) virtualizer.measureElement(node);
+  }
+}
 
+function usePinOnNewMessages(
+  messages: { id: string }[],
+  scrollRef: RefObject<HTMLDivElement | null>,
+  stickToBottomRef: RefObject<boolean>,
+  programmaticScrollRef: RefObject<boolean>,
+  highlightMessageId: string | null | undefined,
+  /** Plain list at the newest end: one sync scroll per row beats rAF lag while spamming. */
+  syncOnly: boolean,
+) {
   const lastMessageId = messages[messages.length - 1]?.id;
-  const hadMessagesRef = useRef(false);
-
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el || messages.length === 0) {
-      hadMessagesRef.current = false;
-      return;
-    }
-    hadMessagesRef.current = true;
-    if (highlightMessageId || !stickToBottomRef.current) return;
-    pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef);
-  }, [highlightMessageId, messages.length, lastMessageId, scrollRef, stickToBottomRef, programmaticScrollRef]);
+    if (!el || messages.length === 0 || highlightMessageId) return;
+    if (!stickToBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
+    if (!syncOnly) pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef);
+  }, [
+    highlightMessageId,
+    lastMessageId,
+    messages.length,
+    programmaticScrollRef,
+    scrollRef,
+    stickToBottomRef,
+    syncOnly,
+  ]);
+}
 
-  // Row measures + header ("load older") change height after layout.
+function useResizePinToBottom(
+  scrollRef: RefObject<HTMLDivElement | null>,
+  contentRef: RefObject<HTMLDivElement | null>,
+  stickToBottomRef: RefObject<boolean>,
+  programmaticScrollRef: RefObject<boolean>,
+  messageCount: number,
+) {
   useEffect(() => {
     const scrollEl = scrollRef.current;
     const contentEl = contentRef.current;
@@ -154,11 +176,104 @@ export function VirtualChatMessageList({
     });
     observer.observe(contentEl);
     return () => observer.disconnect();
-  }, [scrollRef, stickToBottomRef, programmaticScrollRef, messages.length]);
+  }, [contentRef, messageCount, programmaticScrollRef, scrollRef, stickToBottomRef]);
+}
 
-  // Scroll to a highlighted message once per highlight: when it is set, or
-  // when the page holding it arrives. New messages landing during the flash
-  // must not pull the reader back to it.
+function InlineChatMessageList({
+  messages,
+  getItemKey,
+  scrollRef,
+  stickToBottomRef,
+  programmaticScrollRef,
+  highlightMessageId,
+  onHighlightShown,
+  header,
+  renderMessage,
+}: ChatMessageListProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const resolveItemKey = getItemKey ?? ((index: number) => messages[index]?.id ?? index);
+
+  usePinOnNewMessages(messages, scrollRef, stickToBottomRef, programmaticScrollRef, highlightMessageId, true);
+  useResizePinToBottom(scrollRef, contentRef, stickToBottomRef, programmaticScrollRef, messages.length);
+
+  useEffect(() => {
+    if (!highlightMessageId) return;
+    stickToBottomRef.current = false;
+    const node = document.getElementById(`chat-msg-${highlightMessageId}`);
+    if (!node) return;
+    programmaticScrollRef.current = true;
+    node.scrollIntoView({ block: "center" });
+    requestAnimationFrame(() => {
+      programmaticScrollRef.current = false;
+      onHighlightShown?.(highlightMessageId);
+    });
+  }, [highlightMessageId, onHighlightShown, programmaticScrollRef, stickToBottomRef]);
+
+  return (
+    <div ref={contentRef} className="w-full max-w-full">
+      {header}
+      <div className="relative w-full max-w-full pb-2">
+        {messages.map((_, index) => (
+          <div key={String(resolveItemKey(index))}>{renderMessage(index)}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VirtualizedChatMessageList({
+  messages,
+  getItemKey,
+  scrollRef,
+  stickToBottomRef,
+  programmaticScrollRef,
+  highlightMessageId,
+  onHighlightShown,
+  header,
+  renderMessage,
+}: ChatMessageListProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const resolveItemKey = getItemKey ?? ((index: number) => messages[index]?.id ?? index);
+  const measureGeneration = useMemo(
+    () => messages.map((_, index) => String(resolveItemKey(index))).join("\n"),
+    [messages, resolveItemKey],
+  );
+
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => DEFAULT_ESTIMATE_PX,
+    getItemKey: resolveItemKey,
+    overscan: 12,
+    useFlushSync: false,
+  });
+
+  const lastMessageId = messages[messages.length - 1]?.id;
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || messages.length === 0) return;
+    remeasureVirtualRows(el, virtualizer);
+    if (highlightMessageId || !stickToBottomRef.current) return;
+    pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef);
+    requestAnimationFrame(() => {
+      if (!scrollRef.current || !stickToBottomRef.current) return;
+      remeasureVirtualRows(scrollRef.current, virtualizer);
+      pinChatScrollToBottom(scrollRef.current, stickToBottomRef, programmaticScrollRef);
+    });
+  }, [
+    highlightMessageId,
+    lastMessageId,
+    measureGeneration,
+    messages.length,
+    programmaticScrollRef,
+    scrollRef,
+    stickToBottomRef,
+    virtualizer,
+  ]);
+
+  useResizePinToBottom(scrollRef, contentRef, stickToBottomRef, programmaticScrollRef, messages.length);
+
   const scrolledHighlightRef = useRef<string | null>(null);
   const onHighlightShownRef = useRef(onHighlightShown);
   onHighlightShownRef.current = onHighlightShown;
@@ -180,10 +295,7 @@ export function VirtualChatMessageList({
       });
     };
     align();
-    // The row is mounted once the virtualizer has scrolled to it.
     requestAnimationFrame(() => requestAnimationFrame(() => onHighlightShownRef.current?.(highlightMessageId)));
-    // Photos above it measure in after the jump and push it down: centre it
-    // again while they load, unless the reader takes the scroll first.
     const timers = [400, 1200].map((ms) => window.setTimeout(align, ms));
     const el = scrollRef.current;
     const stop = () => timers.forEach((timer) => window.clearTimeout(timer));
@@ -195,10 +307,6 @@ export function VirtualChatMessageList({
     };
   }, [highlightMessageId, messages, programmaticScrollRef, scrollRef, stickToBottomRef, virtualizer]);
 
-  if (messages.length === 0) {
-    return empty ?? null;
-  }
-
   return (
     <div ref={contentRef} className="w-full max-w-full">
       {header}
@@ -208,7 +316,7 @@ export function VirtualChatMessageList({
       >
         {virtualizer.getVirtualItems().map((virtualRow) => (
           <div
-            key={messages[virtualRow.index]?.id ?? virtualRow.key}
+            key={virtualRow.key}
             data-index={virtualRow.index}
             ref={virtualizer.measureElement}
             className="absolute left-0 top-0 w-full max-w-full"
@@ -220,4 +328,16 @@ export function VirtualChatMessageList({
       </div>
     </div>
   );
+}
+
+/** Renders chat rows; uses a plain list at the newest end, virtualizes when reading history. */
+export function VirtualChatMessageList({
+  messages,
+  useInlineLayout = false,
+  empty,
+  ...rest
+}: ChatMessageListProps) {
+  if (messages.length === 0) return empty ?? null;
+  if (useInlineLayout) return <InlineChatMessageList messages={messages} {...rest} />;
+  return <VirtualizedChatMessageList messages={messages} {...rest} />;
 }

@@ -149,7 +149,7 @@ export function insertCreatedRoomMessage(
 }
 
 /** A message created or deleted on the main timeline can change the info panel's media counts. */
-function invalidateRoomSharedSummary(qc: QueryClient, wsId: string, roomId: string): void {
+export function invalidateRoomSharedSummary(qc: QueryClient, wsId: string, roomId: string): void {
   const queryKey = chatKeys.roomSharedSummary(wsId, roomId);
   // Only a summary someone loaded can be stale; skipping the rest keeps message frames to their timeline patch.
   if (!qc.getQueryState(queryKey)) return;
@@ -338,10 +338,11 @@ export async function fetchAndPatchChatMessage(
     if (created) await refreshUnshownDefaultChannelPreview(qc, wsId, roomId, messageId);
     return;
   }
-  const knownBefore = roomTimelineHas(
-    qc.getQueryData<RoomTimeline>(chatKeys.roomMessages(wsId, roomId)),
-    messageId,
-  );
+  const timelineKey = chatKeys.roomMessages(wsId, roomId);
+  const timelineData = qc.getQueryData<RoomTimeline>(timelineKey);
+  const knownBefore = roomTimelineHas(timelineData, messageId);
+  // The send path already inserted this id; the WS echo need not GET it again.
+  if (knownBefore && created) return;
   const message = await getChatRoomMessage(wsId, roomId, messageId);
   if (!message) return;
   patchMessageCaches(qc, wsId, roomId, message, created);

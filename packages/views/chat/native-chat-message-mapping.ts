@@ -1,4 +1,5 @@
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
+import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
 import type { ReminderRepeat } from "@uniwork/core/chat/reminder-utils";
 import type { ChatMessage } from "./chat-messages";
 
@@ -149,6 +150,7 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
       ? { senderId: record.forwarded_from.sender_id, senderName: record.forwarded_from.sender_name }
       : undefined,
     clientMsgId: record.client_msg_id,
+    ...(isPendingChatMessageId(record.id) ? { deliveryStatus: "sending" as const } : {}),
   };
 }
 
