@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -656,5 +658,95 @@ func TestThreadReplyFramesNameTheirRoot(t *testing.T) {
 	}
 	if got, want := rootIDs(from), map[string]string{"chat.message.created": root.ID, "chat.mention.created": root.ID}; !maps.Equal(got, want) {
 		t.Fatalf("thread reply frames: got %v want %v", got, want)
+	}
+}
+
+func TestThreadReplyLeavesTheRootAuthorUnread(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "Ai review PR #120?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SendThreadReply(ctx, ub.ID, w.ID, room.RoomID, root.ID, SendChatMessageInput{Body: "Minh review"}); err != nil {
+		t.Fatal(err)
+	}
+
+	unread, err := s.ListFollowedThreads(ctx, ua.ID, w.ID, true, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(unread, func(th ChatThreadSummary) bool { return th.ThreadRootID == root.ID }) {
+		t.Fatalf("author thread missing from unread list: %+v", unread)
+	}
+	if _, err := s.MarkThreadRead(ctx, ua.ID, w.ID, root.ID); err != nil {
+		t.Fatal(err)
+	}
+	unread, err = s.ListFollowedThreads(ctx, ua.ID, w.ID, true, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.ContainsFunc(unread, func(th ChatThreadSummary) bool { return th.ThreadRootID == root.ID }) {
+		t.Fatalf("thread still unread after mark read: %+v", unread)
+	}
+}
+
+func TestThreadReadCursorNeverMovesBack(t *testing.T) {
+	s, _, q, ua, _, w := chatFixture(t)
+	ctx := context.Background()
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.FollowThread(ctx, ua.ID, w.ID, root.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	t1 := time.Date(2026, 3, 26, 10, 0, 0, 0, time.UTC)
+	t2 := t1.Add(2 * time.Hour)
+	if err := q.MarkChatThreadRead(ctx, db.MarkChatThreadReadParams{
+		ThreadRootID: root.ID, UserID: ua.ID, LastReadAt: pgtype.Timestamptz{Time: t2, Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.MarkChatThreadRead(ctx, db.MarkChatThreadReadParams{
+		ThreadRootID: root.ID, UserID: ua.ID, LastReadAt: pgtype.Timestamptz{Time: t1, Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	row, err := q.GetChatThreadFollower(ctx, db.GetChatThreadFollowerParams{ThreadRootID: root.ID, UserID: ua.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !row.LastReadAt.Valid || !row.LastReadAt.Time.Equal(t2) {
+		t.Fatalf("last_read_at = %v, want %v", row.LastReadAt.Time, t2)
+	}
+
+	tOld := t1.Add(-time.Hour)
+	if err := q.UpsertChatThreadFollower(ctx, db.UpsertChatThreadFollowerParams{
+		ID: util.NewID(), OrganizationID: w.OrganizationID, WorkspaceID: w.ID, RoomID: room.RoomID,
+		ThreadRootID: root.ID, UserID: ua.ID, Reason: "replied",
+		LastReadAt: pgtype.Timestamptz{Time: tOld, Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	row, err = q.GetChatThreadFollower(ctx, db.GetChatThreadFollowerParams{ThreadRootID: root.ID, UserID: ua.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !row.LastReadAt.Valid || !row.LastReadAt.Time.Equal(t2) {
+		t.Fatalf("upsert with older cursor: last_read_at = %v, want %v", row.LastReadAt.Time, t2)
 	}
 }
