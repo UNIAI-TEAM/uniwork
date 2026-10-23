@@ -47,6 +47,10 @@ func (h *handlers) deleteTranscript(w http.ResponseWriter, r *http.Request) {
 	var n int64
 	var err error
 	switch {
+	case v.Has("from") || v.Has("to"):
+		// The retired time form: read as "delete all" it would wipe the transcript.
+		respondError(w, http.StatusBadRequest, "invalid_request", "dùng from_segment_id và to_segment_id thay cho from và to")
+		return
 	case fromID == "" && toID == "":
 		n, err = h.Meetings.DeleteTranscript(r.Context(), userID, meetingID)
 	case fromID == "" || toID == "":
