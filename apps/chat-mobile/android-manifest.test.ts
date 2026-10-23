@@ -173,7 +173,7 @@ describe("Maven libraries' manifests", () => {
   });
 });
 
-type Reviewed = { name: string; tag?: string; minSdkVersion?: number; maxSdkVersion?: number };
+type Reviewed = { name: string; from?: string; tag?: string; minSdkVersion?: number; maxSdkVersion?: number };
 const reviewed = (JSON.parse(fs.readFileSync(path.join(__dirname, "android-permissions.json"), "utf8")) as { permissions: Reviewed[] }).permissions;
 
 describe("android-permissions.json, the binary's reviewed permissions", () => {
@@ -189,6 +189,18 @@ describe("android-permissions.json, the binary's reviewed permissions", () => {
   it("lists none that app.config.ts blocks", { timeout: 120_000 }, () => {
     const blocked = new Set(releaseReport().removedPermissions);
     expect(reviewed.filter((entry) => blocked.has(entry.name)).map((entry) => entry.name)).toEqual([]);
+  });
+
+  // A Maven library the resolver reads (MAVEN_MANIFESTS) is one of its permissions' sources: their `from` names it, so
+  // dropping the module that links it is seen to leave each permission to the others, or to nobody.
+  it("names each Maven library the resolver reads among its permissions' sources", async () => {
+    const { MAVEN_MANIFESTS } = (await import("./scripts/android-manifest.mjs")) as { MAVEN_MANIFESTS: Record<string, { permissions: string[] }> };
+    const from = new Map(reviewed.map((entry) => [entry.name, entry.from ?? ""]));
+    const unnamed = Object.entries(MAVEN_MANIFESTS).flatMap(([library, { permissions }]) => {
+      const artifact = library.split(":").slice(0, 2).join(":");
+      return permissions.filter((name) => !from.get(name)?.includes(artifact)).map((name) => `${name} ← ${artifact}`);
+    });
+    expect(unnamed).toEqual([]);
   });
 });
 

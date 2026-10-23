@@ -3,7 +3,7 @@
   "permissions": [
     {
       "name": "android.permission.ACCESS_NETWORK_STATE",
-      "from": "@config-plugins/react-native-webrtc (app manifest); also @react-native-community/netinfo, expo-image, expo-updates, @sentry/react-native, firebase-messaging",
+      "from": "@config-plugins/react-native-webrtc (app manifest); also @react-native-community/netinfo, expo-image, expo-updates, @sentry/react-native, firebase-messaging, androidx.work:work-runtime (modules/unichat-background's outbox drain job)",
       "reason": "Whether a network is up: NetInfo drives the offline banner (components/chat/connection-banner.tsx) and resends the outbox when the network returns; WebRTC, expo-updates and Sentry check it before they connect.",
       "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
     },
@@ -27,7 +27,7 @@
     },
     {
       "name": "android.permission.FOREGROUND_SERVICE",
-      "from": "plugins/with-unichat-calls.js (app manifest); also @livekit/react-native",
+      "from": "plugins/with-unichat-calls.js (app manifest); also @livekit/react-native, androidx.work:work-runtime (modules/unichat-background's outbox drain job)",
       "reason": "Starting the call's foreground service (expo.modules.unichatcalls.CallService), which keeps an ongoing call alive with the screen locked or the app in the background.",
       "play": "Normal permission; the service and its types are declared under Play Console › App content › Foreground service permissions (docs/runbooks/unichat-mobile-release.md)."
     },
@@ -99,7 +99,7 @@
     },
     {
       "name": "android.permission.WAKE_LOCK",
-      "from": "plugins/with-unichat-calls.js (app manifest); also @config-plugins/react-native-webrtc, @livekit/react-native, firebase-messaging",
+      "from": "plugins/with-unichat-calls.js (app manifest); also @config-plugins/react-native-webrtc, @livekit/react-native, firebase-messaging, androidx.work:work-runtime (modules/unichat-background's outbox drain job)",
       "reason": "The screen goes off at the ear during a voice call (proximity wake lock, modules/unichat-calls › CallProximity), and FCM keeps the CPU up while a call push is handled.",
       "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
     },
@@ -117,8 +117,8 @@
     },
     {
       "name": "android.permission.RECEIVE_BOOT_COMPLETED",
-      "from": "expo-notifications",
-      "reason": "expo-notifications re-arms scheduled notifications after the phone restarts (its boot receiver).",
+      "from": "expo-notifications; also androidx.work:work-runtime (modules/unichat-background's outbox drain job)",
+      "reason": "expo-notifications re-arms scheduled notifications after the phone restarts (its boot receiver), and WorkManager re-schedules the outbox drain job a restart dropped.",
       "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
     },
     {
