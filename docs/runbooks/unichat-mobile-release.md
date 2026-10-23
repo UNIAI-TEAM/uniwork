@@ -118,9 +118,15 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   Lab) và push FCM tới app bị kill dưới trình quản lý pin của OEM (checklist máy thật ở mục Cuộc gọi native trên
   Android). Đỏ: mở kết quả Test Lab (link trong log của bước) — video, logcat và ảnh từng máy.
 - **Đo hiệu năng trên thiết bị** (`scripts/mobile-perf.mjs`, trần ở `apps/chat-mobile/perf-budget.json`; chặn ở mọi
-  `GATE_LEVEL`). `android-smoke` mỗi PR chạm binary: kích thước APK x86_64, rồi 5 lần mở lạnh (`am force-stop` →
-  `am start -W`), trung vị của `TotalTime` (Android tới khung đầu — splash) và của thời gian từ lúc khởi chạy tới
-  mốc `first-screen` (màn đầu vẽ xong dưới splash vừa nhấc). Nightly Android (`chat-mobile-verify.yml`, tài khoản
+  `GATE_LEVEL`). `android-smoke` mỗi PR chạm binary: kích thước APK x86_64, rồi một lần mở không tính giờ (tới mốc,
+  rồi `am force-stop`), `cmd package compile -f -m speed-profile` để mọi lần đo cùng một trạng thái biên dịch, rồi 10
+  lần mở lạnh (`am force-stop` → chờ CPU máy lắng: từng cửa sổ 1 s của `/proc/stat` tới khi bận ≤ 25 %, tối đa 10 s →
+  `am start -W`; lần nào Android không báo `LaunchState: COLD` thì lệnh đỏ, không lẫn lần mở ấm vào trung vị), trung vị của `TotalTime` (Android tới khung đầu của activity — app giữ khung đó tới khi nhấc splash,
+  ngay trước mốc `first-screen`, nên nó là màn đầu cộng ~150 ms, không phải splash) và của thời gian từ lúc khởi chạy
+  tới mốc `first-screen` (màn đầu vẽ xong dưới splash vừa nhấc). Cạnh đó, không chặn: CPU bận bao nhiêu trước mỗi lần
+  (`cpuBusyPercent`, `settleMs`, `loadavg1`) và một app đối chứng mở lạnh sau mỗi lần (`controlTtidMs`, Settings) để
+  phân biệt app chậm với runner chậm; summary ghi khoảng min–max của từng số qua các lần. Lệnh `startup` làm vậy ở cả
+  nightly và chặng 2 GB. Nightly Android (`chat-mobile-verify.yml`, tài khoản
   staging): 5 lần mở lạnh tới mốc `inbox` (danh sách phòng đã vẽ, đã đăng nhập), rồi `perf-open-room.yaml` mở
   `MAESTRO_ROOM_ID`, reset `dumpsys gfxinfo`, `perf-scroll-room.yaml` cuộn lùi 20 lần rồi xuống lại; đo % khung giật,
   khung p90 và PSS; sau khi đã đếm khung, `perf-jump-quote.yaml` chạm trích dẫn của tin "Perf jump quote" và chờ tin
@@ -149,6 +155,13 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   `node scripts/mobile-perf.mjs tighten --profile <android|android-2gb|ios-simulator> runs/*/*.json` in đề xuất và
   `--write` ghi: mỗi trần = số tệ nhất + 15 %, không bao giờ cao hơn trần cũ, profile rời `provisional` khi mọi chỉ số
   có đủ 5 run. Commit đó trích URL các run; từ đó trần chỉ hạ, và chỉ nâng trong commit thêm sức nặng, ghi lý do.
+  Ngoại lệ đã đặt tay một lần (vì `tighten` chỉ đọc run xanh và chỉ hạ): `ios-simulator` (hai trần mở lạnh, 2026-10-23)
+  và ba trần mở lạnh của `android` (UNI-2142, 2026-10-23). `TotalTime` 3000 và `first-screen` 6000 đo cùng một khoảnh
+  khắc, và trần 3000 đánh rớt khoảng 1/9 run sạch (3092 và 3329 trong 25 job 2026-10-22/23; cùng một commit cho 2056 và
+  2748); nay là trung vị tệ nhất của 25 job đó + 15 %: `TotalTime` 3829, `first-screen` 3534, `js-boot` 2069. Với
+  nhiễu ~22 % giữa các run trên emulator này, một trần tuyệt đối cho một run chỉ bắt hồi quy thô (+50 % bắt khoảng
+  1/3, +100 % khoảng 4/5), không bắt +30 %. Để bắt được, đọc `cpuBusyPercent` và `controlTtidMs` của 5 run đo kiểu mới:
+  nếu nhiễu trong run và giữa các run đã giảm thì `tighten` từ chính các run đó.
   Trần tạm có hạn: qua `provisionalUntil` (2026-12-31) mà profile còn trong `provisional` thì
   `scripts/mobile-perf.test.mjs` đỏ — đo rồi `tighten`, không lùi ngày nếu không ghi lý do trong body commit.
   **A/B danh sách tin** (`unichat_mobile_timeline_recycled`, FlashList 2 thay FlatList đảo ngược): (1) nightly như
@@ -199,7 +212,11 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   `scripts/maestro-retry.sh`: hỏng thì chạy lại một lần; lần hai qua thì xanh nhưng để lại cảnh báo "Flaky device run"
   và một dòng `flaky:` trong step summary, hai lần hỏng thì đỏ. Một luồng cứ phải nhờ lần chạy lại (thấy trong các
   summary) là lỗi cần sửa — luồng chờ thiếu, hay app crash lúc có lúc không — không phải nhiễu. Tắt lượt chạy lại khi
-  điều tra: `MAESTRO_ATTEMPTS=1`.
+  điều tra: `MAESTRO_ATTEMPTS=1`. Trên iOS, driver XCTest của Maestro được chờ 5 phút
+  (`MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"` ở mỗi job iOS; mặc định 2 phút không đủ cho lần mở đầu trên simulator vừa
+  boot), và trước lần chạy lại `MAESTRO_IOS_UDID` cho script dừng `xcodebuild` và runner còn sót của lần trước. Thông báo
+  "iOS driver not ready in time" ở cả hai lần nghĩa là driver không lên nổi trong 5 phút, xem log xctest_runner trong
+  artifact `maestro-smoke-ios`.
 - Phiên bản công cụ ghim trong workflow: `EAS_CLI_VERSION` (release và OTA, cùng một số), `MAESTRO_VERSION` (nightly, tải zip release
   thay vì script cài), `EXPO_DOCTOR_VERSION`. Nâng trong một PR riêng.
 - Ngân sách bundle: hạ trần khi bundle nhỏ đi; chỉ nâng trong commit thêm sức nặng đó, ghi lý do trong body. Đo tại
