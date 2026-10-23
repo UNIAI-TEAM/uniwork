@@ -318,5 +318,34 @@ describe("every VoIP push is reported to CallKit (ios/CallCenter.swift)", () => 
     expect(report.slice(0, completions[0])).toMatch(/guard let provider else \{\s*$/);
     expect(completions[1]).toBeGreaterThan(reported);
   });
+
+  // An end reaches an iPhone whose CallKit no longer holds the call (an offline phone given only APNs' last push, a
+  // race with its own ring-out): iOS still wants a report, and that report shows a new incoming call until it is
+  // ended. Ended in the same turn as the report, not in its completion, the screen does not get to show it.
+  it("ends a push it only reports in the same turn, not once CallKit answers the report", () => {
+    const report = body("private func report(_ push: VoipCallPush?, completion:");
+    const reported = report.indexOf("provider.reportNewIncomingCall(");
+    const callback = report.indexOf("{ [weak self] error in", reported);
+    let depth = 0;
+    let closed = -1;
+    for (let i = callback; i < report.length; i++) {
+      if (report[i] === "{") depth++;
+      if (report[i] === "}" && --depth === 0) {
+        closed = i;
+        break;
+      }
+    }
+    expect(closed).toBeGreaterThan(callback);
+    const after = report.slice(closed);
+    expect(after).toMatch(/if case \.end\(let reason\) = outcome \{\s*provider\.reportCall\(with: id, endedAt: nil, reason: reason\)/);
+  });
+
+  it("ends a call with the reason the end push gives", () => {
+    const push = readFileSync(path.join(modulesRoot, "unichat-calls/ios/VoipCallPush.swift"), "utf8");
+    expect(push).toMatch(/case "answered":\s*return \.answeredElsewhere/);
+    expect(push).toMatch(/case "declined":\s*return \.declinedElsewhere/);
+    expect(push).toMatch(/default:\s*return \.remoteEnded/);
+    expect(source).not.toMatch(/push\.kind == \.end[^\n]*\n[^\n]*\.end\(\.remoteEnded\)/);
+  });
 });
 

@@ -1,9 +1,11 @@
+import CallKit
 import CryptoKit
 import Foundation
 
 /// A VoIP push from the server (docs/adr/0038, the APNs VoIP sender in server/internal/notification): its whole payload is
 /// `{"uniwork": {"kind": "invite" | "end", "call_id", "room_id", "workspace_id", "org_slug", "ws_slug", "caller_name",
-/// "video", "expires_at"}}`. Nil when the payload is not one: the push is still reported to CallKit, and ended at once.
+/// "video", "expires_at", "reason"}}`. Nil when the payload is not one: the push is still reported to CallKit, and ended
+/// at once.
 struct VoipCallPush {
   enum Kind: String {
     case invite
@@ -23,6 +25,9 @@ struct VoipCallPush {
   let callerName: String
   let video: Bool
   let expiresAt: Date
+  /// Why an end's ring stopped: "answered" (on another device of this person), "declined" (on another device),
+  /// "ended" (the call is over); empty on an invite and on an end from a server that does not say.
+  let reason: String
 
   init?(_ payload: [AnyHashable: Any], now: Date = Date()) {
     guard
@@ -42,6 +47,19 @@ struct VoipCallPush {
     callerName = body["caller_name"] as? String ?? ""
     video = body["video"] as? Bool ?? false
     expiresAt = (body["expires_at"] as? String).flatMap(VoipCallPush.date) ?? now.addingTimeInterval(VoipCallPush.defaultRing)
+    reason = body["reason"] as? String ?? ""
+  }
+
+  /// What CallKit says of a call this end takes down: answered or declined elsewhere, else ended by the others.
+  var endedReason: CXCallEndedReason {
+    switch reason {
+    case "answered":
+      return .answeredElsewhere
+    case "declined":
+      return .declinedElsewhere
+    default:
+      return .remoteEnded
+    }
   }
 
   /// An invite JavaScript can still answer: it has not rung out.

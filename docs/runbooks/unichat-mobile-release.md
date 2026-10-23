@@ -899,8 +899,13 @@ hai tài khoản cùng tổ chức, A gọi B; B là iPhone):
 - [ ] Trượt để nghe trên màn khoá: màn của iOS chuyển sang đang gọi, tiếng hai chiều có trong vài giây (app nối LiveKit ở
   nền), A thấy B đã nghe; mở khoá và chạm biểu tượng UniChat trên màn của iOS: app mở đúng màn cuộc gọi.
 - [ ] Gác máy trên màn của iOS: A thấy cuộc gọi kết thúc; A gác trước: màn của iOS trên máy B đi mất.
-- [ ] Từ chối trên màn khoá (app đã kill): A thấy "từ chối" trong vài giây, không đợi hết chuông.
-- [ ] Không ai nghe: máy B thôi reo khi hết cửa sổ đổ chuông (khoảng 60 s), A thấy "không trả lời".
+- [ ] Từ chối trên màn khoá (app đã kill): A thấy "từ chối" trong vài giây, không đợi hết chuông; trên máy B không có
+  màn cuộc gọi đến thứ hai nào sáng lên sau đó (một `end` gửi nhầm tới iPhone đã từ chối là một cuộc gọi ma). Làm lại
+  với app đang mở.
+- [ ] Không ai nghe: máy B thôi reo khi hết cửa sổ đổ chuông (khoảng 60 s), A thấy "không trả lời"; A gác ngay sau
+  đó thì máy B không sáng lại.
+- [ ] Máy B bật chế độ máy bay, A gọi rồi gác trong 60 s; B tắt chế độ máy bay: không reo, nhiều nhất một chớp màn
+  cuộc gọi đến tắt ngay (push `end` APNs giữ lại).
 - [ ] B có iPhone và máy thứ hai (Android hay web): nghe ở máy kia thì iPhone thôi reo trong vài giây (push `end`); nghe
   trên iPhone thì cuộc gọi trên iPhone không bị cắt khi `end` của lượt đổ chuông tới.
 - [ ] Bật Không làm phiền / Tập trung: cuộc gọi theo luật của iOS cho cuộc gọi (không reo nếu iOS chặn), app không lỗi;

@@ -25,10 +25,17 @@ chi tiết phía server ở `calls.md` (mục "Cuộc gọi trên iPhone"). Đư
     SHA-256), nên lời mời outbox gửi lại và push kết thúc trúng cùng cuộc gọi;
   - lời mời mới còn hạn: reo, tự kết thúc `unanswered` lúc `expires_at` nếu không ai nghe và không có push kết thúc;
   - lời mời lặp của cuộc gọi đang reo hay đã nghe: giữ nguyên (CallKit trả `callUUIDAlreadyExists`, báo vẫn tính);
-  - `end` của cuộc gọi đang reo: kết thúc `remoteEnded`; `end` của cuộc gọi đã nghe trên chính máy này (server gửi
-    `end` tới cả iPhone đã nghe): giữ nguyên, app tự gác khi cuộc gọi xong;
-  - `end` không khớp cuộc gọi nào, lời mời hết hạn, lời mời của cuộc gọi đã kết thúc ở máy này (64 cuộc gần nhất) hay
-    payload lạ: báo rồi kết thúc ngay (`remoteEnded`, `unanswered`, `failed`).
+  - `end` của cuộc gọi đang reo: kết thúc với lý do theo `reason` của push (`answered` → `answeredElsewhere`,
+    `declined` → `declinedElsewhere`, `ended` hay thiếu → `remoteEnded`); `end` của cuộc gọi đã nghe trên chính máy này:
+    giữ nguyên, app tự gác khi cuộc gọi xong (server không gửi `end` tới phiên đã nghe hay đã từ chối, app vẫn giữ luật
+    này);
+  - `end` không khớp cuộc gọi nào (iPhone offline nhận lại push cuối APNs giữ, máy đã tự hết chuông), lời mời hết hạn,
+    lời mời của cuộc gọi đã kết thúc ở máy này (64 cuộc gần nhất) hay payload lạ: báo rồi kết thúc ngay (lý do theo
+    `reason`, `remoteEnded`, `unanswered`, `failed`). iOS bắt báo nên một push như vậy là một cuộc gọi mới với CallKit:
+    `reportCall(endedAt:)` chạy ngay sau `reportNewIncomingCall` trong cùng lượt, không đợi completion của báo, để màn
+    cuộc gọi đến không kịp sáng (`native-modules.test.ts › ends a push it only reports in the same turn`); completion
+    kết thúc lần nữa phòng khi CallKit nhận báo sau lệnh kết thúc. Server chỉ gửi `end` tới token còn đang reo nên
+    trường hợp này hiếm.
   - Tên trên màn CallKit là `caller_name`; rỗng thì tên app.
 - Nút của CallKit → sự kiện `onCallEvent` (`answered`, `declined`, `ended`, `muted`, `held`, `audio`, `token`); sự kiện
   trước khi JavaScript nghe (app đóng được push mở) nằm trong hàng đợi (32 mục) tới `takePendingEvents`. Nghe hay kết

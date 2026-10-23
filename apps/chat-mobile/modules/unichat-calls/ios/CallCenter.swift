@@ -288,6 +288,13 @@ final class CallCenter: NSObject, @unchecked Sendable {
         completion()
       }
     }
+    // Reported only because iOS demands it (an end for a call this phone no longer rings, a late invite): ended in the
+    // same turn, so the incoming-call screen the report would show does not get to. Waiting for the report's
+    // completion would leave it lit for as long as CallKit takes to answer.
+    if case .end(let reason) = outcome {
+      provider.reportCall(with: id, endedAt: nil, reason: reason)
+      forget(id, push: push)
+    }
   }
 
   private func decide(_ push: VoipCallPush?, held: TrackedCall?, now: Date) -> Outcome {
@@ -299,17 +306,29 @@ final class CallCenter: NSObject, @unchecked Sendable {
         return .keep
       }
       if push.kind == .end {
-        return .end(.remoteEnded)
+        return .end(push.endedReason)
       }
       return push.ringing(at: now) ? .keep : .end(.unanswered)
     }
-    if push.kind == .end || hasEnded(push.callId) {
+    if push.kind == .end {
+      return .end(push.endedReason)
+    }
+    if hasEnded(push.callId) {
       return .end(.remoteEnded)
     }
     return push.ringing(at: now) ? .ring : .end(.unanswered)
   }
 
-  /// After CallKit took the report: a new invite rings until it rings out; an end ends now.
+  /// A call ended at its report: CallKit holds it no more, and a retried invite of it rings no more.
+  private func forget(_ id: UUID, push: VoipCallPush?) {
+    if untrack(id) == nil, let callId = push?.callId {
+      lock.lock()
+      rememberEnded(callId)
+      lock.unlock()
+    }
+  }
+
+  /// After CallKit took the report: a new invite rings until it rings out.
   private func reported(_ id: UUID, push: VoipCallPush?, outcome: Outcome, error: Error?) {
     switch outcome {
     case .ring:
@@ -325,12 +344,9 @@ final class CallCenter: NSObject, @unchecked Sendable {
     case .keep:
       return
     case .end(let reason):
+      // Ended already as it was reported (report()); again, in case CallKit took the report after that end. Ending a
+      // call CallKit no longer holds changes nothing.
       provider?.reportCall(with: id, endedAt: nil, reason: reason)
-      if untrack(id) == nil, let callId = push?.callId {
-        lock.lock()
-        rememberEnded(callId)
-        lock.unlock()
-      }
     }
   }
 
