@@ -97,6 +97,24 @@ describe("leaving the screen with something owed", () => {
     expect(order).toEqual(["begin", "keep", "end"]);
   });
 
+  it("iOS: a send that fails on a blip goes again within the borrowed time, given back after the round that went", async () => {
+    vi.useFakeTimers();
+    try {
+      let rounds = 0;
+      const blip: DrainEnv = { ...drainEnv("drained"), deliver: async () => void (rounds += 1), owes: () => rounds < 2, budgetMs: 25_000 };
+      const { env, order } = fakeEnv("ios", { running: () => blip });
+      const leaving = keepSendingOffScreen("me", env);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(order).toEqual(["begin", "keep"]);
+      await vi.advanceTimersByTimeAsync(1_000);
+      await leaving;
+      expect(rounds).toBe(2);
+      expect(order).toEqual(["begin", "keep", "end", "drop"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("iOS: drains all the same when the system lends no time, and gives back none", async () => {
     const { env, order } = fakeEnv("ios");
     vi.mocked(env.native.beginGrace).mockResolvedValueOnce(null);
