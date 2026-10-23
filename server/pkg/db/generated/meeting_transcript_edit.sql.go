@@ -125,22 +125,32 @@ func (q *Queries) DeleteTranscriptSegment(ctx context.Context, arg DeleteTranscr
 	return result.RowsAffected(), nil
 }
 
-const deleteTranscriptSegmentsBetween = `-- name: DeleteTranscriptSegmentsBetween :execrows
-DELETE FROM meeting_transcript_segments
-WHERE meeting_id = $1
-  AND spoken_at >= $2::timestamptz AND spoken_at < $3::timestamptz
+const deleteTranscriptSegmentsBetweenLines = `-- name: DeleteTranscriptSegmentsBetweenLines :execrows
+WITH bounds AS (
+  SELECT f.spoken_at AS from_at, f.id AS from_row, t.spoken_at AS to_at, t.id AS to_row
+  FROM meeting_transcript_segments f, meeting_transcript_segments t
+  WHERE f.meeting_id = $1 AND f.id = $2
+    AND t.meeting_id = $1 AND t.id = $3
+)
+DELETE FROM meeting_transcript_segments s USING bounds
+WHERE s.meeting_id = $1
+  AND s.spoken_at >= bounds.from_at AND s.spoken_at <= bounds.to_at
+  AND (s.spoken_at, s.id) >= (bounds.from_at, bounds.from_row) AND (s.spoken_at, s.id) <= (bounds.to_at, bounds.to_row)
 `
 
-type DeleteTranscriptSegmentsBetweenParams struct {
-	MeetingID string             `json:"meeting_id"`
-	FromAt    pgtype.Timestamptz `json:"from_at"`
-	ToAt      pgtype.Timestamptz `json:"to_at"`
+type DeleteTranscriptSegmentsBetweenLinesParams struct {
+	MeetingID string `json:"meeting_id"`
+	FromID    string `json:"from_id"`
+	ToID      string `json:"to_id"`
 }
 
 // tenant: parent meeting_id
-// Every line spoken in [from_at, to_at), whatever its source.
-func (q *Queries) DeleteTranscriptSegmentsBetween(ctx context.Context, arg DeleteTranscriptSegmentsBetweenParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteTranscriptSegmentsBetween, arg.MeetingID, arg.FromAt, arg.ToAt)
+// Every line from one line to another, both included, in reading order
+// (spoken_at, id), whatever its source. The bounds are the rows themselves,
+// so no time a client rounded can miss the last line. Nothing goes when
+// either line is not in the meeting or the end comes before the start.
+func (q *Queries) DeleteTranscriptSegmentsBetweenLines(ctx context.Context, arg DeleteTranscriptSegmentsBetweenLinesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTranscriptSegmentsBetweenLines, arg.MeetingID, arg.FromID, arg.ToID)
 	if err != nil {
 		return 0, err
 	}

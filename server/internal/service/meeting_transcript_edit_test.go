@@ -212,34 +212,62 @@ func TestDeleteTranscriptLinesRangeAndAll(t *testing.T) {
 	if err := e.s.DeleteTranscriptSegment(ctx, e.host.ID, e.m.ID, ids[0]); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("second delete = %v", err)
 	}
+	// Sub-second lines around the stretch's end: the bounds are the two
+	// lines themselves, not their times rounded to a second.
 	t0 := e.m.ActualStartAt.Time
-	if _, err := e.s.DeleteTranscriptRange(ctx, e.host.ID, e.m.ID, t0.Add(5*time.Second), t0.Add(3*time.Second)); !isValidationErr(err) {
+	inside, after := util.NewID(), util.NewID()
+	for id, at := range map[string]time.Duration{inside: 4500 * time.Millisecond, after: 5500 * time.Millisecond} {
+		if _, err := e.s.pool.Exec(ctx, `INSERT INTO meeting_transcript_segments (id, meeting_id, organization_id, speaker_name, text, spoken_at, source)
+			VALUES ($1, $2, $3, 'X', $1, $4, 'CAPTION')`, id, e.m.ID, e.m.OrganizationID, t0.Add(at)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := e.s.pool.Exec(ctx, `UPDATE meeting_transcript_segments SET spoken_at = spoken_at + interval '400 milliseconds' WHERE id = $1`, ids[5]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.s.DeleteTranscriptRange(ctx, e.host.ID, e.m.ID, ids[5], ids[3]); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("reversed range = %v", err)
 	}
-	n, err := e.s.DeleteTranscriptRange(ctx, e.host.ID, e.m.ID, t0.Add(3*time.Second), t0.Add(6*time.Second))
-	if err != nil || n != 3 {
+	if _, err := e.s.DeleteTranscriptRange(ctx, e.host.ID, e.m.ID, ids[3], util.NewID()); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("range ending on an unknown line = %v", err)
+	}
+	if _, err := e.s.DeleteTranscriptRange(ctx, e.member.ID, e.m.ID, ids[3], ids[5]); err == nil {
+		t.Fatal("a member deleted a range")
+	}
+	n, err := e.s.DeleteTranscriptRange(ctx, e.host.ID, e.m.ID, ids[3], ids[5])
+	if err != nil || n != 4 {
 		t.Fatalf("range deleted %d %v", n, err)
+	}
+	if left := countWhere(t, e.s, `SELECT count(*) FROM meeting_transcript_segments WHERE id = $1`, after); left != 1 {
+		t.Fatal("the line after the stretch went too")
+	}
+	if _, err := e.s.pool.Exec(ctx, `DELETE FROM meeting_transcript_segments WHERE id = $1`, after); err != nil {
+		t.Fatal(err)
+	}
+	// One line is a stretch of one.
+	if n, err := e.s.DeleteTranscriptRange(ctx, e.host.ID, e.m.ID, ids[2], ids[2]); err != nil || n != 1 {
+		t.Fatalf("one-line range deleted %d %v", n, err)
 	}
 	page, err := e.s.Transcript(ctx, e.member.ID, e.m.ID, FeedQuery{Asc: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := texts(page), []string{"line 1", "line 2", "line 6", "line 7", "line 8", "line 9"}; !sameTexts(got, want) {
+	if got, want := texts(page), []string{"line 1", "line 6", "line 7", "line 8", "line 9"}; !sameTexts(got, want) {
 		t.Fatalf("after range delete = %v", got)
 	}
 	n, err = e.s.DeleteTranscript(ctx, e.host.ID, e.m.ID)
-	if err != nil || n != 6 {
+	if err != nil || n != 5 {
 		t.Fatalf("whole transcript deleted %d %v", n, err)
 	}
 	if left := countWhere(t, e.s, `SELECT count(*) FROM meeting_transcript_segments WHERE meeting_id = $1`, e.m.ID); left != 0 {
 		t.Fatalf("lines left = %d", left)
 	}
 	if transcriptAuditRows(t, e.s, audit.ActionMeetingTranscriptSegmentDeleted, ids[0]) != 1 ||
-		transcriptAuditRows(t, e.s, audit.ActionMeetingTranscriptRangeDeleted, e.m.ID) != 1 ||
+		transcriptAuditRows(t, e.s, audit.ActionMeetingTranscriptRangeDeleted, e.m.ID) != 2 ||
 		transcriptAuditRows(t, e.s, audit.ActionMeetingTranscriptDeleted, e.m.ID) != 1 {
 		t.Fatal("a delete was not audited")
 	}
-	if n := changedEvents(t, e.s, e.m.ID); n != 3 {
+	if n := changedEvents(t, e.s, e.m.ID); n != 4 {
 		t.Fatalf("transcript.changed events = %d", n)
 	}
 }

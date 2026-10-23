@@ -38,13 +38,13 @@ describe("transcript edit endpoints (UNI-1995 #5)", () => {
   it("deletes a line, a stretch, all lines and a transcription", async () => {
     vi.mocked(fetch).mockImplementation(async () => json({ deleted: 3, status: "ok" }));
     await deleteTranscriptSegment("m1", "s1");
-    expect(await deleteTranscript("m1", { from: "2026-10-21T02:00:00Z", to: "2026-10-21T02:05:00Z" })).toBe(3);
+    expect(await deleteTranscript("m1", { fromSegmentId: "s1", toSegmentId: "s9" })).toBe(3);
     expect(await deleteTranscript("m1")).toBe(3);
     await deleteMeetingTranscription("m1", "t1");
     expect(call(0)[1]?.method).toBe("DELETE");
     expect(String(call(0)[0])).toBe("http://api.test/api/v1/meetings/m1/transcript/s1");
     expect(String(call(1)[0])).toBe(
-      "http://api.test/api/v1/meetings/m1/transcript?from=2026-10-21T02%3A00%3A00Z&to=2026-10-21T02%3A05%3A00Z",
+      "http://api.test/api/v1/meetings/m1/transcript?from_segment_id=s1&to_segment_id=s9",
     );
     expect(String(call(2)[0])).toBe("http://api.test/api/v1/meetings/m1/transcript");
     expect(String(call(3)[0])).toBe("http://api.test/api/v1/meetings/m1/transcriptions/t1");
@@ -54,6 +54,6 @@ describe("transcript edit endpoints (UNI-1995 #5)", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(editTranscriptSegment("m1", "s1", "x")).resolves.toBeNull();
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
-    await expect(deleteTranscript("m1")).resolves.toBe(0);
+    await expect(deleteTranscript("m1")).resolves.toBeNull();
   });
 });

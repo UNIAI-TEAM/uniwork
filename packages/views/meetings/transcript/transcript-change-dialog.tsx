@@ -52,6 +52,11 @@ export function TranscriptChangeDialog({
   const close = (open: boolean) => {
     if (!open && !pending) onClose();
   };
+  // A delete that removed nothing says so rather than closing as if it had.
+  const done = (deleted: number | null) => {
+    if (deleted === 0) toast.info(t("meetings.transcriptNothingDeleted"));
+    onClose();
+  };
   const failure = failed ? (
     <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive">
       {t("meetings.transcriptChangeFailed")}
@@ -67,10 +72,8 @@ export function TranscriptChangeDialog({
         return;
       }
       const end = choices.find((s) => s.id === endId) ?? change.segment;
-      // The server deletes [from, to): one millisecond past the last line keeps it inside.
-      const from = new Date(Date.parse(change.segment.spoken_at)).toISOString();
-      const to = new Date(Date.parse(end.spoken_at) + 1).toISOString();
-      void remove.mutateAsync({ from, to }).then(onClose, () => undefined);
+      // The server reads both lines' exact times: no rounded time can miss the last one.
+      void remove.mutateAsync({ fromSegmentId: change.segment.id, toSegmentId: end.id }).then(done, () => undefined);
     };
     return (
       <Dialog open onOpenChange={close}>
@@ -145,7 +148,7 @@ export function TranscriptChangeDialog({
       onConfirm={() => {
         // The dialog stays until the server answers; a failure says so and keeps it open.
         if (pending) return;
-        remove.mutateAsync(all ? { all: true } : { segmentId: change.segment.id }).then(onClose, () => {
+        remove.mutateAsync(all ? { all: true } : { segmentId: change.segment.id }).then(done, () => {
           toast.error(t("meetings.transcriptChangeFailed"));
         });
       }}

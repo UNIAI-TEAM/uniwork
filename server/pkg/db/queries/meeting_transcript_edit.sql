@@ -16,12 +16,22 @@ RETURNING *;
 -- tenant: parent meeting_id
 DELETE FROM meeting_transcript_segments WHERE id = sqlc.arg('id') AND meeting_id = sqlc.arg('meeting_id');
 
--- name: DeleteTranscriptSegmentsBetween :execrows
+-- name: DeleteTranscriptSegmentsBetweenLines :execrows
 -- tenant: parent meeting_id
--- Every line spoken in [from_at, to_at), whatever its source.
-DELETE FROM meeting_transcript_segments
-WHERE meeting_id = sqlc.arg('meeting_id')
-  AND spoken_at >= sqlc.arg('from_at')::timestamptz AND spoken_at < sqlc.arg('to_at')::timestamptz;
+-- Every line from one line to another, both included, in reading order
+-- (spoken_at, id), whatever its source. The bounds are the rows themselves,
+-- so no time a client rounded can miss the last line. Nothing goes when
+-- either line is not in the meeting or the end comes before the start.
+WITH bounds AS (
+  SELECT f.spoken_at AS from_at, f.id AS from_row, t.spoken_at AS to_at, t.id AS to_row
+  FROM meeting_transcript_segments f, meeting_transcript_segments t
+  WHERE f.meeting_id = sqlc.arg('meeting_id') AND f.id = sqlc.arg('from_id')
+    AND t.meeting_id = sqlc.arg('meeting_id') AND t.id = sqlc.arg('to_id')
+)
+DELETE FROM meeting_transcript_segments s USING bounds
+WHERE s.meeting_id = sqlc.arg('meeting_id')
+  AND s.spoken_at >= bounds.from_at AND s.spoken_at <= bounds.to_at
+  AND (s.spoken_at, s.id) >= (bounds.from_at, bounds.from_row) AND (s.spoken_at, s.id) <= (bounds.to_at, bounds.to_row);
 
 -- name: DeleteMeetingTranscriptSegments :execrows
 -- tenant: parent meeting_id

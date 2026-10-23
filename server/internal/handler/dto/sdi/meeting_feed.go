@@ -29,6 +29,6 @@ type EditTranscriptSegmentSDI struct {
 
 // DeleteTranscriptSDI documents the query of DELETE /api/v1/meetings/{meetingID}/transcript.
 type DeleteTranscriptSDI struct {
-	From string `query:"from" description:"RFC3339: đầu khoảng cần xoá (gồm). Cùng to thì chỉ xoá khoảng [from, to); không có cả hai thì xoá toàn bộ lời thoại" example:"2026-10-21T02:05:00Z"`
-	To   string `query:"to" description:"RFC3339: cuối khoảng cần xoá (không gồm), sau from" example:"2026-10-21T02:10:00Z"`
+	FromSegmentID string `query:"from_segment_id" description:"ULID dòng đầu của đoạn cần xoá (gồm). Cùng to_segment_id thì chỉ xoá các dòng từ dòng này tới dòng kia theo thứ tự đọc, mọi nguồn; không có cả hai thì xoá toàn bộ lời thoại" example:"01K7SEG00000000000000000001"`
+	ToSegmentID   string `query:"to_segment_id" description:"ULID dòng cuối của đoạn (gồm), cùng dòng hoặc sau from_segment_id; dòng không có trong cuộc họp hoặc đứng trước thì 404" example:"01K7SEG00000000000000000009"`
 }

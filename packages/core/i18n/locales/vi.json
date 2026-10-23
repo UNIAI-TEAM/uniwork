@@ -3618,6 +3618,7 @@
     "transcriptDeleteConfirm": "Xóa",
     "transcriptChangeFailed": "Không lưu được thay đổi. Thử lại.",
     "transcriptJumpMissing": "Câu được dẫn không còn trong lời thoại.",
+    "transcriptNothingDeleted": "Không có câu nào bị xóa.",
     "summaryTranscriptChanged": "Lời thoại đã thay đổi sau khi tóm tắt này được tạo.",
     "loadOlderFailed": "Không tải được phần trước đó. Bấm lại để thử lại.",
     "hideTranscript": "Ẩn lời thoại",

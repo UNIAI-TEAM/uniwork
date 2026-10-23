@@ -3619,6 +3619,7 @@
     "transcriptDeleteConfirm": "Delete",
     "transcriptChangeFailed": "The change was not saved. Try again.",
     "transcriptJumpMissing": "The cited line is no longer in the transcript.",
+    "transcriptNothingDeleted": "Nothing was deleted.",
     "summaryTranscriptChanged": "The transcript changed after this summary was made.",
     "loadOlderFailed": "Couldn't load the earlier part. Select the button again to retry.",
     "hideTranscript": "Hide transcript",

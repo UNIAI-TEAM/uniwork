@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -86,27 +85,27 @@ func (s *MeetingService) DeleteTranscriptSegment(ctx context.Context, userID, me
 	})
 }
 
-// DeleteTranscriptRange removes every line spoken in [from, to), whatever
-// its source (an off-the-record stretch). It returns the lines removed.
-func (s *MeetingService) DeleteTranscriptRange(ctx context.Context, userID, meetingID string, from, to time.Time) (int64, error) {
+// DeleteTranscriptRange removes every line from fromID to toID, both
+// included, in reading order and whatever its source (an off-the-record
+// stretch); the two may be the same line. Either line missing, or the end
+// before the start, is ErrNotFound. It returns the lines removed.
+func (s *MeetingService) DeleteTranscriptRange(ctx context.Context, userID, meetingID, fromID, toID string) (int64, error) {
 	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
 	if err != nil {
 		return 0, err
 	}
-	if from.IsZero() || !to.After(from) {
-		return 0, Invalid("to phải sau from")
-	}
 	var n int64
 	err = s.inTx(ctx, func(q *db.Queries) error {
 		var err error
-		n, err = q.DeleteTranscriptSegmentsBetween(ctx, db.DeleteTranscriptSegmentsBetweenParams{
-			MeetingID: m.ID, FromAt: pgtype.Timestamptz{Time: from, Valid: true}, ToAt: pgtype.Timestamptz{Time: to, Valid: true},
-		})
-		if err != nil || n == 0 {
+		n, err = q.DeleteTranscriptSegmentsBetweenLines(ctx, db.DeleteTranscriptSegmentsBetweenLinesParams{MeetingID: m.ID, FromID: fromID, ToID: toID})
+		if err != nil {
 			return err
 		}
+		if n == 0 {
+			return ErrNotFound
+		}
 		return s.transcriptChanged(ctx, q, m, audit.User(userID), audit.ActionMeetingTranscriptRangeDeleted, "meeting", m.ID,
-			map[string]any{"from": from.UTC().Format(time.RFC3339), "to": to.UTC().Format(time.RFC3339), "segments": n})
+			map[string]any{"from_segment_id": fromID, "to_segment_id": toID, "segments": n})
 	})
 	return n, err
 }

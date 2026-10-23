@@ -29,13 +29,19 @@ export async function deleteTranscriptSegment(meetingId: string, segmentId: stri
 }
 
 /**
- * Deletes the lines spoken in [from, to) (RFC 3339), or every line when no
- * range is given. Returns how many went; 0 when the answer does not parse.
+ * Deletes the lines from one line to another, both included (the server
+ * reads their exact times), or every line when no range is given. Returns
+ * how many went; null when the answer does not parse.
  */
-export async function deleteTranscript(meetingId: string, range?: { from: string; to: string }): Promise<number> {
-  const qs = range ? `?${new URLSearchParams({ from: range.from, to: range.to }).toString()}` : "";
+export async function deleteTranscript(
+  meetingId: string,
+  range?: { fromSegmentId: string; toSegmentId: string },
+): Promise<number | null> {
+  const qs = range
+    ? `?${new URLSearchParams({ from_segment_id: range.fromSegmentId, to_segment_id: range.toSegmentId }).toString()}`
+    : "";
   const raw = await request(`${base(meetingId)}/transcript${qs}`, { method: "DELETE" });
-  return parseWithFallback(raw, z.object({ deleted: z.number() }), { deleted: 0 }, {
+  return parseWithFallback<{ deleted: number | null }>(raw, z.object({ deleted: z.number() }), { deleted: null }, {
     endpoint: "DELETE /api/v1/meetings/{id}/transcript",
   }).deleted;
 }

@@ -3,7 +3,6 @@ package handler
 import (
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -38,25 +37,23 @@ func (h *handlers) deleteTranscriptSegment(w http.ResponseWriter, r *http.Reques
 	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
 }
 
-// deleteTranscript is DELETE /meetings/{meetingID}/transcript: the stretch
-// [from, to) when both are given, else the whole transcript.
+// deleteTranscript is DELETE /meetings/{meetingID}/transcript: the lines
+// from_segment_id to to_segment_id when both are given, else the whole
+// transcript.
 func (h *handlers) deleteTranscript(w http.ResponseWriter, r *http.Request) {
 	v := r.URL.Query()
-	rawFrom, rawTo := strings.TrimSpace(v.Get("from")), strings.TrimSpace(v.Get("to"))
+	fromID, toID := strings.TrimSpace(v.Get("from_segment_id")), strings.TrimSpace(v.Get("to_segment_id"))
 	userID, meetingID := middleware.UserID(r.Context()), chi.URLParam(r, "meetingID")
 	var n int64
 	var err error
 	switch {
-	case rawFrom == "" && rawTo == "":
+	case fromID == "" && toID == "":
 		n, err = h.Meetings.DeleteTranscript(r.Context(), userID, meetingID)
+	case fromID == "" || toID == "":
+		respondError(w, http.StatusBadRequest, "invalid_request", "from_segment_id và to_segment_id phải đi cùng nhau")
+		return
 	default:
-		from, ferr := time.Parse(time.RFC3339, rawFrom)
-		to, terr := time.Parse(time.RFC3339, rawTo)
-		if ferr != nil || terr != nil {
-			respondError(w, http.StatusBadRequest, "invalid_request", "from và to phải là RFC3339 và đi cùng nhau")
-			return
-		}
-		n, err = h.Meetings.DeleteTranscriptRange(r.Context(), userID, meetingID, from, to)
+		n, err = h.Meetings.DeleteTranscriptRange(r.Context(), userID, meetingID, fromID, toID)
 	}
 	if err != nil {
 		h.mapServiceError(w, err)

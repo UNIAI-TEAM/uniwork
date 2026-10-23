@@ -89,14 +89,19 @@ export function useEditTranscriptSegment(meetingId: string) {
   });
 }
 
-/** One line, a stretch [from, to) or (neither) every line of the transcript. */
+/**
+ * One line, the lines from one to another (both included) or every line.
+ * Resolves to how many went: 1 for a line, null when the answer did not parse.
+ */
 export function useDeleteTranscript(meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (v: { segmentId: string } | { from: string; to: string } | { all: true }) => {
-      if ("segmentId" in v) return edit.deleteTranscriptSegment(meetingId, v.segmentId);
-      if ("from" in v) return void (await edit.deleteTranscript(meetingId, { from: v.from, to: v.to }));
-      return void (await edit.deleteTranscript(meetingId));
+    mutationFn: async (
+      v: { segmentId: string } | { fromSegmentId: string; toSegmentId: string } | { all: true },
+    ): Promise<number | null> => {
+      if ("segmentId" in v) return edit.deleteTranscriptSegment(meetingId, v.segmentId).then(() => 1);
+      if ("fromSegmentId" in v) return edit.deleteTranscript(meetingId, v);
+      return edit.deleteTranscript(meetingId);
     },
     onSuccess: () => invalidateTranscript(qc, meetingId),
   });

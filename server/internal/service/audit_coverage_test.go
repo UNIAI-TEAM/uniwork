@@ -1951,8 +1951,8 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 		},
 		audit.ActionMeetingTranscriptRangeDeleted: func(t *testing.T, f *auditFixture) {
-			s, m, _ := auditTranscriptLine(t, f)
-			if _, err := s.DeleteTranscriptRange(f.ctx, f.owner.ID, m.ID, time.Now().Add(-time.Hour), time.Now().Add(time.Hour)); err != nil {
+			s, m, id := auditTranscriptLine(t, f)
+			if _, err := s.DeleteTranscriptRange(f.ctx, f.owner.ID, m.ID, id, id); err != nil {
 				t.Fatal(err)
 			}
 		},
