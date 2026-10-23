@@ -12,6 +12,8 @@ import { AskUniThread, type AskUniStream } from "./ask-uni-thread";
 
 initI18n();
 
+// Long enough to be shown while it streams; a call's short lead-in is held back.
+const LONG = "Có 3 việc quá hạn. ".repeat(10);
 const IDLE: AskStreamState = { status: "idle", question: "", conversationId: null, draft: "", steps: [], sources: {}, followups: [], regenerateOf: null, model: "", citations: [], message: null, errorCode: null };
 const history = [
   { id: "u1", role: "user", content: "Task nào quá hạn?", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "" },
@@ -63,13 +65,27 @@ describe("AskUniThread", () => {
   });
 
   it("streaming draft shows and clears on step", async () => {
-    const s = stream({ status: "streaming", question: "Họp tuần?", draft: "Đang viết" });
+    const s = stream({ status: "streaming", question: "Họp tuần?", draft: LONG });
     const m = mount(s);
     expect(await screen.findByText("Họp tuần?")).toBeInTheDocument();
-    expect(screen.getByText("Đang viết")).toBeInTheDocument();
+    expect(screen.getByText(LONG.trim())).toBeInTheDocument();
     m.update(stream({ status: "streaming", question: "Họp tuần?", draft: "", steps: [{ tool: "search", label: "quá hạn", counts: { task: 2 } }] }));
-    expect(screen.queryByText("Đang viết")).toBeNull();
+    expect(screen.queryByText(LONG.trim())).toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent("Đang tìm “quá hạn”…");
+  });
+
+  it("holds back a call's short lead-in, so the text a step clears never flashes", async () => {
+    const lead = "Để tôi tra cứu các việc trong workspace.";
+    const steps = [{ tool: "search", label: "quá hạn", counts: { task: 2 } }];
+    const m = mount(stream({ status: "streaming", question: "Họp tuần?", draft: lead }));
+    expect(await screen.findByText("Họp tuần?")).toBeInTheDocument();
+    expect(screen.queryByText(lead)).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("UNI đang suy nghĩ…");
+    m.update(stream({ status: "streaming", question: "Họp tuần?", draft: "", steps }));
+    expect(screen.getByRole("status")).toHaveTextContent("Đang tìm “quá hạn”…");
+    m.update(stream({ status: "streaming", question: "Họp tuần?", draft: LONG, steps }));
+    expect(screen.getByText(LONG.trim())).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Đang viết câu trả lời…");
   });
 
   it("shows the finished turn once and keeps its steps line", async () => {
@@ -218,13 +234,13 @@ const serve = (messages: unknown[]) =>
 
 describe("AskUniThread regenerate in place", () => {
   it("shows one question and the live answer where the old one was", async () => {
-    mount(stream({ status: "streaming", question: "Task nào quá hạn?", draft: "Đang viết lại", regenerateOf: "a1" }));
+    mount(stream({ status: "streaming", question: "Task nào quá hạn?", draft: LONG, regenerateOf: "a1" }));
     await screen.findByText("Task nào quá hạn?");
-    expect(await screen.findByText("Đang viết lại")).toBeInTheDocument();
+    expect(await screen.findByText(LONG.trim())).toBeInTheDocument();
     expect(screen.queryByText("Có 3 task quá hạn.")).toBeNull();
     expect(screen.getAllByText("Task nào quá hạn?")).toHaveLength(1);
     const items = screen.getAllByRole("listitem").map((li) => li.textContent ?? "");
-    expect(items.findIndex((x) => x.includes("Đang viết lại"))).toBe(items.findIndex((x) => x.includes("Task nào quá hạn?")) + 1);
+    expect(items.findIndex((x) => x.includes(LONG.trim()))).toBe(items.findIndex((x) => x.includes("Task nào quá hạn?")) + 1);
   });
 
   it("brings the old answer back, with its follow-ups and an error, when the regenerate fails", async () => {

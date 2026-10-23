@@ -15,6 +15,10 @@ export type AskUniStream = ReturnType<typeof useAskUniStream>;
 
 const NEAR_BOTTOM_PX = 80;
 const SAFE_CODE = /^[a-z_]+$/;
+// A model call that goes on to a tool streams a lead-in ("Để tôi tra cứu…") that the step then clears, so a call's
+// text shows only once it is longer than a lead-in.
+// shortcut: a lead-in longer than this still flashes; upgrade when the server can say which call is the answer.
+const DRAFT_HOLD_CHARS = 160;
 
 /** How many turns the cache held when the live turn started; null until the history has loaded. */
 interface Anchor {
@@ -152,10 +156,11 @@ export function AskUniThread({
           ? state.followups
           : [];
 
+  const draft = streaming && state.draft.length < DRAFT_HOLD_CHARS ? "" : state.draft;
   const liveAnswer: AskUniTurnMessage = {
     id: "live",
     role: "assistant",
-    content: state.message?.content ?? state.draft,
+    content: state.message?.content ?? draft,
     citations: state.message?.citations ?? state.citations,
     notice: state.message?.notice ?? (state.status === "stopped" ? "stopped" : ""),
     model: state.message?.model ?? state.model,
