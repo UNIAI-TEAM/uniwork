@@ -20,6 +20,7 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `AiCostSpike` | 2 | chi phí AI 1 giờ > 3× trung bình 7 ngày | [AiCostSpike.md](AiCostSpike.md) |
 | `WebhookInboxLagHigh` | 2 | webhook LiveKit chờ xử lý > 30 s | [WebhookInboxLagHigh.md](WebhookInboxLagHigh.md) |
 | `MeetingScribeCannotJoin` | 3 | thư ký AI không vào được phòng (> 2 lần trong 15 phút) | [MeetingScribeCannotJoin.md](MeetingScribeCannotJoin.md) |
+| `MeetingDialInRefusedCalls` | 2 | cuộc gọi điện thoại vào họp bị ngắt vì PIN cũ/rule lạ (> 10 trong 10 phút): nghi dò PIN | [MeetingDialInRefusedCalls.md](MeetingDialInRefusedCalls.md) |
 | `QueueLagUnreadable` | 2 | không đọc được lag outbox hoặc webhook inbox suốt 5 phút | [QueueLagUnreadable.md](QueueLagUnreadable.md) |
 | `RealtimePublishSlow` | 3 | p95 commit → frame > 1 s | [RealtimePublishSlow.md](RealtimePublishSlow.md) |
 | `RealtimeSlowEvictions` | 3 | > 25 client WebSocket bị đuổi trong 10 phút | [RealtimeSlowEvictions.md](RealtimeSlowEvictions.md) |

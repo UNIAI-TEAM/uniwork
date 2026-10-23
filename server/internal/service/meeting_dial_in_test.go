@@ -42,7 +42,7 @@ func TestDialInRuleFollowsTheMeeting(t *testing.T) {
 	s, fake, ua, ub, m := dialInFixture(t)
 	ctx := context.Background()
 	m = reloadMeeting(t, s, m.ID)
-	if len(m.DialInPin.String) != 6 {
+	if len(m.DialInPin.String) != 9 {
 		t.Fatalf("pin = %q", m.DialInPin.String)
 	}
 	rules := fake.LiveDialInRules()
@@ -152,7 +152,7 @@ func TestRotateDialInPin(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := reloadMeeting(t, s, m.ID)
-	if info.Pin == m.DialInPin.String || info.Pin != after.DialInPin.String || len(info.Pin) != 6 {
+	if info.Pin == m.DialInPin.String || info.Pin != after.DialInPin.String || len(info.Pin) != 9 {
 		t.Fatalf("rotated %q -> %q (stored %q)", m.DialInPin.String, info.Pin, after.DialInPin.String)
 	}
 	rules := fake.LiveDialInRules()
@@ -520,6 +520,8 @@ func TestDialInRedialIsANewKnock(t *testing.T) {
 func TestDialInCallerRefusedOrGoneLeavesNoOneWaiting(t *testing.T) {
 	s, fake, ua, _, m := dialInFixture(t)
 	ctx := context.Background()
+	met := &summaryMetrics{}
+	s.SetMeetingMetrics(met)
 	m = reloadMeeting(t, s, m.ID)
 	// Rejected: the call is dropped.
 	a := dialIn(t, s, fake, m, "sip_aaaa", "PA_a")
@@ -559,6 +561,17 @@ func TestDialInCallerRefusedOrGoneLeavesNoOneWaiting(t *testing.T) {
 	dialIn(t, s, fake, m, "sip_dddd", "PA_d")
 	if _, removed := fake.Snapshot(); removed[len(removed)-1].Identity != "sip_dddd" {
 		t.Fatalf("removed = %v", removed)
+	}
+	// UNI-1995 access (#24): each knock and each refused call is counted, the
+	// signal ops alert on (MeetingDialInRefusedCalls).
+	counts := map[string]int{}
+	met.mu.Lock()
+	for _, e := range met.events {
+		counts[e]++
+	}
+	met.mu.Unlock()
+	if counts["dial_in_call_knocked"] != 2 || counts["dial_in_call_refused"] != 2 {
+		t.Fatalf("dial-in events = %v, want 2 knocked and 2 refused", counts)
 	}
 }
 
