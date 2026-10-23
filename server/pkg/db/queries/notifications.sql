@@ -252,6 +252,37 @@ UPDATE notifications SET pushed_at = COALESCE(pushed_at, now()), phone_pushed_at
 WHERE id = $1
 RETURNING (read_at IS NOT NULL)::bool AS read;
 
+-- name: AddCallRingVoIPSubscriptions :exec
+-- tenant: system
+-- Records on a call's ring row the PushKit tokens its VoIP push reached
+-- (ADR 0038), so the ring's end goes to them (TakeCallRingVoIPSubscriptions).
+-- A retried ring adds to the list.
+UPDATE notifications SET voip_subscription_ids = ARRAY(
+  SELECT DISTINCT s FROM unnest(COALESCE(voip_subscription_ids, '{}'::text[]) || sqlc.arg('subscription_ids')::text[]) AS s
+)
+WHERE id = sqlc.arg('id');
+
+-- name: TakeCallRingVoIPSubscriptions :one
+-- tenant: self
+-- Takes, once, the PushKit tokens the ring of call_id reached (its newest ring
+-- row in the room's call group): the list is cleared in the same statement,
+-- so a retried ring_closed row or the call's own end later finds nothing and
+-- sends no second end. created_at says whether the ring is still within its
+-- window. No row back means no iPhone rang through CallKit.
+WITH cur AS (
+  SELECT r.id, r.voip_subscription_ids, r.created_at FROM notifications r
+  WHERE r.user_id = sqlc.arg('user_id') AND r.group_key = sqlc.arg('group_key')
+    AND r.voip_subscription_ids IS NOT NULL
+    AND r.params::jsonb ->> 'call_id' = sqlc.arg('call_id')::text
+  ORDER BY r.created_at DESC
+  LIMIT 1
+  FOR UPDATE
+)
+UPDATE notifications n SET voip_subscription_ids = NULL
+FROM cur
+WHERE n.id = cur.id
+RETURNING cur.voip_subscription_ids::text[] AS subscription_ids, cur.created_at;
+
 -- name: ClaimChatNotificationPush :one
 -- tenant: system
 -- Claims one message's push of a chat row before it is sent (UNI-2141): every

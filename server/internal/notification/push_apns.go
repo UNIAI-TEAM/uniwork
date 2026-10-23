@@ -61,7 +61,7 @@ type APNsConfig struct {
 	Topic      string
 }
 
-// APNsMetrics counts what APNs answered: result is sent, gone or failed, and
+// APNsMetrics counts what APNs answered: result is sent, gone, refused or failed, and
 // reason is Apple's reason code ("" when sent), a closed set with no token in it.
 type APNsMetrics interface {
 	IncAPNsVoIP(result, reason string)
@@ -139,15 +139,24 @@ type voipCall struct {
 	CallerName    string `json:"caller_name,omitempty"`
 	Video         bool   `json:"video"`
 	ExpiresAt     string `json:"expires_at"`
+	// Reason is an end's only: answered, declined or ended.
+	Reason string `json:"reason,omitempty"`
 }
 
 // voipKinds maps a CallPush type to the payload's kind; the rest (a missed
 // call) are not VoIP pushes.
 var voipKinds = map[string]string{CallPushInvite: "invite", CallPushEnd: "end"}
 
+// ErrPushRefused is a push APNs refused for good: a 4xx other than throttling
+// (a topic the key may not use, a payload too large, a refused key). Sending
+// it again would be refused again, so it is counted and never retried.
+var ErrPushRefused = errors.New("push refused")
+
 // Send delivers a ring or its end to one PushKit token. Anything else, or a
-// ring whose window already ran out, is ErrPushSkipped. 410 Unregistered and
-// 400 BadDeviceToken are ErrSubscriptionGone; every other refusal is retried.
+// ring whose window already ran out, is ErrPushSkipped. 410 Unregistered, 400
+// BadDeviceToken and, when the topic is the token's own, 400
+// DeviceTokenNotForTopic are ErrSubscriptionGone; any other 4xx but 429 is
+// ErrPushRefused; only 429 and a 5xx are worth a retry.
 func (s *APNsVoIPSender) Send(ctx context.Context, sub db.PushSubscription, msg PushMessage) error {
 	kind, ok := voipKinds[msg.Call.Type]
 	if !ok || !isVoIPSubscription(sub) || sub.Endpoint == "" {
@@ -183,6 +192,8 @@ func (s *APNsVoIPSender) Send(ctx context.Context, sub db.PushSubscription, msg 
 	}
 	if msg.Call.Type == CallPushInvite {
 		call.CallerName = msg.Call.CallerName
+	} else {
+		call.Reason = msg.Call.EndReason
 	}
 	body, err := json.Marshal(voipPush{UniWork: call})
 	if err != nil {
@@ -198,16 +209,24 @@ func (s *APNsVoIPSender) Send(ctx context.Context, sub db.PushSubscription, msg 
 		s.count("failed", "transport")
 		return err
 	}
+	// DeviceTokenNotForTopic under the registration's own topic means the token
+	// is not that app's: dead as registered, like a wrong environment's token.
+	// Under APNS_VOIP_TOPIC it is the server's configuration, so tokens stay.
+	notForTopic := status == http.StatusBadRequest && reason == "DeviceTokenNotForTopic" && s.topic == ""
 	switch {
 	case status == http.StatusOK:
 		s.count("sent", "")
 		return nil
-	case status == http.StatusGone, status == http.StatusBadRequest && reason == "BadDeviceToken":
+	case status == http.StatusGone, status == http.StatusBadRequest && reason == "BadDeviceToken", notForTopic:
 		s.count("gone", reason)
 		return ErrSubscriptionGone
 	}
 	if status == http.StatusForbidden {
 		s.dropToken() // a refused key or token: the next push mints a fresh one
+	}
+	if status >= 400 && status < 500 && status != http.StatusTooManyRequests {
+		s.count("refused", reason)
+		return fmt.Errorf("apns: %d %s: %w", status, reason, ErrPushRefused)
 	}
 	s.count("failed", reason)
 	return fmt.Errorf("apns: %d %s", status, reason)

@@ -521,8 +521,9 @@ func TestCallRingClosedStopsTheAndroidPhones(t *testing.T) {
 		t.Fatal(err)
 	}
 	answered := f.lastEvent(t, TopicCallRingClosed)
-	if p := payloadOf(t, answered); p["user_id"] != f.member.ID || p["room_id"] != dm.ID || p["call_id"] != "call-closed-1" || len(p) != 3 {
-		t.Fatalf("ring_closed payload = %v, want the ids of the callee, the room and the call", p)
+	if p := payloadOf(t, answered); p["user_id"] != f.member.ID || p["room_id"] != dm.ID || p["call_id"] != "call-closed-1" ||
+		p["reason"] != service.RingClosedAnswered || p["session_id"] != "" || len(p) != 5 {
+		t.Fatalf("ring_closed payload = %v, want the ids of the callee, the room and the call, why, and no session", p)
 	}
 	if !answered.ActorID.Valid || answered.ActorID.String != f.member.ID || answered.OrganizationID.String != f.orgID {
 		t.Fatalf("ring_closed actor/org = %+v/%+v, want the callee who answered in the call's organization", answered.ActorID, answered.OrganizationID)

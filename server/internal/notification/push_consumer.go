@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/outbox"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -326,6 +327,14 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		if rang.failed != nil {
 			slog.WarnContext(ctx, "push: VoIP ring failed, the iPhone gets the visible push", "user_id", n.UserID, "error", rang.failed)
 		}
+		// The ring's end goes to the tokens recorded here and nowhere else
+		// (endCallKitRings). Unrecorded, the iPhone rings out its window, which
+		// beats retrying the row and ringing every device again.
+		if len(rang.subscriptions) > 0 {
+			if err := c.q.AddCallRingVoIPSubscriptions(ctx, db.AddCallRingVoIPSubscriptionsParams{ID: n.ID, SubscriptionIds: rang.subscriptions}); err != nil {
+				slog.WarnContext(ctx, "push: VoIP ring not recorded, its end will not reach the iPhone", "user_id", n.UserID, "error", err)
+			}
+		}
 	}
 	var claim db.ClaimChatNotificationPushRow
 	if messageID != "" {
@@ -533,14 +542,14 @@ func (c *PushConsumer) missedCall(msg *PushMessage, locale string, params map[st
 const callEndTTL = int(callRingWindow / time.Second)
 
 // handleRingClosed tells a person's Android phones (the builds with the call
-// UI) that a call no longer
-// rings for them: they answered it on one device, declined it, or it ended.
-// A data-only push; the app removes its ringing screen and notification. An
-// iPhone's PushKit token gets it as a VoIP push while unichat_mobile_calls_ios
-// is on, so its CallKit screen comes down (ADR 0038); an iPhone without one
-// keeps today's visible push, which this cannot recall. Nothing is
-// sent when the calls switch is off for the person: their phone was never
-// rung, and a ring that outlives a switch flipped mid-call times out alone.
+// UI) that a call no longer rings for them: they answered it on one device,
+// declined it, or it ended. A data-only push; the app removes its ringing
+// screen and notification. The iPhones the ring reached through CallKit get
+// it as a VoIP push while unichat_mobile_calls_ios is on (endCallKitRings);
+// an iPhone without a PushKit token keeps today's visible push, which this
+// cannot recall. Nothing is sent when the calls switch is off for the person:
+// their phone was never rung, and a ring that outlives a switch flipped
+// mid-call times out alone. Only the Android sends can fail the row.
 func (c *PushConsumer) handleRingClosed(ctx context.Context, ev outbox.Row) error {
 	var p map[string]string
 	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
@@ -558,25 +567,77 @@ func (c *PushConsumer) handleRingClosed(ctx context.Context, ev outbox.Row) erro
 		return err
 	}
 	msg := PushMessage{TTL: callEndTTL, Call: CallPush{Type: CallPushEnd, CallID: callID, RoomID: roomID, WorkspaceID: ev.WorkspaceID.String}}
-	var ended voipResult
 	if c.mobileCallsIOS == nil || c.mobileCallsIOS(ctx, userID, ev.OrganizationID.String) {
-		if ended, err = c.sendVoIP(ctx, subs, msg); err != nil {
+		if err := c.endCallKitRings(ctx, userID, p, subs, msg); err != nil {
 			return err
 		}
 	}
-	return errors.Join(ended.failed, c.sendToCallUI(ctx, subs, msg))
+	return c.sendToCallUI(ctx, subs, msg)
+}
+
+// endCallKitRings sends a ring's end as a VoIP push, saying why it stopped,
+// only where it can take a CallKit screen down: iOS makes the app report a
+// call for every VoIP push, so an end anywhere else shows a call that is not
+// ringing and ends it at once. It goes to the PushKit tokens the ring reached
+// (recorded on its ring row), once (the record is taken as it is read), while
+// the ring is within its window, and not to the device session that answered
+// or declined (the payload's session_id): that iPhone knows, and an end there
+// would hang up the call it just answered. Once the record is taken nothing
+// fails the row: a retry would end the other phones again, and a ring the end
+// misses stops at the end of its window. The error is reading the record.
+func (c *PushConsumer) endCallKitRings(ctx context.Context, userID string, p map[string]string, subs []db.PushSubscription, msg PushMessage) error {
+	if !slices.ContainsFunc(subs, isVoIPSubscription) {
+		return nil
+	}
+	ring, err := c.q.TakeCallRingVoIPSubscriptions(ctx, db.TakeCallRingVoIPSubscriptionsParams{
+		UserID: userID, GroupKey: service.ChatCallNotifyGroup(p["room_id"]), CallID: p["call_id"],
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // no iPhone rang through CallKit
+	}
+	if err != nil {
+		return err
+	}
+	if c.now().Sub(ring.CreatedAt.Time) > callRingWindow {
+		return nil // the ring already stopped on the phone
+	}
+	closer := p["session_id"]
+	targets := slices.DeleteFunc(slices.Clone(subs), func(sub db.PushSubscription) bool {
+		return !isVoIPSubscription(sub) || !slices.Contains(ring.SubscriptionIds, sub.ID) ||
+			(closer != "" && sub.SessionID.Valid && sub.SessionID.String == closer)
+	})
+	msg.Call.EndReason = ringClosedReason(p["reason"])
+	ended, err := c.sendVoIP(ctx, targets, msg)
+	if err == nil {
+		err = ended.failed
+	}
+	if err != nil {
+		slog.WarnContext(ctx, "push: VoIP end failed, the iPhone rings out its window", "user_id", userID, "error", err)
+	}
+	return nil
+}
+
+// ringClosedReason keeps the payload's reason within its closed set; a row
+// written before it carried one reads as ended.
+func ringClosedReason(reason string) string {
+	switch reason {
+	case service.RingClosedAnswered, service.RingClosedDeclined:
+		return reason
+	}
+	return service.RingClosedEnded
 }
 
 // voipResult is what sendVoIP did: whether any PushKit token took the push,
-// the device sessions those tokens were registered from, and the last
-// retryable failure.
+// which ones (push_subscriptions ids), the device sessions they were
+// registered from, and the last failure.
 type voipResult struct {
-	sent     bool
-	sessions map[string]bool
-	failed   error
+	sent          bool
+	subscriptions []string
+	sessions      map[string]bool
+	failed        error
 }
 
-// sendVoIP sends a ring or its end to the person's PushKit tokens, naming
+// sendVoIP sends a ring or its end to the PushKit tokens among subs, naming
 // the call's organization and workspace by slug: the app opens the call by its
 // path. A dead token is revoked; a token the sender skips (no APNs key) is
 // counted and left for the Expo path. The error is only the slug lookup's.
@@ -601,6 +662,7 @@ func (c *PushConsumer) sendVoIP(ctx context.Context, subs []db.PushSubscription,
 		case err == nil:
 			c.count("sent")
 			out.sent = true
+			out.subscriptions = append(out.subscriptions, sub.ID)
 			if sub.SessionID.Valid {
 				if out.sessions == nil {
 					out.sessions = map[string]bool{}

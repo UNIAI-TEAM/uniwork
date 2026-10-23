@@ -229,15 +229,16 @@ func TestAPNsVoIPSenderRingsAnIPhone(t *testing.T) {
 }
 
 // The end of a ring is a VoIP push too (the app reports the call and ends it,
-// so the CallKit screen comes down), held as long as an Android end is; a
-// sandbox token (a development build) goes to the sandbox host; APNS_VOIP_TOPIC
-// overrides the topic the bundle id names.
+// so the CallKit screen comes down), held as long as an Android end is, and it
+// says why the ring stopped (answered, declined or ended) so CallKit's history
+// can; a sandbox token (a development build) goes to the sandbox host;
+// APNS_VOIP_TOPIC overrides the topic the bundle id names.
 func TestAPNsVoIPSenderEndsTheRingOnTheSandboxHost(t *testing.T) {
 	fake := newFakeAPNs(t)
 	_, pemKey := testAPNsKey(t)
 	now := time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
 	s := newTestAPNsSender(t, fake, APNsConfig{KeyID: "K", TeamID: "T", PrivateKey: pemKey, Topic: "com.example.override.voip"}, &now)
-	msg := PushMessage{TTL: callEndTTL, Call: CallPush{Type: CallPushEnd, CallID: "c1", RoomID: "r1", WorkspaceID: "ws1", OrgSlug: "acme", WorkspaceSlug: "eng"}}
+	msg := PushMessage{TTL: callEndTTL, Call: CallPush{Type: CallPushEnd, CallID: "c1", RoomID: "r1", WorkspaceID: "ws1", OrgSlug: "acme", WorkspaceSlug: "eng", EndReason: "answered"}}
 
 	if err := s.Send(context.Background(), voipSub(testVoIPToken, "sandbox", "com.uniworkos.chat.staging"), msg); err != nil {
 		t.Fatal(err)
@@ -250,7 +251,7 @@ func TestAPNsVoIPSenderEndsTheRingOnTheSandboxHost(t *testing.T) {
 		t.Fatalf("apns-expiration = %s, want now + %ds", exp, callEndTTL)
 	}
 	u := r.payload["uniwork"]
-	if u["kind"] != "end" || u["call_id"] != "c1" || u["room_id"] != "r1" || u["video"] != false || u["expires_at"] == nil {
+	if u["kind"] != "end" || u["call_id"] != "c1" || u["room_id"] != "r1" || u["video"] != false || u["expires_at"] == nil || u["reason"] != "answered" {
 		t.Fatalf("end payload = %v", u)
 	}
 	if _, named := u["caller_name"]; named {
@@ -301,9 +302,12 @@ func TestAPNsVoIPSenderCachesItsProviderToken(t *testing.T) {
 	}
 }
 
-// APNs answers decide the subscription: 410 Unregistered and 400
-// BadDeviceToken mean the token is dead, so it is revoked; throttling, an
-// outage, a refused key or a topic mismatch are retried, never revoked.
+// APNs answers decide the subscription and the row: 410 Unregistered, 400
+// BadDeviceToken and 400 DeviceTokenNotForTopic (the token is not the
+// registered app's) mean the token is dead, so it is revoked; any other 4xx is
+// a refusal that a resend would only repeat (a wrong topic, a payload too
+// large, a refused key), so it is ErrPushRefused; only throttling (429) and a
+// 5xx are worth a retry.
 func TestAPNsVoIPSenderMapsAnswers(t *testing.T) {
 	fake := newFakeAPNs(t)
 	_, pemKey := testAPNsKey(t)
@@ -311,23 +315,41 @@ func TestAPNsVoIPSenderMapsAnswers(t *testing.T) {
 	s := newTestAPNsSender(t, fake, APNsConfig{KeyID: "K", TeamID: "T", PrivateKey: pemKey}, &now)
 	metrics := &apnsMetricsSpy{}
 	s.SetMetrics(metrics)
+	const (
+		gone    = "gone"
+		refused = "refused"
+		retry   = "retry"
+	)
 	cases := []struct {
 		answer apnsAnswer
-		gone   bool
+		want   string
 	}{
-		{apnsAnswer{http.StatusGone, "Unregistered"}, true},
-		{apnsAnswer{http.StatusBadRequest, "BadDeviceToken"}, true},
-		{apnsAnswer{http.StatusBadRequest, "DeviceTokenNotForTopic"}, false},
-		{apnsAnswer{http.StatusTooManyRequests, "TooManyRequests"}, false},
-		{apnsAnswer{http.StatusServiceUnavailable, "ServiceUnavailable"}, false},
-		{apnsAnswer{http.StatusForbidden, "InvalidProviderToken"}, false},
+		{apnsAnswer{http.StatusGone, "Unregistered"}, gone},
+		{apnsAnswer{http.StatusBadRequest, "BadDeviceToken"}, gone},
+		{apnsAnswer{http.StatusBadRequest, "DeviceTokenNotForTopic"}, gone},
+		{apnsAnswer{http.StatusBadRequest, "TopicDisallowed"}, refused},
+		{apnsAnswer{http.StatusRequestEntityTooLarge, "PayloadTooLarge"}, refused},
+		{apnsAnswer{http.StatusForbidden, "InvalidProviderToken"}, refused},
+		{apnsAnswer{http.StatusTooManyRequests, "TooManyRequests"}, retry},
+		{apnsAnswer{http.StatusServiceUnavailable, "ServiceUnavailable"}, retry},
+	}
+	outcome := func(err error) string {
+		switch {
+		case err == nil:
+			return "sent"
+		case errors.Is(err, ErrSubscriptionGone):
+			return gone
+		case errors.Is(err, ErrPushRefused):
+			return refused
+		}
+		return retry
 	}
 	for i, c := range cases {
 		token := strings.Repeat(strconv.Itoa(i), 64)
 		fake.answers[token] = []apnsAnswer{c.answer}
 		err := s.Send(context.Background(), voipSub(token, "production", "com.uniworkos.chat"), ringMessage(now.Add(time.Minute)))
-		if c.gone != errors.Is(err, ErrSubscriptionGone) || err == nil {
-			t.Errorf("%d %s → %v, want gone=%v", c.answer.status, c.answer.reason, err, c.gone)
+		if got := outcome(err); got != c.want {
+			t.Errorf("%d %s → %v (%s), want %s", c.answer.status, c.answer.reason, err, got, c.want)
 		}
 		if err != nil && strings.Contains(err.Error(), token) {
 			t.Errorf("error %q quotes the device token", err)
@@ -336,13 +358,23 @@ func TestAPNsVoIPSenderMapsAnswers(t *testing.T) {
 	if err := s.Send(context.Background(), voipSub(testVoIPToken, "production", "com.uniworkos.chat"), ringMessage(now.Add(time.Minute))); err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]int{"sent:": 1, "gone:Unregistered": 1, "gone:BadDeviceToken": 1, "failed:DeviceTokenNotForTopic": 1,
-		"failed:TooManyRequests": 1, "failed:ServiceUnavailable": 1, "failed:InvalidProviderToken": 1}
+	want := map[string]int{"sent:": 1, "gone:Unregistered": 1, "gone:BadDeviceToken": 1, "gone:DeviceTokenNotForTopic": 1,
+		"refused:TopicDisallowed": 1, "refused:PayloadTooLarge": 1, "refused:InvalidProviderToken": 1,
+		"failed:TooManyRequests": 1, "failed:ServiceUnavailable": 1}
 	for k, v := range want {
 		if metrics.counts[k] != v {
 			t.Errorf("metrics = %v, want %v", metrics.counts, want)
 			break
 		}
+	}
+
+	// With APNS_VOIP_TOPIC set, the topic is the server's, not the token's: a
+	// mismatch is the server's configuration, so every token is kept.
+	o := newTestAPNsSender(t, fake, APNsConfig{KeyID: "K", TeamID: "T", PrivateKey: pemKey, Topic: "com.example.voip"}, &now)
+	token := strings.Repeat("f", 64)
+	fake.answers[token] = []apnsAnswer{{http.StatusBadRequest, "DeviceTokenNotForTopic"}}
+	if err := o.Send(context.Background(), voipSub(token, "production", "com.uniworkos.chat"), ringMessage(now.Add(time.Minute))); !errors.Is(err, ErrPushRefused) {
+		t.Fatalf("DeviceTokenNotForTopic under APNS_VOIP_TOPIC → %v, want ErrPushRefused (the token kept)", err)
 	}
 }
 

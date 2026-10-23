@@ -46,7 +46,7 @@ func NewNotifications() *Notifications {
 		}, []string{"result"}),
 		APNsVoIP: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_push_apns_voip_total",
-			Help: "iPhone VoIP pushes sent straight to APNs, by result (sent, gone: token revoked, failed: retried) and Apple's reason code (\"\" when sent, transport for a network error, unknown for a body that is not one).",
+			Help: "iPhone VoIP pushes sent straight to APNs, by result (sent, gone: token revoked, refused: a 4xx a resend would repeat, such as a wrong topic or key, failed: throttled, an APNs outage or a network error) and Apple's reason code (\"\" when sent, transport for a network error, unknown for a body that is not one).",
 		}, []string{"result", "reason"}),
 	}
 }

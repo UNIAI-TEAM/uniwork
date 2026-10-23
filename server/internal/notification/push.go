@@ -111,6 +111,9 @@ type CallPush struct {
 	// ExpiresAt is when the ring stops, in Unix milliseconds; the phone stops
 	// ringing then even when no end push reaches it.
 	ExpiresAt int64
+	// EndReason is why an end's ring stopped (service.RingClosed*), set only
+	// on the VoIP end to an iPhone, whose CallKit history shows it.
+	EndReason string
 }
 
 // pushTTL is the default lifetime of a push: a reminder delivered tomorrow is noise.
