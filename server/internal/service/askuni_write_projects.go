@@ -68,14 +68,22 @@ func (s *AskUNIService) askProjectTools() []askWriteTool {
 }
 
 // checkProjectTitleFree refuses a title another project of the workspace
-// already has, as the service does, but before a row exists. exclude is the
-// project being renamed.
-func (s *AskUNIService) checkProjectTitleFree(ctx context.Context, tc ai.ToolContext, title, exclude string) error {
+// already has, as CreateProject does (it compares against every project of the
+// workspace, whatever its status), and one an earlier create_project row of
+// this turn will take: that row would commit first and fail this one at apply.
+// exclude is the project being renamed; skipRow the 1-based earlier row it
+// stands for.
+func (s *AskUNIService) checkProjectTitleFree(ctx context.Context, tc ai.ToolContext, title, exclude string, earlier []askDraftRow, skipRow int) error {
+	want := normalizeProjectTitle(title)
+	for i, r := range earlier {
+		if r.Tool == "create_project" && i+1 != skipRow && normalizeProjectTitle(r.Preview.Target.Title) == want {
+			return McpToolError{Code: "duplicate_project_title", Msg: fmt.Sprintf("row %d of this turn already creates a project with this title; pick another title", i+1)}
+		}
+	}
 	rows, err := s.tasks.ListProjects(ctx, Human(tc.ActorID), tc.WorkspaceID, ListProjectsFilter{})
 	if err != nil {
 		return err
 	}
-	want := normalizeProjectTitle(title)
 	for _, pr := range rows {
 		if pr.ID != exclude && normalizeProjectTitle(pr.Title) == want {
 			return McpToolError{Code: "duplicate_project_title", Msg: fmt.Sprintf("a project with this title already exists in the workspace: id %s; read it, or pick another title", pr.ID)}
@@ -95,7 +103,7 @@ func (s *AskUNIService) prepareCreateProject(ctx context.Context, tc ai.ToolCont
 	if _, err := mcpID("lead_id", in.LeadID); err != nil {
 		return askDraftRow{}, err
 	}
-	if err := s.checkProjectTitleFree(ctx, tc, in.Title, ""); err != nil {
+	if err := s.checkProjectTitleFree(ctx, tc, in.Title, "", earlier, 0); err != nil {
 		return askDraftRow{}, err
 	}
 	stored, err := askStoredArgs(args, tc.WorkspaceID)
@@ -171,8 +179,9 @@ func (s *AskUNIService) prepareUpdateProject(ctx context.Context, tc ai.ToolCont
 		}
 		target.ID, target.Title = before.ID, before.Title
 	}
-	if in.Title.Set && in.Title.Value != before.Title {
-		if err := s.checkProjectTitleFree(ctx, tc, in.Title.Value, before.ID); err != nil {
+	if in.Title.Set {
+		skip, _ := askRowRef(in.ProjectID) // a project made this turn is not its own duplicate
+		if err := s.checkProjectTitleFree(ctx, tc, in.Title.Value, before.ID, earlier, skip); err != nil {
 			return askDraftRow{}, err
 		}
 	}
@@ -266,8 +275,12 @@ func (s *AskUNIService) applyUpdateProject(ctx context.Context, p McpPrincipal, 
 	}
 	out := AskProposalResult{ObjectID: before.ID, Revision: res.Revision, Changes: res.Changes, Note: res.Note}
 	after, ok := res.Item.(McpProject)
-	if !ok || len(res.Changes) == 0 {
-		return out, nil, nil // saved, but not read back: no undo to offer
+	if len(res.Changes) == 0 {
+		return out, nil, nil // nothing changed: nothing to undo
+	}
+	if !ok {
+		askLoseUndo(&out)
+		return out, nil, nil
 	}
 	out.Href = after.URL
 	// The old values come from the project as read, uncut: Changes cuts long text.

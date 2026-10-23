@@ -41,13 +41,14 @@ func askLoseUndo(out *AskProposalResult) {
 var errAskUndoUnavailable = CodedError{Code: "undo_unavailable", Status: 409, Msg: "the object changed after this was applied"}
 
 // askUndoGuard reads a refusal of the guard (the object is gone or someone
-// changed it) as undo_unavailable; any other error is a fault.
+// changed it, or a project handed away its editor right) as undo_unavailable;
+// any other error is a fault.
 func askUndoGuard(err error) error {
 	var ce CodedError
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, ErrNotFound), errors.Is(err, ErrForbidden), errors.As(err, &ce) && ce.Code == "revision_conflict":
+	case errors.Is(err, ErrNotFound), errors.Is(err, ErrForbidden), errors.As(err, &ce) && (ce.Code == "revision_conflict" || ce.Code == "not_project_editor"):
 		return errAskUndoUnavailable
 	}
 	return err

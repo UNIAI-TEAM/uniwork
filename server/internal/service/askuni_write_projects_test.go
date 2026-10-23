@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/ai"
 )
 
 func TestAskWriteProjectApplyAndUndo(t *testing.T) {
@@ -109,13 +111,19 @@ func TestAskWriteProjectPreviewNamesTheLead(t *testing.T) {
 		}
 	}
 	name := s.memberNames(ctx, tc)[x.ub.ID]
-	if lead == nil || lead.Type != "person" || name == "" || lead.To != name || row.Level != askLevel2 || row.Preview.Audience.Visibility != "workspace" || row.Preview.Target.Title != "Có trưởng nhóm" {
-		t.Fatalf("preview = %+v level %s (name %q)", row.Preview, row.Level, name)
+	if lead == nil || name == "" {
+		t.Fatalf("no lead field or no member name: %+v (name %q)", row.Preview.Fields, name)
+	}
+	if lead.Type != "person" || lead.To != name {
+		t.Errorf("lead field = %+v, want person %q", lead, name)
+	}
+	if row.Level != askLevel2 || row.Preview.Audience.Visibility != "workspace" || row.Preview.Target.Title != "Có trưởng nhóm" {
+		t.Errorf("row = %+v", row)
 	}
 
 	// a title another project already has, in any case or spacing: refused, no row
 	x.project(t, "Ra  Mắt")
-	for _, args := range []string{`{"title":"ra mắt"}`} {
+	for _, args := range []string{`{"title":"ra mắt"}`, `{"title":"  RA   MẮT "}`, `{"title":"Ra Mắt"}`} {
 		_, err := writeToolNamed(t, s, "create_project").prepare(ctx, tc, json.RawMessage(args), nil)
 		var te McpToolError
 		if !errors.As(err, &te) || te.Code != "duplicate_project_title" {
@@ -144,5 +152,51 @@ func TestAskWriteProjectRowRef(t *testing.T) {
 	}
 	if _, err := writeToolNamed(t, s, "update_project").prepare(context.Background(), tc, json.RawMessage(`{"project_id":"{{row:1.id}}","priority":"high"}`), []askDraftRow{{Tool: "create_task"}}); !errors.As(err, new(McpInvalidArgs)) {
 		t.Fatalf("wrong kind err = %v", err)
+	}
+}
+
+// Two rows of one turn must not take one title: the first would commit and fail
+// the second at apply.
+func TestAskWriteProjectTitleTakenInTheSameTurn(t *testing.T) {
+	x, s, tc := askWriteWorld(t)
+	ctx := context.Background()
+	first := askPrepare(t, s, tc, "create_project", `{"title":"Trùng lượt"}`)
+	isDup := func(err error) bool {
+		var te McpToolError
+		return errors.As(err, &te) && te.Code == "duplicate_project_title"
+	}
+	if _, err := writeToolNamed(t, s, "create_project").prepare(ctx, tc, json.RawMessage(`{"title":" trùng  LƯỢT"}`), []askDraftRow{first}); !isDup(err) {
+		t.Fatalf("second create err = %v", err)
+	}
+	id := x.project(t, "Có sẵn")
+	if _, err := writeToolNamed(t, s, "update_project").prepare(ctx, tc, json.RawMessage(fmt.Sprintf(`{"project_id":%q,"title":"Trùng Lượt"}`, id)), []askDraftRow{first}); !isDup(err) {
+		t.Fatalf("rename onto a row err = %v", err)
+	}
+	// the row's own object may be retitled to what it already has
+	if _, err := writeToolNamed(t, s, "update_project").prepare(ctx, tc, json.RawMessage(`{"project_id":"{{row:1.id}}","title":"Trùng lượt"}`), []askDraftRow{first}); err != nil {
+		t.Fatalf("a row retitling its own project: %v", err)
+	}
+}
+
+// The asker leads a project, hands the lead away and can no longer edit it: undo
+// says so as undo_unavailable and leaves the project as it is.
+func TestAskWriteProjectUndoAfterHandingTheLeadAway(t *testing.T) {
+	x, s, _ := askWriteWorld(t)
+	ctx := context.Background()
+	tcB := ai.ToolContext{ActorID: x.ub.ID, OrganizationID: x.w.OrganizationID, WorkspaceID: x.w.ID}
+	pb := principalOf(tcB)
+	pr, err := s.tasks.CreateProject(ctx, Human(x.ua.ID), x.w.ID, CreateProjectInput{Title: "Của A", LeadType: strPtr("member"), LeadID: strPtr(x.ub.ID)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := askPrepare(t, s, tcB, "update_project", fmt.Sprintf(`{"project_id":%q,"lead_id":%q}`, pr.ID, x.ua.ID))
+	_, inv, err := writeToolNamed(t, s, "update_project").apply(ctx, pb, row)
+	if err != nil || inv == nil {
+		t.Fatalf("apply: %v %v", inv, err)
+	}
+	assertUndoUnavailable(t, askInverses[inv.Op](ctx, s, pb, inv.Args))
+	got, err := s.tasks.GetProject(ctx, Human(x.ua.ID), x.w.ID, pr.ID)
+	if err != nil || got.LeadID.String != x.ua.ID {
+		t.Fatalf("project changed: %+v %v", got, err)
 	}
 }
