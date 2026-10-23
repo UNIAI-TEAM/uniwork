@@ -39,7 +39,8 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
 ## Luật có test giữ
 
 - Mọi input không tin được đi qua zod và degrade thay vì throw: REST qua `parseWithFallback` (mỗi endpoint một case
-  malformed trong `data/chat-api.test.ts`), frame qua `data/realtime/frames.ts` (đối chiếu `docs/events/CATALOGUE.md`),
+  malformed trong `data/chat-api.test.ts`; ngoại lệ có chủ đích là `listWorkspaces`, đi qua `fetchStrict` và hiện lỗi
+  kèm Thử lại, vì `[]` nghĩa là "bạn chưa ở workspace nào"), frame qua `data/realtime/frames.ts` (đối chiếu `docs/events/CATALOGUE.md`),
   cache đĩa qua schema mạng (`data/persisted-schema.lock.json`). Schema đổi thì quyết định bump version.
 - `data/server-contract.test.ts`: mỗi trường schema app đọc là một trường JSON của SDO Go trả nó; mỗi flag trong
   `MOBILE_FLAG_DEFAULTS` là flag `Mobile: true` của `server/internal/featureflags/keys.go`.
