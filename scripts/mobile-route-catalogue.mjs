@@ -6,7 +6,8 @@
 // The phone side is read with the TypeScript compiler: every string or template literal of the app's own source
 // (apps/chat-mobile, tests left out) and of the core files it reaches at runtime (scripts/mobile-core-graph.mjs ›
 // runtimeClosure) that is a path under /api/v1, with a file's local path builders (`const ws = (id) =>
-// `/api/v1/workspaces/${enc(id)}``) inlined and a string-literal union parameter (`route: Route`) expanded.
+// `/api/v1/workspaces/${enc(id)}``) inlined, whether called inside a template or handed on as they are
+// (`request(msg(ws, room, id))`), and a string-literal union parameter (`route: Route`) expanded.
 //
 // The server side is read from the Go source of server/internal/handler/router: the `register*` functions New calls,
 // followed through their `api` / chi.Router parameters, `Route` and `Group` closures and `With` chains, so each
@@ -369,9 +370,15 @@ function constChoices(id) {
   return null;
 }
 
+/** Whether `node` calls one of the file's local path builders (`msg(ws, room, id)`). */
+function builderCall(node, ctx) {
+  return ts.isCallExpression(node) && ts.isIdentifier(node.expression) && ctx.builders.has(node.expression.text);
+}
+
 /** A literal as pieces: { text }, { dyn } for what is only known at runtime, or { choices } for a literal union. */
 function pieces(node, ctx, depth = 0) {
   if (ts.isStringLiteralLike(node)) return [{ text: node.text }];
+  if (builderCall(node, ctx)) return depth < 5 ? pieces(ctx.builders.get(node.expression.text), ctx, depth + 1) : [{ dyn: true }];
   if (ts.isParenthesizedExpression(node)) return pieces(node.expression, ctx, depth);
   if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
     return [...pieces(node.left, ctx, depth), ...pieces(node.right, ctx, depth)];
@@ -380,8 +387,8 @@ function pieces(node, ctx, depth = 0) {
     const out = [{ text: node.head.text }];
     for (const span of node.templateSpans) {
       const expr = span.expression;
-      if (depth < 5 && ts.isCallExpression(expr) && ts.isIdentifier(expr.expression) && ctx.builders.has(expr.expression.text)) {
-        out.push(...pieces(ctx.builders.get(expr.expression.text), ctx, depth + 1));
+      if (builderCall(expr, ctx)) {
+        out.push(...pieces(expr, ctx, depth));
       } else if (ts.isIdentifier(expr) && (parameterChoices(expr, ctx.unions) ?? constChoices(expr))) {
         out.push({ choices: parameterChoices(expr, ctx.unions) ?? constChoices(expr) });
       } else out.push({ dyn: true });
@@ -440,7 +447,8 @@ export function readPhonePaths(sources) {
     const visit = (node) => {
       // A builder's own template is a prefix, not a call: its callers are read with it inlined.
       if (bodies.has(node)) return;
-      const literal = ts.isStringLiteralLike(node) || ts.isTemplateExpression(node);
+      // A builder handed on as it is (`request(msg(ws, room, id), { method: "PATCH" })`) is a path like a literal.
+      const literal = ts.isStringLiteralLike(node) || ts.isTemplateExpression(node) || builderCall(node, ctx);
       if (literal && comparedOnly(node)) return;
       if (literal) {
         let top = node;
@@ -460,6 +468,66 @@ export function readPhonePaths(sources) {
     seen.add(key);
     return true;
   });
+}
+
+/** The transports a path is handed to: `request(…)`, `api.request(…)`, `fetch(…)`, `fetchStrict(…)`. */
+const TRANSPORTS = new Set(["request", "fetch", "fetchStrict"]);
+
+/** Whether `id` names a parameter of a function around it: a wrapper that forwards a path its callers build. */
+function isParameter(id) {
+  for (let node = id.parent; node; node = node.parent) {
+    if (ts.isFunctionLike(node) && node.parameters.some((p) => ts.isIdentifier(p.name) && p.name.text === id.text)) return true;
+  }
+  return false;
+}
+
+/** The initializer of the `const` `id` names in a block around it, or null. */
+function constInitializer(id) {
+  for (let node = id.parent; node; node = node.parent) {
+    if (!ts.isBlock(node) && !ts.isSourceFile(node)) continue;
+    for (const st of node.statements) {
+      if (!ts.isVariableStatement(st) || !(st.declarationList.flags & ts.NodeFlags.Const)) continue;
+      const decl = st.declarationList.declarations.find((d) => ts.isIdentifier(d.name) && d.name.text === id.text);
+      if (decl) return decl.initializer ?? null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Every transport call whose path readPhonePaths cannot read, as "file:line: text": the path is neither a literal,
+ * a template, a local builder's call, a const holding one of those (read where it is declared), nor a parameter the
+ * enclosing wrapper forwards (read at its callers). Such a call would be skipped silently, so the check fails on it.
+ */
+export function unreadPhoneCalls(sources) {
+  const issues = [];
+  for (const [file, src] of sources) {
+    const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    const ctx = { builders: builders(sf), unions: literalUnions(sf) };
+    const readable = (expr) =>
+      ts.isStringLiteralLike(expr) || ts.isTemplateExpression(expr) || builderCall(expr, ctx) || (ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.PlusToken);
+    const visit = (node) => {
+      if (ts.isCallExpression(node) && node.arguments.length > 0) {
+        const callee = node.expression;
+        // `api.request(…)` is the transport; `PermissionsAndroid.request(…)`, on a capitalised module, is not.
+        const onInstance = ts.isPropertyAccessExpression(callee) && !(ts.isIdentifier(callee.expression) && /^[A-Z]/.test(callee.expression.text));
+        const name = ts.isIdentifier(callee) ? callee.text : onInstance ? callee.name.text : null;
+        let arg = node.arguments[0];
+        while (ts.isParenthesizedExpression(arg)) arg = arg.expression;
+        if (name && TRANSPORTS.has(name) && !readable(arg)) {
+          const init = ts.isIdentifier(arg) ? constInitializer(arg) : null;
+          const ok = ts.isIdentifier(arg) && (init ? readable(init) : isParameter(arg));
+          if (!ok) {
+            const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+            issues.push(`${file}:${line}: ${name}(${arg.getText(sf)}, …) hands on a path this reader cannot read`);
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+  }
+  return issues;
 }
 
 /** The app's own source (tests and test helpers left out) and every core file it reaches at runtime. */

@@ -3,7 +3,7 @@
 // this check fails on that, on the phone's side or the server's.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readPhonePaths, readServerRoutes, serverSources, phoneSources, serves, unservedPaths } from "./mobile-route-catalogue.mjs";
+import { readPhonePaths, readServerRoutes, serverSources, phoneSources, serves, unreadPhoneCalls, unservedPaths } from "./mobile-route-catalogue.mjs";
 
 const server = readServerRoutes(serverSources());
 const phone = readPhonePaths(phoneSources());
@@ -55,11 +55,19 @@ test("the phone reader finds the calls of the app, its builders and the core end
     // the core factories the phone binds to its own transport (runtimeClosure)
     ["/api/v1/workspaces/{}/chat/rooms/{}/messages", "packages/core/api/endpoints/chat-messages-api.ts"],
     ["/api/v1/workspaces/{}/chat/stickers/trending", "packages/core/api/endpoints/chat-media-api.ts"],
+    // a builder handed straight to request(…), no template around it: `request(block(ws, uid))`
+    ["/api/v1/workspaces/{}/chat/users/{}/block", "packages/core/api/endpoints/chat-users-api.ts"],
+    // `request(msg(ws, room, id), { method: "PATCH" })`, a builder that inlines two more
+    ["/api/v1/workspaces/{}/chat/rooms/{}/messages/{}", "packages/core/api/endpoints/chat-messages-api.ts"],
   ]) {
     assert.ok(found(p, file), `the reader lost ${p} in ${file}`);
   }
   // A label or a comparison is no call.
   assert.equal(phone.some((c) => c.path === "/api/v1/auth/desktop"), false);
+});
+
+test("the phone reader reads the path of every transport call of the app and the core files it runs", () => {
+  assert.deepEqual(unreadPhoneCalls(phoneSources()), [], "teach scripts/mobile-route-catalogue.mjs the new form rather than leave a call out");
 });
 
 test("it would have caught the probe no router served (before 92b860efd)", () => {
@@ -135,6 +143,36 @@ func New() { r := chi.NewRouter(); r.Mount("/sub", sub); r.Get(pathFrom(x), h) }
   ]);
 });
 
+test("a transport call whose path the phone reader cannot read is an issue, not a call left out", () => {
+  const issues = unreadPhoneCalls(
+    new Map([
+      [
+        "a.ts",
+        `
+export function make(request: (p: string) => unknown, api: { request: (p: string) => unknown }) {
+  const ws = (id: string) => \`/api/v1/workspaces/\${id}\`;
+  const fixed = "/api/v1/me";
+  const get = (path: string) => request(path);
+  const built = pathFor("x");
+  return {
+    a: () => request(ws("1")),
+    b: () => api.request(fixed),
+    c: () => get("/api/v1/me"),
+    d: () => api.request(built),
+    e: () => request(pathFor("y")),
+    f: () => PermissionsAndroid.request(PERMISSION),
+  };
+}
+`,
+      ],
+    ]),
+  );
+  assert.deepEqual(issues, [
+    "a.ts:11: request(built, …) hands on a path this reader cannot read",
+    "a.ts:12: request(pathFor(\"y\"), …) hands on a path this reader cannot read",
+  ]);
+});
+
 test("the phone reader inlines builders, expands literal unions and constants, and skips labels and comparisons", () => {
   const calls = readPhonePaths(
     new Map([
@@ -155,6 +193,7 @@ export function make(request: (p: string) => unknown, apiUrl: string) {
       return request(\`\${ws(id)}/gifs/\${mode}\`);
     },
     me: () => request("/api/v1/" + "me"),
+    edit: (id: string, r: string) => request(room(id, r), { method: "PATCH" }),
     label: () => ({ endpoint: "GET /api/v1/workspaces/{ws}/rooms" }),
     native: (p: string) => p.startsWith("/api/v1/auth/"),
   };
@@ -173,6 +212,7 @@ export function make(request: (p: string) => unknown, apiUrl: string) {
       "/api/v1/workspaces/{}/gifs/search :13",
       "/api/v1/workspaces/{}/gifs/trending :13",
       "/api/v1/me :15",
+      "/api/v1/workspaces/{}/rooms/{} :16",
     ],
   );
 });

@@ -31,10 +31,13 @@ Hai lớp test, không chung file (ADR 0043 — cả hai chặn ở mọi `GATE_
   flag cũng chạy test này (`MOBILE_PATHS`).
 - `scripts/mobile-route-catalogue.test.mjs` (bước "Mobile repo contracts") giữ đường dẫn: mọi path dưới `/api/v1` app
   gọi — mã của app (trừ test) và các file core nó chạy (`runtimeClosure`), đọc bằng TypeScript compiler, builder cục bộ
-  (`const ws = (id) => …`) được thay vào, tham số kiểu union chuỗi và `const` chỉ là chuỗi được bung ra — phải là route
+  (`const ws = (id) => …`) được thay vào, dù gọi trong template hay đưa thẳng cho `request(msg(…))`, tham số kiểu
+  union chuỗi và `const` chỉ là chuỗi được bung ra — phải là route
   mà router đăng ký (`server/internal/handler/router/*.go`, đọc từ `New` qua các `register*`, `Route`, `Group`,
   `With`). So theo path, mọi method. Dạng đăng ký nó chưa hiểu (`Mount`, `Handle`, path không tính được, router không
-  lần được tới `New`) làm test đỏ thay vì bỏ sót route. Nó đã bắt được `/api/v1/healthz` (probe của iOS) nếu có từ
+  lần được tới `New`) làm test đỏ thay vì bỏ sót route; phía app cũng vậy: một lời gọi `request`/`fetch`/`fetchStrict`
+  có path không đọc được (không phải chuỗi, template, builder, `const` giữ một trong số đó, hay tham số mà wrapper
+  chuyển tiếp) làm test đỏ (`unreadPhoneCalls`). Nó đã bắt được `/api/v1/healthz` (probe của iOS) nếu có từ
   trước 92b860efd. Router nằm trong `MOBILE_PATHS`, nên PR server bỏ một route app gọi cũng chạy test này.
 - `jest.config.js` — `components/**/*.test.tsx` và hook React của lớp data
   (`data/**/*.test.tsx`, như `use-call-realtime.test.tsx`: công tắc gọi đổi giữa
