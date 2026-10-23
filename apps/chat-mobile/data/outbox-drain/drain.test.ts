@@ -78,6 +78,29 @@ describe("drainOwed", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  // The pause is measured on the wall clock, the budget on the timers: a clock set back while a round runs lets a
+  // pause start that outlives the budget. The budget lets go on time, and the pause that ends after it starts no
+  // round the OS no longer lends time for.
+  it("lets go of a round whose pause outlives the budget (the wall clock set back)", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    const env = fakeEnv({
+      owes: () => true,
+      budgetMs: 6_000,
+      deliver: vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) vi.setSystemTime(Date.now() - 10_000);
+      }),
+    });
+    const outcome = drainOwed(env);
+    await vi.advanceTimersByTimeAsync(6_000);
+    await expect(outcome).resolves.toBe("timeout");
+    expect(env.deliver).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(env.deliver).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("has nothing to do with nothing owed, and says drained without asking the server", async () => {
     const env = fakeEnv({ owes: () => false });
     await expect(drainOwed(env)).resolves.toBe("drained");

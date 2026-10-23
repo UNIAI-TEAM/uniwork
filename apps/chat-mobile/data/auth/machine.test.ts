@@ -582,6 +582,23 @@ describe("the auth machine, the orders that broke", () => {
     expect(reduce(inside, { type: "cacheRestored", user: FRESH, for: ["stored", "boot", "adopt"], sessionEnded: false, sessionsEnded: 0 })).toEqual({ model: inside, effects: [] });
   });
 
+  // The restore's own emit starts an adoption beside the cold start; the stored person is let in first, and the
+  // server ends the session before the adoption's cached rooms land. Those rooms are the person's in, so the refused
+  // restore wipes nothing: the session's end signs them out, and the sign-out wipes.
+  it("a sign-in's cache restore refused while the stored person is in leaves them in and wipes nothing", () => {
+    const { model, effects } = play([
+      { type: "bootStarted" },
+      { type: "storedPersonRead", hasCredential: true, lastUser: STORED, sessionEnded: false },
+      { type: "sessionEmitted", token: true },
+      { type: "meAnswered", user: FRESH, sessionEnded: false, sessionsEnded: 0 },
+      { type: "cacheRestored", user: STORED, for: ["stored"], sessionEnded: false, sessionsEnded: 0 },
+      { type: "cacheRestored", user: FRESH, for: ["adopt"], sessionEnded: true, sessionsEnded: 0 },
+    ]);
+    expect(model).toMatchObject({ user: STORED, adoption: "idle", sessionEnded: true, wiping: 0 });
+    expect(effects.some((e) => WIPES.has(e.type))).toBe(false);
+    expect(reduce(model, { type: "sessionEmitted", token: false }).effects).toContainEqual({ type: "requestSignOut" });
+  });
+
   it("a profile update replaces the person and is remembered; the crash reporter hears only id changes", () => {
     const inside: AuthModel = { ...initialAuthModel, boot: "idle", isLoading: false, user: STORED, confirmed: true, status: "signedIn" };
     expect(types(reduce(inside, { type: "profileUpdated", user: FRESH }).effects)).toEqual(["rememberProfile"]);
