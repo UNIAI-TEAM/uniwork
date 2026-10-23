@@ -22,6 +22,11 @@ const (
 	chatFollowUpResource = "chat_follow_up"
 )
 
+// ChatFollowUpNotifyGroup is the inbox group_key for chat.follow_up.created.
+func ChatFollowUpNotifyGroup(followUpID string) string {
+	return "chat_follow_up:" + followUpID
+}
+
 // ChatFollowUpRow is the service/handler view of a personal follow-up.
 type ChatFollowUpRow struct {
 	ID                string
@@ -385,6 +390,11 @@ func (s *ChatService) CompleteFollowUp(
 	}, audit.Event{Topic: "chat.follow_up.completed", Payload: followUpEventPayload(row)}); err != nil {
 		return ChatFollowUpRow{}, err
 	}
+	if err := q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{
+		UserID: userID, GroupKeys: []string{ChatFollowUpNotifyGroup(id)},
+	}); err != nil {
+		return ChatFollowUpRow{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return ChatFollowUpRow{}, err
 	}
@@ -453,6 +463,11 @@ func (s *ChatService) DeleteFollowUp(ctx context.Context, userID, workspaceID, i
 		Actor: Human(userID), Action: audit.ActionChatFollowUpDeleted,
 		ResourceType: chatFollowUpResource, ResourceID: existing.ID,
 	}, audit.Event{Topic: "chat.follow_up.deleted", Payload: followUpEventPayload(existing)}); err != nil {
+		return err
+	}
+	if err := q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{
+		UserID: userID, GroupKeys: []string{ChatFollowUpNotifyGroup(id)},
+	}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

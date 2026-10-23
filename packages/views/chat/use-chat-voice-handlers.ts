@@ -5,6 +5,7 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { VoiceCallKind } from "./voice-call-overlay";
+import { acceptVoiceCallWithFallback } from "./voice-call-accept";
 
 /**
  * The chat header's call buttons. Device warm-up and every failure (a
@@ -67,15 +68,10 @@ export function useChatVoiceHandlers({
     await handleStartCall(true);
   }, [handleStartCall]);
 
-  const handleAcceptVoiceCall = useCallback(async () => {
-    try {
-      await acceptCall();
-    } catch {
-      // The host reports accept failures on the panel; an unexpected throw
-      // must still not leave the caller ringing.
-      await declineCall();
-    }
-  }, [acceptCall, declineCall]);
+  const handleAcceptVoiceCall = useCallback(
+    () => acceptVoiceCallWithFallback(acceptCall, declineCall),
+    [acceptCall, declineCall],
+  );
 
   return { handleStartVoiceCall, handleStartVideoCall, handleAcceptVoiceCall };
 }

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -608,6 +609,17 @@ func TestSystemActorGoesThroughTheSameGrant(t *testing.T) {
 	t3Code(t, err, files.CodeNotFound)
 	if h.quota.reserved(up.File.ID) != int64(len("{\"a\":1}\n")) {
 		t.Errorf("quota reserved %d bytes for the export", h.quota.reserved(up.File.ID))
+	}
+}
+
+// A room wallpaper reaches the database in both scopes its registry row
+// allows: a workspace room and an organization-only DM.
+func TestChatRoomWallpaperUploadOpensASession(t *testing.T) {
+	h := newFileHarness(t, localFileBackend(), nil)
+	for i, scope := range []files.Scope{t3Scope, {OrganizationID: t3Org}} {
+		if _, err := t3Upload(t, h, files.ChatRoomWallpaper, scope, fmt.Sprintf("wallpaper-%d", i), "bg.png", t3PNG); err != nil {
+			t.Fatalf("wallpaper upload in %+v: %v", scope, err)
+		}
 	}
 }
 

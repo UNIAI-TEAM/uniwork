@@ -309,35 +309,6 @@ func (q *Queries) GetChatMessageByMirroredComment(ctx context.Context, mirroredF
 	return i, err
 }
 
-const getChatMessageLink = `-- name: GetChatMessageLink :one
-SELECT id, organization_id, workspace_id, room_id, message_id, target_type, target_id, relation, created_by, created_by_kind, created_at FROM chat_message_links
-WHERE id = $1 AND workspace_id = $2
-`
-
-type GetChatMessageLinkParams struct {
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspace_id"`
-}
-
-func (q *Queries) GetChatMessageLink(ctx context.Context, arg GetChatMessageLinkParams) (ChatMessageLink, error) {
-	row := q.db.QueryRow(ctx, getChatMessageLink, arg.ID, arg.WorkspaceID)
-	var i ChatMessageLink
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.WorkspaceID,
-		&i.RoomID,
-		&i.MessageID,
-		&i.TargetType,
-		&i.TargetID,
-		&i.Relation,
-		&i.CreatedBy,
-		&i.CreatedByKind,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const getChatMessageLinkByPair = `-- name: GetChatMessageLinkByPair :one
 SELECT id, organization_id, workspace_id, room_id, message_id, target_type, target_id, relation, created_by, created_by_kind, created_at FROM chat_message_links
 WHERE message_id = $1 AND target_type = $2 AND target_id = $3
@@ -417,49 +388,6 @@ func (q *Queries) GetChatThreadTaskLinkByThread(ctx context.Context, threadRootI
 		&i.CreatedAt,
 	)
 	return i, err
-}
-
-const listChatMessageLinksByMessage = `-- name: ListChatMessageLinksByMessage :many
-SELECT id, organization_id, workspace_id, room_id, message_id, target_type, target_id, relation, created_by, created_by_kind, created_at FROM chat_message_links
-WHERE message_id = $1 AND workspace_id = $2
-ORDER BY created_at ASC
-`
-
-type ListChatMessageLinksByMessageParams struct {
-	MessageID   string `json:"message_id"`
-	WorkspaceID string `json:"workspace_id"`
-}
-
-func (q *Queries) ListChatMessageLinksByMessage(ctx context.Context, arg ListChatMessageLinksByMessageParams) ([]ChatMessageLink, error) {
-	rows, err := q.db.Query(ctx, listChatMessageLinksByMessage, arg.MessageID, arg.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ChatMessageLink{}
-	for rows.Next() {
-		var i ChatMessageLink
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.WorkspaceID,
-			&i.RoomID,
-			&i.MessageID,
-			&i.TargetType,
-			&i.TargetID,
-			&i.Relation,
-			&i.CreatedBy,
-			&i.CreatedByKind,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listChatMessageLinksByRoomMessages = `-- name: ListChatMessageLinksByRoomMessages :many

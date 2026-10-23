@@ -412,8 +412,7 @@ type ChatMessageLinkDTO struct {
 	CreatedAt  string `json:"created_at" description:"RFC3339 timestamp" example:"2026-09-10T10:00:00Z"`
 }
 
-// ChatMessageLinkListSDO is GET .../chat/messages/{messageID}/links and
-// GET .../chat/rooms/{roomID}/message-links.
+// ChatMessageLinkListSDO is GET .../chat/rooms/{roomID}/message-links.
 type ChatMessageLinkListSDO struct {
 	Links []ChatMessageLinkDTO `json:"links"`
 }
