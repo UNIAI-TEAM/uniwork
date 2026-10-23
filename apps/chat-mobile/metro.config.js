@@ -1,21 +1,29 @@
 // Ported from usf apps/mobile/metro.config.js. Watches the monorepo so the
-// @uniwork/core subpaths resolve, looks up node_modules from the app and the
-// root, and follows symlinks for pnpm's isolated layout.
-const { getDefaultConfig } = require("expo/metro-config");
+// @uniwork/core subpaths resolve and looks up node_modules from the app and the
+// root. Metro follows pnpm's symlinks by default (resolver.unstable_enableSymlinks
+// has defaulted to true since Metro 0.79); setting it again is what expo-doctor's
+// Metro check flags, so it is left to the default.
+// getSentryExpoConfig is Expo's default config plus Sentry's serializer: every
+// bundle (the build's and each `eas update`) carries a debug id that ties it to
+// its source map, so a crash in an OTA symbolicates without a release of its own.
+const { getSentryExpoConfig } = require("@sentry/react-native/metro");
 const { withNativeWind } = require("nativewind/metro");
 const path = require("path");
 
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, "../..");
 
-const config = getDefaultConfig(projectRoot);
+// includeWebReplay false: Sentry's own switch that resolves the browser session-replay packages
+// (@sentry-internal/replay, replay-canvas: ~340 KB of source) to empty modules. The app never records
+// replay (data/sentry.ts: a chat screen is private), and on a phone those packages are dead weight in
+// the bytecode every start loads.
+const config = getSentryExpoConfig(projectRoot, { includeWebReplay: false });
 
 config.watchFolders = [monorepoRoot];
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, "node_modules"),
   path.resolve(monorepoRoot, "node_modules"),
 ];
-config.resolver.unstable_enableSymlinks = true;
 // NativeWind's babel preset rewrites every JSX file to import
 // react-native-css-interop/jsx-runtime, a dependency of nativewind the app
 // never names; pnpm's isolated layout does not hoist it. Pointing Metro at

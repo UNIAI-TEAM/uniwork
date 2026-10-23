@@ -16,9 +16,15 @@ function flatten(obj, prefix = "") {
   return out;
 }
 
+// i18next plural forms: English counts take `x_one` / `x_other` where Vietnamese, which has no plural, keeps `x`
+// (bc17436a4, "1 reply", not "1 replies"). Both name the same string, so a key is compared by that name — but only
+// when its `_other` form exists: `poll_pick_one` / `poll_pick_many` are words, not plural forms.
+const PLURAL = /_(zero|one|two|few|many|other)$/;
+
 function chatKeys(locale) {
   const raw = JSON.parse(readFileSync(`packages/core/i18n/locales/${locale}.json`, "utf8"));
-  return new Set(Object.keys(flatten(raw)).filter((k) => k.startsWith("chat.")));
+  const keys = new Set(Object.keys(flatten(raw)).filter((k) => k.startsWith("chat.")));
+  return new Set([...keys].map((k) => (PLURAL.test(k) && keys.has(k.replace(PLURAL, "_other")) ? k.replace(PLURAL, "") : k)));
 }
 
 test("chat.* i18n keys match between vi and en", () => {

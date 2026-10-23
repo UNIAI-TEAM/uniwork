@@ -113,6 +113,13 @@ type CallRingChecker interface {
 	VoiceCallRinging(roomID, callID, userID string) bool
 }
 
+// CallVideoChecker says whether a live call was started with the camera on;
+// a CallRingChecker that also implements it lets the phone's ringing screen
+// say "video call". ChatService does.
+type CallVideoChecker interface {
+	VoiceCallVideo(roomID, callID string) bool
+}
+
 // env is what a rule may touch: read queries, the membership gate and the
 // injected document-read resolver.
 type env struct {
@@ -1395,7 +1402,7 @@ func ruleChatFollowUpCreated(ctx context.Context, e env, ev outbox.Row, p map[st
 	// Personal reminder: the creator is the recipient even when they are the actor.
 	return []Draft{{
 		UserID: p["user_id"], OrganizationID: ws.OrganizationID, WorkspaceID: p["workspace_id"],
-		Kind: KindChatFollowUp, GroupKey: "chat_follow_up:" + p["follow_up_id"],
+		Kind: KindChatFollowUp, GroupKey: service.ChatFollowUpNotifyGroup(p["follow_up_id"]),
 		ResourceType: "chat_message", ResourceID: p["message_id"],
 		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: map[string]string{},
 	}}, nil

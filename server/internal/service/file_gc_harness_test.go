@@ -158,13 +158,24 @@ func withProviders(ps ...files.ReferenceProvider) gcOption {
 	return func(o *FileServiceOptions) { o.ReferenceProviders = ps }
 }
 
+// productionProviders is the composition root's set itself, not a copy of it:
+// a hand-kept list drifted when chat_rooms.wallpaper landed, the collector saw
+// a coverage gap and (correctly) left every cleanup job untouched, which
+// failed every GC test that expected one and hung the barrier tests.
 func productionProviders() []files.ReferenceProvider {
-	return []files.ReferenceProvider{
-		NewTaskAttachmentProvider(), NewUserAvatarProvider(), chatFileReferenceProvider{},
-		chatVoiceRecordingProvider{}, MeetingRecordingProvider{}, AuditExportReferenceProvider(),
-		PrivacyExportReferenceProvider(), DocumentDownloadReferenceProvider(),
-		DocumentVersionReferenceProvider{}, DocumentAssetReferenceProvider{}, OfficeJobOutputProvider{},
-		WorkspaceIconProvider{}, ChatRoomAvatarProvider{}, ChatLinkPreviewImageProvider{},
+	return FileReferenceProviders(&ChatService{}, &MeetingService{})
+}
+
+// awaitGCHook waits for a sweep running in another goroutine to reach the
+// hook the test parked it on. A sweep that finishes without reaching it
+// (a coverage gap leaves cleanup jobs untouched) fails the test instead of
+// blocking the package until the go test timeout.
+func awaitGCHook(t *testing.T, hook <-chan struct{}, done <-chan *FileGCReport) {
+	t.Helper()
+	select {
+	case <-hook:
+	case rep := <-done:
+		t.Fatalf("sweep finished without reaching the hook: %+v", rep)
 	}
 }
 

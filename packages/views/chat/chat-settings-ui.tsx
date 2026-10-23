@@ -26,7 +26,7 @@ import { ChatMemberProfileTrigger } from "./chat-member-profile";
 import { ChatRoomPhoto } from "./chat-room-mark";
 import { usePresenceStore } from "@uniwork/core/chat/presence-store";
 import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { chatPersonFaceClass } from "./chat-person-card";
 import { ChatPresenceAvatar } from "./chat-presence-avatar";
 

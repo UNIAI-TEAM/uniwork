@@ -2,11 +2,13 @@
 // dark surface's colours, the caller block (a 132 pt avatar, pulse rings while
 // it rings, the name, one status line) and the round, labelled control.
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, Pressable, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, Easing, Pressable, View } from "react-native";
+import { useAnnounce, useReduceMotion } from "@/components/ui/a11y";
 import { Text } from "@/components/ui/text";
-import { identityTint, SOLID_TINT_BG } from "@/lib/identity-tint";
-import { initialsOf, roomInitialsOf } from "@/lib/initials";
+import { SOLID_TINT_BG } from "@/lib/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
+import { initialsOf, roomInitialsOf } from "@uniwork/core/chat/initials";
 import { THEME } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -57,38 +59,27 @@ export function CallButton(props: {
       <View className="h-16 w-16">
         {props.ring ? <PulseRings color={props.ring} size={64} /> : null}
         <View
-          className={cn("h-16 w-16 items-center justify-center rounded-full", tone === "danger" && "bg-destructive-solid", tone === "accept" && "bg-success-solid")}
+          className={cn(
+            "h-16 w-16 items-center justify-center rounded-full",
+            tone === "danger" && "bg-destructive-solid",
+            tone === "accept" && "bg-success-solid",
+          )}
           style={tone === "default" ? { backgroundColor: active ? CALL.text : CALL.fill } : undefined}
         >
           {/* Danger is always hang up or decline: the receiver put down, as the canvas draws it. */}
-          <Ionicons name={props.icon} size={28} color={tone === "default" && active ? CALL.onFill : CALL.text} style={tone === "danger" ? HANG_UP : undefined} />
+          <Ionicons
+            name={props.icon}
+            size={28}
+            color={tone === "default" && active ? CALL.onFill : CALL.text}
+            style={tone === "danger" ? HANG_UP : undefined}
+          />
         </View>
       </View>
-      <Text className="text-[13px]" style={[{ color: CALL.label }, SHADOW]} numberOfLines={1}>
+      <Text className="text-footnote" style={[{ color: CALL.label }, SHADOW]} numberOfLines={1}>
         {props.label}
       </Text>
     </Pressable>
   );
-}
-
-// Starts still, so nobody who asked for less motion sees a frame of it.
-function useReduceMotion() {
-  const [reduced, setReduced] = useState(true);
-  useEffect(() => {
-    let live = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then(
-      (on) => {
-        if (live) setReduced(on);
-      },
-      () => undefined,
-    );
-    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduced);
-    return () => {
-      live = false;
-      sub.remove();
-    };
-  }, []);
-  return reduced;
 }
 
 const RING = { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderWidth: 3 } as const;
@@ -99,7 +90,9 @@ function PulseRings({ color, size = 148, count = 2 }: { color: string; size?: nu
   const pulses = useRef([new Animated.Value(0), new Animated.Value(0)].slice(0, count)).current;
   useEffect(() => {
     if (reduced) return;
-    const loops = pulses.map((p) => Animated.loop(Animated.timing(p, { toValue: 1, duration: 1800, easing: Easing.out(Easing.ease), useNativeDriver: true })));
+    const loops = pulses.map((p) =>
+      Animated.loop(Animated.timing(p, { toValue: 1, duration: 1800, easing: Easing.out(Easing.ease), useNativeDriver: true })),
+    );
     const all = Animated.stagger(900, loops);
     all.start();
     return () => all.stop();
@@ -139,19 +132,28 @@ export function CallerHero({
   rings?: string;
   ringCount?: 1 | 2;
   ended?: boolean;
-  /** The line is a running clock: read out politely as it changes. */
+  /** The line is a running clock: a timer read when focused, never announced each second. */
   live?: boolean;
   /** The person or room the face's colour is hashed from. */
   seed?: string;
   /** A group or channel call: the room's letters ("RM"), not a person's. */
   room?: boolean;
 }) {
+  useAnnounce(live ? null : line);
   return (
     <View className="flex-1 items-center justify-center gap-2 px-6 pb-10 pt-11">
-      <View className="items-center justify-center" style={{ width: 148, height: 148 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View
+        className="items-center justify-center"
+        style={{ width: 148, height: 148 }}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
         {rings ? <PulseRings color={rings} count={ringCount} /> : null}
         {/* The face on the person's own colour, two letters (MobileCall board). */}
-        <View className={`items-center justify-center rounded-full ${SOLID_TINT_BG[identityTint(seed || name || "")]}`} style={{ width: 132, height: 132 }}>
+        <View
+          className={`items-center justify-center rounded-full ${SOLID_TINT_BG[identityTint(seed || name || "")]}`}
+          style={{ width: 132, height: 132 }}
+        >
           <Text className="font-display font-bold text-on-solid" style={{ fontSize: 44, lineHeight: 54 }}>
             {room ? roomInitialsOf(name) : initialsOf(name)}
           </Text>
@@ -165,14 +167,15 @@ export function CallerHero({
           </View>
         ) : null}
       </View>
-      <Text className="mt-4 text-center text-[28px] font-display font-bold leading-[34px]" style={{ color: CALL.text }} numberOfLines={2}>
+      <Text className="mt-4 text-center text-display font-display font-bold leading-[34px]" style={{ color: CALL.text }} numberOfLines={2}>
         {name}
       </Text>
       <Text
-        className="text-center text-base"
+        className="text-center text-body"
         style={{ color: CALL.soft, fontVariant: ["tabular-nums"] }}
         accessibilityRole={live ? "timer" : undefined}
-        accessibilityLiveRegion={live ? "polite" : undefined}
+        // A status that changes (calling, connecting, ended) is said once as it changes; a clock is not.
+        accessibilityLiveRegion={live ? "none" : "polite"}
       >
         {line}
       </Text>

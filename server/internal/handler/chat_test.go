@@ -720,6 +720,19 @@ func TestChatSignals(t *testing.T) {
 		t.Fatalf("voice accept: %d %v", res.StatusCode, out)
 	}
 
+	// The caller's own live call, answered: what a phone that missed the accept frame reads.
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/voice/pending", tokA, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("caller pending: %d %v", res.StatusCode, out)
+	}
+	outgoing, _ := out["outgoing"].([]any)
+	if len(outgoing) != 1 {
+		t.Fatalf("caller outgoing: %v", out)
+	}
+	if call, _ := outgoing[0].(map[string]any); call["call_id"] != callID || call["room_id"] != f.groupRoomID || call["accepted"] != true {
+		t.Fatalf("caller outgoing call: %v", outgoing[0])
+	}
+
 	dur := 60
 	res, out = doJSON(t, srv, "POST", voiceBase+"/hangup", tokA, map[string]any{"call_id": callID, "duration_seconds": &dur})
 	if res.StatusCode != http.StatusOK {
@@ -729,6 +742,15 @@ func TestChatSignals(t *testing.T) {
 	res, out = doJSON(t, srv, "POST", "/api/v1/chat/voice/token", tokA, map[string]string{"room_id": f.groupRoomID, "call_id": callID})
 	if res.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("voice token unconfigured: %d %v", res.StatusCode, out)
+	}
+}
+
+func TestChatMessageLinksHaveOnlyTheRoomBatchRead(t *testing.T) {
+	f := setupChatFixture(t, "msg-links-read")
+	path := "/api/v1/workspaces/" + f.wsID + "/chat/messages/" + f.firstMessageID + "/links"
+	res, _ := doJSON(t, f.srv, "GET", path, f.tokens["a"], nil)
+	if res.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("GET single-message links: %d, want 405", res.StatusCode)
 	}
 }
 

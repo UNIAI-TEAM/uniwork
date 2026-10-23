@@ -174,6 +174,10 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/groups", what: "members", body: map[string]any{
 		"name": isoUnique("ref"), "member_user_ids": []any{isoRef("peer"), isoOwn("third")}}, covers: []string{"CreateGroupSDI.member_user_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/dm", what: "other person", body: map[string]any{"user_id": isoRef("peer")}, covers: []string{"ResolveDMSDI.user_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/reports", what: "reported message", body: map[string]any{
+		"message_id": isoRef("peerMessage"), "reason": "spam"}, covers: []string{"ReportChatSDI.message_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/reports", what: "reported person", body: map[string]any{
+		"user_id": isoRef("peer"), "reason": "harassment"}, covers: []string{"ReportChatSDI.user_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members", what: "new member", body: map[string]any{
 		"member_user_ids": []any{isoRef("peer")}}, noControl: "the peer is already in B's group", covers: []string{"InviteGroupMembersSDI.member_user_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/channels", what: "project", body: map[string]any{
@@ -214,10 +218,22 @@ var isoReferences = []isoReference{
 		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "mention", body: map[string]any{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "room mention", body: map[string]any{
+		"question": "ref", "mentions": []any{map[string]any{"kind": "room", "id": isoRef("room")}}}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "conversation", body: map[string]any{
 		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "mention", body: map[string]any{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "room mention", body: map[string]any{
+		"question": "ref", "mentions": []any{map[string]any{"kind": "room", "id": isoRef("room")}}}},
+	// B's conversation, A's answer id: the id names no row there, so the stream
+	// refuses before any model call and supersedes nothing of A's or B's. The
+	// own-rows control would supersede B's seeded answer, so it is not sent.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "regenerate message",
+		body:        map[string]any{"conversation_id": isoOwn("conversation"), "regenerate_message_id": isoRef("aiAnswer")},
+		noControl:   "regenerating B's own answer would supersede the seeded one later cases read",
+		afterAttack: isoRegenerateChangedNothing,
+		covers:      []string{"AskUniSDI.regenerate_message_id"}},
 
 	// Meetings.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/meetings", what: "attendee", body: map[string]any{
@@ -484,6 +500,21 @@ func (w *isoWorld) referenceControls(t *testing.T) {
 			t.Errorf("reference control %s %s %s with B's own rows = %d: %s", c.method, c.pattern, c.what, status, isoClip(raw))
 		} else if c.afterControl != nil {
 			c.afterControl(t, w)
+		}
+	}
+}
+
+// isoRegenerateChangedNothing requires both tenants' seeded Ask UNI turn to be
+// as seeded: no answer of either was superseded (other cases add rows).
+func isoRegenerateChangedNothing(t *testing.T, w *isoWorld, label string) {
+	t.Helper()
+	for _, tn := range []*isoTenant{w.alpha, w.bravo} {
+		var rows, superseded int
+		if err := w.pool.QueryRow(context.Background(), `SELECT count(*), count(superseded_at) FROM ai_messages WHERE organization_id = $1`, tn.orgID).Scan(&rows, &superseded); err != nil {
+			t.Fatal(err)
+		}
+		if rows < 2 || superseded != 0 {
+			t.Errorf("%s: tenant %s has %d ai_messages (%d superseded), want none superseded", label, tn.tag, rows, superseded)
 		}
 	}
 }

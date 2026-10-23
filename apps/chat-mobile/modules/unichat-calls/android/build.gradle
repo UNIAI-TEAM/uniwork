@@ -1,0 +1,55 @@
+// UniChat's native call support on Android (docs/adr/drafts/0038): the
+// incoming-call notification, the in-call foreground service, the ringer and
+// the decline / hang-up actions. Built by the app's Gradle like any Expo module.
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.unichatcalls'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.unichatcalls"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+    // src/androidTest: the incoming call as System UI draws it, on mobile-verify's emulator.
+    testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+  }
+  // src/test: JVM tests on Robolectric (the notification builders need the framework's resources).
+  testOptions {
+    unitTests.includeAndroidResources = true
+  }
+}
+
+dependencies {
+  // NotificationCompat.CallStyle (1.9+) and ServiceCompat.startForeground with a type (1.12+).
+  implementation 'androidx.core:core:1.17.0'
+  // HeadlessJsTaskService for the decline and hang-up actions; the app links React Native itself.
+  compileOnly 'com.facebook.react:react-android'
+  // UniChatMessagingService extends expo-notifications' FCM service to take a call push before JavaScript does.
+  // Both are linked by the app (expo-notifications brings Firebase Messaging at this version), so compile only.
+  // SDK 57 links expo-notifications as its prebuilt AAR unless told otherwise, and then no
+  // ':expo-notifications' project exists: package.json expo.autolinking.android.buildFromSource
+  // keeps it a source project (native-modules.test.ts holds the pair).
+  compileOnly project(':expo-notifications')
+  compileOnly 'com.google.firebase:firebase-messaging:25.0.1'
+
+  // The launch tokens, the pending actions and the call notifications as the system receives
+  // them (src/test), run by mobile-verify › android-release. The versions expo-modules-core
+  // tests itself with, so one resolution serves both.
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.robolectric:robolectric:4.16.1'
+  testImplementation 'androidx.test:core:1.7.0'
+  // CallActionReceiver starts CallActionTaskService, a HeadlessJsTaskService: the JVM tests load it.
+  testImplementation 'com.facebook.react:react-android'
+
+  // The instrumented test (src/androidTest), built by mobile-verify › android-release
+  // (:unichat-calls:assembleDebugAndroidTest) and run on android-smoke's emulator. The
+  // androidx.test release that matches androidx.test:core above.
+  androidTestImplementation 'androidx.test:runner:1.7.0'
+  androidTestImplementation 'androidx.test:rules:1.7.0'
+  androidTestImplementation 'androidx.test.ext:junit:1.3.0'
+  androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.3.0'
+}

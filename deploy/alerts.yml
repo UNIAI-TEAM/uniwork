@@ -83,13 +83,13 @@ groups:
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/OutboxLagHigh.md
 
       - alert: QueueLagUnreadable
-        expr: min_over_time(uniwork_outbox_lag_up[5m]) == 0 or min by (queue) (min_over_time(uniwork_meeting_queue_lag_up[5m])) == 0
+        expr: min_over_time(uniwork_outbox_lag_up[5m]) == 0 or min by (queue) (min_over_time(uniwork_meeting_queue_lag_up[5m])) == 0 or max(max_over_time(uniwork_chat_reports_up[5m])) == 0
         for: 5m
         labels:
           severity: "2"
         annotations:
           summary: "Không đọc được độ trễ hàng đợi"
-          description: "Truy vấn đo lag của outbox hoặc webhook inbox lỗi hoặc quá thời gian suốt 5 phút: OutboxLagHigh và WebhookInboxLagHigh không thể kêu khi gauge vắng mặt."
+          description: "Truy vấn đo lag của outbox, webhook inbox hoặc hàng đợi báo cáo UniChat lỗi hoặc quá thời gian suốt 5 phút: OutboxLagHigh, WebhookInboxLagHigh, UniChatReportFiled và UniChatReportOverdue không thể kêu khi gauge vắng mặt."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/QueueLagUnreadable.md
 
       - alert: OutboxDeadLetter
@@ -339,3 +339,128 @@ groups:
           summary: "p75 LCP vượt 2,5 giây"
           description: "p75 Largest Contentful Paint đo từ trình duyệt người dùng (RUM) vượt 2,5 giây liên tục 30 phút (hiện {{ $value | humanizeDuration }})."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/WebVitalsLCPPoor.md
+
+  - name: uniwork-app-builds
+    rules:
+      # One store version or one OTA of UniChat mobile gets far more 5xx than the rest: a release that breaks a server
+      # contract, or a server change that breaks a release still in the field. The series carry the build
+      # (uniwork_http_client_requests_total, labels bounded by internal/metrics/http.go); 0.05 req/s keeps a build with
+      # a handful of phones from paging on two errors.
+      - alert: UniChatMobileServerErrors
+        expr: |
+          (
+            sum by (client_version, client_update) (rate(uniwork_http_client_requests_total{platform="mobile",status_class="5xx"}[15m]))
+              / sum by (client_version, client_update) (rate(uniwork_http_client_requests_total{platform="mobile"}[15m]))
+          ) > 0.05
+          and sum by (client_version, client_update) (rate(uniwork_http_client_requests_total{platform="mobile"}[15m])) > 0.05
+        for: 10m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Một bản UniChat mobile nhận 5xx trên 5% request"
+          description: "Bản {{ $labels.client_version }} (OTA {{ $labels.client_update }}) nhận 5xx trên {{ $value | humanizePercentage }} request của nó suốt 10 phút."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatMobileServerErrors.md
+      # An Android build whose incoming calls stop ringing natively: the phones report what each call push did
+      # (uniwork_mobile_events_total{event="call_push"}, apps/chat-mobile/data/calls/call-push.ts). "fallback" is a
+      # plain notification instead of the full-screen ring, "lost" is no notification at all. Twenty rings an hour keep
+      # a build with a handful of phones from paging on one bad device.
+      - alert: UniChatCallRingsDegraded
+        expr: |
+          (
+            sum by (client_version) (rate(uniwork_mobile_events_total{event="call_push",result=~"fallback|lost"}[1h]))
+              / sum by (client_version) (rate(uniwork_mobile_events_total{event="call_push",result=~"shown|native|fallback|lost"}[1h]))
+          ) > 0.1
+          and sum by (client_version) (increase(uniwork_mobile_events_total{event="call_push",result=~"shown|native|fallback|lost"}[1h])) >= 20
+        for: 30m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Một bản UniChat Android không đổ chuông cuộc gọi bằng màn native"
+          description: "Bản {{ $labels.client_version }}: {{ $value | humanizePercentage }} push cuộc gọi trong 1 giờ chỉ thành thông báo thường hoặc không hiện gì."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatCallRingsDegraded.md
+      # Calls that ring late: how long after the server rang a call the Android phone did (event call_ring, from the
+      # ring's expires_at less the 60 s window, so the Expo and FCM hops and clock skew are in it). A p95 over 5 s for
+      # half an hour means callers hang up before phones ring — FCM deprioritising the app, Expo's queue, or the
+      # JavaScript path standing in for the native one. Twenty rings keep one phone with a wrong clock from paging.
+      - alert: UniChatCallRingSlow
+        expr: |
+          histogram_quantile(0.95, sum by (client_version, le) (rate(uniwork_mobile_event_duration_seconds_bucket{event="call_ring",os="android"}[1h]))) > 5
+          and sum by (client_version) (increase(uniwork_mobile_event_duration_seconds_count{event="call_ring",os="android"}[1h])) >= 20
+        for: 30m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Máy Android của một bản UniChat đổ chuông chậm"
+          description: "Bản {{ $labels.client_version }}: 95 % cuộc gọi trong 1 giờ đổ chuông trên máy sau hơn {{ $value | humanize }} giây kể từ lúc server gọi."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatCallRingSlow.md
+      # An OTA update of UniChat mobile that phones cannot launch: they fall back to the binary's bundle (an emergency
+      # launch) or skip it for the update before it, quietly, so without this the update looks healthy. The phones tell
+      # it on the launch after (apps/chat-mobile/data/release/launch-health.ts, event ota_launch); three in an hour on one
+      # build keep a single phone with a full disk from paging. scripts/mobile-release-health.mjs stops the update.
+      - alert: UniChatMobileUpdateLaunchFailures
+        expr: |
+          sum by (os, client_version) (increase(uniwork_mobile_events_total{event="ota_launch"}[1h])) >= 3
+        for: 5m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Máy UniChat mobile không khởi động được một bản OTA"
+          description: "{{ $value | humanize }} lần trong 1 giờ, máy {{ $labels.os }} bản {{ $labels.client_version }} không chạy được một bản OTA và quay về bản trước."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatMobileUpdateLaunchFailures.md
+      # UniChat mobile crashing, told without waiting for Sentry: the run after a crash says so (event app_crash, from
+      # Sentry's crashedLastRun, so only builds with a DSN count). Against cold opens of the same build, which is roughly
+      # one per session: over 2 % is four times the crash-free floor the rollouts are held to (99.5 %), paged here even
+      # when the hourly release-health run has not read Sentry yet. Fifty opens keep a pilot of five phones quiet.
+      - alert: UniChatMobileCrashes
+        expr: |
+          (
+            sum by (os, client_version) (increase(uniwork_mobile_events_total{event="app_crash"}[1h]))
+              / sum by (os, client_version) (increase(uniwork_mobile_events_total{event="app_open",result="cold"}[1h]))
+          ) > 0.02
+          and sum by (os, client_version) (increase(uniwork_mobile_events_total{event="app_open",result="cold"}[1h])) >= 50
+        for: 15m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Một bản UniChat mobile crash nhiều"
+          description: "Bản {{ $labels.client_version }} ({{ $labels.os }}): {{ $value | humanizePercentage }} lần mở lạnh trong 1 giờ đến sau một lần crash."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatMobileCrashes.md
+      # A UniChat mobile build whose messages fail for good (the outbox gave up: a refusal, not a slow network, which
+      # keeps them queued) far more than the rest: a crash-free build can still break the one thing a chat app is for.
+      # Fifty sends an hour keep a build with a handful of phones from paging on one person's bad afternoon.
+      - alert: UniChatMobileSendFailures
+        expr: |
+          (
+            sum by (os, client_version) (increase(uniwork_mobile_events_total{event="message_send",result="failed"}[1h]))
+              / sum by (os, client_version) (increase(uniwork_mobile_events_total{event="message_send"}[1h]))
+          ) > 0.05
+          and sum by (os, client_version) (increase(uniwork_mobile_events_total{event="message_send"}[1h])) >= 50
+        for: 15m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Một bản UniChat mobile gửi tin hỏng nhiều"
+          description: "Bản {{ $labels.client_version }} ({{ $labels.os }}): {{ $value | humanizePercentage }} tin gửi trong 1 giờ hỏng hẳn."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatMobileSendFailures.md
+      # A member reported a message or a person in UniChat (store UGC policy, Apple 1.2): the terms of use promise the
+      # operator acts on every report within 24 hours. Both rules read queue state (metrics.ChatReportQueueCollector, the
+      # open rows of chat_reports at scrape time), never the chat.report.created counter: that series is born at 1 with
+      # the first report a process records, so increase() misses it, and it forgets a report 30 minutes after it lands.
+      # Filed stays on while any report is open (a ticket); Overdue pages once the oldest has waited 20 hours.
+      # The collector's own read failing (uniwork_chat_reports_up = 0) is QueueLagUnreadable.
+      - alert: UniChatReportFiled
+        expr: max(uniwork_chat_reports_open) > 0
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Có báo cáo vi phạm đang chờ trong UniChat"
+          description: "{{ $value | humanize }} báo cáo tin nhắn hoặc người đang chờ; xử lý trong 24 giờ ở /admin/chat-reports."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatReportFiled.md
+      - alert: UniChatReportOverdue
+        expr: max(uniwork_chat_reports_oldest_open_age_seconds) > 20 * 3600
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Một báo cáo vi phạm UniChat đã chờ quá 20 giờ"
+          description: "Báo cáo mở lâu nhất đã chờ {{ $value | humanizeDuration }}; điều khoản hứa xử lý trong 24 giờ. Mở /admin/chat-reports ngay."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatReportOverdue.md

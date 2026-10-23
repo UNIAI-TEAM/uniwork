@@ -29,7 +29,10 @@ func (h *handlers) askUniStream(w http.ResponseWriter, r *http.Request) {
 	sw.onDead = cancel
 	defer sw.close()
 	emit := func(ev service.AskEvent) { writeAskEvent(sw, ev) }
-	_, err := h.AskUNI.AskStream(ctx, middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), askInputFromSDI(in), emit)
+	// The stream route is the docked panel's (R1); the JSON route never sets Dock.
+	askIn := askInputFromSDI(in)
+	askIn.Dock = true
+	_, err := h.AskUNI.AskStream(ctx, middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), askIn, emit)
 	if err == nil {
 		return
 	}
@@ -52,16 +55,16 @@ func writeAskEvent(sw *sseWriter, ev service.AskEvent) {
 			if counts == nil {
 				counts = map[string]int{}
 			}
-			sw.event("step", sdo.AskStreamStepDTO{Round: ev.Step.Round, Phase: ev.Step.Phase, Tool: ev.Step.Tool, Counts: counts})
+			sw.event("step", sdo.AskStreamStepDTO{Round: ev.Step.Round, Phase: ev.Step.Phase, Tool: ev.Step.Tool, Label: ev.Step.Label, Counts: counts})
 		}
+	case "sources":
+		sw.event("sources", sdo.AskStreamSourcesDTO{Sources: citationDTOs(ev.Sources)})
 	case "delta":
 		sw.event("delta", sdo.AskStreamDeltaDTO{Text: ev.Delta})
 	case "citations":
-		cites := make([]sdo.AiCitationDTO, 0, len(ev.Citations))
-		for _, c := range ev.Citations {
-			cites = append(cites, sdo.AiCitationDTO{SourceID: c.SourceID, Quote: c.Quote, Kind: c.Kind, Title: c.Title, Href: c.Href})
-		}
-		sw.event("citations", sdo.AskStreamCitationsDTO{Citations: cites})
+		sw.event("citations", sdo.AskStreamCitationsDTO{Citations: citationDTOs(ev.Citations)})
+	case "followups":
+		sw.event("followups", sdo.AskStreamFollowupsDTO{Followups: ev.Followups})
 	case "done":
 		if ev.Done != nil {
 			u := ev.Done.Usage
@@ -72,6 +75,10 @@ func writeAskEvent(sw *sseWriter, ev service.AskEvent) {
 				Message: toAiMessageDTO(ev.Done.Message),
 				Usage:   sdo.AskStreamUsageDTO{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, CacheReadTokens: u.CacheReadTokens, CacheWriteTokens: u.CacheWriteTokens},
 			})
+		}
+	case "title":
+		if ev.Title != nil {
+			sw.event("title", sdo.AskStreamTitleDTO{ConversationID: ev.Title.ConversationID, Title: ev.Title.Title})
 		}
 	case "error":
 		sw.event("error", sdo.AskStreamErrorDTO{Code: ev.Code})

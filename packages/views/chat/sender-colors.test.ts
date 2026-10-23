@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { identityTint } from "../people/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { senderNameClass, senderQuoteClass } from "./sender-colors";
 
 describe("sender-colors", () => {

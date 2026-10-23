@@ -246,7 +246,7 @@ describe("WorkspaceChrome Ask UNI", () => {
           : {},
       ),
     );
-    useAiPanelStore.setState({ open: true, conversationId: null, workspaceId: null, fullPage: false });
+    useAiPanelStore.setState({ open: true, conversationId: null, workspaceId: null });
     const service = new FeatureFlagService(new StaticProvider({ ask_uni_stream: { default: flagOn } }));
     return render(
       wrapWithNav(

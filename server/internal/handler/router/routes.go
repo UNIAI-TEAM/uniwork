@@ -12,9 +12,13 @@ type Routes struct {
 	Config                     http.HandlerFunc
 	OfficeDesktopDownload      http.HandlerFunc
 	RUM                        http.HandlerFunc
+	MobileEvents               http.HandlerFunc
 	CreateDemoRequest          http.HandlerFunc
 	AdminListDemoRequests      http.HandlerFunc
 	AdminUpdateDemoRequest     http.HandlerFunc
+	AdminListChatReports       http.HandlerFunc
+	AdminResolveChatReport     http.HandlerFunc
+	AdminRemoveReportedMessage http.HandlerFunc
 	AdminMe                    http.HandlerFunc
 	AdminListOrganizations     http.HandlerFunc
 	AdminGetOrganization       http.HandlerFunc
@@ -90,6 +94,9 @@ type Routes struct {
 	RevokeSession       http.HandlerFunc
 	RevokeOtherSessions http.HandlerFunc
 	DeleteAccount       http.HandlerFunc
+	SetAIConsent        http.HandlerFunc
+	WithdrawAIConsent   http.HandlerFunc
+	SetPushPreviews     http.HandlerFunc
 	PatchOnboarding     http.HandlerFunc
 	CompleteOnboarding  http.HandlerFunc
 	MyInvitations       http.HandlerFunc
@@ -99,6 +106,12 @@ type Routes struct {
 	GetOrganization    http.HandlerFunc
 	ListOrgWorkspaces  http.HandlerFunc
 	CreateOrgWorkspace http.HandlerFunc
+
+	OrgPushPreviewPolicy    http.HandlerFunc
+	SetOrgPushPreviewPolicy http.HandlerFunc
+	// The organization's floor under members' phone app lock and screen capture.
+	OrgMobileSecurityPolicy    http.HandlerFunc
+	SetOrgMobileSecurityPolicy http.HandlerFunc
 
 	ListOrgMembers      http.HandlerFunc
 	GetOrgMembershipMe  http.HandlerFunc
@@ -418,6 +431,7 @@ type Routes struct {
 	LookupChatUser                   http.HandlerFunc
 	GetChatBlockStatus               http.HandlerFunc
 	BlockChatUser                    http.HandlerFunc
+	ReportChat                       http.HandlerFunc
 	UnblockChatUser                  http.HandlerFunc
 	ListChatNicknames                http.HandlerFunc
 	SetChatNickname                  http.HandlerFunc
@@ -429,6 +443,7 @@ type Routes struct {
 	MintChatVoiceToken               http.HandlerFunc
 	ListPendingChatVoiceInvites      http.HandlerFunc
 	ListChatCallLogs                 http.HandlerFunc
+	GetChatSync                      http.HandlerFunc
 	GetWorkspaceChatRoom             http.HandlerFunc
 	EnsureWorkspaceChatRoom          http.HandlerFunc
 	ListChatRooms                    http.HandlerFunc
@@ -452,7 +467,6 @@ type Routes struct {
 	CreateTaskFromChatMessage        http.HandlerFunc
 	CreateChatMessageLink            http.HandlerFunc
 	ForwardChatMessage               http.HandlerFunc
-	ListChatMessageLinks             http.HandlerFunc
 	ListChatRoomMessageLinks         http.HandlerFunc
 	ListChatRoomLinkPreviews         http.HandlerFunc
 	ListChatRoomLinkedTasks          http.HandlerFunc
@@ -500,6 +514,7 @@ type Routes struct {
 	SignalChatVoiceInvite            http.HandlerFunc
 	SignalChatVoiceAccept            http.HandlerFunc
 	SignalChatVoiceHangup            http.HandlerFunc
+	SignalChatVoiceDecline           http.HandlerFunc
 	StartChatVoiceRecording          http.HandlerFunc
 	StopChatVoiceRecording           http.HandlerFunc
 	GetActiveChatVoiceRecording      http.HandlerFunc

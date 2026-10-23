@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { Track, type LocalTrack, type RemoteTrack, type Room } from "livekit-client";
 import { deviceFailureFromError } from "./voice-call-media";
-import type { VoiceCallDeviceError, VoiceCallDisconnectInfo } from "./voice-call-overlay-types";
+import type { VoiceCallDeviceError, VoiceCallDisconnectInfo } from "@uniwork/core/chat/voice-call-types";
 import {
   VoiceCallActionsContext,
   VoiceCallMediaContext,

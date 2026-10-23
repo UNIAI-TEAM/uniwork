@@ -15,7 +15,7 @@ import (
 //
 //	<prefix>ws:<workspace_id>  ZSET user_id → expiry (unix ms), one per workspace
 //	<prefix>expiry             ZSET "<workspace_id>|<user_id>" → expiry, for the sweep
-//	<prefix>user:<user_id>     STRING last visible beat (unix ms), any workspace
+//	<prefix>beat:<workspace_id>|<user_id>  STRING last visible beat there (unix ms)
 //
 // Each script touches both under one call, so a beat and a sweep never see a
 // half-written entry. Ids are ULIDs and never contain '|'. The scripts build
@@ -28,8 +28,9 @@ const redisPresencePrefix = "uw:presence:"
 const redisPresenceKeyTTL = 2 * presenceTTL
 
 // presenceLastBeatTTL keeps a person's last beat well past the push
-// consumer's two-minute window; an expired key reads as never beaten.
-const presenceLastBeatTTL = 10 * time.Minute
+// consumer's window (notification.pushActiveWindow, 45s); an expired key
+// reads as never beaten. One key per person and workspace they beat in.
+const presenceLastBeatTTL = 5 * time.Minute
 
 // KEYS[1] workspace set, KEYS[2] expiry index, KEYS[3] user's last visible
 // beat; ARGV user, member, now, expires, key ttl, last-beat ttl, visible (1|0).
@@ -44,11 +45,13 @@ if prev and tonumber(prev) > tonumber(ARGV[3]) then return 0 end
 return 1
 `)
 
-// KEYS[1] workspace set, KEYS[2] expiry index; ARGV user, member, until.
-// XX LT only brings an existing expiry forward (Redis >= 6.2).
+// KEYS[1] workspace set, KEYS[2] expiry index, KEYS[3] the person's last
+// visible beat there; ARGV user, member, until. XX LT only brings an existing
+// expiry forward (Redis >= 6.2); the last beat goes (presenceStore.leave).
 var presenceLeaveScript = redis.NewScript(`
 redis.call('ZADD', KEYS[1], 'XX', 'LT', ARGV[3], ARGV[1])
 redis.call('ZADD', KEYS[2], 'XX', 'LT', ARGV[3], ARGV[2])
+redis.call('DEL', KEYS[3])
 return 0
 `)
 
@@ -89,7 +92,9 @@ func (r *redisPresenceStore) workspaceKey(workspaceID string) string {
 
 func (r *redisPresenceStore) expiryKey() string { return r.prefix + "expiry" }
 
-func (r *redisPresenceStore) userKey(userID string) string { return r.prefix + "user:" + userID }
+func (r *redisPresenceStore) beatKey(workspaceID, userID string) string {
+	return r.prefix + "beat:" + presenceMember(workspaceID, userID)
+}
 
 func presenceMember(workspaceID, userID string) string { return workspaceID + "|" + userID }
 
@@ -99,7 +104,7 @@ func (r *redisPresenceStore) beat(ctx context.Context, workspaceID, userID strin
 		shown = 1
 	}
 	n, err := presenceBeatScript.Run(ctx, r.rdb,
-		[]string{r.workspaceKey(workspaceID), r.expiryKey(), r.userKey(userID)},
+		[]string{r.workspaceKey(workspaceID), r.expiryKey(), r.beatKey(workspaceID, userID)},
 		userID, presenceMember(workspaceID, userID),
 		now.UnixMilli(), now.Add(presenceTTL).UnixMilli(), redisPresenceKeyTTL.Milliseconds(),
 		presenceLastBeatTTL.Milliseconds(), shown,
@@ -112,7 +117,7 @@ func (r *redisPresenceStore) beat(ctx context.Context, workspaceID, userID strin
 
 func (r *redisPresenceStore) leave(ctx context.Context, workspaceID, userID string, until time.Time) error {
 	err := presenceLeaveScript.Run(ctx, r.rdb,
-		[]string{r.workspaceKey(workspaceID), r.expiryKey()},
+		[]string{r.workspaceKey(workspaceID), r.expiryKey(), r.beatKey(workspaceID, userID)},
 		userID, presenceMember(workspaceID, userID), until.UnixMilli(),
 	).Err()
 	if err != nil {
@@ -153,8 +158,8 @@ func (r *redisPresenceStore) expire(ctx context.Context, now time.Time) ([]prese
 	return out, nil
 }
 
-func (r *redisPresenceStore) lastBeat(ctx context.Context, userID string) (time.Time, bool, error) {
-	ms, err := r.rdb.Get(ctx, r.userKey(userID)).Int64()
+func (r *redisPresenceStore) lastBeat(ctx context.Context, workspaceID, userID string) (time.Time, bool, error) {
+	ms, err := r.rdb.Get(ctx, r.beatKey(workspaceID, userID)).Int64()
 	if errors.Is(err, redis.Nil) {
 		return time.Time{}, false, nil
 	}

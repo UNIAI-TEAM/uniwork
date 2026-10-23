@@ -1,8 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
-import { foldVi } from "./chat-search-fold";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
+import { foldVi } from "@uniwork/core/chat/search-fold";
 
 /**
  * The snippet with the match marked. The body is shown the way a person

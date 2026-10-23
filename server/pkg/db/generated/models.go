@@ -49,6 +49,7 @@ type AiConversation struct {
 	Title          string             `json:"title"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	TitleSource    string             `json:"title_source"`
 }
 
 type AiMessage struct {
@@ -61,6 +62,12 @@ type AiMessage struct {
 	UsageEventID   pgtype.Text        `json:"usage_event_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	Notice         pgtype.Text        `json:"notice"`
+	Steps          string             `json:"steps"`
+	Followups      string             `json:"followups"`
+	Focus          pgtype.Text        `json:"focus"`
+	Mentions       string             `json:"mentions"`
+	SupersededAt   pgtype.Timestamptz `json:"superseded_at"`
+	Model          string             `json:"model"`
 }
 
 type AiMessageFeedback struct {
@@ -299,6 +306,21 @@ type ChatBlock struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type ChatChange struct {
+	OrganizationID string             `json:"organization_id"`
+	Seq            int64              `json:"seq"`
+	RoomID         string             `json:"room_id"`
+	MessageID      string             `json:"message_id"`
+	Kind           string             `json:"kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type ChatChangeHead struct {
+	OrganizationID string             `json:"organization_id"`
+	Seq            int64              `json:"seq"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type ChatLinkPreview struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -387,6 +409,21 @@ type ChatReminder struct {
 	NextFireAt     pgtype.Timestamptz `json:"next_fire_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ChatReport struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	RoomID         pgtype.Text        `json:"room_id"`
+	MessageID      pgtype.Text        `json:"message_id"`
+	TargetUserID   string             `json:"target_user_id"`
+	Reason         string             `json:"reason"`
+	Details        string             `json:"details"`
+	Status         string             `json:"status"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type ChatRoom struct {
@@ -1903,6 +1940,7 @@ type Notification struct {
 	DigestedAt     pgtype.Timestamptz `json:"digested_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	PhonePushedAt  pgtype.Timestamptz `json:"phone_pushed_at"`
 }
 
 type NotificationDelivery struct {
@@ -2012,23 +2050,29 @@ type OfficeOfflinePolicy struct {
 }
 
 type Organization struct {
-	ID                    string             `json:"id"`
-	Slug                  string             `json:"slug"`
-	Name                  string             `json:"name"`
-	CreatedBy             string             `json:"created_by"`
-	CreatedAt             pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	Status                string             `json:"status"`
-	SuspendedAt           pgtype.Timestamptz `json:"suspended_at"`
-	SuspendedReason       pgtype.Text        `json:"suspended_reason"`
-	McpEnabledAt          pgtype.Timestamptz `json:"mcp_enabled_at"`
-	McpEnabledBy          pgtype.Text        `json:"mcp_enabled_by"`
-	DeletionScheduledAt   pgtype.Timestamptz `json:"deletion_scheduled_at"`
-	McpWriteEnabledAt     pgtype.Timestamptz `json:"mcp_write_enabled_at"`
-	McpWriteEnabledBy     pgtype.Text        `json:"mcp_write_enabled_by"`
-	AskUniModels          []string           `json:"ask_uni_models"`
-	AskUniModelsUpdatedBy pgtype.Text        `json:"ask_uni_models_updated_by"`
-	AskUniModelsUpdatedAt pgtype.Timestamptz `json:"ask_uni_models_updated_at"`
+	ID                           string             `json:"id"`
+	Slug                         string             `json:"slug"`
+	Name                         string             `json:"name"`
+	CreatedBy                    string             `json:"created_by"`
+	CreatedAt                    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                    pgtype.Timestamptz `json:"updated_at"`
+	Status                       string             `json:"status"`
+	SuspendedAt                  pgtype.Timestamptz `json:"suspended_at"`
+	SuspendedReason              pgtype.Text        `json:"suspended_reason"`
+	McpEnabledAt                 pgtype.Timestamptz `json:"mcp_enabled_at"`
+	McpEnabledBy                 pgtype.Text        `json:"mcp_enabled_by"`
+	DeletionScheduledAt          pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	McpWriteEnabledAt            pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy            pgtype.Text        `json:"mcp_write_enabled_by"`
+	AskUniModels                 []string           `json:"ask_uni_models"`
+	AskUniModelsUpdatedBy        pgtype.Text        `json:"ask_uni_models_updated_by"`
+	AskUniModelsUpdatedAt        pgtype.Timestamptz `json:"ask_uni_models_updated_at"`
+	PushPreviewsHiddenAt         pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	PushPreviewsHiddenBy         pgtype.Text        `json:"push_previews_hidden_by"`
+	MobileAppLockRequiredAt      pgtype.Timestamptz `json:"mobile_app_lock_required_at"`
+	MobileAppLockRequiredBy      pgtype.Text        `json:"mobile_app_lock_required_by"`
+	MobileScreenCaptureBlockedAt pgtype.Timestamptz `json:"mobile_screen_capture_blocked_at"`
+	MobileScreenCaptureBlockedBy pgtype.Text        `json:"mobile_screen_capture_blocked_by"`
 }
 
 type OrganizationMember struct {
@@ -2466,7 +2510,11 @@ type User struct {
 	MfaRecoveryCodes        []string           `json:"mfa_recovery_codes"`
 	DeletedAt               pgtype.Timestamptz `json:"deleted_at"`
 	// FileService file id of the account avatar; NULL = avatar_url (legacy or external) is the source.
-	AvatarFileID pgtype.Text `json:"avatar_file_id"`
+	AvatarFileID         pgtype.Text        `json:"avatar_file_id"`
+	AiConsentVersion     pgtype.Text        `json:"ai_consent_version"`
+	AiConsentAt          pgtype.Timestamptz `json:"ai_consent_at"`
+	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	AiOptOutAt           pgtype.Timestamptz `json:"ai_opt_out_at"`
 }
 
 type WebhookInbox struct {

@@ -18,13 +18,27 @@ export const CHAT_FILE_PICKER_TYPES = [
   "image/webp",
   "application/pdf",
   "text/plain",
+  "text/csv",
+  "text/markdown",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ];
 
 const ALLOWED_MIME = new Set(CHAT_FILE_PICKER_TYPES);
 
-const ALLOWED_EXT = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".txt", ".docx", ".xlsx"]);
+const ALLOWED_EXT = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".pdf",
+  ".txt",
+  ".csv",
+  ".md",
+  ".docx",
+  ".xlsx",
+]);
 
 function extensionOf(name: string): string | null {
   const lower = name.toLowerCase();
@@ -45,6 +59,8 @@ const EXT_TO_MIME: Record<string, string> = {
   ".gif": "image/gif",
   ".webp": "image/webp",
   ".pdf": "application/pdf",
+  ".csv": "text/csv",
+  ".md": "text/markdown",
 };
 
 /** When the server omits content_type, infer from the filename (legacy rows). */

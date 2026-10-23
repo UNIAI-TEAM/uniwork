@@ -3,6 +3,7 @@
 // The value is the whole native session (access + rotating refresh token), so
 // a relaunch needs no refresh while the access token is still good.
 import * as SecureStore from "expo-secure-store";
+import { settled } from "@/lib/settled";
 import type { SessionStorage, StoredSession } from "./auth/session";
 import { sessionEpochChanged } from "./session-epoch";
 
@@ -17,7 +18,8 @@ let writes: Promise<unknown> = Promise.resolve();
 
 function serialize<T>(operation: () => Promise<T>): Promise<T> {
   const result = writes.then(operation, operation);
-  writes = result.catch(() => undefined);
+  // The next write only waits its turn; this one's outcome is its caller's.
+  writes = settled(result);
   return result;
 }
 

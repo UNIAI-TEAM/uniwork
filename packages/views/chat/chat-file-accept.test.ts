@@ -23,6 +23,8 @@ describe("chat-file-accept", () => {
       isChatAcceptedFile(new File(["x"], "a.pdf", { type: "application/pdf" })),
     ).toBe(true);
     expect(isChatAcceptedFile(new File(["x"], "plan.docx", { type: "" }))).toBe(true);
+    expect(isChatAcceptedFile(new File(["x"], "export.csv", { type: "text/csv" }))).toBe(true);
+    expect(isChatAcceptedFile(new File(["x"], "notes.md", { type: "" }))).toBe(true);
     expect(
       isChatAcceptedFile(
         new File(["x"], "sheet.xlsx", {

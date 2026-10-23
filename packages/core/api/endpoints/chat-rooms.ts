@@ -1,110 +1,29 @@
-import { z } from "zod";
 import { request } from "../http";
-import { parseWithFallback } from "../schema";
-import {
-  ChatRoomEnvelopeSchema,
-  ChatRoomMemberPermissionsSchema,
-  ChatRoomMemberSchema,
-  ChatRoomsListSchema,
-  WorkspaceChatRoomSchema,
-  enc,
-  toWorkspaceChatRoom,
-} from "./chat-schemas";
-import type {
-  ChatRoomMemberPermissions,
-  ChatRoomMemberRecord,
-  ChatRoomRecord,
-  WorkspaceChatRoom,
-} from "./chat-schemas";
+import { createChatRoomsApi } from "./chat-rooms-api";
+import { readRoom } from "./chat-endpoint-kit";
+import { enc } from "./chat-schemas";
+import type { ChatRoomRecord } from "./chat-schemas";
+import { webChatRequest } from "./chat-web-request";
 
-export async function listChatRooms(
-  workspaceId: string,
-  signal?: AbortSignal,
-): Promise<ChatRoomRecord[]> {
-  // The signal lets React Query abort a superseded sidebar load on the wire.
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/rooms`, { signal });
-  const parsed = parseWithFallback(raw, ChatRoomsListSchema, { rooms: [] }, {
-    endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms",
-  });
-  return parsed.rooms ?? [];
-}
+// The web's binding of the shared chat room endpoints (chat-rooms-api.ts) to its transport.
+export const {
+  listChatRooms,
+  getChatUnreadSummary,
+  resolveDMRoom,
+  createChatGroup,
+  inviteChatGroupMembers,
+  removeChatRoomAvatar,
+  leaveChatRoom,
+  removeChatRoomMember,
+  listChatRoomMembers,
+  patchChatRoomMember,
+  getWorkspaceChatRoom,
+  ensureWorkspaceChatRoom,
+  getChatRoom,
+  patchChatRoom,
+} = createChatRoomsApi(webChatRequest);
 
-const ChatUnreadTotalsSchema = z.object({
-  unread: z.number().catch(0),
-  mentions: z.number().catch(0),
-});
-
-const ChatWorkspaceUnreadSchema = ChatUnreadTotalsSchema.extend({ workspace_id: z.string() });
-
-const ChatUnreadSummarySchema = z.object({
-  direct: ChatUnreadTotalsSchema.catch({ unread: 0, mentions: 0 }),
-  // One drifted row drops alone instead of emptying every badge.
-  workspaces: z
-    .array(z.unknown())
-    .catch([])
-    .transform((items) =>
-      items.flatMap((item) => {
-        const row = ChatWorkspaceUnreadSchema.safeParse(item);
-        return row.success ? [row.data] : [];
-      }),
-    ),
-});
-/**
- * The caller's chat unread across workspaces (muted rooms count mentions
- * only): dms and groups once in `direct`, each workspace's channels apart.
- */
-type ChatUnreadSummary = z.infer<typeof ChatUnreadSummarySchema>;
-
-const EMPTY_UNREAD_SUMMARY: ChatUnreadSummary = { direct: { unread: 0, mentions: 0 }, workspaces: [] };
-
-export async function getChatUnreadSummary(signal?: AbortSignal): Promise<ChatUnreadSummary> {
-  const raw = await request("/api/v1/me/chat/unread-summary", { signal });
-  return parseWithFallback(raw, ChatUnreadSummarySchema, EMPTY_UNREAD_SUMMARY, {
-    endpoint: "GET /api/v1/me/chat/unread-summary",
-  });
-}
-
-export async function resolveDMRoom(workspaceId: string, userId: string): Promise<ChatRoomRecord | null> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/dm`, {
-    method: "POST",
-    body: { user_id: userId },
-  });
-  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
-    endpoint: "POST /api/v1/workspaces/{ws}/chat/dm",
-  });
-  return parsed.room ?? null;
-}
-
-export async function createChatGroup(
-  workspaceId: string,
-  input: { name: string; member_user_ids: string[] },
-): Promise<ChatRoomRecord | null> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/groups`, {
-    method: "POST",
-    body: input,
-  });
-  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
-    endpoint: "POST /api/v1/workspaces/{ws}/chat/groups",
-  });
-  return parsed.room ?? null;
-}
-
-export async function inviteChatGroupMembers(
-  workspaceId: string,
-  roomId: string,
-  memberUserIds: string[],
-): Promise<ChatRoomRecord | null> {
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/members`,
-    { method: "POST", body: { member_user_ids: memberUserIds } },
-  );
-  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
-    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/members",
-  });
-  return parsed.room ?? null;
-}
-
-/** Sets a group's avatar; PNG, JPEG, GIF or WebP up to 2 MiB. */
+/** Sets a group's avatar; PNG, JPEG, GIF or WebP up to 2 MiB. A browser File, so it stays off the JSON factory. */
 export async function uploadChatRoomAvatar(
   workspaceId: string,
   roomId: string,
@@ -112,39 +31,10 @@ export async function uploadChatRoomAvatar(
 ): Promise<ChatRoomRecord | null> {
   const form = new FormData();
   form.append("file", file);
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/avatar`,
-    { method: "POST", body: form },
+  return readRoom(
+    request(`/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/avatar`, { method: "POST", body: form }),
+    "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/avatar",
   );
-  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
-    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/avatar",
-  });
-  return parsed.room ?? null;
-}
-
-export async function removeChatRoomAvatar(
-  workspaceId: string,
-  roomId: string,
-): Promise<ChatRoomRecord | null> {
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/avatar`,
-    { method: "DELETE" },
-  );
-  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
-    endpoint: "DELETE /api/v1/workspaces/{ws}/chat/rooms/{roomID}/avatar",
-  });
-  return parsed.room ?? null;
-}
-
-export async function leaveChatRoom(workspaceId: string, roomId: string): Promise<boolean> {
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/leave`,
-    { method: "POST", body: {} },
-  );
-  const parsed = parseWithFallback(raw, z.object({ status: z.string().optional() }), { status: "" }, {
-    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/leave",
-  });
-  return parsed.status === "ok";
 }
 
 export async function removeWorkspaceChatRoomMember(
@@ -155,87 +45,7 @@ export async function removeWorkspaceChatRoomMember(
   return removeChatRoomMember(workspaceId, roomId, userId);
 }
 
-export async function removeChatRoomMember(
-  workspaceId: string,
-  roomId: string,
-  userId: string,
-): Promise<boolean> {
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/members/${enc(userId)}`,
-    { method: "DELETE" },
-  );
-  const parsed = parseWithFallback(raw, z.object({ status: z.string().optional() }), { status: "" }, {
-    endpoint: "DELETE /api/v1/workspaces/{ws}/chat/rooms/{roomID}/members/{userID}",
-  });
-  return parsed.status === "ok";
-}
-
-export async function listChatRoomMembers(
-  workspaceId: string,
-  roomId: string,
-): Promise<ChatRoomMemberRecord[]> {
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/members`,
-  );
-  const parsed = parseWithFallback(
-    raw,
-    z.object({ members: z.array(ChatRoomMemberSchema).optional() }),
-    { members: [] },
-    { endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/members" },
-  );
-  return parsed.members ?? [];
-}
-
-export async function patchChatRoomMember(
-  workspaceId: string,
-  roomId: string,
-  userId: string,
-  body: { role?: "admin" | "member"; send_restricted?: boolean },
-): Promise<boolean> {
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/members/${enc(userId)}`,
-    { method: "PATCH", body },
-  );
-  const parsed = parseWithFallback(raw, z.object({ status: z.string().optional() }), { status: "" }, {
-    endpoint: "PATCH /api/v1/workspaces/{ws}/chat/rooms/{roomID}/members/{userID}",
-  });
-  return parsed.status === "ok";
-}
-
-export async function getWorkspaceChatRoom(workspaceId: string): Promise<WorkspaceChatRoom | null> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/room`);
-  const parsed = parseWithFallback<WorkspaceChatRoom | null>(raw, WorkspaceChatRoomSchema, null, {
-    endpoint: "GET /api/v1/workspaces/{ws}/chat/room",
-  });
-  return toWorkspaceChatRoom(parsed);
-}
-
-export async function ensureWorkspaceChatRoom(workspaceId: string): Promise<WorkspaceChatRoom | null> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/room`, {
-    method: "POST",
-    body: {},
-  });
-  return parseWithFallback<WorkspaceChatRoom | null>(raw, WorkspaceChatRoomSchema, null, {
-    endpoint: "POST /api/v1/workspaces/{ws}/chat/room",
-  });
-}
-
-/**
- * The room detail read (UNI-1966 L5): the one place the server resolves
- * viewer-scoped room state like `can_send_document`. The room LIST never
- * carries those fields.
- */
-export async function getChatRoom(
-  workspaceId: string,
-  roomId: string,
-): Promise<ChatRoomRecord | null> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}`);
-  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
-    endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}",
-  });
-  return parsed.room ?? null;
-}
-
+/** Sets the room's custom wallpaper image. A browser File, so it stays off the JSON factory. */
 export async function uploadChatRoomWallpaper(
   workspaceId: string,
   roomId: string,
@@ -243,39 +53,8 @@ export async function uploadChatRoomWallpaper(
 ): Promise<ChatRoomRecord | null> {
   const form = new FormData();
   form.append("file", file);
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/wallpaper`,
-    { method: "POST", body: form },
+  return readRoom(
+    request(`/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/wallpaper`, { method: "POST", body: form }),
+    "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/wallpaper",
   );
-  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
-    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/wallpaper",
-  });
-  return parsed.room ?? null;
-}
-
-export async function patchChatRoom(
-  workspaceId: string,
-  roomId: string,
-  body: {
-    name?: string;
-    /** The room's description; "" clears it. */
-    topic?: string;
-    member_permissions?: Partial<ChatRoomMemberPermissions>;
-    wallpaper?: { preset: string };
-  },
-): Promise<ChatRoomMemberPermissions> {
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}`,
-    { method: "PATCH", body },
-  );
-  return parseWithFallback(raw, ChatRoomMemberPermissionsSchema, {
-    allow_change_profile: true,
-    allow_pin_content: true,
-    allow_create_notes: true,
-    allow_create_polls: true,
-    allow_send_messages: true,
-    allow_forward: true,
-  }, {
-    endpoint: "PATCH /api/v1/workspaces/{ws}/chat/rooms/{roomID}",
-  });
 }

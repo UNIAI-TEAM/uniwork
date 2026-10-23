@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { pinChatScrollToBottom, updateStickToBottomFromScroll } from "./virtual-chat-message-list";
+import {
+  applyVirtualScrollRestore,
+  pinChatScrollToBottom,
+  preserveScrollAfterPrepend,
+  updateStickToBottomFromScroll,
+} from "./virtual-chat-message-list";
 
 describe("updateStickToBottomFromScroll", () => {
   it("keeps stick true on the post-reload scrollTop=0 flash", () => {
@@ -33,6 +38,39 @@ describe("updateStickToBottomFromScroll", () => {
     } as HTMLDivElement;
     expect(updateStickToBottomFromScroll(el, stick)).toBe(true);
     expect(stick.current).toBe(true);
+  });
+});
+
+describe("pinned scroll while content grows", () => {
+  it("does not clear stick when distance from bottom spikes before pin runs", () => {
+    const stick = { current: true };
+    const el = {
+      scrollTop: 1000,
+      scrollHeight: 5000,
+      clientHeight: 500,
+    } as HTMLDivElement;
+    // List grew under the reader: temporarily "far" from bottom until scrollTop catches up.
+    expect(updateStickToBottomFromScroll(el, stick)).toBe(false);
+    expect(stick.current).toBe(false);
+    // Caller that pins on growth must not run updateStickToBottomFromScroll first (panel onScroll).
+  });
+});
+
+describe("preserveScrollAfterPrepend", () => {
+  it("offsets scrollTop by the height the list grew", () => {
+    const el = { scrollTop: 200, scrollHeight: 5000, clientHeight: 500 } as HTMLDivElement;
+    preserveScrollAfterPrepend(el, 4000, 200);
+    expect(el.scrollTop).toBe(1200);
+  });
+});
+
+describe("applyVirtualScrollRestore", () => {
+  it("clamps scrollTop to the virtual list height", () => {
+    const el = { scrollTop: 0, scrollHeight: 3000, clientHeight: 500 } as HTMLDivElement;
+    applyVirtualScrollRestore(el, 1800);
+    expect(el.scrollTop).toBe(1800);
+    applyVirtualScrollRestore(el, 99999);
+    expect(el.scrollTop).toBe(2500);
   });
 });
 

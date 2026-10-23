@@ -132,6 +132,8 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			DownloadURL:  m.File.DownloadURL,
 			ThumbURL:     m.File.ThumbURL,
 			URLExpiresAt: formatURLExpiry(m.File.URLExpiresAt),
+			Width:        m.File.Width,
+			Height:       m.File.Height,
 		}
 	}
 	if m.Document != nil {
@@ -560,6 +562,15 @@ func (h *handlers) patchChatRoom(w http.ResponseWriter, r *http.Request) {
 	roomID := chi.URLParam(r, "roomID")
 	wsID := chi.URLParam(r, "workspaceID")
 	actorID := middleware.UserID(r.Context())
+	settingsChange := in.Name != nil || in.Topic != nil || in.MemberPermissions != nil
+	if in.Wallpaper == nil && !settingsChange {
+		if _, err := h.Chat.GetRoomMemberPermissions(r.Context(), actorID, wsID, roomID); err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+		respondError(w, http.StatusBadRequest, "invalid_request", "no fields to update")
+		return
+	}
 	if in.Wallpaper != nil {
 		if err := h.Chat.UpdateChatRoomWallpaperPreset(
 			r.Context(), actorID, wsID, roomID, in.Wallpaper.Preset,
@@ -578,11 +589,7 @@ func (h *handlers) patchChatRoom(w http.ResponseWriter, r *http.Request) {
 		next := patchMemberPermissionsFromSDI(current, in.MemberPermissions)
 		merged = &next
 	}
-	settingsChange := in.Name != nil || in.Topic != nil || merged != nil
-	if in.Wallpaper == nil && !settingsChange {
-		respondError(w, http.StatusBadRequest, "invalid_request", "no fields to update")
-		return
-	}
+	settingsChange = in.Name != nil || in.Topic != nil || merged != nil
 	var perms service.ChatRoomMemberPermissions
 	var err error
 	if settingsChange {
@@ -1000,6 +1007,21 @@ func (h *handlers) listChatNicknames(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, sdo.ChatNicknameMapSDO{Nicknames: nicknames})
+}
+
+func (h *handlers) reportChat(w http.ResponseWriter, r *http.Request) {
+	var in sdi.ReportChatSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	out, err := h.Chat.ReportChat(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), service.ReportChatInput{
+		MessageID: in.MessageID, UserID: in.UserID, Reason: in.Reason, Details: in.Details,
+	})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusCreated, sdo.ChatReportSDO{ID: out.ID, Status: out.Status})
 }
 
 func (h *handlers) setChatNickname(w http.ResponseWriter, r *http.Request) {

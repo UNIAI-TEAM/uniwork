@@ -25,6 +25,7 @@ const OPERATOR_RUNBOOKS = new Set([
   "unichat-pilot.md", // UniChat Q1 (UNI-1838): daily triage and stop rules of the internal pilot
   "folders-unshare.md", // UNI-1974: one-off clean-up command run once after the folder-share-off deploy
   "folders-into-my-folder.md", // UNI-2055: one-off admin command run once after the workspace-folder (ADR 0037) deploy
+  "browser-notifications.md", // UNI-1965: deploy and manual acceptance of browser permission + Web Push (no pager)
 ]);
 
 /** `{alert, runbook_url}` pairs from deploy/alerts.yml. */
@@ -37,6 +38,8 @@ function rules() {
     if (alert) out.push({ alert: alert[1] });
     const url = line.match(/^\s*runbook_url:\s*(\S+)/);
     if (url) out.at(-1).runbook_url = url[1];
+    const expr = line.match(/^\s*expr:\s*(.+)$/);
+    if (expr && out.length) out.at(-1).expr = expr[1];
   }
   return out;
 }
@@ -48,8 +51,8 @@ test("every alert has a runbook_url whose file exists and is named after the ale
   const all = rules();
   assert.equal(
     all.length,
-    28,
-    "spec §6.5 + UNI-936 alerts; billing adds BILLING_VNPAY_WEBHOOK + C-11 graph lag; UNI-1087 RedisUnreachable; G7-07 adds 12 Office / UniWork AI alerts",
+    36,
+    "spec §6.5 + UNI-936 alerts; billing adds BILLING_VNPAY_WEBHOOK + C-11 graph lag; UNI-1087 RedisUnreachable; G7-07 adds 12 Office / UniWork AI alerts; UNI-2053 UniChatMobileServerErrors, UniChatCallRingsDegraded, UniChatCallRingSlow, UniChatReportFiled, UniChatReportOverdue, UniChatMobileUpdateLaunchFailures, UniChatMobileCrashes and UniChatMobileSendFailures",
   );
   for (const r of all) {
     assert.ok(r.runbook_url, `${r.alert} has no runbook_url`);
@@ -79,4 +82,26 @@ test("every runbook is referenced by an alert or is a listed operator runbook", 
 test("runbook index lists every alert", () => {
   const index = read(`${RUNBOOK_DIR}/README.md`);
   for (const r of rules()) assert.ok(index.includes(`${r.alert}.md`), `README.md does not link ${r.alert}.md`);
+});
+
+// A per-action audit series (uniwork_audit_events_total{action}) is created by
+// the first row a process records, at 1, with no earlier 0: increase() and
+// rate() need two samples, so they never see that first row, and every deploy
+// starts the series again. A rare event (a chat report) would almost never
+// fire such an alert. Alerts on rare business events read queue state instead.
+test("no alert takes increase() or rate() of a lazily created audit series", () => {
+  for (const r of rules()) {
+    assert.doesNotMatch(
+      r.expr ?? "",
+      /(increase|rate)\(\s*uniwork_audit_events_total/,
+      `${r.alert}: read queue state (a scrape-time gauge), not the growth of uniwork_audit_events_total`,
+    );
+  }
+});
+
+test("the chat report alerts read the open queue, so a waiting report keeps them on", () => {
+  const byName = new Map(rules().map((r) => [r.alert, r.expr ?? ""]));
+  assert.match(byName.get("UniChatReportFiled") ?? "", /uniwork_chat_reports_open\b/);
+  assert.match(byName.get("UniChatReportOverdue") ?? "", /uniwork_chat_reports_oldest_open_age_seconds\b/);
+  assert.match(byName.get("QueueLagUnreadable") ?? "", /uniwork_chat_reports_up\b/);
 });

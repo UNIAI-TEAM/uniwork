@@ -17,6 +17,7 @@ const NAV = [
   { key: "overview", href: paths.admin.root() },
   { key: "organizations", href: paths.admin.organizations() },
   { key: "demo_requests", href: paths.admin.demoRequests() },
+  { key: "chat_reports", href: paths.admin.chatReports() },
   { key: "plans", href: paths.admin.plans() },
   { key: "invoices", href: paths.admin.invoices() },
   { key: "flags", href: paths.admin.flags() },

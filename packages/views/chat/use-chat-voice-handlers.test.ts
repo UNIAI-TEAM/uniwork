@@ -18,8 +18,6 @@ describe("useChatVoiceHandlers", () => {
         activeContact: contact,
         activeGroup: null,
         startCall,
-        acceptCall: vi.fn(),
-        declineCall: vi.fn(),
       }),
     );
 
@@ -39,8 +37,6 @@ describe("useChatVoiceHandlers", () => {
         activeContact: contact,
         activeGroup: null,
         startCall,
-        acceptCall: vi.fn(),
-        declineCall: vi.fn(),
       }),
     );
 
@@ -61,8 +57,6 @@ describe("useChatVoiceHandlers", () => {
         activeGroup: null,
         activeChannel: { name: "general" },
         startCall,
-        acceptCall: vi.fn(),
-        declineCall: vi.fn(),
       }),
     );
 
@@ -87,8 +81,6 @@ describe("useChatVoiceHandlers", () => {
           member_user_ids: ["u2"],
         },
         startCall,
-        acceptCall: vi.fn(),
-        declineCall: vi.fn(),
       }),
     );
 
@@ -108,8 +100,6 @@ describe("useChatVoiceHandlers", () => {
         activeContact: contact,
         activeGroup: null,
         startCall,
-        acceptCall: vi.fn(),
-        declineCall: vi.fn(),
       }),
     );
 
@@ -118,27 +108,5 @@ describe("useChatVoiceHandlers", () => {
     });
 
     expect(startCall).not.toHaveBeenCalled();
-  });
-
-  it("declines rather than leaving the caller ringing when accepting throws", async () => {
-    const acceptCall = vi.fn().mockRejectedValue(new Error("boom"));
-    const declineCall = vi.fn();
-    const { result } = renderHook(() =>
-      useChatVoiceHandlers({
-        targetKind: "dm",
-        activeRoomId: "room1",
-        activeContact: contact,
-        activeGroup: null,
-        startCall: vi.fn(),
-        acceptCall,
-        declineCall,
-      }),
-    );
-
-    await act(async () => {
-      await result.current.handleAcceptVoiceCall();
-    });
-
-    expect(declineCall).toHaveBeenCalled();
   });
 });

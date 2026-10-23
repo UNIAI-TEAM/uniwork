@@ -6,14 +6,18 @@ import { chatKeys } from "./chat-keys";
 import {
   CHAT_HISTORY_PAGE_SIZE,
   CHAT_MESSAGE_CACHE_MAX,
-  catchUpRoomTimeline,
   flattenRoomTimeline,
   insertCreatedTimelineMessage,
   keepRoomTimelineHead,
   olderRoomPageParam,
-  refreshLoadedRoomTimelines,
   replaceTimelineMessage,
   type RoomTimeline,
+} from "./room-timeline-pages";
+import {
+  catchUpRoomTimeline,
+  refreshLoadedRoomTimelines,
+  refreshRoomTimelineOnOpen,
+  ROOM_TIMELINE_STALE_MS,
 } from "./room-timeline";
 
 const msg = (id: string, minute: number): ChatMessageRecord => ({
@@ -38,7 +42,7 @@ const timeline = (...pages: ChatMessageRecord[][]): RoomTimeline => ({
   pageParams: pages.map((_, index) => (index === 0 ? null : { cursor: `p${index}` })),
 });
 
-const ids = (data: RoomTimeline | null) => (data ? flattenRoomTimeline(data).map((m) => m.id) : null);
+const ids = (data: RoomTimeline | null | undefined) => (data ? flattenRoomTimeline(data).map((m) => m.id) : null);
 
 describe("room timeline", () => {
   it("flattens newest-first pages into one oldest-first list", () => {
@@ -185,5 +189,51 @@ describe("refreshLoadedRoomTimelines", () => {
     refreshLoadedRoomTimelines(qc, "ws1");
     await vi.waitFor(() => expect(qc.getQueryState(key)?.isInvalidated).toBe(true));
     expect(list).not.toHaveBeenCalled();
+  });
+});
+
+describe("refreshRoomTimelineOnOpen", () => {
+  const key = chatKeys.roomMessages("ws1", "room1");
+
+  it("drops older pages but skips invalidate while the newest page is still fresh", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(key, timeline([msg("c", 3)], [msg("a", 1), msg("b", 2)]));
+    qc.getQueryCache().find({ queryKey: key, exact: true })!.setState({
+      dataUpdatedAt: Date.now(),
+    });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    refreshRoomTimelineOnOpen(qc, "ws1", "room1");
+
+    expect(ids(qc.getQueryData(key))).toEqual(["c"]);
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("invalidates when the cache is older than the stale window", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(key, timeline([msg("b", 2)]));
+    const query = qc.getQueryCache().find({ queryKey: key, exact: true })!;
+    query.setState({
+      ...query.state,
+      dataUpdatedAt: Date.now() - ROOM_TIMELINE_STALE_MS - 1,
+    });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    refreshRoomTimelineOnOpen(qc, "ws1", "room1");
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+  });
+
+  it("always invalidates on reconnect even when the cache is still fresh", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(key, timeline([msg("b", 2)]));
+    qc.getQueryCache().find({ queryKey: key, exact: true })!.setState({
+      dataUpdatedAt: Date.now(),
+    });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    refreshRoomTimelineOnOpen(qc, "ws1", "room1", { force: true });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
   });
 });

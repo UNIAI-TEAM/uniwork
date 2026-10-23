@@ -40,7 +40,7 @@ import { ChatWallpaperSheet } from "./chat-wallpaper-sheet";
 import { useChatRoomPreferences } from "./use-chat-room-preferences";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import { chatPersonFaceClass } from "./chat-person-card";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 
 export function DmSettingsSheet({
   open,

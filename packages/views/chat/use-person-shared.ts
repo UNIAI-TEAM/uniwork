@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { listChatRoomMessages, type ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
 import { useChatRooms } from "@uniwork/core/chat";
-import { CHAT_HISTORY_PAGE_SIZE, olderRoomPageParam, type RoomMessagesPageParam } from "@uniwork/core/chat/room-timeline";
+import { CHAT_HISTORY_PAGE_SIZE, olderRoomPageParam, type RoomMessagesPageParam } from "@uniwork/core/chat/room-timeline-pages";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { groupsInCommon, sharedItemsFromMessages } from "./chat-person-shared";
 

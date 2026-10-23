@@ -7,7 +7,7 @@ import {
   formatChatSidebarPreviewText,
   formatChatSidebarTime,
 } from "./chat-sidebar-preview";
-import { givenNameOf, initialsOf, roomInitialsOf } from "./chat-initials";
+import { givenNameOf, initialsOf, roomInitialsOf } from "@uniwork/core/chat/initials";
 
 describe("chat-sidebar-preview", () => {
   it("formats group preview with sender prefix", () => {
@@ -215,6 +215,17 @@ describe("chat-sidebar-preview", () => {
       createdAt: "2026-03-26T10:00:00Z",
     };
     expect(compareRoomPreviewRecency(newer, older)).toBeLessThan(0);
+  });
+
+  it("labels yesterday when calendar days differ by almost one day (DST-safe)", () => {
+    const now = new Date(2026, 2, 26, 10, 0, 0);
+    const yesterday = new Date(2026, 2, 25, 23, 30, 0);
+    expect(
+      formatChatSidebarTime(yesterday.toISOString(), {
+        now,
+        yesterdayLabel: "Hôm qua",
+      }),
+    ).toBe("Hôm qua");
   });
 
   it("formats today as time and yesterday label", () => {

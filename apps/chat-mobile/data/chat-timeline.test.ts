@@ -1,31 +1,18 @@
 // Parity: packages/core/chat/room-timeline.test.ts, with the app's chat API
-// and query keys in place of the web's.
-import { QueryClient, QueryObserver } from "@tanstack/react-query";
+// and query keys in place of the web's: core's timeline cache operations as
+// the phone binds them (data/chat-timeline.ts).
+import { InfiniteQueryObserver, QueryClient, QueryObserver } from "@tanstack/react-query";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", () => ({ api: { request: vi.fn() } }));
 
 import { chatApi } from "./chat-api";
+import { roomTimelineOptions } from "./queries/chat";
 import { chatKeys } from "./queries/chat-keys";
-import {
-  CHAT_HISTORY_PAGE_SIZE,
-  CHAT_MESSAGE_CACHE_MAX,
-  catchUpOnChatSubscribeAck,
-  catchUpRoomTimeline,
-  compareMessages,
-  flattenRoomTimeline,
-  insertCreatedTimelineMessage,
-  keepRoomTimelineHead,
-  markStaleUnlessObserved,
-  olderRoomPageParam,
-  olderThan,
-  refreshLoadedRoomTimelines,
-  refreshRoomTimelineOnOpen,
-  replaceTimelineMessage,
-  roomTimelineFetchInFlight,
-  type RoomTimeline,
-} from "./chat-timeline";
+import { olderThan } from "@uniwork/core/api/endpoints/chat-schemas";
+import { CHAT_HISTORY_PAGE_SIZE, CHAT_MESSAGE_CACHE_MAX, compareMessages, flattenRoomTimeline, insertCreatedTimelineMessage, keepRoomTimelineHead, olderRoomPageParam, replaceTimelineMessage, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
+import { catchUpOnChatSubscribeAck, catchUpRoomTimeline, refreshLoadedRoomTimelines, refreshRoomTimelineOnOpen } from "./chat-timeline";
 
 const msg = (id: string, minute: number): ChatMessageRecord => ({
   id,
@@ -176,17 +163,28 @@ describe("refreshLoadedRoomTimelines", () => {
   afterEach(() => vi.restoreAllMocks());
   const key = chatKeys.roomMessages("ws1", "room1");
 
-  it("refreshes the newest page of a shown timeline after a reconnect", async () => {
-    const list = vi.spyOn(chatApi, "listMessages").mockResolvedValue([]);
+  // Review P2 (audit "Realtime"): every return from the background reconnects; dropping the older
+  // pages there threw away the history the person was reading.
+  it("keeps the pages a shown room scrolled back through, each refetched with what changed offline", async () => {
+    const row = (i: number): ChatMessageRecord => ({ ...msg(`m${i}`, 0), body: `b${i}`, created_at: new Date(Date.UTC(2026, 0, 1, 10, 0, i)).toISOString(), cursor: `c${i}` });
+    const head = Array.from({ length: CHAT_HISTORY_PAGE_SIZE }, (_, k) => row(100 + k));
+    const older = Array.from({ length: CHAT_HISTORY_PAGE_SIZE }, (_, k) => row(50 + k));
     const qc = new QueryClient();
-    qc.setQueryData(key, timeline([msg("b", 2)], [msg("a", 1)]));
-    new QueryObserver(qc, { queryKey: key, enabled: false }).subscribe(() => {});
+    qc.setQueryData<RoomTimeline>(key, { pages: [head, older], pageParams: [null, { cursor: "c100" }] });
+    const list = vi
+      .spyOn(chatApi, "listMessages")
+      .mockImplementation(async (_ws, _room, params) => (params?.cursor ? older.map((m) => (m.id === "m60" ? { ...m, body: "edited offline" } : m)) : head));
+    const unsubscribe = new InfiniteQueryObserver(qc, roomTimelineOptions("ws1", "room1")).subscribe(() => {});
 
     refreshLoadedRoomTimelines(qc, "ws1");
 
-    expect(qc.getQueryData<RoomTimeline>(key)?.pages).toEqual([[msg("b", 2)]]);
-    await vi.waitFor(() => expect(qc.getQueryState(key)?.isInvalidated).toBe(true));
-    expect(list).not.toHaveBeenCalledWith("ws1", "room1", expect.objectContaining({ after: expect.anything() }));
+    expect(qc.getQueryData<RoomTimeline>(key)?.pages).toHaveLength(2);
+    await vi.waitFor(() => expect(qc.getQueryData<RoomTimeline>(key)?.pages[1]?.find((m) => m.id === "m60")?.body).toBe("edited offline"));
+    expect(qc.getQueryData<RoomTimeline>(key)?.pages).toHaveLength(2);
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(list).toHaveBeenLastCalledWith("ws1", "room1", expect.objectContaining({ cursor: "c100" }), expect.anything());
+    expect(list).not.toHaveBeenCalledWith("ws1", "room1", expect.objectContaining({ after: expect.anything() }), expect.anything());
+    unsubscribe();
   });
 
   it("only marks stale a loaded timeline nobody shows", async () => {
@@ -244,19 +242,11 @@ describe("timeline edges the core suite leaves out", () => {
     refreshRoomTimelineOnOpen(qc, "ws1", "room1");
     expect(qc.getQueryData(key)).toBeUndefined();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
-  });
 
-  it("waits out a failing fetch in flight without throwing (the query reports it)", async () => {
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const fetching = qc.fetchQuery({ queryKey: key, queryFn: () => Promise.reject(new Error("down")) }).catch(() => "reported");
-    await expect(roomTimelineFetchInFlight(qc, key)).resolves.toBeUndefined();
-    await expect(fetching).resolves.toBe("reported");
-    expect(roomTimelineFetchInFlight(qc, key)).toBeUndefined();
-  });
-
-  it("treats a key with no query as not shown", () => {
-    const qc = new QueryClient();
-    expect(markStaleUnlessObserved(qc, key)).toBe(false);
+    // Reopening a loaded room (unlike a reconnect) forgets the pages scrolled in last time.
+    qc.setQueryData(key, timeline([msg("b", 2)], [msg("a", 1)]));
+    refreshRoomTimelineOnOpen(qc, "ws1", "room1");
+    expect(qc.getQueryData<RoomTimeline>(key)?.pages).toEqual([[msg("b", 2)]]);
   });
 
   it("refetches the head when the newest message has no cursor or the read fails", async () => {

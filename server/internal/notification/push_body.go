@@ -19,6 +19,45 @@ var pushBodyLabels = map[string]map[string]string{
 	"en": {"file": "[File]", "image": "[Image]", "voice": "[Voice message]"},
 }
 
+// hiddenPushTitles stand in for the whole push when the recipient or their
+// organization hides previews (service.SetPushPreviews, SetPushPreviewPolicy).
+// A title passes through Expo, FCM and APNs and sits on a lock screen as the
+// body does, so these name no one and nothing: not the sender, the room, a
+// task or document, nor a reminder's words. They say only what kind of thing
+// happened. "" is every kind without a line of its own.
+var hiddenPushTitles = map[string]map[string]string{
+	"vi": {
+		KindChatDM:            "Tin nhắn riêng mới",
+		KindChatMentioned:     "Bạn được nhắc đến trong một cuộc trò chuyện",
+		KindChatThreadReplied: "Có trả lời mới trong một thread",
+		ChannelMissedCalls:    "Cuộc gọi nhỡ",
+		"":                    "Bạn có thông báo mới",
+	},
+	"en": {
+		KindChatDM:            "New direct message",
+		KindChatMentioned:     "You were mentioned in a conversation",
+		KindChatThreadReplied: "New reply in a thread",
+		ChannelMissedCalls:    "Missed call",
+		"":                    "You have a new notification",
+	},
+}
+
+// hiddenPushTitle is the title of a hidden push; the body is left empty. A
+// missed call is told by its channel, since its row is a chat_dm.
+func hiddenPushTitle(locale, kind, channel string) string {
+	titles, ok := hiddenPushTitles[locale]
+	if !ok {
+		titles = hiddenPushTitles["en"]
+	}
+	if channel == ChannelMissedCalls {
+		return titles[ChannelMissedCalls]
+	}
+	if title, ok := titles[kind]; ok {
+		return title
+	}
+	return titles[""]
+}
+
 var (
 	pushMarkdownLink  = regexp.MustCompile(`\[([^\]]+)\]\([^)]*\)`)
 	pushMarkdownMarks = strings.NewReplacer("`", "", "*", "", "_", "", "~", "")

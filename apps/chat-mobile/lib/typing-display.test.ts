@@ -3,7 +3,8 @@
 // web's chat copy).
 import { afterAll, describe, expect, it } from "vitest";
 import { i18n } from "./i18n/singleton";
-import { formatSidebarTypingPreview, formatTypingLabel, typingNameByUserIdFromContext } from "./typing-display";
+import { formatSidebarTypingPreview, typingNameByUserIdFromContext } from "./typing-display";
+import { formatTypingLabel } from "@uniwork/core/chat/typing-label";
 
 describe("formatSidebarTypingPreview", () => {
   const t = (key: string, options?: Record<string, unknown>) => {
@@ -89,7 +90,7 @@ describe("formatSidebarTypingPreview", () => {
   });
 });
 
-describe("formatTypingLabel", () => {
+describe("formatTypingLabel (core) with the app's strings", () => {
   it("returns null for empty list", () => {
     expect(formatTypingLabel([], i18n.t.bind(i18n), "vi")).toBeNull();
   });

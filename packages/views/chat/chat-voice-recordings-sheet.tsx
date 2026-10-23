@@ -32,7 +32,7 @@ import {
 } from "./chat-dialog-look";
 import { formatMessageDateTime, formatMessageDay, formatMessageTime } from "./chat-message-time";
 import type { NameContextEntry } from "./native-chat-message-mapping";
-import { formatVoiceCallDuration } from "./voice-call-duration";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { chatRoomFaceOf } from "./voice-call-face";
 import { VoiceCallRecordingDialog } from "./voice-call-recording-dialog";
 

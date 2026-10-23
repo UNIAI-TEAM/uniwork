@@ -19,7 +19,7 @@ import {
   canUnmuteChatMember,
 } from "./chat-room-moderation-utils";
 import { settingsMemberOrder } from "./chat-info-panel-utils";
-import { foldedIncludes } from "./chat-search-fold";
+import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { ChatMemberFace, ChatMemberRow, type ChatMemberDetailTone } from "./chat-settings-ui";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
@@ -177,7 +177,7 @@ export function WorkspaceRoomMemberList({
                       onMute={() => moderation.mute(member.user_id)}
                       onUnmute={() => moderation.unmute(member.user_id)}
                       onKick={() =>
-                        moderation.requestRemove(member.user_id, label, t("workspace.removeConfirm", { name: label }), {
+                        moderation.requestRemove(member.user_id, t("workspace.removeConfirm", { name: label }), {
                           description: workspaceName
                             ? t("chat.remove_workspace_member_description", { name: label, workspace: workspaceName })
                             : t("chat.remove_workspace_member_description_generic", { name: label }),

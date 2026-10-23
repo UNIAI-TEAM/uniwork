@@ -214,6 +214,12 @@ INSERT INTO chat_messages (
 SELECT * FROM chat_messages
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL;
 
+-- name: ListChatMessagesInRoomByIDs :many
+-- GetChatMessageInRoom for many ids at once (the chat sync answer, one read per room).
+SELECT * FROM chat_messages
+WHERE room_id = sqlc.arg(room_id) AND workspace_id = sqlc.arg(workspace_id)
+  AND id = ANY(sqlc.arg(ids)::text[]) AND deleted_at IS NULL;
+
 -- name: GetChatMessageInRoomForUpdate :one
 -- Locks the row so a metadata read-modify-write cannot lose a concurrent one.
 SELECT * FROM chat_messages
@@ -243,6 +249,14 @@ RETURNING *;
 UPDATE chat_messages
 SET deleted_at = now()
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND sender_id = $4 AND deleted_at IS NULL
+RETURNING *;
+
+-- name: ModerationRemoveChatMessage :one
+-- The platform operator takes a reported message down (store UGC policy, Apple 1.2): any sender's, in the
+-- report's organization (ChatService.RemoveReportedMessageQ, called by AdminService.RemoveReportedMessage).
+UPDATE chat_messages
+SET deleted_at = now()
+WHERE id = $1 AND room_id = $2 AND organization_id = $3 AND deleted_at IS NULL
 RETURNING *;
 
 -- name: SoftDeleteChatReminderMessage :one
@@ -494,13 +508,11 @@ SELECT avatar_file_id FROM chat_rooms
 WHERE avatar_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
 -- name: SetChatRoomWallpaper :exec
--- tenant: by-id
 UPDATE chat_rooms
 SET wallpaper_preset = sqlc.arg(wallpaper_preset), wallpaper_file_id = sqlc.narg(wallpaper_file_id), updated_at = now()
 WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id);
 
 -- name: GetChatRoomWallpaperForUpdate :one
--- tenant: by-id
 SELECT wallpaper_preset, wallpaper_file_id FROM chat_rooms
 WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
 FOR UPDATE;
@@ -881,7 +893,7 @@ ON CONFLICT (thread_root_id, user_id) DO UPDATE SET
     WHEN EXCLUDED.reason = 'replied' THEN EXCLUDED.reason
     ELSE EXCLUDED.reason
   END,
-  last_read_at = COALESCE(EXCLUDED.last_read_at, chat_thread_followers.last_read_at);
+  last_read_at = GREATEST(chat_thread_followers.last_read_at, EXCLUDED.last_read_at);
 
 -- name: MuteChatThreadFollower :exec
 -- tenant: parent thread_root_id
@@ -898,7 +910,7 @@ WHERE thread_root_id = $1 AND user_id = $2;
 -- name: MarkChatThreadRead :exec
 -- tenant: parent thread_root_id
 UPDATE chat_thread_followers
-SET last_read_at = sqlc.arg(last_read_at), updated_at = now()
+SET last_read_at = GREATEST(last_read_at, sqlc.arg(last_read_at)::timestamptz), updated_at = now()
 WHERE thread_root_id = $1 AND user_id = $2;
 
 -- name: GetChatThreadFollower :one

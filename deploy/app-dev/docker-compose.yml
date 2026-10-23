@@ -49,7 +49,7 @@ services:
     environment:
       OFFICE_ENGINE_URL: http://uniwork-office-engine:8090
     ports:
-      - "8080:8080"
+      - "8086:8080"
     depends_on:
       uniwork-office-engine:
         condition: service_healthy
@@ -67,11 +67,11 @@ services:
       - path: env/uniwork-fe.env
         required: true
     ports:
-      - "3000:3000"
+      - "3008:3000"
     restart: unless-stopped
 
 networks:
   default:
     ipam:
       config:
-        - subnet: 172.30.19.0/24
+        - subnet: 10.250.0.0/24

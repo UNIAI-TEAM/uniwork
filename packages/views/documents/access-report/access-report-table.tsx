@@ -8,7 +8,7 @@ import type { AccessReportDocument, AccessReportFlag, AccessReportRow } from "@u
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { cn } from "@uniwork/ui/lib/utils";
-import { initialOf } from "../../chat/chat-initials";
+import { initialOf } from "@uniwork/core/chat/initials";
 import { DocumentTypeIcon, documentIconFormat } from "../document-type-icon";
 import { ACCESS_PILL } from "../doclist/cells";
 import { formatListDate } from "../doclist/format";

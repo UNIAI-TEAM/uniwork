@@ -100,9 +100,17 @@ func (s *AskUNIService) CatchUp(ctx context.Context, userID, workspaceID string,
 	if err != nil {
 		return CatchUpResult{}, err
 	}
+	optOuts, err := loadAIOptOuts(ctx, s.q, chatSenderIDs(msgs))
+	if err != nil {
+		return CatchUpResult{}, err
+	}
 	sources := make([]ai.Source, 0, len(msgs))
 	idByHref := map[string]string{}
 	for _, m := range msgs {
+		// A member who declined AI processing is left out of the brief (Apple 5.1.2(i)).
+		if optOuts.excludes(m.SenderID) {
+			continue
+		}
 		excerpt := catchUpExcerpt(m)
 		if excerpt == "" {
 			continue

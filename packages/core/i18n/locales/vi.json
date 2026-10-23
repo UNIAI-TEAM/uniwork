@@ -352,6 +352,13 @@
     "networkError": "Không kết nối được. Kiểm tra mạng rồi thử lại.",
     "serverError": "UniWork đang gặp sự cố. Thử lại sau ít phút.",
     "tooManyAttempts": "Thử quá nhiều lần. Chờ một phút rồi thử lại.",
+    "legal": {
+      "signUp": "Khi đăng ký, bạn đồng ý với",
+      "signIn": "Khi đăng nhập, bạn đồng ý với",
+      "terms": "Điều khoản sử dụng",
+      "and": "và đã đọc",
+      "privacy": "Chính sách quyền riêng tư"
+    },
     "desktop": {
       "eyebrow": "Đăng nhập desktop",
       "title": "Cho phép {{app}} đăng nhập?",
@@ -4364,7 +4371,7 @@
     "file_download": "Tải tệp",
     "file_drop_hint": "Thả tệp để gửi",
     "file_drop_detail": "Ảnh, PDF, Word, Excel hoặc văn bản · tối đa {{max}} mỗi tệp",
-    "file_type_unsupported": "Loại tệp không được hỗ trợ. Dùng ảnh, PDF hoặc văn bản thuần.",
+    "file_type_unsupported": "Loại tệp không được hỗ trợ. Dùng ảnh, PDF, văn bản thuần, CSV hoặc Markdown.",
     "voice_record_failed": "Không thể ghi âm. Kiểm tra quyền micro rồi thử lại.",
     "info_panel": {
       "title_group": "Thông tin nhóm",
@@ -5334,6 +5341,20 @@
       },
       "action_pending": "Đang đóng…",
       "reason_slug": "Gõ đúng định danh tổ chức để đóng."
+    },
+    "push_previews": {
+      "title": "Thông báo đẩy",
+      "description": "Nội dung thông báo đẩy đi qua dịch vụ đẩy của Expo, Google, Apple và trình duyệt, rồi hiện trên màn hình khoá.",
+      "hide": "Ẩn nội dung trong thông báo",
+      "hide_hint": "Áp dụng cho mọi thành viên: thông báo chỉ nói có tin hay việc mới, không hiện tên người gửi, tên phòng, tên công việc, tài liệu hay chữ trong tin. Chuông cuộc gọi đến vẫn hiện tên người gọi."
+    },
+    "mobile_security": {
+      "title": "UniChat trên điện thoại",
+      "description": "Yêu cầu áp dụng cho điện thoại của mọi thành viên. Khi tổ chức bật, thành viên không tắt được trong ứng dụng.",
+      "app_lock": "Bắt buộc khoá UniChat",
+      "app_lock_hint": "UniChat chỉ mở sau Face ID, vân tay hoặc mã khoá của máy. Máy chưa đặt khoá màn hình phải đặt trước khi mở được UniChat.",
+      "screen_capture": "Bắt buộc chặn chụp màn hình",
+      "screen_capture_hint": "Không chụp hay quay được màn hình UniChat, và trình chuyển ứng dụng không hiện nội dung."
     }
   },
   "invitations": {
@@ -5869,13 +5890,23 @@
     "history_with": "Lịch sử hội thoại: {{title}}",
     "resize": "Đổi độ rộng Hỏi UNI",
     "history_empty": "Chưa có hội thoại nào",
+    "history_search": "Tìm hội thoại",
+    "history_no_match": "Không có hội thoại nào khớp",
+    "history_error": "Không tải được lịch sử hội thoại",
+    "history_retry": "Thử lại",
+    "history_current": "Hiện tại",
+    "history_group": { "today": "Hôm nay", "yesterday": "Hôm qua", "week": "7 ngày qua", "older": "Cũ hơn" },
     "rename_conversation": "Đổi tên hội thoại",
-    "full_page": "Mở rộng toàn trang",
-    "exit_full_page": "Thu về thanh bên",
     "delete_conversation": "Xóa hội thoại",
     "sources": "Nguồn",
     "you": "Bạn",
     "uni": "UNI",
+    "meta": {
+      "uni": "UNI"
+    },
+    "followups": {
+      "label": "Gợi ý hỏi tiếp"
+    },
     "usage_tokens": "{{in}} vào · {{out}} ra",
     "notice": {
       "no_sources": "Chưa có dữ liệu nào bạn được xem khớp với câu hỏi này.",
@@ -5886,17 +5917,88 @@
       "stopped": "Đã dừng trước khi trả lời xong.",
       "interrupted": "Câu trả lời bị gián đoạn nên chưa đầy đủ."
     },
-    "steps": {
-      "seen": "Đã xem {{list}}",
-      "task_other": "{{count}} task",
-      "meeting_other": "{{count}} cuộc họp",
-      "document_other": "{{count}} tài liệu",
-      "project_other": "{{count}} dự án",
-      "chat_other": "{{count}} đoạn chat"
+    "progress": {
+      "search": "Đang tìm…",
+      "search_label": "Đang tìm “{{label}}”…",
+      "list_tasks": "Đang xem danh sách task…",
+      "list_tasks_label": "Đang xem danh sách task “{{label}}”…",
+      "get_task": "Đang đọc task…",
+      "get_task_label": "Đang đọc task “{{label}}”…",
+      "list_meetings": "Đang xem danh sách cuộc họp…",
+      "list_meetings_label": "Đang xem danh sách cuộc họp “{{label}}”…",
+      "get_meeting": "Đang đọc cuộc họp…",
+      "get_meeting_label": "Đang đọc cuộc họp “{{label}}”…",
+      "list_projects": "Đang xem danh sách dự án…",
+      "list_projects_label": "Đang xem danh sách dự án “{{label}}”…",
+      "get_project": "Đang đọc dự án…",
+      "get_project_label": "Đang đọc dự án “{{label}}”…",
+      "get_document": "Đang đọc tài liệu…",
+      "get_document_label": "Đang đọc tài liệu “{{label}}”…",
+      "list_chat_rooms": "Đang xem danh sách phòng chat…",
+      "list_chat_rooms_label": "Đang xem danh sách phòng chat “{{label}}”…",
+      "read_chat_room": "Đang đọc phòng chat…",
+      "read_chat_room_label": "Đang đọc phòng chat “{{label}}”…",
+      "list_members": "Đang xem danh sách thành viên…",
+      "list_members_label": "Đang xem danh sách thành viên “{{label}}”…",
+      "member_workload": "Đang xem khối lượng việc của thành viên…",
+      "member_workload_label": "Đang xem khối lượng việc của “{{label}}”…",
+      "thinking": "UNI đang suy nghĩ…",
+      "retry": "Đang kiểm tra lại câu trả lời…",
+      "writing": "Đang viết câu trả lời…",
+      "default": "Đang xử lý…"
+    },
+    "steps_done": {
+      "search": "Đã tìm",
+      "search_label": "Đã tìm “{{label}}”",
+      "list_tasks": "Đã xem danh sách task",
+      "list_tasks_label": "Đã xem danh sách task “{{label}}”",
+      "get_task": "Đã đọc task",
+      "get_task_label": "Đã đọc task “{{label}}”",
+      "list_meetings": "Đã xem danh sách cuộc họp",
+      "list_meetings_label": "Đã xem danh sách cuộc họp “{{label}}”",
+      "get_meeting": "Đã đọc cuộc họp",
+      "get_meeting_label": "Đã đọc cuộc họp “{{label}}”",
+      "list_projects": "Đã xem danh sách dự án",
+      "list_projects_label": "Đã xem danh sách dự án “{{label}}”",
+      "get_project": "Đã đọc dự án",
+      "get_project_label": "Đã đọc dự án “{{label}}”",
+      "get_document": "Đã đọc tài liệu",
+      "get_document_label": "Đã đọc tài liệu “{{label}}”",
+      "list_chat_rooms": "Đã xem danh sách phòng chat",
+      "list_chat_rooms_label": "Đã xem danh sách phòng chat “{{label}}”",
+      "read_chat_room": "Đã đọc phòng chat",
+      "read_chat_room_label": "Đã đọc phòng chat “{{label}}”",
+      "list_members": "Đã xem danh sách thành viên",
+      "list_members_label": "Đã xem danh sách thành viên “{{label}}”",
+      "member_workload": "Đã xem khối lượng việc của thành viên",
+      "member_workload_label": "Đã xem khối lượng việc của “{{label}}”",
+      "default": "Đã xử lý",
+      "retry": "Đã kiểm tra lại câu trả lời",
+      "summary_other": "Xong sau {{count}} bước"
     },
     "cite": {
       "label": "Nguồn {{n}}",
       "open": "Mở"
+    },
+    "sources_count_other": "Nguồn ({{count}})",
+    "entity": {
+      "kind": {
+        "task": "Task",
+        "document": "Tài liệu",
+        "meeting": "Cuộc họp",
+        "project": "Dự án",
+        "member": "Người",
+        "members": "Người",
+        "chat": "Đoạn chat",
+        "other": "Đối tượng"
+      },
+      "unavailable": "Không còn xem được đối tượng này.",
+      "assignee": "Người phụ trách",
+      "unassigned": "Chưa giao",
+      "due": "Hạn",
+      "priority": "Ưu tiên",
+      "project": "Dự án",
+      "status": "Trạng thái"
     },
     "actions": {
       "copy": "Sao chép",
@@ -5939,26 +6041,28 @@
     "composer_label": "Câu hỏi cho UNI",
     "stop": "Dừng",
     "mention": {
-      "people": "Người",
-      "tasks": "Task",
-      "documents": "Tài liệu",
-      "meetings": "Cuộc họp",
-      "projects": "Dự án",
+      "limit": "Chỉ nhắc được tối đa {{max}} đối tượng trong một câu hỏi."
+    },
+    "picker": {
+      "list": "Chọn đối tượng",
+      "tabs_label": "Loại đối tượng",
+      "tabs": {
+        "all": "Tất cả",
+        "task": "Task",
+        "document": "Tài liệu",
+        "meeting": "Cuộc họp",
+        "project": "Dự án",
+        "member": "Người",
+        "room": "Phòng chat"
+      },
       "empty": "Không có kết quả",
-      "list": "Gợi ý nhắc tới",
-      "remove": "Bỏ {{name}}",
-      "limit": "Chỉ nhắc được tối đa {{max}} đối tượng trong một câu hỏi.",
-      "count": "{{count}} gợi ý"
+      "enter_hint": "Chọn",
+      "count_other": "{{count}} kết quả"
     },
     "scope": {
       "add": "Thêm phạm vi",
       "title": "Giới hạn câu hỏi vào",
-      "search": "Tìm dự án, cuộc họp, tài liệu, phòng chat",
-      "projects": "Dự án",
-      "meetings": "Cuộc họp",
-      "documents": "Tài liệu",
-      "rooms": "Phòng chat",
-      "empty": "Không có kết quả",
+      "search": "Tìm task, dự án, cuộc họp, tài liệu, phòng chat",
       "remove": "Bỏ phạm vi {{name}}",
       "kind": {
         "task": "Task",
@@ -5976,10 +6080,17 @@
     "ask_about_document": "Hỏi UNI về tài liệu này",
     "ask_about_project": "Hỏi UNI về dự án này",
     "ask_about_room": "Hỏi UNI về cuộc trò chuyện này",
+    "placeholder_task": "Hỏi về task này…",
+    "placeholder_meeting": "Hỏi về cuộc họp này…",
+    "placeholder_document": "Hỏi về tài liệu này…",
+    "placeholder_project": "Hỏi về dự án này…",
+    "placeholder_room": "Hỏi về cuộc trò chuyện này…",
+    "page_chip": "Trang này: {{label}}",
     "model": {
       "label": "Chọn model",
       "auto": "Tự động",
       "auto_current": "Tự động · Hiện tại: {{model}}",
+      "auto_description": "UNI chọn model hợp với từng câu hỏi.",
       "effort": "Mức nỗ lực",
       "effort_auto": "Tự động",
       "effort_low": "Thấp",
@@ -6005,6 +6116,52 @@
         "name": "Opus 5.5",
         "description": "Suy luận sâu nhất, hợp câu hỏi phức tạp nhưng chậm và tốn hạn mức hơn."
       }
+    },
+    "empty": {
+      "title": "Hỏi UNI về công việc",
+      "title_anthropic": "Cần Claude tìm hiểu gì?",
+      "task": {
+        "1": "Tóm tắt task này",
+        "2": "Task này đang vướng ở đâu?",
+        "3": "Ai nên nhận task này?",
+        "4": "Việc nào liên quan đến task này?"
+      },
+      "project": {
+        "1": "Tóm tắt tiến độ dự án này",
+        "2": "Việc nào của dự án đang trễ?",
+        "3": "Ai đang làm nhiều việc nhất trong dự án?",
+        "4": "Việc nào chưa có người làm?"
+      },
+      "meeting": {
+        "1": "Tóm tắt cuộc họp này",
+        "2": "Cuộc họp này chốt những gì?",
+        "3": "Việc nào được giao trong cuộc họp?",
+        "4": "Cần chuẩn bị gì cho cuộc họp?"
+      },
+      "document": {
+        "1": "Tóm tắt tài liệu này",
+        "2": "Tài liệu này nói gì về hạn chót?",
+        "3": "Việc nào liên quan đến tài liệu này?",
+        "4": "Ai phụ trách nội dung này?"
+      },
+      "room": {
+        "1": "Tóm tắt trao đổi gần đây",
+        "2": "Có việc nào được nhắc mà chưa thành task?",
+        "3": "Ai đang chờ trả lời?",
+        "4": "Chốt được gì trong phòng này?"
+      },
+      "other": {
+        "1": "Việc nào của tôi sắp trễ?",
+        "2": "Hôm nay tôi nên làm gì trước?",
+        "3": "Tóm tắt các cuộc họp tuần này",
+        "4": "Việc nào đang chờ tôi duyệt?"
+      },
+      "more": {
+        "1": "Ai đang có nhiều việc nhất?",
+        "2": "Dự án nào đang chậm tiến độ?",
+        "3": "Tuần tới có những cuộc họp nào?",
+        "4": "Việc ưu tiên cao nào còn đang mở?"
+      }
     }
   },
   "admin": {
@@ -6018,7 +6175,8 @@
       "quota": "Hạn mức",
       "system": "Hệ thống",
       "overview": "Tổng quan",
-      "demo_requests": "Yêu cầu demo"
+      "demo_requests": "Yêu cầu demo",
+      "chat_reports": "Báo cáo vi phạm"
     },
     "common": {
       "retry": "Thử lại",
@@ -6441,6 +6599,53 @@
       "update": "Cập nhật",
       "update_title": "Cập nhật yêu cầu demo",
       "update_error": "Chưa cập nhật được. Hãy thử lại.",
+      "previous": "Trước",
+      "next": "Tiếp",
+      "page": "Trang {{page}}"
+    },
+    "chat_reports": {
+      "title": "Báo cáo vi phạm",
+      "description": "Báo cáo tin nhắn và người dùng trong UniChat của mọi tổ chức. Điều khoản sử dụng hứa xử lý mỗi báo cáo trong 24 giờ. Console chỉ thấy mã và lý do, không bao giờ thấy nội dung tin hay lời mô tả.",
+      "filter": "Lọc báo cáo",
+      "all": "Tất cả",
+      "status": {
+        "open": "Đang chờ",
+        "resolved": "Đã xử lý"
+      },
+      "refresh": "Tải lại",
+      "queue_open": "{{count}} báo cáo đang chờ, lâu nhất từ {{since}}",
+      "queue_clear": "Không còn báo cáo nào chờ xử lý.",
+      "overdue": "Quá 24 giờ",
+      "empty": "Không có báo cáo",
+      "empty_description": "Báo cáo khớp bộ lọc sẽ hiện tại đây khi có người gửi.",
+      "load_error": "Không tải được báo cáo",
+      "retry_hint": "Hãy tải lại để thử một lần nữa.",
+      "organization": "Tổ chức",
+      "reason_label": "Lý do",
+      "subject": "Bị báo cáo",
+      "reporter": "Người báo cáo",
+      "status_label": "Trạng thái",
+      "received": "Gửi lúc",
+      "action": "Thao tác",
+      "person": "Người {{id}}",
+      "message": "Tin {{id}}",
+      "reason": {
+        "spam": "Spam hoặc lừa đảo",
+        "harassment": "Quấy rối hoặc bắt nạt",
+        "hate": "Thù ghét hoặc phân biệt đối xử",
+        "sexual": "Nội dung khiêu dâm",
+        "violence": "Bạo lực hoặc đe doạ",
+        "self_harm": "Tự gây hại",
+        "other": "Lý do khác"
+      },
+      "resolve": "Đóng báo cáo",
+      "resolve_title": "Đóng báo cáo này",
+      "resolve_description": "Ghi việc đã làm: đã yêu cầu tổ chức vô hiệu hoá người đăng, đã tạm ngưng tổ chức, hay báo cáo không có cơ sở. Chủ sở hữu tổ chức thấy báo cáo đã được xử lý.",
+      "resolve_error": "Chưa đóng được báo cáo. Hãy thử lại.",
+      "remove": "Gỡ tin nhắn",
+      "remove_title": "Gỡ tin nhắn này",
+      "remove_description": "Tin biến mất với mọi người trong cuộc trò chuyện, như khi người gửi tự xoá, và báo cáo được đóng. Console không bao giờ hiện nội dung tin. Ghi lý do: tổ chức thấy nhà vận hành đã gỡ tin và ai đã gỡ.",
+      "remove_error": "Chưa gỡ được tin nhắn. Hãy thử lại.",
       "previous": "Trước",
       "next": "Tiếp",
       "page": "Trang {{page}}"
@@ -12269,6 +12474,7 @@
     }
   },
   "marketingSeo": {
+    "officeGuide": "Đọc hướng dẫn UniOffice: file, lưu tài liệu và AI",
     "guidesTitle": "Hướng dẫn thực hành",
     "about": "Giới thiệu UniWork",
     "data": "Dữ liệu và AI",

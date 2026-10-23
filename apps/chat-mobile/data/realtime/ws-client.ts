@@ -17,6 +17,8 @@
  *   - Close 4001 (session ended) is handed to `onSessionEnded` and NOT
  *     redialled by the client: the token is dead, so the host refreshes it
  *     and calls forceReconnect(), or disconnect() when it cannot.
+ *   - Every frame is decoded before dispatch (./frames.ts): a listed event
+ *     with a malformed payload is dropped, so handlers get typed payloads.
  *
  * Server compatibility: same protocol as web/desktop. Sends
  *   {type:"auth", payload:{token}} as first frame; expects {type:"auth_ack"}
@@ -26,16 +28,13 @@
  *   WebSocket cannot set headers).
  */
 import { DEFAULT_CHAT_SCOPE_LIMIT } from "@uniwork/core/chat/lazy-chat-scopes";
-import type { WSEventType, WSMessage } from "./ws-types";
+import { decodeFrame, type FramePayload, type KnownFrameType, type RealtimeFrame } from "./frames";
+import { asRecord, pathOf } from "@/lib/unknown-shape";
+import { reconnectDelayMs, type ConnectionState, type Logger, type WSClientOptions, type WSMessage } from "./ws-types";
 
 type EventHandler = (payload: unknown, actorId?: string, actorType?: string) => void;
-type AnyHandler = (msg: WSMessage) => void;
 
-export interface Logger {
-  info: (...args: unknown[]) => void;
-  warn: (...args: unknown[]) => void;
-  debug: (...args: unknown[]) => void;
-}
+type AnyHandler = (frame: RealtimeFrame) => void;
 
 const noopLogger: Logger = {
   info: () => {},
@@ -43,29 +42,6 @@ const noopLogger: Logger = {
   debug: () => {},
 };
 
-export interface WSClientOptions {
-  /** wss://host/api/v1/ws — no query params; the client appends them. */
-  url: string;
-  /** Reads the CURRENT access token each time a socket opens. */
-  getToken: () => Promise<string | null> | string | null;
-  /** `org/ws` pair — the server resolves it and gates membership. */
-  workspaceSlug: string;
-  /** App version, surfaced to server logs. */
-  clientVersion?: string;
-  /** `Platform.OS` — passed in so this module never imports react-native. */
-  clientOs: string;
-  /** Defaults to "mobile". */
-  clientPlatform?: string;
-  logger?: Logger;
-  /** The server ended this socket: close 4001 (no reason) or a pre-auth
-   *  `{error}` refusal (its text: invalid token, not a member, too many
-   *  connections). The client does not redial either; the host decides. */
-  onSessionEnded?: (error?: string) => void;
-}
-
-const RECONNECT_BASE_MS = 1_000;
-const RECONNECT_CAP_MS = 30_000;
-const RECONNECT_MAX_EXPONENT = 6; // 1s → 64s ceiling, capped at 30s
 const CLOSE_SESSION_ENDED = 4001;
 
 // React Native does not surface WebSocket control Ping/Pong frames to
@@ -96,9 +72,11 @@ export class WSClient {
   private hasConnectedBefore = false;
   private authenticated = false;
 
-  private readonly handlers = new Map<WSEventType, Set<EventHandler>>();
+  private readonly handlers = new Map<string, Set<EventHandler>>();
   private readonly anyHandlers = new Set<AnyHandler>();
   private readonly onReconnectCallbacks = new Set<() => void>();
+  private readonly connectionListeners = new Set<(state: ConnectionState) => void>();
+  private connection: ConnectionState = "offline";
   /** Explicit scopes replayed after each auth_ack (workspace/user are server-side). */
   private readonly scopeSubscriptions = new Map<string, Set<string>>();
 
@@ -126,6 +104,7 @@ export class WSClient {
     this.teardownSocket();
     this.reconnectAttempt = 0;
     this.hasConnectedBefore = false;
+    this.setConnection("offline");
   }
 
   /** Active → paused. Used by the provider when AppState=background.
@@ -137,6 +116,7 @@ export class WSClient {
     this.state = "paused";
     this.clearReconnect();
     this.teardownSocket();
+    this.setConnection("offline");
   }
 
   /** Return to the foreground with one fresh socket. An active socket may
@@ -159,22 +139,42 @@ export class WSClient {
     this.openSocket();
   }
 
+  /** A heartbeat now, not at the next interval (background-grace.ts: back in the app after a short absence):
+   *  a socket the OS cut meanwhile is replaced within the pong timeout. One check at a time. */
+  probe() {
+    if (!this.isAuthenticated() || this.awaitingPong) return;
+    this.sendHeartbeat();
+  }
+
   /** True when the current socket received auth_ack and is still open. */
   isAuthenticated(): boolean {
     return this.authenticated && this.ws?.readyState === WebSocket.OPEN;
   }
 
+  getConnectionState(): ConnectionState {
+    return this.connection;
+  }
+
+  /** Each change of getConnectionState(), for the "Connecting…" banner. */
+  onConnectionStateChange(cb: (state: ConnectionState) => void) {
+    this.connectionListeners.add(cb);
+    return () => {
+      this.connectionListeners.delete(cb);
+    };
+  }
+
   // ── public subscription ─────────────────────────────────────────────
 
-  on(event: WSEventType, handler: EventHandler) {
+  /** A handler for one decoded event (frames.ts): its payload has the decoder's type. */
+  on<T extends KnownFrameType>(event: T, handler: (payload: FramePayload<T>, actorId?: string, actorType?: string) => void) {
     let set = this.handlers.get(event);
     if (!set) {
       set = new Set();
       this.handlers.set(event, set);
     }
-    set.add(handler);
+    set.add(handler as EventHandler);
     return () => {
-      this.handlers.get(event)?.delete(handler);
+      this.handlers.get(event)?.delete(handler as EventHandler);
     };
   }
 
@@ -246,6 +246,7 @@ export class WSClient {
     const ws = new WebSocket(url.toString());
     this.ws = ws;
     this.authenticated = false;
+    this.setConnection("connecting");
     this.logger.info("[ws] dialing", url.toString());
 
     ws.onopen = () => {
@@ -263,16 +264,17 @@ export class WSClient {
     };
 
     ws.onmessage = (event) => {
-      let msg: WSMessage;
+      // Untrusted until each field is read through a guard: no frame shape is assumed.
+      let msg: unknown;
       try {
-        msg = JSON.parse(event.data as string) as WSMessage;
+        msg = JSON.parse(String(event.data));
       } catch {
         this.logger.warn("[ws] non-JSON frame ignored");
         return;
       }
 
       // A pre-auth {error} refusal is terminal: redialling would only repeat it.
-      const error = (msg as { error?: unknown } | null)?.error;
+      const error = pathOf(msg, "error");
       if (!this.authenticated && typeof error === "string") {
         this.teardownSocket();
         this.onSessionEnded(error);
@@ -280,7 +282,7 @@ export class WSClient {
       }
       // Validate the envelope before transport frames or business dispatch.
       // JSON primitives (including null) and non-string types are not events.
-      const type = (msg as { type?: unknown } | null)?.type;
+      const type = pathOf(msg, "type");
       if (typeof type !== "string" || !type) {
         // Server-side error frames have shape {error: "..."}; log and drop.
         this.logger.warn("[ws] frame without a string type", event.data);
@@ -295,11 +297,13 @@ export class WSClient {
         return;
       }
       this.logger.debug("[ws] event", type);
-      const set = this.handlers.get(type as WSEventType);
+      const frame = decodeFrame({ ...asRecord(msg), type, payload: pathOf(msg, "payload") });
+      if (!frame) return;
+      const set = this.handlers.get(type);
       if (set) {
-        for (const handler of set) handler(msg.payload, msg.actor_id, msg.actor_type);
+        for (const handler of set) handler(frame.payload, frame.actor_id, frame.actor_type);
       }
-      for (const handler of this.anyHandlers) handler(msg);
+      for (const handler of this.anyHandlers) handler(frame);
     };
 
     ws.onerror = () => {
@@ -339,6 +343,8 @@ export class WSClient {
    *  the host refreshes and calls forceReconnect() (or disconnect()). */
   private onSessionEnded(error?: string) {
     this.logger.warn("[ws] session ended by server", error);
+    // The host refreshes and redials, or disconnects (offline).
+    this.setConnection("waiting");
     if (error === undefined) this.opts.onSessionEnded?.();
     else this.opts.onSessionEnded?.(error);
   }
@@ -346,6 +352,7 @@ export class WSClient {
   private onAuthenticated() {
     this.authenticated = true;
     this.reconnectAttempt = 0;
+    this.setConnection("online");
     this.logger.info("[ws] authenticated");
     this.startHeartbeat();
     if (this.hasConnectedBefore) {
@@ -370,11 +377,16 @@ export class WSClient {
     // many clients reconnect simultaneously (post-server-restart, post-
     // network-flap). AWS Builders' Library "Timeouts, retries, and backoff
     // with jitter" is the canonical reference.
-    const exp = Math.min(this.reconnectAttempt, RECONNECT_MAX_EXPONENT);
-    const ceiling = Math.min(RECONNECT_BASE_MS * 2 ** exp, RECONNECT_CAP_MS);
-    const delay = Math.floor(Math.random() * ceiling);
+    const delay = reconnectDelayMs(this.reconnectAttempt, Math.random());
     this.logger.info(`[ws] reconnecting in ${delay}ms (attempt ${this.reconnectAttempt})`);
     this.reconnectTimer = setTimeout(() => this.openSocket(), delay);
+    this.setConnection("waiting");
+  }
+
+  private setConnection(next: ConnectionState) {
+    if (this.connection === next) return;
+    this.connection = next;
+    for (const listener of this.connectionListeners) listener(next);
   }
 
   private clearReconnect() {

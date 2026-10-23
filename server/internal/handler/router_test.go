@@ -131,6 +131,7 @@ func TestProbesAndLiveKitWebhookSkipTheGlobalRateLimiter(t *testing.T) {
 	for _, req := range []*http.Request{
 		httptest.NewRequest(http.MethodGet, "/healthz", nil),
 		httptest.NewRequest(http.MethodGet, "/readyz", nil),
+		httptest.NewRequest(http.MethodGet, "/api/v1/healthz", nil),
 		httptest.NewRequest(http.MethodPost, "/api/v1/integrations/livekit/webhook", nil),
 	} {
 		start := time.Now()

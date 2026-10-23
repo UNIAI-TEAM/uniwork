@@ -15,6 +15,13 @@ import (
 // signed per viewer and expire (files.MaxResolveURLTTL at most), so they live
 // only in responses, never in the stored metadata or a realtime frame.
 
+// chatMediaSigningWindow: chat media is signed as of the start of the current
+// hour (files.ResolveInput.SigningWindow), so a room refetched within the hour
+// answers the same URLs. A phone's image cache and an unchanged message then
+// stay the same instead of every fetch looking new (audit H2); a URL still
+// lives at least 11 of its 12 hours.
+const chatMediaSigningWindow = time.Hour
+
 // signChatMedia fills the read URLs of the file and voice messages in rows,
 // all from room, which the caller has already authorized for reading. Signing
 // is best effort: a file that cannot be signed (not ready, deleted, storage
@@ -98,6 +105,7 @@ func (s *ChatService) resolveChatMedia(
 	}
 	resolved, err := s.files.ResolveMany(ctx, files.ResolveInput{
 		Scope: scope, Mode: files.ReadPresign, Disposition: disposition, Variant: variant, FileIDs: ids,
+		SigningWindow: chatMediaSigningWindow,
 	})
 	if err != nil {
 		slog.WarnContext(ctx, "chat media: sign failed", "error", err, "organization_id", scope.OrganizationID)

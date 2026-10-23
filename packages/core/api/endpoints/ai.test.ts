@@ -93,6 +93,11 @@ describe("ai endpoints", () => {
     expect(drifted.summary).toBe("Lệch");
     expect(drifted.highlights).toEqual(["a"]);
     expect(drifted.highlight_items).toEqual([]);
+    // The same for the action items: one drifted list empties alone (the phone reads this schema too).
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: "Lệch", action_items: [{ owner: "An" }] }));
+    const noActions = await chatCatchUp("ws1", { room_id: "r1" });
+    expect(noActions.summary).toBe("Lệch");
+    expect(noActions.action_items).toEqual([]);
   });
 
   it("conversations and messages degrade to empty lists", async () => {
@@ -109,6 +114,25 @@ describe("ai endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
     await deleteAiConversation("c1");
     expect((vi.mocked(fetch).mock.calls[4]![1] as RequestInit).method).toBe("DELETE");
+  });
+
+  it("listAiConversations sends q and degrades on a malformed answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ conversations: [{ id: "c1" }] }));
+    await listAiConversations("ws1", "viec tre");
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toMatch(/\/ai\/conversations\?q=viec%20tre$/);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ conversations: 5 }));
+    expect(await listAiConversations("ws1", "x")).toEqual([]);
+  });
+
+  it("listAiMessages defaults malformed steps, followups, focus and mentions", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [{ ...message, steps: "x", followups: 3, focus: 1, mentions: {} }] }));
+    const [m] = await listAiMessages("c1");
+    expect(m).toMatchObject({ steps: [], followups: [], focus: null, mentions: [] });
+  });
+
+  it("listAiMessages reads the answering model and defaults a malformed one to Auto", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [{ ...message, model: "opus" }, { ...message, id: "m2", model: 7 }, { ...message, id: "m3" }] }));
+    expect((await listAiMessages("c1")).map((m) => m.model)).toEqual(["opus", "", ""]);
   });
 
   it("listAiMessages keeps a message whose notice is malformed and defaults it to empty", async () => {
@@ -130,10 +154,10 @@ describe("ai endpoints", () => {
   });
 
   it("getAiCapabilities reads models and degrades a malformed model list without disabling AI", async () => {
-    const m = { key: "sonnet", speed: 4, intelligence: 4, cost: 3, enabled: true };
-    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, models: [m], auto_model: "sonnet" }));
+    const m = { key: "sonnet", provider: "anthropic", speed: 4, intelligence: 4, cost: 3, enabled: true };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, models: [m, { ...m, key: "opus", provider: 3 }], auto_model: "sonnet" }));
     const caps = await getAiCapabilities("ws1");
-    expect(caps.models).toEqual([m]);
+    expect(caps.models).toEqual([m, { ...m, key: "opus", provider: "" }]);
     expect(caps.auto_model).toBe("sonnet");
     vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true }));
     expect((await getAiCapabilities("ws1")).models).toEqual([]);

@@ -24,6 +24,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { AskUniFocusButton } from "../../../ai/ask-uni-focus-button";
+import { useAskUniPageContext } from "../../../ai/ask-uni-page-context";
 import { PinToggleButton } from "../../../common/pin-toggle-button";
 import { useNavigation } from "../../../navigation";
 import { toastApiError } from "../../../toast-api-error";
@@ -48,6 +49,7 @@ export function TaskDetailHeaderActions({
   onDeleted?: () => void;
 }) {
   const { t } = useTranslation();
+  useAskUniPageContext({ kind: "task", id: task.id, label: task.title });
   const navigation = useNavigation();
   const remove = useDeleteTask(workspaceId);
   const put = usePutTask(workspaceId);

@@ -419,7 +419,7 @@ func (failingPresenceStore) expire(context.Context, time.Time) ([]presenceEntry,
 	return nil, errPresenceDown
 }
 
-func (failingPresenceStore) lastBeat(context.Context, string) (time.Time, bool, error) {
+func (failingPresenceStore) lastBeat(context.Context, string, string) (time.Time, bool, error) {
 	return time.Time{}, false, errPresenceDown
 }
 
@@ -465,14 +465,15 @@ func TestSignalPresenceRequiresMembershipAndReturnsSnapshot(t *testing.T) {
 	wantFrames(t, pub.take(), onlineFrame(w.ID, ua.ID), onlineFrame(w.ID, ub.ID))
 }
 
-// The push consumer asks when a person last beat anywhere: the latest visible
-// beat wins across workspaces, one person's beat is never another's, and a
-// tab left open in the background keeps presence without counting as here.
-func TestPresenceLastBeatIsPerUserAcrossWorkspaces(t *testing.T) {
+// The push consumer asks when a person last beat in the push's workspace: a
+// visible beat there counts, a beat in another workspace does not (they are
+// not reading this one), one person's beat is never another's, and a tab left
+// open in the background keeps presence without counting as here.
+func TestPresenceLastBeatIsPerUserAndWorkspace(t *testing.T) {
 	eachPresenceStore(t, func(t *testing.T, tr *presenceTracker, _ *presenceRecorder, _ *presenceClock) {
 		store := tr.store
 		ctx := context.Background()
-		if _, ok, err := store.lastBeat(ctx, "u1"); err != nil || ok {
+		if _, ok, err := store.lastBeat(ctx, "ws-a", "u1"); err != nil || ok {
 			t.Fatalf("never beat: ok=%v err=%v", ok, err)
 		}
 		t0 := time.Now().Truncate(time.Millisecond)
@@ -485,26 +486,71 @@ func TestPresenceLastBeatIsPerUserAcrossWorkspaces(t *testing.T) {
 		if _, err := store.beat(ctx, "ws-a", "u1", t0.Add(20*time.Second), false); err != nil {
 			t.Fatal(err)
 		}
-		got, ok, err := store.lastBeat(ctx, "u1")
-		if err != nil || !ok || !got.Equal(t0.Add(5*time.Second)) {
-			t.Fatalf("lastBeat = %v ok=%v err=%v, want the last visible beat", got, ok, err)
+		got, ok, err := store.lastBeat(ctx, "ws-a", "u1")
+		if err != nil || !ok || !got.Equal(t0) {
+			t.Fatalf("lastBeat(ws-a) = %v ok=%v err=%v, want ws-a's last visible beat", got, ok, err)
 		}
-		if _, ok, _ := store.lastBeat(ctx, "u2"); ok {
+		got, ok, err = store.lastBeat(ctx, "ws-b", "u1")
+		if err != nil || !ok || !got.Equal(t0.Add(5*time.Second)) {
+			t.Fatalf("lastBeat(ws-b) = %v ok=%v err=%v, want ws-b's own beat", got, ok, err)
+		}
+		if _, ok, _ := store.lastBeat(ctx, "ws-c", "u1"); ok {
+			t.Fatal("a workspace the person never beat in must not count as read")
+		}
+		if _, ok, _ := store.lastBeat(ctx, "ws-a", "u2"); ok {
 			t.Fatal("another user must not inherit the beat")
 		}
 		if _, err := store.beat(ctx, "ws-a", "u3", t0, false); err != nil {
 			t.Fatal(err)
 		}
-		if _, ok, _ := store.lastBeat(ctx, "u3"); ok {
+		if _, ok, _ := store.lastBeat(ctx, "ws-a", "u3"); ok {
 			t.Fatal("a hidden tab's beat must not count as at the keyboard")
 		}
-		// Spec §3.5: the per-user key expires (10 min), the only bound on
-		// how many of them Redis holds.
+		// Spec §3.5: the per-person key expires, the only bound on how many
+		// of them Redis holds.
 		if r, isRedis := store.(*redisPresenceStore); isRedis {
-			ttl, err := r.rdb.PTTL(ctx, r.userKey("u1")).Result()
+			ttl, err := r.rdb.PTTL(ctx, r.beatKey("ws-a", "u1")).Result()
 			if err != nil || ttl <= 0 || ttl > presenceLastBeatTTL {
-				t.Fatalf("user key PTTL = %v err=%v, want (0, %v]", ttl, err, presenceLastBeatTTL)
+				t.Fatalf("beat key PTTL = %v err=%v, want (0, %v]", ttl, err, presenceLastBeatTTL)
 			}
+		}
+	})
+}
+
+// A page that leaves (a tab closing, the phone going to the background) was
+// the one in front of its person: its leave clears their last beat in that
+// workspace at once, so the next message pushes instead of waiting out the
+// push window. Their presence entry only shortens (another tab may still be
+// open), the other workspace's beat stays, and a visible beat afterwards
+// counts again.
+func TestPresenceLeaveClearsTheLastBeatOfThatWorkspace(t *testing.T) {
+	eachPresenceStore(t, func(t *testing.T, tr *presenceTracker, _ *presenceRecorder, clock *presenceClock) {
+		ctx := context.Background()
+		if _, err := tr.beat(ctx, "ws-a", "u1", true); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tr.beat(ctx, "ws-b", "u1", true); err != nil {
+			t.Fatal(err)
+		}
+		if err := tr.leave(ctx, "ws-a", "u1"); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok, err := tr.store.lastBeat(ctx, "ws-a", "u1"); err != nil || ok {
+			t.Fatalf("after leave: ok=%v err=%v, want no beat", ok, err)
+		}
+		if _, ok, _ := tr.store.lastBeat(ctx, "ws-b", "u1"); !ok {
+			t.Fatal("leaving ws-a must not clear ws-b")
+		}
+		if online, err := tr.store.online(ctx, "ws-a", clock.Now()); err != nil || !slices.Contains(online, "u1") {
+			t.Fatalf("leave must only shorten presence: online=%v err=%v", online, err)
+		}
+		clock.advance(time.Second)
+		if _, err := tr.beat(ctx, "ws-a", "u1", true); err != nil {
+			t.Fatal(err)
+		}
+		got, ok, err := tr.store.lastBeat(ctx, "ws-a", "u1")
+		if err != nil || !ok || !got.Equal(clock.Now().Truncate(time.Millisecond)) {
+			t.Fatalf("beat after leave: %v ok=%v err=%v", got, ok, err)
 		}
 	})
 }

@@ -314,3 +314,34 @@ UPDATE invoices SET
   updated_at = now()
 WHERE id = sqlc.arg('id') AND status IN ('refund_pending', 'partial_refund_pending')
 RETURNING *;
+
+-- The operator's queue of chat reports (store UGC policy, Apple 1.2: the operator acts on every report within 24
+-- hours). Ids, the reason, the status and when: the reporter's own words (details) and the reported message never
+-- leave through here, as nothing of content does from this file.
+
+-- name: AdminListChatReports :many
+-- tenant: platform
+SELECT r.id, r.organization_id, o.slug AS organization_slug, o.name AS organization_name, o.status AS organization_status,
+  r.workspace_id, r.room_id, r.message_id, r.target_user_id, r.reason, r.status, r.created_by, r.created_at,
+  count(*) OVER ()::bigint AS total_count
+FROM chat_reports r
+JOIN organizations o ON o.id = r.organization_id
+WHERE (sqlc.narg('status')::text IS NULL OR r.status = sqlc.narg('status')::text)
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+
+-- name: AdminChatReportQueue :one
+-- tenant: platform
+-- How many reports wait and since when: the console's banner and the 24-hour promise.
+SELECT count(*)::bigint AS open_count, min(created_at)::timestamptz AS oldest_open_at
+FROM chat_reports WHERE status = 'open';
+
+-- name: AdminGetChatReportForUpdate :one
+-- tenant: platform
+-- room_id and message_id name what a takedown removes (AdminService.RemoveReportedMessage); never the content.
+SELECT id, organization_id, workspace_id, room_id, message_id, status FROM chat_reports WHERE id = $1 FOR UPDATE;
+
+-- name: AdminResolveChatReport :one
+-- tenant: platform
+UPDATE chat_reports SET status = 'resolved' WHERE id = $1 AND status = 'open'
+RETURNING id, organization_id, workspace_id, status;

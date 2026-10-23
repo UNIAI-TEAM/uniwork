@@ -10,6 +10,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
+	"github.com/unicomhub/uniwork/server/internal/metrics"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
@@ -150,8 +151,11 @@ func writeUnauthorized(w http.ResponseWriter, msg string) {
 
 // WithUserID also seeds the flag EvalContext with the user, so a service
 // asking for a user-scoped override needs nothing more; organization targeting
-// adds OrganizationID itself where it knows the tenant.
+// adds OrganizationID itself where it knows the tenant. It is only ever called
+// with a verified user, so it also tells the HTTP metrics the request was
+// authenticated: only then may the client headers name a build's series.
 func WithUserID(ctx context.Context, uid string) context.Context {
+	metrics.MarkAuthenticated(ctx)
 	ctx = context.WithValue(ctx, userIDKey, uid)
 	return featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: uid})
 }

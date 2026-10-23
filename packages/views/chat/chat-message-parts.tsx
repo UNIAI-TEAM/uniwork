@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState } from "react";
-import { Check, CheckCheck, Clock3, FaceSlightlySmiling, WifiOff } from "lucide-react";
+import { Check, CheckCheck, FaceSlightlySmiling, WifiOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isMessageSeenByPeer } from "@uniwork/core/chat/read-receipt-utils";
 import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
@@ -14,6 +14,11 @@ import { MessageReactionPicker } from "./chat-message-hover-actions";
 /** The id of a message's accessible name, for `aria-labelledby` on its article. */
 export function chatMessageLabelId(messageId: string): string {
   return `chat-msg-label-${messageId}`;
+}
+
+/** Time on every bubble so rapid sends look the same for sender and receiver. */
+export function showChatBubbleTime(_isOwn: boolean, _lastOfRun: boolean): boolean {
+  return true;
 }
 
 /**
@@ -128,8 +133,8 @@ export const ChatPeerReadAtContext = createContext<string | null>(null);
 
 /**
  * Time, edited mark, delivery state and read receipt — the one line of meta a
- * message carries. Shown on the last message of a run (and always while a
- * message is on its way). Inside a bubble it sits at the bottom-right in the
+ * message carries. Shown on every bubble (and always while a message is on
+ * its way). Inside a bubble it sits at the bottom-right in the
  * bubble's own meta colour; `onWall` draws it as a small chip on the chat
  * wall instead (under a sticker, GIF or anything drawn without a bubble).
  * `inline="float"` floats it at the end of the text's last line, dropped to
@@ -157,20 +162,26 @@ export function ChatMessageMeta({
   const { t, i18n } = useTranslation();
   const peerReadAt = useContext(ChatPeerReadAtContext);
   const deliveredAt = useContext(ChatPeerDeliveredAtContext);
-  const pending = message.deliveryStatus === "sending" || message.deliveryStatus === "queued";
+  const queued = message.deliveryStatus === "queued";
+  const sending = message.deliveryStatus === "sending";
   // A failed send keeps its time in the bubble; "Chưa gửi được" sits under it (ChatFailedSendBar).
-  const withTime = showTime || message.deliveryStatus === "failed";
-  if (!withTime && !pending && !message.editedAt && !showReadReceipt) return null;
+  // While the HTTP request is in flight we still show time + a single ✓ (Telegram-style), not "Sending…".
+  const withTime = showTime || message.deliveryStatus === "failed" || sending;
+  if (!withTime && !queued && !message.editedAt && !showReadReceipt) return null;
   const onBrand = isOwn && !onWall && inline !== "media";
   // Mine, on the server and timed: ✓ sent, faint ✓✓ once every other member's device has it, ✓✓ once read
   // (WebMessageKinds). The latest read one says so in words.
   const tick =
-    isOwn && withTime && !showReadReceipt && !message.deliveryStatus && !isPendingChatMessageId(message.id)
-      ? isMessageSeenByPeer(message.ts, peerReadAt)
-        ? "seen"
-        : isMessageSeenByPeer(message.ts, deliveredAt)
-          ? "delivered"
-          : "sent"
+    isOwn && withTime && !showReadReceipt && message.deliveryStatus !== "queued" && message.deliveryStatus !== "failed"
+      ? sending
+        ? "sent"
+        : !message.deliveryStatus && !isPendingChatMessageId(message.id)
+          ? isMessageSeenByPeer(message.ts, peerReadAt)
+            ? "seen"
+            : isMessageSeenByPeer(message.ts, deliveredAt)
+              ? "delivered"
+              : "sent"
+          : null
       : null;
   const Tag = inline ? "span" : "p";
   return (
@@ -192,21 +203,16 @@ export function ChatMessageMeta({
               ),
       )}
     >
-      {pending ? (
-        // Full contrast while on its way: the state is in words and a glyph,
-        // not in a faded bubble.
+      {queued ? (
+        // Offline queue: name the state in words; online sends use time + ✓ instead.
         <span
           className={cn(
             "inline-flex items-center gap-1",
             onBrand ? "text-chat-bubble-own-foreground" : "text-foreground",
           )}
         >
-          {message.deliveryStatus === "queued" ? (
-            <WifiOff className="size-3" aria-hidden />
-          ) : (
-            <Clock3 className="size-3" aria-hidden />
-          )}
-          {message.deliveryStatus === "queued" ? t("chat.message_queued") : t("chat.message_sending")}
+          <WifiOff className="size-3" aria-hidden />
+          {t("chat.message_queued")}
         </span>
       ) : withTime ? (
         <time dateTime={new Date(message.ts).toISOString()} aria-hidden>
@@ -214,7 +220,7 @@ export function ChatMessageMeta({
         </time>
       ) : null}
       {/* The dot only separates it from a time or a sending state before it. */}
-      {message.editedAt ? <span>{pending || withTime ? `· ${t("chat.edited_label")}` : t("chat.edited_label")}</span> : null}
+      {message.editedAt ? <span>{queued || withTime ? `· ${t("chat.edited_label")}` : t("chat.edited_label")}</span> : null}
       {tick === "seen" ? (
         <CheckCheck
           role="img"

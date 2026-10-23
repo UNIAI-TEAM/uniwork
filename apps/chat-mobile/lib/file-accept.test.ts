@@ -18,6 +18,8 @@ describe("file-accept", () => {
     expect(isChatAcceptedFile(file("a.png", "image/png"))).toBe(true);
     expect(isChatAcceptedFile(file("a.pdf", "application/pdf"))).toBe(true);
     expect(isChatAcceptedFile(file("plan.docx", ""))).toBe(true);
+    expect(isChatAcceptedFile(file("export.csv", "text/csv"))).toBe(true);
+    expect(isChatAcceptedFile(file("notes.md", ""))).toBe(true);
     expect(
       isChatAcceptedFile(file("sheet.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
     ).toBe(true);
