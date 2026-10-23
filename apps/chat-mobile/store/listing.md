@@ -19,7 +19,7 @@ App Store Connect giữ app dưới tên đó vì "UniChat" đã có người gi
 
 **vi — mô tả:**
 
-> UniChat là ứng dụng nhắn tin của UniWork cho đội ngũ Việt Nam. Trò chuyện riêng, nhóm và kênh của workspace luôn
+> UniWork Chat là ứng dụng nhắn tin của UniWork cho đội ngũ Việt Nam. Trò chuyện riêng, nhóm và kênh của workspace luôn
 > đồng bộ với UniWork trên web và máy tính.
 >
 > - Tin nhắn tức thời, trả lời trích dẫn, luồng, cảm xúc, nhắc tên, đã đọc
@@ -39,7 +39,7 @@ App Store Connect giữ app dưới tên đó vì "UniChat" đã có người gi
 
 **en — description:**
 
-> UniChat is the messaging app of UniWork, built for Vietnamese teams. Direct messages, groups and workspace channels
+> UniWork Chat is the messaging app of UniWork, built for Vietnamese teams. Direct messages, groups and workspace channels
 > stay in sync with UniWork on the web and desktop.
 >
 > - Instant messages, quoted replies, threads, reactions, mentions and read receipts

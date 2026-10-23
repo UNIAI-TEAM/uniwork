@@ -127,6 +127,19 @@ describe("the generated store metadata", () => {
     }
   });
 
+  it("names only each platform's screen reader: TalkBack on Play, VoiceOver on the App Store", () => {
+    for (const locale of ["vi-VN", "en-US"]) {
+      const full = fs.readFileSync(path.join(__dirname, "store/play", locale, "full_description.txt"), "utf8");
+      expect(full).toMatch(/TalkBack/);
+      expect(full).not.toMatch(/VoiceOver/);
+    }
+    const apple = JSON.parse(fs.readFileSync(path.join(__dirname, "store/apple/store.config.json"), "utf8")) as { apple: { info: Record<string, { description: string }> } };
+    for (const info of Object.values(apple.apple.info)) {
+      expect(info.description).toMatch(/VoiceOver/);
+      expect(info.description).not.toMatch(/TalkBack/);
+    }
+  });
+
   it("refuses copy over a store's limit", async () => {
     const { storeMetadata } = (await import("./scripts/store-metadata.mjs")) as { storeMetadata: (listing: string) => unknown };
     const long = listing.replace(/(\*\*en — subtitle:\*\*) .*/, "$1 A subtitle far longer than thirty characters");

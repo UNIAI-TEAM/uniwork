@@ -26,6 +26,10 @@ const SITE = "https://app.uniworkos.com";
 const CALLS_LINE = { vi: /^- Gọi thoại và video/, en: /^- Voice and video calls/ };
 const CALLS_NOTE = /^To test a call/;
 const CALLS_KEYWORD = /gọi|call/i;
+// listing.md names both screen readers; each store's copy names only its own platform's, since a listing that
+// speaks of the other platform is what reviewers send back.
+const SCREEN_READERS = /VoiceOver (và|and) TalkBack/g;
+const onlyReader = (text, reader) => text.replace(SCREEN_READERS, reader);
 
 function fail(message) {
   throw new Error(`store-metadata: ${message}`);
@@ -90,10 +94,13 @@ export function storeMetadata(listing) {
     .filter((paragraph) => !CALLS_NOTE.test(paragraph))
     .join("\n\n");
   const ios = (lang) =>
-    copy[lang].description
-      .split("\n")
-      .filter((line) => !CALLS_LINE[lang].test(line))
-      .join("\n");
+    onlyReader(
+      copy[lang].description
+        .split("\n")
+        .filter((line) => !CALLS_LINE[lang].test(line))
+        .join("\n"),
+      "VoiceOver",
+    );
   const page = (lang, route) => `${SITE}${lang === "vi" ? `/vi${route}` : route}`;
   const info = (lang) => ({
     title: limit(title, 30, "title"),
@@ -125,7 +132,7 @@ export function storeMetadata(listing) {
       {
         "title.txt": limit(title, 30, "Play title"),
         "short_description.txt": limit(limit(copy[lang].subtitle, 30, `${lang} subtitle`), 80, `${lang} Play short description`),
-        "full_description.txt": limit(copy[lang].description, 4000, `${lang} Play full description`),
+        "full_description.txt": limit(onlyReader(copy[lang].description, "TalkBack"), 4000, `${lang} Play full description`),
       },
     ]),
   );
