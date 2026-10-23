@@ -1,6 +1,6 @@
 # UniWork — Hỏi UNI: gắn file vào câu hỏi
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-22 (sau một vòng đọc thử, §8); issue UNI-2119; kế hoạch: `docs/superpowers/plans/2026-10-22-ask-uni-attachments.md` (chủ sản phẩm duyệt 2026-10-22).
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-22 (sau một vòng đọc thử, §8); issue UNI-2119; kế hoạch: `docs/superpowers/plans/2026-10-22-ask-uni-attachments.md` (chủ sản phẩm duyệt 2026-10-22). Task 1–13 đã làm xong trên nhánh `feature/UNI-2119-hoi-uni-v2-gan-file-vao-cau-hoi-tai-len`, chưa đẩy lên; còn chờ eval thật cho `copilot_answer@5` (tốn tiền, cần chủ sản phẩm đồng ý) và thử tay trên app, nên chưa shipped.
 
 **Ngày:** 2026-10-22
 **Bổ sung cho:** `docs/superpowers/specs/2026-10-16-ask-uni-agent-design.md` (spec gốc) và `docs/superpowers/specs/2026-10-21-ask-uni-ui-parity-design.md` (P2b). Không đổi quyết định nào của hai spec đó.
