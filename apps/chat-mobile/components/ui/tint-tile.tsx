@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { View } from "react-native";
 import { THEME } from "@/lib/theme";
 import type { Tint } from "@/lib/tint";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 
 /** Spelled out so Tailwind sees every class; `ink` is the THEME key for icons. */

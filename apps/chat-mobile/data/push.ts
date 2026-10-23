@@ -1,14 +1,17 @@
 // Expo push registration. The Expo push token travels in `endpoint` with an
 // empty web-push key pair, and `platform` tells the server it is an Expo
-// token (server SDI). Without an EAS projectId (no EAS account yet, spec §12
+// token (server SDI); `call_ui` tells it an Android build rings calls
+// itself. Without an EAS projectId (no EAS account yet, spec §12
 // Q8) there is no token to fetch, so registration is skipped and said once.
 // Settings can turn push off for this device: the choice lives in SecureStore
 // and every later registration respects it.
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import type { ApiClient } from "./api";
+import { createLogger } from "./logger";
 
-const PUSH_PREF_KEY = "push_enabled";
+/** This device's push choice in SecureStore; data/local-wipe.ts drops it with an erased account. */
+export const PUSH_PREF_KEY = "push_enabled";
 
 type PushApi = Pick<ApiClient, "subscribePush" | "unsubscribePush">;
 
@@ -18,10 +21,32 @@ interface RegisterPushOptions {
   projectId: string | undefined;
   /** Platform.OS, passed in so this module stays free of react-native */
   platform: string;
+  /**
+   * Creates the Android channels (data/notification-channels.ts): Android
+   * wants one before the permission prompt and the first push.
+   */
+  channels?: () => Promise<void>;
+  /**
+   * This build draws its own incoming call (the native calls module is
+   * there: nativeCalls.available). Android only: the server then sends call
+   * pushes data-only; without it they stay visible pushes, which a build
+   * with no call UI can still show.
+   */
+  callUI?: boolean;
+  /**
+   * Asks for the notification permission (the primer of data/permissions.ts:
+   * it explains first, and asks unprompted only once per phone); resolves
+   * whether it is granted. Without it, the system prompt is shown directly.
+   */
+  ask?: () => Promise<boolean>;
 }
+
+const log = createLogger("push");
 
 let registeredToken: string | null = null;
 let skipLogged = false;
+/** The FCM or APNs token last seen by watchPushTokenRotation, as a string. */
+let lastDeviceToken: string | null = null;
 
 /** The person's choice for this device: on until they turn it off; an unreadable store reads as on. */
 export async function isPushEnabled(): Promise<boolean> {
@@ -33,26 +58,25 @@ export async function isPushEnabled(): Promise<boolean> {
 }
 
 /** Resolves to the registered Expo push token, or null when nothing was registered. */
-export async function registerPushToken({ api, projectId, platform }: RegisterPushOptions): Promise<string | null> {
+export async function registerPushToken({ api, projectId, platform, channels, callUI, ask }: RegisterPushOptions): Promise<string | null> {
   if (!(await isPushEnabled())) return null;
   if (!projectId) {
     if (!skipLogged) {
       skipLogged = true;
-      console.info("[push] no EAS projectId in app config; push registration skipped");
+      log.info("no EAS projectId in app config; push registration skipped");
     }
     return null;
   }
-  if (platform === "android") {
-    // Android needs a channel before the first notification; HIGH makes chat messages heads-up.
-    await Notifications.setNotificationChannelAsync("chat", {
-      name: "Chat",
-      importance: Notifications.AndroidImportance.HIGH,
-    });
-  }
-  const permission = await Notifications.requestPermissionsAsync();
-  if (!permission.granted) return null;
+  if (platform === "android") await channels?.();
+  const granted = ask ? await ask() : (await Notifications.requestPermissionsAsync()).granted;
+  if (!granted) return null;
   const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-  await api.subscribePush({ endpoint: token, keys: { p256dh: "", auth: "" }, platform });
+  await api.subscribePush({
+    endpoint: token,
+    keys: { p256dh: "", auth: "" },
+    platform,
+    ...(platform === "android" && callUI ? { call_ui: true } : {}),
+  });
   registeredToken = token;
   return token;
 }
@@ -79,10 +103,48 @@ export async function setPushEnabled(enabled: boolean, options: RegisterPushOpti
   return null;
 }
 
+/**
+ * FCM or APNs may replace this device's token while the app runs: pushes to the old one then fail as
+ * DeviceNotRegistered and the server revokes it, so nothing reaches the phone until its next launch. A new device
+ * token registers again — Expo maps the Expo token to the new device token, the server gets the (possibly new) Expo
+ * token, and an Expo token that changed is dropped. Fetching the token emits the same event, so only a token
+ * different from the last one seen counts, and only in a process that registered one; the permission is only read,
+ * never asked. Returns the unsubscribe.
+ */
+export function watchPushTokenRotation(options: RegisterPushOptions): () => void {
+  const subscription = Notifications.addPushTokenListener((device) => {
+    const next = typeof device.data === "string" ? device.data : JSON.stringify(device.data);
+    const previous = lastDeviceToken;
+    lastDeviceToken = next;
+    if (previous === null || previous === next || registeredToken === null) return;
+    void registerAgain(options, registeredToken);
+  });
+  return () => subscription.remove();
+}
+
+async function registerAgain(options: RegisterPushOptions, previous: string): Promise<void> {
+  try {
+    const token = await registerPushToken({ ...options, ask: async () => (await Notifications.getPermissionsAsync()).granted });
+    if (token && token !== previous) await options.api.unsubscribePush({ endpoint: previous });
+  } catch (err) {
+    log.warn("re-registration after a token change failed", { error: err instanceof Error ? err.name : typeof err });
+  }
+}
+
 /** Logout: drop the device's subscription while the session can still authorize the call. */
 export async function unregisterPushToken(api: PushApi): Promise<void> {
   const token = registeredToken;
   if (!token) return;
   registeredToken = null;
   await api.unsubscribePush({ endpoint: token });
+}
+
+/**
+ * A sign-out the server already made (refresh expired, device revoked): no
+ * session is left to authorize the unsubscribe, so only this process forgets
+ * the token; the server stops pushing to an ended device session on its own
+ * (ListDeliverablePushSubscriptions), and the next sign-in registers afresh.
+ */
+export function forgetPushToken(): void {
+  registeredToken = null;
 }

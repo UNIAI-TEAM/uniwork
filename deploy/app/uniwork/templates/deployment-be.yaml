@@ -127,6 +127,16 @@ spec:
                   key: {{ .key }}
                   optional: true
             {{- end }}
+            {{- with .Values.be.secrets.expo }}
+            # Expo enhanced push security (UniChat mobile push). Optional: without it pushes go out
+            # unauthenticated and the server logs that at start (config.UnauthenticatedMobilePush).
+            - name: EXPO_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  optional: true
+            {{- end }}
             {{- with .Values.be.secrets.anthropicAPIKey }}
             - name: ANTHROPIC_API_KEY
               valueFrom:

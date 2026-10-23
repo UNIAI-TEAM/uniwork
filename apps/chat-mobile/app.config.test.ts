@@ -1,10 +1,16 @@
 // Ported from usf apps/mobile/app.config.test.ts, re-cut for the UniChat
 // variants: identity, scheme, links and `extra` per UNICHAT_ENV.
+import { execFileSync } from "node:child_process";
+import { X509Certificate } from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConfigContext } from "expo/config";
-import createConfig from "./app.config";
+import { createRequire } from "node:module";
+import createConfig, { ANDROID_KEEP_RULES, iosCallsBuilt, tlsPinning } from "./app.config";
 
-const build = () => createConfig({ config: {} } as ConfigContext);
+const build = (projectRoot?: string) => createConfig({ config: {}, projectRoot } as ConfigContext);
 
 // A release variant refuses to build without its servers, so every case that
 // is not about that names them.
@@ -35,8 +41,11 @@ describe("app.config per UNICHAT_ENV", () => {
     expect(config.slug).toBe("uniwork-chat");
     // no EAS project: no update server to ask, the embedded bundle is the app
     expect(config.updates).toEqual({ enabled: false });
-    // an update reaches only binaries of the same app version (OTA never crosses a native change)
-    expect(config.runtimeVersion).toEqual({ policy: "appVersion" });
+    // an update reaches only binaries with the same native fingerprint (OTA never crosses a native change)
+    expect(config.runtimeVersion).toEqual({ policy: "fingerprint" });
+    expect(config.version).toBe("0.3.1");
+    // One version everywhere (audit "store-assets-and-calibration-incomplete"): package.json said 0.1.0 for months.
+    expect(JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8")).version).toBe(config.version);
     // knip's expo plugin and NativeWind both read it; "automatic" follows the OS.
     expect(config.userInterfaceStyle).toBe("automatic");
     // no EAS account yet: push registration is skipped until the id exists
@@ -46,6 +55,8 @@ describe("app.config per UNICHAT_ENV", () => {
       bundleIdentifier: appId,
       associatedDomains: ["applinks:app.uniworkos.com"],
       config: { usesNonExemptEncryption: false },
+      // Mentions and missed calls break through Focus (server push_expo.go › timeSensitiveChannels).
+      entitlements: { "com.apple.developer.usernotifications.time-sensitive": true },
     });
     expect(config.android).toMatchObject({
       package: appId,
@@ -66,12 +77,57 @@ describe("app.config per UNICHAT_ENV", () => {
     expect(config.plugins).toEqual(
       expect.arrayContaining([
         "expo-router",
+        // The splash is held until the first screen knows where it goes (audit P0-3).
+        [
+          "expo-splash-screen",
+          expect.objectContaining({ image: "./assets/adaptive-icon.png", backgroundColor: "#ffffff", dark: expect.objectContaining({ backgroundColor: "#111111" }) }),
+        ],
         "expo-secure-store",
-        "expo-notifications",
-        ["expo-build-properties", { ios: { enableSceneSupport: true } }],
+        // A one-colour status-bar glyph with the brand's accent; the call notifications use the same drawable.
+        ["expo-notifications", { icon: "./assets/notification-icon.png", color: "#0044E3" }],
+        [
+          "expo-build-properties",
+          {
+            ios: { enableSceneSupport: true },
+            android: {
+              // Pinned: Play's target-API requirement reads it; the CI matrix runs this API (chat-mobile-verify.yml).
+              compileSdkVersion: 36,
+              targetSdkVersion: 36,
+              enableMinifyInReleaseBuilds: true,
+              enableShrinkResourcesInReleaseBuilds: true,
+              extraProguardRules: ANDROID_KEEP_RULES,
+              // Only a dev build talks to plain http (a laptop on the LAN, the PR's hermetic server through adb reverse).
+              ...(env === "staging" || env === "production" ? {} : { usesCleartextTraffic: true }),
+            },
+          },
+        ],
         "@livekit/react-native-expo-plugin",
+        // org, project and token stay in the build env: they must not move the fingerprint
+        ["@sentry/react-native/expo", { url: "https://sentry.io/" }],
       ]),
     );
+  });
+
+  // Audit "android-notification-icon": Android draws a notification's small icon and the themed (Material You)
+  // launcher icon from the alpha channel only; the full-colour icon turns into a blank tile there.
+  it("gives Android a one-colour notification glyph and a monochrome launcher layer", () => {
+    const config = build();
+    expect(config.android?.adaptiveIcon).toEqual({
+      foregroundImage: "./assets/adaptive-icon.png",
+      backgroundImage: "./assets/adaptive-icon-background.png",
+      monochromeImage: "./assets/adaptive-icon-monochrome.png",
+    });
+    for (const file of ["assets/notification-icon.png", "assets/adaptive-icon-monochrome.png"]) {
+      expect(fs.existsSync(path.join(__dirname, file)), file).toBe(true);
+    }
+  });
+
+  // Audit P2 i18n: the system knows UniChat speaks Vietnamese and English (the
+  // per-app language picker of iOS and Android 13+), and Vietnamese is the base.
+  it("declares Vietnamese and English to the OS, with Vietnamese as the development region", () => {
+    const config = build();
+    expect(config.plugins).toContainEqual(["expo-localization", { supportedLocales: ["vi", "en"], supportsRTL: false }]);
+    expect(config.ios?.infoPlist?.CFBundleDevelopmentRegion).toBe("vi");
   });
 
   // M3: calls and voice messages use the camera and the microphone. A plugin
@@ -85,15 +141,36 @@ describe("app.config per UNICHAT_ENV", () => {
     const microphone = "UniChat dùng micro khi bạn gọi điện và ghi tin thoại.";
     expect(options("@config-plugins/react-native-webrtc")).toEqual({ cameraPermission: camera, microphonePermission: microphone });
     expect(options("expo-image-picker")).toMatchObject({ photosPermission: expect.any(String), cameraPermission: camera, microphonePermission: microphone });
-    expect(options("expo-audio")).toEqual({ microphonePermission: microphone });
+    // Background playback and recording off explicitly (store compliance S2): no
+    // mediaPlayback or microphone foreground service from expo-audio to declare.
+    expect(options("expo-audio")).toEqual({ microphonePermission: microphone, enableBackgroundPlayback: false, enableBackgroundRecording: false });
+    expect(options("./plugins/with-removed-android-services")).toEqual({ services: ["com.oney.WebRTCModule.MediaProjectionService"] });
     expect(config.locales?.en).toEqual({ ios: expect.any(Object) });
     expect((config.locales?.en as { ios: Record<string, string> }).ios).toMatchObject({
       NSCameraUsageDescription: expect.stringContaining("camera"),
       NSMicrophoneUsageDescription: expect.stringContaining("microphone"),
       NSPhotoLibraryUsageDescription: expect.any(String),
+      NSFaceIDUsageDescription: expect.stringContaining("Face ID"),
     });
-    expect(config.ios?.infoPlist?.UIBackgroundModes).toEqual(["audio"]);
-    expect(config.android?.blockedPermissions).toEqual(["android.permission.SYSTEM_ALERT_WINDOW"]);
+    expect(options("expo-local-authentication")).toEqual({ faceIDPermission: "UniChat dùng Face ID để mở khoá ứng dụng khi bạn bật Khoá UniChat." });
+  });
+
+  // Audit (Security & privacy, no-masvs-baseline): unsent attachments sit in plain files under documents/outbox, and the
+  // legacy storage permissions are for apps that read shared storage, which UniChat never does (the system pickers
+  // hand it the files it needs).
+  it("keeps the app's data out of Android backups and device transfers, and asks for no shared storage", () => {
+    const config = build();
+    expect(config.android?.allowBackup).toBe(false);
+    expect(config.plugins).toContain("./plugins/with-android-backup-rules");
+    expect(config.android?.blockedPermissions).toEqual([
+      "android.permission.SYSTEM_ALERT_WINDOW",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+      // expo-screen-capture's screenshot listener before Android 14, which UniChat does not use.
+      "android.permission.READ_MEDIA_IMAGES",
+    ]);
+    // Blocking it killed the app at launch on Android 14+: the module registers its capture callback when created.
+    expect(config.android?.blockedPermissions).not.toContain("android.permission.DETECT_SCREEN_CAPTURE");
   });
 
   it("defaults the urls to the local dev servers and takes UNICHAT_* overrides", () => {
@@ -130,16 +207,173 @@ describe("app.config per UNICHAT_ENV", () => {
   });
 });
 
+// The dev variant may talk plain http (a laptop on the LAN; the PR's hermetic server, mobile-verify.yml › android-e2e).
+// That changes the binary's network posture, so it must never be what a tester or a store gets: every EAS profile but
+// the development client resolves to staging or production, and those builds keep Android's no-cleartext default.
+describe("plain http is a dev build's only", () => {
+  type Profile = { extends?: string; env?: Record<string, string>; developmentClient?: boolean };
+  const profiles = (JSON.parse(fs.readFileSync(path.join(__dirname, "eas.json"), "utf8")) as { build: Record<string, Profile> }).build;
+  const envOf = (name: string): Record<string, string> => {
+    const profile = profiles[name] ?? {};
+    return { ...(profile.extends ? envOf(profile.extends) : {}), ...profile.env };
+  };
+  const cleartextOf = () => {
+    const plugin = build().plugins?.find((p) => Array.isArray(p) && p[0] === "expo-build-properties") as [string, { android: Record<string, unknown> }];
+    return plugin[1].android.usesCleartextTraffic;
+  };
+
+  it.each(Object.keys(profiles).filter((name) => name !== "base"))("EAS profile %s", (name) => {
+    const env = envOf(name).UNICHAT_ENV;
+    if (profiles[name]?.developmentClient) {
+      expect(env).toBe("dev");
+      return;
+    }
+    expect(["staging", "production"]).toContain(env);
+    vi.stubEnv("UNICHAT_ENV", env);
+    stubServers();
+    expect(cleartextOf()).toBeUndefined();
+  });
+
+  it("is allowed for the dev variant", () => {
+    vi.stubEnv("UNICHAT_ENV", "dev");
+    expect(cleartextOf()).toBe(true);
+  });
+});
+
 describe("EAS project and release servers", () => {
   it.each(["dev", "staging", "production"])("%s: the EAS project id turns on updates and push", (env) => {
     vi.stubEnv("UNICHAT_ENV", env);
     vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
     stubServers();
 
+    // The app's own root: its committed certificate signs every variant's updates.
     const config = build();
-    expect(config.updates).toEqual({ url: "https://u.expo.dev/0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
-    expect(config.runtimeVersion).toEqual({ policy: "appVersion" });
+    expect(config.updates).toEqual({
+      url: "https://u.expo.dev/0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e",
+      codeSigningCertificate: "./certs/eas-update-certificate.pem",
+      codeSigningMetadata: { keyid: "main", alg: "rsa-v1_5-sha256" },
+    });
+    expect(config.runtimeVersion).toEqual({ policy: "fingerprint" });
     expect(config.extra?.eas).toEqual({ projectId: "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
+  });
+
+  // The rule on a bare project root: without the file a dev binary's updates are unsigned; from the first
+  // binary that embeds it, the phone accepts only updates signed with its key.
+  it("signs updates once the code-signing certificate is committed, and not before", () => {
+    vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "unichat-config-"));
+    try {
+      expect(build(root).updates).not.toHaveProperty("codeSigningCertificate");
+      fs.mkdirSync(path.join(root, "certs"));
+      fs.writeFileSync(path.join(root, "certs/eas-update-certificate.pem"), "-----BEGIN CERTIFICATE-----\n");
+      expect(build(root).updates).toEqual({
+        url: "https://u.expo.dev/0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e",
+        codeSigningCertificate: "./certs/eas-update-certificate.pem",
+        codeSigningMetadata: { keyid: "main", alg: "rsa-v1_5-sha256" },
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // Audit (Security & privacy, ota-unsigned, P1): the first production binary went out accepting unsigned bundles, so
+  // whoever held the Expo account or EXPO_TOKEN could ship JavaScript that reads the Keychain session. A store binary
+  // without the certificate can never be fixed by an update: the build itself refuses.
+  it("refuses a production store build that would accept unsigned updates", () => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
+    stubServers();
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "unichat-config-"));
+    try {
+      vi.stubEnv("EAS_BUILD", "true");
+      expect(() => build(root)).toThrow("certs/eas-update-certificate.pem is required for a production build");
+      // The staging binaries reach people too (Play internal, the pilot APK): the same refusal.
+      vi.stubEnv("UNICHAT_ENV", "staging");
+      expect(() => build(root)).toThrow("certs/eas-update-certificate.pem is required for a staging build");
+      // eas-cli's first local read (to find the project id), and a dev client build, still go through.
+      vi.stubEnv("EAS_BUILD", undefined);
+      vi.stubEnv("UNICHAT_ENV", "production");
+      expect(build(root).updates).toEqual({ url: "https://u.expo.dev/0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
+      vi.stubEnv("EAS_BUILD", "true");
+      vi.stubEnv("UNICHAT_ENV", "dev");
+      expect(build(root).updates).not.toHaveProperty("codeSigningCertificate");
+      // Without an EAS project there is no update server to trust.
+      vi.stubEnv("UNICHAT_ENV", "production");
+      vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "");
+      expect(build(root).updates).toEqual({ enabled: false });
+      vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
+      fs.mkdirSync(path.join(root, "certs"));
+      fs.writeFileSync(path.join(root, "certs/eas-update-certificate.pem"), "-----BEGIN CERTIFICATE-----\n");
+      expect(build(root).updates).toMatchObject({ codeSigningCertificate: "./certs/eas-update-certificate.pem" });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // Audit (Release, ota-unsigned-first-binary, P1): the certificate is in the repo, so every store binary from here on
+  // is signed. It must stay a real code-signing certificate with years left: one that expires (or is swapped for a
+  // stub) turns every later update into one the phones refuse, and rotating it is a native change (a store build).
+  it("carries a real EAS Update code-signing certificate, and every release build embeds it", () => {
+    const cert = new X509Certificate(fs.readFileSync(path.join(import.meta.dirname, "certs/eas-update-certificate.pem")));
+    expect(cert.subject).toBe("CN=UniChat");
+    expect(cert.keyUsage).toContain("1.3.6.1.5.5.7.3.3");
+    expect(cert.publicKey.asymmetricKeyType).toBe("rsa");
+    expect(cert.publicKey.asymmetricKeyDetails?.modulusLength).toBeGreaterThanOrEqual(2048);
+    const twoYears = Date.now() + 2 * 365 * 24 * 60 * 60 * 1000;
+    expect(Date.parse(cert.validTo), "rotate the certificate (runbook › Ký OTA) with a store build before it runs out").toBeGreaterThan(twoYears);
+    expect(cert.verify(cert.publicKey), "self-signed by its own key, as expo-updates generates it").toBe(true);
+    vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
+    vi.stubEnv("EAS_BUILD", "true");
+    stubServers();
+    for (const env of ["staging", "production"]) {
+      vi.stubEnv("UNICHAT_ENV", env);
+      expect(build(import.meta.dirname).updates).toMatchObject({ codeSigningCertificate: "./certs/eas-update-certificate.pem", codeSigningMetadata: { keyid: "main" } });
+    }
+  });
+
+  // Audit (Security & privacy, https-not-asserted): a release build talks to its servers over TLS only, and the socket
+  // URL derived from the API's is wss:// then (lib/runtime-extra.ts).
+  it.each([
+    ["staging", "UNICHAT_API_URL", "http://api.example"],
+    ["production", "UNICHAT_APP_URL", "http://app.example"],
+    ["production", "UNICHAT_API_URL", "ftp://api.example"],
+  ])("%s refuses %s that is not https (%s), on the builder or not", (env, name, value) => {
+    vi.stubEnv("UNICHAT_ENV", env);
+    stubServers();
+    vi.stubEnv(name, value);
+    vi.stubEnv("EAS_BUILD", undefined);
+    expect(build).toThrow(`${name} must be an https:// URL`);
+    vi.stubEnv("EAS_BUILD", "true");
+    expect(build).toThrow(`${name} must be an https:// URL`);
+  });
+
+  it("carries the Sentry DSN of the build environment, and nothing without one", () => {
+    vi.stubEnv("SENTRY_DSN", " https://k@o1.ingest.sentry.io/1 ");
+    expect(build().extra?.sentryDsn).toBe("https://k@o1.ingest.sentry.io/1");
+    vi.stubEnv("SENTRY_DSN", "");
+    expect(build().extra).not.toHaveProperty("sentryDsn");
+    vi.stubEnv("SENTRY_DSN", undefined);
+    expect(build().extra).not.toHaveProperty("sentryDsn");
+  });
+
+  it("asks for startup marks only in a build CI measures (UNICHAT_PERF_MARKS=1)", () => {
+    vi.stubEnv("UNICHAT_PERF_MARKS", "1");
+    expect(build().extra?.perfMarks).toBe(true);
+    vi.stubEnv("UNICHAT_PERF_MARKS", "true");
+    expect(build().extra).not.toHaveProperty("perfMarks");
+    vi.stubEnv("UNICHAT_PERF_MARKS", undefined);
+    expect(build().extra).not.toHaveProperty("perfMarks");
+  });
+
+  // Audit "ota-apply-latency": the OTA workflow's critical input reaches the update's manifest (data/updates-controller.ts),
+  // inside `extra`, which the fingerprint leaves out: marking an update critical does not move it to another runtime.
+  it("marks an update critical only when the OTA workflow says so (UNICHAT_CRITICAL_UPDATE=1)", () => {
+    vi.stubEnv("UNICHAT_CRITICAL_UPDATE", "1");
+    expect(build().extra?.criticalUpdate).toBe(true);
+    vi.stubEnv("UNICHAT_CRITICAL_UPDATE", "true");
+    expect(build().extra).not.toHaveProperty("criticalUpdate");
+    vi.stubEnv("UNICHAT_CRITICAL_UPDATE", undefined);
+    expect(build().extra).not.toHaveProperty("criticalUpdate");
   });
 
   it("hands the Firebase file of the EAS environment to Android, which needs it for an Expo push token", () => {
@@ -177,5 +411,235 @@ describe("EAS project and release servers", () => {
     vi.stubEnv("UNICHAT_API_URL", undefined);
     vi.stubEnv("UNICHAT_APP_URL", undefined);
     expect(build().extra).toMatchObject({ apiUrl: "", appUrl: "", eas: { projectId: expect.any(String) } });
+  });
+});
+
+// Audit (Security & privacy, no-pinning-or-attestation): pinning is ready for a release build to switch on from its
+// environment, and refuses any half of it that would leave phones unable to reach their server.
+describe("TLS pinning", () => {
+  const PIN_A = "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=";
+  const PIN_B = "YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=";
+  const plugin = createRequire(__filename)("./plugins/with-tls-pins.js") as {
+    networkSecurityConfig: (o: { domains: string[]; pins: string[]; expiration: string }) => string;
+    pinnedDomains: (o: { domains: string[]; pins: string[] }) => Record<string, unknown>;
+    CONFIG_NAME: string;
+  };
+  const pinsPlugin = (config: ReturnType<typeof build>) =>
+    (config.plugins ?? []).find((p): p is [string, { domains: string[]; pins: string[]; expiration: string }] => Array.isArray(p) && p[0] === "./plugins/with-tls-pins")?.[1];
+
+  it("pins nothing unless the build's environment names the pins", () => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    stubServers();
+    vi.stubEnv("UNICHAT_TLS_PINS", undefined);
+    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", undefined);
+    expect(pinsPlugin(build())).toBeUndefined();
+  });
+
+  it("pins the API and web hosts with every pin, and an expiry for Android", () => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    vi.stubEnv("UNICHAT_API_URL", "https://api.uniworkos.com");
+    vi.stubEnv("UNICHAT_APP_URL", "https://app.uniworkos.com");
+    vi.stubEnv("UNICHAT_TLS_PINS", ` ${PIN_A}, ${PIN_B} ,${PIN_A}`);
+    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", "2099-01-01");
+    expect(pinsPlugin(build())).toEqual({ domains: ["api.uniworkos.com", "app.uniworkos.com"], pins: [PIN_A, PIN_B], expiration: "2099-01-01" });
+  });
+
+  // Audit "Security & privacy", tls-pinning-off: the LiveKit signalling host carries the call's join token, so it
+  // is pinned with the API and the web app when the build names it.
+  it("adds the hosts UNICHAT_TLS_PIN_HOSTS names (the LiveKit signalling host), and refuses one that is not a host", () => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    vi.stubEnv("UNICHAT_API_URL", "https://api.uniworkos.com");
+    vi.stubEnv("UNICHAT_APP_URL", "https://app.uniworkos.com");
+    vi.stubEnv("UNICHAT_TLS_PINS", `${PIN_A},${PIN_B}`);
+    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", "2099-01-01");
+    vi.stubEnv("UNICHAT_TLS_PIN_HOSTS", " livekit.uniworkos.com , api.uniworkos.com,");
+    expect(pinsPlugin(build())?.domains).toEqual(["api.uniworkos.com", "app.uniworkos.com", "livekit.uniworkos.com"]);
+    for (const bad of ["wss://livekit.uniworkos.com", "livekit.uniworkos.com:7880", "*.uniworkos.com", "live kit"]) {
+      vi.stubEnv("UNICHAT_TLS_PIN_HOSTS", bad);
+      expect(build).toThrow("UNICHAT_TLS_PIN_HOSTS");
+    }
+  });
+
+  it("refuses hosts to pin without pins", () => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    stubServers();
+    vi.stubEnv("UNICHAT_TLS_PINS", undefined);
+    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", undefined);
+    vi.stubEnv("UNICHAT_TLS_PIN_HOSTS", "livekit.uniworkos.com");
+    expect(build).toThrow("at least two pins");
+  });
+
+  it.each([
+    ["one pin, no backup", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=", "2099-01-01", "at least two pins"],
+    ["a value that is not a SHA-256", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,not-a-pin", "2099-01-01", "not a base64 SHA-256"],
+    ["no expiry", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=", "", "must be a date"],
+    ["an expiry that is no date", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=", "2099-13-45", "must be a date"],
+    ["an expiry in the past", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=", "2020-01-01", "in the past"],
+    ["an expiry without pins", "", "2099-01-01", "at least two pins"],
+  ])("refuses %s", (_label, pins, expires, message) => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    stubServers();
+    vi.stubEnv("UNICHAT_TLS_PINS", pins);
+    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", expires);
+    expect(build).toThrow(message);
+  });
+
+  it("never pins a dev build, and needs hosts to pin", () => {
+    vi.stubEnv("UNICHAT_TLS_PINS", `${PIN_A},${PIN_B}`);
+    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", "2099-01-01");
+    expect(() => tlsPinning("dev", ["localhost"])).toThrow("staging and production");
+    expect(() => tlsPinning("production", ["", ""])).toThrow("name the hosts");
+    expect(tlsPinning("staging", ["api.example", "api.example"])?.domains).toEqual(["api.example"]);
+  });
+
+  it("writes an Android pin-set with its expiry and refuses cleartext, and iOS pinned CA identities", () => {
+    const options = { domains: ["api.uniworkos.com"], pins: [PIN_A, PIN_B], expiration: "2099-01-01" };
+    const xml = plugin.networkSecurityConfig(options);
+    expect(plugin.CONFIG_NAME).toBe("unichat_network_security_config");
+    expect(xml).toContain('<base-config cleartextTrafficPermitted="false" />');
+    expect(xml).toContain('<domain includeSubdomains="false">api.uniworkos.com</domain>');
+    expect(xml).toContain('<pin-set expiration="2099-01-01">');
+    expect([...xml.matchAll(/<pin digest="SHA-256">([^<]+)<\/pin>/g)].map((m) => m[1])).toEqual([PIN_A, PIN_B]);
+    expect(plugin.networkSecurityConfig({ ...options, domains: ['a"<b>&'] })).toContain("a&quot;&lt;b&gt;&amp;");
+    expect(plugin.pinnedDomains(options)).toEqual({
+      "api.uniworkos.com": { NSIncludesSubdomains: false, NSPinnedCAIdentities: [{ "SPKI-SHA256-BASE64": PIN_A }, { "SPKI-SHA256-BASE64": PIN_B }] },
+    });
+  });
+});
+
+describe("fingerprint.config.js", () => {
+  // extra (URLs, DSN, project id) is read by JavaScript from the update's own
+  // manifest; hashing it would make an update published without one value
+  // match no phone. The default skip (package.json scripts) stays beside it.
+  it("leaves `extra` out of the runtime fingerprint and keeps the default skip", async () => {
+    const { SourceSkips } = await import("expo/fingerprint");
+    const { default: fingerprint } = (await import("./fingerprint.config.js")) as { default: { sourceSkips: number } };
+    expect(fingerprint.sourceSkips & SourceSkips.ExpoConfigExtraSection).toBe(SourceSkips.ExpoConfigExtraSection);
+    expect(fingerprint.sourceSkips & SourceSkips.PackageJsonAndroidAndIosScriptsIfNotContainRun).not.toBe(0);
+    expect(fingerprint.sourceSkips & SourceSkips.ExpoConfigVersions).toBe(0);
+  });
+
+  // The local modules' Robolectric and instrumented tests never ship; a new test must not make every
+  // installed binary miss the next OTA. Checked with `expo-updates runtimeversion:resolve`: the hash
+  // with and without src/test (and src/androidTest) is the same under these patterns.
+  it("leaves the local modules' JVM unit and instrumented tests out of the runtime fingerprint", async () => {
+    const { default: fingerprint } = (await import("./fingerprint.config.js")) as { default: { ignorePaths?: string[] } };
+    expect(fingerprint.ignorePaths).toEqual(expect.arrayContaining(["modules/*/android/src/test/**", "modules/*/android/src/androidTest/**"]));
+  });
+
+  // EAS PR #404 build 1dba0b89 stopped on "Runtime version mismatch": on the builder the fingerprint
+  // hashed the prebuilt android/ dir and the GOOGLE_SERVICES_JSON secret file, which no local or CI
+  // computation can see. Both are named so the two sides agree.
+  it("leaves the generated native dirs and EAS file secrets out of the runtime fingerprint", async () => {
+    const { default: fingerprint } = (await import("./fingerprint.config.js")) as { default: { ignorePaths?: string[] } };
+    expect(fingerprint.ignorePaths).toEqual(expect.arrayContaining(["android/**/*", "ios/**/*", "**/eas-environment-secrets/**"]));
+  });
+});
+
+// Audit "ios-dormant-calls-bg-audio" (Apple 2.5.4, 2.3.1): calls are off on iPhone until CallKit and PushKit ship, so an
+// iPhone binary declares no background audio a reviewer could not exercise, and no server switch can turn calling on
+// in a binary reviewed without it.
+describe("calls on iPhone are a build capability", () => {
+  const withIosModule = () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "unichat-ios-calls-"));
+    fs.mkdirSync(path.join(root, "modules/unichat-calls"), { recursive: true });
+    fs.writeFileSync(path.join(root, "modules/unichat-calls/expo-module.config.json"), JSON.stringify({ platforms: ["android", "ios"] }));
+    return root;
+  };
+
+  it("declares no background mode and tells the app nothing without UNICHAT_IOS_CALLS", () => {
+    vi.stubEnv("UNICHAT_IOS_CALLS", undefined);
+    const config = build();
+    expect(config.ios?.infoPlist).toEqual({ CFBundleDevelopmentRegion: "vi" });
+    expect(config.extra?.iosCalls).toBeUndefined();
+    expect(config.plugins).toContainEqual(["./plugins/with-unichat-calls", { iosCalls: false }]);
+  });
+
+  it("refuses UNICHAT_IOS_CALLS=1 while the call module has no iOS half", () => {
+    vi.stubEnv("UNICHAT_IOS_CALLS", "1");
+    expect(() => build()).toThrow(/CallKit/);
+    expect(() => iosCallsBuilt(__dirname)).toThrow(/CallKit/);
+  });
+
+  it("declares background audio and tells the app once the module ships iOS", () => {
+    vi.stubEnv("UNICHAT_IOS_CALLS", "1");
+    const config = build(withIosModule());
+    expect(config.ios?.infoPlist?.UIBackgroundModes).toEqual(["audio"]);
+    expect(config.extra?.iosCalls).toBe(true);
+    expect(config.plugins).toContainEqual(["./plugins/with-unichat-calls", { iosCalls: true }]);
+  });
+
+  it("is set by no EAS profile", () => {
+    const eas = JSON.parse(fs.readFileSync(path.join(__dirname, "eas.json"), "utf8")) as { build: Record<string, { env?: Record<string, string> }> };
+    for (const profile of Object.values(eas.build)) expect(profile.env?.UNICHAT_IOS_CALLS).toBeUndefined();
+  });
+
+  // The Info.plist expo prebuild writes, after every plugin (expo-audio, expo-task-manager and expo-notifications
+  // each add a mode for features UniChat keeps off): nothing in the release build.
+  it("leaves the release Info.plist without any background mode", { timeout: 120_000 }, () => {
+    const out = execFileSync(process.execPath, [createRequire(__filename).resolve("expo/bin/cli"), "config", "--type", "introspect", "--json"], {
+      cwd: __dirname,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 16 * 1024 * 1024,
+      env: { ...process.env, UNICHAT_ENV: "production", UNICHAT_API_URL: "https://api.example.invalid", UNICHAT_APP_URL: "https://app.example.invalid", UNICHAT_IOS_CALLS: "", EAS_BUILD: "", EXPO_NO_TELEMETRY: "1", EXPO_OFFLINE: "1" },
+    });
+    const plist = (JSON.parse(out) as { ios: { infoPlist: Record<string, unknown> } }).ios.infoPlist;
+    expect(plist.UIBackgroundModes).toBeUndefined();
+  });
+});
+
+// Audit "target-sdk-implicit-untested": the target API was React Native's default, and no emulator ran it.
+// R8 is on for every release build: a class native code finds by name and no library rule keeps is gone from the
+// dex, and the app dies at launch (0.3.0 (11) lost WebRTC's livekit.org.jni_zero.JniInit this way).
+describe("R8 keep rules", () => {
+  it("keep what native code finds by name: Nitro, the calls module and WebRTC's relocated jni_zero", () => {
+    expect(ANDROID_KEEP_RULES.split("\n")).toEqual(
+      expect.arrayContaining([
+        "-keep class com.margelo.nitro.** { *; }",
+        "-keep class expo.modules.unichatcalls.** { *; }",
+        "-keep class livekit.org.jni_zero.** { *; }",
+      ]),
+    );
+  });
+});
+
+describe("the Android API the app targets", () => {
+  it("is pinned, and the CI matrix runs it on a phone and on a tablet in landscape", () => {
+    const plugin = build().plugins?.find((p) => Array.isArray(p) && p[0] === "expo-build-properties") as [string, { android: Record<string, unknown> }];
+    const target = plugin[1].android.targetSdkVersion;
+    expect(plugin[1].android.compileSdkVersion).toBe(target);
+    const workflow = fs.readFileSync(path.join(__dirname, "../../.github/workflows/chat-mobile-verify.yml"), "utf8");
+    expect(workflow).toContain(`{ api: ${String(target)}, target: google_apis, ram: 3072, label: api${String(target)} }`);
+    expect(workflow).toMatch(new RegExp(`\\{ api: ${String(target)}, [^}]*profile: pixel_tablet, landscape: true \\}`));
+  });
+});
+
+// Review finding: UNICHAT_IOS_CALLS shipped without a line in .env.example, so whoever set
+// FF_UNICHAT_MOBILE_CALLS_IOS read that the flag alone turns iPhone calling on. Every variable the
+// config reads is listed in the mobile build-time block, except EAS_BUILD, which the EAS builder sets.
+describe("the build variables app.config.ts reads", () => {
+  const source = fs.readFileSync(path.join(__dirname, "app.config.ts"), "utf8");
+  const example = fs.readFileSync(path.join(__dirname, "../../.env.example"), "utf8");
+  const block = example.slice(example.indexOf("# ==================== UniChat mobile (build-time)"));
+  const mobileBlock = block.slice(0, block.indexOf("\n# ====", 1));
+  const read = new Set([
+    ...[...source.matchAll(/process\.env\.([A-Z][A-Z0-9_]+)/g)].map((match) => match[1]!),
+    // serverUrl reads its two by name (process.env[name]).
+    ...[...source.matchAll(/name: ("UNICHAT_[A-Z_]+")(?: \| ("UNICHAT_[A-Z_]+"))*/g)].flatMap((match) => match.slice(1).filter(Boolean).map((n) => JSON.parse(n!) as string)),
+  ]);
+  read.delete("EAS_BUILD");
+
+  it("finds the variables it is about", () => {
+    expect([...read]).toEqual(expect.arrayContaining(["UNICHAT_ENV", "UNICHAT_API_URL", "UNICHAT_APP_URL", "UNICHAT_IOS_CALLS", "SENTRY_DSN"]));
+  });
+
+  it.each([...read].sort())("%s is listed in .env.example's mobile build-time block", (name) => {
+    expect(mobileBlock).toMatch(new RegExp(`^#\\s?${name}=`, "m"));
+  });
+
+  it("says the iPhone calls flag does nothing on a binary built without UNICHAT_IOS_CALLS", () => {
+    const flag = example.slice(example.indexOf("FF_UNICHAT_MOBILE_CALLS_IOS"), example.indexOf("FF_UNICHAT_MOBILE_TIMELINE_RECYCLED"));
+    expect(flag).toContain("UNICHAT_IOS_CALLS=1");
   });
 });

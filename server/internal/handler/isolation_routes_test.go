@@ -416,25 +416,34 @@ const (
 // isoRoutes holds every route that is not plain isoScoped-with-no-body.
 var isoRoutes = map[string]isoSpec{
 	// Sign-in and probes.
-	"GET /healthz":                    {class: isoPublic, reason: reasonProbe},
-	"GET /readyz":                     {class: isoPublic, reason: reasonProbe},
-	"GET /api/v1/config":              {class: isoPublic, reason: reasonProbe},
-	"GET /api/v1/plans":               {class: isoPublic, reason: reasonProbe},
-	"POST /api/v1/rum":                {class: isoPublic, reason: reasonProbe},
-	"POST /api/v1/demo-requests":      {class: isoPublic, reason: "Anonymous pre-account intake returns only its receipt; personal fields are platform-only."},
-	"GET /api/v1/admin/demo-requests": {class: isoPlatform, reason: reasonPlatform},
+	"GET /healthz":                                      {class: isoPublic, reason: reasonProbe},
+	"GET /readyz":                                       {class: isoPublic, reason: reasonProbe},
+	"GET /api/v1/healthz":                               {class: isoPublic, reason: reasonProbe},
+	"GET /api/v1/config":                                {class: isoPublic, reason: reasonProbe},
+	"GET /api/v1/plans":                                 {class: isoPublic, reason: reasonProbe},
+	"POST /api/v1/rum":                                  {class: isoPublic, reason: reasonProbe},
+	"POST /api/v1/mobile/events":                        {class: isoSelf, reason: "anonymous product counters by OS and app version: nothing is stored or returned, no tenant is named"},
+	"POST /api/v1/demo-requests":                        {class: isoPublic, reason: "Anonymous pre-account intake returns only its receipt; personal fields are platform-only."},
+	"GET /api/v1/admin/demo-requests":                   {class: isoPlatform, reason: reasonPlatform},
 	"PATCH /api/v1/admin/demo-requests/{demoRequestID}": {class: isoPlatform, reason: reasonPlatform},
-	"GET /api/v1/notifications/push/config":             {class: isoPublic, reason: reasonProbe},
-	"GET /api/v1/auth/google/callback":                  {class: isoPublic, reason: reasonAuth},
-	"GET /api/v1/auth/google/start":                     {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/login":                           {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/logout":                          {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/mfa/verify":                      {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/password/forgot":                 {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/password/reset":                  {class: isoPublic, reason: reasonAuth},
-	"GET /api/v1/auth/providers":                        {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/refresh":                         {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/register":                        {class: isoPublic, reason: reasonAuth},
+	"GET /api/v1/admin/chat-reports":                    {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/chat-reports/{chatReportID}/resolve": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
+		"reason": "acted on with the organization's owner",
+	})},
+	"POST /api/v1/admin/chat-reports/{chatReportID}/remove-message": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
+		"reason": "objectionable content taken down within 24 hours",
+	})},
+	"GET /api/v1/notifications/push/config": {class: isoPublic, reason: reasonProbe},
+	"GET /api/v1/auth/google/callback":      {class: isoPublic, reason: reasonAuth},
+	"GET /api/v1/auth/google/start":         {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/login":               {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/logout":              {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/mfa/verify":          {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/password/forgot":     {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/password/reset":      {class: isoPublic, reason: reasonAuth},
+	"GET /api/v1/auth/providers":            {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/refresh":             {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/register":            {class: isoPublic, reason: reasonAuth},
 
 	// MCP connector OAuth server (ADR 0031): a client is a program, and the
 	// code, verifier, refresh token or client secret is the credential.
@@ -467,6 +476,16 @@ var isoRoutes = map[string]isoSpec{
 		body: func(w *isoWorld, tn *isoTenant) isoBody {
 			return isoBody{json: map[string]any{"enabled": tn != w.alpha}}
 		}},
+	"PUT /api/v1/orgs/{org}/push-preview-policy": {
+		reason: "the attack on A sends hidden true, which would hide the words of A's pushes, so A's tenant digest catches a breach; every other tenant's own call sends false, the default, which answers 200 and changes nothing",
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"hidden": tn == w.alpha}}
+		}},
+	"PUT /api/v1/orgs/{org}/mobile-security-policy": {
+		reason: "the attack on A sends both requirements true, which would lock every phone of A, so A's tenant digest catches a breach; every other tenant's own call sends both false, the default, which answers 200 and changes nothing",
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"require_app_lock": tn == w.alpha, "block_screen_capture": tn == w.alpha}}
+		}},
 	"PUT /api/v1/orgs/{org}/mcp-policy/write": {
 		reason: "the attack on A sends enabled false, which would switch A's write access off, so A's tenant digest catches a breach; every other tenant's own call sends true, a repeated enable (buildMcp turns write on) that answers 200",
 		body: func(w *isoWorld, tn *isoTenant) isoBody {
@@ -497,6 +516,9 @@ var isoRoutes = map[string]isoSpec{
 	"PATCH /api/v1/me":                                        {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/avatar":                                  {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/delete":                                  {class: isoSelf, reason: reasonSelf},
+	"PUT /api/v1/me/ai-consent":                               {class: isoSelf, reason: reasonSelf},
+	"PUT /api/v1/me/push-previews":                            {class: isoSelf, reason: reasonSelf},
+	"DELETE /api/v1/me/ai-consent":                            {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/email/resend":                            {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/email/verify":                            {class: isoSelf, reason: reasonSelf},
 	"GET /api/v1/me/invitations":                              {class: isoSelf, reason: reasonSelf},
@@ -846,6 +868,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/share-as-document": {body: isoIdem(nil, map[string]any{"share_level": "comment", "client_msg_id": "iso-share-as-doc"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/threads/{messageID}/messages":           {body: isoJSON(map[string]any{"body": "hello"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/accept":                           {body: isoWith(map[string]string{"call_id": "callID"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/decline":                          {body: isoWith(map[string]string{"call_id": "callID"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/hangup":                           {body: isoWith(map[string]string{"call_id": "callID"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/invite":                           {body: isoWith(map[string]string{"call_id": "callID"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recording/start":                  {body: isoWith(map[string]string{"call_id": "callID"}, nil)},
@@ -874,6 +897,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/meetings/{meetingID}/participants/{participantID}/publish":                  {mixedFirst: "liveMeeting"},
 	"PATCH /api/v1/orgs/{org}/members/{userID}":                                               {body: isoJSON(map[string]any{"role": "admin"})},
 	"PATCH /api/v1/workspaces/{workspaceID}/members/{userID}":                                 {body: isoJSON(map[string]any{"role": "admin"})},
+	"POST /api/v1/workspaces/{workspaceID}/chat/reports":                                      {body: isoWith(map[string]string{"user_id": "peer"}, map[string]any{"reason": "spam"})},
 	"DELETE /api/v1/workspaces/{workspaceID}/chat/users/{userID}/block":                       {mixedOK: "unblocking deletes the caller's own block row in their own organization; any id answers ok, known or not"},
 	"GET /api/v1/workspaces/{workspaceID}/resources/{resourceType}/{resourceID}/history":      {mixedOK: "the history is read by workspace and resource; a foreign id returns the empty page an unknown id returns"},
 	"POST /api/v1/meetings/{meetingID}/join-requests":                                         {body: isoJSON(map[string]any{"display_name": "Khách"})},

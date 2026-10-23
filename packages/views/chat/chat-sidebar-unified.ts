@@ -8,7 +8,7 @@ import {
 } from "@uniwork/core/chat/room-preferences-store";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import { compareRoomPreviewRecency } from "./chat-sidebar-preview";
-import { foldedIncludes } from "./chat-search-fold";
+import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 import type { ChatScope } from "./chat-scope";
 
 export type ChatSidebarKindFilter = "all" | "workspace" | "channel" | "group" | "dm";

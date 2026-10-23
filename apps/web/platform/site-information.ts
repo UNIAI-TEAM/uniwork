@@ -18,6 +18,6 @@ export const siteInformation = {
   legalName: legalEntity.nameEn as string | null,
   supportEmail: legalEntity.email as string | null,
   privacyUrl: "/privacy" as string | null,
-  termsUrl: null as string | null,
+  termsUrl: "/terms" as string | null,
   googleSiteVerification: null as string | null,
 };

@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  mergeOptimisticChatMessages,
-  outboxToOptimisticChatMessage,
-  shouldHideOptimisticMessage,
-} from "./merge-optimistic-chat-messages";
+import { mergeOptimisticChatMessages, outboxToOptimisticChatMessage } from "./merge-optimistic-chat-messages";
+import { shouldHideOptimisticMessage } from "./optimistic-merge";
 import type { PendingChatMessage } from "./pending-messages-store";
 
 describe("mergeOptimisticChatMessages", () => {

@@ -186,6 +186,8 @@ func (s *ChatService) updateCopiedComment(ctx context.Context, userID string, ms
 }
 
 func (s *ChatService) publishChatMessageDeleted(ctx context.Context, room db.ChatRoom, messageID string) {
+	// The log first: a client never sees a frame the log is behind (chat_changes.go).
+	s.recordChatChange(ctx, room, messageID, ChatChangeDeleted)
 	ev := Event{
 		Type: "chat.message.deleted",
 		Payload: map[string]string{
@@ -256,6 +258,7 @@ func (s *ChatService) ToggleChatMessagePin(
 }
 
 func (s *ChatService) publishChatMessageUpdated(ctx context.Context, room db.ChatRoom, messageID string) {
+	s.recordChatChange(ctx, room, messageID, ChatChangeUpdated)
 	ev := Event{
 		Type: "chat.message.updated",
 		Payload: map[string]string{

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const transport = vi.hoisted(() => ({ request: vi.fn<(path: string, init?: RequestInit) => Promise<unknown>>() }));
 vi.mock("./api", () => ({ api: transport }));
 
-import { chatApi, createChatApi, type ChatApi } from "./chat-api";
+import { chatApi, createChatApi, toChatRequest, type ChatApi } from "./chat-api";
 
 const request = vi.fn<(path: string, init?: RequestInit) => Promise<unknown>>();
 const chat = createChatApi(request);
@@ -87,7 +87,7 @@ const cases: Case[] = [
   { name: "markThreadRead", call: (c) => c.markThreadRead("w1", "root"), path: `${W}/chat/threads/root/read`, method: "POST", good: { previous_read_at: "2026-10-01T00:00:00Z" }, read: "2026-10-01T00:00:00Z", fallback: null },
   { name: "listChannels", call: (c) => c.listChannels("w1", "discoverable"), path: `${W}/chat/channels?scope=discoverable`, method: "GET", good: { rooms: [{ ...roomRec, kind: "channel" }] }, read: [expect.objectContaining({ kind: "channel" })], fallback: [] },
   { name: "joinChannel", call: (c) => c.joinChannel("w1", "r1"), path: `${W}/chat/channels/r1/join`, method: "POST", body: {}, good: { room: roomRec }, read: expect.objectContaining({ id: "r1" }), fallback: null },
-  { name: "listNicknames", call: (c) => c.listNicknames("w1"), path: `${W}/chat/nicknames`, method: "GET", good: { nicknames: { u1: "Bé", " ": "x" } }, read: { U1: "Bé" }, fallback: {} },
+  { name: "listNicknames", call: (c) => c.listNicknames("w1"), path: `${W}/chat/nicknames`, method: "GET", good: { nicknames: { u1: "Bé", " ": "x", u2: 5 } }, read: { U1: "Bé" }, fallback: {} },
   {
     name: "listWorkspaceMembers",
     call: (c) => c.listWorkspaceMembers("w1"),
@@ -107,6 +107,15 @@ const cases: Case[] = [
     method: "GET",
     good: { invites: [{ room_id: "r1", call_id: "c1", caller_id: "u2" }] },
     read: [{ room_id: "r1", call_id: "c1", caller_id: "u2", caller_name: "", call_kind: "dm", invited_at: "" }],
+    fallback: [],
+  },
+  {
+    name: "listOutgoingVoiceCalls",
+    call: (c) => c.listOutgoingVoiceCalls("w1"),
+    path: `${W}/chat/voice/pending`,
+    method: "GET",
+    good: { invites: [], outgoing: [{ room_id: "r1", call_id: "c1", accepted: true }] },
+    read: [{ room_id: "r1", call_id: "c1", accepted: true }],
     fallback: [],
   },
   {
@@ -143,6 +152,24 @@ const cases: Case[] = [
     method: "GET",
     good: { items: [{ id: "s1", label: "cat", url: "https://media.tenor.com/a.gif", preview_url: "https://media.tenor.com/p.gif" }] },
     read: [{ id: "s1", label: "cat", url: "https://media.tenor.com/a.gif", previewUrl: "https://media.tenor.com/p.gif" }],
+    fallback: [],
+  },
+  {
+    name: "listExpressions trending gifs",
+    call: (c) => c.listExpressions("w1", "gifs", ""),
+    path: `${W}/chat/gifs/trending?limit=48`,
+    method: "GET",
+    good: { items: [] },
+    read: [],
+    fallback: [],
+  },
+  {
+    name: "listExpressions searched stickers",
+    call: (c) => c.listExpressions("w1", "stickers", "cat", 12),
+    path: `${W}/chat/stickers/search?q=cat&limit=12`,
+    method: "GET",
+    good: { items: [] },
+    read: [],
     fallback: [],
   },
   {
@@ -233,7 +260,17 @@ const cases: Case[] = [
     method: "POST",
     body: { room_id: "r1", locale: "vi" },
     good: { summary: "Đã chốt lịch.", highlights: ["Họp 3 giờ"], action_items: [{ title: "Gửi báo giá" }], message_count: 4 },
-    read: { summary: "Đã chốt lịch.", highlights: ["Họp 3 giờ"], highlight_items: [], action_items: [{ title: "Gửi báo giá", owner: "", due: "" }], message_count: 4 },
+    // Core's ChatCatchUpResponseSchema, the web's own (the phone reads the brief's fields of it).
+    read: {
+      summary: "Đã chốt lịch.",
+      highlights: ["Họp 3 giờ"],
+      highlight_items: [],
+      action_items: [{ title: "Gửi báo giá", owner: "", due: "", source_message_id: "" }],
+      message_count: 4,
+      mode: "unread",
+      since: "",
+      usage: { input_tokens: 0, output_tokens: 0 },
+    },
     fallback: null,
   },
   {
@@ -274,12 +311,28 @@ const cases: Case[] = [
     path: `${W}/chat/messages/m1/forward`,
     method: "POST",
     body: { target_room_ids: ["r2", "r3"] },
-    good: { messages: [{ ...msg, id: "m2", room_id: "r2" }, { ...msg, id: "m3", room_id: "r3" }] },
+    // The server answers each copy as {room_id, message_id} (sdo.ChatForwardedMessageDTO), not a whole message.
+    good: { messages: [{ room_id: "r2", message_id: "m2" }, { room_id: "r3", message_id: "m3" }, { room_id: 1 }] },
     read: 2,
     fallback: 0,
   },
   { name: "getTask", call: (c) => c.getTask("t 1"), path: "/api/v1/tasks/t%201", method: "GET", good: { task: { id: "t 1", title: "A", identifier: "UNI-2", status: "done" } }, read: expect.objectContaining({ status: "done" }), fallback: null },
 ];
+
+describe("toChatRequest", () => {
+  // Core's endpoint factories hand a JSON value; the app's transport takes a RequestInit with a string body.
+  it("passes the method and signal, serialises a body, and adds nothing that was not given", async () => {
+    const request = vi.fn(async () => "answer");
+    const signal = new AbortController().signal;
+    const core = toChatRequest(request);
+    await expect(core("/a", { method: "PUT", body: { x: 1 }, signal })).resolves.toBe("answer");
+    await core("/b");
+    expect(request.mock.calls).toEqual([
+      ["/a", { method: "PUT", signal, body: '{"x":1}' }],
+      ["/b", {}],
+    ]);
+  });
+});
 
 describe("chat endpoints", () => {
   it.each(cases)("$name sends the web's request and reads its answer", async ({ call, path, method, body, good, read }) => {
@@ -351,5 +404,22 @@ describe("chat endpoints", () => {
     const controller = new AbortController();
     expect(await chatApi.listRooms("w1", controller.signal)).toEqual([]);
     expect(transport.request).toHaveBeenCalledWith(`${W}/chat/rooms`, { signal: controller.signal });
+  });
+});
+
+// Audit "number-format-and-server-copy": the server names an erased account in Vietnamese for every reader; the app
+// reads it in its own language wherever a chat answer names it (lib/erased-account.ts).
+describe("an erased account's name", () => {
+  it("reads in the app's language in every chat answer", async () => {
+    const { ERASED_ACCOUNT_NAME } = await import("@/lib/erased-account");
+    const { i18n } = await import("@/lib/i18n/singleton");
+    request.mockResolvedValueOnce({ messages: [{ ...msg, sender_display_name: ERASED_ACCOUNT_NAME }], has_more: false });
+    await i18n.changeLanguage("en");
+    try {
+      const page = await chat.listMessages("w1", "r1");
+      expect(JSON.stringify(page)).toContain('"sender_display_name":"Deleted user"');
+    } finally {
+      await i18n.changeLanguage("vi");
+    }
   });
 });

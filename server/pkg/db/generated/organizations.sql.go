@@ -121,7 +121,7 @@ func (q *Queries) CountActiveOtherMembers(ctx context.Context, arg CountActiveOt
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organizations (id, slug, name, created_by)
 VALUES ($1, $2, $3, $4)
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by
 `
 
 type CreateOrganizationParams struct {
@@ -157,6 +157,12 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 		&i.AskUniModels,
 		&i.AskUniModelsUpdatedBy,
 		&i.AskUniModelsUpdatedAt,
+		&i.PushPreviewsHiddenAt,
+		&i.PushPreviewsHiddenBy,
+		&i.MobileAppLockRequiredAt,
+		&i.MobileAppLockRequiredBy,
+		&i.MobileScreenCaptureBlockedAt,
+		&i.MobileScreenCaptureBlockedBy,
 	)
 	return i, err
 }
@@ -270,7 +276,7 @@ func (q *Queries) FilterAdmittedOrganizationMemberUserIDs(ctx context.Context, a
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by FROM organizations WHERE id = $1
 `
 
 func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organization, error) {
@@ -294,12 +300,18 @@ func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organizat
 		&i.AskUniModels,
 		&i.AskUniModelsUpdatedBy,
 		&i.AskUniModelsUpdatedAt,
+		&i.PushPreviewsHiddenAt,
+		&i.PushPreviewsHiddenBy,
+		&i.MobileAppLockRequiredAt,
+		&i.MobileAppLockRequiredBy,
+		&i.MobileScreenCaptureBlockedAt,
+		&i.MobileScreenCaptureBlockedBy,
 	)
 	return i, err
 }
 
 const getOrganizationBySlug = `-- name: GetOrganizationBySlug :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE slug = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by FROM organizations WHERE slug = $1
 `
 
 func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organization, error) {
@@ -323,6 +335,12 @@ func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organ
 		&i.AskUniModels,
 		&i.AskUniModelsUpdatedBy,
 		&i.AskUniModelsUpdatedAt,
+		&i.PushPreviewsHiddenAt,
+		&i.PushPreviewsHiddenBy,
+		&i.MobileAppLockRequiredAt,
+		&i.MobileAppLockRequiredBy,
+		&i.MobileScreenCaptureBlockedAt,
+		&i.MobileScreenCaptureBlockedBy,
 	)
 	return i, err
 }
@@ -368,6 +386,82 @@ func (q *Queries) GetOrganizationMember(ctx context.Context, arg GetOrganization
 		&i.OrganizationStatus,
 		&i.DeletionScheduledAt,
 	)
+	return i, err
+}
+
+const getOrganizationMobileSecurityPolicy = `-- name: GetOrganizationMobileSecurityPolicy :one
+SELECT id, mobile_app_lock_required_at, mobile_screen_capture_blocked_at FROM organizations WHERE id = $1
+`
+
+type GetOrganizationMobileSecurityPolicyRow struct {
+	ID                           string             `json:"id"`
+	MobileAppLockRequiredAt      pgtype.Timestamptz `json:"mobile_app_lock_required_at"`
+	MobileScreenCaptureBlockedAt pgtype.Timestamptz `json:"mobile_screen_capture_blocked_at"`
+}
+
+// Read by every member: the phone holds the organization's requirements as a
+// floor under the person's own app lock and screen-capture choices.
+func (q *Queries) GetOrganizationMobileSecurityPolicy(ctx context.Context, id string) (GetOrganizationMobileSecurityPolicyRow, error) {
+	row := q.db.QueryRow(ctx, getOrganizationMobileSecurityPolicy, id)
+	var i GetOrganizationMobileSecurityPolicyRow
+	err := row.Scan(&i.ID, &i.MobileAppLockRequiredAt, &i.MobileScreenCaptureBlockedAt)
+	return i, err
+}
+
+const getOrganizationMobileSecurityPolicyForUpdate = `-- name: GetOrganizationMobileSecurityPolicyForUpdate :one
+SELECT id, mobile_app_lock_required_at, mobile_screen_capture_blocked_at FROM organizations WHERE id = $1 FOR UPDATE
+`
+
+type GetOrganizationMobileSecurityPolicyForUpdateRow struct {
+	ID                           string             `json:"id"`
+	MobileAppLockRequiredAt      pgtype.Timestamptz `json:"mobile_app_lock_required_at"`
+	MobileScreenCaptureBlockedAt pgtype.Timestamptz `json:"mobile_screen_capture_blocked_at"`
+}
+
+// SetMobileSecurityPolicy reads what it is about to change under the row
+// lock, so the audit row's before/after is true and a repeat writes no row.
+func (q *Queries) GetOrganizationMobileSecurityPolicyForUpdate(ctx context.Context, id string) (GetOrganizationMobileSecurityPolicyForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getOrganizationMobileSecurityPolicyForUpdate, id)
+	var i GetOrganizationMobileSecurityPolicyForUpdateRow
+	err := row.Scan(&i.ID, &i.MobileAppLockRequiredAt, &i.MobileScreenCaptureBlockedAt)
+	return i, err
+}
+
+const getOrganizationPushPreviewPolicy = `-- name: GetOrganizationPushPreviewPolicy :one
+SELECT id, push_previews_hidden_at, push_previews_hidden_by FROM organizations WHERE id = $1
+`
+
+type GetOrganizationPushPreviewPolicyRow struct {
+	ID                   string             `json:"id"`
+	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	PushPreviewsHiddenBy pgtype.Text        `json:"push_previews_hidden_by"`
+}
+
+// Read by every member (Settings shows why previews are off) and by the push
+// lane for the notification's organization.
+func (q *Queries) GetOrganizationPushPreviewPolicy(ctx context.Context, id string) (GetOrganizationPushPreviewPolicyRow, error) {
+	row := q.db.QueryRow(ctx, getOrganizationPushPreviewPolicy, id)
+	var i GetOrganizationPushPreviewPolicyRow
+	err := row.Scan(&i.ID, &i.PushPreviewsHiddenAt, &i.PushPreviewsHiddenBy)
+	return i, err
+}
+
+const getOrganizationPushPreviewPolicyForUpdate = `-- name: GetOrganizationPushPreviewPolicyForUpdate :one
+SELECT id, push_previews_hidden_at, push_previews_hidden_by FROM organizations WHERE id = $1 FOR UPDATE
+`
+
+type GetOrganizationPushPreviewPolicyForUpdateRow struct {
+	ID                   string             `json:"id"`
+	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	PushPreviewsHiddenBy pgtype.Text        `json:"push_previews_hidden_by"`
+}
+
+// SetPushPreviewPolicy reads the value it is about to change under the row
+// lock, so the audit row's before/after is true and a repeat writes no row.
+func (q *Queries) GetOrganizationPushPreviewPolicyForUpdate(ctx context.Context, id string) (GetOrganizationPushPreviewPolicyForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getOrganizationPushPreviewPolicyForUpdate, id)
+	var i GetOrganizationPushPreviewPolicyForUpdateRow
+	err := row.Scan(&i.ID, &i.PushPreviewsHiddenAt, &i.PushPreviewsHiddenBy)
 	return i, err
 }
 
@@ -629,7 +723,7 @@ func (q *Queries) ListOrganizationMembershipsForUser(ctx context.Context, userID
 }
 
 const listOrganizationsForUser = `-- name: ListOrganizationsForUser :many
-SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, o.mcp_enabled_at, o.mcp_enabled_by, o.deletion_scheduled_at, o.mcp_write_enabled_at, o.mcp_write_enabled_by, o.ask_uni_models, o.ask_uni_models_updated_by, o.ask_uni_models_updated_at, m.role, m.deactivated_at
+SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, o.mcp_enabled_at, o.mcp_enabled_by, o.deletion_scheduled_at, o.mcp_write_enabled_at, o.mcp_write_enabled_by, o.ask_uni_models, o.ask_uni_models_updated_by, o.ask_uni_models_updated_at, o.push_previews_hidden_at, o.push_previews_hidden_by, o.mobile_app_lock_required_at, o.mobile_app_lock_required_by, o.mobile_screen_capture_blocked_at, o.mobile_screen_capture_blocked_by, m.role, m.deactivated_at
 FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
 WHERE m.user_id = $1 AND o.status <> 'archived'
@@ -637,25 +731,31 @@ ORDER BY o.created_at
 `
 
 type ListOrganizationsForUserRow struct {
-	ID                    string             `json:"id"`
-	Slug                  string             `json:"slug"`
-	Name                  string             `json:"name"`
-	CreatedBy             string             `json:"created_by"`
-	CreatedAt             pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	Status                string             `json:"status"`
-	SuspendedAt           pgtype.Timestamptz `json:"suspended_at"`
-	SuspendedReason       pgtype.Text        `json:"suspended_reason"`
-	McpEnabledAt          pgtype.Timestamptz `json:"mcp_enabled_at"`
-	McpEnabledBy          pgtype.Text        `json:"mcp_enabled_by"`
-	DeletionScheduledAt   pgtype.Timestamptz `json:"deletion_scheduled_at"`
-	McpWriteEnabledAt     pgtype.Timestamptz `json:"mcp_write_enabled_at"`
-	McpWriteEnabledBy     pgtype.Text        `json:"mcp_write_enabled_by"`
-	AskUniModels          []string           `json:"ask_uni_models"`
-	AskUniModelsUpdatedBy pgtype.Text        `json:"ask_uni_models_updated_by"`
-	AskUniModelsUpdatedAt pgtype.Timestamptz `json:"ask_uni_models_updated_at"`
-	Role                  string             `json:"role"`
-	DeactivatedAt         pgtype.Timestamptz `json:"deactivated_at"`
+	ID                           string             `json:"id"`
+	Slug                         string             `json:"slug"`
+	Name                         string             `json:"name"`
+	CreatedBy                    string             `json:"created_by"`
+	CreatedAt                    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                    pgtype.Timestamptz `json:"updated_at"`
+	Status                       string             `json:"status"`
+	SuspendedAt                  pgtype.Timestamptz `json:"suspended_at"`
+	SuspendedReason              pgtype.Text        `json:"suspended_reason"`
+	McpEnabledAt                 pgtype.Timestamptz `json:"mcp_enabled_at"`
+	McpEnabledBy                 pgtype.Text        `json:"mcp_enabled_by"`
+	DeletionScheduledAt          pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	McpWriteEnabledAt            pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy            pgtype.Text        `json:"mcp_write_enabled_by"`
+	AskUniModels                 []string           `json:"ask_uni_models"`
+	AskUniModelsUpdatedBy        pgtype.Text        `json:"ask_uni_models_updated_by"`
+	AskUniModelsUpdatedAt        pgtype.Timestamptz `json:"ask_uni_models_updated_at"`
+	PushPreviewsHiddenAt         pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	PushPreviewsHiddenBy         pgtype.Text        `json:"push_previews_hidden_by"`
+	MobileAppLockRequiredAt      pgtype.Timestamptz `json:"mobile_app_lock_required_at"`
+	MobileAppLockRequiredBy      pgtype.Text        `json:"mobile_app_lock_required_by"`
+	MobileScreenCaptureBlockedAt pgtype.Timestamptz `json:"mobile_screen_capture_blocked_at"`
+	MobileScreenCaptureBlockedBy pgtype.Text        `json:"mobile_screen_capture_blocked_by"`
+	Role                         string             `json:"role"`
+	DeactivatedAt                pgtype.Timestamptz `json:"deactivated_at"`
 }
 
 // tenant: self
@@ -690,6 +790,12 @@ func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) (
 			&i.AskUniModels,
 			&i.AskUniModelsUpdatedBy,
 			&i.AskUniModelsUpdatedAt,
+			&i.PushPreviewsHiddenAt,
+			&i.PushPreviewsHiddenBy,
+			&i.MobileAppLockRequiredAt,
+			&i.MobileAppLockRequiredBy,
+			&i.MobileScreenCaptureBlockedAt,
+			&i.MobileScreenCaptureBlockedBy,
 			&i.Role,
 			&i.DeactivatedAt,
 		); err != nil {
@@ -765,7 +871,7 @@ func (q *Queries) ListWorkspacesInOrg(ctx context.Context, organizationID string
 }
 
 const lockOrganizationForShare = `-- name: LockOrganizationForShare :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE id = $1 FOR SHARE
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by FROM organizations WHERE id = $1 FOR SHARE
 `
 
 // An acceptance holds the organization row shared before it locks the
@@ -791,12 +897,18 @@ func (q *Queries) LockOrganizationForShare(ctx context.Context, id string) (Orga
 		&i.AskUniModels,
 		&i.AskUniModelsUpdatedBy,
 		&i.AskUniModelsUpdatedAt,
+		&i.PushPreviewsHiddenAt,
+		&i.PushPreviewsHiddenBy,
+		&i.MobileAppLockRequiredAt,
+		&i.MobileAppLockRequiredBy,
+		&i.MobileScreenCaptureBlockedAt,
+		&i.MobileScreenCaptureBlockedBy,
 	)
 	return i, err
 }
 
 const lockOrganizationForUpdate = `-- name: LockOrganizationForUpdate :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE id = $1 FOR UPDATE
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by FROM organizations WHERE id = $1 FOR UPDATE
 `
 
 // Close holds the organization row while it counts the other members, so an
@@ -823,6 +935,12 @@ func (q *Queries) LockOrganizationForUpdate(ctx context.Context, id string) (Org
 		&i.AskUniModels,
 		&i.AskUniModelsUpdatedBy,
 		&i.AskUniModelsUpdatedAt,
+		&i.PushPreviewsHiddenAt,
+		&i.PushPreviewsHiddenBy,
+		&i.MobileAppLockRequiredAt,
+		&i.MobileAppLockRequiredBy,
+		&i.MobileScreenCaptureBlockedAt,
+		&i.MobileScreenCaptureBlockedBy,
 	)
 	return i, err
 }
@@ -892,6 +1010,78 @@ func (q *Queries) SetOrganizationMemberDeactivated(ctx context.Context, arg SetO
 		&i.InvitedBy,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const setOrganizationMobileSecurityPolicy = `-- name: SetOrganizationMobileSecurityPolicy :one
+UPDATE organizations SET
+  mobile_app_lock_required_at = CASE WHEN $1::bool THEN COALESCE(mobile_app_lock_required_at, now()) ELSE NULL END,
+  mobile_app_lock_required_by = CASE
+    WHEN NOT $1::bool THEN NULL
+    WHEN mobile_app_lock_required_at IS NULL THEN $2::text
+    ELSE mobile_app_lock_required_by END,
+  mobile_screen_capture_blocked_at = CASE WHEN $3::bool THEN COALESCE(mobile_screen_capture_blocked_at, now()) ELSE NULL END,
+  mobile_screen_capture_blocked_by = CASE
+    WHEN NOT $3::bool THEN NULL
+    WHEN mobile_screen_capture_blocked_at IS NULL THEN $2::text
+    ELSE mobile_screen_capture_blocked_by END,
+  updated_at = now()
+WHERE id = $4
+RETURNING id, mobile_app_lock_required_at, mobile_screen_capture_blocked_at
+`
+
+type SetOrganizationMobileSecurityPolicyParams struct {
+	RequireAppLock     bool   `json:"require_app_lock"`
+	ActorID            string `json:"actor_id"`
+	BlockScreenCapture bool   `json:"block_screen_capture"`
+	ID                 string `json:"id"`
+}
+
+type SetOrganizationMobileSecurityPolicyRow struct {
+	ID                           string             `json:"id"`
+	MobileAppLockRequiredAt      pgtype.Timestamptz `json:"mobile_app_lock_required_at"`
+	MobileScreenCaptureBlockedAt pgtype.Timestamptz `json:"mobile_screen_capture_blocked_at"`
+}
+
+// A requirement keeps the time and the person that first set it; lifting it
+// clears both.
+func (q *Queries) SetOrganizationMobileSecurityPolicy(ctx context.Context, arg SetOrganizationMobileSecurityPolicyParams) (SetOrganizationMobileSecurityPolicyRow, error) {
+	row := q.db.QueryRow(ctx, setOrganizationMobileSecurityPolicy,
+		arg.RequireAppLock,
+		arg.ActorID,
+		arg.BlockScreenCapture,
+		arg.ID,
+	)
+	var i SetOrganizationMobileSecurityPolicyRow
+	err := row.Scan(&i.ID, &i.MobileAppLockRequiredAt, &i.MobileScreenCaptureBlockedAt)
+	return i, err
+}
+
+const setOrganizationPushPreviewPolicy = `-- name: SetOrganizationPushPreviewPolicy :one
+UPDATE organizations SET
+  push_previews_hidden_at = CASE WHEN $1::bool THEN COALESCE(push_previews_hidden_at, now()) ELSE NULL END,
+  push_previews_hidden_by = CASE WHEN $1::bool THEN $2::text ELSE NULL END,
+  updated_at = now()
+WHERE id = $3
+RETURNING id, push_previews_hidden_at, push_previews_hidden_by
+`
+
+type SetOrganizationPushPreviewPolicyParams struct {
+	Hidden  bool   `json:"hidden"`
+	ActorID string `json:"actor_id"`
+	ID      string `json:"id"`
+}
+
+type SetOrganizationPushPreviewPolicyRow struct {
+	ID                   string             `json:"id"`
+	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	PushPreviewsHiddenBy pgtype.Text        `json:"push_previews_hidden_by"`
+}
+
+func (q *Queries) SetOrganizationPushPreviewPolicy(ctx context.Context, arg SetOrganizationPushPreviewPolicyParams) (SetOrganizationPushPreviewPolicyRow, error) {
+	row := q.db.QueryRow(ctx, setOrganizationPushPreviewPolicy, arg.Hidden, arg.ActorID, arg.ID)
+	var i SetOrganizationPushPreviewPolicyRow
+	err := row.Scan(&i.ID, &i.PushPreviewsHiddenAt, &i.PushPreviewsHiddenBy)
 	return i, err
 }
 

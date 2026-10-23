@@ -132,6 +132,8 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			DownloadURL:  m.File.DownloadURL,
 			ThumbURL:     m.File.ThumbURL,
 			URLExpiresAt: formatURLExpiry(m.File.URLExpiresAt),
+			Width:        m.File.Width,
+			Height:       m.File.Height,
 		}
 	}
 	if m.Document != nil {
@@ -1005,6 +1007,21 @@ func (h *handlers) listChatNicknames(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, sdo.ChatNicknameMapSDO{Nicknames: nicknames})
+}
+
+func (h *handlers) reportChat(w http.ResponseWriter, r *http.Request) {
+	var in sdi.ReportChatSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	out, err := h.Chat.ReportChat(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), service.ReportChatInput{
+		MessageID: in.MessageID, UserID: in.UserID, Reason: in.Reason, Details: in.Details,
+	})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusCreated, sdo.ChatReportSDO{ID: out.ID, Status: out.Status})
 }
 
 func (h *handlers) setChatNickname(w http.ResponseWriter, r *http.Request) {

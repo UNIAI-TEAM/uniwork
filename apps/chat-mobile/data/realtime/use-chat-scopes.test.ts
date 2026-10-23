@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WSClient } from "./ws-client";
-import type { WSMessage } from "./ws-types";
+import { decodeFrame, type RealtimeFrame } from "./frames";
 
 // A ten-line renderHook: the app has no DOM renderer, and the hook only
 // needs refs that survive a re-render and effects that re-run on dep change.
@@ -40,14 +40,14 @@ const harness = vi.hoisted(() => {
 
 vi.mock("react", () => ({ useEffect: harness.useEffect, useRef: harness.useRef }));
 
-const listeners = new Set<(msg: WSMessage) => void>();
+const listeners = new Set<(msg: RealtimeFrame) => void>();
 const reconnectListeners = new Set<() => void>();
 const subscribe = vi.fn();
 const unsubscribe = vi.fn();
 const client = {
   subscribe,
   unsubscribe,
-  onAny: (handler: (msg: WSMessage) => void) => {
+  onAny: (handler: (msg: RealtimeFrame) => void) => {
     listeners.add(handler);
     return () => listeners.delete(handler);
   },
@@ -62,8 +62,10 @@ vi.mock("./realtime-provider", () => ({ useWSClient: () => current }));
 
 const { LOOKUP_RETRY_DELAYS_MS, lookupRetryDelayMs, useChatScopes } = await import("./use-chat-scopes");
 
+/** As ws-client: a frame is decoded first, and one the decoder drops reaches no listener. */
 function emit(type: string, payload: unknown) {
-  for (const handler of [...listeners]) handler({ type, payload });
+  const frame = decodeFrame({ type, payload });
+  if (frame) for (const handler of [...listeners]) handler(frame);
 }
 
 const render = (ids: readonly string[]) => harness.render(useChatScopes, ids);
@@ -167,6 +169,7 @@ describe("useChatScopes", () => {
     emit("subscribe_error", null);
     emit("subscribe_error", { scope: "chat", id: "a" });
     emit("chat.message.created", { scope: "chat", id: "a" });
+    emit("task.updated", { scope: "chat", id: "a", error: "lookup_failed" });
     vi.advanceTimersByTime(60_000);
     expect(subscribe).not.toHaveBeenCalled();
 

@@ -40,8 +40,9 @@ type ChatForwardedMessage struct {
 const maxChatForwardTargets = 10
 
 // chatForwardMediaKeys are the metadata keys a forwarded file or voice note
-// keeps: the file reference and its verified snapshot, nothing room-bound.
-var chatForwardMediaKeys = []string{"file_id", "filename", "content_type", "size_bytes", "duration_ms"}
+// keeps: the file reference and its verified snapshot (a photo's size
+// included), nothing room-bound.
+var chatForwardMediaKeys = []string{"file_id", "filename", "content_type", "size_bytes", "duration_ms", "width", "height"}
 
 func errChatForwardKind() error {
 	return coded(http.StatusBadRequest, "chat_forward_kind", "loại tin này không chuyển tiếp được")

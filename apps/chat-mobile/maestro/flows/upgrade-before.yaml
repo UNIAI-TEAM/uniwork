@@ -1,0 +1,41 @@
+# The upgrade path, first half (chat-mobile-verify.yml › android-upgrade, Android:
+# Maestro toggles airplane mode there only): on last night's build, sign in,
+# open the test room and leave one message waiting in the outbox with the
+# network off. The workflow then installs tonight's APK over this one
+# (adb install -r, as a store update does) and upgrade-after.yaml checks what
+# survived. UPGRADE_STAMP (maestro -e) names the message for both halves.
+#
+# scripts/maestro-retry.sh reruns a failed flow from its first command, so the
+# flow starts by turning airplane mode off: an attempt that failed while
+# offline would otherwise leave the retry's sign-in with no network. No
+# onFlowComplete turns it off at the end: the message must still be waiting
+# when the new APK goes on, and upgrade-after.yaml turns the network back on.
+appId: com.uniworkos.chat.staging
+name: Before the upgrade, signed in with a message waiting
+tags:
+  - upgrade
+---
+- setAirplaneMode: disabled
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/sign-in.yaml
+- runScript: ../scripts/app-scheme.js
+- openLink: ${output.scheme}://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat?room=' + MAESTRO_ROOM_ID)}
+- extendedWaitUntil:
+    visible:
+      id: composer-input
+    timeout: 30000
+- setAirplaneMode: enabled
+- extendedWaitUntil:
+    visible:
+      id: connection-banner-offline
+    timeout: 15000
+- tapOn:
+    id: composer-input
+- inputText: ${UPGRADE_STAMP}
+- tapOn:
+    id: composer-send
+- extendedWaitUntil:
+    visible: .*${UPGRADE_STAMP}.*
+    timeout: 10000
+- stopApp

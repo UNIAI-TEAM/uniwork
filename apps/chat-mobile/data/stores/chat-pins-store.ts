@@ -6,7 +6,9 @@ import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import type { ChatRoomPreference } from "@/lib/rooms-display";
 
-const keyFor = (wsId: string) => `uniwork_chat_pins_${wsId}`;
+/** One SecureStore key per workspace; data/local-wipe.ts drops them with an erased account. */
+export const pinsStorageKey = (wsId: string) => `uniwork_chat_pins_${wsId}`;
+const keyFor = pinsStorageKey;
 
 interface PinsState {
   wsId: string | null;

@@ -88,3 +88,28 @@ func TestAbandonedVoiceCallSessionsAreReclaimed(t *testing.T) {
 		}
 	}
 }
+
+// A caller whose socket missed chat.voice.accept reads its own live calls
+// (review of UNI-2053 S3, audit C1): only its own, unexpired, oldest first,
+// with whether the callee answered.
+func TestOutgoingVoiceCallSessionsListTheCallersLiveCalls(t *testing.T) {
+	now := time.Now()
+	answered := now.Add(-time.Minute)
+	sessions := map[string]voiceCallSession{
+		"mine-ringing":  {roomID: "room-out", callID: "mine-ringing", callerID: "U-out", invitedAt: now.Add(-time.Second)},
+		"mine-answered": {roomID: "room-out", callID: "mine-answered", callerID: "U-out", invitedAt: now.Add(-2 * time.Minute), acceptedAt: &answered},
+		"mine-expired":  {roomID: "room-out", callID: "mine-expired", callerID: "U-out", invitedAt: now.Add(-voiceCallUnansweredTTL - time.Minute)},
+		"theirs":        {roomID: "room-out", callID: "theirs", callerID: "U-other", invitedAt: now},
+	}
+	for callID, sess := range sessions {
+		voiceCallSessions.Store(voiceCallSessionKey("room-out", callID), sess)
+		t.Cleanup(func() { voiceCallSessions.Delete(voiceCallSessionKey("room-out", callID)) })
+	}
+	got := outgoingVoiceCallSessions("U-out", now)
+	if len(got) != 2 || got[0].callID != "mine-answered" || got[0].acceptedAt == nil || got[1].callID != "mine-ringing" || got[1].acceptedAt != nil {
+		t.Fatalf("outgoing sessions: %+v", got)
+	}
+	if none := outgoingVoiceCallSessions("U-nobody", now); len(none) != 0 {
+		t.Fatalf("someone else's calls listed: %+v", none)
+	}
+}

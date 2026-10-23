@@ -43,6 +43,8 @@ type AdminService struct {
 	readiness  *Readiness
 	connsCount func() int64
 	flagChain  []string
+	// remover takes a reported message down (RemoveReportedMessage); nil until start-up wires it.
+	remover ReportedContentRemover
 }
 
 func NewAdminService(pool *pgxpool.Pool, q *db.Queries, billing *BillingService, ent *EntitlementService) *AdminService {
@@ -424,4 +426,186 @@ func (s *AdminService) recordAdmin(ctx context.Context, q *db.Queries, traceID, 
 		TargetType: targetType, TargetID: targetID,
 		Before: b, After: a, Reason: strings.TrimSpace(reason), TraceID: nullText(traceID),
 	})
+}
+
+// ChatReportQueue is one page of the operator's queue of chat reports plus
+// how many wait and since when (the 24-hour promise of the terms of use).
+type ChatReportQueue struct {
+	Reports      []db.AdminListChatReportsRow
+	Total        int64
+	OpenCount    int64
+	OldestOpenAt *time.Time
+}
+
+// ListChatReports is the operator's queue (store UGC policy, Apple 1.2): every
+// organization's reports, newest first, filtered by status (open | resolved).
+// Ids, reason, status and time only: never the reporter's words or the message.
+func (s *AdminService) ListChatReports(ctx context.Context, status string, limit, offset int32) (ChatReportQueue, error) {
+	if status != "" && status != "open" && status != "resolved" {
+		return ChatReportQueue{}, Invalid("status phải là open hoặc resolved")
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	rows, err := s.q.AdminListChatReports(ctx, db.AdminListChatReportsParams{Status: nullText(status), Limit: limit, Offset: offset})
+	if err != nil {
+		return ChatReportQueue{}, err
+	}
+	queue, err := s.q.AdminChatReportQueue(ctx)
+	if err != nil {
+		return ChatReportQueue{}, err
+	}
+	out := ChatReportQueue{Reports: rows, OpenCount: queue.OpenCount}
+	if len(rows) > 0 {
+		out.Total = rows[0].TotalCount
+	}
+	if queue.OldestOpenAt.Valid {
+		at := queue.OldestOpenAt.Time
+		out.OldestOpenAt = &at
+	}
+	return out, nil
+}
+
+// ResolveChatReport closes one open report after the operator has acted on it
+// (asked the organization to remove the content, or suspended it). The row,
+// admin_actions and an audit row in the report's organization commit together,
+// so its owners and admins see that the platform handled it. A report already
+// resolved answers ErrConflict; an unknown id ErrNotFound.
+func (s *AdminService) ResolveChatReport(ctx context.Context, adminID, reportID, reason string) (db.AdminResolveChatReportRow, error) {
+	if err := checkReason(reason); err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	ctx, traceID := ensureTrace(ctx)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	before, err := q.AdminGetChatReportForUpdate(ctx, reportID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.AdminResolveChatReportRow{}, ErrNotFound
+	}
+	if err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	if before.Status != "open" {
+		return db.AdminResolveChatReportRow{}, ErrConflict
+	}
+	after, err := q.AdminResolveChatReport(ctx, reportID)
+	if err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	old, next := map[string]any{"status": before.Status}, map[string]any{"status": after.Status}
+	if err := s.recordAdmin(ctx, q, traceID, adminID, audit.ActionChatReportResolved, "chat_report", reportID, old, next, reason); err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		Actor: audit.User(adminID), Action: audit.ActionChatReportResolved,
+		ResourceType: "chat_report", ResourceID: reportID,
+		Changes:  audit.Diff(old, next),
+		Metadata: map[string]any{"reason": reason, "platform_admin": true},
+	}); err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	return after, nil
+}
+
+// ReportedMessage names what a takedown removes: ids only, never the content.
+type ReportedMessage struct {
+	ReportID       string
+	OrganizationID string
+	RoomID         string
+	MessageID      string
+}
+
+// ReportedContentRemover takes a reported message down inside the caller's
+// transaction (with its audit row in the report's organization) and returns
+// what to announce once that transaction commits, or nil when the message was
+// already gone. The chat service implements it; start-up wires it here, so
+// the console acts on content it never reads.
+type ReportedContentRemover interface {
+	RemoveReportedMessageQ(ctx context.Context, q *db.Queries, actorID string, target ReportedMessage) (func(context.Context), error)
+}
+
+// SetReportedContentRemover wires the takedown (cmd/server/main.go).
+func (s *AdminService) SetReportedContentRemover(r ReportedContentRemover) {
+	s.remover = r
+}
+
+// errTakedownUnavailable: a process started without the chat side (the CLI).
+var errTakedownUnavailable = errors.New("admin: reported message takedown is not wired")
+
+// RemoveReportedMessage is the operator's takedown of a reported message
+// (store UGC policy, Apple 1.2: every report is acted on within 24 hours, and
+// suspending a whole organization is not the only lever). The message is
+// removed for everyone as its sender's own deletion would be, the report is
+// resolved if it was open, and admin_actions, the organization's audit rows
+// (the removal, and chat.report.resolved) and the removal commit together; the
+// deletion reaches open clients after commit. A message already gone still
+// resolves the report. A report about a person, not a message, is invalid.
+func (s *AdminService) RemoveReportedMessage(ctx context.Context, adminID, reportID, reason string) (db.AdminResolveChatReportRow, error) {
+	if err := checkReason(reason); err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	if s.remover == nil {
+		return db.AdminResolveChatReportRow{}, errTakedownUnavailable
+	}
+	ctx, traceID := ensureTrace(ctx)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	before, err := q.AdminGetChatReportForUpdate(ctx, reportID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.AdminResolveChatReportRow{}, ErrNotFound
+	}
+	if err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	if !before.MessageID.Valid || !before.RoomID.Valid {
+		return db.AdminResolveChatReportRow{}, Invalid("báo cáo này nhắm một người, không phải một tin nhắn")
+	}
+	announce, err := s.remover.RemoveReportedMessageQ(ctx, q, adminID, ReportedMessage{
+		ReportID: reportID, OrganizationID: before.OrganizationID, RoomID: before.RoomID.String, MessageID: before.MessageID.String,
+	})
+	if err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	after := db.AdminResolveChatReportRow{ID: before.ID, OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID, Status: before.Status}
+	if before.Status == "open" {
+		if after, err = q.AdminResolveChatReport(ctx, reportID); err != nil {
+			return db.AdminResolveChatReportRow{}, err
+		}
+		if err := auditRecorder.Record(ctx, q, audit.Entry{
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+			Actor: audit.User(adminID), Action: audit.ActionChatReportResolved,
+			ResourceType: "chat_report", ResourceID: reportID,
+			Changes:  audit.Diff(map[string]any{"status": before.Status}, map[string]any{"status": after.Status}),
+			Metadata: map[string]any{"reason": reason, "platform_admin": true, "message_removed": announce != nil},
+		}); err != nil {
+			return db.AdminResolveChatReportRow{}, err
+		}
+	}
+	old := map[string]any{"status": before.Status, "message_removed": false}
+	next := map[string]any{"status": after.Status, "message_removed": announce != nil}
+	if err := s.recordAdmin(ctx, q, traceID, adminID, audit.ActionChatMessageRemoved, "chat_report", reportID, old, next, reason); err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.AdminResolveChatReportRow{}, err
+	}
+	if announce != nil {
+		announce(ctx)
+	}
+	return after, nil
 }

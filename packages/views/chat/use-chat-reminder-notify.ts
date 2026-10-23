@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
 import { chatKeys } from "@uniwork/core/chat";
 import { reminderBodyLabel } from "@uniwork/core/chat/reminder-utils";
-import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline";
+import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { useOptionalWS } from "@uniwork/core/realtime";
 
 type ReminderDuePayload = { room_id?: unknown; message_id?: unknown } | null | undefined;

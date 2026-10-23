@@ -22,7 +22,7 @@ import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
-import { initialOf } from "../../chat/chat-initials";
+import { initialOf } from "@uniwork/core/chat/initials";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { AppLink } from "../../navigation";
 import { DocPersonCell } from "../doclist/cells";

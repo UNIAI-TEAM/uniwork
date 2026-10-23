@@ -1,7 +1,7 @@
 import { ApiError } from "@uniwork/core/api/http";
 import type { useTranslation } from "react-i18next";
 import { chatErrorMessage } from "./chat-error-message";
-import type { VoiceCallDeviceError, VoiceCallEndedState } from "./voice-call-overlay-types";
+import type { VoiceCallDeviceError, VoiceCallEndedState } from "@uniwork/core/chat/voice-call-types";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
 

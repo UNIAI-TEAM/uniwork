@@ -117,7 +117,7 @@ var softNotFoundMarkers = []string{
 func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip the hot liveness endpoint to keep logs readable.
-		if r.URL.Path == "/health" || r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
+		if r.URL.Path == "/health" || r.URL.Path == "/healthz" || r.URL.Path == "/readyz" || r.URL.Path == "/api/v1/healthz" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -166,6 +166,9 @@ func RequestLogger(next http.Handler) http.Handler {
 			if os != "" {
 				attrs = append(attrs, "client_os", os)
 			}
+		}
+		if update := ClientUpdateIDFromContext(r.Context()); update != "" {
+			attrs = append(attrs, "client_update_id", update)
 		}
 
 		switch {

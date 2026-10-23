@@ -63,6 +63,9 @@ type voiceCallSession struct {
 	// inviteeIDs were sent a chat.voice.invite_received row (a push); the
 	// answer and the end of the call close their ring notifications.
 	inviteeIDs []string
+	// declinedIDs said no to a group or channel call that goes on without
+	// them (SignalVoiceDecline): it no longer rings for them anywhere.
+	declinedIDs []string
 }
 
 const voiceCallInvitePendingTTL = 5 * time.Minute
@@ -117,15 +120,21 @@ func (sess voiceCallSession) expired(now time.Time) bool {
 	return now.Sub(sess.invitedAt) > voiceCallUnansweredTTL
 }
 
-// loadVoiceCallSession treats an expired session as gone and drops it.
+// loadVoiceCallSession treats an expired session as gone and drops it. A
+// session this process does not hold is looked up in the journal (a call
+// rung before a restart, chat_voice_journal.go) and kept here once found.
 func loadVoiceCallSession(key string) (voiceCallSession, bool) {
 	raw, ok := voiceCallSessions.Load(key)
 	if !ok {
-		return voiceCallSession{}, false
+		found, inJournal := journalLoad(key)
+		if !inJournal {
+			return voiceCallSession{}, false
+		}
+		raw, _ = voiceCallSessions.LoadOrStore(key, found)
 	}
 	sess := raw.(voiceCallSession)
 	if sess.expired(time.Now()) {
-		voiceCallSessions.Delete(key)
+		deleteVoiceCallSession(key)
 		return voiceCallSession{}, false
 	}
 	return sess, true
@@ -138,7 +147,7 @@ func sweepVoiceCallSessions(now time.Time) {
 	}
 	voiceCallSessions.Range(func(key, value any) bool {
 		if sess, ok := value.(voiceCallSession); ok && sess.expired(now) {
-			voiceCallSessions.Delete(key)
+			deleteVoiceCallSession(key.(string))
 		}
 		return true
 	})
@@ -166,7 +175,7 @@ func (s *ChatService) trackVoiceCallParticipant(roomID, callID, userID string) {
 		return
 	}
 	sess.participantIDs = appendVoiceCallParticipantID(sess.participantIDs, userID)
-	voiceCallSessions.Store(key, sess)
+	storeVoiceCallSession(key, sess)
 }
 
 // trackVoiceCallInvite refuses a call_id that is still live: every room member
@@ -191,7 +200,7 @@ func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, c
 		participantIDs: []string{callerID},
 		inviteeIDs:     inviteeIDs,
 	}
-	voiceCallSessions.Store(key, sess)
+	storeVoiceCallSession(key, sess)
 	sweepVoiceCallSessions(now)
 	return nil
 }
@@ -201,7 +210,7 @@ func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, c
 func dropVoiceCallInvite(roomID, callID string) {
 	voiceCallSessionsMu.Lock()
 	defer voiceCallSessionsMu.Unlock()
-	voiceCallSessions.Delete(voiceCallSessionKey(roomID, callID))
+	deleteVoiceCallSession(voiceCallSessionKey(roomID, callID))
 }
 
 // VoiceCallRinging reports whether a call still rings for userID: it is live
@@ -209,7 +218,37 @@ func dropVoiceCallInvite(roomID, callID string) {
 // device). The notification consumer asks before it rings a phone.
 func (s *ChatService) VoiceCallRinging(roomID, callID, userID string) bool {
 	sess, ok := loadVoiceCallSession(voiceCallSessionKey(roomID, callID))
-	return ok && !slices.Contains(sess.participantIDs, userID)
+	return ok && !slices.Contains(sess.participantIDs, userID) && !slices.Contains(sess.declinedIDs, userID)
+}
+
+// trackVoiceCallDecline records userID declining a live call that rings for
+// them; false when there is nothing to decline (no such call on this node,
+// the caller, someone already in the call, or a decline already recorded).
+func trackVoiceCallDecline(roomID, callID, userID string) bool {
+	key := voiceCallSessionKey(roomID, callID)
+	voiceCallSessionsMu.Lock()
+	defer voiceCallSessionsMu.Unlock()
+	sess, ok := loadVoiceCallSession(key)
+	if !ok || userID == sess.callerID || slices.Contains(sess.participantIDs, userID) || slices.Contains(sess.declinedIDs, userID) {
+		return false
+	}
+	sess.declinedIDs = append(slices.Clone(sess.declinedIDs), userID)
+	storeVoiceCallSession(key, sess)
+	return true
+}
+
+// voiceCallInvitee reports whether the live call rang userID through a push
+// (a chat.voice.invite_received row), so answering it has a ring to close.
+func voiceCallInvitee(roomID, callID, userID string) bool {
+	sess, ok := loadVoiceCallSession(voiceCallSessionKey(roomID, callID))
+	return ok && slices.Contains(sess.inviteeIDs, userID)
+}
+
+// VoiceCallVideo reports whether a live call on this node was started with
+// the camera on; the phone's ringing screen names a video call as one.
+func (s *ChatService) VoiceCallVideo(roomID, callID string) bool {
+	sess, ok := loadVoiceCallSession(voiceCallSessionKey(roomID, callID))
+	return ok && sess.video
 }
 
 // trackVoiceCallAccept starts the call clock when someone other than the
@@ -225,7 +264,7 @@ func (s *ChatService) trackVoiceCallAccept(roomID, callID, userID string) {
 	}
 	now := time.Now()
 	sess.acceptedAt = &now
-	voiceCallSessions.Store(key, sess)
+	storeVoiceCallSession(key, sess)
 }
 
 // requireDMVoiceAllowed rejects voice signaling when either party blocked the other.
@@ -446,7 +485,7 @@ func (s *ChatService) ListPendingVoiceInvites(
 	out := make([]PendingVoiceInvite, 0)
 	voiceCallSessions.Range(func(_ any, value any) bool {
 		sess, ok := value.(voiceCallSession)
-		if !ok || sess.acceptedAt != nil || sess.callerID == userID {
+		if !ok || sess.acceptedAt != nil || sess.callerID == userID || slices.Contains(sess.declinedIDs, userID) {
 			return true
 		}
 		if now.Sub(sess.invitedAt) > voiceCallInvitePendingTTL {
@@ -477,6 +516,49 @@ func (s *ChatService) ListPendingVoiceInvites(
 		return true
 	})
 	return out, nil
+}
+
+// OutgoingVoiceCall is a call the person started that the server still
+// holds: ringing, or answered (Accepted).
+type OutgoingVoiceCall struct {
+	RoomID   string
+	CallID   string
+	Accepted bool
+}
+
+// ListOutgoingVoiceCalls returns the live calls userID started in the
+// workspace's organization, so a caller whose socket missed
+// chat.voice.accept (a reconnect, a phone back from the background) learns
+// that the callee answered. Sessions are held in memory, like the pending
+// invites: a call this node does not hold is simply not listed, which a
+// client must not read as "ended".
+func (s *ChatService) ListOutgoingVoiceCalls(ctx context.Context, userID, workspaceID string) ([]OutgoingVoiceCall, error) {
+	w, err := s.workspaceForChat(ctx, userID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]OutgoingVoiceCall, 0)
+	for _, sess := range outgoingVoiceCallSessions(userID, time.Now()) {
+		room, err := s.q.GetChatRoomByID(ctx, sess.roomID)
+		if err != nil || room.OrganizationID != w.OrganizationID {
+			continue
+		}
+		out = append(out, OutgoingVoiceCall{RoomID: sess.roomID, CallID: sess.callID, Accepted: sess.acceptedAt != nil})
+	}
+	return out, nil
+}
+
+// outgoingVoiceCallSessions are the unexpired sessions userID started, oldest first.
+func outgoingVoiceCallSessions(userID string, now time.Time) []voiceCallSession {
+	out := make([]voiceCallSession, 0)
+	voiceCallSessions.Range(func(_ any, value any) bool {
+		if sess, ok := value.(voiceCallSession); ok && sess.callerID == userID && !sess.expired(now) {
+			out = append(out, sess)
+		}
+		return true
+	})
+	slices.SortFunc(out, func(a, b voiceCallSession) int { return a.invitedAt.Compare(b.invitedAt) })
+	return out
 }
 
 func (s *ChatService) userIsVoiceInviteRecipient(
@@ -565,12 +647,19 @@ func (s *ChatService) finalizeVoiceCall(
 	key := voiceCallSessionKey(room.ID, callID)
 	voiceCallSessionsMu.Lock()
 	raw, ok := voiceCallSessions.LoadAndDelete(key)
+	if !ok {
+		// A call rung before this process started (a restart, a deploy): the journal still holds it.
+		raw, ok = journalLoad(key)
+	}
+	if ok {
+		deleteVoiceCallSession(key)
+	}
 	voiceCallSessionsMu.Unlock()
 	if !ok {
 		return nil
 	}
 	sess := raw.(voiceCallSession)
-	s.closeVoiceCallRings(ctx, room.ID, sess.inviteeIDs)
+	s.closeVoiceCallRings(ctx, room, callID, userID, sess.inviteeIDs)
 	outcome, duration := voiceCallOutcome(sess, userID, time.Now())
 	participantIDs := voiceCallParticipantIDsForLog(room, sess)
 	participants, err := s.resolveVoiceCallParticipants(ctx, participantIDs)

@@ -66,7 +66,7 @@ func New() *slog.Logger {
 // request for handler-level structured logging, mirroring the access log so
 // both carry the same observability dimensions.
 func RequestAttrs(r *http.Request) []any {
-	attrs := make([]any, 0, 10)
+	attrs := make([]any, 0, 12)
 	if rid := chimw.GetReqID(r.Context()); rid != "" {
 		attrs = append(attrs, "request_id", rid)
 	}
@@ -82,6 +82,9 @@ func RequestAttrs(r *http.Request) []any {
 	}
 	if clientOS != "" {
 		attrs = append(attrs, "client_os", clientOS)
+	}
+	if update := middleware.ClientUpdateIDFromContext(r.Context()); update != "" {
+		attrs = append(attrs, "client_update_id", update)
 	}
 	return attrs
 }

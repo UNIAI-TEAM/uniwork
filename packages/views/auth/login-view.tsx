@@ -9,15 +9,14 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/component
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
-import { AUTH_INPUT, AuthSubmit } from "./auth-controls";
+import { AUTH_INPUT, AUTH_LINK, AuthSubmit } from "./auth-controls";
+import { AuthLegalNote } from "./auth-legal-note";
 import { AuthShell } from "./auth-shell";
 import { GoogleButton } from "./google-button";
 import { MFAStep } from "./mfa-step";
 import { PasswordField } from "./password-field";
 
-/** Inline text link with the same 44px coarse-pointer floor the Button primitive carries. */
-export const AUTH_LINK =
-  "inline-flex items-center font-medium text-brand hover:underline pointer-coarse:min-h-11 pointer-coarse:px-1";
+export { AUTH_LINK };
 
 /** Errors the Google callback can carry back on the login URL. */
 export type GoogleLoginError = "google_denied" | "google_failed" | "google_unverified";
@@ -262,6 +261,7 @@ export function LoginView({
               {t("auth.register")}
             </AppLink>
           </p>
+          <AuthLegalNote action="signIn" />
         </div>
       </form>
     </AuthShell>

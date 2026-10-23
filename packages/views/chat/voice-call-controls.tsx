@@ -12,8 +12,8 @@ import { roomShortcutLabel } from "../meetings/meeting-room-shortcuts";
 import type { VoiceCallRecordingState } from "./use-voice-call-recording";
 import { VoiceCallControl } from "./voice-call-control";
 import { VoiceCallHangupIcon } from "./voice-call-floating-panel";
-import { isMultiPartyVoiceCall, voiceCallPrimaryLeaveEndsForAll } from "./voice-call-kind-utils";
-import type { VoiceCallKind } from "./voice-call-overlay-types";
+import { isMultiPartyVoiceCall, voiceCallPrimaryLeaveEndsForAll } from "@uniwork/core/chat/voice-call-kind";
+import type { VoiceCallKind } from "@uniwork/core/chat/voice-call-types";
 import { VoiceCallRecordControl } from "./voice-call-recording-controls";
 import { useVoiceCallActions, useVoiceCallStatus } from "./voice-call-room-context";
 

@@ -2,7 +2,7 @@ import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-conf
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TransportError, createTransport, type FetchLike, type TransportErrorCode } from "./transport";
 
-beforeEach(() => configureRuntime({ apiUrl: "https://uniwork.example" }));
+beforeEach(() => configureRuntime({ apiUrl: "https://uniwork.example", appUrl: "https://uniwork.example" }));
 afterEach(() => resetRuntimeConfig());
 
 const config = { deploymentId: "default" };
@@ -69,6 +69,20 @@ describe("mobile auth transport", () => {
     expect(init.body).toBeUndefined();
   });
 
+  it("follows the app's own origin: a dev phone signs in on the LAN web server over http", async () => {
+    configureRuntime({ apiUrl: "http://192.168.1.20:8080", appUrl: "http://192.168.1.20:3000" });
+    const transport = createTransport(config, { fetch: async () => json(200, { authorization_url: "http://192.168.1.20:3000/auth/desktop/authorize?a=1" }) });
+    const start = { clientId: "uniwork-chat-mobile", codeChallenge: "c", state: "s", redirectUri: "r" };
+    expect((await transport.start(start)).authorizationUrl).toBe("http://192.168.1.20:3000/auth/desktop/authorize?a=1");
+  });
+
+  it("opens no sign-in page while the app's own origin is unknown", async () => {
+    configureRuntime({ appUrl: "" });
+    const transport = createTransport(config, { fetch: async () => json(200, { authorization_url: "https://uniwork.example/auth/desktop/authorize?a=1" }) });
+    const start = { clientId: "uniwork-chat-mobile", codeChallenge: "c", state: "s", redirectUri: "r" };
+    expect(await codeOf(transport.start(start))).toBe("malformed_response");
+  });
+
   it("reads the API origin at call time, so a late configureRuntime() wins", async () => {
     const fetch = vi.fn<FetchLike>(async () => json(200, {}));
     const transport = createTransport(config, { fetch });
@@ -81,6 +95,11 @@ describe("mobile auth transport", () => {
     ["a non-http authorization URL", { authorization_url: "javascript:alert(1)" }],
     ["credentials in the URL", { authorization_url: "https://user:pw@uniwork.example/x" }],
     ["an unparsable URL", { authorization_url: "not a url" }],
+    // Audit (Security & privacy, https-not-asserted): the sign-in page opens only on the app's own origin, scheme and
+    // all, so a tampered or misrouted answer cannot send the person to type their password somewhere else.
+    ["another host", { authorization_url: "https://evil.example/auth/desktop/authorize?a=1" }],
+    ["cleartext on the app's host", { authorization_url: "http://uniwork.example/auth/desktop/authorize?a=1" }],
+    ["another port", { authorization_url: "https://uniwork.example:8443/auth/desktop/authorize?a=1" }],
     ["a missing URL", {}],
     ["a non-object body", []],
   ])("start rejects %s as malformed", async (_label, body) => {

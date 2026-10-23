@@ -1,0 +1,205 @@
+name: UniChat mobile store screenshots
+
+# The store's pictures of UniChat (apps/chat-mobile/store/listing.md › Ảnh chụp và đồ hoạ), taken on CI with one click
+# instead of on a laptop with an Android SDK, an iOS simulator and the staging credentials. Each job builds the
+# staging app as chat-mobile-verify.yml does, then runs `store-screenshots.mjs capture` for vi and en on a phone the
+# stores take (a Pixel 2 emulator, 1080 x 1920: Play refuses a side more than twice the other; an iPhone Pro Max
+# simulator, 1320 x 2868, App Store's 6.9" set), runs `store-screenshots.mjs check` over what it filed, and uploads
+# the store folders as an artifact. The owner downloads it, looks at every picture, and commits it under
+# apps/chat-mobile/store/ (runbook › Ảnh chụp): chat-mobile-promote.yml refuses production until `check` is green.
+#
+# Settings it reads (the ones chat-mobile-verify.yml reads; names only):
+#   vars     MAESTRO_API_URL, MAESTRO_APP_URL, MAESTRO_ORG_SLUG, MAESTRO_WS_SLUG, MAESTRO_ROOM_ID
+#   secrets  MAESTRO_TEST_EMAIL, MAESTRO_TEST_PASSWORD
+# The workspace they name is what the pictures show: point them at one holding the review data (the "UniChat
+# Review" organization's workspace and room), never customer data.
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Which store's pictures to take
+        type: choice
+        options: [both, android, ios]
+        default: both
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  JAVA_VERSION: "17"
+  # The same Maestro and Xcode as chat-mobile-verify.yml: bump them there and here together.
+  MAESTRO_VERSION: "2.11.0"
+  XCODE_VERSION: "26.6"
+  EXPO_NO_TELEMETRY: "1"
+  UNICHAT_ENV: staging
+  UNICHAT_API_URL: ${{ vars.MAESTRO_API_URL }}
+  UNICHAT_APP_URL: ${{ vars.MAESTRO_APP_URL }}
+  MAESTRO_ORG_SLUG: ${{ vars.MAESTRO_ORG_SLUG }}
+  MAESTRO_WS_SLUG: ${{ vars.MAESTRO_WS_SLUG }}
+  MAESTRO_ROOM_ID: ${{ vars.MAESTRO_ROOM_ID }}
+  # Pictures, not a shipped binary: no source maps go to Sentry.
+  SENTRY_DISABLE_AUTO_UPLOAD: "true"
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Need a staging server and the test account
+        env:
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
+        run: |
+          missing=""
+          for name in UNICHAT_API_URL UNICHAT_APP_URL MAESTRO_ORG_SLUG MAESTRO_WS_SLUG MAESTRO_ROOM_ID MAESTRO_TEST_EMAIL MAESTRO_TEST_PASSWORD; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::The store screenshots cannot be taken, not set:$missing. Setup: docs/runbooks/unichat-mobile-release.md"
+            exit 1
+          fi
+
+  android:
+    needs: gate
+    if: ${{ inputs.platform != 'ios' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - name: Build the staging APK for the emulator
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          pnpm exec expo prebuild -p android
+          (cd android && ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=x86_64)
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/maestro/bin/maestro" --version
+      - name: Take the pictures in vi and en
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
+        with:
+          api-level: 35
+          # google_apis carries Chrome, which hosts the sign-in Custom Tab.
+          target: google_apis
+          arch: x86_64
+          # 1080 x 1920 at 420 dpi: a phone Play takes as it is.
+          profile: pixel_2
+          script: |
+            adb install apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
+            adb shell am set-debug-app --persistent com.android.chrome
+            adb shell 'echo "chrome --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
+            node apps/chat-mobile/scripts/store-screenshots.mjs capture --platform android --locale vi
+            node apps/chat-mobile/scripts/store-screenshots.mjs capture --platform android --locale en
+      - name: Check what was filed
+        run: node apps/chat-mobile/scripts/store-screenshots.mjs check --platform android
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unichat-store-screenshots-play
+          # Pictures only: Maestro's own logs record the typed test password.
+          path: apps/chat-mobile/store/play/*/images/phoneScreenshots/*.png
+          if-no-files-found: error
+          retention-days: 30
+
+  ios:
+    needs: gate
+    if: ${{ inputs.platform != 'android' }}
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      # Maestro runs on the JVM.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - name: Select Xcode
+        run: scripts/select-xcode.sh "$XCODE_VERSION"
+      - name: Build the staging app for the simulator
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          pnpm exec expo prebuild -p ios
+          workspace="$(ls -d ios/*.xcworkspace)"
+          xcodebuild -workspace "$workspace" -scheme "$(basename "$workspace" .xcworkspace)" \
+            -configuration Release -sdk iphonesimulator -derivedDataPath build \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
+            build
+      - name: Boot a 6.9-inch iPhone and install the app
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          runtime="$(xcrun simctl list runtimes available --json | jq -r '[.runtimes[] | select(.platform == "iOS")] | last | .identifier')"
+          udid=""
+          # 1320 x 2868, the App Store's required 6.9" size: the newest Pro Max this Xcode knows.
+          for model in "iPhone 17 Pro Max" "iPhone 16 Pro Max"; do
+            type="$(xcrun simctl list devicetypes --json | jq -r --arg name "$model" '.devicetypes[] | select(.name == $name) | .identifier')"
+            if [ -n "$type" ]; then udid="$(xcrun simctl create "Store shots" "$type" "$runtime")"; break; fi
+          done
+          [ -n "$udid" ] || { echo "::error::No iPhone Pro Max simulator type in this Xcode"; exit 1; }
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl install "$udid" build/Build/Products/Release-iphonesimulator/*.app
+          echo "UDID=$udid" >> "$GITHUB_ENV"
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/maestro/bin/maestro" --version
+      - name: Take the pictures in vi and en
+        env:
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
+        run: |
+          set -euo pipefail
+          node apps/chat-mobile/scripts/store-screenshots.mjs capture --platform ios --locale vi --device "$UDID"
+          node apps/chat-mobile/scripts/store-screenshots.mjs capture --platform ios --locale en --device "$UDID"
+      - name: Check what was filed
+        run: node apps/chat-mobile/scripts/store-screenshots.mjs check --platform ios
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unichat-store-screenshots-app-store
+          path: apps/chat-mobile/store/apple/screenshots/*/*.png
+          if-no-files-found: error
+          retention-days: 30

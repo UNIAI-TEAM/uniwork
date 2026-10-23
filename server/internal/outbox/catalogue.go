@@ -179,6 +179,9 @@ var catalogue = []EventDef{
 	{Topic: "chat.dm.received", Version: 1, Payload: []string{"room_id", "message_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_received", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.voice.invite_received", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	// A call stopped ringing for one person (answered, declined, ended): the
+	// push lane tells their Android phones to take the ringing screen down.
+	{Topic: "chat.voice.ring_closed", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_linked", Version: 1, Payload: []string{"thread_root_id", "message_id", "task_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.reminder.due", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
@@ -186,6 +189,8 @@ var catalogue = []EventDef{
 	// One row per invite, however many people it adds (C10).
 	{Topic: "chat.room.members_added", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_removed", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	// The reader's open message notifications of a room closed by a read: the push lane tells their Android phones.
+	{Topic: "chat.room.notifications_cleared", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	// A read goes to the reader's own tabs and, in a DM, to the peer: nobody
 	// else renders it, and every client that hears one reloads its sidebar.
 	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
