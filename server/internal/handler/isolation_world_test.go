@@ -1094,6 +1094,22 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		tn.ids["aiUniworkRun"], tn.orgID, tn.ids["aiUniworkConversation"], tn.userID); err != nil {
 		t.Fatalf("uniwork ai run: %v", err)
 	}
+
+	// A file the tenant's Ask UNI question carried (UNI-2119), on the question
+	// buildOrganization asked. No route attaches one yet, so it is written the
+	// way the ask path will write it.
+	var questionID string
+	if err := w.pool.QueryRow(ctx, `SELECT id FROM ai_messages WHERE conversation_id = $1 AND role = 'user'`, tn.ids["conversation"]).Scan(&questionID); err != nil {
+		t.Fatalf("ask uni question: %v", err)
+	}
+	tn.ids["aiAttachment"] = util.NewID()
+	if err := w.q.AiInsertAttachment(ctx, db.AiInsertAttachmentParams{
+		ID: tn.ids["aiAttachment"], OrganizationID: tn.orgID, WorkspaceID: tn.wsID, UserID: tn.userID,
+		ConversationID: tn.ids["conversation"], MessageID: questionID, FileID: util.NewID(),
+		Name: strings.ToLower(m) + "-brief.pdf", Mime: "application/pdf", SizeBytes: 2048, Kind: "pdf",
+	}); err != nil {
+		t.Fatalf("ask uni attachment: %v", err)
+	}
 }
 
 // buildWorkspaceAliases leaves an old task prefix and an old slug on record and

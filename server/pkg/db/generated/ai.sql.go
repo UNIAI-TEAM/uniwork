@@ -71,6 +71,39 @@ func (q *Queries) AiDeleteConversation(ctx context.Context, id string) error {
 	return err
 }
 
+const aiDeleteConversationAttachments = `-- name: AiDeleteConversationAttachments :many
+DELETE FROM ai_attachments
+WHERE organization_id = $1
+  AND conversation_id = $2
+RETURNING file_id
+`
+
+type AiDeleteConversationAttachmentsParams struct {
+	OrganizationID string `json:"organization_id"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// Returns the file ids so the caller can release them in the file store.
+func (q *Queries) AiDeleteConversationAttachments(ctx context.Context, arg AiDeleteConversationAttachmentsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, aiDeleteConversationAttachments, arg.OrganizationID, arg.ConversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var file_id string
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const aiDeleteConversationFeedback = `-- name: AiDeleteConversationFeedback :exec
 DELETE FROM ai_message_feedback WHERE conversation_id = $1
 `
@@ -243,6 +276,87 @@ func (q *Queries) AiGetUsageEvent(ctx context.Context, id string) (AiUsageEvent,
 		&i.CacheWriteTokens,
 	)
 	return i, err
+}
+
+const aiGetUserAttachment = `-- name: AiGetUserAttachment :one
+SELECT id, organization_id, workspace_id, user_id, conversation_id, message_id, file_id, name, mime, size_bytes, kind, created_at FROM ai_attachments
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND user_id = $3
+  AND id = $4
+`
+
+type AiGetUserAttachmentParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	UserID         string `json:"user_id"`
+	ID             string `json:"id"`
+}
+
+// One file the caller attached, in the workspace they asked from.
+func (q *Queries) AiGetUserAttachment(ctx context.Context, arg AiGetUserAttachmentParams) (AiAttachment, error) {
+	row := q.db.QueryRow(ctx, aiGetUserAttachment,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.ID,
+	)
+	var i AiAttachment
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.ConversationID,
+		&i.MessageID,
+		&i.FileID,
+		&i.Name,
+		&i.Mime,
+		&i.SizeBytes,
+		&i.Kind,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const aiInsertAttachment = `-- name: AiInsertAttachment :exec
+INSERT INTO ai_attachments (id, organization_id, workspace_id, user_id, conversation_id, message_id, file_id, name, mime, size_bytes, kind)
+VALUES (
+  $1, $2, $3, $4,
+  $5, $6, $7,
+  $8, $9, $10, $11
+)
+`
+
+type AiInsertAttachmentParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	UserID         string `json:"user_id"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	FileID         string `json:"file_id"`
+	Name           string `json:"name"`
+	Mime           string `json:"mime"`
+	SizeBytes      int64  `json:"size_bytes"`
+	Kind           string `json:"kind"`
+}
+
+func (q *Queries) AiInsertAttachment(ctx context.Context, arg AiInsertAttachmentParams) error {
+	_, err := q.db.Exec(ctx, aiInsertAttachment,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.ConversationID,
+		arg.MessageID,
+		arg.FileID,
+		arg.Name,
+		arg.Mime,
+		arg.SizeBytes,
+		arg.Kind,
+	)
+	return err
 }
 
 const aiInsertMessage = `-- name: AiInsertMessage :one
@@ -432,6 +546,79 @@ func (q *Queries) AiLatestRate(ctx context.Context, arg AiLatestRateParams) (AiM
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const aiListAttachmentFileIDs = `-- name: AiListAttachmentFileIDs :many
+SELECT file_id FROM ai_attachments
+WHERE file_id = ANY($1::text[])
+`
+
+// tenant: system
+// The collector's question: which of these files an Ask UNI question still carries.
+func (q *Queries) AiListAttachmentFileIDs(ctx context.Context, fileIds []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, aiListAttachmentFileIDs, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var file_id string
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const aiListAttachmentsForMessages = `-- name: AiListAttachmentsForMessages :many
+SELECT id, organization_id, workspace_id, user_id, conversation_id, message_id, file_id, name, mime, size_bytes, kind, created_at FROM ai_attachments
+WHERE organization_id = $1
+  AND message_id = ANY($2::text[])
+ORDER BY created_at ASC, id ASC
+`
+
+type AiListAttachmentsForMessagesParams struct {
+	OrganizationID string   `json:"organization_id"`
+	MessageIds     []string `json:"message_ids"`
+}
+
+// The files a set of questions carried, in the order they were attached.
+func (q *Queries) AiListAttachmentsForMessages(ctx context.Context, arg AiListAttachmentsForMessagesParams) ([]AiAttachment, error) {
+	rows, err := q.db.Query(ctx, aiListAttachmentsForMessages, arg.OrganizationID, arg.MessageIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AiAttachment{}
+	for rows.Next() {
+		var i AiAttachment
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.UserID,
+			&i.ConversationID,
+			&i.MessageID,
+			&i.FileID,
+			&i.Name,
+			&i.Mime,
+			&i.SizeBytes,
+			&i.Kind,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const aiListConversationCitations = `-- name: AiListConversationCitations :many

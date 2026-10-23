@@ -11,6 +11,39 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const fileGCAiAttachmentRefTenants = `-- name: FileGCAiAttachmentRefTenants :many
+SELECT a.file_id, a.organization_id
+FROM ai_attachments a
+WHERE a.file_id = ANY($1::text[])
+`
+
+type FileGCAiAttachmentRefTenantsRow struct {
+	FileID         string `json:"file_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// tenant: system
+// ai_attachments.file_id: the row carries its tenant (UNI-2119).
+func (q *Queries) FileGCAiAttachmentRefTenants(ctx context.Context, fileIds []string) ([]FileGCAiAttachmentRefTenantsRow, error) {
+	rows, err := q.db.Query(ctx, fileGCAiAttachmentRefTenants, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileGCAiAttachmentRefTenantsRow{}
+	for rows.Next() {
+		var i FileGCAiAttachmentRefTenantsRow
+		if err := rows.Scan(&i.FileID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const fileGCAttachmentRefTenants = `-- name: FileGCAttachmentRefTenants :many
 SELECT a.file_id, a.organization_id
 FROM attachments a

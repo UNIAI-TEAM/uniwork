@@ -62,6 +62,7 @@ func tenantExportIncludes(table string) bool {
 // JSONL file each. data_subject_requests is the dossier itself.
 var tenantExportIncludedTables = []string{
 	"agents",
+	"ai_attachments",
 	"ai_conversations",
 	"ai_message_feedback",
 	"ai_messages",
