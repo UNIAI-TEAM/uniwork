@@ -614,7 +614,7 @@ func (s *ChatService) ensureExistingRoomAccess(ctx context.Context, room db.Chat
 		if id == "" {
 			continue
 		}
-		if err := s.ensureRoomMember(ctx, room, anchorWS, id, "member"); err != nil {
+		if _, err := s.addRoomMember(ctx, s.q, room, anchorWS, id, "member"); err != nil {
 			return err
 		}
 	}

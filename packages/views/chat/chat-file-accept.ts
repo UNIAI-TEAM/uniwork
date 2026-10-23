@@ -1,6 +1,6 @@
 /** MIME allowlist matching server/internal/service/chat_file_message.go. */
 export const CHAT_FILE_ACCEPT =
-  "image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.docx,.xlsx";
+  "image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,text/csv,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.csv,.md,.docx,.xlsx";
 
 const ALLOWED_MIME = new Set([
   "image/jpeg",
@@ -9,6 +9,8 @@ const ALLOWED_MIME = new Set([
   "image/webp",
   "application/pdf",
   "text/plain",
+  "text/csv",
+  "text/markdown",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ]);
@@ -21,6 +23,8 @@ const ALLOWED_EXT = new Set([
   ".webp",
   ".pdf",
   ".txt",
+  ".csv",
+  ".md",
   ".docx",
   ".xlsx",
 ]);
@@ -40,6 +44,8 @@ const EXT_TO_MIME: Record<string, string> = {
   ".gif": "image/gif",
   ".webp": "image/webp",
   ".pdf": "application/pdf",
+  ".csv": "text/csv",
+  ".md": "text/markdown",
 };
 
 /** When the server omits content_type, infer from the filename (legacy rows). */

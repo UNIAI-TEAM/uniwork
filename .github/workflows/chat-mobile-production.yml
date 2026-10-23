@@ -1,0 +1,208 @@
+name: UniChat mobile production build
+
+# Builds the production app (apps/chat-mobile, com.uniworkos.chat) on EAS from
+# a release tag and submits that one binary to the Play internal track of the
+# production app (audit "no-production-pipeline-binary-promotion"). Nothing
+# else builds the production profile for a store: chat-mobile-promote.yml then
+# moves this same version code, by number, to the closed/open testing tracks
+# and to production with a staged rollout. The tested artifact is the shipped
+# artifact. Runbook: docs/runbooks/unichat-mobile-release.md › Phát hành
+# production theo giai đoạn.
+#
+# Run it from "Use workflow from: Tags → chat-mobile-v<version>"; the tag must
+# point at a commit on main and name the app version. `verify` runs every PR
+# check on the tagged SHA first (mobile-verify.yml, native build forced).
+#
+# Crash reporting is a release condition for production (audit
+# "observability-optional-in-prod"): the EAS `production` environment must hold
+# SENTRY_DSN, and this environment SENTRY_AUTH_TOKEN with the SENTRY_ORG /
+# SENTRY_PROJECT variables, so the run can prove the build's source maps and
+# symbols reached Sentry (the release <appId>@<version>+<version code> exists).
+# The store build itself still succeeds without them (eas.json keeps
+# SENTRY_ALLOW_FAILURE: a build must work without Sentry); this workflow refuses
+# to submit it unless allow_missing_crash_reporting is ticked, which the
+# summary records.
+#
+# Before the submit, the built AAB is downloaded and scanned for credentials
+# and for the classes native code finds by name, which R8 must not drop
+# (scripts/mobile-apk-scan.mjs); a finding outside
+# apps/chat-mobile/apk-scan-baseline.json stops the release.
+#
+# The chat-mobile-production environment (deployment: tags chat-mobile-v*,
+# required reviewers) holds EXPO_TOKEN and the Sentry settings; the Play
+# service account stays in EAS for the submit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      allow_missing_crash_reporting:
+        description: Submit without crash reporting or symbol upload (recorded in the run summary)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-mobile-production
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  # The same pinned eas-cli as the internal release (chat-mobile-release.yml).
+  EAS_CLI_VERSION: "24.12.0"
+  EXPO_NO_TELEMETRY: "1"
+
+jobs:
+  verify:
+    uses: ./.github/workflows/mobile-verify.yml
+    with:
+      force_native: true
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    environment: chat-mobile-production
+    env:
+      ALLOW_NO_CRASH_REPORTING: ${{ inputs.allow_missing_crash_reporting }}
+    steps:
+      - name: The EAS token is set
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not set in the chat-mobile-production environment, so nothing can be built. First-time setup: docs/runbooks/unichat-mobile-release.md"
+            exit 1
+          fi
+      - name: Dispatched on a release tag
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          case "$REF" in
+            refs/tags/chat-mobile-v*) ;;
+            *) echo "::error::run this from a chat-mobile-v<version> tag (Use workflow from → Tags), not $REF"; exit 1 ;;
+          esac
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: The tagged commit is on main
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$TAG points at $GITHUB_SHA, which is not on main: a production build comes from main only"
+            exit 1
+          fi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - id: version
+        name: The tag names the app version, and the version has its release notes
+        working-directory: apps/chat-mobile
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="$(pnpm exec expo config --type public --json | jq -r .version)"
+          if [ "$TAG" != "chat-mobile-v$version" ]; then
+            echo "::error::$TAG does not match app.config.ts version $version (expected chat-mobile-v$version)"
+            exit 1
+          fi
+          node ../../scripts/mobile-release-notes.mjs check "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: ${{ env.EAS_CLI_VERSION }}
+          token: ${{ secrets.EXPO_TOKEN }}
+      - id: crash
+        name: Crash reporting for production
+        working-directory: apps/chat-mobile
+        env:
+          UNICHAT_ENV: production
+          SENTRY_UPLOAD_READY: ${{ secrets.SENTRY_AUTH_TOKEN != '' && vars.SENTRY_ORG != '' && vars.SENTRY_PROJECT != '' }}
+        run: |
+          set -euo pipefail
+          eas env:exec production "npx expo config --type public --json" > "$RUNNER_TEMP/config.json"
+          node -e '
+            const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8").replace(/^[^{]*/, ""));
+            if (c.extra?.APP_ENV !== "production") { console.error(`::error::the production build would be ${c.extra?.APP_ENV}`); process.exit(1); }
+            const missing = ["apiUrl", "appUrl"].filter((k) => !c.extra?.[k]);
+            if (missing.length) { console.error(`::error::the production EAS environment has no ${missing.join(", ")}`); process.exit(1); }
+            const gaps = [];
+            if (!c.extra?.sentryDsn) gaps.push("no SENTRY_DSN in the production EAS environment: the build would report no crashes");
+            if (process.env.SENTRY_UPLOAD_READY !== "true") gaps.push("no SENTRY_AUTH_TOKEN, SENTRY_ORG or SENTRY_PROJECT in this environment: nothing can prove the symbols reached Sentry");
+            const blocking = process.env.ALLOW_NO_CRASH_REPORTING !== "true";
+            for (const gap of gaps) console.log(blocking ? `::error::${gap} (allow_missing_crash_reporting waives it)` : `::notice::${gap}`);
+            if (blocking && gaps.length) process.exit(1);
+            require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `verify=${gaps.length === 0}\n`);
+          ' "$RUNNER_TEMP/config.json"
+      - id: build
+        name: Build the production profile on EAS
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          eas build --platform android --profile production --non-interactive --wait --json > "$RUNNER_TEMP/build.json"
+          node -e '
+            const [build] = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            if (!build?.id || !build?.appBuildVersion) { console.error("::error::eas build reported no build id or version code"); process.exit(1); }
+            require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `id=${build.id}\nversion_code=${build.appBuildVersion}\n`);
+          ' "$RUNNER_TEMP/build.json"
+      - name: Security scan of the built bundle
+        # Audit "Security & privacy", no-ci-binary-security-scan: the AAB the store would get, built with the production
+        # EAS environment, carries no credential in any file and still defines every class native code finds by name
+        # (scripts/mobile-apk-scan.mjs; 0.3.0 (11) reached Play without WebRTC's JniInit). Its manifest is protobuf, so
+        # the CI release APK (mobile-verify.yml › android-release) is what scans the manifest. Before anything is submitted.
+        run: |
+          set -euo pipefail
+          url="$(node -e '
+            const [build] = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            process.stdout.write(build?.artifacts?.buildUrl ?? build?.artifacts?.applicationArchiveUrl ?? "");
+          ' "$RUNNER_TEMP/build.json")"
+          if [ -z "$url" ]; then
+            echo "::error::eas build reported no artifact to scan, so nothing proves the bundle carries no credential"
+            exit 1
+          fi
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/app.aab" "$url"
+          node "$GITHUB_WORKSPACE/scripts/mobile-apk-scan.mjs" "$RUNNER_TEMP/app.aab"
+      - name: The build's source maps and symbols reached Sentry
+        if: steps.crash.outputs.verify == 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_URL: ${{ vars.SENTRY_URL }}
+          RELEASE: com.uniworkos.chat@${{ steps.version.outputs.version }}+${{ steps.build.outputs.version_code }}
+        # The Gradle upload (sentry.gradle) names the release <appId>@<versionName>+<versionCode>; with
+        # SENTRY_ALLOW_FAILURE a failed upload leaves the build green, so the release's presence is the proof.
+        run: |
+          set -euo pipefail
+          encoded="$(node -p 'encodeURIComponent(process.env.RELEASE)')"
+          status="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" "${SENTRY_URL:-https://sentry.io}/api/0/organizations/$SENTRY_ORG/releases/$encoded/")"
+          if [ "$status" != "200" ]; then
+            echo "::error::Sentry has no release $RELEASE ($status): the build's source maps and symbols did not upload, so its crashes would be unreadable. Check SENTRY_AUTH_TOKEN in the EAS production environment and the build log's sentry-cli step."
+            exit 1
+          fi
+      - name: Submit this binary to the production app's internal track
+        working-directory: apps/chat-mobile
+        env:
+          BUILD_ID: ${{ steps.build.outputs.id }}
+        run: eas submit --platform android --profile production-internal --id "$BUILD_ID" --non-interactive --wait
+      - name: Summary
+        if: always()
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          VERSION_CODE: ${{ steps.build.outputs.version_code }}
+          BUILD_ID: ${{ steps.build.outputs.id }}
+        run: |
+          {
+            echo "### UniChat production build"
+            echo
+            echo "- version \`${VERSION:-?}\`, version code \`${VERSION_CODE:-not built}\`, EAS build \`${BUILD_ID:-none}\`"
+            if [ "$ALLOW_NO_CRASH_REPORTING" = "true" ]; then echo "- **crash reporting waived** for this run (allow_missing_crash_reporting)"; fi
+            echo "- next: test it on the production app's internal track, then run \"UniChat mobile promote\" with version code \`${VERSION_CODE:-?}\` (runbook › Phát hành production theo giai đoạn)"
+          } >> "$GITHUB_STEP_SUMMARY"

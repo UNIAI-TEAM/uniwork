@@ -4,10 +4,43 @@ name: UniChat mobile verify
 # iOS simulator and an Android emulator (UNI-1836). Each job builds a Release
 # binary of the staging variant on the runner (JS embedded: no Metro, no EAS,
 # no account), signs in through the real system browser sheet with a test
-# account on the staging server and runs the three golden flows in
+# account on the staging server and runs the golden flows in
 # apps/chat-mobile/maestro/flows: sign in → read/send, a push opens its room,
-# join a call (what each proves is written at its top).
-# Typecheck, lint and unit tests stay in mobile-verify.yml on every PR.
+# join a call, and on Android (Maestro toggles airplane mode there only)
+# offline sends that survive a kill and land once and in order (what each
+# proves is written at its top). On Android the signed-in app is measured too
+# (scripts/mobile-perf.mjs against apps/chat-mobile/perf-budget.json): five
+# cold starts to the inbox, then frames and memory while scrolling back
+# through MAESTRO_ROOM_ID's history (seed it with 500+ messages: runbook),
+# and a tap on a quote whose message is pages back must land on it.
+# Typecheck, lint, unit and component tests, the bundle budget, an x86_64
+# Android release build and an iOS simulator release build stay in
+# mobile-verify.yml on every PR that reaches the app (scripts/mobile-workflows.test.mjs
+# holds this line to that workflow's ABI). Here, besides Maestro,
+# `android-production` builds the store artifact (an AAB, every ABI) from the
+# production profile each night, and `ios` builds its Release binary even when
+# the Maestro settings are missing: no account or secret needed for either.
+# `android-matrix` runs the cold-start smoke on the oldest Android the app
+# supports, two middle releases, a 2 GB device and the API it targets (36, a
+# phone and a tablet turned to landscape), and keeps a screenshot of each for
+# review. `eas-local` builds with `eas build --local`, twice: the
+# preview APK, and the store AAB from `production-check` (the production
+# profile, its EAS environment and its config checks — the OTA certificate a
+# production EAS build refuses to go without — with autoIncrement off, so the
+# store's version code does not move). EAS's own archive (.easignore),
+# package-manager detection and install, the path only a release tag
+# exercised before (PR #387 broke on it twice); it needs EXPO_TOKEN in the
+# `chat-mobile-nightly` environment (runbook).
+#
+# Two jobs need a second account and the build's Firebase file (audit
+# "native-call-push-untested"): `android-two-party` lets the peer write while
+# UniChat is in the background and taps the real FCM notification, rings the
+# test account with the app in the background and with its process killed and
+# answers from Android's CallStyle notification, and runs background-resume
+# against staging. `android-upgrade` installs the previous night's APK, signs
+# in, leaves a message waiting offline, installs tonight's over it (adb install
+# -r, the path every store update takes) and proves the session, the outbox
+# and the cache survived it.
 #
 # Repository settings it reads (names only; Maestro picks up every MAESTRO_*
 # variable of its environment):
@@ -16,8 +49,18 @@ name: UniChat mobile verify
 #            MAESTRO_ROOM_ID                      a group room the account is in (a
 #                                                 group calls without a second party)
 #   secrets  MAESTRO_TEST_EMAIL, MAESTRO_TEST_PASSWORD
-# Without all of them the run ends green with a notice. The staging server must
-# list uniworkchat://auth/callback for uniwork-chat-mobile in
+# and, for android-two-party:
+#   vars     MAESTRO_CALLER_EMAIL                 a second account in the workspace
+#            MAESTRO_CALLER_WS_ID                 the workspace's id
+#            MAESTRO_DM_ROOM_ID                   that account's DM with the test account
+#   secrets  MAESTRO_CALLER_PASSWORD
+#            UNICHAT_GOOGLE_SERVICES_JSON         the staging app's google-services.json
+#                                                 (the file's text), so FCM reaches the emulator
+# `node scripts/mobile-ci-provisioning.mjs --check` lists what is missing.
+# Without all of them the scheduled run fails, naming what is missing: a
+# night that tested nothing must not look like a night that passed. A manual
+# run can skip Maestro (input `maestro: false`) to build only. The staging
+# server must list uniworkchat://auth/callback for uniwork-chat-mobile in
 # DESKTOP_AUTH_CLIENTS. Runbook: docs/runbooks/unichat-mobile-release.md.
 #
 # GitHub reads a scheduled workflow from the default branch only, so the
@@ -28,6 +71,15 @@ on:
   schedule:
     - cron: "0 20 * * *" # 03:00 Asia/Ho_Chi_Minh
   workflow_dispatch:
+    inputs:
+      maestro:
+        description: Run the Maestro flows (needs the MAESTRO_* settings)
+        type: boolean
+        default: true
+      eas_local:
+        description: Build the preview APK with `eas build --local` (needs EXPO_TOKEN in chat-mobile-nightly)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -38,11 +90,22 @@ concurrency:
 
 env:
   NODE_VERSION: "22"
+  JAVA_VERSION: "17"
+  # Pinned: a new Maestro changes how flows run; bump it in its own PR.
+  MAESTRO_VERSION: "2.11.0"
+  # The iOS job's Xcode (scripts/select-xcode.sh), the same as mobile-verify.yml's.
+  XCODE_VERSION: "26.6"
+  # The store release's eas-cli (chat-mobile-release.yml), for the eas-local job.
+  EAS_CLI_VERSION: "24.12.0"
   EXPO_NO_TELEMETRY: "1"
   UNICHAT_ENV: staging
   UNICHAT_API_URL: ${{ vars.MAESTRO_API_URL }}
   UNICHAT_APP_URL: ${{ vars.MAESTRO_APP_URL }}
   APP_ID: com.uniworkos.chat.staging
+  # The @sentry/react-native/expo plugin runs sentry-cli in the Gradle release
+  # build and the Xcode bundle phase; with no org, project or token here it
+  # fails the build. These binaries are tested, never shipped: no upload.
+  SENTRY_DISABLE_AUTO_UPLOAD: "true"
 
 jobs:
   gate:
@@ -52,8 +115,9 @@ jobs:
       ready: ${{ steps.check.outputs.ready }}
     steps:
       - id: check
-        name: Skip without a staging server and test account
+        name: Need a staging server and test account
         env:
+          WANTED: ${{ github.event_name == 'schedule' || inputs.maestro }}
           MAESTRO_API_URL: ${{ vars.MAESTRO_API_URL }}
           MAESTRO_APP_URL: ${{ vars.MAESTRO_APP_URL }}
           MAESTRO_ORG_SLUG: ${{ vars.MAESTRO_ORG_SLUG }}
@@ -62,20 +126,28 @@ jobs:
           MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
           MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
         run: |
+          if [ "$WANTED" != "true" ]; then
+            echo "::notice::Maestro not requested for this run."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           missing=""
           for name in MAESTRO_API_URL MAESTRO_APP_URL MAESTRO_ORG_SLUG MAESTRO_WS_SLUG MAESTRO_ROOM_ID MAESTRO_TEST_EMAIL MAESTRO_TEST_PASSWORD; do
             [ -n "${!name}" ] || missing="$missing $name"
           done
           if [ -n "$missing" ]; then
-            echo "::notice::Maestro skipped, not set:$missing. Setup: docs/runbooks/unichat-mobile-release.md"
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "::error::The Maestro flows cannot run, not set:$missing. Setup: docs/runbooks/unichat-mobile-release.md"
+            exit 1
           fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
   ios:
+    # The build runs whatever the gate says (audit "ios-never-built": it was
+    # hostage to the Maestro settings); the simulator and the flows only when
+    # the gate is ready. A scheduled run without the settings is still red, by
+    # the gate.
     needs: gate
-    if: needs.gate.outputs.ready == 'true'
+    if: ${{ !cancelled() }}
     runs-on: macos-26
     timeout-minutes: 120
     env:
@@ -95,13 +167,11 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
       - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
-      # SDK 57 needs Xcode 27; take the newest the image has.
+      # SDK 57 needs Xcode 27: the pinned one, as mobile-verify.yml › ios-release.
       - name: Select Xcode
-        run: |
-          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
-          xcodebuild -version
+        run: scripts/select-xcode.sh "$XCODE_VERSION"
       - name: Build for the simulator
         working-directory: apps/chat-mobile
         run: |
@@ -115,6 +185,7 @@ jobs:
             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
             build
       - name: Boot a simulator and install the app
+        if: needs.gate.outputs.ready == 'true'
         working-directory: apps/chat-mobile
         run: |
           set -euo pipefail
@@ -123,19 +194,26 @@ jobs:
           xcrun simctl bootstatus "$udid" -b
           xcrun simctl install "$udid" build/Build/Products/Release-iphonesimulator/*.app
           echo "UDID=$udid" >> "$GITHUB_ENV"
-      - name: Install Maestro
-        # shortcut: latest Maestro; pin MAESTRO_VERSION once a night is green on Xcode 27.
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        if: needs.gate.outputs.ready == 'true'
+        # The release zip itself, not the get.maestro.mobile.dev script: the
+        # script is unversioned and its default is whatever shipped last.
         run: |
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/maestro/bin/maestro" --version
       - name: Sign in, read and send
+        if: needs.gate.outputs.ready == 'true'
         working-directory: apps/chat-mobile/maestro
         env:
           # The test account reaches the Maestro runs only, not install or build.
           MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
           MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
-        run: maestro --device "$UDID" test flows/chat-read-send.yaml
+        run: ${{ github.workspace }}/scripts/maestro-retry.sh --device "$UDID" test flows/chat-read-send.yaml
       - name: Push opens the room
+        if: needs.gate.outputs.ready == 'true'
         working-directory: apps/chat-mobile/maestro
         env:
           # The test account reaches the Maestro runs only, not install or build.
@@ -150,16 +228,29 @@ jobs:
           url="$UNICHAT_APP_URL/$MAESTRO_ORG_SLUG/$MAESTRO_WS_SLUG/chat?room=$MAESTRO_ROOM_ID"
           jq -n --arg url "$url" '{aps: {alert: {title: "UniChat Maestro", body: "Nightly push"}}, body: {url: $url}, url: $url}' > "$RUNNER_TEMP/push.apns"
           xcrun simctl push "$UDID" "$APP_ID" "$RUNNER_TEMP/push.apns"
-          maestro --device "$UDID" test -e PUSH_DELIVERED=true flows/push-open-room.yaml
+          ${{ github.workspace }}/scripts/maestro-retry.sh --device "$UDID" test -e PUSH_DELIVERED=true flows/push-open-room.yaml
       - name: Join a call
+        if: needs.gate.outputs.ready == 'true'
         working-directory: apps/chat-mobile/maestro
         env:
           # The test account reaches the Maestro runs only, not install or build.
           MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
           MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
-        run: maestro --device "$UDID" test flows/call-join.yaml
+        run: ${{ github.workspace }}/scripts/maestro-retry.sh --device "$UDID" test flows/call-join.yaml
+      # Audit UX "no-ios-a11y-verification": the long-press menu at the largest Dynamic Type (AX5) in dark mode keeps
+      # its reaction bar on screen and scrolls to Delete, as the Android leg checks at font_scale 2.0 on 360 x 640 dp.
+      - name: Long-press menu at the largest Dynamic Type, in dark mode
+        if: needs.gate.outputs.ready == 'true'
+        working-directory: apps/chat-mobile/maestro
+        run: |
+          set -euo pipefail
+          xcrun simctl ui "$UDID" content_size accessibility-extra-extra-extra-large
+          xcrun simctl ui "$UDID" appearance dark
+          ${{ github.workspace }}/scripts/maestro-retry.sh --device "$UDID" test flows/message-menu-large-text.yaml
+          xcrun simctl ui "$UDID" content_size large
+          xcrun simctl ui "$UDID" appearance light
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && needs.gate.outputs.ready == 'true'
         with:
           name: maestro-ios
           # Screenshots only: Maestro's command log records the typed test password.
@@ -189,25 +280,48 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
       - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
       - name: Build the release APK for the emulator
         working-directory: apps/chat-mobile
+        env:
+          # The startup marks the perf steps time (data/logger.ts › perfMark); never in a store build.
+          UNICHAT_PERF_MARKS: "1"
+          # The staging app's Firebase file, so a push reaches the emulator (android-two-party); without it the APK
+          # still builds and registers no push token.
+          GOOGLE_SERVICES_TEXT: ${{ secrets.UNICHAT_GOOGLE_SERVICES_JSON }}
         run: |
           set -euo pipefail
+          if [ -n "$GOOGLE_SERVICES_TEXT" ]; then
+            printf '%s' "$GOOGLE_SERVICES_TEXT" > "$RUNNER_TEMP/google-services.json"
+            export GOOGLE_SERVICES_JSON="$RUNNER_TEMP/google-services.json"
+          fi
           pnpm exec expo prebuild -p android
-          # Signed with the debug key the template wires into release; x86_64 is the emulator's ABI.
+          # Signed with the debug key the template wires into release (the same file every prebuild copies, so
+          # tomorrow's APK installs over tonight's: android-upgrade); x86_64 is the emulator's ABI.
           (cd android && ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=x86_64)
+      # Kept before the flows run, so a red night still leaves the binary the two-party and upgrade jobs install, and
+      # the night after upgrades from it.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unichat-staging-apk
+          path: apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Install Maestro
-        # shortcut: latest Maestro; pin MAESTRO_VERSION once a night is green.
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        # The release zip itself, not the get.maestro.mobile.dev script: the
+        # script is unversioned and its default is whatever shipped last.
         run: |
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/maestro/bin/maestro" --version
       - name: Run the flows on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
@@ -223,9 +337,37 @@ jobs:
             adb install apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
             adb shell am set-debug-app --persistent com.android.chrome
             adb shell 'echo "chrome --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
-            cd apps/chat-mobile/maestro && maestro test flows/chat-read-send.yaml
-            cd apps/chat-mobile/maestro && maestro test flows/push-open-room.yaml
-            cd apps/chat-mobile/maestro && maestro test flows/call-join.yaml
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/chat-read-send.yaml
+            mkdir -p "$RUNNER_TEMP/perf"
+            node scripts/mobile-perf.mjs startup --package "$APP_ID" --mark inbox --runs 5 --out "$RUNNER_TEMP/perf/inbox.json"
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/perf-open-room.yaml
+            adb shell dumpsys gfxinfo "$APP_ID" reset
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/perf-scroll-room.yaml
+            node scripts/mobile-perf.mjs frames --package "$APP_ID" --out "$RUNNER_TEMP/perf/scroll.json"
+            node scripts/mobile-perf.mjs check "$RUNNER_TEMP/perf/inbox.json" "$RUNNER_TEMP/perf/scroll.json"
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/perf-jump-quote.yaml
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/push-open-room.yaml
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/call-join.yaml
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/offline-send-relaunch.yaml
+            adb shell settings put system font_scale 2.0
+            adb shell cmd uimode night yes
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/chat-read-send.yaml
+            node scripts/mobile-a11y-audit.mjs --package "$APP_ID" --min-dp 44 --warn --out "$RUNNER_TEMP/a11y-room.json"
+            adb shell wm size 720x1280
+            adb shell wm density 320
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/message-menu-large-text.yaml
+            adb shell wm size reset
+            adb shell wm density reset
+            adb shell settings put system font_scale 1.0
+            adb shell cmd uimode night no
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          # One night's numbers: `mobile-perf.mjs tighten` reads five of these (runbook).
+          name: unichat-perf-android-nightly
+          path: ${{ runner.temp }}/perf/*.json
+          if-no-files-found: ignore
+          retention-days: 90
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -234,3 +376,419 @@ jobs:
           path: ~/.maestro/tests/**/*.png
           if-no-files-found: ignore
           retention-days: 14
+
+  android-two-party:
+    # Audit "native-call-push-untested": incoming calls, real FCM pushes and background resume were tested only by
+    # hand. A second account acts through the API (maestro/scripts/peer-session.js signs it in each time) while the
+    # test account's app is in the background or killed, on a Google APIs emulator (Play services: FCM) and the APK
+    # the android job built with the staging Firebase file. The killed-app ring must come from the native FCM service,
+    # before any JavaScript (logcat's "native ring posted", NativeCallPush.kt). Not proven here: ringing over a locked
+    # screen, audio, OEM battery managers (runbook › Native calls on Android, device farm).
+    needs: [gate, android]
+    if: ${{ !cancelled() && needs.gate.outputs.ready == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MAESTRO_ORG_SLUG: ${{ vars.MAESTRO_ORG_SLUG }}
+      MAESTRO_WS_SLUG: ${{ vars.MAESTRO_WS_SLUG }}
+      MAESTRO_ROOM_ID: ${{ vars.MAESTRO_ROOM_ID }}
+      MAESTRO_API_URL: ${{ vars.MAESTRO_API_URL }}
+      MAESTRO_CALLER_EMAIL: ${{ vars.MAESTRO_CALLER_EMAIL }}
+      MAESTRO_CALLER_WS_ID: ${{ vars.MAESTRO_CALLER_WS_ID }}
+      MAESTRO_DM_ROOM_ID: ${{ vars.MAESTRO_DM_ROOM_ID }}
+    steps:
+      - name: Need the second account and the Firebase file
+        env:
+          MAESTRO_CALLER_PASSWORD: ${{ secrets.MAESTRO_CALLER_PASSWORD }}
+          UNICHAT_GOOGLE_SERVICES_JSON: ${{ secrets.UNICHAT_GOOGLE_SERVICES_JSON }}
+        run: |
+          missing=""
+          for name in MAESTRO_CALLER_EMAIL MAESTRO_CALLER_WS_ID MAESTRO_DM_ROOM_ID MAESTRO_CALLER_PASSWORD UNICHAT_GOOGLE_SERVICES_JSON; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::The calls and real-push flows cannot run, not set:$missing. Setup: docs/runbooks/unichat-mobile-release.md"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: unichat-staging-apk
+          path: ${{ runner.temp }}/apk
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - name: Real push, incoming calls and background resume
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          # The two accounts reach the Maestro runs only.
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
+          MAESTRO_CALLER_PASSWORD: ${{ secrets.MAESTRO_CALLER_PASSWORD }}
+        with:
+          api-level: 35
+          # google_apis: Chrome for the sign-in sheet and Google Play services for FCM.
+          target: google_apis
+          arch: x86_64
+          script: |
+            adb install "${{ runner.temp }}/apk/app-release.apk"
+            adb shell am set-debug-app --persistent com.android.chrome
+            adb shell 'echo "chrome --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
+            adb shell pm grant "$APP_ID" android.permission.POST_NOTIFICATIONS
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test -e PUSH_FROM_PEER=true flows/push-open-room.yaml
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test -e APP_STATE=background flows/call-answer-incoming.yaml
+            adb logcat -c
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test -e APP_STATE=killed flows/call-answer-incoming.yaml
+            adb logcat -d -s UniChatCalls:I | grep -q "native ring posted" || { echo "::error::The killed app rang, but not from the native FCM service (NativeCallPush.kt): JavaScript had to boot first."; exit 1; }
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/background-resume.yaml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maestro-android-two-party
+          # Screenshots only: Maestro's command log records the typed test password.
+          path: ~/.maestro/tests/**/*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+  android-upgrade:
+    # Audit "Testing & quality gates", missed P3: every store update installs over the last one, and nothing tested
+    # that the session, the outbox and the cache survive it on a device (the node tests pin the cache schema only).
+    # Last night's APK is the "before": the same debug signing key, so `adb install -r` takes tonight's over it. The
+    # first night after this job lands has no last night and says so.
+    needs: [gate, android]
+    if: ${{ !cancelled() && needs.gate.outputs.ready == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    env:
+      MAESTRO_ORG_SLUG: ${{ vars.MAESTRO_ORG_SLUG }}
+      MAESTRO_WS_SLUG: ${{ vars.MAESTRO_WS_SLUG }}
+      MAESTRO_ROOM_ID: ${{ vars.MAESTRO_ROOM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: unichat-staging-apk
+          path: ${{ runner.temp }}/after
+      - id: before
+        name: Last night's APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          previous="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow chat-mobile-verify.yml --branch main --json databaseId,status \
+            --jq "[.[] | select(.databaseId != $RUN_ID)] | .[0].databaseId // empty" --limit 10)"
+          if [ -z "$previous" ] || ! gh run download "$previous" --repo "$GITHUB_REPOSITORY" -n unichat-staging-apk -D "$RUNNER_TEMP/before"; then
+            echo "::notice::No earlier nightly APK to upgrade from yet: the upgrade path waits for the next night."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-java@v4
+        if: steps.before.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Enable KVM
+        if: steps.before.outputs.ready == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        if: steps.before.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - name: Upgrade over last night's build
+        if: steps.before.outputs.ready == 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
+          UPGRADE_STAMP: Upgrade ${{ github.run_id }}
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          script: |
+            adb install "${{ runner.temp }}/before/app-release.apk"
+            adb shell am set-debug-app --persistent com.android.chrome
+            adb shell 'echo "chrome --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test -e UPGRADE_STAMP="$UPGRADE_STAMP" flows/upgrade-before.yaml
+            adb install -r "${{ runner.temp }}/after/app-release.apk"
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test -e UPGRADE_STAMP="$UPGRADE_STAMP" flows/upgrade-after.yaml
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.before.outputs.ready == 'true'
+        with:
+          name: maestro-android-upgrade
+          path: ~/.maestro/tests/**/*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+  android-production:
+    # The store artifact from the production profile, every ABI, each night:
+    # catches what only the full release build hits (R8, resource shrinking,
+    # the four native ABIs) before a release tag does.
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      UNICHAT_ENV: production
+      # Placeholders: the bundle is built, never run.
+      UNICHAT_API_URL: https://api.example.invalid
+      UNICHAT_APP_URL: https://app.example.invalid
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - name: Prebuild the native project
+        working-directory: apps/chat-mobile
+        run: pnpm exec expo prebuild -p android --no-install --clean
+      - name: Bundle the release AAB
+        working-directory: apps/chat-mobile/android
+        run: ./gradlew :app:bundleRelease --no-daemon
+      - name: AAB size
+        working-directory: apps/chat-mobile/android/app/build/outputs/bundle/release
+        run: |
+          set -euo pipefail
+          { echo "### UniChat Android production AAB"; echo; ls -l *.aab | awk '{printf "- `%s`: %.1f MB\n", $9, $5/1048576}'; } | tee -a "$GITHUB_STEP_SUMMARY"
+
+  android-matrix-build:
+    # The production config with placeholder servers, x86_64 (the emulators' ABI), as the PR's
+    # android-release builds it: the smoke needs no server.
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      UNICHAT_ENV: production
+      UNICHAT_API_URL: https://api.example.invalid
+      UNICHAT_APP_URL: https://app.example.invalid
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      # The startup marks the low-end leg times (data/logger.ts › perfMark); this APK never leaves the matrix.
+      UNICHAT_PERF_MARKS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - name: Prebuild and assemble the release APK
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          pnpm exec expo prebuild -p android --no-install --clean
+          (cd android && ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unichat-matrix-apk
+          path: apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 3
+
+  android-matrix:
+    # Audit "no-visual-or-matrix": the PR smoke runs on one API 35 emulator only. Here the same
+    # cold start runs on the oldest Android the app installs on (React Native's minSdk 24), two
+    # middle releases, and API 35 with 2 GB of RAM (a low-end phone); each leg keeps a
+    # screenshot of the sign-in screen in light and dark mode for a person to compare. The
+    # 2 GB leg also times five cold starts against perf-budget.json › android-2gb (audit: the
+    # cheapest low-end proxy measured nothing). OEM skins (Samsung, Xiaomi) need a device farm (runbook).
+    needs: android-matrix-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { api: 24, target: default, ram: 3072, label: api24 }
+          - { api: 29, target: default, ram: 3072, label: api29 }
+          - { api: 33, target: google_apis, ram: 3072, label: api33 }
+          - { api: 35, target: google_apis, ram: 2048, label: api35-2gb, perf: android-2gb }
+          # The API the app targets (app.config.ts pins targetSdkVersion 36): Android 16 enforces edge-to-edge and
+          # predictive back, and on a screen 600 dp wide ignores the portrait lock, so a tablet leg also turns to
+          # landscape (audit "target-sdk-implicit-untested").
+          - { api: 36, target: google_apis, ram: 3072, label: api36 }
+          - { api: 36, target: google_apis, ram: 4096, label: api36-tablet, profile: pixel_tablet, landscape: true }
+    name: android-matrix (${{ matrix.label }})
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: unichat-matrix-apk
+          path: ${{ runner.temp }}/apk
+      # scripts/mobile-perf.mjs times the low-end leg's cold starts.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Cold start on API ${{ matrix.api }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
+          profile: ${{ matrix.profile || '' }}
+          arch: x86_64
+          ram-size: ${{ matrix.ram }}M
+          disable-animations: true
+          script: |
+            mkdir -p "${{ runner.temp }}/screens"
+            adb install "${{ runner.temp }}/apk/app-release.apk"
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
+            adb exec-out screencap -p > "${{ runner.temp }}/screens/${{ matrix.label }}-light.png"
+            adb shell cmd uimode night yes
+            cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
+            adb exec-out screencap -p > "${{ runner.temp }}/screens/${{ matrix.label }}-dark.png"
+            adb shell cmd uimode night no
+            if [ -n "${{ matrix.landscape }}" ]; then adb shell settings put system accelerometer_rotation 0 && adb shell settings put system user_rotation 1; fi
+            if [ -n "${{ matrix.landscape }}" ]; then cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml; fi
+            if [ -n "${{ matrix.landscape }}" ]; then adb exec-out screencap -p > "${{ runner.temp }}/screens/${{ matrix.label }}-landscape.png"; fi
+            if [ -n "${{ matrix.perf }}" ]; then mkdir -p "${{ runner.temp }}/perf" && node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 5 --out "${{ runner.temp }}/perf/startup.json"; fi
+            if [ -n "${{ matrix.perf }}" ]; then node scripts/mobile-perf.mjs check --profile "${{ matrix.perf }}" "${{ runner.temp }}/perf/startup.json"; fi
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.perf
+        with:
+          # One night's numbers: `mobile-perf.mjs tighten` reads five of these (runbook).
+          name: unichat-perf-${{ matrix.perf }}
+          path: ${{ runner.temp }}/perf/*.json
+          if-no-files-found: ignore
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unichat-screens-${{ matrix.label }}
+          path: ${{ runner.temp }}/screens/*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+  eas-local:
+    # Audit P1 "eas-path-unexercised": the PR builds run Gradle on a pnpm checkout, which
+    # reproduces neither EAS's upload archive nor its package-manager detection. This builds
+    # with EAS's own local build, never moving the store's version code (neither profile
+    # autoIncrements): `preview`, and `production-check` (review P2), the production profile
+    # whose config only a release tag reached before — a night it fails is a tag that would.
+    # Its own environment, limited to main and with no reviewers, so a scheduled run does not
+    # wait for an approval; without the token a scheduled run is red.
+    # Not on PRs (review P2, deferred): PR jobs read no secret (mobile-verify.yml), and an
+    # EXPO_TOKEN in a PR job could publish an OTA update; runbook › eas build --local.
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: chat-mobile-nightly
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { profile: preview, artifact: unichat-preview.apk }
+          - { profile: production-check, artifact: unichat-production.aab }
+    env:
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+    steps:
+      - id: token
+        name: Need an EAS token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          WANTED: ${{ github.event_name == 'schedule' || inputs.eas_local }}
+        run: |
+          if [ "$WANTED" != "true" ]; then
+            echo "::notice::eas build --local not requested for this run."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not set in the chat-mobile-nightly environment, so EAS's archive and install path was not exercised. Setup: docs/runbooks/unichat-mobile-release.md"
+            exit 1
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.ready == 'true'
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        if: steps.token.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.token.outputs.ready == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        if: steps.token.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - if: steps.token.outputs.ready == 'true'
+        run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - uses: expo/expo-github-action@v8
+        if: steps.token.outputs.ready == 'true'
+        with:
+          eas-version: ${{ env.EAS_CLI_VERSION }}
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: eas build --local (${{ matrix.profile }})
+        if: steps.token.outputs.ready == 'true'
+        working-directory: apps/chat-mobile
+        env:
+          PROFILE: ${{ matrix.profile }}
+          ARTIFACT: ${{ matrix.artifact }}
+        run: eas build --local --platform android --profile "$PROFILE" --non-interactive --output "$RUNNER_TEMP/$ARTIFACT"
+      - name: Artifact size
+        if: steps.token.outputs.ready == 'true'
+        env:
+          PROFILE: ${{ matrix.profile }}
+          ARTIFACT: ${{ matrix.artifact }}
+        run: |
+          set -euo pipefail
+          { echo "### UniChat $PROFILE build from eas build --local"; echo; ls -l "$RUNNER_TEMP/$ARTIFACT" | awk '{printf "- %.1f MB\n", $5/1048576}'; } | tee -a "$GITHUB_STEP_SUMMARY"

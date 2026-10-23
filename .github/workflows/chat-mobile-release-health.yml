@@ -1,0 +1,160 @@
+name: UniChat mobile release health
+
+# Every hour, reads the health of every release of UniChat mobile in Sentry
+# (crash-free sessions and people, new crashes, OTAs phones could not launch)
+# and Play's Android vitals, and stops the ones that must stop
+# (scripts/mobile-release-health.mjs; audit "rollout-gating-manual",
+# "thresholds-unreachable-at-pilot-scale", "health-gate-platform-blind"): an
+# OTA still rolling out is reverted by its group, an Android store build is
+# halted on the Play track that rolls it out, an iOS one has its App Store
+# phased release paused. Both variants are read: production, and staging (the
+# tester builds: their OTAs are reverted, their store builds listed). What a
+# machine should not undo (an OTA already at 100 %) is left to a person, who
+# runs chat-mobile-rollback.yml. A run is red when it stopped something this
+# hour or a person must act; a release stopped earlier is listed, not red, so
+# a red run keeps its meaning. Runbook: docs/runbooks/unichat-mobile-release.md
+# › Sức khoẻ bản phát hành.
+#
+# Off until production has users: the repository variable
+# UNICHAT_RELEASE_HEALTH=on turns the schedule on. From then on a missing
+# setting is red, not a silent skip. The chat-mobile-release-health
+# environment (deployment branch main, no reviewers: a schedule cannot wait for
+# one) holds SENTRY_AUTH_TOKEN (org:read, event:read), EXPO_TOKEN,
+# EAS_UPDATE_PRIVATE_KEY (a revert publishes, signed),
+# PLAY_SERVICE_ACCOUNT_JSON (halt, and vitals with "View app quality
+# information") and, once the Apple account exists, ASC_KEY_ID, ASC_ISSUER_ID,
+# ASC_PRIVATE_KEY with the variable ASC_APP_ID; the variable SENTRY_ORG
+# (SENTRY_URL for a self-hosted Sentry). The UNICHAT_HEALTH_* variables lower
+# the counts for a pilot (runbook).
+#
+# The same run checks Sentry's alert rules against
+# deploy/sentry/unichat-mobile-alerts.json (scripts/mobile-sentry-alerts.mjs:
+# drift is a warning) and applies them when dispatched with sync_alerts
+# (the token then needs alerts:write). It reads the variables SENTRY_PROJECT
+# and SENTRY_ALERT_TEAM (the team the alerts email) and, optionally,
+# SENTRY_ALERT_EXTRA_ACTIONS (the pager actions, as Sentry action objects).
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Report only; revert and halt nothing
+        type: boolean
+        default: true
+      sync_alerts:
+        description: Apply deploy/sentry/unichat-mobile-alerts.json to Sentry
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-mobile-release-health
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  # The same pinned eas-cli as the store release and the OTA.
+  EAS_CLI_VERSION: "24.12.0"
+  EXPO_NO_TELEMETRY: "1"
+
+jobs:
+  health:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.UNICHAT_RELEASE_HEALTH == 'on' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: chat-mobile-release-health
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      SYNC_ALERTS: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_alerts }}
+    steps:
+      - name: Settings
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+        run: |
+          missing=""
+          for name in EXPO_TOKEN SENTRY_AUTH_TOKEN SENTRY_ORG; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::release health is on but the chat-mobile-release-health environment lacks:$missing (runbook › Sức khoẻ bản phát hành)"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      # eas-cli reads the app's config to find the project: the app and what it imports only.
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: ${{ env.EAS_CLI_VERSION }}
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Read release health and stop what must stop
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_URL: ${{ vars.SENTRY_URL }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
+          EAS_UPDATE_PRIVATE_KEY: ${{ secrets.EAS_UPDATE_PRIVATE_KEY }}
+          UNICHAT_HEALTH_MIN_SESSIONS: ${{ vars.UNICHAT_HEALTH_MIN_SESSIONS }}
+          UNICHAT_HEALTH_SEVERE_MIN_SESSIONS: ${{ vars.UNICHAT_HEALTH_SEVERE_MIN_SESSIONS }}
+          UNICHAT_HEALTH_MIN_CRASHED_USERS: ${{ vars.UNICHAT_HEALTH_MIN_CRASHED_USERS }}
+          UNICHAT_HEALTH_NEW_CRASH_MIN_USERS: ${{ vars.UNICHAT_HEALTH_NEW_CRASH_MIN_USERS }}
+          UNICHAT_HEALTH_LAUNCH_FAILURE_MIN_USERS: ${{ vars.UNICHAT_HEALTH_LAUNCH_FAILURE_MIN_USERS }}
+          UNICHAT_HEALTH_VITALS_MIN_USERS: ${{ vars.UNICHAT_HEALTH_VITALS_MIN_USERS }}
+        # Both variants run even when the first is red; the step is red when either is. UNICHAT_ENV is the variant
+        # eas-cli reads the app's config as (the project, the update branches).
+        run: |
+          set -uo pipefail
+          if [ -n "$EAS_UPDATE_PRIVATE_KEY" ]; then
+            umask 077
+            printf '%s\n' "$EAS_UPDATE_PRIVATE_KEY" > "$RUNNER_TEMP/eas-update-private-key.pem"
+            export EAS_UPDATE_PRIVATE_KEY_PATH="$RUNNER_TEMP/eas-update-private-key.pem"
+          fi
+          status=0
+          for app in production staging; do
+            args=(--app "$app")
+            if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+            UNICHAT_ENV="$app" node scripts/mobile-release-health.mjs "${args[@]}" || status=1
+          done
+          exit "$status"
+      - name: Sentry alert rules as code
+        if: ${{ always() }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_URL: ${{ vars.SENTRY_URL }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_ALERT_TEAM: ${{ vars.SENTRY_ALERT_TEAM }}
+          SENTRY_ALERT_EXTRA_ACTIONS: ${{ vars.SENTRY_ALERT_EXTRA_ACTIONS }}
+        # A check never turns the health run red (a token without alerts:read only loses the drift report); an apply
+        # someone asked for does.
+        run: |
+          set -uo pipefail
+          if [ -z "$SENTRY_PROJECT" ] || [ -z "$SENTRY_ALERT_TEAM" ]; then
+            echo "::warning::SENTRY_PROJECT or SENTRY_ALERT_TEAM is not set: the alert rules in deploy/sentry/ are not checked (runbook › Sức khoẻ bản phát hành)"
+            [ "$SYNC_ALERTS" != "true" ]
+            exit
+          fi
+          if [ "$SYNC_ALERTS" = "true" ]; then
+            node scripts/mobile-sentry-alerts.mjs apply
+            exit
+          fi
+          node scripts/mobile-sentry-alerts.mjs check || echo "::warning::the Sentry alert rules could not be checked (does the token have alerts:read?)"
+      - name: Remove the signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/eas-update-private-key.pem"

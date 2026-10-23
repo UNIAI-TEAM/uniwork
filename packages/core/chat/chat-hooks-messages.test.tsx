@@ -6,6 +6,7 @@ import * as chatApi from "../api/endpoints/chat";
 import type { ChatMessageRecord } from "../api/endpoints/chat";
 import { documentKeys } from "../documents/keys";
 import { chatKeys } from "./chat-keys";
+import { resetAuthStoreForTests, setSessionUser } from "../auth";
 import {
   isChatMediaUrlFresh,
   useDeleteChatMessage,
@@ -14,11 +15,13 @@ import {
   useSendChatFileMessage,
   useSendChatDocumentLink,
   useSendChatDocumentMessage,
+  useSendChatRoomMessage,
   useShareChatMessageAsDocument,
   useToggleChatMessagePin,
   useToggleChatReaction,
 } from "./chat-hooks-messages";
-import { flattenRoomTimeline, type RoomTimeline } from "./room-timeline";
+import { pendingChatMessageId } from "./pending-message-id";
+import { flattenRoomTimeline, type RoomTimeline } from "./room-timeline-pages";
 import { useSendChatThreadMessage } from "./thread-hooks";
 
 const row = (id: string, minute: number, extra: Partial<ChatMessageRecord> = {}): ChatMessageRecord => ({
@@ -54,6 +57,39 @@ function setup(rows: ChatMessageRecord[]) {
 
 // UNI-1077: each of these refetched every loaded page of the room, while the
 // server's answer (and the realtime frame after it) already said what changed.
+describe("useSendChatRoomMessage", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetAuthStoreForTests();
+  });
+
+  it("shows an optimistic row immediately and swaps it for the server answer", async () => {
+    setSessionUser({
+      id: "u1",
+      email: "a@b.c",
+      display_name: "An",
+      onboarded_at: "2026-01-01T00:00:00Z",
+    });
+    vi.spyOn(chatApi, "sendChatRoomMessage").mockResolvedValue(
+      row("m2", 2, { body: "hi", client_msg_id: "cmid-1" }),
+    );
+    const { wrapper, timeline, refetchedTimeline } = setup([row("m1", 1)]);
+    const { result } = renderHook(() => useSendChatRoomMessage("ws1"), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        roomId: "room1",
+        body: "hi",
+        client_msg_id: "cmid-1",
+      });
+    });
+
+    expect(timeline().map((m) => m.id)).toEqual(["m1", "m2"]);
+    expect(timeline().some((m) => m.id === pendingChatMessageId("cmid-1"))).toBe(false);
+    expect(refetchedTimeline()).toBe(false);
+  });
+});
+
 describe("chat message mutations patch the room timeline instead of refetching it", () => {
   afterEach(() => vi.restoreAllMocks());
 

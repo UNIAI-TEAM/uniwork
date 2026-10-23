@@ -43,28 +43,43 @@ export function Header({ title, subtitle, center, left, right, large = false, ch
           </View>
         ) : null}
         {title ? (
-          <Text accessibilityRole="header" className="mt-3 text-[30px] font-display font-extrabold leading-9 tracking-tight text-foreground" numberOfLines={1}>
+          <Text
+            accessibilityRole="header"
+            className="mt-3 text-display-lg font-display font-extrabold leading-9 tracking-tight text-foreground"
+            numberOfLines={1}
+          >
             {title}
           </Text>
         ) : null}
-        {subtitle ? <Text className="mt-0.5 text-sm text-muted-foreground">{subtitle}</Text> : null}
+        {subtitle ? <Text className="mt-0.5 text-callout text-muted-foreground">{subtitle}</Text> : null}
         {children}
       </SafeAreaView>
     );
   }
   return (
     <SafeAreaView edges={["top"]} className={flat ? "bg-background" : "bg-background border-b border-border"}>
-      <View className="flex-row items-center h-12 px-2">
+      <View className="flex-row items-center min-h-12 px-2">
         {left ? <View className="flex-row items-center">{left}</View> : null}
         <View className={centered ? "flex-1 px-2 items-center justify-center" : "flex-1 px-2 justify-center"}>
           {center ??
             (title ? (
               <>
-                <Text accessibilityRole="header" className={centered ? "text-center text-[19px] font-display font-bold text-foreground" : "text-lg font-display font-bold text-foreground"} numberOfLines={1}>
+                <Text
+                  accessibilityRole="header"
+                  className={
+                    centered
+                      ? "text-center text-title-nav font-display font-bold text-foreground"
+                      : "text-title3 font-display font-bold text-foreground"
+                  }
+                  numberOfLines={1}
+                >
                   {title}
                 </Text>
                 {subtitle ? (
-                  <Text className={centered ? "text-center text-xs text-muted-foreground" : "text-xs text-muted-foreground"} numberOfLines={1}>
+                  <Text
+                    className={centered ? "text-center text-caption text-muted-foreground" : "text-caption text-muted-foreground"}
+                    numberOfLines={1}
+                  >
                     {subtitle}
                   </Text>
                 ) : null}

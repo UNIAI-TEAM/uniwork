@@ -24,7 +24,9 @@
         "rustc",
         "awk",
         "go",
-        "dbus-run-session"
+        "dbus-run-session",
+        "adb",
+        "eas"
       ],
       "ignoreDependencies": [
         "@playwright/test",
@@ -49,16 +51,18 @@
     },
     "apps/chat-mobile": {
       "ignoreDependencies": [
+        "@sentry/cli",
         "@babel/plugin-transform-react-jsx",
         "@expo-google-fonts/inter",
         "@expo-google-fonts/plus-jakarta-sans",
-        "@rn-primitives/avatar",
-        "@rn-primitives/switch",
-        "expo-updates",
         "react-native-css-interop"
       ],
       "entry": [
-        "scripts/sync-i18n.mjs"
+        "scripts/sync-i18n.mjs",
+        "scripts/generate-licenses.mjs",
+        "scripts/android-manifest.mjs",
+        "plugins/*.js",
+        "maestro/scripts/*.js"
       ]
     },
     "packages/*": {},

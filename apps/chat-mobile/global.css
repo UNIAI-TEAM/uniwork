@@ -106,7 +106,7 @@
     --call-surface: 220 48.9% 8.4%;
     /* R4b (UNI-1916): the dark chat slots follow the canvas (MobileChatDark, Ngôn ngữ thiết kế), not tokens.css. */
     --chat-wall: 219.1 46.9% 9.6%;
-    --chat-bubble-own: 221.3 86.6% 56.3%;
+    --chat-bubble-own: 221.3 80% 47%; /* darker than the canvas: the meta line reaches AA (lib/theme-contrast.test.ts) */
     --chat-bubble-own-foreground: 0 0% 100%;
     --chat-bubble-own-meta: 220 80.5% 92%;
     --chat-bubble-other: 219 25% 15.7%;

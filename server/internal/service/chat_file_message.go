@@ -42,6 +42,8 @@ type FileMessageInfo struct {
 	ObjectKey   string
 	ContentType string
 	SizeBytes   int64
+	// Width and Height of a photo as it shows, when its header said at upload; 0 when unknown.
+	Width, Height int
 	// Read URLs signed for the viewer (signChatMedia); empty when unsigned.
 	URL          string
 	DownloadURL  string
@@ -142,6 +144,8 @@ func fileMessageFromMetadata(kind string, raw []byte) *FileMessageInfo {
 		ObjectKey   string `json:"object_key"`
 		ContentType string `json:"content_type"`
 		SizeBytes   int64  `json:"size_bytes"`
+		Width       int    `json:"width"`
+		Height      int    `json:"height"`
 	}
 	if err := json.Unmarshal(raw, &meta); err != nil {
 		return nil
@@ -153,8 +157,13 @@ func fileMessageFromMetadata(kind string, raw []byte) *FileMessageInfo {
 		(objectKey == "" && fileID == "") {
 		return nil
 	}
-	return &FileMessageInfo{
+	info := &FileMessageInfo{
 		Filename: filename, FileID: fileID, ObjectKey: objectKey,
 		ContentType: meta.ContentType, SizeBytes: meta.SizeBytes,
 	}
+	// Both or neither: a size with one side missing is no size.
+	if meta.Width > 0 && meta.Height > 0 {
+		info.Width, info.Height = meta.Width, meta.Height
+	}
+	return info
 }

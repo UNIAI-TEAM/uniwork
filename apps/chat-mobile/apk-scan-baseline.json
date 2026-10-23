@@ -1,0 +1,10 @@
+{
+  "$comment": "Reviewed exceptions for scripts/mobile-apk-scan.mjs, each with its reason. {package} is the manifest's package. A finding outside this file fails the scan; an entry nothing matches any more is reported, drop it.",
+  "exported": [
+    {
+      "name": "{package}.MainActivity",
+      "reason": "The launcher, and the entry for chat links (App Links on the verified host, the custom scheme) and the PKCE callback. Every link it accepts goes through lib/deep-link.ts › systemPathToRoute, an allowlist."
+    }
+  ],
+  "secrets": []
+}

@@ -46,11 +46,11 @@ import { useChatReminderNotifications } from "./use-chat-reminder-notify";
 import { chatErrorMessage } from "./chat-error-message";
 import { chatHeaderTitle, workspaceRoomTitle } from "./chat-page-utils";
 import { useChatPageNames } from "./use-chat-page-names";
-import { buildChatMentionCandidates } from "./chat-mention-utils";
+import { buildChatMentionCandidates } from "@uniwork/core/chat/chat-mention-utils";
 import { applyKnownPeopleToRoomPreviews } from "./chat-sidebar-preview";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import { ChatPageAuthLoading } from "./chat-page-auth-loading";
-import { givenNameOf } from "./chat-initials";
+import { givenNameOf } from "@uniwork/core/chat/initials";
 import { ChatPageContent } from "./chat-page-content";
 import { ChatSeenByProvider, useChatSeenBy } from "./chat-seen-by";
 import { useChatDeliveredAt } from "./chat-delivered";
@@ -355,7 +355,7 @@ export function ChatPageView({ workspaceId, currentUserId, desktopOpen }: { work
     [nameContext, rawRoomPreviews],
   );
 
-  const { startCall, acceptCall, declineCall, inCall } = useChatVoiceCall();
+  const { startCall, inCall } = useChatVoiceCall();
   const { handleStartVoiceCall, handleStartVideoCall } = useChatVoiceHandlers({
     targetKind: target.kind,
     activeRoomId,
@@ -363,8 +363,6 @@ export function ChatPageView({ workspaceId, currentUserId, desktopOpen }: { work
     activeGroup,
     activeChannel,
     startCall,
-    acceptCall,
-    declineCall,
   });
   // "Minh đang nhập…": who types goes by the given name, as the list says it (canvas).
   const typingNames = useMemo(

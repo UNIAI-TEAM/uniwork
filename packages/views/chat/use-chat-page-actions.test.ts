@@ -19,6 +19,16 @@ afterEach(() => {
   resetPendingChatMessagesForTests();
 });
 
+function mockSendMutation(mutateAsync: ReturnType<typeof vi.fn>) {
+  const mutate = vi.fn((payload: unknown, opts?: { onSuccess?: () => void; onError?: (err: unknown) => void }) => {
+    void Promise.resolve(mutateAsync(payload)).then(
+      () => opts?.onSuccess?.(),
+      (err: unknown) => opts?.onError?.(err),
+    );
+  });
+  return { mutateAsync, mutate };
+}
+
 function buildDeps(overrides: Partial<Parameters<typeof useChatPageActions>[0]> = {}) {
   const setTarget = vi.fn();
   // One draft behind both accessors, so a test reads back what the hook wrote.
@@ -29,6 +39,7 @@ function buildDeps(overrides: Partial<Parameters<typeof useChatPageActions>[0]> 
   });
   const setReplyTo = vi.fn();
   const setConnectError = vi.fn();
+  const sendRoomMessage = mockSendMutation(vi.fn().mockResolvedValue(undefined));
 
   return {
     workspaceId: "ws1",
@@ -43,7 +54,7 @@ function buildDeps(overrides: Partial<Parameters<typeof useChatPageActions>[0]> 
     replyTo: null as ChatMessage | null,
     setReplyTo,
     ensureRoom: { mutateAsync: vi.fn().mockResolvedValue({ room_id: "room1" }) },
-    sendRoomMessage: { mutateAsync: vi.fn().mockResolvedValue(undefined) },
+    sendRoomMessage,
     resolveDM: { mutateAsync: vi.fn() },
     createGroup: { mutateAsync: vi.fn().mockResolvedValue({ id: "g1", name: "Squad", member_user_ids: ["u2"] }) },
     setRoomAvatar: { mutateAsync: vi.fn().mockResolvedValue(null) },
@@ -71,12 +82,13 @@ describe("useChatPageActions", () => {
       await result.current.provisionAndSend();
     });
 
-    expect(deps.sendRoomMessage.mutateAsync).toHaveBeenCalledWith(
+    expect(deps.sendRoomMessage.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
         roomId: "room1",
         body: "hello",
         client_msg_id: expect.any(String),
       }),
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
     expect(deps.setReplyTo).toHaveBeenCalledWith(null);
     expect(deps.setDraft).toHaveBeenCalledWith("");
@@ -85,20 +97,19 @@ describe("useChatPageActions", () => {
   it("clears the draft before the server answers", async () => {
     let resolveSend: ((value: null) => void) | undefined;
     const deps = buildDeps({
-      sendRoomMessage: {
-        mutateAsync: vi.fn(
+      sendRoomMessage: mockSendMutation(
+        vi.fn(
           (): Promise<null> =>
             new Promise<null>((resolve) => {
               resolveSend = resolve;
             }),
         ),
-      },
+      ),
     });
     const { result } = renderHook(() => useChatPageActions(deps));
 
-    let sendPromise: Promise<void> | undefined;
-    act(() => {
-      sendPromise = result.current.provisionAndSend();
+    await act(async () => {
+      await result.current.provisionAndSend();
     });
     expect(deps.getDraft()).toBe("");
 
@@ -107,26 +118,27 @@ describe("useChatPageActions", () => {
     await act(async () => {
       await result.current.provisionAndSend();
     });
-    expect(deps.sendRoomMessage.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(deps.sendRoomMessage.mutate).toHaveBeenCalledTimes(1);
     deps.setDraft("B đang viết dở");
 
-    resolveSend?.(null);
     await act(async () => {
-      await sendPromise;
+      resolveSend?.(null);
+      await Promise.resolve();
     });
     expect(deps.getDraft()).toBe("B đang viết dở");
   });
 
   it("puts the draft back when the send fails without queueing", async () => {
     const deps = buildDeps({
-      sendRoomMessage: {
-        mutateAsync: vi.fn().mockRejectedValue(new ApiError("invalid", "validation_failed", 422)),
-      },
+      sendRoomMessage: mockSendMutation(
+        vi.fn().mockRejectedValue(new ApiError("invalid", "validation_failed", 422)),
+      ),
     });
     const { result } = renderHook(() => useChatPageActions(deps));
 
     await act(async () => {
       await result.current.provisionAndSend();
+      await Promise.resolve();
     });
 
     expect(deps.getDraft()).toBe("hello");
@@ -141,8 +153,9 @@ describe("useChatPageActions", () => {
       await result.current.sendMessageBody("![sticker](https://cdn.example.com/s.png)");
     });
 
-    expect(deps.sendRoomMessage.mutateAsync).toHaveBeenCalledWith(
+    expect(deps.sendRoomMessage.mutate).toHaveBeenCalledWith(
       expect.objectContaining({ body: "![sticker](https://cdn.example.com/s.png)" }),
+      expect.any(Object),
     );
     expect(deps.getDraft()).toBe("đang gõ");
   });
@@ -159,13 +172,14 @@ describe("useChatPageActions", () => {
       await result.current.provisionAndSend();
     });
 
-    expect(deps.sendRoomMessage.mutateAsync).toHaveBeenCalledWith(
+    expect(deps.sendRoomMessage.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
         roomId: "room1",
         body: "hello",
         priority: "important",
         client_msg_id: expect.any(String),
       }),
+      expect.any(Object),
     );
     expect(setComposerPriority).toHaveBeenCalledWith(null);
   });
@@ -248,12 +262,13 @@ describe("useChatPageActions", () => {
     });
 
     expect(deps.ensureRoom.mutateAsync).toHaveBeenCalled();
-    expect(deps.sendRoomMessage.mutateAsync).toHaveBeenCalledWith(
+    expect(deps.sendRoomMessage.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
         roomId: "room-ws",
         body: "hello",
         client_msg_id: expect.any(String),
       }),
+      expect.any(Object),
     );
   });
 
@@ -270,12 +285,13 @@ describe("useChatPageActions", () => {
     });
 
     expect(deps.resolveDM.mutateAsync).toHaveBeenCalledWith("u2");
-    expect(deps.sendRoomMessage.mutateAsync).toHaveBeenCalledWith(
+    expect(deps.sendRoomMessage.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
         roomId: "room-dm",
         body: "hello",
         client_msg_id: expect.any(String),
       }),
+      expect.any(Object),
     );
   });
 
@@ -354,14 +370,15 @@ describe("useChatPageActions", () => {
 
   it("surfaces blocked-user errors when sending", async () => {
     const deps = buildDeps({
-      sendRoomMessage: {
-        mutateAsync: vi.fn().mockRejectedValue(new ApiError("blocked", "chat_user_blocked", 403)),
-      },
+      sendRoomMessage: mockSendMutation(
+        vi.fn().mockRejectedValue(new ApiError("blocked", "chat_user_blocked", 403)),
+      ),
     });
     const { result } = renderHook(() => useChatPageActions(deps));
 
     await act(async () => {
       await result.current.provisionAndSend();
+      await Promise.resolve();
     });
 
     expect(deps.setConnectError).toHaveBeenCalledWith("Không thể gửi tin nhắn tới người này.");
@@ -371,14 +388,15 @@ describe("useChatPageActions", () => {
   // the message until the next socket rebuild.
   it("tells a rate-limited sender to wait instead of queueing as offline", async () => {
     const deps = buildDeps({
-      sendRoomMessage: {
-        mutateAsync: vi.fn().mockRejectedValue(new ApiError("slow down", "rate_limited", 429)),
-      },
+      sendRoomMessage: mockSendMutation(
+        vi.fn().mockRejectedValue(new ApiError("slow down", "rate_limited", 429)),
+      ),
     });
     const { result } = renderHook(() => useChatPageActions(deps));
 
     await act(async () => {
       await result.current.provisionAndSend();
+      await Promise.resolve();
     });
 
     expect(deps.setConnectError).toHaveBeenCalledWith(
@@ -390,16 +408,18 @@ describe("useChatPageActions", () => {
   });
 
   it("queues a failed thread reply with its thread root", async () => {
+    const sendThreadMessage = mockSendMutation(
+      vi.fn().mockRejectedValue(new ApiError("down", "internal", 503)),
+    );
     const deps = buildDeps({
       activeThreadRootId: "root1",
-      sendThreadMessage: {
-        mutateAsync: vi.fn().mockRejectedValue(new ApiError("down", "internal", 503)),
-      },
+      sendThreadMessage,
     });
     const { result } = renderHook(() => useChatPageActions(deps));
 
     await act(async () => {
       await result.current.provisionAndSend();
+      await Promise.resolve();
     });
 
     const { useChatSendOutboxStore } = await import("@uniwork/core/chat/send-outbox-store");
@@ -411,12 +431,13 @@ describe("useChatPageActions", () => {
 
   it("queues a send lost to the network quietly, without marking it failed", async () => {
     const deps = buildDeps({
-      sendRoomMessage: { mutateAsync: vi.fn().mockRejectedValue(new TypeError("Failed to fetch")) },
+      sendRoomMessage: mockSendMutation(vi.fn().mockRejectedValue(new TypeError("Failed to fetch"))),
     });
     const { result } = renderHook(() => useChatPageActions(deps));
 
     await act(async () => {
       await result.current.provisionAndSend();
+      await Promise.resolve();
     });
 
     const { useChatSendOutboxStore } = await import("@uniwork/core/chat/send-outbox-store");
@@ -426,7 +447,7 @@ describe("useChatPageActions", () => {
   });
 
   it("sends the side thread's own draft into its thread and leaves the main composer's reply and priority alone", async () => {
-    const sendThreadMessage = { mutateAsync: vi.fn().mockResolvedValue(undefined) };
+    const sendThreadMessage = mockSendMutation(vi.fn().mockResolvedValue(undefined));
     const setComposerPriority = vi.fn();
     const deps = buildDeps({
       replyTo: { id: "m9" } as ChatMessage,
@@ -444,10 +465,11 @@ describe("useChatPageActions", () => {
       await result.current.provisionAndSend(() => threadDraft, write, "root1");
     });
 
-    expect(sendThreadMessage.mutateAsync).toHaveBeenCalledWith(
+    expect(sendThreadMessage.mutate).toHaveBeenCalledWith(
       expect.objectContaining({ threadRootId: "root1", body: "trong chủ đề", priority: undefined }),
+      expect.any(Object),
     );
-    expect(deps.sendRoomMessage.mutateAsync).not.toHaveBeenCalled();
+    expect(deps.sendRoomMessage.mutate).not.toHaveBeenCalled();
     expect(threadDraft).toBe("");
     // The main composer's draft, reply and priority are untouched.
     expect(deps.getDraft()).toBe("hello");
@@ -455,36 +477,30 @@ describe("useChatPageActions", () => {
     expect(setComposerPriority).not.toHaveBeenCalled();
   });
 
-  it("tracks an optimistic pending row while sending online", async () => {
+  it("fires send without waiting on the HTTP answer", async () => {
     let resolveSend: ((value: null) => void) | undefined;
+    const sendFn = vi.fn(
+      (): Promise<null> =>
+        new Promise<null>((resolve) => {
+          resolveSend = resolve;
+        }),
+    );
     const deps = buildDeps({
-      sendRoomMessage: {
-        mutateAsync: vi.fn(
-          (): Promise<null> =>
-            new Promise<null>((resolve) => {
-              resolveSend = resolve;
-            }),
-        ),
-      },
+      sendRoomMessage: mockSendMutation(sendFn),
     });
     const { result } = renderHook(() => useChatPageActions(deps));
 
-    let sendPromise: Promise<void> | undefined;
-    act(() => {
-      sendPromise = result.current.provisionAndSend();
+    await act(async () => {
+      await result.current.provisionAndSend();
     });
 
+    expect(sendFn).toHaveBeenCalled();
     const { usePendingChatMessagesStore } = await import("@uniwork/core/chat/pending-messages-store");
-    expect(usePendingChatMessagesStore.getState().listForRoom("ws1", "room1")).toEqual([
-      expect.objectContaining({
-        body: "hello",
-        status: "sending",
-      }),
-    ]);
+    expect(usePendingChatMessagesStore.getState().listForRoom("ws1", "room1")).toEqual([]);
 
-    resolveSend?.(null);
     await act(async () => {
-      await sendPromise;
+      resolveSend?.(null);
+      await Promise.resolve();
     });
   });
 
@@ -499,7 +515,7 @@ describe("useChatPageActions", () => {
       await result.current.provisionAndSend();
     });
 
-    expect(deps.sendRoomMessage.mutateAsync).not.toHaveBeenCalled();
+    expect(deps.sendRoomMessage.mutate).not.toHaveBeenCalled();
     expect(deps.setDraft).toHaveBeenCalledWith("");
     expect(deps.setConnectError).toHaveBeenCalledWith("Tin nhắn đã được lưu và sẽ gửi khi có mạng.");
 

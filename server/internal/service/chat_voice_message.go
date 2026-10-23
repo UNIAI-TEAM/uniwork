@@ -62,6 +62,7 @@ func validStoredVoiceMetadata(durationMS int, contentType string, sizeBytes int6
 // a thread reply's root, because the sidebar counts only the main timeline
 // (UNI-1693). threadRootID is "" for a main-timeline message.
 func (s *ChatService) publishCreatedChatMessage(ctx context.Context, room db.ChatRoom, messageID, senderID, threadRootID string) {
+	s.recordChatChange(ctx, room, messageID, ChatChangeCreated)
 	anchorWS := roomAnchorWorkspaceID(room)
 	ev := Event{
 		Type:    "chat.message.created",

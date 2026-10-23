@@ -1,4 +1,5 @@
 import type { AdminBillingQuery, AdminOrganizationQuery } from "../api/endpoints/admin";
+import type { AdminChatReportQuery } from "../api/endpoints/admin-chat-reports";
 
 /**
  * Query keys for the platform-admin console. Nothing here is workspace
@@ -20,4 +21,6 @@ export const adminKeys = {
   invoicesRoot: ["admin", "invoices"] as const,
   invoices: (query: AdminBillingQuery) => ["admin", "invoices", query] as const,
   paymentIntents: (query: AdminBillingQuery) => ["admin", "payment-intents", query] as const,
+  chatReportsRoot: ["admin", "chat-reports"] as const,
+  chatReports: (query: AdminChatReportQuery) => ["admin", "chat-reports", query] as const,
 };

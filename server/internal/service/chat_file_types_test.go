@@ -65,9 +65,6 @@ func TestChatFileAllowlistsAgree(t *testing.T) {
 		}
 	}
 	for mime, ext := range storedChatFileMIMETypes {
-		if strings.HasPrefix(mime, "text/") && mime != "text/plain" {
-			continue
-		}
 		if !clientMIME[mime] {
 			t.Errorf("client ALLOWED_MIME is missing %s", mime)
 		}

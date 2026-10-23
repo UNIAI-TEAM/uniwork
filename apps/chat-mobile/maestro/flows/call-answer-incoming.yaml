@@ -1,0 +1,64 @@
+# Answer an incoming call from Android's own ringing notification
+# (docs/adr/drafts/0038). The nightly runs it twice on a Google APIs emulator
+# whose build carries google-services.json, so the data-only FCM push really
+# arrives (chat-mobile-verify.yml › android, "Incoming calls"): once with
+# UniChat in the background (APP_STATE=background, the default) and once with
+# its process killed the way the system kills it (APP_STATE=killed: Maestro's
+# killApp, not a force-stop, which would also stop FCM delivery).
+#
+# A second account rings the test account (scripts/peer-session.js signs it in,
+# scripts/ring-from-caller.js rings): MAESTRO_CALLER_EMAIL,
+# MAESTRO_CALLER_PASSWORD, MAESTRO_CALLER_WS_ID and MAESTRO_DM_ROOM_ID. By hand:
+#   cd apps/chat-mobile/maestro && maestro test -e APP_STATE=killed \
+#     -e MAESTRO_API_URL=… -e MAESTRO_CALLER_EMAIL=… -e MAESTRO_CALLER_PASSWORD=… \
+#     -e MAESTRO_CALLER_WS_ID=… -e MAESTRO_DM_ROOM_ID=… flows/call-answer-incoming.yaml
+#
+# What it proves: from the background and from a killed process, the call push
+# becomes the CallStyle notification (caller's name, Answer / Decline), Answer
+# opens the app on the call screen and the call connects, and hanging up ends
+# it. Not proven here: the full-screen ringing over a locked screen (Maestro
+# cannot lock the device), audio between the two, the in-call service keeping
+# the microphone with the screen off — the release checklist does those by
+# hand (docs/runbooks/unichat-mobile-release.md › Native calls on Android).
+appId: com.uniworkos.chat.staging
+name: Answer an incoming call from the notification
+tags:
+  - calls
+  - two-account
+env:
+  APP_STATE: background
+---
+- launchApp
+- runFlow: ../subflows/sign-in.yaml
+# Away from the app: the ring must come from the push, not the socket.
+- runFlow:
+    when:
+      true: ${APP_STATE == 'killed'}
+    commands:
+      - killApp
+- runFlow:
+    when:
+      true: ${APP_STATE != 'killed'}
+    commands:
+      - pressKey: Home
+- runScript: ../scripts/peer-session.js
+- runScript: ../scripts/ring-from-caller.js
+# Android 12+ draws its own CallStyle buttons (Answer / Trả lời); a build
+# that refuses CallStyle posts ours (chat.voice_call_accept: Accept / Nghe máy).
+- extendedWaitUntil:
+    visible: "(Answer|Trả lời|Accept|Nghe máy)"
+    timeout: 30000
+- tapOn: "(Answer|Trả lời|Accept|Nghe máy)"
+- extendedWaitUntil:
+    visible:
+      id: call-active
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "(Connected|Đã kết nối) · .+"
+    timeout: 30000
+- tapOn:
+    id: call-hangup
+- extendedWaitUntil:
+    notVisible:
+      id: call-active
+    timeout: 15000

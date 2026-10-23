@@ -4,12 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEditChatMessage } from "@uniwork/core/chat";
 import { chatErrorMessage } from "./chat-error-message";
-import type { ChatMentionCandidate } from "./chat-mention-utils";
+import type { ChatMentionCandidate } from "@uniwork/core/chat/chat-mention-utils";
 import {
   deserializeMessageBodyToComposerDraft,
   mentionCandidatesFromBody,
   serializeComposerDraftToMessageBody,
-} from "./chat-mention-utils";
+} from "@uniwork/core/chat/chat-mention-utils";
 import type { ChatMessage } from "./chat-messages";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 

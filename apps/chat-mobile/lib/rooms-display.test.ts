@@ -1,21 +1,8 @@
 // Parity: the cases of packages/views/chat/chat-sidebar-unified.test.ts and
 // chat-sidebar-preview.test.ts, verbatim, then the mobile-only helpers.
 import { describe, expect, it } from "vitest";
-import {
-  applyKnownPeopleToRoomPreviews,
-  buildUnifiedSidebarEntries,
-  canSendInRoom,
-  comparePinnedRoomOrder,
-  compareRoomPreviewRecency,
-  displayLabelForChatContact,
-  formatChatSidebarPreviewText,
-  givenNameOf,
-  isMissedCallPreview,
-  splitChatSidebarPreviewPrefix,
-  formatChatSidebarTime,
-  resolveChatNicknameForUser,
-  sidebarEntryRoomId,
-} from "./rooms-display";
+import { applyKnownPeopleToRoomPreviews, buildUnifiedSidebarEntries, canSendInRoom, comparePinnedRoomOrder, compareRoomPreviewRecency, formatChatSidebarPreviewText, isMissedCallPreview, splitChatSidebarPreviewPrefix, formatChatSidebarTime, sidebarEntryRoomId } from "./rooms-display";
+import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
 
 describe("buildUnifiedSidebarEntries", () => {
   it("sorts pinned then recent across kinds into one list", () => {
@@ -164,6 +151,7 @@ describe("chat-sidebar-preview", () => {
     expect(isMissedCallPreview(call, "CALLER")).toBe(false);
     expect(formatChatSidebarPreviewText({ ...call, callOutcome: "completed" }, options)).toBe("Cuộc gọi thoại");
     expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice", durationMs: 41200 }, options)).toBe("Tin nhắn thoại · 0:42");
+    expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice", durationMs: 3_725_000 }, options)).toBe("Tin nhắn thoại · 1:02:05");
     expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice" }, options)).toBe("Tin nhắn thoại");
     expect(formatChatSidebarPreviewText({ ...base, body: "IMG_0042.JPG", kind: "file" }, options)).toBe("Ảnh");
     expect(formatChatSidebarPreviewText({ ...base, body: "bao-gia.pdf", kind: "file" }, options)).toBe("bao-gia.pdf");
@@ -178,8 +166,6 @@ describe("chat-sidebar-preview", () => {
     expect(splitChatSidebarPreviewPrefix(group, body)).toEqual({ prefix: "Quân: ", body: "xem giúp" });
     expect(splitChatSidebarPreviewPrefix("xem giúp", "xem giúp")).toEqual({ prefix: null, body: "xem giúp" });
     expect(splitChatSidebarPreviewPrefix(null, null)).toEqual({ prefix: null, body: null });
-    expect(givenNameOf("Phòng HC")).toBe("Phòng HC");
-    expect(givenNameOf("Hà")).toBe("Hà");
   });
 
   it("formats group preview with sender prefix", () => {
@@ -327,6 +313,17 @@ describe("chat-sidebar-preview", () => {
     ).toMatch(/\d/);
     expect(
       formatChatSidebarTime("2026-03-25T10:30:00Z", {
+        now,
+        yesterdayLabel: "Hôm qua",
+      }),
+    ).toBe("Hôm qua");
+  });
+
+  it("labels yesterday when calendar days differ by almost one day (DST-safe)", () => {
+    const now = new Date(2026, 2, 26, 10, 0, 0);
+    const yesterday = new Date(2026, 2, 25, 23, 30, 0);
+    expect(
+      formatChatSidebarTime(yesterday.toISOString(), {
         now,
         yesterdayLabel: "Hôm qua",
       }),

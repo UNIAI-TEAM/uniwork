@@ -4,7 +4,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams } from "expo-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
@@ -13,20 +13,26 @@ import { Conversation } from "@/components/chat/conversation";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useActiveRoom } from "@/components/chat/use-read-marking";
 import { useRoomContext } from "@/components/chat/use-room-context";
-import { markThreadRead } from "@/data/chat-actions";
+import { useMarkThreadRead } from "@/data/mutations/rooms";
+import { bestEffort } from "@/data/report";
 import { threadTimelineOptions } from "@/data/queries/chat";
 import { selectRoomSends, useChatSendStore } from "@/data/stores/chat-send-store";
+import { selectRoomOps, usePendingOpsStore } from "@/data/stores/pending-ops-store";
+import { overlayPendingOps } from "@/lib/pending-ops-overlay";
 import { THEME } from "@/lib/theme";
 import { buildThreadViewMessages } from "@/lib/timeline-display";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roomId: string; rootId: string }) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
+  const markThreadRead = useMarkThreadRead(chat.wsId).mutateAsync;
   const room = useRoomContext(chat, roomId);
+  const [atLatest, setAtLatest] = useState(true);
   const thread = useInfiniteQuery(threadTimelineOptions(chat.wsId, roomId, rootId));
-  const sends = useChatSendStore(useShallow((s) => selectRoomSends(s.entries, chat.wsId, roomId)));
-  const rows = useMemo(() => thread.data ?? [], [thread.data]);
+  const sends = useChatSendStore(useShallow((s) => selectRoomSends(s.entries, chat.wsId, roomId, chat.userId)));
+  const ops = usePendingOpsStore(useShallow((s) => selectRoomOps(s.ops, chat.wsId, roomId, chat.userId)));
+  const rows = useMemo(() => overlayPendingOps(thread.data ?? [], ops, chat.userId), [thread.data, ops, chat.userId]);
   const root = rows.find((m) => m.id === rootId);
   const messages = useMemo(
     () =>
@@ -37,8 +43,9 @@ function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roo
   );
 
   const onFocus = useCallback(() => {
-    void markThreadRead(chat.wsId, rootId).catch(() => undefined);
-  }, [chat.wsId, rootId]);
+    // The mutation layer reports a failure (data/query-errors.ts); a thread left unread only says so.
+    void markThreadRead(rootId).catch(bestEffort("chat", "thread read not marked", "breadcrumb"));
+  }, [markThreadRead, rootId]);
   useActiveRoom(roomId, onFocus);
 
   return (
@@ -61,11 +68,14 @@ function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roo
       }
       messages={messages}
       loading={thread.isPending}
+      onRetryLoad={thread.isError && !thread.data ? () => void thread.refetch() : undefined}
       loadingOlder={thread.isFetchingNextPage}
       onLoadOlder={!thread.hasNextPage || thread.isFetchingNextPage ? undefined : () => void thread.fetchNextPage()}
+      onRetryOlder={thread.isFetchNextPageError ? () => void thread.fetchNextPage() : undefined}
       jumpTo={null}
       onQuoteJump={() => undefined}
-      onAtLatestChange={() => undefined}
+      atLatest={atLatest}
+      onAtLatestChange={setAtLatest}
     />
   );
 }

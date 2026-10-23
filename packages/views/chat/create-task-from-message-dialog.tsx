@@ -23,7 +23,7 @@ import { ChatTaskAssigneeField, ChatTaskDueField, ChatTaskProjectField } from ".
 import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_DIALOG_WIDTH } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { ChatFormFooterNote, RequiredMark } from "./chat-form-parts";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { formatMessageTime } from "./chat-message-time";
 import { chatPersonFaceClass } from "./chat-person-card";
 import { senderNameClass, senderQuoteClass } from "./sender-colors";

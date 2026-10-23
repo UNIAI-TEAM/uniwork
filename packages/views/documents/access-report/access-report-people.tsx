@@ -9,7 +9,7 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
-import { initialOf } from "../../chat/chat-initials";
+import { initialOf } from "@uniwork/core/chat/initials";
 import { CollectionPageState } from "../../layout/collection-page";
 import { SORT_HEADER_BUTTON } from "../library-sort-header";
 import { accessLevelLabel, accessSourceLabel, principalTypeLabel, REPORT_LEVELS } from "./access-report-labels";

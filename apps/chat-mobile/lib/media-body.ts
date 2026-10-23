@@ -1,5 +1,5 @@
-// Copied from packages/views/chat/chat-expression-utils.ts (reading, and from
-// M3 writing the body a sticker or GIF is sent as); keep in parity
+// Copied from packages/views/chat/chat-expression-utils.ts (reading, and
+// writing the body a sticker or GIF is sent as); keep in parity
 // (media-body.test.ts).
 
 const MEDIA_MESSAGE_PATTERN = /^!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)$/;

@@ -4,7 +4,7 @@
 import { ChatRoomSchema, type ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it } from "vitest";
 import { i18n } from "./i18n/singleton";
-import { buildRoomList, filterRoomList, roomTitle, workspaceRoomTitle, type RoomListFilter } from "./room-list";
+import { buildRoomList, filterRoomList, newestRow, quickCatchUp, roomListTypingLines, roomTitle, sameRoomListRow, workspaceRoomTitle, type RoomListFilter, type RoomListRow } from "./room-list";
 
 const room = (raw: Record<string, unknown>): ChatRoomRecord =>
   ChatRoomSchema.parse({ workspace_id: "w1", name: "", member_count: 0, ...raw });
@@ -93,6 +93,16 @@ describe("buildRoomList", () => {
     expect(roomless).toEqual([expect.objectContaining({ key: "workspace", roomId: null, room: null, unread: 0, mentionUnread: 0, pinned: false })]);
   });
 
+  it("ticks a DM whose last message is mine once the peer has read past it, never a group or their message", () => {
+    const dm = (readAt: string | undefined, sender = "U1") =>
+      room({ id: "dm1", kind: "dm", name: "Bình", peer_user_id: "u2", last_message_body: "ok", last_message_sender_id: sender, last_message_at: "2026-10-17T10:00:00Z", peer_last_read_at: readAt });
+    const seenOf = (rows: ReturnType<typeof buildRoomList>, key: string) => rows.find((row) => row.key === key)?.seen;
+    expect(seenOf(buildRoomList({ ...base, rooms: [dm("2026-10-17T10:00:05Z")] }), "dm:u2")).toBe(true);
+    expect(seenOf(buildRoomList({ ...base, rooms: [dm("2026-10-17T09:59:00Z")] }), "dm:u2")).toBe(false);
+    expect(seenOf(buildRoomList({ ...base, rooms: [dm("2026-10-17T10:00:05Z", "u2")] }), "dm:u2")).toBe(false);
+    expect(seenOf(buildRoomList(base), "group:g1")).toBe(false);
+  });
+
   it("keeps a group's own empty preview empty", () => {
     const rows = buildRoomList({ ...base, rooms: [room({ id: "g2", kind: "group", name: "Mới" })] });
     expect(rows.find((row) => row.key === "group:g2")?.subtitle).toBeNull();
@@ -129,5 +139,80 @@ describe("workspaceRoomTitle", () => {
     expect(workspaceRoomTitle(" ", "Acme", "Chung")).toBe("Chung");
     expect(workspaceRoomTitle(undefined, undefined, "Chung")).toBe("Chung");
     expect(workspaceRoomTitle("Phòng lớn", "Acme", "Chung")).toBe("Phòng lớn");
+  });
+});
+
+describe("buildRoomList without typing or presence (the Chat tab)", () => {
+  it("builds every row offline and quiet; the tab lays the rest over them", () => {
+    const { typingByRoomId: _typing, isOnline: _online, ...quiet } = base;
+    const rows = buildRoomList(quiet);
+    expect(rows.find((row) => row.key === "dm:u2")?.mark).toMatchObject({ kind: "dm", online: false });
+    expect(rows.every((row) => !row.typing)).toBe(true);
+  });
+});
+
+describe("roomListTypingLines", () => {
+  const words = { rooms, nicknamesByUserId: {}, workspaceMembers: base.workspaceMembers, t: base.t, locale: "vi" };
+
+  it("words each room someone types in as its row would, and nothing while nobody types", () => {
+    expect(roomListTypingLines({ ...words, typingByRoomId: {} })).toEqual({});
+    expect(roomListTypingLines({ ...words, typingByRoomId: { g1: [] } })).toEqual({});
+    const lines = roomListTypingLines({ ...words, typingByRoomId: { g1: ["U3"], dm1: ["U2"] } });
+    const rows = buildRoomList({ ...base, typingByRoomId: { g1: ["U3"], dm1: ["U2"] } });
+    expect(lines).toEqual({ g1: "Chi đang nhập…", dm1: rows.find((row) => row.key === "dm:u2")?.subtitle });
+  });
+});
+
+describe("sameRoomListRow", () => {
+  const row = (): RoomListRow => buildRoomList(base).find((r) => r.key === "dm:u2")!;
+
+  it("holds a rebuilt row that draws the same equal, whatever its record", () => {
+    expect(sameRoomListRow(row(), { ...row(), room: null })).toBe(true);
+  });
+
+  it.each<[string, Partial<RoomListRow>]>([
+    ["key", { key: "dm:u3" }],
+    ["roomId", { roomId: "dm9" }],
+    ["title", { title: "Bình 2" }],
+    ["prefix", { prefix: "Bạn: " }],
+    ["subtitle", { subtitle: "mới" }],
+    ["typing", { typing: true }],
+    ["missed", { missed: true }],
+    ["seen", { seen: true }],
+    ["time", { time: "08:00" }],
+    ["unread", { unread: 9 }],
+    ["mentions", { mentionUnread: 0 }],
+    ["muted", { muted: false }],
+    ["pinned", { pinned: true }],
+    ["mark kind", { mark: { kind: "group", label: "Bình" } }],
+    ["mark label", { mark: { kind: "dm", label: "Ân", online: true, userId: "u2" } }],
+    ["presence", { mark: { kind: "dm", label: "Bình", online: false, userId: "u2" } }],
+    ["person", { mark: { kind: "dm", label: "Bình", online: true, userId: "u9" } }],
+  ])("tells a change of %s apart", (_name, change) => {
+    expect(sameRoomListRow(row(), { ...row(), ...change })).toBe(false);
+  });
+});
+
+describe("newestRow", () => {
+  it("hands a tap the newest row with the key, or the held one once it left the list", () => {
+    const [held, other] = buildRoomList(base);
+    const newer = { ...held!, unread: 9 };
+    expect(newestRow(new Map([[newer.key, newer]]), held!)).toBe(newer);
+    expect(newestRow(new Map([[other!.key, other!]]), held!)).toBe(held);
+  });
+});
+
+describe("quickCatchUp", () => {
+  const row = (key: string, unread: number, roomId: string | null = key) => ({ key, roomId, unread }) as RoomListRow;
+
+  it("sums the unread of the rows with a room and opens the room holding the most (the first of a tie)", () => {
+    const rows = [row("a", 2), row("b", 5), row("c", 0), row("d", 5), row("dm-new", 9, null)];
+    const pick = quickCatchUp(rows);
+    expect(pick).toMatchObject({ total: 12, rooms: 3 });
+    expect(pick.top?.key).toBe("b");
+  });
+
+  it("has nothing to open when nothing is unread", () => {
+    expect(quickCatchUp([row("a", 0)])).toEqual({ total: 0, rooms: 0, top: null });
   });
 });

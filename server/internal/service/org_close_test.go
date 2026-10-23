@@ -158,6 +158,86 @@ func TestClosedOrganizationDoesNotBlockAccountDeletion(t *testing.T) {
 	}
 }
 
+// Apple 5.1.1(v): a sole owner finishes deletion in the app. owner_must_transfer
+// names the organization and says it can be closed; sending its slug back
+// closes it and erases the account in one transaction.
+func TestSoleOwnerClosesOrganizationAndDeletesAccount(t *testing.T) {
+	t.Run("the refusal names the organization and offers the close", func(t *testing.T) {
+		f := newOrgMembersFixture(t)
+		f.soloOrganization(t)
+		err := f.auth.DeleteAccount(f.ctx, f.other.ID, DeleteAccountInput{Password: "password123"})
+		if !errors.Is(err, ErrOwnerMustTransfer) {
+			t.Fatalf("delete without a close: %v", err)
+		}
+		fields := codedFields(t, err, "owner_must_transfer")
+		if fields["organization_slug"] != "mot-minh" || fields["organization_name"] != "Một mình" || fields["can_close"] != true {
+			t.Fatalf("fields: %#v", fields)
+		}
+	})
+
+	t.Run("a wrong slug changes nothing", func(t *testing.T) {
+		f := newOrgMembersFixture(t)
+		o := f.soloOrganization(t)
+		err := f.auth.DeleteAccount(f.ctx, f.other.ID, DeleteAccountInput{Password: "password123", CloseOrganization: "unicom"})
+		if !errors.Is(err, ErrCloseConfirmMismatch) {
+			t.Fatalf("close by another organization's slug: %v", err)
+		}
+		if got, _ := f.q.GetOrganizationByID(f.ctx, o.ID); got.Status != OrganizationActive {
+			t.Fatalf("refused deletion closed the organization: %s", got.Status)
+		}
+		if n := f.count(t, `SELECT count(*) FROM users WHERE id = $1 AND deleted_at IS NULL`, f.other.ID); n != 1 {
+			t.Fatal("refused deletion erased the account")
+		}
+	})
+
+	t.Run("a wrong proof closes nothing", func(t *testing.T) {
+		f := newOrgMembersFixture(t)
+		o := f.soloOrganization(t)
+		if err := f.auth.DeleteAccount(f.ctx, f.other.ID, DeleteAccountInput{Password: "wrong", CloseOrganization: "mot-minh"}); err == nil {
+			t.Fatal("deleted with a wrong password")
+		}
+		if got, _ := f.q.GetOrganizationByID(f.ctx, o.ID); got.Status != OrganizationActive {
+			t.Fatalf("refused deletion closed the organization: %s", got.Status)
+		}
+	})
+
+	t.Run("the slug closes the organization and erases the account together", func(t *testing.T) {
+		f := newOrgMembersFixture(t)
+		o := f.soloOrganization(t)
+		if err := f.auth.DeleteAccount(f.ctx, f.other.ID, DeleteAccountInput{Password: "password123", CloseOrganization: " mot-minh "}); err != nil {
+			t.Fatalf("close and delete: %v", err)
+		}
+		if got, _ := f.q.GetOrganizationByID(f.ctx, o.ID); got.Status != "archived" {
+			t.Fatalf("organization status: %s", got.Status)
+		}
+		if n := f.count(t, `SELECT count(*) FROM users WHERE id = $1 AND deleted_at IS NOT NULL`, f.other.ID); n != 1 {
+			t.Fatal("the account was not erased")
+		}
+		if n := f.count(t, `SELECT count(*) FROM audit_events WHERE action = 'organization.closed' AND organization_id = $1
+			AND metadata::jsonb->>'reason' = 'account_deleted'`, o.ID); n != 1 {
+			t.Fatalf("organization.closed rows naming the deletion: %d", n)
+		}
+		if n := f.count(t, `SELECT count(*) FROM outbox_events WHERE topic = 'organization.closed' AND organization_id = $1`, o.ID); n != 1 {
+			t.Fatalf("organization.closed events: %d", n)
+		}
+	})
+
+	t.Run("an owner with members still hands it over", func(t *testing.T) {
+		f := newOrgMembersFixture(t)
+		err := f.auth.DeleteAccount(f.ctx, f.owner.ID, DeleteAccountInput{Password: "password123"})
+		if fields := codedFields(t, err, "owner_must_transfer"); fields["can_close"] != false || fields["organization_slug"] != "unicom" {
+			t.Fatalf("fields: %#v", fields)
+		}
+		err = f.auth.DeleteAccount(f.ctx, f.owner.ID, DeleteAccountInput{Password: "password123", CloseOrganization: "unicom"})
+		if !errors.Is(err, ErrOrganizationHasMembers) {
+			t.Fatalf("close an organization with members: %v", err)
+		}
+		if n := f.count(t, `SELECT count(*) FROM users WHERE id = $1 AND deleted_at IS NULL`, f.owner.ID); n != 1 {
+			t.Fatal("refused deletion erased the account")
+		}
+	})
+}
+
 // waitForRowLockWaiters blocks until n backends of this database wait on a
 // row or transaction lock (advisory waits are the test lock of other
 // packages), so a race is staged in a known order instead of by sleeping.

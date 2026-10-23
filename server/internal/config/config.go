@@ -168,6 +168,10 @@ type Config struct {
 	VAPIDSubject    string
 	// ExpoAccessToken authenticates mobile push to Expo Push Service when the
 	// Expo project enables enhanced push security; empty sends unauthenticated.
+	// Production should carry one (UnauthenticatedMobilePush), but its absence
+	// is a loud log line at server start, never a boot error: every CLI that
+	// calls Load (cmd/migrate among them) would refuse to run over a push
+	// setting it never uses.
 	ExpoAccessToken string
 	// RUMSampleRate is the share of web sessions that report web-vitals to
 	// POST /api/v1/rum (F-11 §2.8); 0 turns reporting off client-side.
@@ -187,6 +191,16 @@ type Config struct {
 	UniChatStoreAndroidURL     string
 	UniChatTestFlightURL       string
 	UniChatPlayInternalURL     string
+	// UniChatMobileMinVersion is the oldest UniChat mobile version the server
+	// still serves, published as min_supported_mobile_version on
+	// GET /api/v1/config: a phone below it shows "Update required". Empty
+	// means no gate. Always MAJOR.MINOR.PATCH (Load refuses anything else).
+	UniChatMobileMinVersion string
+	// UniChatMobileRecommendedVersion is the version UniChat mobile should be
+	// on, published as recommended_mobile_version: a phone below it shows a
+	// dismissible "a new version is out" banner, never a block. Empty means no
+	// nudge. Always MAJOR.MINOR.PATCH (Load refuses anything else).
+	UniChatMobileRecommendedVersion string
 	// AdminRateLimitPerMin bounds /api/v1/admin/* per IP (spec §5.2).
 	AdminRateLimitPerMin int
 	// HTTPMaxInFlight bounds the HTTP requests served at once; past it the
@@ -200,6 +214,14 @@ type Config struct {
 	// destructive (default) deletes unreferenced files, dry_run only reports,
 	// off skips the sweep. Load rejects any other value.
 	FileGCMode string
+}
+
+// UnauthenticatedMobilePush reports a production server with no Expo access
+// token (audit "Security & privacy", push-preview-plaintext): its mobile pushes
+// go out unauthenticated, and once the Expo project turns on enhanced push
+// security Expo refuses every one of them. The server logs it at start.
+func (c Config) UnauthenticatedMobilePush() bool {
+	return strings.EqualFold(c.AppEnv, "production") && strings.TrimSpace(c.ExpoAccessToken) == ""
 }
 
 // PushEnabled: both VAPID keys present.
@@ -352,6 +374,16 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	// A typo here would silently switch the mobile version gate off, so a set
+	// value that is not MAJOR.MINOR.PATCH fails the load.
+	mobileMinVersion, err := parseMobileVersion(os.Getenv("UNICHAT_MOBILE_MIN_SUPPORTED_VERSION"))
+	if err != nil {
+		return Config{}, fmt.Errorf("UNICHAT_MOBILE_MIN_SUPPORTED_VERSION %w", err)
+	}
+	mobileRecommendedVersion, err := parseMobileVersion(os.Getenv("UNICHAT_MOBILE_RECOMMENDED_VERSION"))
+	if err != nil {
+		return Config{}, fmt.Errorf("UNICHAT_MOBILE_RECOMMENDED_VERSION %w", err)
+	}
 	folderUploadMaxFiles, err := parsePositiveInt64("FOLDER_UPLOAD_MAX_FILES", os.Getenv("FOLDER_UPLOAD_MAX_FILES"), DefaultFolderUploadMaxFiles)
 	if err != nil {
 		return Config{}, err
@@ -453,11 +485,13 @@ func Load() (Config, error) {
 		UniChatStoreAndroidURL:        os.Getenv("UNICHAT_STORE_ANDROID_URL"),
 		UniChatTestFlightURL:          os.Getenv("UNICHAT_TESTFLIGHT_URL"),
 		UniChatPlayInternalURL:        os.Getenv("UNICHAT_PLAY_INTERNAL_URL"),
+		UniChatMobileMinVersion:       mobileMinVersion,
 		AdminRateLimitPerMin:          int(parseInt32(os.Getenv("ADMIN_RATE_LIMIT_PER_MIN"), 60)),
 		HTTPMaxInFlight:               int(parseInt32(os.Getenv("HTTP_MAX_IN_FLIGHT"), 128)),
 		RealtimeRelay:                 !strings.EqualFold(strings.TrimSpace(os.Getenv("REALTIME_RELAY")), "false"),
 		FileGCMode:                    strings.ToLower(strings.TrimSpace(getenv("FILE_GC_MODE", "destructive"))),
 	}
+	c.UniChatMobileRecommendedVersion = mobileRecommendedVersion
 	switch c.FileGCMode {
 	case "destructive", "dry_run", "off":
 	default:

@@ -2,7 +2,10 @@
 // its sidebar (packages/views/chat/chat-page-view.tsx → chat-sidebar.tsx →
 // chat-sidebar-rows.tsx): the core room helpers split and count the rooms,
 // lib/rooms-display.ts orders and words them. Counts come straight from the
-// room records, so web and phone show the same numbers.
+// room records, so web and phone show the same numbers. The Chat tab builds the
+// rows without typing or presence: those change by the second,
+// so it lays the typing lines over them (roomListTypingLines) and each row reads
+// its peer's presence itself; sameRoomListRow lets an unchanged row skip a redraw.
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { isMessageSeenByPeer } from "@uniwork/core/chat/read-receipt-utils";
 import {
@@ -17,17 +20,17 @@ import { buildChatNameContext } from "./people-display";
 import {
   applyKnownPeopleToRoomPreviews,
   buildUnifiedSidebarEntries,
-  displayLabelForChatContact,
   formatChatSidebarPreviewText,
   formatChatSidebarTime,
   isMissedCallPreview,
   sidebarEntryRoomId,
   splitChatSidebarPreviewPrefix,
-  type ChatContact,
   type ChatRoomPreference,
   type UnifiedSidebarEntry,
 } from "./rooms-display";
+import { displayLabelForChatContact, type ChatContact } from "@uniwork/core/chat/contact-labels";
 import { formatSidebarTypingPreview, typingNameByUserIdFromContext } from "./typing-display";
+import { sameUser } from "./user-id";
 
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 
@@ -103,26 +106,106 @@ export function filterRoomList(rows: readonly RoomListRow[], filter: RoomListFil
   }
 }
 
+type WorkspaceMembers = ReadonlyArray<{ user_id: string; display_name: string; email: string }>;
+
+interface TypingWords {
+  t: TranslateFn;
+  locale: string;
+  nicknamesByUserId: Record<string, string>;
+  contacts: readonly ChatContact[];
+  fallbackNameByUserId: ReturnType<typeof typingNameByUserIdFromContext>;
+}
+
+function typingLine(typingIds: readonly string[], isGroup: boolean, words: TypingWords): string | null {
+  return formatSidebarTypingPreview(typingIds, { isGroup, ...words });
+}
+
+const NO_TYPING: Readonly<Record<string, string>> = Object.freeze({});
+
+/** "Chi đang nhập…" per room someone types in, worded as buildRoomList words it; one shared empty map while nobody types. */
+export function roomListTypingLines(input: {
+  rooms: ChatRoomRecord[];
+  nicknamesByUserId: Record<string, string>;
+  workspaceMembers: WorkspaceMembers;
+  typingByRoomId: Record<string, string[]>;
+  t: TranslateFn;
+  locale: string;
+}): Readonly<Record<string, string>> {
+  // Nobody typing (most of the time): no names to work out, and the same object as last time.
+  if (!input.rooms.some((room) => input.typingByRoomId[room.id]?.length)) return NO_TYPING;
+  const lines: Record<string, string> = {};
+  const { contacts } = sidebarFromChatRooms(input.rooms);
+  const nameContext = buildChatNameContext(contacts, [], input.workspaceMembers, input.nicknamesByUserId);
+  const words: TypingWords = {
+    t: input.t,
+    locale: input.locale,
+    nicknamesByUserId: input.nicknamesByUserId,
+    contacts,
+    fallbackNameByUserId: typingNameByUserIdFromContext(nameContext),
+  };
+  for (const room of input.rooms) {
+    const line = typingLine(input.typingByRoomId[room.id] ?? [], room.kind !== "dm", words);
+    if (line) lines[room.id] = line;
+  }
+  return lines;
+}
+
+/** Two rows draw the same (the row's record and entry aside: a tap reads the newest row by key). */
+export function sameRoomListRow(a: RoomListRow, b: RoomListRow): boolean {
+  return (
+    a.key === b.key &&
+    a.roomId === b.roomId &&
+    a.title === b.title &&
+    a.prefix === b.prefix &&
+    a.subtitle === b.subtitle &&
+    a.typing === b.typing &&
+    a.missed === b.missed &&
+    a.seen === b.seen &&
+    a.time === b.time &&
+    a.unread === b.unread &&
+    a.mentionUnread === b.mentionUnread &&
+    a.muted === b.muted &&
+    a.pinned === b.pinned &&
+    sameMark(a.mark, b.mark)
+  );
+}
+
+/** Every field a mark of any kind may carry: a RoomMark of each kind is one, so no cast is needed. */
+type MarkFields = { kind: string; label?: string; online?: boolean; userId?: string };
+
+function sameMark(a: MarkFields, b: MarkFields): boolean {
+  return a.kind === b.kind && a.label === b.label && a.online === b.online && a.userId === b.userId;
+}
+
+/** The newest row with the key of one a skipped cell still holds; that very row once it has left the list. */
+export function newestRow(rows: ReadonlyMap<string, RoomListRow>, held: RoomListRow): RoomListRow {
+  return rows.get(held.key) ?? held;
+}
+
 export function buildRoomList(input: {
   rooms: ChatRoomRecord[];
   filterText: string;
   workspaceName: string;
   currentUserId: string;
   nicknamesByUserId: Record<string, string>;
-  workspaceMembers: ReadonlyArray<{ user_id: string; display_name: string; email: string }>;
+  workspaceMembers: WorkspaceMembers;
   pinnedByRoomId: Record<string, ChatRoomPreference>;
-  typingByRoomId: Record<string, string[]>;
-  isOnline: (userId: string) => boolean;
+  /** Left out by the Chat tab, which lays roomListTypingLines over the rows. */
+  typingByRoomId?: Record<string, string[]>;
+  /** Left out by the Chat tab, whose rows read presence themselves (every DM offline here). */
+  isOnline?: (userId: string) => boolean;
   t: TranslateFn;
   locale: string;
 }): RoomListRow[] {
   const { rooms, currentUserId, nicknamesByUserId, t, locale } = input;
+  const typingByRoomId = input.typingByRoomId ?? {};
+  const isOnline = input.isOnline ?? (() => false);
   const { workspaceRoom, contacts, groups, channels } = sidebarFromChatRooms(rooms);
   const unread = unreadMapFromRooms(rooms);
   const mentions = mentionUnreadMapFromRooms(rooms);
   const nameContext = buildChatNameContext(contacts, [], input.workspaceMembers, nicknamesByUserId);
   const previews = applyKnownPeopleToRoomPreviews(roomPreviewMapFromRooms(rooms), nameContext);
-  const fallbackNameByUserId = typingNameByUserIdFromContext(nameContext);
+  const words: TypingWords = { t, locale, nicknamesByUserId, contacts, fallbackNameByUserId: typingNameByUserIdFromContext(nameContext) };
   const workspaceTitle = workspaceRoomTitle(workspaceRoom?.name, input.workspaceName, t("chat.workspace_room"));
   const byId = new Map(rooms.map((room) => [room.id, room]));
   const mediaLabels = { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") };
@@ -144,19 +227,11 @@ export function buildRoomList(input: {
 
   return entries.map((entry) => {
     const roomId = sidebarEntryRoomId(entry);
-    // Every entry with a room id was built from `rooms`.
-    const room = roomId ? (byId.get(roomId) as ChatRoomRecord) : null;
+    // Every entry with a room id was built from `rooms`; one without has no record.
+    const room = byId.get(roomId ?? "") ?? null;
     const isGroup = entry.kind !== "dm";
     const preview = roomId ? previews[roomId] : undefined;
-    const typingIds = roomId ? (input.typingByRoomId[roomId] ?? []) : [];
-    const typing = formatSidebarTypingPreview(typingIds, {
-      isGroup,
-      t,
-      locale,
-      nicknamesByUserId,
-      contacts: contacts as ChatContact[],
-      fallbackNameByUserId,
-    });
+    const typing = typingLine(roomId ? (typingByRoomId[roomId] ?? []) : [], isGroup, words);
     const previewOptions = {
       currentUserId,
       youLabel: t("chat.you"),
@@ -171,8 +246,12 @@ export function buildRoomList(input: {
     const { prefix, body } = isGroup
       ? splitChatSidebarPreviewPrefix(previewText, formatChatSidebarPreviewText(preview, { ...previewOptions, isGroup: false }))
       : { prefix: null, body: previewText };
-    const ownLast = preview ? preview.senderId.trim().toUpperCase() === currentUserId.trim().toUpperCase() : false;
-    const seen = entry.kind === "dm" && ownLast && preview ? isMessageSeenByPeer(Date.parse(preview.createdAt), room?.peer_last_read_at) : false;
+    // A tick only on a DM whose last message is mine: the peer's read pointer says whether it was seen.
+    const seen =
+      entry.kind === "dm" &&
+      preview != null &&
+      sameUser(preview.senderId, currentUserId) &&
+      isMessageSeenByPeer(Date.parse(preview.createdAt), room?.peer_last_read_at);
     let title: string;
     let mark: RoomMark;
     switch (entry.kind) {
@@ -190,7 +269,7 @@ export function buildRoomList(input: {
         break;
       case "dm":
         title = displayLabelForChatContact(entry.contact, nicknamesByUserId);
-        mark = { kind: "dm", label: title, online: input.isOnline(entry.contact.user_id), userId: entry.contact.user_id };
+        mark = { kind: "dm", label: title, online: isOnline(entry.contact.user_id), userId: entry.contact.user_id };
         break;
     }
     return {
@@ -212,4 +291,23 @@ export function buildRoomList(input: {
       pinned: roomId ? input.pinnedByRoomId[roomId]?.pinned === true : false,
     };
   });
+}
+
+/**
+ * "Bắt kịp nhanh" over the rows a scope shows: the unread they hold, how many
+ * rooms hold it, and the room holding the most (the first of a tie), which the
+ * banner opens (packages/views/chat/chat-sidebar-catch-up.tsx › pickQuickCatchUp,
+ * on the phone's rows). A row without a room (a DM not made yet) holds none.
+ */
+export function quickCatchUp(rows: readonly RoomListRow[]): { total: number; rooms: number; top: RoomListRow | null } {
+  let total = 0;
+  let rooms = 0;
+  let top: RoomListRow | null = null;
+  for (const row of rows) {
+    if (row.unread <= 0 || !row.roomId) continue;
+    total += row.unread;
+    rooms += 1;
+    if (!top || row.unread > top.unread) top = row;
+  }
+  return { total, rooms, top };
 }

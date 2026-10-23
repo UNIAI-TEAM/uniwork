@@ -1,8 +1,8 @@
 // Ported from usf apps/mobile/lib/theme.ts. TypeScript mirror of the CSS
 // variables in global.css (themselves tokens.css converted to HSL): THEME for
-// inline styles and anywhere a Tailwind class cannot reach, NAV_THEME for the
-// expo-router <ThemeProvider>. Change global.css and this file together.
-import { DarkTheme, DefaultTheme, type Theme } from "expo-router";
+// inline styles and anywhere a Tailwind class cannot reach (the expo-router
+// <ThemeProvider> reads it through components/ui/nav-theme.ts). Change
+// global.css and this file together. Pure: no platform import.
 
 export const THEME = {
   light: {
@@ -92,7 +92,8 @@ export const THEME = {
     successSolid: "hsl(149.4 71.1% 29.8%)",
     callSurface: "hsl(220 48.9% 8.4%)",
     chatWall: "hsl(219.1 46.9% 9.6%)",
-    chatBubbleOwn: "hsl(221.3 86.6% 56.3%)",
+    // Darker than the canvas's 56.3 % lightness (R4b): its meta line (time, ticks) read 3.7:1 there, under AA.
+    chatBubbleOwn: "hsl(221.3 80% 47%)",
     chatBubbleOwnForeground: "hsl(0 0% 100%)",
     chatBubbleOwnMeta: "hsl(220 80.5% 92%)",
     chatBubbleOther: "hsl(219 25% 15.7%)",
@@ -128,30 +129,5 @@ export const THEME = {
     chatSender6: "hsl(218.4 100% 73.8%)",
     chatSender7: "hsl(3.9 97.7% 75.5%)",
     chatSender8: "hsl(161 48.7% 57.7%)",
-  },
-};
-
-export const NAV_THEME: Record<"light" | "dark", Theme> = {
-  light: {
-    ...DefaultTheme,
-    colors: {
-      background: THEME.light.background,
-      border: THEME.light.border,
-      card: THEME.light.card,
-      notification: THEME.light.destructive,
-      primary: THEME.light.primary,
-      text: THEME.light.foreground,
-    },
-  },
-  dark: {
-    ...DarkTheme,
-    colors: {
-      background: THEME.dark.background,
-      border: THEME.dark.border,
-      card: THEME.dark.card,
-      notification: THEME.dark.destructive,
-      primary: THEME.dark.primary,
-      text: THEME.dark.foreground,
-    },
   },
 };

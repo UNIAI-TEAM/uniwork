@@ -14,7 +14,13 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageActionsFrame, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatForwardedLabel } from "./chat-forwarded-label";
-import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
+import {
+  ChatMessageA11yLabel,
+  ChatMessageMeta,
+  ChatReactionChips,
+  chatMessageLabelId,
+  showChatBubbleTime,
+} from "./chat-message-parts";
 import {
   CHAT_BUBBLE_OTHER,
   CHAT_BUBBLE_OWN,
@@ -288,7 +294,16 @@ function ChatVoiceMessageRowImpl({
                 roomId={roomId}
                 message={message}
                 isOwn={isOwn}
-                meta={taskCard ? null : <ChatMessageMeta message={message} isOwn={isOwn} showTime={lastOfRun} inline="end" />}
+                meta={
+                  taskCard ? null : (
+                    <ChatMessageMeta
+                      message={message}
+                      isOwn={isOwn}
+                      showTime={showChatBubbleTime(isOwn, lastOfRun)}
+                      inline="end"
+                    />
+                  )
+                }
               />
             </div>
             {hasTasks ? (

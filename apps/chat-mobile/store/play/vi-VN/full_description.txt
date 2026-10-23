@@ -1,0 +1,11 @@
+UniChat là ứng dụng nhắn tin của UniWork cho đội ngũ Việt Nam. Trò chuyện riêng, nhóm và kênh của workspace luôn đồng bộ với UniWork trên web và máy tính.
+
+- Tin nhắn tức thời, trả lời trích dẫn, luồng, cảm xúc, nhắc tên, đã đọc
+- Gửi ảnh và tệp vào cuộc trò chuyện
+- Gọi thoại và video cho hai người hoặc cả nhóm
+- Danh bạ đồng nghiệp với trạng thái hoạt động
+- Thông báo đẩy có xem trước nội dung, trả lời hoặc đánh dấu đã đọc ngay trên thông báo, tự gỡ khi bạn đã đọc; không làm phiền khi bạn đang đọc chính workspace đó ở thiết bị khác
+- Bản nháp giữ nguyên khi rời cuộc trò chuyện, liên kết trong tin bấm được, mở lại phòng ở đúng tin chưa đọc đầu tiên (tới vài trăm tin chưa đọc)
+- Hỗ trợ VoiceOver và TalkBack, cỡ chữ lớn và chế độ tối
+
+Cần một tài khoản UniWork. Đăng nhập an toàn qua trình duyệt, ứng dụng không lưu mật khẩu.

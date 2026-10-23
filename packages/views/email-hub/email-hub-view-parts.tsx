@@ -8,7 +8,7 @@ import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
-import { identityTint } from "../people/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { emailHubLocale, formatBytes, senderDisplayName, senderInitial } from "./email-hub-format";
 import { useEmailHubSenderAvatarUrl } from "./email-hub-sender-avatar-context";
 import { wrapEmailHtml } from "./email-hub-html";

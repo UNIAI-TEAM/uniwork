@@ -10,8 +10,10 @@ import (
 // tag: chat — user lookup, rooms, messages, and LiveKit voice tokens.
 //
 //	GET  /api/v1/workspaces/{workspaceID}/chat/users/lookup
+//	POST /api/v1/workspaces/{workspaceID}/chat/reports
 //	POST /api/v1/chat/voice/token
 //	GET  /api/v1/workspaces/{workspaceID}/chat/call-logs
+//	GET  /api/v1/workspaces/{workspaceID}/chat/sync
 //	GET  /api/v1/workspaces/{workspaceID}/chat/room
 //	POST /api/v1/workspaces/{workspaceID}/chat/room
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms
@@ -56,6 +58,16 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		tags:        []string{"chat"},
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
+	})
+	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/reports", h.ReportChat, apiOp{
+		summary: "Report chat message or user",
+		description: "Báo cáo một tin nhắn (người gửi bị báo cáo) hoặc một thành viên, kèm lý do. " +
+			"Cần đúng một trong message_id hoặc user_id; tin nhắn phải đọc được, người phải cùng tổ chức (404 nếu không). " +
+			"Ghi chat_reports và audit chat.report.created cho chủ sở hữu và quản trị tổ chức xem.",
+		tags: []string{"chat"},
+		sdi:  sdi.ReportChatSDI{},
+		sdo:  sdo.ChatReportSDO{},
+		auth: true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/nicknames", h.ListChatNicknames, apiOp{
 		summary:     "List chat nicknames",
@@ -117,9 +129,9 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	})
 	r.Get("/workspaces/{workspaceID}/chat/voice/pending", h.ListPendingChatVoiceInvites, apiOp{
 		summary:     "List pending chat voice invites",
-		description: "Cuộc gọi đang đổ chuông mà callee có thể bỏ lỡ khi offline.",
+		description: "Cuộc gọi đang đổ chuông mà callee có thể bỏ lỡ khi offline, và cuộc gọi do chính người gọi API bắt đầu còn sống (đã được nghe hay chưa) để người gọi lỡ frame accept vẫn nối được.",
 		tags:        []string{"chat"},
-		sdo:         sdo.PendingVoiceInviteSDO{},
+		sdo:         sdo.PendingVoiceInvitesSDO{},
 		auth:        true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/call-logs", h.ListChatCallLogs, apiOp{
@@ -128,6 +140,14 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		tags:        []string{"chat"},
 		sdi:         sdi.ListChatCallLogsSDI{},
 		sdo:         sdo.ChatCallLogListSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/sync", h.GetChatSync, apiOp{
+		summary:     "Sync chat changes",
+		description: "Nhật ký thay đổi chat của tổ chức (ADR 0039 nháp): mọi tin được tạo, sửa (cả biểu cảm, phiếu, ghim) hay xoá sau since, mỗi tin một dòng kèm bản người gọi đọc được lúc này, chỉ trong phòng đọc được từ workspace này. Mỗi trang tối đa 200 thay đổi; more=true thì hỏi tiếp với since=head. reset=true chỉ khi since quá cũ (nhật ký đã cắt) hay mới hơn nhật ký: tải lại rồi đồng bộ tiếp từ head. Chỉ đọc.",
+		tags:        []string{"chat"},
+		sdi:         sdi.ChatSyncSDI{},
+		sdo:         sdo.ChatSyncSDO{},
 		auth:        true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/room", h.GetWorkspaceChatRoom, apiOp{
@@ -429,6 +449,14 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/hangup", h.SignalChatVoiceHangup, apiOp{
 		summary:     "Signal voice call hangup",
 		description: "Kết thúc cuộc gọi thoại cho mọi người. Trong nhóm chỉ người gọi (caller) được gọi endpoint này.",
+		tags:        []string{"chat"},
+		sdi:         sdi.VoiceSignalSDI{},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/decline", h.SignalChatVoiceDecline, apiOp{
+		summary:     "Signal voice call decline",
+		description: "Người được gọi từ chối. Gọi 1-1: kết thúc cuộc gọi như hangup. Nhóm/kênh: cuộc gọi tiếp tục, chỉ ngừng đổ chuông cho người này ở mọi thiết bị.",
 		tags:        []string{"chat"},
 		sdi:         sdi.VoiceSignalSDI{},
 		sdo:         sdo.StatusSDO{},

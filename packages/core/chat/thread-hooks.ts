@@ -7,14 +7,7 @@ import { notificationKeys } from "../notifications/hooks";
 import { chatKeys } from "./chat-keys";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
 import { applyChatMessageResponse } from "./realtime-cache";
-import {
-  CHAT_HISTORY_PAGE_SIZE,
-  compareMessages,
-  flattenRoomTimeline,
-  olderRoomPageParam,
-  type RoomMessagesPageParam,
-  type RoomTimeline,
-} from "./room-timeline";
+import { CHAT_HISTORY_PAGE_SIZE, compareMessages, flattenRoomTimeline, olderRoomPageParam, type RoomMessagesPageParam, type RoomTimeline } from "./room-timeline-pages";
 
 /** Oldest first: the root sits on the newest page but is older than every reply. */
 function flattenThread(data: RoomTimeline): ChatMessageRecord[] {

@@ -9,7 +9,9 @@ const sessionMock = vi.hoisted(() => ({
 }));
 vi.mock("./auth/flow", () => ({ session: sessionMock }));
 
+import { SchemaMismatchError } from "@/lib/schema-mismatch";
 import { ApiError, api, createApiClient } from "./api";
+import { classifyError, installReportSink, reportError } from "./report";
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -33,6 +35,48 @@ afterEach(() => {
 });
 
 describe("api client", () => {
+  it("names the running build on every request once the boot sets it", async () => {
+    const client = createApiClient({ session: sessionMock });
+    fetchMock.mockImplementation(async () => json(200, { workspaces: [] }));
+    await client.listWorkspaces();
+    expect(header(calls()[0]?.init, "X-Client-Version")).toBeNull();
+    client.setClientIdentity({ "X-Client-Version": "0.3.0", "X-Client-OS": "android", "X-Client-Update-Id": "embedded", "X-Client-Platform": "web" });
+    await client.listWorkspaces();
+    const { init } = calls()[1] as Call;
+    expect(header(init, "X-Client-Version")).toBe("0.3.0");
+    expect(header(init, "X-Client-OS")).toBe("android");
+    expect(header(init, "X-Client-Update-Id")).toBe("embedded");
+    // the platform is the client's own word, not the identity's
+    expect(header(init, "X-Client-Platform")).toBe("mobile");
+  });
+
+  // Audit "Security & privacy": the bearer goes to the API host and nowhere a 3xx points. Every request asks for
+  // redirect: "error"; once the boot hands over the strict fetch (data/auth/strict-fetch.ts), which makes the native
+  // stack honour it, every JSON request goes through it. A multipart upload stays on the global fetch, the only one
+  // that sends React Native's { uri } file parts.
+  it("asks every request to refuse a redirect, and sends JSON through the strict fetch once the boot sets it", async () => {
+    const client = createApiClient({ session: sessionMock });
+    fetchMock.mockImplementation(async () => json(200, { workspaces: [] }));
+    await client.listWorkspaces();
+    expect(calls()[0]?.init.redirect).toBe("error");
+
+    const strict = vi.fn<(input: string, init: RequestInit) => Promise<Response>>(async () => json(200, { workspaces: [] }));
+    client.setCredentialFetch(strict);
+    await client.listWorkspaces();
+    expect(strict).toHaveBeenCalledTimes(1);
+    const [url, init] = strict.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://uniwork.example/api/v1/workspaces");
+    expect(init.redirect).toBe("error");
+    expect(header(init, "Authorization")).toBe("Bearer at_1");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true }));
+    await client.request("/api/v1/workspaces/w1/chat/rooms/r1/messages/file", { method: "POST", body: new FormData() });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(calls()[1]?.init.redirect).toBe("error");
+    expect(strict).toHaveBeenCalledTimes(1);
+  });
+
   it("sends JSON with the bearer from the session, a request id and the client platform, and parses /me", async () => {
     fetchMock.mockResolvedValueOnce(json(200, { user: { id: "u1", email: "a@b.c", display_name: "A" } }));
     expect(await api.getMe()).toMatchObject({ id: "u1", email: "a@b.c", display_name: "A" });
@@ -45,13 +89,43 @@ describe("api client", () => {
     expect(header(init, "Content-Type")).toBe("application/json");
   });
 
-  it("omits the bearer when signed out and degrades a drifted body to the fallback", async () => {
+  it("omits the bearer when signed out and degrades a drifted /me to the fallback", async () => {
     sessionMock.getAccessToken.mockResolvedValue(null);
     fetchMock.mockResolvedValueOnce(json(200, { user: { id: 7 } }));
     expect(await api.getMe()).toBeNull();
     expect(header(calls()[0]?.init, "Authorization")).toBeNull();
-    fetchMock.mockResolvedValueOnce(json(200, { workspaces: "nope" }));
-    expect(await api.listWorkspaces()).toEqual([]);
+  });
+
+  // A drifted workspace list is not "you are in no workspace": that copy tells a person to ask an admin for
+  // something they already have. It fails, so the picker says so and offers Retry, and crash reporting hears of it.
+  it("rejects a drifted workspace list with a SchemaMismatchError that names the endpoint and paths, never the body", async () => {
+    for (const body of [{ workspaces: null }, {}, { workspaces: "nope" }, { workspaces: [{ id: 7, name: "Phòng Bí Mật" }] }]) {
+      fetchMock.mockResolvedValueOnce(json(200, body));
+      const error = await api.listWorkspaces().catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(SchemaMismatchError);
+      expect(error).toMatchObject({ name: "SchemaMismatchError", endpoint: "GET /api/v1/workspaces" });
+      expect(JSON.stringify({ ...(error as SchemaMismatchError), message: (error as Error).message })).not.toContain("Phòng Bí Mật");
+    }
+    fetchMock.mockResolvedValueOnce(json(200, { workspaces: [{ id: 7, name: "Phòng Bí Mật" }] }));
+    expect(await api.listWorkspaces().catch((e: unknown) => e)).toMatchObject({ issues: [{ path: "workspaces.0.id", code: "invalid_type" }] });
+  });
+
+  it("reads the four workspaces the Go SDO sends (sdo.WorkspaceDTO: ten strings)", async () => {
+    const row = (id: string, name: string) => ({
+      id,
+      slug: id,
+      name,
+      organization_id: "o1",
+      organization_slug: "unicom",
+      organization_name: "UNICOM TECHNOLOGY",
+      description: "",
+      icon_emoji: "",
+      icon_url: "",
+      task_prefix: "TASK",
+    });
+    fetchMock.mockResolvedValueOnce(json(200, { workspaces: [row("w1", "UNICOM"), row("w2", "UNIAI Team"), row("w3", "Unicom BoD"), row("w4", "PSD")] }));
+    const list = await api.listWorkspaces();
+    expect(list.map((w) => w.name)).toEqual(["UNICOM", "UNIAI Team", "Unicom BoD", "PSD"]);
   });
 
   it("lists workspaces, and a caller abort mid-flight aborts the request with the caller's reason", async () => {
@@ -97,6 +171,29 @@ describe("api client", () => {
     expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     expect(await settled).toMatchObject({ name: "ApiError", status: 0, message: expect.stringMatching(/timed out/) });
+  });
+
+  it("a network failure (React Native's fetch TypeError) is an ApiError status 0 that crash reporting does not send", async () => {
+    // What RN's fetch rejects with when there is no route to the server: DNS, a captive portal, the server down.
+    const failure = new TypeError("Network request failed");
+    fetchMock.mockRejectedValueOnce(failure);
+    const error = await api.getMe().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ name: "ApiError", status: 0, message: "Network request failed", cause: failure });
+    expect(classifyError(error)).toBe("expected");
+    const captureException = vi.fn();
+    installReportSink({ captureException, addBreadcrumb: vi.fn(), setUser: vi.fn(), setTag: vi.fn() });
+    reportError(error, { source: "query" });
+    installReportSink(null);
+    expect(captureException).not.toHaveBeenCalled();
+    fetchMock.mockRejectedValueOnce(new TypeError());
+    await expect(api.getMe()).rejects.toMatchObject({ status: 0, message: "Network request failed" });
+  });
+
+  it("any other fetch rejection is rethrown as it is", async () => {
+    const bug = new RangeError("bad header");
+    fetchMock.mockRejectedValueOnce(bug);
+    await expect(api.getMe()).rejects.toBe(bug);
   });
 
   it("posts and deletes push subscriptions with the Expo token and platform; 204 is fine", async () => {

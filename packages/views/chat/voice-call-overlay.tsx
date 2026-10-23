@@ -16,8 +16,8 @@ import type {
   VoiceCallDisconnectInfo,
   VoiceCallEndInit,
   VoiceCallOverlayState,
-} from "./voice-call-overlay-types";
-import { isMultiPartyVoiceCall } from "./voice-call-kind-utils";
+} from "@uniwork/core/chat/voice-call-types";
+import { isMultiPartyVoiceCall } from "@uniwork/core/chat/voice-call-kind";
 
 // livekit-client is 130 KB gzip and only a connected call needs it, so it
 // loads on the transition to "active" rather than with the chat route
@@ -27,7 +27,7 @@ const ActiveVoiceCallSession = lazy(() =>
   import("./voice-call-overlay-session").then((m) => ({ default: m.ActiveVoiceCallSession })),
 );
 
-export type { VoiceCallKind, VoiceCallOverlayState } from "./voice-call-overlay-types";
+export type { VoiceCallKind, VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 
 /**
  * A group call someone is asked to join may already be recording. The

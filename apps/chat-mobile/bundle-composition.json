@@ -1,0 +1,1782 @@
+{
+  "_": "Per-package source bytes of the JS bundle (scripts/mobile-bundle-composition.mjs --write); the baseline each PR's deltas are read against.",
+  "android": [
+    {
+      "name": "react-native",
+      "modules": 449,
+      "bytes": 2116436
+    },
+    {
+      "name": "livekit-client",
+      "modules": 1,
+      "bytes": 1292244
+    },
+    {
+      "name": "expo-router",
+      "modules": 381,
+      "bytes": 1213804
+    },
+    {
+      "name": "react-native-reanimated",
+      "modules": 294,
+      "bytes": 932995
+    },
+    {
+      "name": "@sentry/core",
+      "modules": 176,
+      "bytes": 783085
+    },
+    {
+      "name": "(app) components",
+      "modules": 131,
+      "bytes": 575815
+    },
+    {
+      "name": "zod",
+      "modules": 78,
+      "bytes": 567907
+    },
+    {
+      "name": "(app) data",
+      "modules": 125,
+      "bytes": 535204
+    },
+    {
+      "name": "@sentry/react-native",
+      "modules": 107,
+      "bytes": 422446
+    },
+    {
+      "name": "@expo/ui",
+      "modules": 81,
+      "bytes": 274884
+    },
+    {
+      "name": "react-native-gesture-handler",
+      "modules": 84,
+      "bytes": 269645
+    },
+    {
+      "name": "(app) lib",
+      "modules": 83,
+      "bytes": 250540
+    },
+    {
+      "name": "@shopify/flash-list",
+      "modules": 50,
+      "bytes": 250191
+    },
+    {
+      "name": "@livekit/components-react",
+      "modules": 4,
+      "bytes": 244391
+    },
+    {
+      "name": "@sentry/browser",
+      "modules": 45,
+      "bytes": 217772
+    },
+    {
+      "name": "@livekit/react-native-webrtc",
+      "modules": 43,
+      "bytes": 188189
+    },
+    {
+      "name": "@uniwork/core",
+      "modules": 45,
+      "bytes": 166952
+    },
+    {
+      "name": "react-native-css-interop",
+      "modules": 26,
+      "bytes": 165992
+    },
+    {
+      "name": "expo",
+      "modules": 44,
+      "bytes": 162157
+    },
+    {
+      "name": "@react-native/virtualized-lists",
+      "modules": 15,
+      "bytes": 156159
+    },
+    {
+      "name": "react-native-screens",
+      "modules": 75,
+      "bytes": 148285
+    },
+    {
+      "name": "react-native-keyboard-controller",
+      "modules": 53,
+      "bytes": 142534
+    },
+    {
+      "name": "@sentry-internal/browser-utils",
+      "modules": 38,
+      "bytes": 137988
+    },
+    {
+      "name": "react-native-worklets",
+      "modules": 42,
+      "bytes": 131957
+    },
+    {
+      "name": "(app) app",
+      "modules": 22,
+      "bytes": 111389
+    },
+    {
+      "name": "@sentry/react",
+      "modules": 17,
+      "bytes": 105487
+    },
+    {
+      "name": "@livekit/react-native",
+      "modules": 24,
+      "bytes": 101627
+    },
+    {
+      "name": "expo-notifications",
+      "modules": 55,
+      "bytes": 92658
+    },
+    {
+      "name": "@tanstack/query-core",
+      "modules": 23,
+      "bytes": 91522
+    },
+    {
+      "name": "expo-file-system",
+      "modules": 16,
+      "bytes": 84463
+    },
+    {
+      "name": "i18next",
+      "modules": 1,
+      "bytes": 83169
+    },
+    {
+      "name": "@sentry-internal/feedback",
+      "modules": 1,
+      "bytes": 78103
+    },
+    {
+      "name": "tailwind-merge",
+      "modules": 1,
+      "bytes": 74243
+    },
+    {
+      "name": "whatwg-url-without-unicode",
+      "modules": 10,
+      "bytes": 72219
+    },
+    {
+      "name": "web-streams-polyfill",
+      "modules": 1,
+      "bytes": 65258
+    },
+    {
+      "name": "buffer",
+      "modules": 1,
+      "bytes": 50097
+    },
+    {
+      "name": "expo-modules-core",
+      "modules": 28,
+      "bytes": 46688
+    },
+    {
+      "name": "react-i18next",
+      "modules": 22,
+      "bytes": 46415
+    },
+    {
+      "name": "semver",
+      "modules": 21,
+      "bytes": 44989
+    },
+    {
+      "name": "expo-image",
+      "modules": 11,
+      "bytes": 39126
+    },
+    {
+      "name": "expo-audio",
+      "modules": 9,
+      "bytes": 36828
+    },
+    {
+      "name": "whatwg-url-minimum",
+      "modules": 1,
+      "bytes": 35949
+    },
+    {
+      "name": "@expo/vector-icons",
+      "modules": 47,
+      "bytes": 33840
+    },
+    {
+      "name": "es-abstract",
+      "modules": 45,
+      "bytes": 32351
+    },
+    {
+      "name": "expo-image-picker",
+      "modules": 4,
+      "bytes": 28770
+    },
+    {
+      "name": "expo-updates",
+      "modules": 9,
+      "bytes": 28508
+    },
+    {
+      "name": "regenerator-runtime",
+      "modules": 1,
+      "bytes": 25202
+    },
+    {
+      "name": "@react-native-community/netinfo",
+      "modules": 9,
+      "bytes": 24476
+    },
+    {
+      "name": "@react-native/js-polyfills",
+      "modules": 2,
+      "bytes": 24084
+    },
+    {
+      "name": "expo-asset",
+      "modules": 12,
+      "bytes": 23919
+    },
+    {
+      "name": "@expo/cli",
+      "modules": 1,
+      "bytes": 23553
+    },
+    {
+      "name": "event-target-shim",
+      "modules": 1,
+      "bytes": 23411
+    },
+    {
+      "name": "tslib",
+      "modules": 1,
+      "bytes": 23382
+    },
+    {
+      "name": "@tanstack/react-query",
+      "modules": 22,
+      "bytes": 21066
+    },
+    {
+      "name": "color-convert",
+      "modules": 3,
+      "bytes": 21005
+    },
+    {
+      "name": "expo-linking",
+      "modules": 6,
+      "bytes": 20957
+    },
+    {
+      "name": "zustand",
+      "modules": 6,
+      "bytes": 20773
+    },
+    {
+      "name": "whatwg-fetch",
+      "modules": 1,
+      "bytes": 19815
+    },
+    {
+      "name": "object-inspect",
+      "modules": 1,
+      "bytes": 19059
+    },
+    {
+      "name": "expo-web-browser",
+      "modules": 3,
+      "bytes": 18906
+    },
+    {
+      "name": "react",
+      "modules": 4,
+      "bytes": 18589
+    },
+    {
+      "name": "react-native-mmkv",
+      "modules": 19,
+      "bytes": 18293
+    },
+    {
+      "name": "expo-font",
+      "modules": 11,
+      "bytes": 17149
+    },
+    {
+      "name": "expo-crypto",
+      "modules": 7,
+      "bytes": 15500
+    },
+    {
+      "name": "events",
+      "modules": 1,
+      "bytes": 14890
+    },
+    {
+      "name": "react-native-nitro-modules",
+      "modules": 8,
+      "bytes": 14748
+    },
+    {
+      "name": "get-intrinsic",
+      "modules": 1,
+      "bytes": 14439
+    },
+    {
+      "name": "@react-native/normalize-colors",
+      "modules": 1,
+      "bytes": 13582
+    },
+    {
+      "name": "promise",
+      "modules": 5,
+      "bytes": 13121
+    },
+    {
+      "name": "punycode",
+      "modules": 1,
+      "bytes": 12711
+    },
+    {
+      "name": "html-parse-stringify",
+      "modules": 1,
+      "bytes": 12494
+    },
+    {
+      "name": "debug",
+      "modules": 2,
+      "bytes": 12299
+    },
+    {
+      "name": "expo-image-manipulator",
+      "modules": 5,
+      "bytes": 11693
+    },
+    {
+      "name": "query-string",
+      "modules": 1,
+      "bytes": 11554
+    },
+    {
+      "name": "loglevel",
+      "modules": 1,
+      "bytes": 11329
+    },
+    {
+      "name": "color",
+      "modules": 1,
+      "bytes": 11169
+    },
+    {
+      "name": "scheduler",
+      "modules": 2,
+      "bytes": 11077
+    },
+    {
+      "name": "@expo/metro-runtime",
+      "modules": 5,
+      "bytes": 10981
+    },
+    {
+      "name": "@tanstack/query-persist-client-core",
+      "modules": 4,
+      "bytes": 10552
+    },
+    {
+      "name": "expo-clipboard",
+      "modules": 5,
+      "bytes": 10515
+    },
+    {
+      "name": "webidl-conversions",
+      "modules": 1,
+      "bytes": 9904
+    },
+    {
+      "name": "expo-application",
+      "modules": 3,
+      "bytes": 9179
+    },
+    {
+      "name": "expo-screen-capture",
+      "modules": 2,
+      "bytes": 8924
+    },
+    {
+      "name": "react-native-safe-area-context",
+      "modules": 8,
+      "bytes": 8699
+    },
+    {
+      "name": "expo-constants",
+      "modules": 3,
+      "bytes": 8606
+    },
+    {
+      "name": "@ungap/structured-clone",
+      "modules": 4,
+      "bytes": 8521
+    },
+    {
+      "name": "@radix-ui/react-slot",
+      "modules": 1,
+      "bytes": 8430
+    },
+    {
+      "name": "expo-task-manager",
+      "modules": 2,
+      "bytes": 7498
+    },
+    {
+      "name": "react-is",
+      "modules": 4,
+      "bytes": 7427
+    },
+    {
+      "name": "expo-localization",
+      "modules": 3,
+      "bytes": 7156
+    },
+    {
+      "name": "expo-local-authentication",
+      "modules": 3,
+      "bytes": 7012
+    },
+    {
+      "name": "expo-haptics",
+      "modules": 3,
+      "bytes": 6975
+    },
+    {
+      "name": "expo-secure-store",
+      "modules": 2,
+      "bytes": 6958
+    },
+    {
+      "name": "(app) modules",
+      "modules": 1,
+      "bytes": 5878
+    },
+    {
+      "name": "color-string",
+      "modules": 1,
+      "bytes": 5716
+    },
+    {
+      "name": "@rn-primitives/slot",
+      "modules": 1,
+      "bytes": 5611
+    },
+    {
+      "name": "(other)",
+      "modules": 4,
+      "bytes": 5377
+    },
+    {
+      "name": "color-name",
+      "modules": 1,
+      "bytes": 4617
+    },
+    {
+      "name": "nativewind",
+      "modules": 3,
+      "bytes": 4558
+    },
+    {
+      "name": "object-keys",
+      "modules": 3,
+      "bytes": 4463
+    },
+    {
+      "name": "base64-js",
+      "modules": 1,
+      "bytes": 3932
+    },
+    {
+      "name": "abort-controller",
+      "modules": 2,
+      "bytes": 3846
+    },
+    {
+      "name": "expo-symbols",
+      "modules": 6,
+      "bytes": 3768
+    },
+    {
+      "name": "expo-blur",
+      "modules": 4,
+      "bytes": 3686
+    },
+    {
+      "name": "@babel/runtime",
+      "modules": 4,
+      "bytes": 3647
+    },
+    {
+      "name": "stacktrace-parser",
+      "modules": 1,
+      "bytes": 3599
+    },
+    {
+      "name": "flow-enums-runtime",
+      "modules": 1,
+      "bytes": 3300
+    },
+    {
+      "name": "is-callable",
+      "modules": 1,
+      "bytes": 3224
+    },
+    {
+      "name": "expo-status-bar",
+      "modules": 2,
+      "bytes": 3190
+    },
+    {
+      "name": "string.prototype.trim",
+      "modules": 4,
+      "bytes": 3149
+    },
+    {
+      "name": "class-variance-authority",
+      "modules": 1,
+      "bytes": 3048
+    },
+    {
+      "name": "ms",
+      "modules": 1,
+      "bytes": 3023
+    },
+    {
+      "name": "array.prototype.map",
+      "modules": 4,
+      "bytes": 2952
+    },
+    {
+      "name": "react-native-url-polyfill",
+      "modules": 4,
+      "bytes": 2913
+    },
+    {
+      "name": "es-to-primitive",
+      "modules": 2,
+      "bytes": 2743
+    },
+    {
+      "name": "hoist-non-react-statics",
+      "modules": 1,
+      "bytes": 2743
+    },
+    {
+      "name": "@radix-ui/react-compose-refs",
+      "modules": 1,
+      "bytes": 2728
+    },
+    {
+      "name": "@react-native/assets-registry",
+      "modules": 1,
+      "bytes": 2541
+    },
+    {
+      "name": "promise.allsettled",
+      "modules": 5,
+      "bytes": 2527
+    },
+    {
+      "name": "@react-native-masked-view/masked-view",
+      "modules": 2,
+      "bytes": 2468
+    },
+    {
+      "name": "has-symbols",
+      "modules": 2,
+      "bytes": 2369
+    },
+    {
+      "name": "define-data-property",
+      "modules": 1,
+      "bytes": 2336
+    },
+    {
+      "name": "decode-uri-component",
+      "modules": 1,
+      "bytes": 2261
+    },
+    {
+      "name": "dunder-proto",
+      "modules": 2,
+      "bytes": 2256
+    },
+    {
+      "name": "is-regex",
+      "modules": 1,
+      "bytes": 2221
+    },
+    {
+      "name": "function-bind",
+      "modules": 2,
+      "bytes": 2169
+    },
+    {
+      "name": "ieee754",
+      "modules": 1,
+      "bytes": 2154
+    },
+    {
+      "name": "math-intrinsics",
+      "modules": 13,
+      "bytes": 2012
+    },
+    {
+      "name": "expo-glass-effect",
+      "modules": 5,
+      "bytes": 1976
+    },
+    {
+      "name": "use-sync-external-store",
+      "modules": 2,
+      "bytes": 1960
+    },
+    {
+      "name": "@rn-primitives/portal",
+      "modules": 1,
+      "bytes": 1913
+    },
+    {
+      "name": "array.prototype.at",
+      "modules": 4,
+      "bytes": 1747
+    },
+    {
+      "name": "well-known-symbols",
+      "modules": 8,
+      "bytes": 1591
+    },
+    {
+      "name": "es-abstract-get",
+      "modules": 3,
+      "bytes": 1429
+    },
+    {
+      "name": "invariant",
+      "modules": 1,
+      "bytes": 1397
+    },
+    {
+      "name": "react-native-is-edge-to-edge",
+      "modules": 1,
+      "bytes": 1384
+    },
+    {
+      "name": "call-bind-apply-helpers",
+      "modules": 6,
+      "bytes": 1383
+    },
+    {
+      "name": "expo-document-picker",
+      "modules": 2,
+      "bytes": 1357
+    },
+    {
+      "name": "memoize-one",
+      "modules": 1,
+      "bytes": 1305
+    },
+    {
+      "name": "set-function-length",
+      "modules": 1,
+      "bytes": 1273
+    },
+    {
+      "name": "define-properties",
+      "modules": 1,
+      "bytes": 1268
+    },
+    {
+      "name": "fast-deep-equal",
+      "modules": 1,
+      "bytes": 1177
+    },
+    {
+      "name": "get-proto",
+      "modules": 3,
+      "bytes": 1127
+    },
+    {
+      "name": "is-string",
+      "modules": 1,
+      "bytes": 1056
+    },
+    {
+      "name": "set-proto",
+      "modules": 3,
+      "bytes": 1039
+    },
+    {
+      "name": "is-symbol",
+      "modules": 1,
+      "bytes": 1030
+    },
+    {
+      "name": "expo-splash-screen",
+      "modules": 2,
+      "bytes": 902
+    },
+    {
+      "name": "es-object-atoms",
+      "modules": 4,
+      "bytes": 791
+    },
+    {
+      "name": "es-array-method-boxes-properly",
+      "modules": 1,
+      "bytes": 743
+    },
+    {
+      "name": "iterate-iterator",
+      "modules": 1,
+      "bytes": 728
+    },
+    {
+      "name": "call-bound",
+      "modules": 1,
+      "bytes": 687
+    },
+    {
+      "name": "is-date-object",
+      "modules": 1,
+      "bytes": 674
+    },
+    {
+      "name": "call-bind",
+      "modules": 1,
+      "bytes": 641
+    },
+    {
+      "name": "react-freeze",
+      "modules": 1,
+      "bytes": 591
+    },
+    {
+      "name": "es-shim-unscopables",
+      "modules": 1,
+      "bytes": 589
+    },
+    {
+      "name": "has-property-descriptors",
+      "modules": 1,
+      "bytes": 588
+    },
+    {
+      "name": "simple-swizzle",
+      "modules": 1,
+      "bytes": 571
+    },
+    {
+      "name": "@rn-primitives/separator",
+      "modules": 2,
+      "bytes": 545
+    },
+    {
+      "name": "es-errors",
+      "modules": 7,
+      "bytes": 524
+    },
+    {
+      "name": "nanoid",
+      "modules": 1,
+      "bytes": 508
+    },
+    {
+      "name": "escape-string-regexp",
+      "modules": 1,
+      "bytes": 461
+    },
+    {
+      "name": "split-on-first",
+      "modules": 1,
+      "bytes": 459
+    },
+    {
+      "name": "safe-regex-test",
+      "modules": 1,
+      "bytes": 405
+    },
+    {
+      "name": "iterate-value",
+      "modules": 1,
+      "bytes": 403
+    },
+    {
+      "name": "clsx",
+      "modules": 1,
+      "bytes": 388
+    },
+    {
+      "name": "nullthrows",
+      "modules": 1,
+      "bytes": 384
+    },
+    {
+      "name": "es-get-iterator",
+      "modules": 1,
+      "bytes": 372
+    },
+    {
+      "name": "filter-obj",
+      "modules": 1,
+      "bytes": 346
+    },
+    {
+      "name": "is-arrayish",
+      "modules": 1,
+      "bytes": 318
+    },
+    {
+      "name": "warn-once",
+      "modules": 1,
+      "bytes": 314
+    },
+    {
+      "name": "gopd",
+      "modules": 2,
+      "bytes": 303
+    },
+    {
+      "name": "es-define-property",
+      "modules": 1,
+      "bytes": 288
+    },
+    {
+      "name": "@expo-google-fonts/material-symbols",
+      "modules": 2,
+      "bytes": 210
+    },
+    {
+      "name": "hasown",
+      "modules": 1,
+      "bytes": 206
+    },
+    {
+      "name": "has-tostringtag",
+      "modules": 1,
+      "bytes": 189
+    },
+    {
+      "name": "standard-navigation",
+      "modules": 1,
+      "bytes": 186
+    },
+    {
+      "name": "strict-uri-encode",
+      "modules": 1,
+      "bytes": 138
+    },
+    {
+      "name": "metro-runtime",
+      "modules": 1,
+      "bytes": 14
+    },
+    {
+      "name": "(app) assets",
+      "modules": 7,
+      "bytes": 0
+    }
+  ],
+  "ios": [
+    {
+      "name": "react-native",
+      "modules": 451,
+      "bytes": 2104874
+    },
+    {
+      "name": "livekit-client",
+      "modules": 1,
+      "bytes": 1292244
+    },
+    {
+      "name": "expo-router",
+      "modules": 378,
+      "bytes": 1232123
+    },
+    {
+      "name": "react-native-reanimated",
+      "modules": 294,
+      "bytes": 932995
+    },
+    {
+      "name": "@sentry/core",
+      "modules": 176,
+      "bytes": 783085
+    },
+    {
+      "name": "(app) components",
+      "modules": 131,
+      "bytes": 575815
+    },
+    {
+      "name": "zod",
+      "modules": 78,
+      "bytes": 567907
+    },
+    {
+      "name": "(app) data",
+      "modules": 125,
+      "bytes": 535204
+    },
+    {
+      "name": "@sentry/react-native",
+      "modules": 107,
+      "bytes": 422446
+    },
+    {
+      "name": "react-native-gesture-handler",
+      "modules": 83,
+      "bytes": 266517
+    },
+    {
+      "name": "(app) lib",
+      "modules": 83,
+      "bytes": 250540
+    },
+    {
+      "name": "@shopify/flash-list",
+      "modules": 50,
+      "bytes": 250188
+    },
+    {
+      "name": "@livekit/components-react",
+      "modules": 4,
+      "bytes": 244391
+    },
+    {
+      "name": "@sentry/browser",
+      "modules": 45,
+      "bytes": 217772
+    },
+    {
+      "name": "@livekit/react-native-webrtc",
+      "modules": 43,
+      "bytes": 188189
+    },
+    {
+      "name": "@uniwork/core",
+      "modules": 45,
+      "bytes": 166952
+    },
+    {
+      "name": "react-native-css-interop",
+      "modules": 26,
+      "bytes": 165887
+    },
+    {
+      "name": "expo",
+      "modules": 44,
+      "bytes": 162157
+    },
+    {
+      "name": "@react-native/virtualized-lists",
+      "modules": 15,
+      "bytes": 156159
+    },
+    {
+      "name": "react-native-screens",
+      "modules": 83,
+      "bytes": 150900
+    },
+    {
+      "name": "react-native-keyboard-controller",
+      "modules": 54,
+      "bytes": 138354
+    },
+    {
+      "name": "@sentry-internal/browser-utils",
+      "modules": 38,
+      "bytes": 137988
+    },
+    {
+      "name": "react-native-worklets",
+      "modules": 42,
+      "bytes": 131957
+    },
+    {
+      "name": "(app) app",
+      "modules": 22,
+      "bytes": 111389
+    },
+    {
+      "name": "@sentry/react",
+      "modules": 17,
+      "bytes": 105487
+    },
+    {
+      "name": "@livekit/react-native",
+      "modules": 24,
+      "bytes": 101627
+    },
+    {
+      "name": "expo-notifications",
+      "modules": 53,
+      "bytes": 93521
+    },
+    {
+      "name": "@tanstack/query-core",
+      "modules": 23,
+      "bytes": 91522
+    },
+    {
+      "name": "expo-file-system",
+      "modules": 16,
+      "bytes": 84463
+    },
+    {
+      "name": "i18next",
+      "modules": 1,
+      "bytes": 83169
+    },
+    {
+      "name": "@sentry-internal/feedback",
+      "modules": 1,
+      "bytes": 78103
+    },
+    {
+      "name": "tailwind-merge",
+      "modules": 1,
+      "bytes": 74243
+    },
+    {
+      "name": "whatwg-url-without-unicode",
+      "modules": 10,
+      "bytes": 72219
+    },
+    {
+      "name": "web-streams-polyfill",
+      "modules": 1,
+      "bytes": 65258
+    },
+    {
+      "name": "buffer",
+      "modules": 1,
+      "bytes": 50097
+    },
+    {
+      "name": "expo-modules-core",
+      "modules": 28,
+      "bytes": 46688
+    },
+    {
+      "name": "react-i18next",
+      "modules": 22,
+      "bytes": 46415
+    },
+    {
+      "name": "semver",
+      "modules": 21,
+      "bytes": 44989
+    },
+    {
+      "name": "expo-image",
+      "modules": 11,
+      "bytes": 39126
+    },
+    {
+      "name": "expo-audio",
+      "modules": 9,
+      "bytes": 36828
+    },
+    {
+      "name": "whatwg-url-minimum",
+      "modules": 1,
+      "bytes": 35949
+    },
+    {
+      "name": "@expo/vector-icons",
+      "modules": 47,
+      "bytes": 33840
+    },
+    {
+      "name": "es-abstract",
+      "modules": 45,
+      "bytes": 32351
+    },
+    {
+      "name": "expo-image-picker",
+      "modules": 4,
+      "bytes": 28770
+    },
+    {
+      "name": "expo-updates",
+      "modules": 9,
+      "bytes": 28508
+    },
+    {
+      "name": "regenerator-runtime",
+      "modules": 1,
+      "bytes": 25202
+    },
+    {
+      "name": "@react-native-community/netinfo",
+      "modules": 9,
+      "bytes": 24476
+    },
+    {
+      "name": "@react-native/js-polyfills",
+      "modules": 2,
+      "bytes": 24084
+    },
+    {
+      "name": "expo-asset",
+      "modules": 12,
+      "bytes": 23919
+    },
+    {
+      "name": "@expo/cli",
+      "modules": 1,
+      "bytes": 23553
+    },
+    {
+      "name": "event-target-shim",
+      "modules": 1,
+      "bytes": 23411
+    },
+    {
+      "name": "tslib",
+      "modules": 1,
+      "bytes": 23382
+    },
+    {
+      "name": "@tanstack/react-query",
+      "modules": 22,
+      "bytes": 21066
+    },
+    {
+      "name": "color-convert",
+      "modules": 3,
+      "bytes": 21005
+    },
+    {
+      "name": "expo-linking",
+      "modules": 6,
+      "bytes": 20957
+    },
+    {
+      "name": "zustand",
+      "modules": 6,
+      "bytes": 20773
+    },
+    {
+      "name": "whatwg-fetch",
+      "modules": 1,
+      "bytes": 19815
+    },
+    {
+      "name": "object-inspect",
+      "modules": 1,
+      "bytes": 19059
+    },
+    {
+      "name": "expo-web-browser",
+      "modules": 3,
+      "bytes": 18906
+    },
+    {
+      "name": "react",
+      "modules": 4,
+      "bytes": 18589
+    },
+    {
+      "name": "react-native-mmkv",
+      "modules": 19,
+      "bytes": 18293
+    },
+    {
+      "name": "expo-font",
+      "modules": 11,
+      "bytes": 17149
+    },
+    {
+      "name": "expo-crypto",
+      "modules": 7,
+      "bytes": 15500
+    },
+    {
+      "name": "events",
+      "modules": 1,
+      "bytes": 14890
+    },
+    {
+      "name": "react-native-nitro-modules",
+      "modules": 8,
+      "bytes": 14748
+    },
+    {
+      "name": "get-intrinsic",
+      "modules": 1,
+      "bytes": 14439
+    },
+    {
+      "name": "@react-native/normalize-colors",
+      "modules": 1,
+      "bytes": 13582
+    },
+    {
+      "name": "promise",
+      "modules": 5,
+      "bytes": 13121
+    },
+    {
+      "name": "punycode",
+      "modules": 1,
+      "bytes": 12711
+    },
+    {
+      "name": "html-parse-stringify",
+      "modules": 1,
+      "bytes": 12494
+    },
+    {
+      "name": "debug",
+      "modules": 2,
+      "bytes": 12299
+    },
+    {
+      "name": "expo-image-manipulator",
+      "modules": 5,
+      "bytes": 11693
+    },
+    {
+      "name": "query-string",
+      "modules": 1,
+      "bytes": 11554
+    },
+    {
+      "name": "loglevel",
+      "modules": 1,
+      "bytes": 11329
+    },
+    {
+      "name": "color",
+      "modules": 1,
+      "bytes": 11169
+    },
+    {
+      "name": "scheduler",
+      "modules": 2,
+      "bytes": 11077
+    },
+    {
+      "name": "@expo/metro-runtime",
+      "modules": 5,
+      "bytes": 10981
+    },
+    {
+      "name": "@tanstack/query-persist-client-core",
+      "modules": 4,
+      "bytes": 10552
+    },
+    {
+      "name": "expo-clipboard",
+      "modules": 5,
+      "bytes": 10515
+    },
+    {
+      "name": "webidl-conversions",
+      "modules": 1,
+      "bytes": 9904
+    },
+    {
+      "name": "expo-application",
+      "modules": 3,
+      "bytes": 9179
+    },
+    {
+      "name": "expo-screen-capture",
+      "modules": 2,
+      "bytes": 8924
+    },
+    {
+      "name": "react-native-safe-area-context",
+      "modules": 8,
+      "bytes": 8699
+    },
+    {
+      "name": "expo-constants",
+      "modules": 3,
+      "bytes": 8606
+    },
+    {
+      "name": "@ungap/structured-clone",
+      "modules": 4,
+      "bytes": 8521
+    },
+    {
+      "name": "@radix-ui/react-slot",
+      "modules": 1,
+      "bytes": 8430
+    },
+    {
+      "name": "expo-task-manager",
+      "modules": 2,
+      "bytes": 7498
+    },
+    {
+      "name": "react-is",
+      "modules": 4,
+      "bytes": 7427
+    },
+    {
+      "name": "expo-localization",
+      "modules": 3,
+      "bytes": 7156
+    },
+    {
+      "name": "expo-local-authentication",
+      "modules": 3,
+      "bytes": 7012
+    },
+    {
+      "name": "expo-haptics",
+      "modules": 3,
+      "bytes": 6975
+    },
+    {
+      "name": "expo-secure-store",
+      "modules": 2,
+      "bytes": 6958
+    },
+    {
+      "name": "(app) modules",
+      "modules": 1,
+      "bytes": 5878
+    },
+    {
+      "name": "color-string",
+      "modules": 1,
+      "bytes": 5716
+    },
+    {
+      "name": "@rn-primitives/slot",
+      "modules": 1,
+      "bytes": 5611
+    },
+    {
+      "name": "(other)",
+      "modules": 4,
+      "bytes": 5377
+    },
+    {
+      "name": "color-name",
+      "modules": 1,
+      "bytes": 4617
+    },
+    {
+      "name": "nativewind",
+      "modules": 3,
+      "bytes": 4558
+    },
+    {
+      "name": "object-keys",
+      "modules": 3,
+      "bytes": 4463
+    },
+    {
+      "name": "base64-js",
+      "modules": 1,
+      "bytes": 3932
+    },
+    {
+      "name": "abort-controller",
+      "modules": 2,
+      "bytes": 3846
+    },
+    {
+      "name": "@babel/runtime",
+      "modules": 4,
+      "bytes": 3647
+    },
+    {
+      "name": "expo-blur",
+      "modules": 4,
+      "bytes": 3615
+    },
+    {
+      "name": "stacktrace-parser",
+      "modules": 1,
+      "bytes": 3599
+    },
+    {
+      "name": "flow-enums-runtime",
+      "modules": 1,
+      "bytes": 3300
+    },
+    {
+      "name": "is-callable",
+      "modules": 1,
+      "bytes": 3224
+    },
+    {
+      "name": "expo-status-bar",
+      "modules": 2,
+      "bytes": 3190
+    },
+    {
+      "name": "string.prototype.trim",
+      "modules": 4,
+      "bytes": 3149
+    },
+    {
+      "name": "class-variance-authority",
+      "modules": 1,
+      "bytes": 3048
+    },
+    {
+      "name": "ms",
+      "modules": 1,
+      "bytes": 3023
+    },
+    {
+      "name": "array.prototype.map",
+      "modules": 4,
+      "bytes": 2952
+    },
+    {
+      "name": "react-native-url-polyfill",
+      "modules": 4,
+      "bytes": 2913
+    },
+    {
+      "name": "es-to-primitive",
+      "modules": 2,
+      "bytes": 2743
+    },
+    {
+      "name": "hoist-non-react-statics",
+      "modules": 1,
+      "bytes": 2743
+    },
+    {
+      "name": "@radix-ui/react-compose-refs",
+      "modules": 1,
+      "bytes": 2728
+    },
+    {
+      "name": "expo-glass-effect",
+      "modules": 5,
+      "bytes": 2726
+    },
+    {
+      "name": "@react-native/assets-registry",
+      "modules": 1,
+      "bytes": 2541
+    },
+    {
+      "name": "promise.allsettled",
+      "modules": 5,
+      "bytes": 2527
+    },
+    {
+      "name": "@react-native-masked-view/masked-view",
+      "modules": 2,
+      "bytes": 2468
+    },
+    {
+      "name": "has-symbols",
+      "modules": 2,
+      "bytes": 2369
+    },
+    {
+      "name": "define-data-property",
+      "modules": 1,
+      "bytes": 2336
+    },
+    {
+      "name": "decode-uri-component",
+      "modules": 1,
+      "bytes": 2261
+    },
+    {
+      "name": "dunder-proto",
+      "modules": 2,
+      "bytes": 2256
+    },
+    {
+      "name": "is-regex",
+      "modules": 1,
+      "bytes": 2221
+    },
+    {
+      "name": "function-bind",
+      "modules": 2,
+      "bytes": 2169
+    },
+    {
+      "name": "ieee754",
+      "modules": 1,
+      "bytes": 2154
+    },
+    {
+      "name": "math-intrinsics",
+      "modules": 13,
+      "bytes": 2012
+    },
+    {
+      "name": "use-sync-external-store",
+      "modules": 2,
+      "bytes": 1960
+    },
+    {
+      "name": "@rn-primitives/portal",
+      "modules": 1,
+      "bytes": 1913
+    },
+    {
+      "name": "array.prototype.at",
+      "modules": 4,
+      "bytes": 1747
+    },
+    {
+      "name": "well-known-symbols",
+      "modules": 8,
+      "bytes": 1591
+    },
+    {
+      "name": "es-abstract-get",
+      "modules": 3,
+      "bytes": 1429
+    },
+    {
+      "name": "invariant",
+      "modules": 1,
+      "bytes": 1397
+    },
+    {
+      "name": "call-bind-apply-helpers",
+      "modules": 6,
+      "bytes": 1383
+    },
+    {
+      "name": "expo-document-picker",
+      "modules": 2,
+      "bytes": 1357
+    },
+    {
+      "name": "memoize-one",
+      "modules": 1,
+      "bytes": 1305
+    },
+    {
+      "name": "set-function-length",
+      "modules": 1,
+      "bytes": 1273
+    },
+    {
+      "name": "define-properties",
+      "modules": 1,
+      "bytes": 1268
+    },
+    {
+      "name": "fast-deep-equal",
+      "modules": 1,
+      "bytes": 1177
+    },
+    {
+      "name": "get-proto",
+      "modules": 3,
+      "bytes": 1127
+    },
+    {
+      "name": "is-string",
+      "modules": 1,
+      "bytes": 1056
+    },
+    {
+      "name": "set-proto",
+      "modules": 3,
+      "bytes": 1039
+    },
+    {
+      "name": "is-symbol",
+      "modules": 1,
+      "bytes": 1030
+    },
+    {
+      "name": "expo-splash-screen",
+      "modules": 2,
+      "bytes": 902
+    },
+    {
+      "name": "es-object-atoms",
+      "modules": 4,
+      "bytes": 791
+    },
+    {
+      "name": "es-array-method-boxes-properly",
+      "modules": 1,
+      "bytes": 743
+    },
+    {
+      "name": "iterate-iterator",
+      "modules": 1,
+      "bytes": 728
+    },
+    {
+      "name": "call-bound",
+      "modules": 1,
+      "bytes": 687
+    },
+    {
+      "name": "is-date-object",
+      "modules": 1,
+      "bytes": 674
+    },
+    {
+      "name": "call-bind",
+      "modules": 1,
+      "bytes": 641
+    },
+    {
+      "name": "react-freeze",
+      "modules": 1,
+      "bytes": 591
+    },
+    {
+      "name": "es-shim-unscopables",
+      "modules": 1,
+      "bytes": 589
+    },
+    {
+      "name": "has-property-descriptors",
+      "modules": 1,
+      "bytes": 588
+    },
+    {
+      "name": "simple-swizzle",
+      "modules": 1,
+      "bytes": 571
+    },
+    {
+      "name": "@rn-primitives/separator",
+      "modules": 2,
+      "bytes": 545
+    },
+    {
+      "name": "es-errors",
+      "modules": 7,
+      "bytes": 524
+    },
+    {
+      "name": "nanoid",
+      "modules": 1,
+      "bytes": 508
+    },
+    {
+      "name": "escape-string-regexp",
+      "modules": 1,
+      "bytes": 461
+    },
+    {
+      "name": "split-on-first",
+      "modules": 1,
+      "bytes": 459
+    },
+    {
+      "name": "safe-regex-test",
+      "modules": 1,
+      "bytes": 405
+    },
+    {
+      "name": "iterate-value",
+      "modules": 1,
+      "bytes": 403
+    },
+    {
+      "name": "clsx",
+      "modules": 1,
+      "bytes": 388
+    },
+    {
+      "name": "nullthrows",
+      "modules": 1,
+      "bytes": 384
+    },
+    {
+      "name": "es-get-iterator",
+      "modules": 1,
+      "bytes": 372
+    },
+    {
+      "name": "react-native-is-edge-to-edge",
+      "modules": 1,
+      "bytes": 350
+    },
+    {
+      "name": "filter-obj",
+      "modules": 1,
+      "bytes": 346
+    },
+    {
+      "name": "is-arrayish",
+      "modules": 1,
+      "bytes": 318
+    },
+    {
+      "name": "warn-once",
+      "modules": 1,
+      "bytes": 314
+    },
+    {
+      "name": "gopd",
+      "modules": 2,
+      "bytes": 303
+    },
+    {
+      "name": "es-define-property",
+      "modules": 1,
+      "bytes": 288
+    },
+    {
+      "name": "hasown",
+      "modules": 1,
+      "bytes": 206
+    },
+    {
+      "name": "has-tostringtag",
+      "modules": 1,
+      "bytes": 189
+    },
+    {
+      "name": "standard-navigation",
+      "modules": 1,
+      "bytes": 186
+    },
+    {
+      "name": "strict-uri-encode",
+      "modules": 1,
+      "bytes": 138
+    },
+    {
+      "name": "metro-runtime",
+      "modules": 1,
+      "bytes": 14
+    },
+    {
+      "name": "(app) assets",
+      "modules": 7,
+      "bytes": 0
+    }
+  ]
+}
