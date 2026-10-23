@@ -280,6 +280,22 @@ describe("auth store", () => {
     expect(lastUserMock.forgetLastUser).not.toHaveBeenCalled();
   });
 
+  // Online, a revoked device's fresh token: the adoptSession /me's 401 ends the session and the api layer signs out
+  // (once) while initialize still reads the cached rooms. Letting the stored person in after that left them in
+  // with no session, and the api layer reports a sign-out only once.
+  it("initialize: a server verdict that lands while the cached rooms are read lets nobody in and wipes their traces", async () => {
+    lastUserMock.readLastUser.mockResolvedValueOnce(user);
+    useChatSendStore.setState({ entries: [{ clientMsgId: "c1", workspaceId: "w1", roomId: "r1", senderId: "u1", body: "hi", createdAt: 1, status: "queued" }] });
+    cacheMock.restoreAccountCache.mockImplementationOnce(async () => {
+      sessionMock.status.mockReturnValue("signed-out");
+    });
+    await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState()).toMatchObject({ user: null, isLoading: false });
+    expect(useChatSendStore.getState().entries).toEqual([]);
+    expect(lastUserMock.forgetLastUser).toHaveBeenCalledTimes(1);
+    expect(apiMock.getMe).not.toHaveBeenCalled();
+  });
+
   it("adoptSession: /me answering about someone else than the person already in is not adopted", async () => {
     let answer: (u: typeof user) => void = () => undefined;
     apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));

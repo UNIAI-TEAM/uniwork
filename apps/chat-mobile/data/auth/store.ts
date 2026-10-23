@@ -202,6 +202,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     if (lastUser) {
       await restoreAccountCache(lastUser.id);
+      // A server verdict that landed while the cached rooms were read (a restore-time refresh refused, or the
+      // adoptSession /me's 401 that the api layer already answered with a sign-out) ended the session with nobody
+      // in to sign out: letting the stored person in now would leave them in with no session, past the one sign-out.
+      if (session.status() === "signed-out") {
+        await forgetAccountLocally();
+        set({ isLoading: false });
+        return;
+      }
       set({ user: adoptUser(lastUser), isLoading: false });
       // Behind the inbox: a fresh profile replaces the stored one; no answer keeps it.
       void loadUser().then((user) => {

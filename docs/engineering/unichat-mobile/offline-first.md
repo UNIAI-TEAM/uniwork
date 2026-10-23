@@ -16,7 +16,8 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   Keychain khi xoá app) qua `session.discardStored()` — xoá, không adopt, thu hồi thiết bị ở nền — trước khi đọc chúng:
   xoá app là đăng xuất.
   Server đã kết thúc phiên trước khi ai được vào (refresh hết hạn, thiết bị bị thu hồi) mà máy còn người dùng đã lưu
-  hay hàng đợi thì xoá như đăng xuất (outbox và tệp, lượt chờ, cache đĩa, workspace); màn chat chỉ hiện và thử lại
+  hay hàng đợi thì xoá như đăng xuất (outbox và tệp, lượt chờ, cache đĩa, workspace), kể cả khi phán quyết tới lúc
+  `initialize()` còn đọc cache phòng của người đã lưu (khi đó không cho ai vào); màn chat chỉ hiện và thử lại
   tin chờ của chính người đang đăng nhập (`selectRoomSends` lọc theo người gửi). `login()` và `adoptSession()`
   dùng chung một lần nhận người dùng. Lần nhận đó cũng chạy lúc mở lạnh (phiên phát token còn hạn ngay trong
   `restore`, `app/_layout.tsx` gọi `adoptSession()`), song song `initialize()`: `/me` không trả lời (offline, 5xx,
