@@ -5,8 +5,6 @@ import { parseWithFallback } from "../schema";
 
 const enc = encodeURIComponent;
 
-const SummaryResponse = z.object({ summary: MeetingSummarySchema.nullable() });
-
 const IDLE_RUN: MeetingSummaryRun = { status: "idle", at: null, attempts: 0 };
 
 const SummaryStateResponse = z.object({
@@ -34,9 +32,16 @@ export async function getMeetingSummary(meetingId: string): Promise<MeetingSumma
   }
 }
 
-export async function createMeetingSummary(meetingId: string, locale: string): Promise<MeetingSummary | null> {
+/**
+ * Starts a summary run (202, UNI-1995 #12): the server answers at once with the
+ * summary on record and the run running, and goes on without this request. The
+ * run ends in summary.created, or in `run.failure` on the next read.
+ */
+export async function createMeetingSummary(meetingId: string, locale: string): Promise<MeetingSummaryState> {
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary`, { method: "POST", body: { locale } });
-  return parseWithFallback(raw, SummaryResponse, { summary: null }, { endpoint: "createMeetingSummary" }).summary;
+  // The run was accepted: an answer that does not parse still reads as running.
+  const started: MeetingSummaryState = { summary: null, run: { status: "running", at: null, attempts: 0 } };
+  return parseWithFallback(raw, SummaryStateResponse, started, { endpoint: "createMeetingSummary" });
 }
 
 const CatchUpPointSchema = z.object({

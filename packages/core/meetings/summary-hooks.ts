@@ -51,14 +51,22 @@ export function useMeetingSummaryRun(meetingId: string) {
   });
 }
 
+/**
+ * Starts a summary run (UNI-1995 #12). The server answers at once and the run
+ * goes on without this request, so the started run is written into the
+ * summary answer straight away (useMeetingSummaryRun then polls it) and the
+ * summary on screen stays until the run lands a new one: summary.created
+ * invalidates the summary, its action items and the activity, as for any run.
+ */
 export function useCreateMeetingSummary(meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (locale: string) => api.createMeetingSummary(meetingId, locale),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: meetingKeys.summary(meetingId) });
-      void qc.invalidateQueries({ queryKey: meetingKeys.actionItems(meetingId) });
-      void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
+    onSuccess: (started) => {
+      qc.setQueryData<api.MeetingSummaryState>(meetingKeys.summary(meetingId), (prev) => ({
+        summary: started.summary ?? prev?.summary ?? null,
+        run: started.run,
+      }));
     },
   });
 }

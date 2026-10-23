@@ -286,6 +286,11 @@ export const MeetingSummaryRunSchema = z
     at: z.string().nullish().catch(null),
     /** How many times the server has tried the automatic summary. */
     attempts: z.number().int().nonnegative().catch(0),
+    /**
+     * The last run's failure while none runs (UNI-1995 #12): a clerk's run
+     * outlives its request, so its refusal code arrives here, not on the POST.
+     */
+    failure: z.object({ code: z.string(), at: z.string() }).nullish().catch(null),
   })
   .catch({ status: "idle", at: null, attempts: 0 });
 export type MeetingSummaryRun = z.infer<typeof MeetingSummaryRunSchema>;

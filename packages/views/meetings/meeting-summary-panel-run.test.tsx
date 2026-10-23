@@ -80,6 +80,78 @@ describe("MeetingSummaryPanel › a summary the server is making (UNI-1995 #12)"
   });
 });
 
+describe("MeetingSummaryPanel › a clerk's run outlives the click (UNI-1995 #12)", () => {
+  /** GET answers `state`; POST starts a run (202) and answers `started`. */
+  function respondStart(started: () => unknown) {
+    let state: unknown = { summary: null, run: idle };
+    requestMock.mockReset();
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+      const p = String(path);
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/summary") && init?.method === "POST") {
+        state = { summary: null, run: running };
+        return Promise.resolve(started());
+      }
+      if (p.endsWith("/summary")) return Promise.resolve(state);
+      if (p.endsWith("/transcript")) {
+        return Promise.resolve({ segments: [{ id: "t1", meeting_id: "m1", text: "Ngân sách", spoken_at: "2026-09-22T02:10:00Z" }] });
+      }
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      return Promise.resolve({});
+    });
+    return (next: unknown) => {
+      state = next;
+    };
+  }
+
+  async function clickGenerate(client: QueryClient) {
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />, undefined, client));
+    const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
+    await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
+    fireEvent.click(button);
+  }
+
+  it("keeps saying it is being made after the server took the run, then shows how it failed", async () => {
+    const setState = respondStart(() => ({ summary: null, run: running }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await clickGenerate(client);
+    expect(await screen.findByRole("button", { name: "Đang tóm tắt…" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("summary-live-region")).not.toHaveTextContent("Đã tạo tóm tắt.");
+
+    // The run ends on the server; the poll (here, an invalidation) reads it.
+    setState({ summary: null, run: { ...idle, failure: { code: "ai_timeout", at: "2026-09-22T04:03:00Z" } } });
+    await client.invalidateQueries({ queryKey: meetingKeys.summary("m1") });
+
+    const panel = screen.getByTestId("meeting-summary-panel");
+    await waitFor(() => expect(panel).toHaveTextContent("AI trả lời quá lâu"));
+    expect(within(panel).getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Đang tóm tắt…" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("summary-live-region")).toHaveTextContent("AI trả lời quá lâu"));
+  });
+
+  it("says the summary is ready when the started run lands it", async () => {
+    const setState = respondStart(() => ({ summary: null, run: running }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await clickGenerate(client);
+    await screen.findByRole("button", { name: "Đang tóm tắt…" });
+    expect(screen.getByTestId("summary-live-region")).not.toHaveTextContent("Đã tạo tóm tắt.");
+
+    setState({ summary: { id: "s1", meeting_id: "m1", summary: "Chốt ngân sách." }, run: idle });
+    await client.invalidateQueries({ queryKey: meetingKeys.summary("m1") });
+
+    expect(await screen.findByText("Chốt ngân sách.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("summary-live-region")).toHaveTextContent("Đã tạo tóm tắt."));
+  });
+
+  it("shows the failure of a run that ended before the answer came back", async () => {
+    respondStart(() => ({ summary: null, run: { ...idle, failure: { code: "ai_failed", at: "2026-09-22T04:01:00Z" } } }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await clickGenerate(client);
+    const panel = screen.getByTestId("meeting-summary-panel");
+    await waitFor(() => expect(within(panel).getByRole("button", { name: "Thử lại" })).toBeInTheDocument());
+  });
+});
+
 describe("MeetingSummaryPanel › topics and open questions (meeting_summary@7)", () => {
   it("renders each topic with when it started and its cited points, then the open questions", async () => {
     respond(() => ({

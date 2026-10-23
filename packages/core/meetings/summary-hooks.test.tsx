@@ -7,6 +7,7 @@ import {
   SUMMARY_RUN_POLL_MS,
   meetingCatchUpKey,
   summaryQueryRetry,
+  useCreateMeetingSummary,
   useMeetingCatchUp,
   useMeetingEvidenceOf,
   useMeetingSummary,
@@ -15,9 +16,11 @@ import {
 
 const catchUp = vi.hoisted(() => vi.fn());
 const getSummary = vi.hoisted(() => vi.fn());
+const createSummary = vi.hoisted(() => vi.fn());
 vi.mock("../api/endpoints/meeting-summary", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   createMeetingCatchUp: catchUp,
+  createMeetingSummary: createSummary,
   getMeetingSummary: getSummary,
 }));
 const evidence = vi.hoisted(() => vi.fn());
@@ -56,6 +59,35 @@ describe("useMeetingSummaryRun", () => {
     });
     expect(getSummary).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
+  });
+});
+
+describe("useCreateMeetingSummary", () => {
+  it("shows the started run at once and keeps the summary on record until the run lands a new one", async () => {
+    const stored = { id: "s1", meeting_id: "m1", summary: "Bản cũ", decisions: [] };
+    const running = { status: "running", at: "2026-10-23T02:00:00Z", attempts: 0 };
+    getSummary.mockReset();
+    getSummary.mockImplementation(() => Promise.resolve({ summary: stored, run: { status: "idle", at: null, attempts: 0 } }));
+    createSummary.mockReset();
+    createSummary.mockImplementation(() => {
+      // A slow read after the click: the started run shows without waiting for it.
+      getSummary.mockImplementation(() => new Promise(() => {}));
+      return Promise.resolve({ summary: null, run: running });
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client: qc }, children);
+    const { result } = renderHook(
+      () => ({ run: useMeetingSummaryRun("m1"), summary: useMeetingSummary("m1"), create: useCreateMeetingSummary("m1") }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.summary.data).toEqual(stored));
+    await act(async () => {
+      await result.current.create.mutateAsync("vi");
+    });
+    expect(createSummary).toHaveBeenCalledWith("m1", "vi");
+    await waitFor(() => expect(result.current.run.data?.status).toBe("running"));
+    // A 202 that carries no summary does not wipe the one on screen.
+    expect(result.current.summary.data).toEqual(stored);
   });
 });
 
