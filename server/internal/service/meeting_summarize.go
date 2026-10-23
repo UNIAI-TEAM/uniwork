@@ -69,6 +69,7 @@ const (
 	summaryReasonRateLimited   = "rate_limited"
 	summaryReasonTimeout       = "timeout"
 	summaryReasonProvider      = "provider"
+	summaryReasonRefused       = "refused"
 	summaryReasonGateway       = "gateway"
 	summaryReasonParse         = "parse"
 	summaryReasonEmpty         = "empty"
@@ -137,7 +138,7 @@ func (e summaryRunFailure) Unwrap() error { return e.err }
 
 // summaryReasonTransient are the failures a later run can expect not to
 // meet: a rate limit, a timeout, a provider or network error. A billed answer
-// that did not parse, a quota or a missing model are not.
+// that did not parse, a refusal, a quota or a missing model are not.
 var summaryReasonTransient = map[string]bool{
 	summaryReasonRateLimited: true, summaryReasonTimeout: true, summaryReasonProvider: true, summaryReasonGateway: true,
 }
@@ -184,8 +185,13 @@ func classifySummaryFailure(err error) (string, error) {
 			return summaryReasonQuota, CodedError{Code: aiErr.Code, Status: aiErr.Status, Msg: ai.ErrQuotaExceeded.Msg, Fields: aiErr.Fields}
 		case ai.ErrRateLimited.Code:
 			return summaryReasonRateLimited, CodedError{Code: aiErr.Code, Status: aiErr.Status, Msg: ai.ErrRateLimited.Msg, Fields: aiErr.Fields}
+		case ai.ErrProviderError.Code, ai.ErrProviderUnreachable.Code:
+			return summaryReasonProvider, errSummaryFailed()
 		}
-		return summaryReasonProvider, errSummaryFailed()
+		// ai_refused (billed), a forbidden tool or context, a refused key, an
+		// unsupported medium: the same request meets the same no, so the auto
+		// summary does not pay to ask again.
+		return summaryReasonRefused, errSummaryFailed()
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return summaryReasonTimeout, errSummaryTimeout()

@@ -287,6 +287,21 @@ func TestAutoSummaryRetriesWhatPasses(t *testing.T) {
 			t.Fatalf("queued=%v due in %v, want the 300 s retry_after", queued, due)
 		}
 	})
+	t.Run("a refusal settles on the first attempt", func(t *testing.T) {
+		// ai_refused is billed and deterministic: a retry pays again for the same no.
+		fake := &provider.Fake{Err: provider.ErrRefused}
+		s, ua, m, _ := summaryFixture(t, fake, ai.Options{})
+		if _, err := s.End(ctx, ua.ID, m.ID); err != nil {
+			t.Fatal(err)
+		}
+		makeAutoDue(t, s, m.ID)
+		if err := s.claimAutoSummaries(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, queued := autoQueue(t, s, m.ID); queued || fake.Calls != 1 || outboxTopicCount(t, s, topicAutoSummaryFailed, m.ID) != 1 {
+			t.Fatalf("a refusal must settle and remind (queued %v, calls %d)", queued, fake.Calls)
+		}
+	})
 	t.Run("a bad answer settles", func(t *testing.T) {
 		var calls atomic.Int32
 		s, ua, m, _ := summaryFixture(t, &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
