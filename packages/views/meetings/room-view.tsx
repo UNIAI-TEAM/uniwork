@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api";
 import type { JoinMeetingBody } from "@uniwork/core/api/endpoints/meetings";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
-import { isJoinAdmitted, useJoinMeeting, useMeeting, useStartMeeting } from "@uniwork/core/meetings";
+import { isJoinAdmitted, useJoinMeeting, useMeeting, useMeetingCapabilities, useStartMeeting } from "@uniwork/core/meetings";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { useMeetingLobbySync, useMeetingScope } from "@uniwork/core/realtime";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -75,6 +75,7 @@ export function MeetingRoomView({
   initialJoinDecision,
   initialChoice,
   invite,
+  guestScribe = false,
   onLeave,
   meetingsHref,
   workspaceLabel,
@@ -90,6 +91,8 @@ export function MeetingRoomView({
   initialChoice?: PreJoinChoice;
   /** Public-link credentials for someone outside the workspace; every join carries them. */
   invite?: { linkId: string; secret: string };
+  /** Guest mode: the invite page said the AI scribe would transcribe the meeting. */
+  guestScribe?: boolean;
   onLeave: () => void;
   meetingsHref?: string;
   workspaceLabel?: string;
@@ -104,6 +107,11 @@ export function MeetingRoomView({
   const { data: meeting, isLoading: meetingLoading } = useMeeting(meetingId, { enabled: !guestMode });
   const resolvedWorkspaceId = guestMode ? (workspaceId ?? "") : (workspaceId ?? meeting?.workspace_id ?? "");
   const start = useStartMeeting(resolvedWorkspaceId);
+  const { data: caps } = useMeetingCapabilities(guestMode ? "" : resolvedWorkspaceId);
+  // Consent before anyone is transcribed (UNI-1995 access): prejoin and lobby
+  // say the AI scribe is on. A guest learns it from the invite page.
+  const scribeOn = guestMode ? guestScribe : caps?.scribe === true && meeting?.scribe_enabled !== false;
+  const scribeNoticeFor = scribeOn ? meetingId : undefined;
   const { canHost } = useMeetingPermissions(guestMode ? null : (meeting ?? null), resolvedWorkspaceId);
   // In-room events reach only the sockets holding the meeting open. Held from
   // the prejoin on: a member waiting for approval hears its decision there.
@@ -277,6 +285,7 @@ export function MeetingRoomView({
         <MeetingPreJoin
           meeting={meeting ?? undefined}
           loading={!guestMode && meetingLoading}
+          scribeNoticeFor={scribeNoticeFor}
           onJoin={setChoice}
           onLeave={onLeave}
         />
@@ -304,6 +313,7 @@ export function MeetingRoomView({
           starting={start.isPending || (start.isSuccess && join.isPending)}
           onStart={handleStartMeeting}
           startError={startError}
+          scribeNoticeFor={scribeNoticeFor}
           onLeave={onLeave}
         />
       </MeetingRoomShell>

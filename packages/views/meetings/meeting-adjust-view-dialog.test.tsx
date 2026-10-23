@@ -31,5 +31,8 @@ describe("MeetingAdjustViewDialog", () => {
     expect(screen.getByRole("radio", { name: "Thanh bên" })).toBeInTheDocument();
     expect(screen.getByText("8")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Ẩn ô không có video" })).toBeChecked();
+    // The close button speaks the room's language, not the primitive's English default.
+    expect(screen.getByRole("button", { name: "Đóng" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
   });
 });

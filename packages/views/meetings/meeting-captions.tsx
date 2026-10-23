@@ -175,11 +175,12 @@ export function MeetingCaptionsOverlay({
       <p role="status" aria-live="polite" className="sr-only">
         {paused ? t("meetings.captionsPausedMicOff") : lastFinal}
       </p>
-      <div className="rounded-xl bg-meeting-bar-bg px-4 py-2 text-center ring-1 ring-meeting-bar-border">
+      {/* Left-aligned and capped like the AI scribe's captions, so switching between them does not jump. */}
+      <div className="rounded-xl bg-meeting-bar-bg px-4 py-2 ring-1 ring-meeting-bar-border">
         <p className="text-caption text-meeting-bar-muted-foreground">{t("meetings.captionsAutoLabel")}</p>
-        <p aria-hidden className="text-body text-meeting-bar-foreground">
-          {text || t("meetings.captionsListening")}
-        </p>
+        <div aria-hidden className="flex max-h-[3lh] flex-col justify-end overflow-hidden text-body">
+          <p className="text-meeting-bar-foreground">{text || t("meetings.captionsListening")}</p>
+        </div>
       </div>
     </div>
   );

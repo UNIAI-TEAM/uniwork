@@ -18,7 +18,7 @@ import (
 )
 
 var agentToolOrder = []string{
-	"search", "list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects",
+	"search", "list_tasks", "get_task", "list_meetings", "get_meeting", "get_meeting_transcript", "list_projects",
 	"get_project", "get_document", "list_chat_rooms", "read_chat_room", "list_members", "member_workload",
 }
 

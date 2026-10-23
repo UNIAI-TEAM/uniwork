@@ -55,7 +55,34 @@ func (s *MeetingService) inviteUserTx(ctx context.Context, q *db.Queries, m db.M
 		return db.MeetingParticipant{}, err
 	}
 	_ = s.writeAudit(ctx, q, m, "PARTICIPANT_INVITED", actorID, "", p.ID, "{}")
+	if err := s.approveKnockByInviteTx(ctx, q, m, actorID, userID); err != nil {
+		return db.MeetingParticipant{}, err
+	}
 	return p, nil
+}
+
+// approveKnockByInviteTx settles a pending knock of someone the host has just
+// invited: the invitation's grant lets them in, so the knock is approved by
+// the same actor, or the host keeps seeing them at the door.
+func (s *MeetingService) approveKnockByInviteTx(ctx context.Context, q *db.Queries, m db.Meeting, actorID, userID string) error {
+	jr, err := q.GetPendingJoinRequestForUser(ctx, db.GetPendingJoinRequestForUserParams{MeetingID: m.ID, RequesterUserID: strText(userID)})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := q.DecideJoinRequest(ctx, db.DecideJoinRequestParams{ID: jr.ID, Status: JoinApproved, ReviewedBy: strText(actorID)}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil // decided meanwhile
+		}
+		return err
+	}
+	_ = s.writeAudit(ctx, q, m, "JOIN_REQUEST_APPROVED", actorID, JoinPending, JoinApproved, "{}")
+	s.record(ctx, q, m, audit.User(actorID), "join_request.approved",
+		meetingRelatedPayload(m, map[string]string{"join_request_id": jr.ID}),
+		audit.Diff(map[string]any{"status": JoinPending}, map[string]any{"status": JoinApproved}))
+	return nil
 }
 
 func (s *MeetingService) Invite(ctx context.Context, actorID, meetingID, userID string) (db.MeetingParticipant, error) {
@@ -175,9 +202,12 @@ func (s *MeetingService) RemoveParticipant(ctx context.Context, actorID, meeting
 	if sess, err := q.GetOpenConferenceSession(ctx, m.ID); err == nil {
 		room = sess.ProviderRoomName
 	}
-	_ = s.enqueue(ctx, q, m.WorkspaceID, "provider.remove_participant", map[string]string{
-		"meeting_id": m.ID, "room_name": room, "identity": meetings.IdentityForParticipant(participantID),
-	})
+	target := map[string]string{"meeting_id": m.ID, "room_name": room, "identity": meetings.IdentityForParticipant(participantID)}
+	if isDialInParticipant(p) {
+		// A caller is dropped by connection: the raw identity is never stored.
+		target = map[string]string{"meeting_id": m.ID, "room_name": room, "participant_sid": s.dialInConnectionSID(ctx, p)}
+	}
+	_ = s.enqueue(ctx, q, m.WorkspaceID, "provider.remove_participant", target)
 	s.record(ctx, q, m, audit.User(actorID), "participant.removed",
 		meetingRelatedPayload(m, map[string]string{"participant_id": participantID}), nil)
 	if err := tx.Commit(ctx); err != nil {

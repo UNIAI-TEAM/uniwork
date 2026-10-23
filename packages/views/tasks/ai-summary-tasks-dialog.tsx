@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CalendarDays, CircleAlert, Flag, FolderKanban, ListChecks, Sparkles, UserRound } from "lucide-react";
+import { CalendarDays, CircleAlert, Flag, FolderKanban, ListChecks, PenLine, Sparkles, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskPriority } from "@uniwork/core/types";
+import { useMembers } from "@uniwork/core/workspaces";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
+import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateField } from "../common/date-field";
@@ -13,13 +15,24 @@ import { MeetingAssigneeSelect } from "../meetings/meeting-assignee-select";
 import { ProjectSelect } from "../projects/components/project-select";
 import { PriorityPicker } from "./pickers/priority-picker";
 
-const FIELD_CLASS = "h-9 w-full max-w-none";
+// Every control keeps the 32px of Input and DateField; the small select
+// trigger (data-[size=sm], 28px) is raised to match.
+const FIELD_CLASS = "w-full max-w-none data-[size=sm]:h-8";
+
+// What the AI read from the source: neutral, so it never reads as a selection.
+const SAID_CHIP_CLASS =
+  "inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-caption text-muted-foreground";
+
+/** The same person's name as said and as picked: case and spaces aside. */
+export const sameName = (a: string, b: string | undefined) => a.trim().toLowerCase() === b?.trim().toLowerCase();
 
 /** What the person confirms for one AI action item. null is "nobody" / "no due date", a choice. */
 export interface AiSummaryTaskDraft {
   assigneeId: string | null;
   priority: TaskPriority;
   dueDate: string | null;
+  /** The task's title when the screen lets it be edited (copy.titleLabel); unset keeps the seed's, blank is refused. */
+  title?: string;
 }
 
 /** One picked action item and the values the dialog opens with. */
@@ -44,6 +57,8 @@ export interface AiSummaryTasksDialogCopy {
   spokenDue?: (due: string) => string;
   submit: string;
   submitting?: string;
+  /** Set to let the person edit each title, labelled with it. */
+  titleLabel?: string;
 }
 
 function FieldBlock({
@@ -93,8 +108,14 @@ function TaskEditorCard({
   onChange: (patch: Partial<AiSummaryTaskDraft>) => void;
 }) {
   const { t } = useTranslation();
+  const { data: members } = useMembers(wsId);
   const dueId = `${idPrefix}-due-${seed.index}`;
-  const owner = seed.owner?.trim();
+  const titleId = `${idPrefix}-title-${seed.index}`;
+  const titleErrorId = `${titleId}-error`;
+  const titleBlank = draft.title !== undefined && draft.title.trim() === "";
+  const picked = members?.find((m) => m.user_id === draft.assigneeId)?.display_name;
+  // The owner the AI read, unless it is who the select already shows: one name, once.
+  const owner = seed.owner?.trim() && !sameName(seed.owner, picked) ? seed.owner.trim() : undefined;
   const due = seed.due?.trim();
 
   return (
@@ -114,7 +135,26 @@ function TaskEditorCard({
             </span>
           )}
           <div className="min-w-0 flex-1 space-y-1.5">
-            <p className="text-body font-semibold leading-snug text-foreground">{seed.title}</p>
+            {copy.titleLabel ? (
+              <FieldBlock icon={PenLine} label={copy.titleLabel} htmlFor={titleId}>
+                <Input
+                  id={titleId}
+                  className="font-semibold"
+                  value={draft.title ?? seed.title}
+                  aria-invalid={titleBlank || undefined}
+                  aria-describedby={titleBlank ? titleErrorId : undefined}
+                  onChange={(e) => onChange({ title: e.target.value })}
+                />
+                {titleBlank ? (
+                  <p id={titleErrorId} className="flex items-center gap-1 text-caption text-destructive">
+                    <CircleAlert className="size-3.5 shrink-0" aria-hidden />
+                    {t("tasks.summary_title_required")}
+                  </p>
+                ) : null}
+              </FieldBlock>
+            ) : (
+              <p className="text-body font-semibold leading-snug text-foreground">{seed.title}</p>
+            )}
             {note ? (
               <p className="flex items-center gap-1 text-caption text-destructive">
                 <CircleAlert className="size-3.5 shrink-0" aria-hidden />
@@ -124,13 +164,13 @@ function TaskEditorCard({
             {owner || (due && copy.spokenDue) ? (
               <div className="flex flex-wrap gap-1.5">
                 {owner ? (
-                  <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-brand-subtle px-1.5 py-0.5 text-caption text-brand-subtle-foreground">
+                  <span className={SAID_CHIP_CLASS}>
                     <Sparkles className="size-3 shrink-0" aria-hidden />
                     {copy.suggestedOwner(owner)}
                   </span>
                 ) : null}
                 {due && copy.spokenDue ? (
-                  <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-brand-subtle px-1.5 py-0.5 text-caption text-brand-subtle-foreground">
+                  <span className={SAID_CHIP_CLASS}>
                     <Sparkles className="size-3 shrink-0" aria-hidden />
                     {copy.spokenDue(due)}
                   </span>
@@ -140,9 +180,10 @@ function TaskEditorCard({
           </div>
         </div>
 
-        <FieldBlock icon={UserRound} label={t("meetings.assignTaskTo")}>
+        <FieldBlock icon={UserRound} label={t("tasks.assignee")}>
           <MeetingAssigneeSelect
             workspaceId={wsId}
+            ariaLabel={t("tasks.assignee")}
             value={draft.assigneeId ?? undefined}
             onChange={(userId) => onChange({ assigneeId: userId ?? null })}
             unassignedLabel={copy.unassignedLabel}
@@ -155,7 +196,8 @@ function TaskEditorCard({
             <PriorityPicker
               value={draft.priority}
               ariaLabel={t("tasks.priority")}
-              triggerClassName={cn(FIELD_CLASS, "justify-start gap-1.5 border border-input px-2.5 font-normal")}
+              // h-8: the sm button trigger is 28px, 4px short of the date field beside it.
+              triggerClassName={cn(FIELD_CLASS, "h-8 justify-start gap-1.5 border border-input px-2.5 font-normal")}
               onChange={(priority) => onChange({ priority })}
             />
           </FieldBlock>
@@ -204,6 +246,8 @@ function AiSummaryTasksForm({
   const [drafts, setDrafts] = useState<Record<number, AiSummaryTaskDraft>>(() =>
     Object.fromEntries(seeds.map((s) => [s.index, s.draft])),
   );
+  // A cleared title is refused on its field; it never falls back to the AI's wording unseen.
+  const blankTitle = !!copy.titleLabel && seeds.some((s) => (drafts[s.index] ?? s.draft).title?.trim() === "");
 
   return (
     <>
@@ -249,8 +293,11 @@ function AiSummaryTasksForm({
         submitLabel={copy.submit}
         submittingLabel={copy.submitting}
         submitting={pending}
-        submitDisabled={seeds.length === 0}
-        onSubmit={() => onConfirm({ projectId, drafts })}
+        submitDisabled={seeds.length === 0 || blankTitle}
+        onSubmit={() => {
+          if (blankTitle) return;
+          onConfirm({ projectId, drafts });
+        }}
       />
     </>
   );
@@ -302,10 +349,16 @@ export function AiSummaryTasksDialog({
     setShown({ seeds, copy, itemNotes });
   }
   const view = open ? { seeds, copy, itemNotes } : shown;
+  // Escape, the scrim and the close button cannot drop a review while it is being sent:
+  // its answer (the duplicate marks) lands on this dialog.
+  const changeOpen = (next: boolean) => {
+    if (!next && pending) return;
+    onOpenChange(next);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg" className="sm:max-w-xl">
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <FormDialogContent size="lg" className="sm:max-w-xl" showCloseButton={!pending}>
         <AiSummaryTasksForm
           key={opening}
           wsId={wsId}
@@ -315,7 +368,7 @@ export function AiSummaryTasksDialog({
           copy={view.copy}
           itemNotes={view.itemNotes}
           pending={pending}
-          onCancel={() => onOpenChange(false)}
+          onCancel={() => changeOpen(false)}
           onConfirm={onConfirm}
         />
       </FormDialogContent>

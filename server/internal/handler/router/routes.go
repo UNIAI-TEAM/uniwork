@@ -414,13 +414,50 @@ type Routes struct {
 	MeetingStatistics              http.HandlerFunc
 	MeetingActivity                http.HandlerFunc
 	AppendTranscript               http.HandlerFunc
-	AppendAgentTranscript          http.HandlerFunc
+	SetMeetingScribe               http.HandlerFunc
+	SetMeetingAISharing            http.HandlerFunc
+	GetMeetingSettings             http.HandlerFunc
+	SetMeetingSettings             http.HandlerFunc
+	SetParticipantSharedMic        http.HandlerFunc
+	ListSpeakerLabels              http.HandlerFunc
+	AssignSpeakerLabel             http.HandlerFunc
+	RecordMeetingHeld              http.HandlerFunc
+	CreateMeetingAudioUpload       http.HandlerFunc
+	RequestMeetingTranscription    http.HandlerFunc
+	ListMeetingTranscriptions      http.HandlerFunc
+	DeleteMeetingTranscription     http.HandlerFunc
+	EditTranscriptSegment          http.HandlerFunc
+	DeleteTranscriptSegment        http.HandlerFunc
+	DeleteTranscript               http.HandlerFunc
+	SetTranscriptRetention         http.HandlerFunc
+	MeetingDialIn                  http.HandlerFunc
+	RotateMeetingDialInPin         http.HandlerFunc
+	MeetingAgentStarted            http.HandlerFunc
+	MeetingAgentContext            http.HandlerFunc
+	MeetingAgentSegments           http.HandlerFunc
+	MeetingAgentFinished           http.HandlerFunc
+	MeetingAgentExtract            http.HandlerFunc
+	MeetingAgentTranslate          http.HandlerFunc
+	SetCaptionLanguage             http.HandlerFunc
 	ListTranscript                 http.HandlerFunc
 	AppendChatMessage              http.HandlerFunc
 	ListChatMessages               http.HandlerFunc
 	GetMeetingSummary              http.HandlerFunc
 	CreateSummary                  http.HandlerFunc
-	CreateSummaryTasks             http.HandlerFunc
+	MeetingEvidence                http.HandlerFunc
+	ListActionItems                http.HandlerFunc
+	ListCarriedOverItems           http.HandlerFunc
+	GetMeetingMinutes              http.HandlerFunc
+	CreateMeetingMinutes           http.HandlerFunc
+	FinalizeMeetingMinutes         http.HandlerFunc
+	RefreshMeetingMinutes          http.HandlerFunc
+	ReopenMeetingMinutes           http.HandlerFunc
+	AddActionItem                  http.HandlerFunc
+	DismissActionItem              http.HandlerFunc
+	RestoreActionItem              http.HandlerFunc
+	LinkActionItem                 http.HandlerFunc
+	ConvertActionItems             http.HandlerFunc
+	MeetingCatchUp                 http.HandlerFunc
 	StartRecording                 http.HandlerFunc
 	StopRecording                  http.HandlerFunc
 	ListRecordings                 http.HandlerFunc
@@ -608,6 +645,10 @@ type Routes struct {
 	GetOfficeFrameAvatar     http.HandlerFunc
 	// PDF export of the frame's document (UNI-1013, W8).
 	ExportOfficeFramePDF http.HandlerFunc
+	// DOCX/PDF export of a UniNote page (UNI-2004).
+	ExportDocumentPage http.HandlerFunc
+	// The formats that export can render here (follow-6).
+	GetDocumentPageExportFormats http.HandlerFunc
 	// GO-A7's AI handlers on the frame-token mount (UNI-1014, ADR 0029 D9).
 	OfficeFrameAiCredentialsList     http.HandlerFunc
 	OfficeFrameAiCredentialSave      http.HandlerFunc

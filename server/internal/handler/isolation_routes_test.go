@@ -797,6 +797,8 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/office-frame/documents/{documentID}/avatars/{userID}":           {class: isoScoped, reason: "frame token credential: Authorize rechecks view on the token's document and AvatarFileOf requires an active member of that document's organization; control = owner reads a same-org avatar in control and frame-avatar", checkControl: isoFrameAvatarCheck},
 	"HEAD /api/v1/office-frame/documents/{documentID}/avatars/{userID}":          {class: isoScoped, reason: "frame token credential: Authorize rechecks view on the token's document and AvatarFileOf requires an active member of that document's organization; control = owner reads a same-org avatar in frame-avatar"},
 	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil), skipControl: "owner 5xx found by G8-04, owner: office frame export (the stub engine answers 501 unsupported_operation)"},
+	// UNI-2004: the page export runs ExportFramePDF's job path on the fixture page.
+	"POST /api/v1/documents/{documentID}/export": {body: isoJSON(map[string]any{"format": "docx"}), skipControl: "the stub engine binds no export, so the owner's page export answers 501 unsupported_operation; TestPageExport holds the owner's export"},
 	// The source frame (UNI-1869): a source token, minted by the owner's
 	// session for a DOCX task attachment, opens the metadata and the bytes.
 	// do() sends that token on /api/v1/office-frame/sources/* (frameSources),
@@ -820,9 +822,22 @@ var isoRoutes = map[string]isoSpec{
 	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":                            {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
 	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":                   {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},
 	"PATCH /api/v1/meetings/{meetingID}/motions/{motionID}":                                  {body: isoJSON(map[string]any{"title": "edited"})},
-	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/ballot":                            {body: isoJSON(map[string]any{"choice": "YES"})},
-	"PATCH /api/v1/meetings/{meetingID}/participants/{participantID}":                        {body: isoJSON(map[string]any{"standing": "OBSERVER"})},
-	"POST /api/v1/meetings/{meetingID}/transcript/agent":                                     {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no member gets past the agent secret (see reason)", reason: "the STT agent authenticates with MEETING_STT_AGENT_SECRET, not a membership; a member is refused the same way"},
+	"PATCH /api/v1/meetings/{meetingID}/transcript/{segmentID}":                              {body: isoJSON(map[string]any{"text": "edited"})},
+	// follow-5: the write-control pass runs .../dismiss first, so the owner's
+	// link of the same item answers 409 action_item_not_pending - the route
+	// decided who is asking and reached the item's state.
+	"POST /api/v1/meetings/{meetingID}/action-items/{actionItemID}/link": {control: []int{http.StatusConflict},
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"task_id": tn.ids["task"]}}
+		}},
+	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/ballot":     {body: isoJSON(map[string]any{"choice": "YES"})},
+	"PATCH /api/v1/meetings/{meetingID}/participants/{participantID}": {body: isoJSON(map[string]any{"standing": "OBSERVER"})},
+	"POST /api/v1/meetings/{meetingID}/agent/started":                 {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},
+	"GET /api/v1/meetings/{meetingID}/agent/context":                  {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},
+	"POST /api/v1/meetings/{meetingID}/agent/segments":                {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},
+	"POST /api/v1/meetings/{meetingID}/agent/finished":                {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},
+	"POST /api/v1/meetings/{meetingID}/agent/extract":                 {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},
+	"POST /api/v1/meetings/{meetingID}/agent/translate":               {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},
 	"POST /api/v1/orgs/{orgID}/audit/exports": {body: func(*isoWorld, *isoTenant) isoBody {
 		return isoBody{json: map[string]any{"format": "csv", "from": time.Now().Add(-time.Hour).UTC().Format(time.RFC3339), "to": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}}
 	}},
@@ -859,8 +874,8 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}":                                         {class: isoScoped, reason: "the room detail read (UNI-1966 L5) authorizes the room by the path's workspace and room id before it answers can_send_document; an outsider is refused 403/404 and A's digest catches a served room"},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/voice":                         {body: isoFile("voice.webm", "audio/webm", tinyWebM, map[string]string{"client_msg_id": "", "duration_ms": "4000"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/avatar":                                 {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
-	"PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}":                                       {body: isoJSON(map[string]any{"name": "edited"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/wallpaper":                              {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
+	"PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}":                                       {body: isoJSON(map[string]any{"wallpaper": map[string]any{"preset": "sky"}})},
 	"PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}":                  {body: isoJSON(map[string]any{"body": "edited"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote":         {body: isoWith(map[string]string{"option_id": "pollOption"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document-link":                 {body: isoWith(map[string]string{"document_id": "chatLinkDocument"}, map[string]any{"share_level": "comment"})},

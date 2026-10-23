@@ -301,64 +301,11 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		}
 		visibility, workspaceLevel = folderHomeRowAt(inMyFolder)
 	}
-	position, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
-		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: nullText(parentID),
+	doc, err := s.insertPage(ctx, tx, q, actor, newPage{
+		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: parentID, Kind: kind,
+		Title: title, Icon: icon, Visibility: visibility, WorkspaceLevel: workspaceLevel, Page: page,
 	})
 	if err != nil {
-		return DocumentView{}, err
-	}
-	docID := util.NewID()
-	if err := s.consumePageBytes(ctx, q, actor, db.Document{ID: docID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}, int64(len(page.content))); err != nil {
-		return DocumentView{}, err
-	}
-	insert := db.InsertDocumentParams{
-		ID:             docID,
-		OrganizationID: w.OrganizationID,
-		WorkspaceID:    workspaceID,
-		ParentID:       nullText(parentID),
-		Kind:           kind,
-		Title:          title,
-		Icon:           icon,
-		Visibility:     visibility,
-		WorkspaceLevel: workspaceLevel,
-		Content:        page.content,
-		ContentText:    page.text,
-		SearchText:     documentSearchText(title, page.text),
-		ContentBytes:   int32(len(page.content)),
-		Revision:       1,
-		Position:       position,
-		AclOwnerID:     aclOwnerFor(actor),
-		CreatedBy:      actor.ID,
-		CreatedByKind:  string(actor.Kind),
-		UpdatedBy:      actor.ID,
-		UpdatedByKind:  string(actor.Kind),
-	}
-	// FD-D4: two live folders of one workspace never hold one name under one
-	// parent; a folder create takes the next free " (n)" (ADR 0037 §7).
-	var doc db.Document
-	if kind == DocumentKindFolder {
-		doc, err = s.insertFolderWithFreeName(ctx, tx, q, insert)
-	} else {
-		doc, err = q.InsertDocument(ctx, insert)
-	}
-	if err != nil {
-		return DocumentView{}, documentTitleWriteError(kind, err)
-	}
-	created := map[string]any{"title": doc.Title, "kind": doc.Kind, "visibility": doc.Visibility}
-	if parentID != "" {
-		created["parent_id"] = parentID
-	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: doc.OrganizationID,
-		WorkspaceID:    doc.WorkspaceID,
-		Actor:          actor,
-		Action:         audit.ActionDocumentCreated,
-		ResourceType:   "document",
-		ResourceID:     doc.ID,
-		Changes:        audit.Diff(nil, created),
-	}, audit.Event{Topic: "document.created", Payload: map[string]string{
-		"document_id": doc.ID, "workspace_id": doc.WorkspaceID,
-	}}); err != nil {
 		return DocumentView{}, err
 	}
 	view, err := s.documentView(ctx, q, actor, doc)
@@ -376,6 +323,90 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		return DocumentView{}, err
 	}
 	return view, nil
+}
+
+// newPage is a page or folder row the caller has validated and placed.
+type newPage struct {
+	OrganizationID, WorkspaceID, ParentID, Kind, Title string
+	Icon                                               pgtype.Text
+	Visibility, WorkspaceLevel                         string
+	Page                                               sanitizedPage
+}
+
+// insertPage writes a new page or folder at the end of its parent (the root
+// when ParentID is empty), meters its bytes and records document.created, in
+// the caller's transaction. CreatePage and CreateSharedPageInTx share it. A
+// folder takes the next free name through savepoints of tx; a page needs no
+// tx (CreateSharedPageInTx, pages only, passes nil).
+func (s *DocumentService) insertPage(ctx context.Context, tx pgx.Tx, q *db.Queries, actor Actor, in newPage) (db.Document, error) {
+	// Callers normalize already; normalizing again is a no-op that keeps every
+	// InsertDocument behind the naming helper (TestDocumentTitleWritePathsUseTheNormalizer).
+	title, err := normalizeDocumentTitle(in.Kind, in.Title)
+	if err != nil {
+		return db.Document{}, err
+	}
+	in.Title = title
+	position, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
+		OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, ParentID: nullText(in.ParentID),
+	})
+	if err != nil {
+		return db.Document{}, err
+	}
+	docID := util.NewID()
+	if err := s.consumePageBytes(ctx, q, actor, db.Document{ID: docID, OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID}, int64(len(in.Page.content))); err != nil {
+		return db.Document{}, err
+	}
+	insert := db.InsertDocumentParams{
+		ID:             docID,
+		OrganizationID: in.OrganizationID,
+		WorkspaceID:    in.WorkspaceID,
+		ParentID:       nullText(in.ParentID),
+		Kind:           in.Kind,
+		Title:          in.Title,
+		Icon:           in.Icon,
+		Visibility:     in.Visibility,
+		WorkspaceLevel: in.WorkspaceLevel,
+		Content:        in.Page.content,
+		ContentText:    in.Page.text,
+		SearchText:     documentSearchText(in.Title, in.Page.text),
+		ContentBytes:   int32(len(in.Page.content)),
+		Revision:       1,
+		Position:       position,
+		AclOwnerID:     aclOwnerFor(actor),
+		CreatedBy:      actor.ID,
+		CreatedByKind:  string(actor.Kind),
+		UpdatedBy:      actor.ID,
+		UpdatedByKind:  string(actor.Kind),
+	}
+	// FD-D4: two live folders of one workspace never hold one name under one
+	// parent; a folder create takes the next free " (n)" (ADR 0037 §7).
+	var doc db.Document
+	if in.Kind == DocumentKindFolder {
+		doc, err = s.insertFolderWithFreeName(ctx, tx, q, insert)
+	} else {
+		doc, err = q.InsertDocument(ctx, insert)
+	}
+	if err != nil {
+		return db.Document{}, documentTitleWriteError(in.Kind, err)
+	}
+	created := map[string]any{"title": doc.Title, "kind": doc.Kind, "visibility": doc.Visibility}
+	if in.ParentID != "" {
+		created["parent_id"] = in.ParentID
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		Actor:          actor,
+		Action:         audit.ActionDocumentCreated,
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		Changes:        audit.Diff(nil, created),
+	}, audit.Event{Topic: "document.created", Payload: map[string]string{
+		"document_id": doc.ID, "workspace_id": doc.WorkspaceID,
+	}}); err != nil {
+		return db.Document{}, err
+	}
+	return doc, nil
 }
 
 // insertFolderWithFreeName inserts a folder under the name its parent leaves

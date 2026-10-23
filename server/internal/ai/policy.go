@@ -17,6 +17,7 @@ const (
 	CapCopilotAgent         Capability = "copilot_agent"
 	CapCopilotTitle         Capability = "copilot_title"
 	CapChatCatchUp          Capability = "chat_catchup"
+	CapMeetingCatchUp       Capability = "meeting_catch_up" // a late joiner's brief (scribe spec §5.1)
 	CapChatCallSummary      Capability = "chat_call_summary"
 	CapEmailThreadSummary   Capability = "email_thread_summary"
 	CapContextExtraction    Capability = "context_extraction"
@@ -28,9 +29,19 @@ const (
 	CapCloudImage           Capability = "cloud_image_generate"
 	CapCloudTranscribe      Capability = "cloud_transcribe"
 	CapMediaAnalysis        Capability = "media_analysis"
+	// CapMeetingTranscribe is a long uploaded meeting recording (parent spec
+	// 2026-10-20-meeting-follow-through §7.4): paid in meeting.transcription
+	// minutes, not AI credits, so it has no model policy either.
+	CapMeetingTranscribe Capability = "meeting_transcribe"
 	// CapOfficeUniworkAI is the Office editors' UniWork AI agent loop (G6-D1
 	// A1): a tool-calling chat, one Complete per tool-result round.
 	CapOfficeUniworkAI Capability = "office_uniwork_ai"
+	// CapMeetingLiveItems is the scribe's in-meeting action items (scribe
+	// spec §4.4): up to 20 calls an hour per meeting, hence the fast model.
+	CapMeetingLiveItems Capability = "meeting_live_items"
+	// CapCaptionTranslate is the scribe's live caption translation (scribe
+	// spec §5.3 B9): up to one call a second per language, hence the fast model.
+	CapCaptionTranslate Capability = "caption_translate"
 )
 
 // ModelPolicy is the source-code constant behind a capability: the default
@@ -39,6 +50,9 @@ type ModelPolicy struct {
 	Default     map[string]string // provider name → model
 	MaxTokens   int
 	Temperature float64
+	// TimeoutScale multiplies AI_TIMEOUT_SECONDS for one call (0 is 1): a
+	// capability whose answer runs to MaxTokens needs the time to write it.
+	TimeoutScale int
 }
 
 var (
@@ -57,11 +71,21 @@ var (
 )
 
 var policies = map[Capability]ModelPolicy{
-	CapMeetingSummarization: {Default: flagship, MaxTokens: 4096, Temperature: 0},
+	// A @7 record of a long meeting (topics, 20+ items with descriptions and
+	// evidence) runs past 4k tokens of Vietnamese; a cut answer is billed and
+	// then retried once in brief mode (benchmark #6). Live items: a burst of
+	// 5-6 items with descriptions.
+	// A 28-minute meeting's record is ~6-8k output tokens, 70-90 s on
+	// claude-opus-5; 12k tokens take about twice that (3 minutes at the
+	// default AI_TIMEOUT_SECONDS of 60).
+	CapMeetingSummarization: {Default: flagship, MaxTokens: 12000, Temperature: 0, TimeoutScale: 3},
+	CapMeetingLiveItems:     {Default: fast, MaxTokens: 3000, Temperature: 0},
+	CapCaptionTranslate:     {Default: fast, MaxTokens: 2048, Temperature: 0},
 	CapCopilotAnswer:        {Default: flagship, MaxTokens: 1500, Temperature: 0},
 	CapCopilotAgent:         {Default: copilotAgent, MaxTokens: 4096, Temperature: 0},
 	CapCopilotTitle:         {Default: fast, MaxTokens: 32, Temperature: 0},
 	CapChatCatchUp:          {Default: flagship, MaxTokens: 2048, Temperature: 0},
+	CapMeetingCatchUp:       {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapChatCallSummary:      {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapEmailThreadSummary:   {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapContextExtraction:    {Default: fast, MaxTokens: 800, Temperature: 0},

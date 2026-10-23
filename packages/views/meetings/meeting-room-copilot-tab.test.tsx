@@ -17,11 +17,15 @@ const summary = {
   meeting_id: "m1",
   summary: "- Chốt lịch phát hành",
   decisions: ["Phát hành thứ Sáu"],
-  action_items: [
-    { index: 0, title: "Viết ghi chú phát hành" },
-    { index: 1, title: "Báo khách hàng" },
-  ],
   created_at: "2026-09-22T07:05:00Z",
+};
+
+const actionItems = {
+  items: [
+    { id: "a0", source: "AI", title: "Viết ghi chú phát hành", status: "PENDING" },
+    { id: "a1", source: "AI", title: "Báo khách hàng", status: "PENDING" },
+  ],
+  counts: { pending: 2, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 },
 };
 
 beforeEach(() => {
@@ -29,6 +33,7 @@ beforeEach(() => {
   requestMock.mockImplementation((path: unknown) => {
     const p = String(path);
     if (p.endsWith("/summary")) return Promise.resolve({ summary });
+    if (p.endsWith("/action-items")) return Promise.resolve(actionItems);
     if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
     if (p.endsWith("/transcript")) return Promise.resolve({ segments: [] });
     if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
@@ -40,7 +45,7 @@ beforeEach(() => {
 
 describe("MeetingRoomCopilotTab", () => {
   it("does not dress up the picked checkboxes as task progress", async () => {
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
 
     fireEvent.click(await screen.findByRole("tab", { name: "Việc cần làm" }));
     expect(await screen.findByText("Viết ghi chú phát hành")).toBeInTheDocument();
@@ -49,7 +54,7 @@ describe("MeetingRoomCopilotTab", () => {
   });
 
   it("labels the copy button as an action, not as its result", async () => {
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
 
     fireEvent.click(await screen.findByRole("tab", { name: "Tổng quan" }));
     expect(await screen.findByRole("button", { name: "Sao chép" })).toBeInTheDocument();
@@ -58,13 +63,6 @@ describe("MeetingRoomCopilotTab", () => {
 });
 
 describe("MeetingRoomCopilotTab labels and errors", () => {
-  it("labels the AI action items as AI output too", async () => {
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
-    fireEvent.click(await screen.findByRole("tab", { name: "Việc cần làm" }));
-    await screen.findByText("Viết ghi chú phát hành");
-    expect(screen.getByTestId("meeting-summary-attribution")).toHaveTextContent("AI");
-  });
-
   it("names the note field and says when a note did not save", async () => {
     vi.mocked(toast.error).mockClear();
     const base = requestMock.getMockImplementation();
@@ -74,7 +72,7 @@ describe("MeetingRoomCopilotTab labels and errors", () => {
       }
       return base?.(path, init);
     });
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
     fireEvent.click(await screen.findByRole("tab", { name: "Ghi chú" }));
     const input = await screen.findByRole("textbox", { name: "Ghi chú mới" });
     fireEvent.change(input, { target: { value: "Gửi lịch cho khách" } });
@@ -84,13 +82,36 @@ describe("MeetingRoomCopilotTab labels and errors", () => {
   });
 });
 
+describe("MeetingRoomCopilotTab summary errors", () => {
+  it("keeps a refused summary run on the panel, with no retry a plan refusal cannot use", async () => {
+    vi.mocked(toast.error).mockClear();
+    const base = requestMock.getMockImplementation();
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+      const p = String(path);
+      if (p.endsWith("/summary") && init?.method === "POST") return Promise.reject(new ApiError("x", "ai_quota_exceeded", 402));
+      if (p.endsWith("/summary")) return Promise.resolve({ summary: null });
+      if (p.endsWith("/transcript")) {
+        return Promise.resolve({ segments: [{ id: "t1", meeting_id: "m1", text: "Một", spoken_at: "2026-09-22T07:00:00Z" }] });
+      }
+      return base?.(path, init);
+    });
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
+    await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
+    fireEvent.click(button);
+    const scroll = screen.getByTestId("meeting-copilot-scroll");
+    await waitFor(() => expect(scroll).toHaveTextContent("Tổ chức đã dùng hết hạn mức AI của tháng."));
+    expect(within(scroll).queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
 describe("MeetingRoomCopilotTab honesty", () => {
-  it("shows the unshipped Q&A as one locked row, not a usable-looking input", async () => {
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+  it("no longer shows Q&A as a locked coming-soon row: Ask UNI about the meeting has shipped (B8)", async () => {
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
     await screen.findByRole("button", { name: "Sao chép" });
-    expect(screen.getByText("Hỏi đáp về cuộc họp")).toBeInTheDocument();
-    expect(screen.getByText("Sắp có")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/Hỏi bất cứ điều gì/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Sắp có")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("meeting-copilot-ask-locked")).not.toBeInTheDocument();
   });
 
   it("labels the summary as AI output with the sources it really had and a dated time", async () => {
@@ -101,12 +122,13 @@ describe("MeetingRoomCopilotTab honesty", () => {
       }
       return base?.(path, init);
     });
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
     const attribution = await screen.findByTestId("meeting-summary-attribution");
     expect(attribution).toHaveTextContent("AI");
     await waitFor(() => expect(attribution).toHaveTextContent("Tạo tự động từ bản ghi lời thoại ·"));
     expect(attribution).not.toHaveTextContent(/ghi chú|tin nhắn/);
-    expect(attribution).toHaveTextContent(/22\/09\/2026|22\/9\/2026/);
+    // Not today's summary, so it names its day, in the detail page's style.
+    expect(attribution).toHaveTextContent(/22 tháng 9/);
   });
 
   it("leaves the recording state to the stage header badge", async () => {
@@ -120,13 +142,27 @@ describe("MeetingRoomCopilotTab honesty", () => {
         });
       return Promise.resolve({});
     });
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
     await screen.findByRole("button", { name: "Sao chép" });
     expect(screen.queryByText("Đang ghi hình trực tiếp")).not.toBeInTheDocument();
   });
 
+  it("is titled UNI, puts the default section first and does not repeat a tab as a heading", async () => {
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    expect(screen.getByRole("heading", { name: "UNI" })).toBeInTheDocument();
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs[0]).toHaveTextContent("Tổng quan");
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+    // The AI summary is a summary, not the people's notes.
+    expect(await screen.findByRole("heading", { name: "Tóm tắt" })).toBeInTheDocument();
+    expect(screen.queryByText("Ghi chú cuộc họp")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Việc cần làm" }));
+    await screen.findByText("Viết ghi chú phát hành");
+    expect(screen.queryByRole("heading", { name: "Việc cần làm" })).not.toBeInTheDocument();
+  });
+
   it("wires each section tab to its panel", async () => {
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
     const tab = await screen.findByRole("tab", { name: "Tổng quan" });
     const panel = screen.getByRole("tabpanel");
     expect(tab).toHaveAttribute("aria-controls", panel.id);
@@ -156,7 +192,7 @@ function copilotRespond({
 }
 
 function renderCopilot() {
-  render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+  render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
 }
 
 describe("MeetingRoomCopilotTab loading", () => {
@@ -243,12 +279,24 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
     result: { yes: 3, no: 1, abstain: 0, required: 3, outcome: "PASSED" },
   };
 
+  const carriedOver = {
+    items: [
+      {
+        action_item_id: "c1",
+        meeting: { id: "m0", title: "Giao ban tuần trước", started_at: "2026-10-13T02:00:00Z" },
+        task: { id: "t7", title: "Gửi báo giá", status: "todo", done: false, overdue: false, assignee_id: null, due_date: null },
+      },
+    ],
+  };
+
   function respond(opts: { summary?: unknown; motions?: unknown[] } = {}) {
     requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
       const p = String(path);
-      if (p.endsWith("/summary/tasks") && init?.method === "POST") {
-        return Promise.resolve({ task_ids: ["t1"], items: [{ index: 0, task_id: "t1" }] });
+      if (p.endsWith("/action-items/convert") && init?.method === "POST") {
+        return Promise.resolve({ links: [{ action_item_id: "a0", task_id: "t1" }] });
       }
+      if (p.endsWith("/action-items")) return Promise.resolve(actionItems);
+      if (p.endsWith("/carried-over-items")) return Promise.resolve(carriedOver);
       if (p.endsWith("/summary") && init?.method === "POST") return new Promise(() => {});
       if (p.endsWith("/summary")) return Promise.resolve({ summary: opts.summary === undefined ? summary : opts.summary });
       if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
@@ -262,16 +310,16 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
     });
   }
 
-  function posted(): { summary_id?: string; items?: Record<string, unknown>[] } {
+  function posted(): { items?: Record<string, unknown>[] } {
     const call = requestMock.mock.calls.find(
-      (c) => String(c[0]).endsWith("/summary/tasks") && (c[1] as { method?: string } | undefined)?.method === "POST",
+      (c) => String(c[0]).endsWith("/action-items/convert") && (c[1] as { method?: string } | undefined)?.method === "POST",
     );
-    return ((call?.[1] as { body?: unknown } | undefined)?.body ?? {}) as { summary_id?: string; items?: Record<string, unknown>[] };
+    return ((call?.[1] as { body?: unknown } | undefined)?.body ?? {}) as { items?: Record<string, unknown>[] };
   }
 
   it("asks before replacing the summary", async () => {
     respond({ motions: [closedMotion] });
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
     const button = await screen.findByRole("button", { name: "Tạo lại tóm tắt" });
     await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
 
@@ -282,47 +330,65 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
 
   it("counts a closed vote as something to summarise, like the server", async () => {
     respond({ summary: null, motions: [closedMotion] });
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
     const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
     await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
   });
 
   it("gives the new tasks the meeting's project and keeps the call to action for the returning focus", async () => {
     respond();
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" projectId="p1" canHost />));
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" projectId="p1" canClerk />));
     fireEvent.click(await screen.findByRole("tab", { name: "Việc cần làm" }));
     fireEvent.click(await screen.findByRole("checkbox", { name: "Viết ghi chú phát hành" }));
     await waitFor(() => expect(requestMock.mock.calls.some((c) => String(c[0]).includes("/projects/p1"))).toBe(true));
     await act(async () => {
       await new Promise((r) => setTimeout(r, 0));
     });
-    fireEvent.click(screen.getByRole("button", { name: "Tạo việc trong UniWork (1)" }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
+    fireEvent.click(screen.getByRole("button", { name: "Giao 1 việc" }));
 
     await waitFor(() => expect(posted().items).toHaveLength(1));
-    expect(posted()).toEqual({ summary_id: "s1", items: [{ index: 0, assignee_id: null, due_date: null, project_id: "p1" }] });
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Tạo việc trong UniWork (0)" })).toHaveAttribute("aria-disabled", "true");
+    expect(posted()).toMatchObject({
+      items: [{ action_item_id: "a0", assignee_id: null, due_date: null, project_id: "p1" }],
+      locale: "vi",
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Giao việc" })).toHaveAttribute("aria-disabled", "true"));
+  });
+
+  it("folds the tasks earlier meetings of the project left open into one group", async () => {
+    respond();
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" projectId="p1" canClerk />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Việc cần làm" }));
+    const toggle = await screen.findByRole("button", { name: "Việc còn tồn (1)" });
+    expect(screen.queryByText("Gửi báo giá")).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(await screen.findByText("Gửi báo giá")).toBeInTheDocument();
+  });
+
+  it("asks for no carried-over tasks when the meeting has no project", async () => {
+    respond();
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Việc cần làm" }));
+    expect(await screen.findByText("Viết ghi chú phát hành")).toBeInTheDocument();
+    expect(requestMock.mock.calls.some((c) => String(c[0]).endsWith("/carried-over-items"))).toBe(false);
   });
 
   it("keeps the host's ticks while they look at another section", async () => {
     respond();
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
     fireEvent.click(await screen.findByRole("tab", { name: "Việc cần làm" }));
     fireEvent.click(await screen.findByRole("checkbox", { name: "Báo khách hàng" }));
-    expect(screen.getByRole("button", { name: "Tạo việc trong UniWork (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Giao 1 việc" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "Lời thoại" }));
     expect(screen.queryByRole("checkbox", { name: "Báo khách hàng" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Việc cần làm" }));
     expect(await screen.findByRole("checkbox", { name: "Báo khách hàng" })).toBeChecked();
-    expect(screen.getByRole("button", { name: "Tạo việc trong UniWork (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Giao 1 việc" })).toBeInTheDocument();
   });
 
   it("says why it cannot generate yet, keeping the button reachable", async () => {
     respond({ summary: null });
-    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
     const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
     await waitFor(() => expect(button).toHaveAttribute("aria-describedby"));
     expect(button).toHaveAttribute("aria-disabled", "true");
@@ -331,12 +397,93 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
     );
   });
 
-  it("shows a guest the items read-only, without the create flow", async () => {
+  it("shows no items and no assign flow without a workspace (items are for members only)", async () => {
     respond();
-    render(wrapWithNav(<MeetingRoomCopilotTab meetingId="m1" canHost />));
+    render(wrapWithNav(<MeetingRoomCopilotTab meetingId="m1" canClerk />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Việc cần làm" }));
+    expect(await screen.findByText("Chưa có việc cần làm.")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(requestMock.mock.calls.some((c) => String(c[0]).endsWith("/action-items"))).toBe(false);
+  });
+
+  it("shows a member who is not a clerk the items read-only", async () => {
+    respond();
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk={false} />));
     fireEvent.click(await screen.findByRole("tab", { name: "Việc cần làm" }));
     expect(await screen.findByText("Viết ghi chú phát hành")).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Tạo việc trong UniWork/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Giao/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("MeetingRoomCopilotTab transcript and notes", () => {
+  const seg = (id: string, min: number) => ({
+    id,
+    meeting_id: "m1",
+    text: `câu ${id}`,
+    spoken_at: `2026-09-22T02:${String(min).padStart(2, "0")}:00Z`,
+    speaker_name: "Lan",
+  });
+
+  it("reads the earlier transcript on request, not only the newest page", async () => {
+    const base = requestMock.getMockImplementation();
+    requestMock.mockImplementation((path: unknown, init?: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/transcript")) return Promise.resolve({ segments: [seg("t2", 20)], older_cursor: "o2", after_cursor: "x" });
+      if (p.endsWith("/transcript?before=o2")) return Promise.resolve({ segments: [seg("t1", 10)] });
+      return base?.(path, init);
+    });
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Lời thoại" }));
+    const list = await screen.findByTestId("meeting-room-transcript");
+    expect(within(list).getByText("câu t2")).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole("button", { name: "Tải lời thoại trước đó" }));
+    await waitFor(() => expect(within(list).getByText("câu t1")).toBeInTheDocument());
+    expect(within(list).queryByRole("button", { name: "Tải lời thoại trước đó" })).not.toBeInTheDocument();
+  });
+
+  it("does not ask for captions while the AI scribe is already transcribing", async () => {
+    const { unmount } = render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk scribeOn />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Lời thoại" }));
+    expect(await screen.findByText(/Thư ký AI đang nghe/)).toBeInTheDocument();
+    expect(screen.queryByText(/Bật phụ đề/)).not.toBeInTheDocument();
+    unmount();
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Lời thoại" }));
+    expect(await screen.findByText(/Bật phụ đề/)).toBeInTheDocument();
+  });
+
+  it("names a note's author in words, never by a raw id", async () => {
+    const base = requestMock.getMockImplementation();
+    requestMock.mockImplementation((path: unknown, init?: unknown) => {
+      if (String(path).endsWith("/notes")) {
+        return Promise.resolve({ notes: [{ id: "n1", meeting_id: "m1", author_id: "01JA0000000000000000000000", body: "Gửi lịch" }] });
+      }
+      return base?.(path, init);
+    });
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Ghi chú" }));
+    expect(await screen.findByText("Không rõ người ghi")).toBeInTheDocument();
+    expect(screen.queryByText("01JA0000000000000000000000")).not.toBeInTheDocument();
+  });
+
+  it("names its section tabs as a list of their own", async () => {
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    expect(await screen.findByRole("tablist", { name: "Các mục của UNI" })).toBeInTheDocument();
+  });
+});
+
+describe("MeetingRoomCopilotTab live items (UNI-1995 #21)", () => {
+  it("badges the Việc section with what the scribe wrote, and says when the viewer opens it", async () => {
+    const onSectionChange = vi.fn();
+    render(
+      wrapWithNav(
+        <MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk actionsUnseen={3} onSectionChange={onSectionChange} />,
+      ),
+    );
+    const actions = await screen.findByRole("tab", { name: /^Việc cần làm\W+3 việc UNI mới ghi$/ });
+    expect(onSectionChange).toHaveBeenLastCalledWith("insights");
+    fireEvent.click(actions);
+    expect(onSectionChange).toHaveBeenLastCalledWith("actions");
   });
 });

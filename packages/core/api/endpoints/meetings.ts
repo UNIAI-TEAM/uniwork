@@ -59,6 +59,8 @@ export interface CreateMeetingBody {
   attendee_user_ids?: string[];
   /** Optional project; "" on update clears it (C-11 §9.1 V2). */
   project_id?: string;
+  /** The meeting this one is the next of: the new meeting joins its series (follow-4). */
+  previous_meeting_id?: string;
 }
 
 export interface UpdateMeetingBody {
@@ -153,6 +155,22 @@ export async function updateMeeting(meetingId: string, body: UpdateMeetingBody):
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}`, { method: "PATCH", body });
   return parseWithFallback<{ meeting: Meeting } | null>(raw, MeetingResponse, null, {
     endpoint: "PATCH /api/v1/meetings/{id}",
+  })?.meeting ?? null;
+}
+
+/** PUT /meetings/{id}/scribe: host or admin switch the AI scribe for one meeting. */
+export async function setMeetingScribe(meetingId: string, enabled: boolean): Promise<Meeting | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/scribe`, { method: "PUT", body: { enabled } });
+  return parseWithFallback<{ meeting: Meeting } | null>(raw, MeetingResponse, null, {
+    endpoint: "PUT /api/v1/meetings/{id}/scribe",
+  })?.meeting ?? null;
+}
+
+/** PUT /meetings/{id}/ai-sharing: a clerk shares the AI content with the workspace, or keeps it to the meeting. */
+export async function setMeetingAISharing(meetingId: string, shared: boolean): Promise<Meeting | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/ai-sharing`, { method: "PUT", body: { shared } });
+  return parseWithFallback<{ meeting: Meeting } | null>(raw, MeetingResponse, null, {
+    endpoint: "PUT /api/v1/meetings/{id}/ai-sharing",
   })?.meeting ?? null;
 }
 
@@ -281,6 +299,8 @@ const PublicInviteLinkSchema = z.object({
   // Added after `expired`; an older server omits both and the page falls back to `expired`.
   link_state: z.string().optional(),
   meeting_state: z.string().optional(),
+  /** The AI scribe would transcribe the meeting: the page tells the guest before they join. */
+  scribe: z.boolean().optional(),
 });
 export type PublicInviteLink = z.infer<typeof PublicInviteLinkSchema>;
 export type InviteLinkState = "active" | "expired" | "revoked" | "exhausted";

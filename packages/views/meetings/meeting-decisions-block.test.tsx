@@ -30,6 +30,7 @@ describe("MeetingDecisionsBlock", () => {
   it("lists the recorded votes first, then the AI's decisions", () => {
     render(
       <MeetingDecisionsBlock
+        meetingId="m1"
         voted={[
           closed({}),
           closed({
@@ -39,7 +40,7 @@ describe("MeetingDecisionsBlock", () => {
             result: { yes: 1, no: 2, abstain: 1, required: 3, outcome: "FAILED" },
           }),
         ]}
-        aiDecisions={["Chốt lịch thứ Sáu"]}
+        aiDecisions={[{ text: "Chốt lịch thứ Sáu", evidence: [] }]}
       />,
     );
     expect(screen.getByRole("heading", { name: "Quyết định" })).toBeInTheDocument();
@@ -54,13 +55,23 @@ describe("MeetingDecisionsBlock", () => {
   });
 
   it("keeps the AI decisions without a voted group when nothing was voted", () => {
-    render(<MeetingDecisionsBlock voted={[]} aiDecisions={["Chốt lịch thứ Sáu"]} />);
+    render(
+      <MeetingDecisionsBlock
+        meetingId="m1"
+        voted={[]}
+        aiDecisions={[{ text: "Chốt lịch thứ Sáu", evidence: [{ kind: "segment", id: "g1" }] }]}
+      />,
+    );
     expect(screen.getByText("Chốt lịch thứ Sáu")).toBeInTheDocument();
+    // Named as the AI's reading, apart from what a vote settled.
+    expect(screen.getByRole("heading", { name: "Do AI rút ra từ cuộc họp" })).toBeInTheDocument();
+    // A decision that cites a line carries its evidence chip.
+    expect(screen.getByRole("button", { name: "Căn cứ 1 nguồn" })).toBeInTheDocument();
     expect(screen.queryByText("Đã biểu quyết")).not.toBeInTheDocument();
   });
 
   it("renders nothing when nothing was decided", () => {
-    const { container } = render(<MeetingDecisionsBlock voted={[]} aiDecisions={[]} />);
+    const { container } = render(<MeetingDecisionsBlock meetingId="m1" voted={[]} aiDecisions={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
 });

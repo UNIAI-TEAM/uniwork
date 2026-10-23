@@ -130,3 +130,30 @@ func TestMintToken(t *testing.T) {
 		t.Fatal("roomAdmin must not be set")
 	}
 }
+
+// Spec 2026-10-20-meeting-scribe-agent-design §4.3 (D11): uw.shared_mic is the
+// server's to set. A join token carries it so a reconnect keeps it, and never
+// grants canUpdateOwnMetadata, so a participant cannot set it on themselves.
+func TestMintTokenCarriesServerAttributesNeverOwnMetadata(t *testing.T) {
+	const secret = "api-secret-at-least-32-characters!!"
+	tok, err := mintToken("api-key", secret, IssueJoinCredentialRequest{
+		RoomName: "uw_mtg_1", Identity: "uw_participant_1", CanSubscribe: true, CanPublish: true, CanPublishData: true,
+		Attributes: map[string]string{AttrSharedMic: "1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := jwt.Parse(tok, func(*jwt.Token) (any, error) { return []byte(secret), nil })
+	if err != nil || !parsed.Valid {
+		t.Fatal("token does not verify:", err)
+	}
+	claims := parsed.Claims.(jwt.MapClaims)
+	attrs, _ := claims["attributes"].(map[string]any)
+	if attrs[AttrSharedMic] != "1" {
+		t.Fatalf("attributes = %v", claims["attributes"])
+	}
+	video := claims["video"].(map[string]any)
+	if video["canUpdateOwnMetadata"] == true {
+		t.Fatal("canUpdateOwnMetadata must never be granted")
+	}
+}

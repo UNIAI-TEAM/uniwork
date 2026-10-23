@@ -120,9 +120,25 @@ type Config struct {
 	// LiveKitRecordingBucket enables room recording via LiveKit Egress; the
 	// AWS_* storage settings supply credentials and endpoint.
 	LiveKitRecordingBucket string
-	// MeetingSTTAgentSecret authenticates POST .../transcript/agent from a
-	// LiveKit Agents worker; empty turns server-side STT ingestion off.
-	MeetingSTTAgentSecret string
+	// MeetingScribeEnabled lets the server dispatch the scribe agent
+	// (apps/meeting-agent, ADR 0038) into meeting rooms; the meeting_scribe
+	// flag and the meeting.transcription entitlement still decide per
+	// organization. MeetingScribeAgentName is the agent_name it registers.
+	MeetingScribeEnabled   bool
+	MeetingScribeAgentName string
+	// MeetingSIPEnabled lets the server create LiveKit SIP dispatch rules for
+	// dial-in (UNI-2030 runs the SIP service); the meeting_dial_in flag still
+	// decides per organization. MeetingDialInNumber is the number people call;
+	// MeetingSIPTrunkID, when set, keeps the rules to the UniWork trunk.
+	MeetingSIPEnabled   bool
+	MeetingDialInNumber string
+	MeetingSIPTrunkID   string
+	// MeetingSummaryMaxRunes caps the transcript a summary reads (parent spec
+	// §7.8). The gateway does not expose its model's context window, so the
+	// default (240k runes, ~80k tokens at ~3 runes per Vietnamese token, about
+	// 2.5 hours of speech) fits a 128k-token model with room for the prompt;
+	// raise it only for a model known to take more.
+	MeetingSummaryMaxRunes int
 	// EnableSwagger serves /swagger/* (UI + OpenAPI JSON). Off unless
 	// ENABLE_SWAGGER is 1/true/yes — the spec describes the whole API
 	// surface and must not ship on a public listener by default.
@@ -445,7 +461,12 @@ func Load() (Config, error) {
 		AnthropicAPIKey:               os.Getenv("ANTHROPIC_API_KEY"),
 		AnthropicModel:                os.Getenv("ANTHROPIC_MODEL"),
 		LiveKitRecordingBucket:        os.Getenv("LIVEKIT_RECORDING_BUCKET"),
-		MeetingSTTAgentSecret:         os.Getenv("MEETING_STT_AGENT_SECRET"),
+		MeetingScribeEnabled:          strings.EqualFold(os.Getenv("MEETING_SCRIBE_ENABLED"), "true"),
+		MeetingScribeAgentName:        getenv("MEETING_SCRIBE_AGENT_NAME", "uniwork-scribe"),
+		MeetingSIPEnabled:             strings.EqualFold(os.Getenv("MEETING_SIP_ENABLED"), "true"),
+		MeetingDialInNumber:           strings.TrimSpace(os.Getenv("MEETING_DIAL_IN_NUMBER")),
+		MeetingSIPTrunkID:             strings.TrimSpace(os.Getenv("MEETING_SIP_TRUNK_ID")),
+		MeetingSummaryMaxRunes:        int(parseInt32(os.Getenv("MEETING_SUMMARY_MAX_RUNES"), 240000)),
 		AppEnv:                        getenv("APP_ENV", "development"),
 		devVerificationCode:           os.Getenv("DEV_VERIFICATION_CODE"),
 		APIPublicURL:                  getenv("API_PUBLIC_URL", "http://localhost:8080"),

@@ -145,3 +145,91 @@ officeEngine:
     serviceToken: { name: uniwork-office-engine, key: OFFICE_ENGINE_SERVICE_TOKEN }
     # Grant signing key; >= 32 chars and DIFFERENT from the service token.
     grantKey: { name: uniwork-office-engine, key: OFFICE_ENGINE_GRANT_KEY }
+
+# AI scribe agent (apps/meeting-agent, ADR 0038; spec 2026-10-20-meeting-scribe-agent-design
+# §4.6). Off until the STT vendor's data-processing agreement is signed (parent
+# spec §7.5) and ops confirm the shared LiveKit is >= v1.9.12 (S0 results §1).
+# Turn on together with MEETING_SCRIBE_ENABLED=true in uniwork-be.env.
+# Secret uniwork-meeting-agent: LIVEKIT_API_KEY, LIVEKIT_API_SECRET, ASSEMBLYAI_API_KEY.
+meetingAgent:
+  enabled: false
+  agentName: uniwork-scribe
+  sttProvider: assemblyai
+  # Live STT host (SCRIBE_STT_BASE_URL). Empty follows batch transcription:
+  # the EU streaming host when env.beContent sets AI_MEETING_TRANSCRIBE_BASE_URL
+  # to AssemblyAI's EU API, else the US one (spec parent §7.5: one region).
+  sttBaseUrl: ""
+  image:
+    registry: registry-harbor.ubos.vn/uniwork
+    repository: uniwork-meeting-agent
+    tag: pending
+    digest: ""
+    requireDigest: true
+    pullPolicy: IfNotPresent
+  healthPort: 8081
+  # Prometheus endpoint of the worker (scribe_* metrics, multiprocess mode).
+  metricsPort: 9100
+  # LiveKit URL the agent dials. Required when enabled, together with
+  # egress.livekit.cidrs: it must resolve to an address those CIDRs allow.
+  # There is no default: LiveKit runs hostNetwork, and the in-cluster address
+  # the chart knows (networkPolicy.livekitTunnelCidr) is the node's Calico
+  # tunnel, the source of LiveKit's webhooks, not an address LiveKit
+  # advertises for media.
+  livekitUrl: ""
+  # LiveKit docs: 10-25 jobs per 4 CPU / 8 GB pod; the worker refuses jobs past
+  # load_threshold 0.7, keeps the library's default of warm job processes (one
+  # per CPU of the pod's cgroup quota) and the HPA adds pods at 50% CPU.
+  # shortcut: maxReplicas is not sized from a measurement; measure CPU/RAM per
+  # job on a real meeting and set it from the peak concurrency (benchmark #13).
+  minReplicas: 1
+  maxReplicas: 6
+  # Scale on meetings per pod instead of CPU (benchmark #13): KEDA reads
+  # scribe_jobs_running from Prometheus and keeps about jobsPerPod meetings on
+  # each pod; prescale holds prescale.replicas from a few minutes before each
+  # hour, when meetings start together. Needs KEDA in the cluster; with it on,
+  # the chart's CPU HPA is not rendered (KEDA owns its own HPA). Off by default.
+  keda:
+    enabled: false
+    prometheusUrl: http://prometheus.monitoring:9090
+    jobsPerPod: 10
+    prescale:
+      enabled: true
+      timezone: Asia/Ho_Chi_Minh
+      # Working hours, 5 minutes before each hour until 5 minutes past it.
+      start: "55 7-17 * * 1-5"
+      end: "5 8-18 * * 1-5"
+      replicas: 2
+  resources:
+    requests: { cpu: "4", memory: 8Gi }
+    limits: { cpu: "4", memory: 8Gi }
+  # The worker's drain_timeout is this minus 120 s (SCRIBE_DRAIN_TIMEOUT_S, set
+  # by the template; 14280 s default in apps/meeting-agent/scribe/config.py): a
+  # draining pod takes no new job and lets every meeting it serves end, and a
+  # job the drain cuts off still has two minutes to post /agent/finished.
+  terminationGracePeriodSeconds: 14400
+  otlpEndpoint: ""
+  secrets:
+    livekitApiKey: { name: uniwork-meeting-agent, key: LIVEKIT_API_KEY }
+    livekitApiSecret: { name: uniwork-meeting-agent, key: LIVEKIT_API_SECRET }
+    sttApiKey: { name: uniwork-meeting-agent, key: ASSEMBLYAI_API_KEY }
+  # Egress besides uniwork-be and DNS (NetworkPolicy matches IPs, not names).
+  # livekit: every address the agent's LiveKit URL resolves to (and the TURN
+  # server, if media relays through one), on the signalling ports and the RTC
+  # media range the LiveKit server config opens (rtc.port_range_start/end,
+  # tcp_port). Required when enabled, set with livekitUrl (runbook
+  # MeetingScribeCannotJoin): e.g. the public IPs of public.livekitUrl.
+  # stt: AssemblyAI publishes no fixed range, so 443 stays open to any
+  # address until ops pin one.
+  egress:
+    livekit:
+      cidrs: []
+      ports:
+        - { port: 443, protocol: TCP }
+        - { port: 7880, protocol: TCP }
+        - { port: 7881, protocol: TCP }
+        - { port: 50000, endPort: 60000, protocol: UDP }
+    stt:
+      - { cidr: "0.0.0.0/0", port: 443, protocol: TCP }
+    # Anything else the agent must reach, e.g. the OTLP collector when
+    # otlpEndpoint is set: { cidr, port, protocol }.
+    extra: []

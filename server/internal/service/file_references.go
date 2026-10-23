@@ -201,6 +201,17 @@ func managedFileReferenceSources() []FileReferenceSource {
 			},
 		},
 		{
+			Table: "meeting_transcriptions", Column: "file_id", Provider: MeetingTranscriptionProvider{}.Name(),
+			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
+				rows, err := q.FileGCMeetingTranscriptionRefTenants(ctx, ids)
+				out := make([]fileReferenceTenant, 0, len(rows))
+				for _, r := range rows {
+					out = append(out, fileReferenceTenant{FileID: files.FileID(r.FileID), OrganizationID: r.OrganizationID, Known: true})
+				}
+				return out, err
+			},
+		},
+		{
 			// Ask UNI question attachments (UNI-2119): the row carries its tenant.
 			Table: "ai_attachments", Column: "file_id", Provider: AskUniAttachmentProvider{}.Name(),
 			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {

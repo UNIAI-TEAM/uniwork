@@ -9,8 +9,9 @@ import { PanelCard } from "../common/panel-card";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
-import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
-import { meetingTimeZoneLabel } from "./meeting-detail-format";
+import { meetingLocale } from "./meeting-datetime";
+import { MeetingDialInSection } from "./meeting-dial-in-section";
+import { formatMeetingDayTime, meetingTimeZoneLabel } from "./meeting-detail-format";
 import { MeetingInviteLinksSection } from "./meeting-invite-links-section";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
 import { useMemberIndex } from "./use-member-index";
@@ -73,7 +74,8 @@ export function MeetingDetailAside({
     i18n.language,
     new Date(meeting.starts_at),
   );
-  const createdAt = meeting.created_at ? formatMeetingStart(meeting.created_at, meetingLocale(i18n.language)) : null;
+  // The hero's date style, so the page reads one format.
+  const createdAt = meeting.created_at ? formatMeetingDayTime(meeting.created_at, meetingLocale(i18n.language)) || null : null;
   const open = rosterOpen(meeting);
   const { workspace } = useWorkspace();
   // useProject stays idle without an id; a meeting may have no project.
@@ -83,6 +85,7 @@ export function MeetingDetailAside({
     <div className="flex min-w-0 flex-col gap-4">
       {/* Once the meeting is over its links read as closed: nothing to revoke or create. */}
       {canHost ? <MeetingInviteLinksSection meetingId={meeting.id} canCreate={open} /> : null}
+      {open ? <MeetingDialInSection meetingId={meeting.id} canHost={canHost} /> : null}
       <PanelCard id="details-heading" icon={Info} iconTone={moduleTone("meetings")} title={t("meetings.details")}>
         <dl className="-my-2 divide-y divide-border">
           <DetailRow label={t("meetings.timezone")}>{timezone}</DetailRow>
@@ -90,7 +93,8 @@ export function MeetingDetailAside({
             <DetailRow label={t("meetings.project")}>
               <AppLink
                 href={paths.workspace(workspace.organization_slug, workspace.slug).project(project.id)}
-                className="text-foreground underline-offset-4 hover:underline"
+                // Underlined at rest and 44px tall on touch, like the dial-in number.
+                className="text-foreground underline underline-offset-4 hover:decoration-2 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
               >
                 {project.title}
               </AppLink>

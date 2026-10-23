@@ -16,6 +16,8 @@ describe("public dictionary boundary", () => {
     expect(dictionary).toHaveProperty("tasks.surface.empty_column");
     expect(dictionary).toHaveProperty("meetings.captions");
     expect(dictionary).toHaveProperty("meetings.governance.motionsTab");
+    // The meeting demo's Ask UNI sample is titled with it.
+    expect(dictionary).toHaveProperty("meetings.askUniTitle");
     expect(dictionary).not.toHaveProperty("meetings.joinFailed");
     expect(dictionary).toHaveProperty("email_hub.folders.inbox");
     expect(dictionary).toHaveProperty("email_hub.compose.send");

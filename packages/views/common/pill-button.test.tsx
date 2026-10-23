@@ -20,4 +20,20 @@ describe("PillButton", () => {
     expect(onClear).toHaveBeenCalledOnce();
     expect(onClick).not.toHaveBeenCalled();
   });
+
+  it("is a 44px target on a coarse pointer, the clear × included", () => {
+    render(
+      <>
+        <PillButton>Trạng thái</PillButton>
+        <ClearablePillButton onClear={() => {}} clearLabel="Xóa dự án">
+          Dự án A
+        </ClearablePillButton>
+      </>,
+    );
+    // 46px outside the 1px border: 44px inside, where the clearable pill's buttons are.
+    expect(screen.getByRole("button", { name: "Trạng thái" })).toHaveClass("pointer-coarse:min-h-[2.875rem]");
+    expect(screen.getByRole("button", { name: "Dự án A" }).parentElement).toHaveClass("pointer-coarse:min-h-[2.875rem]");
+    expect(screen.getByRole("button", { name: "Dự án A" })).toHaveClass("self-stretch");
+    expect(screen.getByRole("button", { name: "Xóa dự án" })).toHaveClass("pointer-coarse:min-w-11");
+  });
 });

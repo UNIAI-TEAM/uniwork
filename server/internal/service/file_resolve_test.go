@@ -212,6 +212,12 @@ func TestPresignTTLIsCappedByTwelveHoursClaimWindowAndCredential(t *testing.T) {
 	if r.Err != nil || !r.URLExpiresAt.Equal(now.Add(files.MaxResolveURLTTL)) || sg.lastTTL != files.MaxResolveURLTTL {
 		t.Fatalf("claimed: expires %v ttl %v err %v; want 12h", r.URLExpiresAt, sg.lastTTL, r.Err)
 	}
+	// A caller's MaxTTL (a URL for a vendor job, UNI-2001) caps it below 12h.
+	capped, err := h.svc.ResolveMany(ctx, files.ResolveInput{Scope: t3Scope, Mode: files.ReadPresign, Disposition: files.DispositionInline,
+		FileIDs: []files.FileID{claimed.File.ID}, MaxTTL: 6 * time.Hour})
+	if err != nil || capped[0].Err != nil || !capped[0].URLExpiresAt.Equal(now.Add(6*time.Hour)) || sg.lastTTL != 6*time.Hour {
+		t.Fatalf("MaxTTL: expires %v ttl %v err %v; want 6h", capped[0].URLExpiresAt, sg.lastTTL, err)
+	}
 	// The URL is used exactly as signed: consumer host and path, no rewrite.
 	if !strings.HasPrefix(r.URL, "https://consumer.example/bucket/v1/orgs/"+t3Org+"/") {
 		t.Fatalf("signed URL was rewritten: %q", r.URL)

@@ -50,7 +50,7 @@ describe("MeetingMotionOpenDialog", () => {
     renderDialog();
     const dialog = await screen.findByRole("alertdialog");
     expect(await within(dialog).findByText("2 thành viên có mặt sẽ được bỏ phiếu.")).toBeInTheDocument();
-    expect(within(dialog).getByText("“Thông qua kế hoạch”")).toBeInTheDocument();
+    expect(within(dialog).getByText('"Thông qua kế hoạch"')).toBeInTheDocument();
     expect(
       within(dialog).getByText("Người vào phòng sau khi mở sẽ không được bỏ phiếu nội dung này."),
     ).toBeInTheDocument();

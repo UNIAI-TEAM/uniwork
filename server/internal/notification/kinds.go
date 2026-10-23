@@ -11,6 +11,7 @@ package notification
 // the preference matrix; NOTIFICATION_KINDS in packages/core mirrors the list.
 const (
 	KindTaskAssigned      = "task_assigned"
+	KindTasksAssigned     = "tasks_assigned" // several at once, one creation (UNI-1996)
 	KindTaskStatusChanged = "task_status_changed"
 	KindTaskCommented     = "task_commented"
 	KindMentioned         = "mentioned"
@@ -18,10 +19,25 @@ const (
 	KindMeetingStarting   = "meeting_starting"
 	// Nudge after a meeting ends with something to summarize (C-11 §9.1 V1).
 	KindMeetingSummaryReminder = "meeting_summary_reminder"
-	KindMemberAdded            = "member_added"
-	KindRoleChanged            = "role_changed"
-	KindAuditExportReady       = "audit_export_ready"
-	KindChatFollowUp           = "chat_follow_up"
+	// The system summarized an ended meeting (UNI-2026, scribe spec §4.5): it
+	// replaces the reminder for that meeting.
+	KindMeetingSummaryReady = "meeting_summary_ready"
+	// The recap for everyone else in the meeting (follow-1): its first
+	// summary, then its finalized minutes (params.stage = "minutes").
+	KindMeetingRecapReady = "meeting_recap_ready"
+	// follow-2: a day after a meeting ends, its clerks hear how many items
+	// nobody assigned yet; a task a meeting handed out reminds its assignee
+	// on its due day and once overdue (params.stage = "overdue").
+	KindMeetingActionItemsPending = "meeting_action_items_pending"
+	KindMeetingTaskDue            = "meeting_task_due"
+	// An uploaded meeting recording was transcribed, or failed for good
+	// (UNI-2001, parent spec §8.3): sent to the clerk who asked.
+	KindMeetingTranscriptReady  = "meeting_transcript_ready"
+	KindMeetingTranscriptFailed = "meeting_transcript_failed"
+	KindMemberAdded             = "member_added"
+	KindRoleChanged             = "role_changed"
+	KindAuditExportReady        = "audit_export_ready"
+	KindChatFollowUp            = "chat_follow_up"
 	// A chat reminder came due (H16), fired by the server's reminder worker.
 	KindChatReminder    = "chat_reminder"
 	KindEmailHubNewMail = "email_hub_new_mail"
@@ -80,8 +96,10 @@ const (
 
 // Kinds is the list in display order.
 var Kinds = []string{
-	KindTaskAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
-	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder,
+	KindTaskAssigned, KindTasksAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
+	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder, KindMeetingSummaryReady, KindMeetingRecapReady,
+	KindMeetingActionItemsPending, KindMeetingTaskDue,
+	KindMeetingTranscriptReady, KindMeetingTranscriptFailed,
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned, KindDocumentBodyMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,

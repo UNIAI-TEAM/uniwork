@@ -40,6 +40,11 @@ var catalogue = []Flag{
 	{Key: "admin_quota", Description: "Màn hình Quota trong console admin khi spec subscription chưa đủ dữ liệu", Default: false, Public: false, Owner: "platform", ReviewAt: day(2026, 12, 5)},
 	{Key: "rum_sampling", Description: "Cho phép web gửi web-vitals về POST /api/v1/rum", Default: true, Public: true, Owner: "platform", ReviewAt: day(2026, 12, 5)},
 	{Key: "meeting_ai_summary", Description: "Bật tóm tắt cuộc họp bằng AI theo tổ chức (pilot)", Default: false, Public: true, Owner: "meetings", ReviewAt: day(2026, 12, 5)},
+	{Key: "meeting_minutes", Description: "Biên bản cuộc họp là trang UniNote: lập, chốt, bỏ chốt (UNI-2003)", Default: false, Public: true, Owner: "meetings", ReviewAt: day(2027, 1, 18)},
+	{Key: "meeting_scribe", Description: "Thư ký AI vào phòng họp: ghi lời từng người, phụ đề cả phòng (UNI-2023, ADR 0038). Chỉ bật cho tổ chức khi đã có thỏa thuận xử lý dữ liệu với nhà cung cấp STT", Default: false, Public: false, Owner: "meetings", ReviewAt: day(2027, 1, 18)},
+	{Key: "meeting_transcription", Description: "Tải file ghi âm cuộc họp lên và ghi lời theo lô qua AssemblyAI (UNI-2001). Chỉ bật ngoài nội bộ khi đã có thỏa thuận xử lý dữ liệu với AssemblyAI và hồ sơ chuyển dữ liệu ra nước ngoài (spec §7.5)", Default: false, Public: false, Owner: "meetings", ReviewAt: day(2027, 1, 18)},
+	{Key: "meeting_caption_translate", Description: "Phụ đề dịch Việt ↔ Anh trong phòng họp: thư ký AI dịch đoạn lời qua ai.Gateway khi có người chọn ngôn ngữ khác (UNI-2028). Cần cờ meeting_scribe", Default: false, Public: false, Owner: "meetings", ReviewAt: day(2027, 1, 18)},
+	{Key: "meeting_dial_in", Description: "Gọi vào họp bằng điện thoại: số tổng đài + mã PIN theo cuộc họp qua LiveKit SIP (UNI-2029); cần MEETING_SIP_ENABLED và hạ tầng SIP (UNI-2030)", Default: false, Public: false, Owner: "meetings", ReviewAt: day(2027, 1, 18)},
 	{Key: "debug_trace_full_sampling", Description: "Lấy mẫu trace 100% cho tổ chức đang điều tra sự cố", Default: false, Public: false, Owner: "platform", ReviewAt: day(2026, 12, 5)},
 	{Key: "chat_work_hub", Description: "Kênh hạng nhất gắn Project, khám phá và tham gia (C-13)", Default: true, Public: true, Owner: "chat", ReviewAt: day(2026, 12, 31)},
 	{Key: "documents", Description: "Tài liệu trong workspace: page, tệp, phiên bản (UNI-679); mặc định bật", Default: true, Public: true, Owner: "documents", ReviewAt: day(2026, 12, 31)},
@@ -74,6 +79,7 @@ var catalogue = []Flag{
 	{Key: "graph_ui", Description: "Work Graph: section Liên quan và dòng thời gian trên trang việc (C-11)", Default: false, Public: true, Owner: "graph", ReviewAt: day(2027, 1, 31)},
 	{Key: "mcp_connector", Description: "Connector MCP: client AI bên ngoài (Claude, ChatGPT, Gemini) đọc task và cuộc họp (UNI-1308)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 1, 31)},
 	{Key: "mcp_connector_write", Description: "Connector MCP: tool ghi (tạo, sửa task, dự án, cuộc họp, tài liệu) cho grant có scope write (UNI-1567, ADR 0033)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 3, 31)},
+	{Key: "page_export", Description: "Xuất trang UniNote ra DOCX/PDF qua office-engine (UNI-2004); tắt thì ẩn mục xuất và route trả 404. PDF cần bộ dựng Docs (Chromium + bundle, UNIWORK_DOCS_PDF_ASSETS) trong ảnh engine; thiếu thì engine không báo export_pdf, menu ẩn Xuất PDF (GET .../export) và route vẫn trả 409 engine_incompatible, DOCX vẫn chạy", Default: false, Public: true, Owner: "documents", ReviewAt: day(2027, 1, 18)},
 	// UniChat mobile (UNI-2053). On by default: FF_UNICHAT_MOBILE_CALLS=false
 	// (or an organization/user override) hides calling on every installed
 	// phone at its next config read, incoming calls included.

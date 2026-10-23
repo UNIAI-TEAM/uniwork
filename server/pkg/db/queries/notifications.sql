@@ -327,3 +327,44 @@ JOIN meeting_invitations i ON i.participant_id = p.id
 WHERE p.meeting_id = $1 AND p.user_id IS NOT NULL AND p.removed_at IS NULL AND i.response_status = 'ACCEPTED'
 UNION
 SELECT host_user_id FROM meetings WHERE id = $1;
+
+-- name: ListMeetingsWithPendingItems :many
+-- tenant: system
+-- follow-2 (a): ENDED meetings whose end falls in [$1, $2) that still have
+-- items nobody handled (not dismissed, no live task), and that the nudge has
+-- not reached yet. idx_meetings_ended_at (migration 9991792900000050) bounds
+-- the scan to the window.
+SELECT m.id, m.organization_id, m.workspace_id, m.title, m.host_user_id,
+  COUNT(*)::int AS pending
+FROM meetings m
+JOIN meeting_action_items i ON i.meeting_id = m.id AND i.organization_id = m.organization_id
+WHERE m.status = 'ENDED'
+  AND COALESCE(m.actual_end_at, m.ends_at) >= sqlc.arg(ended_after)::timestamptz
+  AND COALESCE(m.actual_end_at, m.ends_at) < sqlc.arg(ended_before)::timestamptz
+  AND i.dismissed_at IS NULL
+  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id)
+  AND NOT EXISTS (SELECT 1 FROM notification_deliveries d WHERE d.event_id = 'meeting_pending_items:' || m.id)
+GROUP BY m.id
+ORDER BY m.id
+LIMIT 500;
+
+-- name: ListMeetingTasksDue :many
+-- tenant: system
+-- follow-2 (b): open tasks a meeting handed out to a person, due in
+-- [$1, $2], with the assignee's timezone so the caller reads "today" in it.
+-- A task already told it is overdue is done with.
+SELECT t.id AS task_id, t.organization_id, t.workspace_id, t.title AS task_title,
+  t.assignee_id::text AS assignee_id, t.due_date, u.timezone,
+  m.id AS meeting_id, m.title AS meeting_title
+FROM meeting_action_items i
+JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+JOIN meetings m ON m.id = i.meeting_id AND m.organization_id = i.organization_id
+JOIN users u ON u.id = t.assignee_id
+LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
+WHERE i.task_id IS NOT NULL AND i.dismissed_at IS NULL
+  AND t.assignee_kind = 'human'
+  AND t.due_date BETWEEN sqlc.arg(due_from)::date AND sqlc.arg(due_to)::date
+  AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
+  AND NOT EXISTS (SELECT 1 FROM notification_deliveries d WHERE d.event_id = 'meeting_task_overdue:' || t.id)
+ORDER BY t.due_date, t.id
+LIMIT 1000;

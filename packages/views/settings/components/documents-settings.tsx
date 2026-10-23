@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { FileText, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSubscription } from "@uniwork/core/billing";
@@ -15,15 +15,26 @@ import { QuotaMeterRow } from "./quota-meter";
 import {
   SettingsBadge,
   SettingsCard,
-  SettingsCardBody,
   SettingsEmpty,
+  SettingsLoadError,
   SettingsRow,
+  SettingsRowSkeleton,
+  SettingsSaveState,
   SettingsSection,
   SettingsTab,
   SettingsTabSkeleton,
+  type SettingsSaveStatus,
 } from "./settings-layout";
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
+
+/** The write's state as the save indicator words it, the same one the notification matrix shows. */
+const SAVE_STATUS: Record<"idle" | "pending" | "success" | "error", SettingsSaveStatus> = {
+  idle: "idle",
+  pending: "saving",
+  success: "saved",
+  error: "error",
+};
 
 /**
  * Organization document settings (C-01 §5.3; G1-08, UNI-682): the public-links
@@ -39,12 +50,14 @@ const ADMIN_ROLES = new Set(["owner", "admin"]);
  */
 export function DocumentsSettings() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.documents" });
+  const { t: tSave } = useTranslation(undefined, { keyPrefix: "settings.save" });
   const { workspace } = useWorkspace();
   const membership = useOrgMembership(workspace.organization_slug);
   const isAdmin = !!membership.data && ADMIN_ROLES.has(membership.data.role);
   const subscription = useSubscription(workspace.organization_id);
   const settings = useDocumentSettings(workspace.organization_id, { enabled: isAdmin });
   const setLinks = useSetDocumentPublicLinks(workspace.organization_id);
+  const linksHintId = useId();
 
   const entitlements = useMemo(() => subscription.data?.entitlements ?? [], [subscription.data]);
   const linksEntitlement = useMemo(
@@ -68,52 +81,65 @@ export function DocumentsSettings() {
     );
   }
 
-  const linksKnown = settings.isSuccess && !!settings.data;
   const linksEnabled = settings.data?.public_links_enabled ?? false;
-  const busy = settings.isPending || setLinks.isPending;
+  // The entitlement is read beside the switch; a write waits for it too.
+  const busy = settings.isPending || setLinks.isPending || subscription.isLoading;
 
   return (
     <SettingsTab title={t("title")} description={t("description")}>
       <SettingsSection title={t("entitlement_title")}>
         <SettingsCard>
-          <SettingsCardBody>
-            <SettingsRow
-              label={linksEntitlement?.name || t("entitlement_links")}
-              description={linksEntitlement ? `documents.public_links` : undefined}
-            >
-              {linksEntitlement?.enabled ? (
-                <SettingsBadge tone="success">{t("entitlement_enabled")}</SettingsBadge>
-              ) : (
-                <SettingsBadge tone="muted">{t("entitlement_disabled")}</SettingsBadge>
-              )}
-            </SettingsRow>
-          </SettingsCardBody>
+          <SettingsRow
+            label={linksEntitlement?.name || t("entitlement_links")}
+            description={linksEntitlement ? `documents.public_links` : undefined}
+          >
+            {linksEntitlement?.enabled ? (
+              <SettingsBadge tone="success">{t("entitlement_enabled")}</SettingsBadge>
+            ) : (
+              <SettingsBadge tone="muted">{t("entitlement_disabled")}</SettingsBadge>
+            )}
+          </SettingsRow>
         </SettingsCard>
       </SettingsSection>
 
       <SettingsSection title={t("quota_title")}>
         <SettingsCard>
-          <SettingsCardBody>
-            {storageEntitlement ? (
-              <QuotaMeterRow
-                label={storageEntitlement.name || t("quota_label")}
-                description={t("quota_description")}
-                used={storageEntitlement.current_usage ?? 0}
-                limit={storageEntitlement.quota_limit ?? null}
-                unit="bytes"
-              />
-            ) : (
-              <SettingsRow label={t("quota_label")} description={t("quota_description")}>
-                <span className="text-caption text-muted-foreground">{t("entitlement_disabled")}</span>
-              </SettingsRow>
-            )}
-          </SettingsCardBody>
+          {storageEntitlement ? (
+            <QuotaMeterRow
+              label={storageEntitlement.name || t("quota_label")}
+              description={t("quota_description")}
+              used={storageEntitlement.current_usage ?? 0}
+              limit={storageEntitlement.quota_limit ?? null}
+              unit="bytes"
+            />
+          ) : (
+            <SettingsRow label={t("quota_label")} description={t("quota_description")}>
+              <span className="text-caption text-muted-foreground">{t("entitlement_disabled")}</span>
+            </SettingsRow>
+          )}
         </SettingsCard>
       </SettingsSection>
 
-      <SettingsSection title={t("links_toggle_label")}>
+      <SettingsSection
+        title={t("links_section")}
+        action={
+          <SettingsSaveState
+            status={SAVE_STATUS[setLinks.status]}
+            savingLabel={tSave("saving")}
+            savedLabel={tSave("saved")}
+            errorLabel={t("links_toggle_save_failed")}
+          />
+        }
+      >
         <SettingsCard>
-          <SettingsCardBody>
+          {/* While the read runs the row keeps its shape, and a failed or
+              unreadable read (a drifted answer parses to null) shows only the
+              failure, never a guessed off switch. */}
+          {settings.isPending ? (
+            <SettingsRowSkeleton />
+          ) : settings.isError || !settings.data ? (
+            <SettingsLoadError onRetry={() => void settings.refetch()}>{t("links_read_failed")}</SettingsLoadError>
+          ) : (
             <SettingsRow
               label={
                 <span className="flex items-center gap-2">
@@ -122,36 +148,23 @@ export function DocumentsSettings() {
                 </span>
               }
               description={t("links_toggle_description")}
+              descriptionId={linksHintId}
             >
               <Switch
                 aria-label={t("links_toggle_label")}
+                aria-describedby={linksHintId}
                 checked={linksEnabled}
                 aria-busy={busy || undefined}
                 aria-disabled={busy || undefined}
-                disabled={subscription.isLoading}
-                className="aria-busy:opacity-60 pointer-coarse:after:-inset-y-[13px]"
+                className="aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.25"
                 onCheckedChange={(next) => {
-                  // One write at a time, and never before the read settles; a
-                  // failed read stays writable on purpose (links_state_unknown).
+                  // One write at a time.
                   if (busy) return;
                   void setLinks.mutateAsync(next === true).catch(() => undefined);
                 }}
               />
             </SettingsRow>
-            {!linksKnown ? (
-              <p className="px-1 pb-2 text-caption text-muted-foreground">{t("links_state_unknown")}</p>
-            ) : null}
-            {setLinks.isError ? (
-              <p role="alert" className="px-1 pb-2 text-caption text-destructive">
-                {t("links_toggle_save_failed")}
-              </p>
-            ) : null}
-            {settings.isError ? (
-              <p role="alert" className="px-1 pb-2 text-caption text-destructive">
-                {t("links_read_failed")}
-              </p>
-            ) : null}
-          </SettingsCardBody>
+          )}
         </SettingsCard>
       </SettingsSection>
     </SettingsTab>

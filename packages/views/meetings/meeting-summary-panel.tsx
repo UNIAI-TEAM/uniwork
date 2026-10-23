@@ -1,53 +1,50 @@
 "use client";
-import { useId, useState } from "react";
-import { ChevronDown, FileHeadphone, RotateCcwClock, Sparkles } from "lucide-react";
+import { useId } from "react";
+import { Info, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
+import { meetingDayKey, meetingLocale, meetingShownWindow } from "./meeting-datetime";
+import { formatMeetingMoment } from "./meeting-detail-format";
 import { formatRelativeTime } from "./meeting-relative-time";
-import { useOlderTranscript, useRecordings } from "@uniwork/core/meetings";
-import { useProject } from "@uniwork/core/tasks";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingSummary } from "@uniwork/core/types/meeting";
-import { Badge } from "@uniwork/ui/components/ui/badge";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
-import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingDecisionsBlock } from "./meeting-decisions-block";
-import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
-import { MeetingRecordingDialog } from "./meeting-recording-dialog";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { Notice } from "../common/notice";
 import { PanelCard } from "../common/panel-card";
 import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
-import { SummaryActionItems } from "./meeting-summary/summary-action-items";
+import { AiBadge } from "./meeting-summary/ai-badge";
 import {
+  SummaryFailureNotice,
   SummaryGenerateButton,
   SummaryLiveRegion,
   SummaryRegenerateConfirm,
 } from "./meeting-summary/summary-generate-controls";
 import { summarySourceFacts, summarySourceList, type SummarySourceTimes } from "./meeting-summary/summary-sources";
+import { SummaryOpenQuestions, SummaryTopics } from "./meeting-summary/summary-topics";
 import { useSummaryGeneration } from "./meeting-summary/use-summary-generation";
-
-const RECORDING_STATUSES = new Set(["ACTIVE", "PROCESSING", "COMPLETE", "FAILED"]);
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 
 /**
- * Transcript, AI summary (host generates; everyone reads), action items →
- * tasks, and recordings. Shown once a meeting has started.
+ * The AI summary and the decisions (a clerk generates; everyone reads). Shown
+ * once a meeting has started. What it reads lives in MeetingTranscriptPanel,
+ * the action items it proposes in MeetingActionItemsSection.
  */
 export function MeetingSummaryPanel({
   workspaceId,
   meeting,
-  canHost,
+  canClerk,
 }: {
   workspaceId: string;
   meeting: Meeting;
-  canHost: boolean;
+  canClerk: boolean;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const meetingId = meeting.id;
-  const gen = useSummaryGeneration({ workspaceId, meetingId, canHost });
+  const gen = useSummaryGeneration({ workspaceId, meetingId, canClerk });
   const { summary, summaryQuery, transcriptQuery } = gen;
-  const olderTranscript = useOlderTranscript(meetingId);
   const transcript = transcriptQuery.data;
-  // The empty copy depends on both (no summary → "no transcript yet" or
+  // The empty copy depends on both (no summary → "needs a source" or
   // "no summary yet"), so neither is claimed until both have answered.
   const summaryLoading = summaryQuery.isPending || transcriptQuery.isPending;
   const summaryFailed = (summaryQuery.isError && !summary) || (transcriptQuery.isError && !transcript);
@@ -55,153 +52,80 @@ export function MeetingSummaryPanel({
     if (summaryQuery.isError) void summaryQuery.refetch();
     if (transcriptQuery.isError) void transcriptQuery.refetch();
   };
-  const { data: recordings } = useRecordings(meetingId);
-  const [showTranscript, setShowTranscript] = useState(false);
-  // A project deleted after the meeting was linked stays on the meeting row
-  // (no FK); only a project that still resolves is offered for new tasks.
-  const { data: project } = useProject(workspaceId, meeting.project_id || "");
-  const [playbackId, setPlaybackId] = useState<string | null>(null);
   const reasonId = useId();
 
-  const actionItems = summary?.action_items ?? [];
   const decisions = summary?.decisions ?? [];
-  const transcriptLines = transcript?.length ?? 0;
+  const shownDay = meetingDayKey(meetingShownWindow(meeting, meeting.status === "ENDED").startsAt);
+  const aiOff = !gen.aiOn && gen.capsLoaded;
   const showNeedsSource = gen.showGenerate && !gen.hasSource && !summaryLoading && !summaryFailed;
-  // An ended meeting cannot gain a transcript any more: no "turn on captions".
-  const transcriptEmpty = meeting.status === "ENDED" ? t("meetings.transcriptEmptyEnded") : t("meetings.transcriptEmpty");
+  // One sentence for an empty summary: why there is none and what would make one.
+  const emptyText = aiOff
+    ? t("meetings.aiUnavailable")
+    : gen.hasSource
+      ? t("meetings.summaryEmpty")
+      : gen.showGenerate
+        ? t("meetings.summaryNeedsSource")
+        : t("meetings.summaryEmptyReadOnly");
 
   return (
+    // A neutral card like its siblings: a brand edge read as selected. The AI badge says what made it.
     <PanelCard
       id="summary-heading"
       icon={Sparkles}
-      iconTone="brand"
-      tone="brand"
-      title={t("meetings.aiSummary")}
+      title={t("meetings.summaryTitle")}
       action={
-        <SummaryGenerateButton gen={gen} variant="brandSubtle" reasonId={showNeedsSource ? reasonId : undefined} />
+        <SummaryGenerateButton
+          gen={gen}
+          variant={summary ? "outline" : "default"}
+          reasonId={showNeedsSource ? reasonId : undefined}
+        />
       }
     >
-      <SummaryLiveRegion message={gen.announcement} />
+      <SummaryLiveRegion message={gen.announcement} seq={gen.announcementSeq} />
       <div className="space-y-4" data-testid="meeting-summary-panel">
-        {!gen.aiOn && gen.capsLoaded ? (
-          <p className="text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
-        ) : null}
-        {showNeedsSource ? (
-          <p id={reasonId} className="text-caption text-muted-foreground">
-            {t("meetings.summaryNeedsSource")}
-          </p>
-        ) : null}
-
+        <SummaryFailureNotice gen={gen} />
         {summary ? (
           <div className="space-y-4">
-            <SummaryAttribution summary={summary} times={gen.sourceTimes} />
-            <p className="max-w-prose whitespace-pre-wrap text-pretty text-body text-foreground">{summary.summary}</p>
-            <MeetingDecisionsBlock voted={gen.voted} aiDecisions={decisions} />
-            {actionItems.length > 0 ? (
-              <div>
-                <h3 className="mb-2 text-overline text-muted-foreground">{t("meetings.actionItems")}</h3>
-                <SummaryActionItems
-                  summary={summary}
-                  workspaceId={workspaceId}
-                  meetingId={meetingId}
-                  canHost={canHost}
-                  projectId={project?.id}
-                  variant="panel"
-                  announce={gen.announce}
-                />
-              </div>
+            {summary.transcript_changed_at ? (
+              // The transcript was corrected, cut or replaced after this summary (UNI-1995 #5).
+              <Notice
+                tone="info"
+                icon={Info}
+                layout="inline"
+                live="off"
+                action={
+                  gen.showGenerate ? (
+                    <Button type="button" size="sm" variant="outline" onClick={gen.requestGenerate}>
+                      {t("meetings.regenerateSummary")}
+                    </Button>
+                  ) : undefined
+                }
+              >
+                {t("meetings.summaryTranscriptChanged")}
+              </Notice>
             ) : null}
+            <SummaryAttribution summary={summary} times={gen.sourceTimes} shownDay={shownDay} />
+            {gen.serverRunning ? <SummaryRunning /> : null}
+            <p className="max-w-prose whitespace-pre-wrap text-pretty text-body text-foreground">{summary.summary}</p>
+            <SummaryTopics meetingId={meetingId} topics={summary.topics ?? []} shownDay={shownDay} />
+            <MeetingDecisionsBlock meetingId={meetingId} voted={gen.voted} aiDecisions={decisions} />
+            <SummaryOpenQuestions meetingId={meetingId} questions={summary.open_questions ?? []} />
           </div>
+        ) : summaryQuery.isPending ? (
+          <MeetingTextSkeleton />
+        ) : gen.generating ? (
+          <SummaryRunning skeleton />
         ) : summaryLoading ? (
           <MeetingTextSkeleton />
         ) : summaryFailed ? (
           <MeetingSectionError message={t("meetings.summaryLoadFailed")} onRetry={retrySummary} />
-        ) : !gen.aiOn && gen.capsLoaded ? null : (
-          <p className="text-label text-muted-foreground">
-            {gen.hasSource ? t("meetings.summaryEmpty") : transcriptEmpty}
+        ) : (
+          <p id={showNeedsSource ? reasonId : undefined} className="text-label text-muted-foreground">
+            {emptyText}
           </p>
         )}
-        {summary ? null : <MeetingDecisionsBlock voted={gen.voted} aiDecisions={[]} />}
-
-        <Collapsible open={showTranscript} onOpenChange={setShowTranscript}>
-          <CollapsibleTrigger
-            render={
-              <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
-                {showTranscript
-                  ? t("meetings.hideTranscript")
-                  : t(olderTranscript.hasOlder ? "meetings.showTranscriptMore" : "meetings.showTranscript", {
-                      count: transcriptLines,
-                    })}
-                <ChevronDown
-                  aria-hidden
-                  className={cn("size-3.5 transition-transform duration-standard", showTranscript && "rotate-180")}
-                />
-              </Button>
-            }
-          />
-          <CollapsibleContent>
-            <ol className="mt-2 max-h-80 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-surface-hover p-3" data-testid="meeting-transcript">
-              {olderTranscript.hasOlder ? (
-                <li>
-                  <MeetingFeedLoadOlder
-                    label={t("meetings.transcriptLoadOlder")}
-                    loading={olderTranscript.isLoadingOlder}
-                    onLoad={olderTranscript.loadOlder}
-                  />
-                </li>
-              ) : null}
-              {(transcript ?? []).map((s) => (
-                <li key={s.id} className="text-body text-foreground">
-                  <span className="mr-1 text-caption font-medium text-muted-foreground">{s.speaker_name || "—"}</span>
-                  {s.text}
-                </li>
-              ))}
-              {transcriptQuery.isPending ? (
-                <li>
-                  <MeetingTextSkeleton />
-                </li>
-              ) : (transcript ?? []).length === 0 && !transcriptQuery.isError ? (
-                <li className="text-caption text-muted-foreground">{transcriptEmpty}</li>
-              ) : null}
-            </ol>
-          </CollapsibleContent>
-        </Collapsible>
-
-        {(recordings ?? []).length > 0 ? (
-          <div>
-            <h3 className="mb-2 text-overline text-muted-foreground">
-              {t("meetings.recordings")}
-            </h3>
-            <ul className="space-y-1.5">
-              {(recordings ?? []).map((r) => (
-                <li key={r.id} className="flex items-center gap-2 text-body text-foreground">
-                  <FileHeadphone aria-hidden className="size-4 shrink-0 text-faint-foreground" />
-                  <span className="text-caption tabular-nums text-muted-foreground">
-                    {r.started_at ? formatMeetingStart(r.started_at, meetingLocale(i18n.language)) : null}
-                  </span>
-                  {r.status === "COMPLETE" ? (
-                    <Button type="button" size="sm" variant="link" className="h-auto px-0" onClick={() => setPlaybackId(r.id)}>
-                      {t("meetings.recording_play")}
-                    </Button>
-                  ) : RECORDING_STATUSES.has(r.status) ? (
-                    <span className="text-caption text-muted-foreground">{t(`meetings.recordingStatus.${r.status}`)}</span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+        {summary ? null : <MeetingDecisionsBlock meetingId={meetingId} voted={gen.voted} aiDecisions={[]} />}
       </div>
-      {playbackId ? (
-        <MeetingRecordingDialog
-          open
-          onOpenChange={(open) => {
-            if (!open) setPlaybackId(null);
-          }}
-          meetingId={meetingId}
-          recordingId={playbackId}
-        />
-      ) : null}
       <SummaryRegenerateConfirm gen={gen} />
     </PanelCard>
   );
@@ -211,45 +135,89 @@ export function MeetingSummaryPanel({
  * The AI label every generated output carries (PRODUCT.md › Agent Principles):
  * that it is AI, what it was made from, when, and by which model.
  */
-function SummaryAttribution({ summary, times }: { summary: MeetingSummary; times: SummarySourceTimes }) {
+function SummaryAttribution({
+  summary,
+  times,
+  shownDay,
+}: {
+  summary: MeetingSummary;
+  times: SummarySourceTimes;
+  /** The day the hero shows: the tooltip is the clock alone on it, the day too otherwise. */
+  shownDay: string;
+}) {
   const { t, i18n } = useTranslation();
   const locale = meetingLocale(i18n.language);
   const facts = summarySourceFacts(summary.created_at, times);
   const list = summarySourceList(facts.sources, t, locale);
-  const source = list ? t("meetings.summaryAi.sourceFrom", { sources: list }) : null;
-  const parts: React.ReactNode[] = [];
-  if (source) parts.push(<span key="source">{source}</span>);
-  if (summary.created_at) {
-    parts.push(
-      <time key="time" dateTime={summary.created_at} title={formatMeetingStart(summary.created_at, locale)} className="tabular-nums">
-        {formatRelativeTime(summary.created_at, locale)}
-      </time>,
-    );
-  }
-  if (summary.model) parts.push(<span key="model">{summary.model}</span>);
+  // "Made automatically" folds into the source sentence: one AI badge, one line.
+  const auto = summary.created_by_kind === "system";
+  const source = list
+    ? t(auto ? "meetings.summaryAi.autoFrom" : "meetings.summaryAi.sourceFrom", { sources: list })
+    : auto
+      ? t("meetings.summaryAi.auto")
+      : null;
 
   return (
     <div className="space-y-1">
       <p
         data-testid="ai-attribution"
+        // The model is provenance for whoever asks, not a word to read on every visit.
+        title={summary.model || undefined}
         className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-muted-foreground"
       >
-        <Badge className="gap-1 bg-brand-subtle text-brand-subtle-foreground">
-          <Sparkles aria-hidden />
-          {t("meetings.aiLabel")}
-        </Badge>
-        {parts.map((part, i) => (
-          <span key={i} className="inline-flex items-center gap-x-1.5">
-            {i > 0 ? <span aria-hidden>·</span> : null}
-            {part}
+        <AiBadge />
+        {source ? (
+          <span data-testid={auto ? "ai-summary-auto" : undefined}>
+            {source}
+            {/* The dot stays at the end of a line, never at the start of the next. */}
+            {summary.created_at ? "\u00a0·" : null}
           </span>
-        ))}
+        ) : null}
+        {summary.created_at ? (
+          <time
+            dateTime={summary.created_at}
+            title={formatMeetingMoment(summary.created_at, locale, shownDay)}
+            className="tabular-nums"
+          >
+            {formatRelativeTime(summary.created_at, locale, undefined, t("meetings.justNow"))}
+          </time>
+        ) : null}
       </p>
       {facts.stale ? (
         <p data-testid="ai-summary-stale" className="flex items-center gap-1.5 text-caption text-muted-foreground">
-          <RotateCcwClock aria-hidden className="size-3.5 shrink-0" />
+          <Info aria-hidden className="size-3.5 shrink-0" />
           {t("meetings.summaryStale")}
         </p>
+      ) : null}
+      {summary.partial ? (
+        <p data-testid="ai-summary-partial" className="text-caption text-muted-foreground">
+          {t("meetings.summaryPartial")}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A summary on its way (UNI-1995 #12), for every reader, not only whoever
+ * pressed Generate: the line says it, the live region announced it, and the
+ * skeleton holds the shape of a summary not there yet. Nothing in it is a
+ * status of its own, so it is said once.
+ */
+function SummaryRunning({ skeleton = false }: { skeleton?: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-2" data-testid="summary-run-generating">
+      <p className="flex items-center gap-1.5 text-caption text-muted-foreground">
+        <Spinner />
+        {t("meetings.summaryAi.generatingVisible")}
+      </p>
+      {skeleton ? (
+        <div aria-hidden className="space-y-2">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-11/12" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
       ) : null}
     </div>
   );

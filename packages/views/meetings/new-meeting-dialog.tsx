@@ -2,7 +2,8 @@
 import { useId, useRef, useState, type ReactElement } from "react";
 import { Link2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useCreateMeeting } from "@uniwork/core/meetings";
+import { useCreateMeeting, useMeetingCapabilities } from "@uniwork/core/meetings";
+import { scribePolicyOf } from "@uniwork/core/types";
 import { useAuthStore } from "@uniwork/core/auth";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog, DialogTrigger } from "@uniwork/ui/components/ui/dialog";
@@ -50,6 +51,7 @@ export function NewMeetingDialog({
   open: openProp,
   onOpenChange,
   showTrigger = true,
+  followUp,
 }: {
   workspaceId: string;
   onCreated?: (id: string) => void;
@@ -59,6 +61,11 @@ export function NewMeetingDialog({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   showTrigger?: boolean;
+  /**
+   * The meeting this one is the next of (follow-4): the form opens on its
+   * title, agenda, project and people, and the new meeting joins its series.
+   */
+  followUp?: { meetingId: string; title: string; description: string; projectId?: string; attendeeUserIds: string[] };
 }) {
   const { t } = useTranslation();
   const id = useId();
@@ -74,6 +81,12 @@ export function NewMeetingDialog({
   const [end, setEnd] = useState(() => scheduleDraftFromDefaults(scheduleDefaults).end);
   const [attendees, setAttendees] = useState<string[]>([]);
   const [allowJoin, setAllowJoin] = useState(true);
+  // The "Thư ký AI" switch starts where the organization's policy starts a
+  // meeting (opt_in: off) until the person touches it (UNI-1995 access).
+  const { data: caps } = useMeetingCapabilities(workspaceId);
+  const scribeOffered = caps?.scribe === true;
+  const [scribeChoice, setScribeChoice] = useState<boolean | null>(null);
+  const scribeOn = scribeChoice ?? scribePolicyOf(caps?.scribe_policy) !== "opt_in";
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
   const projectsAvailable = useProjectsAvailable();
   const [submitted, setSubmitted] = useState(false);
@@ -88,6 +101,7 @@ export function NewMeetingDialog({
     setEnd(next.end);
     setAttendees([]);
     setAllowJoin(true);
+    setScribeChoice(null);
     setProjectId(undefined);
     setSubmitted(false);
   };
@@ -99,6 +113,12 @@ export function NewMeetingDialog({
       setDate(draft.date);
       setStart(draft.start);
       setEnd(draft.end);
+      if (followUp) {
+        setTitle(followUp.title);
+        setDescription(followUp.description);
+        setProjectId(followUp.projectId);
+        setAttendees(followUp.attendeeUserIds);
+      }
     } else {
       reset();
     }
@@ -117,7 +137,10 @@ export function NewMeetingDialog({
         <DialogTrigger render={trigger ?? <Button size="sm">{t("meetings.new")}</Button>} />
       ) : null}
       <FormDialogContent size="lg">
-        <FormDialogHeader title={t("meetings.new")} description={t("meetings.newDescription")} />
+        <FormDialogHeader
+          title={t(followUp ? "meetings.followUp.title" : "meetings.new")}
+          description={t(followUp ? "meetings.followUp.description" : "meetings.newDescription")}
+        />
         <form
           noValidate
           onSubmit={(e) => {
@@ -145,6 +168,8 @@ export function NewMeetingDialog({
                 allow_join_request: allowJoin,
                 attendee_user_ids: attendees,
                 ...(projectId ? { project_id: projectId } : {}),
+                ...(scribeOffered ? { scribe: scribeOn } : {}),
+                ...(followUp ? { previous_meeting_id: followUp.meetingId } : {}),
               },
               {
                 onSuccess: (m) => {
@@ -154,6 +179,9 @@ export function NewMeetingDialog({
                   }
                   changeOpen(false);
                   toast.success(t("meetings.created"));
+                  if (scribeOffered && (m.scribe_enabled !== false) !== scribeOn) {
+                    toast.warning(t("meetings.scribe.createdScribeNotSet"));
+                  }
                   onCreated?.(m.id);
                 },
                 onError: (err) => toastApiError(err, t("common.error")),
@@ -239,6 +267,24 @@ export function NewMeetingDialog({
                   onCheckedChange={setAllowJoin}
                 />
               </div>
+              {scribeOffered ? (
+                <div className="flex min-h-11 items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-0.5">
+                    <FieldLabel id={`${id}-scribe-label`} htmlFor={`${id}-scribe`}>
+                      {t("meetings.scribe.formLabel")}
+                    </FieldLabel>
+                    <FieldDescription id={`${id}-scribe-hint`}>{t("meetings.scribe.formHint")}</FieldDescription>
+                  </div>
+                  <Switch
+                    id={`${id}-scribe`}
+                    aria-labelledby={`${id}-scribe-label`}
+                    aria-describedby={`${id}-scribe-hint`}
+                    className="mt-0.5 shrink-0"
+                    checked={scribeOn}
+                    onCheckedChange={setScribeChoice}
+                  />
+                </div>
+              ) : null}
               <Notice tone="info" icon={Link2} layout="inline" live="off">
                 {t("meetings.externalGuestLinkAfterCreate")}
               </Notice>

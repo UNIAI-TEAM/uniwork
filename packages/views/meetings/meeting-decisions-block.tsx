@@ -1,26 +1,28 @@
 "use client";
-import { CircleCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { MeetingMotion } from "@uniwork/core/types/meeting";
+import type { MeetingMotion, MeetingSummaryDecision } from "@uniwork/core/types/meeting";
+import { MeetingEvidenceChip } from "./meeting-evidence-chip";
 import { ToneBadge } from "./meeting-status-badge";
 
 /**
  * "Decisions": what the meeting voted on comes first, from the recorded
- * results (never from the AI), then the decisions the AI summary picked out.
- * Null when there is neither.
+ * results (never from the AI), then the decisions the AI summary picked out,
+ * each with its evidence chip. Null when there is neither.
  */
 export function MeetingDecisionsBlock({
+  meetingId,
   voted,
   aiDecisions,
 }: {
+  meetingId: string;
   voted: readonly MeetingMotion[];
-  aiDecisions: readonly string[];
+  aiDecisions: readonly MeetingSummaryDecision[];
 }) {
   const { t } = useTranslation();
   if (voted.length === 0 && aiDecisions.length === 0) return null;
   return (
     <div className="space-y-3">
-      <h3 className="text-overline text-muted-foreground">{t("meetings.decisions")}</h3>
+      <h3 className="text-label font-semibold text-foreground">{t("meetings.decisions")}</h3>
       {voted.length > 0 ? (
         <div className="space-y-1.5">
           <h4 className="text-label font-medium text-foreground">{t("meetings.governance.votedDecisions")}</h4>
@@ -51,14 +53,22 @@ export function MeetingDecisionsBlock({
         </div>
       ) : null}
       {aiDecisions.length > 0 ? (
-        <ul className="space-y-1.5">
-          {aiDecisions.map((d, i) => (
-            <li key={i} className="flex items-start gap-2 text-body text-foreground">
-              <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
-              <span className="min-w-0">{d}</span>
-            </li>
-          ))}
-        </ul>
+        // Read from the conversation, not settled by a vote: a neutral bullet,
+        // never the success check a passed motion carries.
+        <div className="space-y-1.5">
+          <h4 className="text-label font-medium text-foreground">{t("meetings.aiDecisions")}</h4>
+          <ul className="space-y-1.5">
+            {aiDecisions.map((d, i) => (
+              <li key={i} className="flex items-start gap-2 text-body text-foreground">
+                <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-faint-foreground" />
+                <div className="min-w-0 space-y-0.5">
+                  <p>{d.text}</p>
+                  <MeetingEvidenceChip meetingId={meetingId} evidence={d.evidence} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
     </div>
   );

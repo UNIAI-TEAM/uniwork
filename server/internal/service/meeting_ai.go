@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -33,7 +34,9 @@ const (
 
 	// The summary reads the newest rows and keeps what fits its rune budget
 	// (summaryWindow); ai.estimateTokens counts ~4 runes per token, so the
-	// budgets are ~15k tokens of transcript and ~4k of chat (G18).
+	// budgets are ~15k tokens of transcript and ~4k of chat (G18). The
+	// transcript budget is MEETING_SUMMARY_MAX_RUNES when set (parent spec
+	// §7.8: 240k runes by default, sized for a 128k-token model); these are the floor.
 	summaryTranscriptRows  = 2000
 	summaryChatRows        = 500
 	summaryTranscriptRunes = 60000
@@ -90,57 +93,6 @@ func (s *MeetingService) AppendTranscript(ctx context.Context, userID, meetingID
 	return seg, nil
 }
 
-func (s *MeetingService) STTAgentEnabled() bool {
-	return s.rt.STTAgentSecret != ""
-}
-
-// AppendTranscriptFromAgent ingests a diarized segment from a LiveKit Agents
-// worker. The worker authenticates with X-Meeting-Agent-Secret, not a user JWT.
-func (s *MeetingService) AppendTranscriptFromAgent(ctx context.Context, meetingID, participantIdentity, speakerName, text string, spokenAt time.Time) (db.MeetingTranscriptSegment, error) {
-	m, err := s.q.GetMeeting(ctx, meetingID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return db.MeetingTranscriptSegment{}, ErrNotFound
-		}
-		return db.MeetingTranscriptSegment{}, err
-	}
-	if m.Status != MeetingInProgress {
-		return db.MeetingTranscriptSegment{}, errInvalidState()
-	}
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return db.MeetingTranscriptSegment{}, Invalid("nội dung không được để trống")
-	}
-	text = capRunes(text, transcriptSegmentRunes, "")
-	if spokenAt.IsZero() {
-		spokenAt = time.Now().UTC()
-	}
-	pid := pgtype.Text{}
-	speaker := strings.TrimSpace(speakerName)
-	const idPrefix = "uw_participant_"
-	if strings.HasPrefix(participantIdentity, idPrefix) {
-		participantID := strings.TrimPrefix(participantIdentity, idPrefix)
-		if p, err := s.q.GetMeetingParticipant(ctx, participantID); err == nil && p.MeetingID == meetingID {
-			pid = strText(p.ID)
-			if speaker == "" {
-				speaker = p.DisplayNameSnapshot
-			}
-		}
-	}
-	if speaker == "" {
-		speaker = participantIdentity
-	}
-	seg, err := s.q.InsertTranscriptSegment(ctx, db.InsertTranscriptSegmentParams{
-		ID: util.NewID(), MeetingID: meetingID, OrganizationID: m.OrganizationID, ParticipantID: pid, SpeakerName: speaker, Text: text,
-		SpokenAt: pgtype.Timestamptz{Time: spokenAt, Valid: true},
-	})
-	if err != nil {
-		return db.MeetingTranscriptSegment{}, err
-	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "transcript.appended", Payload: map[string]string{"meeting_id": meetingID}})
-	return seg, nil
-}
-
 // transcriptFeedKeys pages by spoken_at, which the caption client or the STT
 // agent supplies, and follows deltas by created_at, which the database does:
 // a segment delivered late must still reach a client that holds newer ones.
@@ -150,20 +102,37 @@ var transcriptFeedKeys = feedKeys[db.MeetingTranscriptSegment]{
 	delta: func(s db.MeetingTranscriptSegment) time.Time { return s.CreatedAt.Time },
 }
 
-// Transcript reads one page of the meeting's transcript (see FeedQuery).
-func (s *MeetingService) Transcript(ctx context.Context, userID, meetingID string, q FeedQuery) (FeedPage[db.MeetingTranscriptSegment], error) {
+// Transcript reads one page of the meeting's transcript (see FeedQuery),
+// each speaker named as the summary names them (nameSpeakers, Vietnamese for
+// a client that does not word room speakers itself).
+func (s *MeetingService) Transcript(ctx context.Context, userID, meetingID string, q FeedQuery) (TranscriptPage, error) {
+	page, err := s.transcriptPage(ctx, userID, meetingID, q)
+	if err != nil {
+		return TranscriptPage{}, err
+	}
+	speakers, err := s.nameSpeakers(ctx, meetingID, page.Items, "vi")
+	return TranscriptPage{FeedPage: page, Speakers: speakers}, err
+}
+
+func (s *MeetingService) transcriptPage(ctx context.Context, userID, meetingID string, q FeedQuery) (FeedPage[db.MeetingTranscriptSegment], error) {
 	if err := q.validate(); err != nil {
 		return FeedPage[db.MeetingTranscriptSegment]{}, err
 	}
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+	if _, err := s.authorizeAIContent(ctx, userID, meetingID); err != nil {
 		return FeedPage[db.MeetingTranscriptSegment]{}, err
 	}
 	limit := q.limit()
+	src, err := s.q.TranscriptSources(ctx, meetingID)
+	if err != nil {
+		return FeedPage[db.MeetingTranscriptSegment]{}, err
+	}
+	rich := src.HasAgent || len(src.TranscriptionIds) > 0
 	switch {
 	case q.After != "":
 		at, _, _ := decodeFeedCursor(q.After)
 		rows, err := s.q.ListTranscriptSegmentsCreatedSince(ctx, db.ListTranscriptSegmentsCreatedSinceParams{
 			MeetingID: meetingID, Since: pgtype.Timestamptz{Time: at.Add(-feedDeltaOverlap), Valid: true}, RowLimit: int32(limit + 1),
+			Rich: rich, TranscriptionIds: src.TranscriptionIds,
 		})
 		if err != nil {
 			return FeedPage[db.MeetingTranscriptSegment]{}, err
@@ -173,13 +142,33 @@ func (s *MeetingService) Transcript(ctx context.Context, userID, meetingID strin
 		at, id, _ := decodeFeedCursor(q.Before)
 		rows, err := s.q.ListTranscriptSegmentsBefore(ctx, db.ListTranscriptSegmentsBeforeParams{
 			MeetingID: meetingID, BeforeAt: pgtype.Timestamptz{Time: at, Valid: true}, BeforeID: id, RowLimit: int32(limit + 1),
+			Rich: rich, TranscriptionIds: src.TranscriptionIds,
 		})
 		if err != nil {
 			return FeedPage[db.MeetingTranscriptSegment]{}, err
 		}
-		return pageFromNewest(rows, limit, transcriptFeedKeys, false), nil
+		p := pageFromNewest(rows, limit, transcriptFeedKeys, false)
+		// A reader refetches an infinite list from its first page, which may
+		// be this one: the cursor forward lets it find the rest again.
+		p.NewerCursor = encodeFeedCursor(at.Add(-time.Microsecond), id)
+		if len(p.Items) > 0 {
+			last := p.Items[len(p.Items)-1]
+			p.NewerCursor = encodeFeedCursor(last.SpokenAt.Time, last.ID)
+		}
+		return p, nil
+	case q.Around != "":
+		return s.transcriptAround(ctx, meetingID, rich, src.TranscriptionIds, q.Around, limit)
+	case q.From != "" || q.Asc:
+		var at time.Time
+		var id string
+		if q.From != "" {
+			at, id, _ = decodeFeedCursor(q.From)
+		}
+		return s.transcriptForward(ctx, meetingID, rich, src.TranscriptionIds, at, id, limit)
 	}
-	rows, err := s.q.ListTranscriptSegmentsLatest(ctx, db.ListTranscriptSegmentsLatestParams{MeetingID: meetingID, Limit: int32(limit + 1)})
+	rows, err := s.q.ListTranscriptSegmentsLatest(ctx, db.ListTranscriptSegmentsLatestParams{
+		MeetingID: meetingID, RowLimit: int32(limit + 1), Rich: rich, TranscriptionIds: src.TranscriptionIds,
+	})
 	if err != nil {
 		return FeedPage[db.MeetingTranscriptSegment]{}, err
 	}
@@ -189,9 +178,92 @@ func (s *MeetingService) Transcript(ctx context.Context, userID, meetingID strin
 // ---- AI summary --------------------------------------------------------------
 
 func (s *MeetingService) Summary(ctx context.Context, userID, meetingID string) (*db.MeetingSummary, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+	if _, err := s.authorizeAIContent(ctx, userID, meetingID); err != nil {
 		return nil, err
 	}
+	return s.latestSummary(ctx, meetingID)
+}
+
+// SummaryWithRun answers GET /meetings/{id}/summary: the latest summary,
+// when each of its topics starts, and whether one is being made (benchmark
+// #12), so every viewer sees "being generated" instead of "no summary", and
+// nobody clicks into a 409.
+func (s *MeetingService) SummaryWithRun(ctx context.Context, userID, meetingID string) (SummaryView, error) {
+	m, err := s.authorizeAIContent(ctx, userID, meetingID)
+	if err != nil {
+		return SummaryView{}, err
+	}
+	sum, err := s.latestSummary(ctx, meetingID)
+	if err != nil {
+		return SummaryView{}, err
+	}
+	out := SummaryView{Summary: sum, Run: SummaryRun{Status: SummaryRunIdle}, TopicStarts: map[string]time.Time{}}
+	if sum != nil {
+		var ids []string
+		for _, t := range DecodeSummaryTopics(sum.Topics) {
+			if t.Start != nil {
+				ids = append(ids, t.Start.ID)
+			}
+		}
+		if len(ids) > 0 {
+			rows, err := s.q.ListTranscriptSegmentsByIDs(ctx, db.ListTranscriptSegmentsByIDsParams{OrganizationID: m.OrganizationID, MeetingID: m.ID, Ids: ids})
+			if err != nil {
+				return SummaryView{}, err
+			}
+			for _, r := range rows {
+				if r.SpokenAt.Valid {
+					out.TopicStarts[r.ID] = r.SpokenAt.Time
+				}
+			}
+		}
+	}
+	st, err := s.q.GetMeetingSummaryRunState(ctx, db.GetMeetingSummaryRunStateParams{OrganizationID: m.OrganizationID, MeetingID: m.ID})
+	if err != nil {
+		return SummaryView{}, err
+	}
+	switch {
+	case st.RunningSince.Valid:
+		out.Run = SummaryRun{Status: SummaryRunRunning, At: st.RunningSince.Time, Attempts: int(st.Attempts)}
+	case st.QueuedDueAt.Valid:
+		out.Run = SummaryRun{Status: SummaryRunQueued, At: st.QueuedDueAt.Time, Attempts: int(st.Attempts)}
+	}
+	if st.FailedAt.Valid {
+		out.Run.FailedAt, out.Run.FailureCode = st.FailedAt.Time, st.FailureCode
+	}
+	return out, nil
+}
+
+// SummaryView is GET summary's answer. TopicStarts maps a topic's start
+// segment to when it was spoken; a segment deleted since is absent.
+type SummaryView struct {
+	Summary     *db.MeetingSummary
+	Run         SummaryRun
+	TopicStarts map[string]time.Time
+}
+
+// Summary run states (SummaryRun.Status).
+const (
+	SummaryRunIdle    = "idle"
+	SummaryRunQueued  = "queued"
+	SummaryRunRunning = "running"
+)
+
+// SummaryRun is a summary being made: running holds the run lease (a
+// clerk's run or the system's), queued is the system's summary waiting for
+// its due time (the meeting's last lines, or a retry's backoff). At is when
+// the run started, or when the queued one is due; Attempts counts the
+// system's tries so far. FailedAt and FailureCode are the last run's
+// failure while no run holds the lease (the refusal code a clerk would have
+// been answered with); zero once a summary is stored or a run starts.
+type SummaryRun struct {
+	Status      string
+	At          time.Time
+	Attempts    int
+	FailedAt    time.Time
+	FailureCode string
+}
+
+func (s *MeetingService) latestSummary(ctx context.Context, meetingID string) (*db.MeetingSummary, error) {
 	sum, err := s.q.GetLatestMeetingSummary(ctx, meetingID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -214,64 +286,174 @@ func (s *MeetingService) SummaryAvailable(ctx context.Context, orgID string) boo
 
 // MeetingCapabilities is what the meeting screens of one workspace may offer.
 type MeetingCapabilities struct {
-	AISummary, Recording, ServerSTT bool
+	AISummary, Recording, Scribe, Transcription bool
+	// ScribePolicy is the organization's policy (on, opt_in, off): a new
+	// meeting's scribe starts on unless it is opt_in.
+	ScribePolicy string
 }
 
 // Capabilities answers GET /workspaces/{id}/meeting-capabilities. The route
 // names a workspace, so only its members get an answer - like every other
 // workspace route (ADR 0008). AISummary is SummaryAvailable for the
 // workspace's organization: a plan without meeting.ai_summary hides the
-// button instead of offering one that only answers 403 (UNI-1853 M8). The
-// other flags are process-wide.
+// button instead of offering one that only answers 403 (UNI-1853 M8). Scribe
+// is ScribeAvailable for the same organization; Recording is process-wide.
 func (s *MeetingService) Capabilities(ctx context.Context, userID, workspaceID string) (MeetingCapabilities, error) {
 	mem, err := s.ws.RequireMember(ctx, workspaceID, userID)
 	if err != nil {
 		return MeetingCapabilities{}, err
 	}
+	policy, err := scribePolicy(ctx, s.q, mem.OrganizationID)
+	if err != nil {
+		return MeetingCapabilities{}, err
+	}
 	return MeetingCapabilities{
-		AISummary: s.SummaryAvailable(ctx, mem.OrganizationID), Recording: s.RecordingEnabled(ctx), ServerSTT: s.STTAgentEnabled(),
+		AISummary: s.SummaryAvailable(ctx, mem.OrganizationID), Recording: s.RecordingEnabled(ctx),
+		Scribe: s.ScribeAvailable(ctx, mem.OrganizationID), Transcription: s.TranscriptionAvailable(ctx, mem.OrganizationID),
+		ScribePolicy: policy,
 	}, nil
 }
 
-// Summarize gathers transcript, notes, chat, the attendance report and the
-// closed votes, asks the gateway (capability meeting_summarization) and
-// stores the result with the usage row that paid for it. Any host/admin may
-// re-run it; the latest row wins. One run per meeting at a time
+// Summarize gathers transcript, notes, chat, the attendance report, the
+// closed votes and the meeting's handled action items, asks the gateway
+// (capability meeting_summarization) and stores the result with the usage row
+// that paid for it. Any clerk (host, secretary, workspace admin) may re-run
+// it; the latest row wins. One run per meeting at a time
 // (claimSummaryRun): a second one answers 409 summary_in_progress instead of
 // paying the model twice. Every failure carries a fixed message and a code
 // the client translates (summaryFailure); the cause is logged, ids only.
+// Summarize waits for the run; the HTTP route starts it (StartSummary).
 func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, locale string) (db.MeetingSummary, error) {
-	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
+	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
-	if err := s.requireFeature(ctx, m, FeatureMeetingAISummary); err != nil {
+	return s.summarize(ctx, m, Human(userID), locale)
+}
+
+// StartSummary is POST /meetings/{id}/summary (UNI-1995 #12): Summarize's
+// gates and lease answer at once, and the run itself goes on without the
+// request, so a clerk who closes the tab does not cancel a run every viewer
+// is waiting for. It answers the meeting's summary view with the run
+// running; the run ends in summary.created, or in a failure GET summary
+// carries (SummaryRun.FailureCode). The run keeps the request's values (the
+// correlation id reaches its audit row) and its own deadline (the lease).
+func (s *MeetingService) StartSummary(ctx context.Context, userID, meetingID, locale string) (SummaryView, error) {
+	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
+	if err != nil {
+		return SummaryView{}, err
+	}
+	budget, release, err := s.claimSummary(ctx, m)
+	if err != nil {
+		return SummaryView{}, err
+	}
+	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	stop := context.AfterFunc(s.summaryLife, cancel)
+	s.summaryRuns.Add(1)
+	go func() {
+		defer s.summaryRuns.Done()
+		defer cancel()
+		defer stop()
+		var err error
+		// No Recoverer stands above this goroutine: a panic ends this run as
+		// failed (the panel stops waiting) instead of the process.
+		defer func() {
+			if p := recover(); p != nil {
+				slog.Error("meetings: summary run panicked", "meeting_id", m.ID, "stack", string(debug.Stack()))
+				err = s.summaryFailure(m.ID, "", summaryStepError{reason: summaryReasonPanic, err: errors.New("panic")})
+			}
+			release(err)
+		}()
+		_, err = s.runSummary(runCtx, m, Human(userID), locale, budget)
+	}()
+	return s.SummaryWithRun(ctx, userID, meetingID)
+}
+
+// StopSummaryRuns waits up to grace for the runs StartSummary left, then
+// cancels the rest (each settles its usage row and gives its lease back) and
+// waits for them to end. false when one is still running after that.
+func (s *MeetingService) StopSummaryRuns(grace time.Duration) bool {
+	done := make(chan struct{})
+	go func() { s.summaryRuns.Wait(); close(done) }()
+	select {
+	case <-done:
+		return true
+	case <-time.After(grace):
+	}
+	s.stopSummaries()
+	select {
+	case <-done:
+		return true
+	case <-time.After(summaryStoreTimeout + summaryReleaseTimeout):
+		return false
+	}
+}
+
+// summarize is the body Summarize and SummarizeAuto share: the plan and model
+// gates, the run lease, the sources, the model call and the store, all on
+// behalf of actor.
+func (s *MeetingService) summarize(ctx context.Context, m db.Meeting, actor Actor, locale string) (db.MeetingSummary, error) {
+	budget, release, err := s.claimSummary(ctx, m)
+	if err != nil {
 		return db.MeetingSummary{}, err
+	}
+	row, err := s.runSummary(ctx, m, actor, locale, budget)
+	release(err)
+	return row, err
+}
+
+// claimSummary is the part of a run that answers at once: the plan and
+// model gates, the meeting's state and the run lease.
+func (s *MeetingService) claimSummary(ctx context.Context, m db.Meeting) (summaryBudgetPlan, func(error), error) {
+	if err := s.requireFeature(ctx, m, FeatureMeetingAISummary); err != nil {
+		return summaryBudgetPlan{}, nil, err
 	}
 	if !s.AI.Enabled() {
 		s.summaryErrorCount(summaryReasonNotConfigured)
-		return db.MeetingSummary{}, errSummaryNotConfigured()
+		return summaryBudgetPlan{}, nil, errSummaryNotConfigured()
 	}
 	if m.Status != MeetingInProgress && m.Status != MeetingEnded {
-		return db.MeetingSummary{}, errInvalidState()
+		return summaryBudgetPlan{}, nil, errInvalidState()
 	}
-	release, err := s.claimSummaryRun(ctx, m)
-	if err != nil {
-		return db.MeetingSummary{}, err
+	budget := s.summaryBudget()
+	release, err := s.claimSummaryRun(ctx, m, budget.lease)
+	return budget, release, err
+}
+
+// runSummary reads the sources, asks the model and stores the record, inside
+// the lease claimSummary took.
+func (s *MeetingService) runSummary(ctx context.Context, m db.Meeting, actor Actor, locale string, budget summaryBudgetPlan) (db.MeetingSummary, error) {
+	meetingID := m.ID
+	// summarizeAuto's "a clerk's summary stands" read ran before the lease: a
+	// clerk's run may have stored one and released in between.
+	if actor == autoSummaryActor {
+		if _, err := s.q.GetLatestMeetingSummary(ctx, meetingID); err == nil {
+			return db.MeetingSummary{}, errAutoSummaryNotDue
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return db.MeetingSummary{}, err
+		}
 	}
-	defer release()
 	// Reading the sources and asking the model end inside the lease.
-	runCtx, cancelRun := context.WithTimeout(ctx, summaryRunBudget)
+	runCtx, cancelRun := context.WithTimeout(ctx, budget.lease-time.Minute)
 	defer cancelRun()
 	var segs []db.MeetingTranscriptSegment
 	var notes []db.ListMeetingNotesRow
 	var chat []db.MeetingChatMessage
 	var rep AttendanceReport
 	var closed []db.MeetingMotion
+	var existing []string
+	var drafts []db.MeetingActionItem
+	var handled bool
 	g, gctx := errgroup.WithContext(runCtx)
 	g.Go(func() error {
-		var err error
-		segs, err = s.q.ListTranscriptSegmentsLatest(gctx, db.ListTranscriptSegmentsLatestParams{MeetingID: meetingID, Limit: summaryTranscriptRows})
+		src, err := s.q.TranscriptSources(gctx, meetingID)
+		if err != nil {
+			return err
+		}
+		segs, err = s.q.ListTranscriptSegmentsLatest(gctx, db.ListTranscriptSegmentsLatestParams{
+			MeetingID: meetingID, RowLimit: int32(budget.rows * summaryMaxParts),
+			Rich: src.HasAgent || len(src.TranscriptionIds) > 0, TranscriptionIds: src.TranscriptionIds,
+		})
 		slices.Reverse(segs)
 		return err
 	})
@@ -296,7 +478,20 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 		closed, err = s.q.ListClosedMeetingMotions(gctx, meetingID)
 		return err
 	})
+	g.Go(func() error {
+		var err error
+		existing, drafts, handled, err = s.summaryPromptItems(gctx, m)
+		return err
+	})
 	if err := g.Wait(); err != nil {
+		return db.MeetingSummary{}, err
+	}
+	// The system's own run speaks the meeting's language (benchmark #22 j);
+	// a clerk's run speaks the clerk's.
+	if locale == "" {
+		locale = meetingLanguage(segs, notes, chat)
+	}
+	if _, err := s.nameSpeakers(runCtx, meetingID, segs, locale); err != nil {
 		return db.MeetingSummary{}, err
 	}
 	// Attendance alone is not material (every meeting has a roll); a closed
@@ -310,49 +505,80 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	}
 	// Notes and transcript share one rune budget: notes take what they need
 	// up to summaryNotesRunes and the transcript gets the rest (UNI-1853 L3).
+	// Every line carries its row id as Label until the window is cut; only
+	// the lines that reach the prompt are then labelled (spec §7.8).
 	noteLines, notesUsed := summaryNoteLines(notes)
 	transcript := make([]ai.TranscriptLine, 0, len(segs))
 	for _, sg := range segs {
-		transcript = append(transcript, ai.TranscriptLine{Speaker: sg.SpeakerName, Text: sg.Text})
+		transcript = append(transcript, ai.TranscriptLine{Label: sg.ID, Speaker: sg.SpeakerName, Text: sg.Text})
 	}
-	transcript = windowSummaryLines(transcript, summaryTranscriptRunes-notesUsed,
-		func(l ai.TranscriptLine) int {
-			return utf8.RuneCountInString(l.Speaker) + utf8.RuneCountInString(l.Text) + 3
-		},
-		func(n int) ai.TranscriptLine { return ai.TranscriptLine{Speaker: "…", Text: summaryOmitted(n)} })
+	// partial (parent spec §7.8): the newest rows did not reach the start of
+	// the meeting, or the window dropped lines. A transcript longer than one
+	// call's budget is read in parts (benchmark #8) up to summaryMaxParts of
+	// them; only past that are lines dropped.
+	partial := len(segs) >= budget.rows*summaryMaxParts || len(chat) >= summaryChatRows
+	chunks, cut := splitSummaryTranscript(transcript, budget.runes-notesUsed, summaryMaxParts)
 	chatLines := make([]ai.ChatLine, 0, len(chat))
 	for _, c := range chat {
-		chatLines = append(chatLines, ai.ChatLine{Sender: c.SenderName, Text: c.Message})
+		chatLines = append(chatLines, ai.ChatLine{Label: c.ID, Sender: c.SenderName, Text: c.Message})
 	}
-	chatLines = windowSummaryLines(chatLines, summaryChatRunes,
+	partial = partial || cut
+	chatLines, cut = windowSummaryLines(chatLines, summaryChatRunes,
 		func(l ai.ChatLine) int { return utf8.RuneCountInString(l.Sender) + utf8.RuneCountInString(l.Text) + 3 },
 		func(n int) ai.ChatLine { return ai.ChatLine{Sender: "…", Text: summaryOmitted(n)} })
-	resp, err := s.AI.Complete(runCtx, ai.Request{
-		Actor: Human(userID), OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
+	partial = partial || cut
+	labels := newSummaryLabels()
+	transcriptRunes := 0
+	for _, chunk := range chunks {
+		for i := range chunk {
+			chunk[i].Label = labels.label(EvidenceSegment, chunk[i].Label)
+			transcriptRunes += summaryLineRunes(chunk[i])
+		}
+	}
+	for i := range noteLines {
+		noteLines[i].Label = labels.label(EvidenceNote, noteLines[i].Label)
+	}
+	for i := range chatLines {
+		chatLines[i].Label = labels.label(EvidenceChat, chatLines[i].Label)
+	}
+	req := ai.Request{
+		Actor: actor, OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingSummarization, PromptID: ai.PromptMeetingSummary,
 		Vars: map[string]any{
 			"title": m.Title, "agenda": m.Description, "locale": locale,
-			"transcript": transcript, "notes": noteLines, "chat": chatLines,
+			"size":  summarySizeFor(transcriptRunes + notesUsed),
+			"notes": noteLines, "chat": chatLines,
 			"attendance": summaryAttendanceFacts(m, rep), "motions": summaryMotionFacts(closed),
+			"existing_action_items": existing, "drafts": summaryDraftLines(drafts, labels),
 		},
-	})
-	if err != nil {
-		return db.MeetingSummary{}, s.summaryFailure(m.ID, "", err)
 	}
-	if strings.TrimSpace(resp.Text) == "" {
-		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonEmpty, err: errSummaryEmptyOutput})
+	if len(chunks) == 1 {
+		req.Vars["transcript"] = chunks[0]
+	} else {
+		parts, err := s.summarizeParts(runCtx, req, chunks)
+		if err != nil {
+			return db.MeetingSummary{}, s.summaryFailure(m.ID, "", err)
+		}
+		req.Vars["parts"] = parts
 	}
-	// ParseSummaryJSON also refuses an object with no summary, decisions or
-	// action items, so that answer counts as parse; empty is blank text only.
-	res, err := ai.ParseSummaryJSON(resp.Text)
+	resp, res, err := s.completeSummary(runCtx, req)
 	if err != nil {
-		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonParse, err: err})
+		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, err)
 	}
 	// The answer is billed: store it even if the request has gone away, the
 	// way the gateway still settles its usage row.
 	storeCtx, cancelStore := context.WithTimeout(context.WithoutCancel(ctx), summaryStoreTimeout)
 	defer cancelStore()
-	row, err := s.storeSummary(storeCtx, m, userID, res, resp)
+	// A thinner answer than the stored record is a failed run, not a newer
+	// record: the stored summary stays and the run reports the failure.
+	if prev, err := s.q.GetLatestMeetingSummary(storeCtx, meetingID); err == nil {
+		if why := summaryRegression(prev, res, handled); why != "" {
+			return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonIncomplete, err: errors.New(why)})
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonStore, err: err})
+	}
+	row, err := s.storeSummary(storeCtx, m, actor, res, resp, labels, partial)
 	if err != nil {
 		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonStore, err: err})
 	}
@@ -386,20 +612,49 @@ func summaryWindow(sizes []int, budget int) (head, tailStart int) {
 	return head, tailStart
 }
 
-// windowSummaryLines applies summaryWindow and marks the cut with a line.
-func windowSummaryLines[T any](lines []T, budget int, size func(T) int, marker func(omitted int) T) []T {
+// windowSummaryLines applies summaryWindow and marks the cut with a line; cut
+// reports whether any line was dropped.
+func windowSummaryLines[T any](lines []T, budget int, size func(T) int, marker func(omitted int) T) (out []T, cut bool) {
 	sizes := make([]int, len(lines))
 	for i, l := range lines {
 		sizes[i] = size(l)
 	}
 	head, tailStart := summaryWindow(sizes, budget)
 	if tailStart == head {
-		return lines[:head]
+		return lines[:head], head < len(lines)
 	}
-	out := make([]T, 0, head+1+len(lines)-tailStart)
+	out = make([]T, 0, head+1+len(lines)-tailStart)
 	out = append(out, lines[:head]...)
 	out = append(out, marker(tailStart-head))
-	return append(out, lines[tailStart:]...)
+	return append(out, lines[tailStart:]...), true
+}
+
+// summaryBudgetPlan is one run's transcript budget and the lease it needs.
+type summaryBudgetPlan struct {
+	runes, rows int
+	lease       time.Duration
+}
+
+// summaryBudget sizes a run from MEETING_SUMMARY_MAX_RUNES (parent spec
+// §7.8): the runes and rows (~20 runes a line) one model call reads, and a
+// minute more of lease per 100k runes on top of summaryRunLease, since a
+// longer prompt takes the model longer. The lease is doubled: a long
+// transcript is read in parts (in parallel) and then combined, two model
+// calls back to back.
+// It is never shorter than the calls a long meeting makes one after another
+// (the map step's rounds, then the combining call) at the summary's per-call
+// timeout, plus a minute for the reads and the minute the run gives back.
+// shortcut: the lease follows the configured cap, not this meeting's actual
+// length; size it from the rows read if long leases ever block re-runs.
+func (s *MeetingService) summaryBudget() summaryBudgetPlan {
+	runes := max(s.rt.SummaryMaxRunes, summaryTranscriptRunes)
+	rounds := (summaryMaxParts+summaryPartConcurrency-1)/summaryPartConcurrency + 1
+	calls := time.Duration(rounds)*s.AI.CallTimeoutFor(ai.CapMeetingSummarization) + 2*time.Minute
+	return summaryBudgetPlan{
+		runes: runes,
+		rows:  max(summaryTranscriptRows, runes/20),
+		lease: max(2*(summaryRunLease+time.Duration(runes/100000)*time.Minute), calls),
+	}
 }
 
 func summaryOmitted(n int) string { return "(" + strconv.Itoa(n) + " lines omitted)" }
@@ -968,6 +1223,14 @@ func (s *MeetingService) CalendarICS(ctx context.Context, userID, meetingID, fro
 	joinURL := ""
 	if ws, err := s.q.GetWorkspaceWithOrg(ctx, m.WorkspaceID); err == nil && frontendOrigin != "" {
 		joinURL = strings.TrimSuffix(frontendOrigin, "/") + "/" + ws.OrganizationSlug + "/" + ws.Slug + "/meetings/" + m.ID
+	}
+	// The invite carries the dial-in line too (spec §10), for the people
+	// it is forwarded to; m is this call's copy.
+	if d, err := s.dialInInfo(ctx, m); err == nil && d.Enabled {
+		if m.Description != "" {
+			m.Description += "\n\n"
+		}
+		m.Description += "Gọi vào bằng điện thoại: " + d.Number + " · Mã PIN: " + d.Pin
 	}
 	return renderICS(m, joinURL, time.Now()), nil
 }

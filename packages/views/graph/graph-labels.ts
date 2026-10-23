@@ -16,6 +16,11 @@ export function groupKey(edgeType: string, direction: string): string {
   return `${edgeType.toLowerCase()}_${direction === "in" ? "in" : "out"}`;
 }
 
+/** The node's own "came from" edge (out), which a screen may already show in its header. */
+export function isOriginEdge(item: { edge_type?: string; direction?: string }): boolean {
+  return item.edge_type === "ORIGINATED_FROM" && item.direction !== "in";
+}
+
 export function groupNeighbors(items: GraphNeighbor[]): { key: string; items: GraphNeighbor[] }[] {
   const by = new Map<string, GraphNeighbor[]>();
   for (const item of items) {

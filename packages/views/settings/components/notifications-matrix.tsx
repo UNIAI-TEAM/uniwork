@@ -33,23 +33,29 @@ const CELL = "w-18 px-2 py-2 text-center sm:w-24 pointer-coarse:py-0";
  */
 const SWITCH_ROW = "pointer-coarse:h-11";
 const SWITCH_HIT = "aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.75";
-/** The "every kind" checkbox: 16px, its hit area grown to 44px under a finger. */
-const CHECK_HIT = "mx-auto aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.5";
+/** The "every kind" checkbox: 16px; the primitive grows its hit area to 44px under a finger. */
+const CHECK_HIT = "mx-auto aria-busy:opacity-60";
 
 /**
  * The server fills every kind it knows with defaults; a kind it did not send
  * (an older server) reads as those same defaults, mirrored from `DefaultPrefs`
  * in `server/internal/notification/prefs.go`.
  */
-/** Mirrors DefaultPrefs in server/internal/notification/prefs.go. */
 const PUSH_BY_DEFAULT = new Set<Kind>([
   "mentioned",
   "document_mentioned",
   "document_body_mentioned",
   "document_discussion_mentioned",
   "document_break_glass",
+  "document_shared",
+  // The manager is the one who can answer a request, and the requester waits to get in; a decline stays in-app.
+  "document_access_requested",
+  "document_access_approved",
   "task_assigned",
+  "tasks_assigned",
   "meeting_starting",
+  // A summary the system made (UNI-2026).
+  "meeting_summary_ready",
   "chat_mentioned",
   "chat_dm",
   "chat_reminder",
@@ -65,6 +71,23 @@ const PUSH_BY_DEFAULT = new Set<Kind>([
  * the Email ceiling `Matrix.For` applies in `server/internal/notification/prefs.go`.
  */
 const NO_EMAIL: Partial<Record<Kind, true>> = { document_trashed_by_other: true };
+
+/**
+ * Kinds only some people ever receive (server/internal/notification/rules.go):
+ * the summary ones reach the host and secretaries, the transcript ones the
+ * person who uploaded the recording. Every member sees the row, so it says when.
+ */
+const KIND_HINT: Partial<Record<Kind, "hint_meeting_role" | "hint_meeting_participant" | "hint_meeting_task" | "hint_meeting_reminder" | "hint_meeting_upload">> = {
+  // Sent to the host when an ended meeting has no summary: the organization turned the
+  // automatic one off, or it failed (meeting.auto_summary_failed runs the same rule).
+  meeting_summary_reminder: "hint_meeting_reminder",
+  meeting_summary_ready: "hint_meeting_role",
+  meeting_recap_ready: "hint_meeting_participant",
+  meeting_action_items_pending: "hint_meeting_role",
+  meeting_task_due: "hint_meeting_task",
+  meeting_transcript_ready: "hint_meeting_upload",
+  meeting_transcript_failed: "hint_meeting_upload",
+};
 
 /**
  * Kinds whose email starts off (mirrors the Email default of `DefaultPrefs`):
@@ -120,6 +143,10 @@ export function NotificationsMatrix({
   const busy = (kind: Kind) => inFlight[kind] !== undefined;
   const kindLabel = (kind: Kind) => t(`kinds.${kind}`);
   const channelLabel = (c: Channel) => t(`channel_${c}`);
+  const kindHint = (kind: Kind) => {
+    const key = KIND_HINT[kind];
+    return key ? <span className="block text-caption text-muted-foreground">{t(key)}</span> : null;
+  };
 
   const write = (next: NotificationPreference[]) => {
     if (!loaded || next.length === 0) return;
@@ -234,7 +261,10 @@ export function NotificationsMatrix({
                       <th scope="row" className="px-4 py-2 text-left font-normal">
                         <span className="flex min-h-7 items-center gap-2">
                           <KindIcon kind={row.kind} className={cn("size-4 shrink-0", tintForegroundClass[kindTone(row.kind)])} />
-                          <span className="min-w-0 text-pretty">{kindLabel(row.kind)}</span>
+                          <span className="min-w-0 text-pretty">
+                            {kindLabel(row.kind)}
+                            {kindHint(row.kind)}
+                          </span>
                         </span>
                       </th>
                       {channels.map((c) => (

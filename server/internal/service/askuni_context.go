@@ -108,6 +108,11 @@ func (s *AskUNIService) contextItems(ctx context.Context, tc ai.ToolContext, f a
 	for _, src := range found {
 		items = append(items, sourceItem(src))
 	}
+	// The rendered focus carries no href: the id lets the agent read the
+	// meeting's transcript (get_meeting_transcript).
+	if f.Kind == "meeting" && len(items) > 0 {
+		items[0].Text += "\nMeeting ID: " + f.ID
+	}
 	return items, err
 }
 

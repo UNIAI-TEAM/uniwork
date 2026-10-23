@@ -232,7 +232,7 @@ test("votes: the secretary drafts, opens and closes an item; the result reaches 
   expect(named?.no).toEqual([]);
 
   // "Đã biểu quyết" renders from the closed item even with no AI summary.
-  const summary = page.getByRole("region", { name: "Tóm tắt AI" });
+  const summary = page.getByRole("region", { name: "Tóm tắt", exact: true });
   await expect(summary.getByText("Đã biểu quyết", { exact: true })).toBeVisible();
   await expect(summary.getByText(title, { exact: true })).toBeVisible();
   await expect(summary.getByText("2 tán thành · 0 không tán thành · 0 không ý kiến", { exact: true })).toBeVisible();
@@ -242,7 +242,7 @@ test("votes: the secretary drafts, opens and closes an item; the result reaches 
   const timeline = page.getByRole("region", { name: "Lịch sử thao tác" });
   await expect(timeline.getByText("đã mở biểu quyết", { exact: true })).toBeVisible();
   await expect(timeline.getByText("đã đóng biểu quyết", { exact: true })).toBeVisible();
-  await expect(timeline.getByText(`“${title}” · Thông qua`, { exact: true })).toBeVisible();
+  await expect(timeline.getByText(`"${title}" · Thông qua`, { exact: true })).toBeVisible();
 });
 
 test.describe("votes in the meeting room", () => {
@@ -310,7 +310,7 @@ test.describe("votes in the meeting room", () => {
     expect(closed.ok(), `close motion: HTTP ${closed.status()} ${await closed.text()}`).toBeTruthy();
 
     // Everyone in the room hears the result.
-    await expect(page.getByText(`“${title}”: Thông qua`, { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(`"${title}": Thông qua`, { exact: true })).toBeVisible({ timeout: 15_000 });
     await votesTab.click();
     const panel = page.getByRole("tabpanel", { name: "Biểu quyết" });
     await expect(panel.getByText("Thông qua", { exact: true })).toBeVisible();

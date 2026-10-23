@@ -216,7 +216,7 @@ func seedAskEval(t *testing.T) *evalWorld {
 	if _, err := s.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
 		ID: util.NewID(), MeetingID: budget.ID, Summary: "Chốt ngân sách marketing 50 triệu cho tháng 9.",
 		Decisions: "Duyệt ngân sách marketing 50 triệu.", ActionItems: "Lan Anh gửi bảng ngân sách.", Model: "test",
-		CreatedBy: owner.ID, OrganizationID: w.OrganizationID,
+		CreatedBy: owner.ID, CreatedByKind: "human", OrganizationID: w.OrganizationID,
 	}); err != nil {
 		t.Fatal(err)
 	}

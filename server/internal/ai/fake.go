@@ -8,7 +8,11 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 )
 
-var sourceTag = regexp.MustCompile(`<untrusted source="(S\d+)">\n([^\n]+)`)
+var (
+	sourceTag   = regexp.MustCompile(`<untrusted source="(S\d+)">\n([^\n]+)`)
+	captionLine = regexp.MustCompile(`(?m)^\[(T\d+)\] (.*)$`)
+	targetLine  = regexp.MustCompile(`(?m)^Target language: (.*)$`)
+)
 
 // FakeReply is the AI_PROVIDER=fake behaviour for development and E2E: a
 // deterministic, well-formed answer for every prompt. For copilot_answer it
@@ -70,6 +74,20 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 		}
 		b, _ := json.Marshal(cu)
 		text = string(b)
+	case strings.Contains(req.System, "You translate the live captions"):
+		// Echo each line under its label, tagged with the target language.
+		target := ""
+		if m := targetLine.FindStringSubmatch(last); m != nil {
+			target = "[" + m[1] + "] "
+		}
+		out := struct {
+			Translations []CaptionTranslation `json:"translations"`
+		}{Translations: []CaptionTranslation{}}
+		for _, m := range captionLine.FindAllStringSubmatch(last, -1) {
+			out.Translations = append(out.Translations, CaptionTranslation{ID: m[1], Text: target + m[2]})
+		}
+		b, _ := json.Marshal(out)
+		text = string(b)
 	case strings.Contains(req.System, "You analyze media files"):
 		parts := 0
 		if n := len(req.Messages); n > 0 {
@@ -78,13 +96,53 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 		b, _ := json.Marshal(MediaAnalysis{Text: "Phân tích thử nghiệm của " + itoa(parts) + " tệp."})
 		text = string(b)
 	default:
-		b, _ := json.Marshal(MeetingSummary{Summary: "Bản tóm tắt thử nghiệm.", Decisions: []string{}, ActionItems: []ActionItem{}})
+		b, _ := json.Marshal(MeetingSummary{Summary: "Bản tóm tắt thử nghiệm.", Decisions: []Decision{}, ActionItems: fakeNoteActionItems(last)})
 		text = string(b)
 	}
 	// UsagePresent mirrors the scripted path in provider/fake.go: the fake knows
 	// its own token counts, so a fake turn is known usage, not the unknown-usage
 	// reconciliation branch (spec §8.2; G6-03b is the first reader).
 	return provider.CompletionResponse{Text: text, Model: req.Model, UsagePresent: true, InputTokens: estimateTokens(req.System + last), OutputTokens: estimateTokens(text), StopReason: "end_turn"}
+}
+
+var fakeNoteLabel = regexp.MustCompile(`^- \[(N\d+)\] `)
+
+// fakeNoteActionItems reads the meeting's notes block: a line holding
+// "Việc: <title>", "Việc: <title> | <owner>" or "Việc: <title> | <owner> |
+// <priority>" is an action item, so a development or E2E run can drive the
+// follow-through with items it chose. From @5 each item cites the note it
+// came from; from @6 it carries a fixed description and, when the third
+// segment is an allowed one, a priority.
+func fakeNoteActionItems(prompt string) []ActionItem {
+	items := []ActionItem{}
+	_, block, ok := strings.Cut(prompt, `<untrusted source="notes">`)
+	if !ok {
+		return items
+	}
+	block, _, _ = strings.Cut(block, "</untrusted>")
+	label := ""
+	for _, line := range strings.Split(block, "\n") {
+		// A note's first line carries its label and author ("- [N1] An: …").
+		if m := fakeNoteLabel.FindStringSubmatch(line); m != nil {
+			label = m[1]
+		}
+		_, rest, ok := strings.Cut(line, "Việc:")
+		if !ok {
+			continue
+		}
+		title, rest, _ := strings.Cut(rest, "|")
+		owner, priority, _ := strings.Cut(rest, "|")
+		it := ActionItem{Title: strings.TrimSpace(title), Owner: strings.TrimSpace(owner)}
+		it.Description = "Theo ghi chú cuộc họp: " + it.Title + "."
+		if p := strings.ToLower(strings.TrimSpace(priority)); actionItemPriorities[p] {
+			it.Priority = p
+		}
+		if label != "" {
+			it.Evidence = []string{label}
+		}
+		items = append(items, it)
+	}
+	return items
 }
 
 func itoa(n int) string {

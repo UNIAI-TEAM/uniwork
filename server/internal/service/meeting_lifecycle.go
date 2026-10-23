@@ -23,6 +23,10 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 	if title == "" {
 		title = "Cuộc họp tức thì"
 	}
+	tz, err := s.creatorTimezone(ctx, userID)
+	if err != nil {
+		return db.Meeting{}, err
+	}
 	now := time.Now().UTC()
 	id := util.NewID()
 	tx, err := s.pool.Begin(ctx)
@@ -37,9 +41,12 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 		EndsAt:   pgtype.Timestamptz{Time: now.Add(time.Hour), Valid: true},
 		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
 		Status: MeetingScheduled, MeetingType: MeetingTypeInstant,
-		HostUserID: userID, Timezone: "UTC", AllowJoinRequest: true,
+		HostUserID: userID, Timezone: tz, AllowJoinRequest: true,
 	})
 	if err != nil {
+		return db.Meeting{}, err
+	}
+	if m, err = s.createdScribeOff(ctx, q, m, userID); err != nil {
 		return db.Meeting{}, err
 	}
 	if _, err := s.addHostParticipant(ctx, q, m, userID); err != nil {
@@ -78,6 +85,10 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 		return db.Meeting{}, err
 	}
 	s.ensureProviderSession(ctx, sess)
+	s.ensureScribeNow(ctx, started.ID, false)
+	if s.dialInConfigured() {
+		s.ensureDialInNow(ctx, started.ID)
+	}
 	return started, nil
 }
 
@@ -130,6 +141,10 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	}
 	s.count("started")
 	s.ensureProviderSession(ctx, sess)
+	s.ensureScribeNow(ctx, started.ID, false)
+	if s.dialInConfigured() {
+		s.ensureDialInNow(ctx, started.ID)
+	}
 	return started, nil
 }
 
@@ -234,6 +249,11 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 		})
 		_ = s.writeAudit(ctx, q, m, "CONFERENCE_SESSION_ENDED", actorID, sess.Status, "ENDED", "{}")
 	}
+	// The summary the system makes once the meeting is over (A5) is queued
+	// with the end itself, so a restart between the two cannot lose it.
+	if err := s.queueAutoSummary(ctx, q, ended); err != nil {
+		return db.Meeting{}, err
+	}
 	s.record(ctx, q, ended, actor, "meeting.ended", nil,
 		audit.Diff(map[string]any{"status": MeetingInProgress}, map[string]any{"status": MeetingEnded}))
 	if err := tx.Commit(ctx); err != nil {
@@ -242,6 +262,9 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 	s.count("ended")
 	if closedSessions > 0 {
 		s.publishAttendanceChanged(ctx, m.ID)
+	}
+	if m.SipDispatchRuleID.Valid {
+		s.ensureDialInNow(ctx, m.ID)
 	}
 	return ended, nil
 }

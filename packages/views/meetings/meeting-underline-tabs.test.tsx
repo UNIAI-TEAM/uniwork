@@ -134,6 +134,42 @@ describe("MeetingUnderlineTabs", () => {
     expect(people).toHaveAccessibleName("Mọi người 3");
   });
 
+  it("names the tablist and folds a badge's meaning into the tab's name", () => {
+    render(
+      <MeetingUnderlineTabs
+        tabs={["chat", "people"] as const}
+        value="chat"
+        onChange={() => {}}
+        label={(tab) => (tab === "chat" ? "Trò chuyện" : "Mọi người")}
+        ariaLabel="Bảng phụ cuộc họp"
+        badge={(tab) => (tab === "chat" ? <MeetingUnderlineTabBadge srLabel="3 tin nhắn chưa đọc">3</MeetingUnderlineTabBadge> : null)}
+      />,
+    );
+    expect(screen.getByRole("tablist")).toHaveAccessibleName("Bảng phụ cuộc họp");
+    expect(screen.getByRole("tab", { name: /^Trò chuyện\W+3 tin nhắn chưa đọc$/ })).toBeInTheDocument();
+  });
+
+  it("keeps the global focus outline, drawn inside the tab so the scrolling row cannot clip it", () => {
+    render(<MeetingUnderlineTabs tabs={["a", "b"] as const} value="a" onChange={() => {}} label={(tab) => tab} />);
+    const tab = screen.getByRole("tab", { name: "a" });
+    expect(tab.className).not.toMatch(/\boutline-none\b/);
+    expect(tab.className).not.toMatch(/ring-ring\/50/);
+    expect(tab.className).toMatch(/focus-visible:-outline-offset-2/);
+  });
+
+  it("scrolls the picked tab into view when the row overflows", () => {
+    const { rerender } = render(
+      <MeetingUnderlineTabs tabs={["a", "b", "c"] as const} value="a" onChange={() => {}} label={(tab) => tab} />,
+    );
+    const list = screen.getByRole("tablist");
+    Object.defineProperty(list, "clientWidth", { configurable: true, value: 100 });
+    const c = screen.getByRole("tab", { name: "c" });
+    Object.defineProperty(c, "offsetLeft", { configurable: true, value: 160 });
+    Object.defineProperty(c, "offsetWidth", { configurable: true, value: 60 });
+    rerender(<MeetingUnderlineTabs tabs={["a", "b", "c"] as const} value="c" onChange={() => {}} label={(tab) => tab} />);
+    expect(list.scrollLeft).toBe(120);
+  });
+
   it("sizes the badge with the text-micro token", () => {
     render(<MeetingUnderlineTabBadge>5</MeetingUnderlineTabBadge>);
     const badge = screen.getByText("5");

@@ -60,7 +60,7 @@ beforeEach(() => {
 
 describe("MeetingSummaryPanel", () => {
   it("asks before replacing an existing summary", async () => {
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
 
     fireEvent.click(await screen.findByRole("button", { name: "Tạo lại tóm tắt" }));
     const dialog = await screen.findByRole("alertdialog");
@@ -70,6 +70,28 @@ describe("MeetingSummaryPanel", () => {
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/summary", expect.objectContaining({ method: "POST" })),
     );
+  });
+
+  it("asks again before Retry replaces the summary on the card", async () => {
+    const base = requestMock.getMockImplementation();
+    let posts = 0;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+      if (String(path).endsWith("/summary") && init?.method === "POST") {
+        posts += 1;
+        return Promise.reject(new ApiError("x", "ai_timeout", 504));
+      }
+      return base?.(path, init);
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    fireEvent.click(await screen.findByRole("button", { name: "Tạo lại tóm tắt" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Tạo lại" }));
+    const panel = screen.getByTestId("meeting-summary-panel");
+    const retry = await within(panel).findByRole("button", { name: "Thử lại" });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+
+    fireEvent.click(retry);
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(posts).toBe(1);
   });
 });
 
@@ -88,7 +110,7 @@ function summaryRespond(summary: () => Promise<unknown>, transcript: () => Promi
 describe("MeetingSummaryPanel loading", () => {
   it("holds the panel's shape with a skeleton while the summary loads", () => {
     summaryRespond(() => new Promise(() => {}));
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
 
     const panel = screen.getByTestId("meeting-summary-panel");
     expect(within(panel).getByRole("status")).toHaveTextContent("Đang tải…");
@@ -98,7 +120,7 @@ describe("MeetingSummaryPanel loading", () => {
 
   it("does not claim there is no transcript while the transcript is still loading", async () => {
     summaryRespond(() => Promise.resolve({ summary: null }), () => new Promise(() => {}));
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
     await act(async () => {
       await new Promise((r) => setTimeout(r, 20));
     });
@@ -107,40 +129,39 @@ describe("MeetingSummaryPanel loading", () => {
     expect(within(panel).queryByText(NO_TRANSCRIPT_ENDED)).not.toBeInTheDocument();
   });
 
-  it("says an ended meeting has no transcript once both have arrived empty, without suggesting captions", async () => {
+  it("says once, when both have arrived empty, what a summary needs", async () => {
     summaryRespond(() => Promise.resolve({ summary: null }));
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
 
     const panel = screen.getByTestId("meeting-summary-panel");
-    expect(await within(panel).findByText(NO_TRANSCRIPT_ENDED)).toBeInTheDocument();
-    expect(within(panel).queryByText(/Bật phụ đề/)).not.toBeInTheDocument();
+    expect(await within(panel).findByText(NEEDS_SOURCE)).toBeInTheDocument();
+    // The transcript's own empty state lives in its card, not here too.
+    expect(within(panel).queryByText(NO_TRANSCRIPT_ENDED)).not.toBeInTheDocument();
     expect(within(panel).queryByText("Đang tải…")).not.toBeInTheDocument();
   });
 
-  it("points a live meeting with no transcript at the captions", async () => {
+  it("tells a reader who cannot generate only that there is no summary", async () => {
     summaryRespond(() => Promise.resolve({ summary: null }));
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={{ ...meeting, status: "IN_PROGRESS" }} canHost />));
-
-    const panel = screen.getByTestId("meeting-summary-panel");
-    expect(await within(panel).findByText(/Bật phụ đề trong phòng họp/)).toBeInTheDocument();
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk={false} />));
+    expect(await screen.findByText("Chưa có tóm tắt.")).toBeInTheDocument();
   });
 
   it("offers a retry instead of the empty copy when the summary fails", async () => {
     summaryRespond(() => Promise.reject(new ApiError("boom", "internal", 500)));
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
 
     const panel = screen.getByTestId("meeting-summary-panel");
     expect(await within(panel).findByText("Không tải được tóm tắt.")).toBeInTheDocument();
-    expect(within(panel).queryByText(NO_TRANSCRIPT_ENDED)).not.toBeInTheDocument();
+    expect(within(panel).queryByText(NEEDS_SOURCE)).not.toBeInTheDocument();
 
     summaryRespond(() => Promise.resolve({ summary: null }));
     fireEvent.click(within(panel).getByRole("button", { name: "Thử lại" }));
-    expect(await within(panel).findByText(NO_TRANSCRIPT_ENDED)).toBeInTheDocument();
+    expect(await within(panel).findByText(NEEDS_SOURCE)).toBeInTheDocument();
   });
 });
 
 describe("MeetingSummaryPanel attribution", () => {
-  it("labels the summary as AI output with its source, time and model", async () => {
+  it("labels the summary as AI output with its source and time, the model on hover", async () => {
     const created = new Date(Date.now() - 2 * 3_600_000).toISOString();
     requestMock.mockImplementation((path: unknown) => {
       const p = String(path);
@@ -158,18 +179,63 @@ describe("MeetingSummaryPanel attribution", () => {
       }
       return Promise.resolve({});
     });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
 
     const line = await screen.findByTestId("ai-attribution");
     expect(within(line).getByText("AI")).toBeInTheDocument();
     // No count: the server keeps no snapshot of what the summary read.
-    expect(within(line).getByText("Từ bản ghi lời thoại")).toBeInTheDocument();
+    expect(within(line).getByText(/^Từ bản ghi lời thoại/)).toBeInTheDocument();
     expect(screen.queryByTestId("ai-summary-stale")).not.toBeInTheDocument();
-    expect(within(line).getByText("claude-sonnet")).toBeInTheDocument();
+    expect(within(line).queryByText("claude-sonnet")).not.toBeInTheDocument();
+    expect(line).toHaveAttribute("title", "claude-sonnet");
     const time = within(line).getByText("2 giờ trước");
     expect(time.tagName).toBe("TIME");
     expect(time).toHaveAttribute("dateTime", created);
     expect(time.getAttribute("title")).toBeTruthy();
+  });
+
+  it("says when the summary read only part of a long meeting", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/summary")) {
+        return Promise.resolve({ summary: { id: "s1", meeting_id: "m1", summary: "Chốt lịch", partial: true, created_at: new Date().toISOString() } });
+      }
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    expect(await screen.findByTestId("ai-summary-partial")).toHaveTextContent("Tóm tắt dựa trên một phần cuộc họp");
+  });
+
+  it("marks the summary the system made when the meeting ended (UNI-2026)", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/summary")) {
+        return Promise.resolve({
+          summary: { id: "s1", meeting_id: "m1", summary: "Chốt lịch", created_by_kind: "system", created_at: new Date().toISOString() },
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    expect(await screen.findByTestId("ai-summary-auto")).toHaveTextContent(/^Tự tạo/);
+  });
+
+  it("does not mark a summary a person made", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/summary")) {
+        return Promise.resolve({
+          summary: { id: "s1", meeting_id: "m1", summary: "Chốt lịch", created_by_kind: "human", created_at: new Date().toISOString() },
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    await screen.findByTestId("ai-attribution");
+    expect(screen.queryByTestId("ai-summary-auto")).toBeNull();
   });
 
   it("lets the host summarise from notes alone", async () => {
@@ -181,7 +247,7 @@ describe("MeetingSummaryPanel attribution", () => {
       if (p.endsWith("/notes")) return Promise.resolve({ notes: [{ id: "n1", meeting_id: "m1", author_id: "u1", body: "Chốt lịch" }] });
       return Promise.resolve({});
     });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
 
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Tạo tóm tắt" })).not.toHaveAttribute("aria-disabled"),
@@ -190,7 +256,7 @@ describe("MeetingSummaryPanel attribution", () => {
 
   it("says why generating is unavailable, keeping the button in the tab order", async () => {
     summaryRespond(() => Promise.resolve({ summary: null }));
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
 
     const reason = await screen.findByText(NEEDS_SOURCE);
     const button = screen.getByRole("button", { name: "Tạo tóm tắt" });
@@ -218,116 +284,39 @@ describe("MeetingSummaryPanel attribution", () => {
       }
       return Promise.resolve({});
     });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
 
     expect(await screen.findByText("Có dữ liệu mới sau khi tạo tóm tắt")).toBeInTheDocument();
     // The note came later, so the summary was made from the transcript alone.
-    expect(within(screen.getByTestId("ai-attribution")).getByText("Từ bản ghi lời thoại")).toBeInTheDocument();
-  });
-
-  it("hides the arrow from screen readers and says who the item goes to", async () => {
-    requestMock.mockImplementation((path: unknown) => {
-      const p = String(path);
-      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
-      if (p.endsWith("/summary")) {
-        return Promise.resolve({
-          summary: {
-            id: "s1",
-            meeting_id: "m1",
-            summary: "Chốt lịch",
-            action_items: [{ index: 0, title: "Gửi biên bản", owner: "Mai Anh", suggested_assignee_id: "u-mai" }],
-            created_at: "2026-09-22T02:31:00Z",
-          },
-        });
-      }
-      if (p.endsWith("/members")) {
-        return Promise.resolve({
-          members: [{ workspace_id: "w1", user_id: "u-mai", role: "member", email: "mai@x.com", display_name: "Mai Anh" }],
-        });
-      }
-      return Promise.resolve({});
-    });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
-
-    expect(await screen.findByText("giao cho")).toHaveClass("sr-only");
-    expect(screen.getByText("→")).toHaveAttribute("aria-hidden");
-    // The suggestion is the server's, shown before anything is created.
-    expect(screen.getByText("Mai Anh", { selector: "p.text-brand" })).toBeInTheDocument();
+    expect(within(screen.getByTestId("ai-attribution")).getByText(/^Từ bản ghi lời thoại/)).toBeInTheDocument();
   });
 });
 
-describe("MeetingSummaryPanel sources and project", () => {
-  const withAction = {
-    id: "s1",
-    meeting_id: "m1",
-    summary: "Chốt lịch",
-    action_items: [{ index: 0, title: "Gửi biên bản" }],
-    created_at: "2026-09-22T02:31:00Z",
-  };
-  const project = {
-    id: "p1", organization_id: "o1", workspace_id: "w1", title: "Ra mắt Q4", description: "", status: "in_progress",
-    priority: "none", revision: 1, task_count: 0, done_count: 0, resource_count: 0,
-    created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z",
-  };
-
-  function respondWith(opts: { summary: unknown; projectAnswer?: () => Promise<unknown>; chat?: unknown[] }) {
-    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+describe("MeetingSummaryPanel sources", () => {
+  it("lets a clerk summarize a meeting whose only record is its chat", async () => {
+    // The server summarises meeting chat too (Summarize, HasMeetingSummarySource).
+    requestMock.mockImplementation((path: unknown) => {
       const p = String(path);
       if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
-      if (p.endsWith("/summary/tasks") && init?.method === "POST") {
-        return Promise.resolve({ task_ids: ["t1"], items: [{ index: 0, task_id: "t1" }] });
-      }
-      if (p.endsWith("/summary")) return Promise.resolve({ summary: opts.summary });
+      if (p.endsWith("/summary")) return Promise.resolve({ summary: null });
       if (p.endsWith("/transcript")) return Promise.resolve({ segments: [] });
-      if (p.includes("/meetings/m1/chat")) return Promise.resolve({ messages: opts.chat ?? [] });
-      if (p.includes("/projects/")) return opts.projectAnswer ? opts.projectAnswer() : Promise.resolve({});
+      if (p.includes("/meetings/m1/chat")) {
+        return Promise.resolve({
+          messages: [{ id: "c1", meeting_id: "m1", sender_name: "An", message: "Chốt thứ Sáu", sent_at: "2026-09-22T02:05:00Z" }],
+        });
+      }
       if (p.endsWith("/members")) return Promise.resolve({ members: [] });
       return Promise.resolve({});
     });
-  }
-
-  function postedItems(): Record<string, unknown>[] {
-    const call = requestMock.mock.calls.find(
-      (c) => String(c[0]).endsWith("/summary/tasks") && (c[1] as { method?: string } | undefined)?.method === "POST",
-    );
-    return ((call?.[1] as { body?: { items?: Record<string, unknown>[] } } | undefined)?.body?.items) ?? [];
-  }
-
-  it("lets the host summarize a meeting whose only record is its chat", async () => {
-    // The server summarises meeting chat too (Summarize, HasMeetingSummarySource).
-    respondWith({
-      summary: null,
-      chat: [{ id: "c1", meeting_id: "m1", sender_name: "An", message: "Chốt thứ Sáu", sent_at: "2026-09-22T02:05:00Z" }],
-    });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
     const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
     await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
   });
 
-  it("gives tasks from the summary the meeting's project", async () => {
-    respondWith({ summary: withAction, projectAnswer: () => Promise.resolve({ project }) });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={{ ...meeting, project_id: "p1" }} canHost />));
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Gửi biên bản/ }));
-    await waitFor(() => expect(requestMock.mock.calls.some((c) => String(c[0]).includes("/projects/p1"))).toBe(true));
-    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
-    fireEvent.click(screen.getByRole("button", { name: "Tạo 1 việc" }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
-    await waitFor(() => expect(postedItems()).toHaveLength(1));
-    expect(postedItems()[0]).toEqual({ index: 0, assignee_id: null, due_date: null, project_id: "p1" });
-  });
-
-  it("drops a project that no longer exists, so tasks can still be created", async () => {
-    respondWith({ summary: withAction, projectAnswer: () => Promise.reject(new ApiError("not found", "not_found", 404)) });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={{ ...meeting, project_id: "p-gone" }} canHost />));
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Gửi biên bản/ }));
-    await waitFor(() => expect(requestMock.mock.calls.some((c) => String(c[0]).includes("/projects/p-gone"))).toBe(true));
-    fireEvent.click(screen.getByRole("button", { name: "Tạo 1 việc" }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
-    await waitFor(() => expect(postedItems()).toHaveLength(1));
-    // Explicitly none: the server's default would apply the deleted project.
-    expect(postedItems()[0]).toMatchObject({ project_id: "" });
+  it("offers no generate button to a member who is not a clerk", async () => {
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk={false} />));
+    expect(await screen.findByText("- Chốt lịch")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /tóm tắt/ })).not.toBeInTheDocument();
   });
 });
 
@@ -365,7 +354,7 @@ describe("MeetingSummaryPanel › voted decisions", () => {
 
   it("shows what was voted even without an AI summary", async () => {
     respond([closedMotion, { ...closedMotion, id: "mo2", title: "Chưa mở", position: 2, status: "DRAFT", result: null, voters: null }]);
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
 
     const panel = screen.getByTestId("meeting-summary-panel");
     expect(await within(panel).findByText("Đã biểu quyết")).toBeInTheDocument();
@@ -377,7 +366,7 @@ describe("MeetingSummaryPanel › voted decisions", () => {
 
   it("lets the host summarize a meeting whose only record is a vote", async () => {
     respond([closedMotion]);
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
 
     const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
     await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
@@ -386,39 +375,11 @@ describe("MeetingSummaryPanel › voted decisions", () => {
 
   it("still asks for a source when nothing has been voted", async () => {
     respond([]);
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
 
     expect(await screen.findByText(NEEDS_SOURCE)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tạo tóm tắt" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.queryByText("Đã biểu quyết")).not.toBeInTheDocument();
-  });
-});
-
-describe("MeetingSummaryPanel transcript pages", () => {
-  it("says more lines exist and loads the earlier transcript on demand", async () => {
-    const seg = (id: string, min: number) => ({
-      id,
-      meeting_id: "m1",
-      text: `câu ${id}`,
-      spoken_at: `2026-09-22T02:${String(min).padStart(2, "0")}:00Z`,
-    });
-    requestMock.mockImplementation((path: unknown) => {
-      const p = String(path);
-      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
-      if (p.endsWith("/summary")) return Promise.resolve({ summary: null });
-      if (p.endsWith("/transcript")) return Promise.resolve({ segments: [seg("t2", 20)], older_cursor: "o2", after_cursor: "x" });
-      if (p.endsWith("/transcript?before=o2")) return Promise.resolve({ segments: [seg("t1", 10)] });
-      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
-      if (p.endsWith("/recordings")) return Promise.resolve({ recordings: [] });
-      return Promise.resolve({});
-    });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
-
-    fireEvent.click(await screen.findByRole("button", { name: /Xem lời thoại \(1\+ câu\)/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Tải lời thoại trước đó" }));
-    const list = await screen.findByTestId("meeting-transcript");
-    await waitFor(() => expect(within(list).getByText("câu t1")).toBeInTheDocument());
-    expect(within(list).queryByRole("button", { name: "Tải lời thoại trước đó" })).not.toBeInTheDocument();
   });
 });
 
@@ -439,7 +400,7 @@ describe("MeetingSummaryPanel › generating", () => {
 
   it("shows a spinner, holds the button still and announces the wait while the model works", async () => {
     respondGenerate(() => new Promise(() => {}));
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
     const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
     await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
 
@@ -447,248 +408,102 @@ describe("MeetingSummaryPanel › generating", () => {
     const busy = await screen.findByRole("button", { name: "Đang tóm tắt…" });
     expect(busy).toHaveAttribute("aria-busy", "true");
     expect(busy).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByTestId("summary-live-region")).toHaveTextContent("Đang tạo tóm tắt. Có thể mất tới một phút.");
+    await waitFor(() =>
+      expect(screen.getByTestId("summary-live-region")).toHaveTextContent("Đang tạo tóm tắt. Có thể mất tới một phút."),
+    );
   });
 
   it.each([
-    ["ai_quota_exceeded", 402, "Tổ chức đã dùng hết hạn mức AI của tháng."],
-    ["entitlement_required", 403, "Gói hiện tại chưa có tóm tắt AI."],
-    ["summary_in_progress", 409, "Tóm tắt của cuộc họp này đang được tạo."],
-    ["ai_timeout", 504, "AI trả lời quá lâu"],
-    ["internal", 500, "Chưa tạo được tóm tắt. Thử lại."],
-  ])("says what to do for %s, never the server's own message", async (code, status, copy) => {
+    ["ai_quota_exceeded", 402, "Tổ chức đã dùng hết hạn mức AI của tháng.", false],
+    ["entitlement_required", 403, "Gói hiện tại chưa có tóm tắt AI.", false],
+    ["summary_in_progress", 409, "Tóm tắt của cuộc họp này đang được tạo.", false],
+    ["ai_timeout", 504, "AI trả lời quá lâu", true],
+    ["internal", 500, "Chưa tạo được tóm tắt. Thử lại.", true],
+  ])("keeps what to do for %s on the card, never the server's own message", async (code, status, copy, retryable) => {
     vi.mocked(toast.error).mockClear();
     respondGenerate(() => Promise.reject(new ApiError("pgx: raw internal detail", code, status)));
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
     const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
     await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
 
     fireEvent.click(button);
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining(copy)));
-    expect(String(vi.mocked(toast.error).mock.calls[0]![0])).not.toContain("pgx");
-    expect(screen.getByTestId("summary-live-region")).toHaveTextContent(copy);
+    const panel = screen.getByTestId("meeting-summary-panel");
+    await waitFor(() => expect(panel).toHaveTextContent(copy));
+    expect(panel).not.toHaveTextContent("pgx");
+    // One channel: the live region says it once, no toast on top.
+    await waitFor(() => expect(screen.getByTestId("summary-live-region")).toHaveTextContent(copy));
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(within(panel).queryByRole("button", { name: "Thử lại" }) !== null).toBe(retryable);
   });
 
-  it("names the wait a rate limit asks for", async () => {
-    vi.mocked(toast.error).mockClear();
-    respondGenerate(() =>
-      Promise.reject(new ApiError("x", "ai_rate_limited", 429, undefined, { retry_after: 42 })),
-    );
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+  it("names the wait a rate limit asks for, and retries from the notice", async () => {
+    let calls = 0;
+    respondGenerate(() => {
+      calls += 1;
+      return Promise.reject(new ApiError("x", "ai_rate_limited", 429, undefined, { retry_after: 42 }));
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
     const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
     await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
 
     fireEvent.click(button);
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("42 giây")));
+    const panel = screen.getByTestId("meeting-summary-panel");
+    await waitFor(() => expect(panel).toHaveTextContent("42 giây"));
+    fireEvent.click(within(panel).getByRole("button", { name: "Thử lại" }));
+    await waitFor(() => expect(calls).toBe(2));
+  });
+
+  it("announces the same failure again on the next try", async () => {
+    respondGenerate(() => Promise.reject(new ApiError("x", "internal", 500)));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
+    await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
+    const region = screen.getByTestId("summary-live-region");
+    const copy = "Chưa tạo được tóm tắt. Thử lại.";
+
+    fireEvent.click(button);
+    await waitFor(() => expect(region).toHaveTextContent(copy));
+    const texts: string[] = [];
+    const seen = new MutationObserver(() => texts.push(region.textContent ?? ""));
+    seen.observe(region, { childList: true, characterData: true, subtree: true });
+    fireEvent.click(within(screen.getByTestId("meeting-summary-panel")).getByRole("button", { name: "Thử lại" }));
+    await waitFor(() => expect(texts.at(-1)).toBe(copy));
+    seen.disconnect();
+    // Emptied, then the same words again: a change a screen reader hears.
+    expect(texts).toContain("");
+  });
+
+  it("is a neutral card like its siblings, marked AI by its badge", async () => {
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    const card = (await screen.findByRole("region", { name: "Tóm tắt" })) as HTMLElement;
+    expect(card.className).not.toMatch(/border-brand/);
   });
 });
 
-describe("MeetingSummaryPanel › action items to tasks", () => {
-  const items = [
-    { index: 0, title: "Gửi biên bản", owner: "Mai Anh", due: "thứ Sáu", suggested_assignee_id: "u-mai", due_date: "2026-09-25" },
-    { index: 1, title: "Báo khách", task_id: "t-old" },
-  ];
-  const base = { id: "s1", meeting_id: "m1", summary: "Chốt lịch", action_items: items, created_at: "2026-09-22T02:31:00Z" };
-
-  function respond(opts: { summary?: () => unknown; post?: () => Promise<unknown> } = {}) {
-    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
-      const p = String(path);
-      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
-      if (p.endsWith("/summary/tasks") && init?.method === "POST") {
-        return opts.post ? opts.post() : Promise.resolve({ task_ids: ["t1"], items: [{ index: 0, task_id: "t1" }] });
-      }
-      if (p.endsWith("/summary")) return Promise.resolve({ summary: opts.summary ? opts.summary() : base });
-      if (p.endsWith("/transcript")) return Promise.resolve({ segments: [] });
-      if (p.endsWith("/members")) {
-        return Promise.resolve({
-          members: [{ workspace_id: "w1", user_id: "u-mai", role: "member", email: "mai@x.com", display_name: "Mai Anh" }],
-        });
-      }
-      return Promise.resolve({});
+describe("MeetingSummaryPanel after the transcript changed (UNI-1995 #5)", () => {
+  const changed = () =>
+    Promise.resolve({
+      summary: { id: "s1", meeting_id: "m1", summary: "Chốt lịch", created_at: "2026-09-22T02:31:00Z", transcript_changed_at: "2026-09-22T05:00:00Z" },
     });
-  }
 
-  function posted(): { summary_id?: string; items?: Record<string, unknown>[] } {
-    const call = requestMock.mock.calls.find(
-      (c) => String(c[0]).endsWith("/summary/tasks") && (c[1] as { method?: string } | undefined)?.method === "POST",
-    );
-    return ((call?.[1] as { body?: unknown } | undefined)?.body ?? {}) as { summary_id?: string; items?: Record<string, unknown>[] };
-  }
-
-  async function pickAndReview() {
-    fireEvent.click(await screen.findByRole("checkbox", { name: "Gửi biên bản" }));
-    fireEvent.click(screen.getByRole("button", { name: "Tạo 1 việc" }));
-    return screen.findByRole("dialog");
-  }
-
-  it("marks an item already turned into a task, links it and keeps it out of the selection", async () => {
-    respond();
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
-
-    const converted = await screen.findByRole("checkbox", { name: "Báo khách" });
-    expect(converted).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByText("Đã tạo việc")).toBeInTheDocument();
-  });
-
-  it("names the link to a created task starting with the words it shows", async () => {
-    respond();
-    render(
-      wrapWithNav(
-        <WorkspaceProvider workspace={workspace} user={user}>
-          <MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />
-        </WorkspaceProvider>,
-      ),
-    );
-    const link = await screen.findByRole("link", { name: /Báo khách/ });
-    expect(link).toHaveTextContent("Đã tạo việc");
-    expect(link.getAttribute("aria-label")?.startsWith("Đã tạo việc")).toBe(true);
-  });
-
-  it("asks for a pick before reviewing, keeping the button reachable", async () => {
-    respond();
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
-    const cta = await screen.findByRole("button", { name: "Tạo 0 việc" });
-    expect(cta).toHaveAttribute("aria-disabled", "true");
-    expect(document.getElementById(cta.getAttribute("aria-describedby") ?? "")).toHaveTextContent(
-      "Chọn ít nhất một việc chưa tạo",
-    );
-  });
-
-  it("sends the summary, the item and the server's suggestion the host saw", async () => {
-    respond();
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
-    const dialog = await pickAndReview();
-    expect(within(dialog).getByText("AI ghi: Mai Anh")).toBeInTheDocument();
-    expect(within(dialog).getByText("AI ghi hạn: thứ Sáu")).toBeInTheDocument();
-
-    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
-    await waitFor(() => expect(posted().items).toHaveLength(1));
-    expect(posted()).toEqual({
-      summary_id: "s1",
-      items: [{ index: 0, assignee_id: "u-mai", due_date: "2026-09-25", project_id: "" }],
-    });
-  });
-
-  it("keeps the host's explicit 'nobody' instead of the suggestion", async () => {
-    const user = userEvent.setup();
-    respond();
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
-    const dialog = await pickAndReview();
-
-    const assignee = within(dialog).getByRole("combobox", { name: "Gán cho" });
-    await waitFor(() => expect(assignee).toHaveTextContent("Mai Anh"));
-    await user.click(assignee);
-    await user.click(await screen.findByRole("option", { name: "Không gán" }));
-    await waitFor(() => expect(assignee).toHaveTextContent("Không gán"));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
-    await waitFor(() => expect(posted().items).toHaveLength(1));
-    expect(posted().items?.[0]).toMatchObject({ index: 0, assignee_id: null });
-  });
-
-  it("confirms with a way to the new task", async () => {
-    vi.mocked(toast.success).mockClear();
-    respond();
-    render(
-      wrapWithNav(
-        <WorkspaceProvider workspace={workspace} user={user}>
-          <MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />
-        </WorkspaceProvider>,
-      ),
-    );
-    const dialog = await pickAndReview();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
-
-    await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    const [text, opts] = vi.mocked(toast.success).mock.calls[0]!;
-    expect(text).toBe("Đã tạo 1 việc");
-    expect((opts as { action?: { label?: string } } | undefined)?.action?.label).toBe("Xem việc");
-    expect(screen.getByTestId("summary-live-region")).toHaveTextContent("Đã tạo 1 việc.");
-  });
-
-  it("never reports zero tasks for an answer it cannot read", async () => {
-    vi.mocked(toast.success).mockClear();
-    vi.mocked(toast.warning).mockClear();
-    respond({ post: () => Promise.resolve({ task_ids: "nope" }) });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
-    const dialog = await pickAndReview();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
-
-    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
-    expect(toast.success).not.toHaveBeenCalled();
-    expect(String(vi.mocked(toast.warning).mock.calls[0]![0])).not.toMatch(/0 việc/);
-  });
-
-  it("says what to do when an item was converted elsewhere meanwhile", async () => {
-    vi.mocked(toast.error).mockClear();
-    respond({
-      post: () =>
-        Promise.reject(new ApiError("x", "summary_item_already_converted", 409, undefined, { indexes: [0] })),
-    });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
-    const dialog = await pickAndReview();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
-
+  it("says so and offers a clerk Regenerate, behind the same confirm", async () => {
+    summaryRespond(changed, () => Promise.resolve({ segments: [{ id: "t1", meeting_id: "m1", text: "Một", spoken_at: "2026-09-22T02:10:00Z" }] }));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    expect(await screen.findByText("Lời thoại đã thay đổi sau khi tóm tắt này được tạo.")).toBeInTheDocument();
+    // The header's button and the notice's: the notice's comes second.
+    const buttons = screen.getAllByRole("button", { name: "Tạo lại tóm tắt" });
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[1]!);
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Tạo lại" }));
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Có việc đã được tạo trước đó. Danh sách đã cập nhật, chọn lại các việc còn lại."),
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/summary", expect.objectContaining({ method: "POST" })),
     );
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("names the items that duplicate an open task, keeping the review open with them marked", async () => {
-    vi.mocked(toast.error).mockClear();
-    respond({
-      post: () => Promise.reject(new ApiError("x", "active_duplicate_task", 409, undefined, { indexes: [0] })),
-    });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
-    const dialog = await pickAndReview();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
-
-    const text =
-      "Đã có việc đang mở trùng tên với: “Gửi biên bản”. Bỏ chọn các mục này hoặc chọn dự án khác rồi thử lại.";
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(text));
-    expect(screen.getByTestId("summary-live-region")).toHaveTextContent(text);
-    expect(screen.getByRole("dialog")).toBe(dialog);
-    expect(within(dialog).getByText("Trùng tên với một việc đang mở")).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Gửi biên bản", hidden: true })).toBeChecked();
-  });
-
-  it("closes the review, says why and returns focus to the call to action when the summary is replaced", async () => {
-    let current: unknown = base;
-    respond({ summary: () => current });
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />, undefined, client));
-    fireEvent.click(await screen.findByRole("checkbox", { name: "Gửi biên bản" }));
-    const cta = screen.getByRole("button", { name: "Tạo 1 việc" });
-    cta.focus();
-    fireEvent.click(cta);
-    await screen.findByRole("dialog");
-
-    current = { ...base, id: "s2" };
-    await act(async () => {
-      await client.invalidateQueries({ queryKey: ["meeting-summary", "m1"] });
-    });
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(screen.getByTestId("summary-live-region")).toHaveTextContent(
-      "Tóm tắt vừa được tạo lại. Chọn lại việc trong bản mới.",
-    );
-    const fresh = screen.getByRole("button", { name: "Tạo 0 việc" });
-    expect(fresh).toBe(cta);
-    await waitFor(() => expect(document.activeElement).toBe(cta));
-  });
-
-  it("drops the selection when the summary is replaced", async () => {
-    let current: unknown = base;
-    respond({ summary: () => current });
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />, undefined, client));
-    fireEvent.click(await screen.findByRole("checkbox", { name: "Gửi biên bản" }));
-    expect(screen.getByRole("button", { name: "Tạo 1 việc" })).toBeInTheDocument();
-
-    current = { ...base, id: "s2" };
-    await act(async () => {
-      await client.invalidateQueries({ queryKey: ["meeting-summary", "m1"] });
-    });
-    expect(await screen.findByRole("button", { name: "Tạo 0 việc" })).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Gửi biên bản" })).not.toBeChecked();
+  it("tells a reader without offering Regenerate", async () => {
+    summaryRespond(changed);
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk={false} />));
+    expect(await screen.findByText("Lời thoại đã thay đổi sau khi tóm tắt này được tạo.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tạo lại tóm tắt" })).not.toBeInTheDocument();
   });
 });

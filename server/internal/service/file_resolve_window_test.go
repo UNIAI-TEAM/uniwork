@@ -43,7 +43,7 @@ func TestPresignReadSignsAsOfItsWindow(t *testing.T) {
 	now := time.Date(2026, 10, 21, 9, 41, 7, 0, time.UTC)
 	hour := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
 
-	_, expires, err := s.presignRead(ctx, windowRecord(db.FileUploadSession{}), files.DispositionInline, now, time.Hour)
+	_, expires, err := s.presignRead(ctx, windowRecord(db.FileUploadSession{}), files.DispositionInline, now, time.Hour, 0)
 	if err != nil {
 		t.Fatalf("presignRead: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestPresignReadSignsAsOfItsWindow(t *testing.T) {
 		t.Fatalf("windowed: signed at %v for %v, expires %v; want %v for 12h", sg.last.SignedAt, sg.last.TTL, expires, hour)
 	}
 	first := sg.last
-	if _, _, err := s.presignRead(ctx, windowRecord(db.FileUploadSession{}), files.DispositionInline, now.Add(15*time.Minute), time.Hour); err != nil {
+	if _, _, err := s.presignRead(ctx, windowRecord(db.FileUploadSession{}), files.DispositionInline, now.Add(15*time.Minute), time.Hour, 0); err != nil {
 		t.Fatalf("presignRead later in the hour: %v", err)
 	}
 	if sg.last != first {
@@ -59,7 +59,7 @@ func TestPresignReadSignsAsOfItsWindow(t *testing.T) {
 	}
 
 	// No window: as of now, as before.
-	if _, expires, err = s.presignRead(ctx, windowRecord(db.FileUploadSession{}), files.DispositionInline, now, 0); err != nil {
+	if _, expires, err = s.presignRead(ctx, windowRecord(db.FileUploadSession{}), files.DispositionInline, now, 0, 0); err != nil {
 		t.Fatalf("presignRead: %v", err)
 	}
 	if !sg.last.SignedAt.IsZero() || sg.last.TTL != files.MaxResolveURLTTL || !expires.Equal(now.Add(files.MaxResolveURLTTL)) {
@@ -69,7 +69,7 @@ func TestPresignReadSignsAsOfItsWindow(t *testing.T) {
 	// A staged file's claim window still caps the URL, counted from the signing instant.
 	end := now.Add(2 * time.Hour)
 	staged := db.FileUploadSession{Status: string(files.SessionStaged), ClaimExpiresAt: pgtype.Timestamptz{Time: end, Valid: true}}
-	if _, expires, err = s.presignRead(ctx, windowRecord(staged), files.DispositionInline, now, time.Hour); err != nil {
+	if _, expires, err = s.presignRead(ctx, windowRecord(staged), files.DispositionInline, now, time.Hour, 0); err != nil {
 		t.Fatalf("presignRead staged: %v", err)
 	}
 	if !expires.Equal(end) || sg.last.TTL != end.Sub(hour) {

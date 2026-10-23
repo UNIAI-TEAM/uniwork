@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -249,5 +251,36 @@ func TestAnthropicRefusalKeepsUsage(t *testing.T) {
 	resp, err := a.Complete(context.Background(), CompletionRequest{Model: "claude-x", MaxTokens: 64, Messages: []Message{{Role: "user", Content: "q"}}})
 	if !errors.Is(err, ErrRefused) || resp.InputTokens != 12 || !resp.UsagePresent {
 		t.Fatalf("resp %+v err %v", resp, err)
+	}
+}
+
+// TestAnthropicKeepsSchemaPropertyOrder: structured outputs write an object's
+// keys in the order the schema lists them. Re-encoding the schema through a Go
+// map sorted them, so meeting_summary@7 had to open with "action_items",
+// before the tldr and topics it is written from, and often closed it empty.
+func TestAnthropicKeepsSchemaPropertyOrder(t *testing.T) {
+	var raw []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(endTurnReply))
+	}))
+	t.Cleanup(srv.Close)
+	a := &Anthropic{client: anthropic.NewClient(option.WithAPIKey("k"), option.WithBaseURL(srv.URL), option.WithMaxRetries(0))}
+	schema := `{"type":"object","properties":{"tldr":{"type":"string"},"topics":{"type":"object","properties":{"zeta":{"type":"string"},"alpha":{"type":"string"}},"required":["zeta","alpha"],"additionalProperties":false},"action_items":{"type":"string"}},"required":["tldr","topics","action_items"],"additionalProperties":false}`
+	if _, err := a.Complete(context.Background(), CompletionRequest{
+		Model: "claude-opus-5", MaxTokens: 64, JSONSchema: json.RawMessage(schema), Messages: []Message{{Role: "user", Content: "q"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	order := []string{`"tldr"`, `"topics"`, `"zeta"`, `"alpha"`, `"action_items"`}
+	last := -1
+	for _, key := range order {
+		i := strings.Index(body, key)
+		if i < last {
+			t.Fatalf("schema keys reordered: %s comes before an earlier key in %s", key, body)
+		}
+		last = i
 	}
 }

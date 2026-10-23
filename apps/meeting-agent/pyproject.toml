@@ -1,0 +1,16 @@
+[project]
+name = "uniwork-meeting-agent"
+version = "0.1.0"
+description = "UniWork AI scribe: one LiveKit agent job per meeting (ADR 0038)"
+requires-python = ">=3.13"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "ASYNC"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

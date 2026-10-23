@@ -3,7 +3,7 @@ import { errorCode, errorFields } from "@uniwork/core/api/http";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
 
-/** Which call failed: the summary run or the summary-to-tasks batch. */
+/** Which call failed: the summary run or the action-items-to-tasks batch. */
 export type SummaryOperation = "generate" | "tasks";
 
 /** Codes the summary run and the task batch answer with, each with its own sentence. */
@@ -16,8 +16,9 @@ const CODES = new Set([
   "entitlement_required",
   "ai_quota_exceeded",
   "rate_limited",
-  "summary_superseded",
-  "summary_item_already_converted",
+  "action_item_not_pending",
+  "action_item_not_found",
+  "not_meeting_clerk",
   "not_meeting_host",
   "forbidden",
   "assignee_not_member",
@@ -50,27 +51,26 @@ const PLAN_CODES: Readonly<Record<SummaryOperation, Readonly<Record<string, stri
 
 /** The action items the batch was made of, so a refusal can name them. */
 export interface SummaryErrorContext {
-  items?: readonly { index: number; title: string }[];
+  items?: readonly { id: string; title: string }[];
 }
 
-/** Item indexes a refusal names in `fields.indexes`, in the order the server sent them. */
-export function errorIndexes(err: unknown): number[] {
-  const raw = errorFields(err)?.indexes;
-  return Array.isArray(raw) ? raw.filter((v): v is number => Number.isInteger(v)) : [];
+/** Item ids a refusal names in `fields.action_item_ids`, in the order the server sent them. */
+function errorItemIds(err: unknown): string[] {
+  const raw = errorFields(err)?.action_item_ids;
+  return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === "string") : [];
 }
 
 /**
  * An item whose title matches an open task refuses the whole batch. Name the
- * items when the server says which (`fields.indexes`), else the open task it
- * clashed with, so the host knows what to untick.
+ * items when the server says which (`fields.action_item_ids`), else the open
+ * task it clashed with, so the clerk knows what to untick.
  */
 function duplicateText(err: unknown, t: TFunction, context?: SummaryErrorContext): string {
-  const indexes = errorIndexes(err);
-  const titles = indexes
-    .map((i) => context?.items?.find((item) => item.index === i)?.title?.trim())
+  const titles = errorItemIds(err)
+    .map((id) => context?.items?.find((item) => item.id === id)?.title?.trim())
     .filter((title): title is string => Boolean(title));
   if (titles.length > 0) {
-    return t("meetings.summaryErrors.active_duplicate_items", { items: titles.map((x) => `“${x}”`).join(", ") });
+    return t("meetings.summaryErrors.active_duplicate_items", { items: titles.map((x) => `"${x}"`).join(", ") });
   }
   const fields = errorFields(err) ?? {};
   const task = [fields.identifier, fields.title]
@@ -79,6 +79,31 @@ function duplicateText(err: unknown, t: TFunction, context?: SummaryErrorContext
   return task
     ? t("meetings.summaryErrors.active_duplicate_task", { task })
     : t("meetings.summaryErrors.active_duplicate");
+}
+
+/**
+ * Refusals a second try cannot change: setup, plan, quota, permission or a
+ * missing source; and a run already under way, whose summary shows by itself.
+ */
+const FINAL_CODES = new Set([
+  "ai_not_configured",
+  "summary_no_source",
+  "summary_in_progress",
+  "entitlement_required",
+  "subscription_inactive",
+  "quota_exceeded",
+  "ai_quota_exceeded",
+  "not_meeting_clerk",
+  "not_meeting_host",
+  "forbidden",
+  "not_found",
+  "invalid_request",
+]);
+
+/** Whether "Thử lại" could help a failed summary run: a timeout or a busy model, not a plan refusal. */
+export function summaryErrorRetryable(err: unknown): boolean {
+  const raw = errorCode(err) ?? "";
+  return !FINAL_CODES.has(ALIASES[raw] ?? raw);
 }
 
 /**

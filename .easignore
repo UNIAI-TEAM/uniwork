@@ -73,6 +73,8 @@ server/internal/handler/data/
 !.github/workflows/chat-desktop-release.yml
 !.github/workflows/chat-mobile-release.yml
 !.github/workflows/chat-mobile-verify.yml
+!.github/workflows/meeting-agent-verify.yml
+!.github/workflows/meeting-scribe-nightly.yml
 !.github/workflows/chat-mobile-update.yml
 !.github/workflows/chat-mobile-production.yml
 !.github/workflows/chat-mobile-promote.yml
@@ -114,6 +116,17 @@ apps/chat-mobile/modules/*/android/build/
 apps/chat-mobile/**/.expo/
 apps/chat-mobile/**/dist/
 apps/chat-mobile/**/expo-env.d.ts
+
+# --- apps/meeting-agent/.gitignore
+apps/meeting-agent/**/.venv/
+apps/meeting-agent/**/__pycache__/
+apps/meeting-agent/**/.pytest_cache/
+apps/meeting-agent/**/.ruff_cache/
+
+# --- apps/meeting-agent/eval/.gitignore
+# The golden set is personal data (voices, names): it never enters git.
+apps/meeting-agent/eval/**/data/
+apps/meeting-agent/eval/**/out/
 
 # --- packages/office-upstream/upstream/packages/pdf2docx/.gitignore
 packages/office-upstream/upstream/packages/pdf2docx/ocr-helper/vision-ocr

@@ -38,6 +38,7 @@ vi.mock("./entitlement-gate-toast", () => ({ EntitlementGateToastHost: () => nul
 vi.mock("./app-sidebar", () => ({ AppSidebar: () => <div data-testid="app-sidebar" /> }));
 vi.mock("./workspace-rail", () => ({ WorkspaceRail: () => <div data-testid="workspace-rail" /> }));
 vi.mock("./workspace-chat-toast", () => ({ WorkspaceChatToast: () => null }));
+vi.mock("./browser-notifications-prompt", () => ({ BrowserNotificationsPrompt: () => null }));
 vi.mock("./navigation-progress", () => ({ NavigationProgress: () => null }));
 vi.mock("./browser-notifications-prompt", () => ({ BrowserNotificationsPrompt: () => null }));
 vi.mock("./workspace-top-bar", () => ({
@@ -129,5 +130,20 @@ describe("DashboardLayout variant", () => {
     expect(screen.getByTestId("workspace-rail")).toBeInTheDocument();
     expect(screen.queryByTestId("app-sidebar")).toBeNull();
     expect(screen.getByTestId("chrome")).toHaveAttribute("data-bare", "true");
+  });
+});
+
+describe("DashboardLayout frame", () => {
+  // A hidden frame still scrolls under scrollIntoView/focus once an sr-only
+  // node inside a page's scroller overflows it; clip cannot scroll at all.
+  it("clips the main frame instead of hiding its overflow", () => {
+    render(
+      <DashboardLayout orgSlug="acme" wsSlug="team">
+        <p>workspace body</p>
+      </DashboardLayout>,
+    );
+    const main = screen.getByRole("main");
+    expect(main).toHaveClass("overflow-clip");
+    expect(main).not.toHaveClass("overflow-hidden");
   });
 });

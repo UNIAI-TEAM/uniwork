@@ -27,6 +27,8 @@ import type { WSEventType } from "../types/events";
 import { workspaceKeys } from "../workspaces/keys";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 import { documentFrameKeys } from "./document-events";
+import { followThroughFrameKeys, meetingTaskFrameKeys } from "./meeting-follow-through-events";
+import { transcriptFrameKeys } from "./meeting-transcript-events";
 import { changesOwnMembership, ownMembershipKeys, reloadSessionUser } from "./own-membership";
 import {
   createInvalidateScheduler,
@@ -113,6 +115,7 @@ function keysFor(
       // A linked task's title, status or due date shows in the chat info panel.
       push(chatKeys.roomLinkedTasksRoot(wsId));
     }
+    meetingTaskFrameKeys(qc, type, payload.task_id).forEach(push);
     pushCalendar();
     return keys;
   }
@@ -120,6 +123,12 @@ function keysFor(
   const documentFrame = documentFrameKeys(wsId, type, payload);
   if (documentFrame) {
     for (const k of documentFrame) push(k);
+    return keys;
+  }
+
+  const followThrough = followThroughFrameKeys(type, payload) ?? transcriptFrameKeys(type, payload);
+  if (followThrough) {
+    followThrough.forEach(push);
     return keys;
   }
 
@@ -237,6 +246,8 @@ function keysFor(
         push(meetingKeys.attendance(payload.meeting_id));
         // Ending the meeting closes and counts every open motion.
         if (type === "meeting.ended") push(meetingKeys.motions(payload.meeting_id));
+        // The auto summary is queued with the end: an open panel reads the run and starts polling it.
+        if (type === "meeting.ended") push(meetingKeys.summary(payload.meeting_id));
       }
       pushCalendar();
       break;
@@ -320,22 +331,17 @@ function keysFor(
       }
       break;
     }
+    // The AI scribe was switched, or its run changed state.
+    case "scribe.updated": {
+      if (payload.meeting_id) push(meetingKeys.detail(payload.meeting_id));
+      break;
+    }
     case "transcript.appended": {
       if (payload.meeting_id) push(meetingKeys.transcript(payload.meeting_id));
       break;
     }
     case "chat.message": {
       if (payload.meeting_id) push(meetingKeys.chat(payload.meeting_id));
-      break;
-    }
-    // A new summary, or items of the current one that just became tasks
-    // (their task_id, so no host converts them twice).
-    case "summary.created":
-    case "summary.tasks_linked": {
-      if (payload.meeting_id) {
-        push(meetingKeys.summary(payload.meeting_id));
-        push(meetingKeys.activity(payload.meeting_id));
-      }
       break;
     }
     case "profile.updated":

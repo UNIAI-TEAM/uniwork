@@ -54,7 +54,7 @@ function mockApi(
 // jsdom pads every element in an accessible name with spaces, where a browser
 // joins inline text as it reads; the emphasised names inside a row's sentence
 // are spans, so the patterns below allow that padding.
-const sentence = (text: string) => new RegExp(text.replace(/[“”]/g, (q) => (q === "“" ? "“\\s?" : "\\s?”")));
+const sentence = (text: string) => new RegExp(text.replace(/"/g, String.raw`\s?"\s?`));
 
 function renderInbox() {
   const nav = {
@@ -95,13 +95,13 @@ describe("InboxView", () => {
     expect(headings[1]).toHaveTextContent("Cũ hơn");
     // The header count says what it counts.
     expect(screen.getByRole("heading", { level: 1 }).parentElement).toHaveTextContent("1 chưa đọc");
-    expect(screen.getByRole("link", { name: sentence("Bình đã giao bạn việc “Việc n1”") })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: sentence('Bình đã giao bạn việc "Việc n1"') })).toHaveAttribute(
       "href",
       "/acme/team/tasks/t-n1",
     );
     expect(screen.getByText("và 3 thay đổi khác")).toBeInTheDocument();
     // The deleted meeting is still a row, but not a link.
-    expect(list.querySelector('[data-notification-id="n2"]')).toHaveTextContent("Bình đã mời bạn họp “Họp”");
+    expect(list.querySelector('[data-notification-id="n2"]')).toHaveTextContent('Bình đã mời bạn họp "Họp"');
     expect(screen.queryByRole("link", { name: /Họp/ })).toBeNull();
     expect(screen.getByText("đã xóa")).toBeInTheDocument();
   });
@@ -204,6 +204,11 @@ describe("InboxView", () => {
     renderInbox();
     await screen.findByRole("link", { name: /Việc n1/ });
     const list = screen.getByRole("list", { name: "Hộp việc" });
+    // Every list holds only list items: a group is an item with its heading and its own list of rows.
+    for (const ul of [list, ...within(list).getAllByRole("list")]) {
+      for (const child of Array.from(ul.children)) expect(child.tagName).toBe("LI");
+      for (const child of Array.from(ul.children)) expect(child).not.toHaveAttribute("role");
+    }
     // Plain list semantics: a link and two buttons per row, all in the tab order.
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(within(list).getByRole("button", { name: "Đánh dấu đã đọc" })).toBeInTheDocument();
@@ -221,9 +226,9 @@ describe("InboxView", () => {
     ]);
     renderInbox();
     const status = await screen.findByRole("link", { name: /Việc n1/ });
-    expect(status).toHaveTextContent("Bình chuyển “Việc n1” sang Đang review");
+    expect(status).toHaveTextContent('Bình chuyển "Việc n1" sang Đang review');
     expect(status).not.toHaveTextContent("in_review");
-    expect(screen.getByRole("link", { name: /Việc n2/ })).toHaveTextContent("UNI Agent đã bình luận trong “Việc n2”");
+    expect(screen.getByRole("link", { name: /Việc n2/ })).toHaveTextContent('UNI Agent đã bình luận trong "Việc n2"');
     expect(screen.getByRole("link", { name: /vai trò/ })).toHaveTextContent("Bình đã đổi vai trò của bạn thành Quản trị");
   });
 
@@ -300,7 +305,7 @@ describe("InboxView", () => {
     it("opens the document at the comment and shows the snippet with mentions as names", async () => {
       mockApi([doc("n1", {}, { snippet: `Nhờ [@Lê Thu \\[Hà\\]](mention://member/${ULID}) xem điều 4` })]);
       renderInbox();
-      const link = await screen.findByRole("link", { name: sentence("Bình đã bình luận trong “Hợp đồng”") });
+      const link = await screen.findByRole("link", { name: sentence('Bình đã bình luận trong "Hợp đồng"') });
       expect(link).toHaveAttribute("href", "/acme/team/documents/d-n1?comment=c-n1");
       expect(link.querySelector("[data-notification-snippet=text]")).toHaveTextContent("Nhờ @Lê Thu [Hà] xem điều 4");
       expect(link).not.toHaveTextContent("mention://");
@@ -310,7 +315,7 @@ describe("InboxView", () => {
       mockApi([doc("n1", {}, { document: `Q&A "<b>bản 2</b>"` })]);
       renderInbox();
       const link = await screen.findByRole("link", { name: /Q&A/ });
-      expect(link).toHaveTextContent(`Bình đã bình luận trong “Q&A "<b>bản 2</b>"”`);
+      expect(link).toHaveTextContent(`Bình đã bình luận trong "Q&A "<b>bản 2</b>""`);
       expect(link.querySelector("b")).toBeNull();
     });
 
@@ -347,14 +352,14 @@ describe("InboxView", () => {
         renderInbox();
         const link = await screen.findByRole("link", { name: /Bình/ });
         expect(link).toHaveTextContent(sentenceText);
-        expect(link.textContent).not.toMatch(/\{\{|“\s*”/);
+        expect(link.textContent).not.toMatch(/\{\{|"\s*"/);
         cleanup();
         if (enSentenceText) {
           await setLocale("en");
           renderInbox();
           const enLink = await screen.findByRole("link", { name: /Bình/ });
           expect(enLink).toHaveTextContent(enSentenceText);
-          expect(enLink.textContent).not.toMatch(/\{\{|“\s*”/);
+          expect(enLink.textContent).not.toMatch(/\{\{|"\s*"/);
           cleanup();
           await setLocale("vi");
         }
@@ -374,6 +379,18 @@ describe("InboxView", () => {
       };
       expect(await clampOf(/truy cập khẩn cấp/)).toHaveClass("line-clamp-3");
       expect(await clampOf(/bình luận trong/)).toHaveClass("line-clamp-2");
+    });
+
+    // At 390px two lines cut a failed transcript before its next step, and a ready summary before "Xem và giao việc".
+    it("gives the meeting summary and transcript-failure sentences the lines their ending needs", async () => {
+      const meeting = (id: string, kind: string) =>
+        row(id, { kind, title_key: `notifications.kind.${kind}`, resource_type: "meeting", resource_id: "m-" + id, actor_kind: "system", params: { meeting: "Họp quý" } });
+      mockApi([meeting("n1", "meeting_transcript_failed"), meeting("n2", "meeting_summary_ready")]);
+      renderInbox();
+      const clampOf = async (name: RegExp) =>
+        (await screen.findByRole("link", { name })).querySelector("[class*=line-clamp]:not([data-notification-snippet])");
+      expect(await clampOf(/tải lại tệp/)).toHaveClass("line-clamp-5");
+      expect(await clampOf(/giao việc/)).toHaveClass("line-clamp-3");
     });
 
     it("never quotes a snippet for a lost document even if one arrives", async () => {

@@ -113,18 +113,34 @@ export function draftWithDefaults(
   return next;
 }
 
+/**
+ * Sends the composer's task through another command than POST /tasks: a
+ * meeting's convert, which links its item to the task in one transaction.
+ * The composer then keeps no draft and no last-used settings of its own, and
+ * the submitter says the outcome; a refusal it has no words for
+ * (errorText → undefined) gets the composer's own toast.
+ */
+export type CreateTaskSubmitter = {
+  /** Resolves once the task exists, rejects with the refusal. */
+  submit: (body: CreateTaskBody) => Promise<void>;
+  pending: boolean;
+  errorText?: (error: unknown) => string | undefined;
+};
+
 export function useCreateTaskManualState({
   workspaceId,
   defaults,
   carry,
   onClose,
   createAnother,
+  submitter,
 }: {
   workspaceId: string;
   defaults?: Partial<CreateTaskBody>;
   carry?: Record<string, unknown> | null;
   onClose: (reason?: "saved" | "submitted") => void;
   createAnother: boolean;
+  submitter?: CreateTaskSubmitter;
 }) {
   const { t } = useTranslation();
   const workspaceContext = useOptionalWorkspace();
@@ -144,11 +160,13 @@ export function useCreateTaskManualState({
   const clearDraft = useCreateTaskDraftStore((state) => state.clearDraft);
   const orgId = workspaceContext?.workspace.organization_id ?? "";
   const { canView: canViewBillingDecision } = useBillingPermissions(orgId);
+  // A submitter's task starts from its defaults alone: the person's own draft stays theirs.
+  const ownDrafts = !submitter;
   const initialDraft = () => {
-    const stored = draftFor(workspaceId);
+    const stored = ownDrafts ? draftFor(workspaceId) : null;
     return stored
       ? draftWithDefaults(stored, defaults)
-      : draftFromDefaults(defaults, settingsFor(workspaceId));
+      : draftFromDefaults(defaults, ownDrafts ? settingsFor(workspaceId) : null);
   };
   const [draft, setDraftState] = useState<CreateTaskDraft>(initialDraft);
   const draftRef = useRef(draft);
@@ -160,14 +178,14 @@ export function useCreateTaskManualState({
   );
 
   useEffect(() => {
-    const stored = draftFor(workspaceId);
+    const stored = ownDrafts ? draftFor(workspaceId) : null;
     const next = stored
       ? draftWithDefaults(stored, defaults)
-      : draftFromDefaults(defaults, settingsFor(workspaceId));
+      : draftFromDefaults(defaults, ownDrafts ? settingsFor(workspaceId) : null);
     draftRef.current = next;
     setDraftState(next);
     setRevealed(initialRevealed(next));
-  }, [workspaceId, defaults, draftFor, settingsFor]);
+  }, [workspaceId, defaults, draftFor, settingsFor, ownDrafts]);
 
   useEffect(() => {
     draftRef.current = draft;
@@ -185,15 +203,15 @@ export function useCreateTaskManualState({
     const next = { ...current, ...patch, version: (current.version ?? 0) + 1 };
     draftRef.current = next;
     setDraftState(next);
-    persistDraft(workspaceId, next);
-  }, [carry, persistDraft, workspaceId]);
+    if (ownDrafts) persistDraft(workspaceId, next);
+  }, [carry, persistDraft, workspaceId, ownDrafts]);
 
   const updateDraft = (patch: Partial<CreateTaskDraft>) => {
     const current = draftRef.current;
     const next = { ...current, ...patch, version: (current.version ?? 0) + 1 };
     draftRef.current = next;
     setDraftState(next);
-    persistDraft(workspaceId, next);
+    if (ownDrafts) persistDraft(workspaceId, next);
   };
 
   const projectItems = useMemo(
@@ -218,40 +236,50 @@ export function useCreateTaskManualState({
     [draft.parentTaskId, taskList],
   );
 
+  const pending = submitter ? submitter.pending : create.isPending;
   const submit = () => {
-    if (create.isPending || uploadCountRef.current > 0) return;
+    if (pending || uploadCountRef.current > 0) return;
     const currentDraft = draftRef.current;
     const title = currentDraft.title.trim();
     if (!title) return;
     const submitted = { ...currentDraft, title };
+    const body: CreateTaskBody = {
+      title,
+      description: currentDraft.description?.trim() || undefined,
+      status: currentDraft.status,
+      priority: currentDraft.priority,
+      assignee_id: currentDraft.assigneeId || null,
+      assignee_kind: currentDraft.assigneeId ? currentDraft.assigneeKind ?? "human" : undefined,
+      project_id: currentDraft.projectId || null,
+      parent_task_id: currentDraft.parentTaskId || null,
+      stage: (() => {
+        if (!currentDraft.stage) return null;
+        const parsed = Number(currentDraft.stage);
+        return Number.isFinite(parsed) ? parsed : null;
+      })(),
+      start_date: currentDraft.startDate || null,
+      due_date: currentDraft.dueDate || null,
+      start_at: currentDraft.startAt || null,
+      due_at: currentDraft.dueAt || null,
+      label_ids: currentDraft.labelIds,
+      attachment_ids: currentDraft.attachments
+        ?.filter((attachment) =>
+          contentReferencesAttachment(currentDraft.description ?? "", attachment),
+        )
+        .map((attachment) => attachment.id),
+      properties: currentDraft.properties,
+    };
+    if (submitter) {
+      // The submitter moves on (next defaults) or closes; a refusal keeps the edits.
+      submitter.submit(body).catch((error: unknown) => {
+        const own = submitter.errorText?.(error);
+        if (own) toast.error(own);
+        else reportCreateError(error);
+      });
+      return;
+    }
     void create
-      .mutateAsync({
-        title,
-        description: currentDraft.description?.trim() || undefined,
-        status: currentDraft.status,
-        priority: currentDraft.priority,
-        assignee_id: currentDraft.assigneeId || null,
-        assignee_kind: currentDraft.assigneeId ? currentDraft.assigneeKind ?? "human" : undefined,
-        project_id: currentDraft.projectId || null,
-        parent_task_id: currentDraft.parentTaskId || null,
-        stage: (() => {
-          if (!currentDraft.stage) return null;
-          const parsed = Number(currentDraft.stage);
-          return Number.isFinite(parsed) ? parsed : null;
-        })(),
-        start_date: currentDraft.startDate || null,
-        due_date: currentDraft.dueDate || null,
-        start_at: currentDraft.startAt || null,
-        due_at: currentDraft.dueAt || null,
-        label_ids: currentDraft.labelIds,
-        attachment_ids: currentDraft.attachments
-          ?.filter((attachment) =>
-            contentReferencesAttachment(currentDraft.description ?? "", attachment),
-          )
-          .map((attachment) => attachment.id),
-        properties: currentDraft.properties,
-        idempotencyKey: currentDraft.idempotencyKey,
-      })
+      .mutateAsync({ ...body, idempotencyKey: currentDraft.idempotencyKey })
       .then((task) => {
         const latest = draftRef.current;
         const submittedIsStillCurrent =
@@ -292,48 +320,50 @@ export function useCreateTaskManualState({
         setRevealed(initialRevealed(next));
         if (!createAnother) onClose("submitted");
       })
-      .catch((error: unknown) => {
-        toastCreateTaskError(
-          error,
-          {
-            fallback: t("tasks.create.error"),
-            duplicateTitle: t("tasks.create.duplicate"),
-            viewExisting: t("tasks.create.view"),
-            quotaExceeded: t("tasks.create.quota_exceeded"),
-            quotaContactAdmin: t("tasks.create.quota_contact_admin"),
-            viewBilling: t("tasks.create.view_billing"),
-            inFlight: t("tasks.create.in_flight"),
-          },
-          {
-            onViewTask:
-              navigation && workspaceContext
-                ? (taskId) => {
-                    navigation.push(
-                      paths
-                        .workspace(
-                          workspaceContext.workspace.organization_slug,
-                          workspaceContext.workspace.slug,
-                        )
-                        .task(taskId),
-                    );
-                  }
-                : undefined,
-            canViewBilling: canViewBillingDecision.allowed,
-            onViewBilling:
-              navigation && workspaceContext
-                ? () =>
-                    navigation.push(
-                      paths
-                        .workspace(
-                          workspaceContext.workspace.organization_slug,
-                          workspaceContext.workspace.slug,
-                        )
-                        .settings(),
+      .catch(reportCreateError);
+  };
+
+  const reportCreateError = (error: unknown) => {
+    toastCreateTaskError(
+      error,
+      {
+        fallback: t("tasks.create.error"),
+        duplicateTitle: t("tasks.create.duplicate"),
+        viewExisting: t("tasks.create.view"),
+        quotaExceeded: t("tasks.create.quota_exceeded"),
+        quotaContactAdmin: t("tasks.create.quota_contact_admin"),
+        viewBilling: t("tasks.create.view_billing"),
+        inFlight: t("tasks.create.in_flight"),
+      },
+      {
+        onViewTask:
+          navigation && workspaceContext
+            ? (taskId) => {
+                navigation.push(
+                  paths
+                    .workspace(
+                      workspaceContext.workspace.organization_slug,
+                      workspaceContext.workspace.slug,
                     )
-                : undefined,
-          },
-        );
-      });
+                    .task(taskId),
+                );
+              }
+            : undefined,
+        canViewBilling: canViewBillingDecision.allowed,
+        onViewBilling:
+          navigation && workspaceContext
+            ? () =>
+                navigation.push(
+                  paths
+                    .workspace(
+                      workspaceContext.workspace.organization_slug,
+                      workspaceContext.workspace.slug,
+                    )
+                    .settings(),
+                )
+            : undefined,
+      },
+    );
   };
 
   const uploadFile = async (file: File, _uploadId: string): Promise<UploadResult | null> => {
@@ -412,6 +442,6 @@ export function useCreateTaskManualState({
     create,
     uploadAttachment,
     uploading: uploadCount > 0,
-    busy: create.isPending || uploadCount > 0,
+    busy: pending || uploadCount > 0,
   };
 }

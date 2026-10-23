@@ -56,8 +56,11 @@ export function Notice({
       className={cn("flex items-center gap-2.5", LAYOUT[layout], TONE[tone], className)}
     >
       <Icon aria-hidden className="size-4 shrink-0" />
-      <div className="min-w-0 flex-1 text-caption font-medium text-pretty">{children}</div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {/* wrap-anywhere: a file name or URL has no break point of its own. */}
+      <div className="min-w-0 flex-1 text-caption font-medium text-pretty wrap-anywhere">{children}</div>
+      {/* text-foreground: an outline or ghost button inherits its colour, and the
+          soft tone's foreground over the button's own fill drops below 4.5:1. */}
+      {action ? <div className="shrink-0 text-foreground">{action}</div> : null}
     </div>
   );
 }

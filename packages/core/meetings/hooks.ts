@@ -32,6 +32,8 @@ export {
 } from "./schedule";
 
 const JOIN_REQUESTS_ROOT = ["meeting-join-requests"] as const;
+const ACTION_ITEMS_ROOT = ["meeting-action-items"] as const;
+const CARRIED_OVER_ROOT = ["meeting-carried-over"] as const;
 
 export const meetingKeys = {
   list: (wsId: string) => ["meetings", wsId] as const,
@@ -46,11 +48,23 @@ export const meetingKeys = {
   activity: (meetingId: string) => ["meeting-activity", meetingId] as const,
   capabilities: (wsId: string) => ["meeting-capabilities", wsId] as const,
   transcript: (meetingId: string) => ["meeting-transcript", meetingId] as const,
+  /** Forward reads of an ended meeting's transcript (UNI-1995 #9): the pages, and the whole of it. */
+  transcriptRead: (meetingId: string) => ["meeting-transcript-read", meetingId] as const,
+  transcriptPages: (meetingId: string, around: string) => ["meeting-transcript-read", meetingId, "pages", around] as const,
+  transcriptFull: (meetingId: string) => ["meeting-transcript-read", meetingId, "full"] as const,
   chat: (meetingId: string) => ["meeting-chat", meetingId] as const,
   summary: (meetingId: string) => ["meeting-summary", meetingId] as const,
+  evidence: (meetingId: string, refs: string) => ["meeting-evidence", meetingId, refs] as const,
+  actionItemsRoot: ACTION_ITEMS_ROOT,
+  actionItems: (meetingId: string) => [...ACTION_ITEMS_ROOT, meetingId] as const,
+  carriedOverRoot: CARRIED_OVER_ROOT,
+  carriedOver: (meetingId: string) => [...CARRIED_OVER_ROOT, meetingId] as const,
+  minutes: (meetingId: string) => ["meeting-minutes", meetingId] as const,
   recordings: (meetingId: string) => ["meeting-recordings", meetingId] as const,
   attendance: (meetingId: string) => ["meeting-attendance", meetingId] as const,
   motions: (meetingId: string) => ["meeting-motions", meetingId] as const,
+  speakerLabels: (meetingId: string) => ["meeting-speaker-labels", meetingId] as const,
+  transcriptions: (meetingId: string) => ["meeting-transcriptions", meetingId] as const,
 };
 
 export function splitMeetings(
@@ -91,10 +105,25 @@ export function useMeeting(meetingId: string, opts?: { enabled?: boolean }) {
   });
 }
 
+/**
+ * Schedules a meeting. `scribe` is the form's "Thư ký AI" switch: when the
+ * created meeting starts otherwise (the organization's policy decides), the
+ * existing PUT /scribe sets it. That second call failing leaves the meeting
+ * created as the server made it - the answer then still says so, and the form
+ * tells the person instead of letting a retry create the meeting twice.
+ */
 export function useCreateMeeting(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: meetings.CreateMeetingBody) => meetings.createMeeting(workspaceId, body),
+    mutationFn: async ({ scribe, ...body }: meetings.CreateMeetingBody & { scribe?: boolean }) => {
+      const created = await meetings.createMeeting(workspaceId, body);
+      if (!created || scribe === undefined || (created.scribe_enabled !== false) === scribe) return created;
+      try {
+        return (await meetings.setMeetingScribe(created.id, scribe)) ?? created;
+      } catch {
+        return created;
+      }
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: meetingKeys.list(workspaceId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.stats(workspaceId) });
@@ -111,6 +140,32 @@ export function useUpdateMeeting(workspaceId: string, meetingId: string) {
       void qc.invalidateQueries({ queryKey: meetingKeys.detail(meetingId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.attendance(meetingId) });
+    },
+  });
+}
+
+/** Switch the AI scribe for one meeting; the detail carries the new state. */
+export function useSetMeetingScribe(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) => meetings.setMeetingScribe(meetingId, enabled),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: meetingKeys.detail(meetingId) });
+    },
+  });
+}
+
+/** Share the meeting's AI content with the workspace, or keep it to the meeting; the detail carries the new state. */
+export function useSetMeetingAISharing(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (shared: boolean) => {
+      const m = await meetings.setMeetingAISharing(meetingId, shared);
+      if (!m) throw new Error("meeting_ai_sharing_invalid");
+      return m;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: meetingKeys.detail(meetingId) });
     },
   });
 }

@@ -7,19 +7,21 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/
 /** Shared presentation only; connecting devices belongs to MeetingControlBar. */
 export const MEETING_CHIP = "size-11 shrink-0 rounded-xl";
 
-export function IconControl({ label, tooltip, pressed, tone, onClick, disabled, children }: {
+// `busy`: a switch is under way. aria-disabled, not disabled: the button keeps focus (and the
+// Button primitive drops the click), so a keyboard user is not thrown back to <body>.
+export function IconControl({ label, tooltip, pressed, tone, onClick, busy, children }: {
   label: string; tooltip?: string; pressed?: boolean; tone?: "off" | "active";
-  onClick?: MouseEventHandler<HTMLButtonElement>; disabled?: boolean; children: ReactNode;
+  onClick?: MouseEventHandler<HTMLButtonElement>; busy?: boolean; children: ReactNode;
 }) {
   return <Tooltip>
-    <TooltipTrigger render={<Button type="button" size="icon-lg" variant={tone === "off" ? "destructiveSolid" : tone === "active" ? "brand" : "meetingChip"} aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={onClick} className={MEETING_CHIP} />}>{children}</TooltipTrigger>
-    <TooltipContent side="top">{tooltip ?? label}</TooltipContent>
+    <TooltipTrigger render={<Button type="button" size="icon-lg" variant={tone === "off" ? "destructiveSolid" : tone === "active" ? "brand" : "meetingChip"} aria-label={label} aria-pressed={pressed} aria-disabled={busy || undefined} aria-busy={busy || undefined} onClick={onClick} className={MEETING_CHIP} />}>{children}</TooltipTrigger>
+    <TooltipContent side="top" className="dark">{tooltip ?? label}</TooltipContent>
   </Tooltip>;
 }
 
-export function MenuControl({ caption, pressed, onClick, disabled, children }: {
+export function MenuControl({ caption, pressed, onClick, busy, children }: {
   caption: string; pressed?: boolean; onClick?: MouseEventHandler<HTMLButtonElement>;
-  disabled?: boolean; children: ReactNode;
+  busy?: boolean; children: ReactNode;
 }) {
-  return <Button type="button" variant={pressed ? "secondary" : "ghost"} aria-pressed={pressed} disabled={disabled} onClick={onClick} className="h-11 w-full justify-start gap-3">{children}{caption}</Button>;
+  return <Button type="button" variant={pressed ? "secondary" : "ghost"} aria-pressed={pressed} aria-disabled={busy || undefined} aria-busy={busy || undefined} onClick={onClick} className="h-11 w-full justify-start gap-3">{children}{caption}</Button>;
 }

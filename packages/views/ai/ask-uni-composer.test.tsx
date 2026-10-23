@@ -84,7 +84,7 @@ describe("AskUniComposer", () => {
     // The frame lights up for the editor's focus, not for any button inside it.
     expect(frame.className).toContain("has-[.ProseMirror-focused]:border-ring");
     expect(frame.className).not.toContain("focus-within:");
-    for (const el of [chip, screen.getByRole("button", { name: "Thêm phạm vi" }), screen.getByRole("button", { name: "Gửi" })]) {
+    for (const el of [chip, screen.getByRole("button", { name: "Thêm phạm vi" }), screen.getByRole("button", { name: "Hỏi" })]) {
       expect(frame).toContainElement(el);
     }
   });
@@ -120,12 +120,12 @@ describe("AskUniComposer", () => {
     type(" ");
     key("Enter");
     expect(onSend).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Gửi" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Hỏi" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("stop replaces send while streaming and the box stays editable", () => {
     const { onStop } = mount({ streaming: true });
-    expect(screen.queryByRole("button", { name: "Gửi" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hỏi" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Dừng" }));
     expect(onStop).toHaveBeenCalled();
     expect(box()).toHaveAttribute("contenteditable", "true");

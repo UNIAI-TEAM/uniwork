@@ -152,6 +152,10 @@ describe("request", () => {
     expect(apiErrorMessage("nope")).toBeUndefined();
   });
 
+  it("answers undefined for a fetch that never reached the server, so the caller's copy wins", () => {
+    expect(apiErrorMessage(new TypeError("Failed to fetch"))).toBeUndefined();
+  });
+
   it("leaves the message empty for a body-less failure, so the caller's fallback copy wins", async () => {
     // A proxy 502/504 carries an HTML body and, over HTTP/2, an empty
     // statusText. `message` must stay "" so `apiErrorMessage` answers

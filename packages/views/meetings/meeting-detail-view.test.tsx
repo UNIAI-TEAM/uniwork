@@ -291,19 +291,6 @@ describe("MeetingDetailView", () => {
     );
   });
 
-  it("keeps the cancel confirmation open when cancelling fails", async () => {
-    rosterMock((p, method) =>
-      p === "/api/v1/meetings/m1/cancel" && method === "POST" ? Promise.reject(new ApiError("không huỷ được", "invalid_meeting_state", 409)) : undefined,
-    );
-    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
-
-    fireEvent.click(await screen.findByRole("button", { name: "Hủy cuộc họp" }));
-    const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: /Hủy cuộc họp|Hủy cuộc họp/ }));
-    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/cancel", expect.anything()));
-    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
-  });
-
   it("hides start and join after the scheduled window ends", async () => {
     const expired = {
       ...meeting,
@@ -385,6 +372,27 @@ describe("MeetingDetailView", () => {
     await waitFor(() => expect(onDeleted).toHaveBeenCalled());
     expect(success).toHaveBeenCalledWith("Đã hủy cuộc họp");
     success.mockRestore();
+  });
+
+  it("says a failed cancel above the hero, once, instead of a toast behind the dialog", async () => {
+    const failure = vi.spyOn(toast, "error");
+    const onDeleted = vi.fn();
+    rosterMock((p, method) =>
+      p === "/api/v1/meetings/m1/cancel" && method === "POST"
+        ? Promise.reject(new ApiError("x", "invalid_meeting_state", 409))
+        : undefined,
+    );
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={onDeleted} />));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Hủy cuộc họp" }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Hủy cuộc họp/ }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(failure).not.toHaveBeenCalled();
+    expect(onDeleted).not.toHaveBeenCalled();
+    failure.mockRestore();
   });
 
   it("lets the host restore a cancelled meeting whose time is still ahead", async () => {
@@ -484,6 +492,47 @@ describe("MeetingDetailView", () => {
     const notesSlot = notes.closest(".order-3");
     expect(rosterSlot).not.toBeNull();
     expect(notesSlot).not.toBeNull();
+  });
+
+  // UNI-1995 access (#4): what was said is for the people of the meeting.
+  it("shows a member outside the meeting who the AI content is for, and never asks for it", async () => {
+    const asked: string[] = [];
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      asked.push(p);
+      if (p.endsWith("/me")) {
+        return Promise.resolve({ membership: { user_id: "u-host", role: "member", source: "membership" } });
+      }
+      if (p === "/api/v1/meetings/m1") {
+        return Promise.resolve({
+          meeting: { ...meeting, host_user_id: "u-other", status: "ENDED", ai_content_readable: false },
+        });
+      }
+      if (p.endsWith("/ai/capabilities")) return Promise.resolve(capabilities());
+      if (p.endsWith("/action-items")) {
+        // What the server answers an outsider: the tasks the meeting handed out.
+        return Promise.resolve({
+          items: [
+            {
+              id: "a0", source: "AI", title: "Đặt cọc hội trường", status: "CONVERTED",
+              task: { id: "t1", title: "Đặt cọc hội trường", status: "todo", done: false, overdue: false },
+            },
+          ],
+          counts: { pending: 2, converted: 1, dismissed: 0, tasks_done: 0, tasks_overdue: 0 },
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByTestId("meeting-ai-restricted")).toBeInTheDocument();
+    // The tasks the meeting handed out stay with the workspace; the rest, and the lines they cite, do not.
+    expect(await screen.findByText("Đặt cọc hội trường")).toBeInTheDocument();
+    expect(screen.getByText("Các việc khác của cuộc họp chỉ dành cho người tham dự.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Căn cứ \d/ })).not.toBeInTheDocument();
+    // Ask UNI's box answers from what was said: not for them either.
+    await waitFor(() => expect(asked.some((p) => p.endsWith("/ai/capabilities"))).toBe(true));
+    expect(screen.queryByRole("heading", { name: "Hỏi UNI về cuộc họp" })).not.toBeInTheDocument();
+    expect(asked.some((p) => p.endsWith("/transcript") || p.endsWith("/summary"))).toBe(false);
   });
 
   it("hides roster and invite-link mutations after the meeting has ended", async () => {
@@ -606,6 +655,53 @@ describe("MeetingDetailView › attendance", () => {
       await within(card).findByText("Chưa có nội dung biểu quyết. Soạn trước, mở từng nội dung khi đang họp."),
     ).toBeInTheDocument();
     expect(within(card).getByRole("button", { name: "Thêm nội dung" })).toBeInTheDocument();
+  });
+});
+
+describe("MeetingDetailView › carried over", () => {
+  const carried = {
+    items: [
+      {
+        action_item_id: "a1",
+        meeting: { id: "m0", title: "Giao ban tuần trước", started_at: "2026-10-13T02:00:00Z" },
+        task: { id: "t1", title: "Gửi báo giá", status: "todo", done: false, overdue: false, assignee_id: null, due_date: null },
+      },
+    ],
+  };
+  function respondWith(extra: Record<string, unknown>) {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting: { ...meeting, ...extra } });
+      if (p.endsWith("/carried-over-items")) return Promise.resolve(carried);
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
+      if (p.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
+      if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
+      if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
+      return Promise.resolve({});
+    });
+  }
+  const carriedCalls = () => requestMock.mock.calls.filter((c) => String(c[0]).endsWith("/carried-over-items")).length;
+
+  it("shows what earlier meetings of the project left open before the meeting", async () => {
+    respondWith({ project_id: "p1" });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const section = await screen.findByRole("region", { name: "Việc còn tồn từ các cuộc họp trước" });
+    expect(await within(section).findByText("Gửi báo giá")).toBeInTheDocument();
+  });
+
+  it("asks nothing for a meeting without a project, or one that has ended", async () => {
+    respondWith({});
+    const { unmount } = render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    unmount();
+    respondWith({ project_id: "p1", status: "ENDED" });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    expect(carriedCalls()).toBe(0);
+    expect(screen.queryByRole("region", { name: "Việc còn tồn từ các cuộc họp trước" })).not.toBeInTheDocument();
   });
 });
 
@@ -827,5 +923,65 @@ describe("MeetingRoomView", () => {
     expect(screen.queryByTestId("meeting-prejoin")).not.toBeInTheDocument();
     expect(await screen.findByTestId("livekit-room")).toBeInTheDocument();
     expect(lastLiveKitMedia).toEqual({ video: false, audio: true });
+  });
+});
+
+describe("MeetingDetailView › minutes", () => {
+  function respondEnded(minutesOn: boolean, pending = 0) {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/action-items")) {
+        return Promise.resolve({
+          items: Array.from({ length: pending }, (_, i) => ({ id: `a${i}`, title: `Việc ${i}`, status: "PENDING", evidence: [] })),
+          counts: { pending, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 },
+        });
+      }
+      if (p.endsWith("/me")) return Promise.resolve({ membership: { user_id: "u-host", role: "owner", source: "membership" } });
+      if (p === "/api/v1/config?organization_id=o1") return Promise.resolve({ flags: { office_engine: false, meeting_minutes: minutesOn } });
+      if (p === "/api/v1/meetings/m1") {
+        return Promise.resolve({ meeting: { ...meeting, status: "ENDED", actual_end_at: "2026-09-09T08:27:00Z" } });
+      }
+      if (p.endsWith("/minutes")) return Promise.resolve({ minutes: null });
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
+      return Promise.resolve({});
+    });
+  }
+
+  it("shows the minutes where the meeting's organization turned them on", async () => {
+    respondEnded(true);
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("heading", { name: "Biên bản" })).toBeInTheDocument();
+  });
+
+  it("names drafting the minutes as the host's next step once nothing waits to be assigned", async () => {
+    respondEnded(true);
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const hero = await screen.findByRole("region", { name: "Standup" });
+    expect(await within(hero).findByRole("button", { name: "Lập biên bản" })).toBeInTheDocument();
+  });
+
+  it("names assigning as the next step while action items wait", async () => {
+    respondEnded(true, 2);
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const hero = await screen.findByRole("region", { name: "Standup" });
+    expect(await within(hero).findByRole("button", { name: "Giao việc" })).toBeInTheDocument();
+    expect(within(hero).getByText("2 việc đang chờ giao.")).toBeInTheDocument();
+  });
+
+  it("puts the work ahead of the roster on small screens once the meeting has ended", async () => {
+    respondEnded(false);
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const roster = await screen.findByRole("heading", { name: /Người tham dự/ });
+    expect(roster.closest(".order-4")).not.toBeNull();
+  });
+
+  it("hides them where the organization's answer is off", async () => {
+    respondEnded(false);
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(requestMock.mock.calls.some(([path]) => String(path) === "/api/v1/config?organization_id=o1")).toBe(true),
+    );
+    expect(screen.queryByRole("heading", { name: "Biên bản" })).not.toBeInTheDocument();
   });
 });

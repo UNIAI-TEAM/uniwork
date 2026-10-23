@@ -42,6 +42,7 @@ const (
 	ChatRoomAvatar        UploadPurpose = "chat_room_avatar"
 	ChatRoomWallpaper     UploadPurpose = "chat_room_wallpaper"
 	ChatLinkPreview       UploadPurpose = "chat_link_preview"
+	MeetingAudio          UploadPurpose = "meeting_audio"
 	DocumentDownload      UploadPurpose = "document_download"
 	AiAttachment          UploadPurpose = "ai_attachment"
 )
@@ -66,6 +67,7 @@ var purposes = []UploadPurpose{
 	ChatRoomAvatar,
 	ChatRoomWallpaper,
 	ChatLinkPreview,
+	MeetingAudio,
 	DocumentDownload,
 	AiAttachment,
 }
