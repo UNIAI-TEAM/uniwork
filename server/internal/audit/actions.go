@@ -338,6 +338,13 @@ const (
 	// (AskUNIService.SetAskWritePolicy).
 	ActionOrganizationAskWritePolicyChanged = "organization.ask_uni_write_policy_changed"
 
+	// An Ask UNI proposal (agent_action_proposals, ADR 0044) was applied,
+	// rejected or undone by the person who asked (AskUNIService). The business
+	// command's own row carries metadata.via with the proposal id.
+	ActionAIProposalApplied  = "ai_proposal.applied"
+	ActionAIProposalRejected = "ai_proposal.rejected"
+	ActionAIProposalUndone   = "ai_proposal.undone"
+
 	// A cancelled meeting brought back (MeetingService.Restore).
 	ActionMeetingRestored = "meeting.restored"
 

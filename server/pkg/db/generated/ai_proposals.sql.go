@@ -473,25 +473,32 @@ func (q *Queries) AiSettleProposalUndo(ctx context.Context, arg AiSettleProposal
 const aiUpdateProposalDraft = `-- name: AiUpdateProposalDraft :one
 UPDATE agent_action_proposals SET
   payload = $1, preview = $2,
-  risk_level = $3, updated_at = now()
-WHERE id = $4 AND organization_id = $5
+  risk_level = $3, target_id = $4,
+  target_revision = $5, updated_at = now()
+WHERE id = $6 AND organization_id = $7
   AND status = 'pending'
 RETURNING id, organization_id, workspace_id, source, run_id, agent_id, conversation_id, message_id, position, action_type, target_kind, target_id, payload, preview, risk_level, mode, tainted, target_revision, status, decision, result, undo, error, decided_by, decided_at, applied_at, undone_by, undone_at, expires_at, created_by, created_by_kind, created_at, updated_at
 `
 
 type AiUpdateProposalDraftParams struct {
-	Payload        string `json:"payload"`
-	Preview        string `json:"preview"`
-	RiskLevel      string `json:"risk_level"`
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
+	Payload        string      `json:"payload"`
+	Preview        string      `json:"preview"`
+	RiskLevel      string      `json:"risk_level"`
+	TargetID       pgtype.Text `json:"target_id"`
+	TargetRevision pgtype.Int8 `json:"target_revision"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
 }
 
+// An edit runs prepare again, so the target and the revision it read change
+// with the payload and the preview.
 func (q *Queries) AiUpdateProposalDraft(ctx context.Context, arg AiUpdateProposalDraftParams) (AgentActionProposal, error) {
 	row := q.db.QueryRow(ctx, aiUpdateProposalDraft,
 		arg.Payload,
 		arg.Preview,
 		arg.RiskLevel,
+		arg.TargetID,
+		arg.TargetRevision,
 		arg.ID,
 		arg.OrganizationID,
 	)

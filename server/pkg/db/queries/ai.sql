@@ -151,6 +151,12 @@ RETURNING *;
 -- tenant: parent conversation_id
 SELECT * FROM ai_messages WHERE id = $1 AND conversation_id = $2;
 
+-- name: AiLockMessageInConversation :one
+-- tenant: parent conversation_id
+-- Holds the answer while its document row is looked up and made, so two
+-- clicks of "Tạo tài liệu" make one page.
+SELECT id FROM ai_messages WHERE id = $1 AND conversation_id = $2 FOR UPDATE;
+
 -- name: AiUpsertMessageFeedback :exec
 -- tenant: parent conversation_id
 INSERT INTO ai_message_feedback (id, organization_id, workspace_id, conversation_id, message_id, rating, reason, note, created_by)

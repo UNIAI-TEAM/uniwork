@@ -750,6 +750,25 @@ func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]
 	return items, nil
 }
 
+const aiLockMessageInConversation = `-- name: AiLockMessageInConversation :one
+SELECT id FROM ai_messages WHERE id = $1 AND conversation_id = $2 FOR UPDATE
+`
+
+type AiLockMessageInConversationParams struct {
+	ID             string `json:"id"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// tenant: parent conversation_id
+// Holds the answer while its document row is looked up and made, so two
+// clicks of "Tạo tài liệu" make one page.
+func (q *Queries) AiLockMessageInConversation(ctx context.Context, arg AiLockMessageInConversationParams) (string, error) {
+	row := q.db.QueryRow(ctx, aiLockMessageInConversation, arg.ID, arg.ConversationID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const aiMarkConversationTainted = `-- name: AiMarkConversationTainted :exec
 UPDATE ai_conversations SET tainted_at = COALESCE(tainted_at, now())
 WHERE id = $1 AND organization_id = $2

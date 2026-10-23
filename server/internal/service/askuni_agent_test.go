@@ -359,9 +359,12 @@ const (
 	agentReminder   = "Your last reply was empty, cut off, or asked for tools after the budget. Reply now in Markdown, citing [S#], without calling tools."
 )
 
-// agentMetricsFake records what a run reports, as "outcome/rounds" and
-// "tool/status".
-type agentMetricsFake struct{ runs, tools []string }
+// agentMetricsFake records what a run reports, as "outcome/rounds",
+// "tool/status" and, for proposals, "tool/outcome".
+type agentMetricsFake struct {
+	runs, tools, actions []string
+	downgrades           int
+}
 
 func (m *agentMetricsFake) ObserveAskRun(outcome string, rounds int, _ float64) {
 	m.runs = append(m.runs, fmt.Sprintf("%s/%d", outcome, rounds))
@@ -370,6 +373,12 @@ func (m *agentMetricsFake) ObserveAskRun(outcome string, rounds int, _ float64) 
 func (m *agentMetricsFake) ObserveAskTool(tool, status string, _ float64) {
 	m.tools = append(m.tools, tool+"/"+status)
 }
+
+func (m *agentMetricsFake) ObserveAskAction(tool, outcome string) {
+	m.actions = append(m.actions, tool+"/"+outcome)
+}
+
+func (m *agentMetricsFake) ObserveAskTaintDowngrade() { m.downgrades++ }
 
 func searchCall(id string) provider.ToolCall {
 	return provider.ToolCall{ID: id, Name: "search", Input: json.RawMessage(`{"query":"banner"}`)}

@@ -171,6 +171,16 @@ func (n *askNames) person(id string) any {
 
 func (n *askNames) status(key string) string { return statusLabel(n.statuses, key) }
 
+// member refuses a person who is not in the workspace, as the meeting tools
+// do; "" (none, or cleared) passes. An unread member list passes, and the
+// command itself refuses at apply.
+func (n *askNames) member(field, id string) error {
+	if id != "" && len(n.members) > 0 && n.members[id] == "" {
+		return McpInvalidArgs{Msg: field + " holds someone " + mcpNotMember}
+	}
+	return nil
+}
+
 func (n *askNames) project(id string) any {
 	if id == "" {
 		return nil
@@ -269,6 +279,9 @@ func (s *AskUNIService) prepareCreateTask(ctx context.Context, tc ai.ToolContext
 		return askDraftRow{}, err
 	}
 	n := s.names(ctx, tc, earlier)
+	if err := n.member("assignee_id", in.AssigneeID); err != nil {
+		return askDraftRow{}, err
+	}
 	fields := []AskProposalField{{Field: "title", Type: "text", To: in.Title}}
 	add := func(field, typ string, to any, options []string) {
 		fields = append(fields, AskProposalField{Field: field, Type: typ, To: to, Options: options})
@@ -360,6 +373,9 @@ func (s *AskUNIService) prepareUpdateTask(ctx context.Context, tc ai.ToolContext
 		return askDraftRow{}, err
 	}
 	n := s.names(ctx, tc, earlier)
+	if err := n.member("assignee_id", optValue(in.AssigneeID)); err != nil {
+		return askDraftRow{}, err
+	}
 	tg, err := s.readTaskTarget(ctx, tc, in.TaskID, n)
 	if err != nil {
 		return askDraftRow{}, err

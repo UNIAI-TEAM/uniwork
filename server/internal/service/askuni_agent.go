@@ -87,6 +87,12 @@ type AskAgentMetrics interface {
 	ObserveAskRun(outcome string, rounds int, seconds float64)
 	// ObserveAskTool reports one tool call: status is ok, error or truncated.
 	ObserveAskTool(tool, status string, seconds float64)
+	// ObserveAskAction reports one proposal row of a write tool: outcome is
+	// proposed, auto_applied, applied, rejected, failed or undone (R19).
+	ObserveAskAction(tool, outcome string)
+	// ObserveAskTaintDowngrade reports an Auto turn whose level-1 rows wait
+	// for the asker because the turn read someone else's words.
+	ObserveAskTaintDowngrade()
 }
 
 // SetAgentMetrics wires the agent's metrics; nil reports nothing.

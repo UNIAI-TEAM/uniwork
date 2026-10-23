@@ -58,9 +58,12 @@ WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
 RETURNING *;
 
 -- name: AiUpdateProposalDraft :one
+-- An edit runs prepare again, so the target and the revision it read change
+-- with the payload and the preview.
 UPDATE agent_action_proposals SET
   payload = sqlc.arg(payload), preview = sqlc.arg(preview),
-  risk_level = sqlc.arg(risk_level), updated_at = now()
+  risk_level = sqlc.arg(risk_level), target_id = sqlc.narg(target_id),
+  target_revision = sqlc.narg(target_revision), updated_at = now()
 WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
   AND status = 'pending'
 RETURNING *;

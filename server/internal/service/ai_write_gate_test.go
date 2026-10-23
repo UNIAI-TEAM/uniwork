@@ -35,6 +35,27 @@ func TestAIWriteGateIsShared(t *testing.T) {
 			t.Errorf("%s: budget called %d times, want %d", c.name, spent, c.wantSpent)
 		}
 	}
+	// Ask UNI's executor asks the same gate askWriteGate builds: it neither
+	// builds a gate of its own nor spells the refusal codes itself.
+	b, err := os.ReadFile("askuni_proposals.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(b)
+	if !strings.Contains(src, "askWriteGate(") || !strings.Contains(src, ".Refusal(") {
+		t.Error("askuni_proposals.go does not ask the shared gate (askWriteGate, Refusal)")
+	}
+	for _, file := range []string{"askuni_proposals.go", "askuni_proposals_edit.go", "askuni_proposals_document.go"} {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, own := range []string{"AIWriteGate{", `"ai_actions_disabled"`, `"ai_write_rate_limited"`, "askCount("} {
+			if strings.Contains(string(b), own) {
+				t.Errorf("%s has its own refusal: %s", file, own)
+			}
+		}
+	}
 }
 
 // MCP goes through the shared gate; its own copy of the order is gone.
