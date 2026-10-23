@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -336,7 +337,9 @@ func TestAgentExtractGates(t *testing.T) {
 		}
 		expire()
 		calls := llm.Calls
-		if res, err := s.AgentExtract(ctx, c); err != nil || res.Skipped != LiveItemsSkipClosed || llm.Calls != calls {
+		// Past the drain window the run's token itself is refused (benchmark
+		// #25: agentRun answers 404 once the run closed 10 minutes ago).
+		if res, err := s.AgentExtract(ctx, c); !errors.Is(err, ErrNotFound) || llm.Calls != calls {
 			t.Fatalf("extract on a run finished long ago = %+v, %v", res, err)
 		}
 	})
