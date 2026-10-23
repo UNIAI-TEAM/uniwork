@@ -1,6 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getMeetingSettings, setMeetingAutoSummary } from "../api/endpoints/meeting-settings";
+import { getMeetingSettings, setMeetingAutoSummary, setMeetingScribePolicy } from "../api/endpoints/meeting-settings";
+import type { ScribePolicy } from "../types/meeting";
 
 /** Organization-scoped, beside the meeting keys (UNI-2026). */
 const meetingSettingsKey = (orgId: string) => ["meeting-settings", orgId] as const;
@@ -25,5 +26,22 @@ export function useSetMeetingAutoSummary(orgId: string) {
       return settings;
     },
     onSuccess: (settings) => qc.setQueryData(meetingSettingsKey(orgId), settings),
+  });
+}
+
+/** Sets the AI scribe policy; the answer replaces the cached settings. */
+export function useSetMeetingScribePolicy(orgId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (policy: ScribePolicy) => {
+      const settings = await setMeetingScribePolicy(orgId, policy);
+      if (!settings) throw new Error("meeting_settings_invalid");
+      return settings;
+    },
+    onSuccess: (settings) => {
+      qc.setQueryData(meetingSettingsKey(orgId), settings);
+      // The meeting screens read the policy from their workspace's capabilities.
+      void qc.invalidateQueries({ queryKey: ["meeting-capabilities"] });
+    },
   });
 }

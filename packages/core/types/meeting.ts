@@ -27,6 +27,13 @@ export const MeetingSchema = z.object({
   scribe_enabled: z.boolean().optional(),
   /** Detail only: the latest scribe run, DISPATCHED | ACTIVE | FINISHED | FAILED. */
   scribe_status: z.string().optional(),
+  /** The host or a clerk shared the AI content (transcript, summary) with the whole workspace. */
+  ai_content_shared: z.boolean().optional(),
+  /**
+   * Detail only, per viewer: may read the AI content. Absent (an older
+   * server) reads as readable; the reads themselves still answer 403.
+   */
+  ai_content_readable: z.boolean().optional(),
 });
 export type Meeting = z.infer<typeof MeetingSchema>;
 
@@ -242,6 +249,8 @@ export type MeetingSummary = z.infer<typeof MeetingSummarySchema>;
 export const MeetingSettingsSchema = z.object({
   organization_id: z.string(),
   auto_summary_enabled: z.boolean(),
+  /** on | opt_in | off; an older server omits it (on). Narrow with scribePolicyOf. */
+  scribe_policy: z.string().optional(),
   updated_by: z.string().nullish(),
   updated_by_kind: z.string().nullish(),
   updated_at: z.string().nullish(),
@@ -266,8 +275,26 @@ export const MeetingCapabilitiesSchema = z.object({
   scribe: z.boolean().optional(),
   /** Uploaded recordings may be transcribed in batch (UNI-2001). */
   transcription: z.boolean().optional(),
+  /** The organization's scribe policy: a new meeting starts with the scribe on unless opt_in. */
+  scribe_policy: z.string().optional(),
 });
 export type MeetingCapabilities = z.infer<typeof MeetingCapabilitiesSchema>;
+
+/** The organization's AI scribe policy (UNI-1995). */
+export type ScribePolicy = "on" | "opt_in" | "off";
+export const SCRIBE_POLICIES: readonly ScribePolicy[] = ["on", "opt_in", "off"];
+
+/** Narrows the server's string; anything unknown (or absent) is the default, on. */
+export function scribePolicyOf(raw: string | null | undefined): ScribePolicy {
+  switch (raw) {
+    case "opt_in":
+      return "opt_in";
+    case "off":
+      return "off";
+    default:
+      return "on";
+  }
+}
 
 export type AttendanceStatus = "PRESENT" | "LATE" | "EXCUSED" | "ABSENT";
 export const ATTENDANCE_STATUSES: readonly AttendanceStatus[] = ["PRESENT", "LATE", "EXCUSED", "ABSENT"];

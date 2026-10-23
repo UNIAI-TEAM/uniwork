@@ -15,6 +15,7 @@ import { formatMeetingDayTime } from "./meeting-detail-format";
 import { MeetingInviteShell } from "./meeting-invite-shell";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
 import type { PreJoinChoice } from "./meeting-prejoin";
+import { MeetingScribeNotice } from "./meeting-scribe-notice";
 
 // Camera preview pulls livekit-client (~130 KB gzip). Lazy-load it so the public
 // invite entry chunk stays under the route budget (scripts/bundle-budget.mjs).
@@ -48,6 +49,7 @@ export function MeetingPublicInviteForm({
   displayName,
   onDisplayNameChange,
   joinPending,
+  scribeNoticeFor,
   onJoin,
   onLogin,
 }: {
@@ -57,6 +59,8 @@ export function MeetingPublicInviteForm({
   displayName: string;
   onDisplayNameChange: (value: string) => void;
   joinPending: boolean;
+  /** The meeting's id when the AI scribe would transcribe it: the consent notice shows before joining. */
+  scribeNoticeFor?: string;
   onJoin: (choice: PreJoinChoice) => void;
   onLogin: () => void;
 }) {
@@ -228,6 +232,8 @@ export function MeetingPublicInviteForm({
             />
             {nameError ? <FieldError id={nameErrorId}>{t("meetings.publicInviteNameRequired")}</FieldError> : null}
           </Field>
+
+          {scribeNoticeFor ? <MeetingScribeNotice meetingKey={scribeNoticeFor} scribeOn /> : null}
 
           <Button
             type="submit"

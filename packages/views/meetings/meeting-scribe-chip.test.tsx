@@ -49,6 +49,23 @@ describe("MeetingScribeChip", () => {
     expect(screen.queryByRole("button", { name: "Tắt Thư ký AI" })).not.toBeInTheDocument();
   });
 
+  // UNI-1995 access (#2): a guest has no Meeting object (the room does not
+  // read it for them), and still sees, not only hears, that the AI listens.
+  it("shows a guest the read-only chip while the scribe is in the room", async () => {
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true }];
+    render(wrap(<MeetingScribeChip meeting={undefined} available={false} canSwitch={false} />));
+    const chip = screen.getByTestId("meeting-scribe-chip");
+    expect(chip).toHaveAttribute("data-state", "on");
+    await userEvent.click(chip);
+    expect(await screen.findByText(/Thư ký AI nghe từng người/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tắt Thư ký AI" })).not.toBeInTheDocument();
+  });
+
+  it("shows a guest nothing while no scribe is in the room", () => {
+    render(wrap(<MeetingScribeChip meeting={undefined} available={false} canSwitch={false} />));
+    expect(screen.queryByTestId("meeting-scribe-chip")).not.toBeInTheDocument();
+  });
+
   it("is hidden where the workspace has no scribe and none is in the room", () => {
     render(wrap(<MeetingScribeChip meeting={meeting} available={false} canSwitch />));
     expect(screen.queryByTestId("meeting-scribe-chip")).not.toBeInTheDocument();

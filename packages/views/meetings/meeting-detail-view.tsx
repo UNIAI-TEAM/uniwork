@@ -50,6 +50,7 @@ import { MeetingActionItemsSection } from "./meeting-action-items/meeting-action
 import { MeetingCarriedOverSection } from "./meeting-action-items/carried-over-section";
 import { MeetingMinutesSection } from "./meeting-minutes-section";
 import { MeetingSummaryPanel } from "./meeting-summary-panel";
+import { MeetingAIAccessCard, MeetingAIRestrictedNotice } from "./meeting-ai-access-card";
 import { MeetingTranscriptPanel } from "./meeting-transcript-panel";
 import { useMemberIndex } from "./use-member-index";
 import { scrollSectionIntoView, useMeetingSectionDeepLink } from "./use-meeting-section-deep-link";
@@ -164,6 +165,8 @@ export function MeetingDetailView({
   const status = displayMeetingStatus(meeting, nowMs);
   const closed = meeting.status === "ENDED" || meeting.status === "CANCELED";
   const showSummary = inProgress || meeting.status === "ENDED";
+  // Absent on an older server: readable, as before.
+  const aiRestricted = meeting.ai_content_readable === false;
   const highlightJoinRequests = canHost.allowed && pendingJoins > 0;
   const hostMember = memberOf(meeting.host_user_id);
   const hostName =
@@ -304,12 +307,19 @@ export function MeetingDetailView({
               <div className="order-3 min-w-0 empty:hidden">
                 <MeetingMotionsSection meeting={meeting} workspaceId={workspaceId} />
               </div>
-              {showSummary ? (
+              {/* What was said is for the people of the meeting (UNI-1995 access): a
+                  member outside it reads one sentence, not two failed panels. */}
+              {showSummary && aiRestricted ? (
+                <div className="order-3 min-w-0">
+                  <MeetingAIRestrictedNotice />
+                </div>
+              ) : null}
+              {showSummary && !aiRestricted ? (
                 <div className="order-3 min-w-0">
                   <MeetingSummaryPanel workspaceId={workspaceId} meeting={meeting} canClerk={isClerk} />
                 </div>
               ) : null}
-              {showSummary ? (
+              {showSummary && !aiRestricted ? (
                 <div className="order-3 min-w-0">
                   <MeetingTranscriptPanel workspaceId={workspaceId} meeting={meeting} canClerk={isClerk} />
                 </div>
@@ -377,7 +387,10 @@ export function MeetingDetailView({
                 layout === "page" && "lg:col-start-2 lg:row-start-2",
               )}
             >
-              <MeetingDetailAside workspaceId={workspaceId} meeting={meeting} canHost={canHost.allowed} />
+              <div className="flex min-w-0 flex-col gap-4">
+                <MeetingAIAccessCard workspaceId={workspaceId} meeting={meeting} canHost={canHost.allowed} canClerk={isClerk} />
+                <MeetingDetailAside workspaceId={workspaceId} meeting={meeting} canHost={canHost.allowed} />
+              </div>
             </aside>
           </div>
         </div>

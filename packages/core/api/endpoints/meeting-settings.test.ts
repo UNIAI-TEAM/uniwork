@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
-import { getMeetingSettings, setMeetingAutoSummary } from "./meeting-settings";
+import { scribePolicyOf } from "../../types/meeting";
+import { getMeetingSettings, setMeetingAutoSummary, setMeetingScribePolicy } from "./meeting-settings";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -39,6 +40,29 @@ describe("meeting settings endpoints (UNI-2026)", () => {
     expect(init?.method).toBe("PUT");
     expect(JSON.parse(String(init?.body))).toEqual({ auto_summary_enabled: false });
     expect(out?.auto_summary_enabled).toBe(false);
+  });
+
+  it("setMeetingScribePolicy PUTs only the policy", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ organization_id: "o1", auto_summary_enabled: true, scribe_policy: "opt_in" }));
+    const out = await setMeetingScribePolicy("o1", "opt_in");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/orgs/o1/meetings/settings");
+    expect(init?.method).toBe("PUT");
+    expect(JSON.parse(String(init?.body))).toEqual({ scribe_policy: "opt_in" });
+    expect(out?.scribe_policy).toBe("opt_in");
+  });
+
+  it.each(malformedBodies)("setMeetingScribePolicy degrades %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(setMeetingScribePolicy("o1", "off")).resolves.toBeNull();
+  });
+
+  it("scribePolicyOf narrows the server's string, unknown and absent read as on", () => {
+    expect(scribePolicyOf("opt_in")).toBe("opt_in");
+    expect(scribePolicyOf("off")).toBe("off");
+    expect(scribePolicyOf("on")).toBe("on");
+    expect(scribePolicyOf("sometimes")).toBe("on");
+    expect(scribePolicyOf(undefined)).toBe("on");
   });
 
   it.each(malformedBodies)("getMeetingSettings degrades %#", async (body) => {

@@ -1,4 +1,4 @@
-import { MeetingSettingsSchema, type MeetingSettings } from "../../types/meeting";
+import { MeetingSettingsSchema, type MeetingSettings, type ScribePolicy } from "../../types/meeting";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
 
@@ -10,6 +10,17 @@ export async function getMeetingSettings(orgId: string, signal?: AbortSignal): P
   const raw = await request(`/api/v1/orgs/${enc(orgId)}/meetings/settings`, { signal });
   return parseWithFallback<MeetingSettings | null>(raw, MeetingSettingsSchema, null, {
     endpoint: "GET /api/v1/orgs/{orgID}/meetings/settings",
+  });
+}
+
+/** Sets the organization's AI scribe policy: on, opt_in or off (UNI-1995). */
+export async function setMeetingScribePolicy(orgId: string, policy: ScribePolicy): Promise<MeetingSettings | null> {
+  const raw = await request(`/api/v1/orgs/${enc(orgId)}/meetings/settings`, {
+    method: "PUT",
+    body: { scribe_policy: policy },
+  });
+  return parseWithFallback<MeetingSettings | null>(raw, MeetingSettingsSchema, null, {
+    endpoint: "PUT /api/v1/orgs/{orgID}/meetings/settings",
   });
 }
 

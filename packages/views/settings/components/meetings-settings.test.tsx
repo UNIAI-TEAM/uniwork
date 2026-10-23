@@ -87,6 +87,28 @@ describe("MeetingsSettings (UNI-2026)", () => {
     expect(reads).toBe(2);
   });
 
+  // UNI-1995 access (#16): the AI scribe policy, one of three.
+  it("shows the stored scribe policy and writes a new one through the server", async () => {
+    const puts: unknown[] = [];
+    serve("admin", puts, () => Promise.resolve({ organization_id: ORG, auto_summary_enabled: true, scribe_policy: "on" }));
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
+      if (path === "/api/v1/orgs/acme/members/me") return Promise.resolve({ role: "admin" });
+      if (opts?.method === "PUT") {
+        puts.push(opts.body);
+        return Promise.resolve({ organization_id: ORG, auto_summary_enabled: true, ...(opts.body as object) });
+      }
+      return Promise.resolve({ organization_id: ORG, auto_summary_enabled: true, scribe_policy: "on" });
+    });
+    renderTab();
+    const on = await screen.findByRole("radio", { name: new RegExp(t("settings.meetings.scribe_policy_on")) });
+    expect(on).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("radio", { name: new RegExp(t("settings.meetings.scribe_policy_opt_in")) }));
+    await waitFor(() => expect(puts).toEqual([{ scribe_policy: "opt_in" }]));
+    await waitFor(() =>
+      expect(screen.getByRole("radio", { name: new RegExp(t("settings.meetings.scribe_policy_opt_in")) })).toHaveAttribute("aria-checked", "true"),
+    );
+  });
+
   it("tells a member who can change it, without reading the settings", async () => {
     serve("member");
     renderTab();

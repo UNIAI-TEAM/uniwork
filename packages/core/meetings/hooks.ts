@@ -101,10 +101,25 @@ export function useMeeting(meetingId: string, opts?: { enabled?: boolean }) {
   });
 }
 
+/**
+ * Schedules a meeting. `scribe` is the form's "Thư ký AI" switch: when the
+ * created meeting starts otherwise (the organization's policy decides), the
+ * existing PUT /scribe sets it. That second call failing leaves the meeting
+ * created as the server made it - the answer then still says so, and the form
+ * tells the person instead of letting a retry create the meeting twice.
+ */
 export function useCreateMeeting(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: meetings.CreateMeetingBody) => meetings.createMeeting(workspaceId, body),
+    mutationFn: async ({ scribe, ...body }: meetings.CreateMeetingBody & { scribe?: boolean }) => {
+      const created = await meetings.createMeeting(workspaceId, body);
+      if (!created || scribe === undefined || (created.scribe_enabled !== false) === scribe) return created;
+      try {
+        return (await meetings.setMeetingScribe(created.id, scribe)) ?? created;
+      } catch {
+        return created;
+      }
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: meetingKeys.list(workspaceId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.stats(workspaceId) });
@@ -130,6 +145,21 @@ export function useSetMeetingScribe(meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (enabled: boolean) => meetings.setMeetingScribe(meetingId, enabled),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: meetingKeys.detail(meetingId) });
+    },
+  });
+}
+
+/** Share the meeting's AI content with the workspace, or keep it to the meeting; the detail carries the new state. */
+export function useSetMeetingAISharing(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (shared: boolean) => {
+      const m = await meetings.setMeetingAISharing(meetingId, shared);
+      if (!m) throw new Error("meeting_ai_sharing_invalid");
+      return m;
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: meetingKeys.detail(meetingId) });
     },

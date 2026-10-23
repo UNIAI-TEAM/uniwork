@@ -164,6 +164,14 @@ export async function setMeetingScribe(meetingId: string, enabled: boolean): Pro
   })?.meeting ?? null;
 }
 
+/** PUT /meetings/{id}/ai-sharing: a clerk shares the AI content with the workspace, or keeps it to the meeting. */
+export async function setMeetingAISharing(meetingId: string, shared: boolean): Promise<Meeting | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/ai-sharing`, { method: "PUT", body: { shared } });
+  return parseWithFallback<{ meeting: Meeting } | null>(raw, MeetingResponse, null, {
+    endpoint: "PUT /api/v1/meetings/{id}/ai-sharing",
+  })?.meeting ?? null;
+}
+
 export async function deleteMeeting(meetingId: string): Promise<void> {
   await request(`/api/v1/meetings/${enc(meetingId)}`, { method: "DELETE" });
 }
@@ -289,6 +297,8 @@ const PublicInviteLinkSchema = z.object({
   // Added after `expired`; an older server omits both and the page falls back to `expired`.
   link_state: z.string().optional(),
   meeting_state: z.string().optional(),
+  /** The AI scribe would transcribe the meeting: the page tells the guest before they join. */
+  scribe: z.boolean().optional(),
 });
 export type PublicInviteLink = z.infer<typeof PublicInviteLinkSchema>;
 export type InviteLinkState = "active" | "expired" | "revoked" | "exhausted";

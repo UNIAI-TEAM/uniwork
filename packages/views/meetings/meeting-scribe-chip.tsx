@@ -36,9 +36,9 @@ const EXPLAIN_KEY: Record<ScribeChipState, string> = {
 
 /**
  * The room's sign that the AI scribe is listening (spec D14: always shown
- * while it is), with a short explanation and, for the host or an admin, the
- * switch for this meeting. Hidden where the workspace has no scribe and none
- * is in the room.
+ * while it is, to members and guests alike), with a short explanation and,
+ * for the host or an admin, the switch for this meeting. Hidden where the
+ * workspace has no scribe and none is in the room.
  */
 export function MeetingScribeChip({
   meeting,
@@ -55,10 +55,15 @@ export function MeetingScribeChip({
   const inRoom = useScribeInRoom();
   const set = useSetMeetingScribe(meeting?.id ?? "");
   const [open, setOpen] = useState(false);
-  if (!meeting || (!available && !inRoom)) return null;
-  const state = scribeChipState(meeting, inRoom);
+  if (!available && !inRoom) return null;
+  // A guest has no Meeting (the room does not read it for them): the agent in
+  // the room is all they need to see that the AI listens (UNI-1995 access).
+  if (!meeting && !inRoom) return null;
+  const state = meeting ? scribeChipState(meeting, inRoom) : "on";
   // A viewer who cannot switch it learns nothing from "joining" or "off".
   if (!canSwitch && (state === "joining" || state === "off")) return null;
+  // The switch needs the meeting it switches.
+  const switchable = canSwitch && !!meeting;
   const failed = state === "failed";
   const Icon = failed ? CircleAlert : Sparkles;
   const switchTo = (enabled: boolean) => {
@@ -96,13 +101,13 @@ export function MeetingScribeChip({
       <PopoverContent className="dark w-72 space-y-3">
         <p className="text-body font-medium">{t(LABEL_KEY[state])}</p>
         <p className="text-caption text-muted-foreground">{t(EXPLAIN_KEY[state])}</p>
-        {canSwitch && state === "failed" ? (
+        {switchable && state === "failed" ? (
           <Button type="button" size="sm" onClick={() => switchTo(true)} aria-disabled={set.isPending} className="w-full">
             {set.isPending ? <Spinner /> : null}
             {t("common.retry")}
           </Button>
         ) : null}
-        {canSwitch ? (
+        {switchable ? (
           <Button
             type="button"
             size="sm"

@@ -62,6 +62,8 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
   const [startsAt, setStartsAt] = useState("");
   const [meetingId, setMeetingId] = useState("");
   const [accessMode, setAccessMode] = useState("");
+  // The AI scribe would transcribe the meeting: the guest is told before joining (UNI-1995 access).
+  const [scribe, setScribe] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [lobbyDecision, setLobbyDecision] = useState<string | undefined>();
   const [lobbyMeetingStatus, setLobbyMeetingStatus] = useState<string | undefined>();
@@ -100,6 +102,8 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
       setStartsAt(res.starts_at);
       setMeetingId(res.meeting_id ?? "");
       setAccessMode(res.access_mode);
+      setScribe(res.scribe === true);
+      sessionStorage.setItem(inviteStorageKey(linkId, "scribe"), res.scribe === true ? "1" : "");
       if (res.meeting_id) {
         sessionStorage.setItem(inviteStorageKey(linkId, "meetingId"), res.meeting_id);
       }
@@ -304,6 +308,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
           onRequestAgain={() => runJoin(undefined, true)}
           requestingAgain={joinPending}
           onRetry={() => runJoin()}
+          scribeNoticeFor={scribe && meetingId ? meetingId : undefined}
           onLeave={leaveLobby}
         />
       </MeetingInviteShell>,
@@ -319,6 +324,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
         displayName={displayName}
         onDisplayNameChange={setDisplayName}
         joinPending={joinPending}
+        scribeNoticeFor={scribe && meetingId ? meetingId : undefined}
         onJoin={(choice) => runJoin(choice)}
         onLogin={() => nav.push(loginHref)}
       />,
