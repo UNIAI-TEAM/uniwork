@@ -16,6 +16,19 @@ type AiCapabilitiesSDO struct {
 	// organization's switch; auto_model is the key Auto resolves to.
 	Models    []AiModelOptionDTO `json:"models" description:"Model Claude chạy được cho Hỏi UNI, theo thứ tự hiển thị"`
 	AutoModel string             `json:"auto_model" description:"Khóa model mà Tự động dùng; rỗng nếu không trùng model nào" example:"sonnet"`
+	// Attachments is false while ask_uni_attachments is off for the caller or
+	// their turn would not run the agent; the client then hides the upload entry.
+	Attachments bool `json:"attachments" description:"true khi người gọi được gắn file vào câu hỏi: cờ ask_uni_attachments bật và lượt hỏi chạy agent (cờ ask_uni_agent bật, công cụ đọc và model đã cấu hình); false thì client ẩn nút tải file" example:"true"`
+}
+
+// AiAttachmentUploadSDO is POST /api/v1/workspaces/{workspaceID}/ai/attachments:
+// a file stored for the caller's next question, not yet attached to one.
+type AiAttachmentUploadSDO struct {
+	FileID string `json:"file_id" description:"ULID tệp; gửi trong attachment_ids của câu hỏi, hoặc DELETE …/ai/attachments/{fileID} để bỏ" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
+	Name   string `json:"name" description:"Tên tệp đã làm sạch" example:"bao-cao-quy-3.pdf"`
+	MIME   string `json:"mime" description:"Loại tệp xét theo nội dung, không theo tên hay Content-Type của client" example:"application/pdf"`
+	Size   int64  `json:"size" description:"Số byte" example:"184320"`
+	Kind   string `json:"kind" description:"image, pdf hoặc text: cách Hỏi UNI đọc tệp này" example:"pdf"`
 }
 
 // AiModelOptionDTO is one selectable Ask UNI model.
@@ -57,6 +70,23 @@ type AiContextRefDTO struct {
 	Title string `json:"title" description:"Tên đối tượng lúc hỏi" example:"Viết spec F-09"`
 }
 
+// AiAttachmentDTO is one file a question carried.
+type AiAttachmentDTO struct {
+	ID   string `json:"id" description:"Id của file trên câu hỏi (không phải file_id lúc tải lên); dùng để tải file về" example:"01K4AIATT0000000000000001"`
+	Name string `json:"name" description:"Tên tệp đã làm sạch" example:"bao-cao-quy-3.pdf"`
+	MIME string `json:"mime" description:"Loại tệp xét theo nội dung" example:"application/pdf"`
+	Size int64  `json:"size" description:"Số byte" example:"184320"`
+	Kind string `json:"kind" description:"image, pdf hoặc text: cách Hỏi UNI đọc tệp này" example:"pdf"`
+}
+
+// AiFileNoteDTO is a file of the turn that UNI read only in part.
+type AiFileNoteDTO struct {
+	Name  string `json:"name" description:"Tên tệp" example:"bao-cao-quy-3.pdf"`
+	Unit  string `json:"unit" description:"Đơn vị đếm: page, slide, row, paragraph hoặc line" example:"page"`
+	Read  int    `json:"read" description:"Số đơn vị đầu đã đọc; 0 khi chỉ đọc được phần đầu của đơn vị thứ nhất" example:"15"`
+	Total int    `json:"total" description:"Tổng số đơn vị của tệp" example:"80"`
+}
+
 // AiMessageDTO is one turn of a conversation.
 type AiMessageDTO struct {
 	ID        string            `json:"id" example:"01K4AIMSG0000000000000001"`
@@ -69,7 +99,12 @@ type AiMessageDTO struct {
 	Focus     *AiContextRefDTO  `json:"focus,omitempty" description:"Đối tượng câu hỏi đang xem; vắng khi không có" example:"{\"kind\":\"task\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\",\"title\":\"Viết spec F-09\"}"`
 	Mentions  []AiContextRefDTO `json:"mentions" description:"Các đối tượng người hỏi @-nhắc tới" example:"[{\"kind\":\"member\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\",\"title\":\"An\"}]"`
 	Model     string            `json:"model" description:"Model người hỏi chọn cho câu trả lời (haiku, sonnet, opus); rỗng khi là Tự động" example:"opus"`
-	CreatedAt string            `json:"created_at" example:"2026-09-06T08:00:00Z"`
+	// Attachments is filled by the list of messages only; the stored answer an
+	// ask or a done event returns is not the question, so it carries none.
+	Attachments []AiAttachmentDTO `json:"attachments" description:"File câu hỏi đã gắn, theo thứ tự gắn; chỉ có trên tin nhắn của người hỏi trong danh sách tin nhắn, rỗng ở mọi tin nhắn khác (kể cả câu trả lời trong done)" example:"[{\"id\":\"01K4AIATT0000000000000001\",\"name\":\"bao-cao-quy-3.pdf\",\"mime\":\"application/pdf\",\"size\":184320,\"kind\":\"pdf\"}]"`
+	// FileNotes is stored on the answer; a question carries none.
+	FileNotes []AiFileNoteDTO `json:"file_notes" description:"Trên câu trả lời: các file của lượt hỏi UNI chỉ đọc một phần (vì vượt phần token dành cho file), theo thứ tự đọc; rỗng khi đọc đủ, khi không có file và ở tin nhắn của người hỏi" example:"[{\"name\":\"bao-cao-quy-3.pdf\",\"unit\":\"page\",\"read\":15,\"total\":80}]"`
+	CreatedAt string          `json:"created_at" example:"2026-09-06T08:00:00Z"`
 }
 
 // AiUsageDTO is what the call cost.

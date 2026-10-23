@@ -98,6 +98,7 @@ var catalogue = []Flag{
 	{Key: "unichat_mobile_timeline_recycled", Description: "UniChat mobile: danh sách tin của một phòng chạy trên FlashList 2 (tái chế ô, đo chiều cao từng ô); tắt (mặc định) giữ FlatList đảo ngược; bật theo % người dùng để A/B hiệu năng cuộn (UNI-2053)", Default: false, Mobile: true, Owner: "chat", ReviewAt: day(2027, 3, 31)},
 	{Key: "ask_uni_agent", Description: "Hỏi UNI chạy như agent tự tra cứu bằng tool chỉ đọc (UNI-1962, P1); tắt thì giữ luồng P0", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 1, 31)},
 	{Key: "ask_uni_stream", Description: "Hỏi UNI dùng dock mới và luồng stream SSE thay cho panel cũ (UNI-2015, P2); tắt thì giữ panel cũ và POST …/ai/ask. Chỉ chuyển giao diện, server không chặn route stream", Default: false, Public: true, Owner: "ai", ReviewAt: day(2027, 2, 28)},
+	{Key: "ask_uni_attachments", Description: "Hỏi UNI nhận file gắn vào câu hỏi (UNI-2119); tắt thì ẩn nút tải file và server từ chối", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 3, 31)},
 }
 
 // EvaluateMobileFlags evaluates every mobile key for the request's context,

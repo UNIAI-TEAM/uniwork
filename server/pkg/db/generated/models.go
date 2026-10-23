@@ -41,6 +41,21 @@ type Agent struct {
 	ArchivedAt         pgtype.Timestamptz `json:"archived_at"`
 }
 
+type AiAttachment struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	UserID         string             `json:"user_id"`
+	ConversationID string             `json:"conversation_id"`
+	MessageID      string             `json:"message_id"`
+	FileID         string             `json:"file_id"`
+	Name           string             `json:"name"`
+	Mime           string             `json:"mime"`
+	SizeBytes      int64              `json:"size_bytes"`
+	Kind           string             `json:"kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type AiConversation struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -68,6 +83,7 @@ type AiMessage struct {
 	Mentions       string             `json:"mentions"`
 	SupersededAt   pgtype.Timestamptz `json:"superseded_at"`
 	Model          string             `json:"model"`
+	FileNotes      string             `json:"file_notes"`
 }
 
 type AiMessageFeedback struct {
