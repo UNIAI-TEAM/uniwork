@@ -345,11 +345,11 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(scribe_stt_errors_total[5m])) * 60",
-          "legendFormat": "lỗi/phút"
+          "expr": "sum by (reason) (rate(scribe_stt_errors_total[5m])) * 60",
+          "legendFormat": "{{reason}}"
         }
       ],
-      "description": "Phiên STT bị bỏ (key sai, nhà cung cấp lỗi, 1008 vượt hạn mức phiên mới). Mỗi lỗi: track đó im tới lần thử lại."
+      "description": "Phiên STT bị bỏ theo nguyên nhân: stream (phiên chết), push (không gửi được âm thanh), session_limit (1008/429, vượt hạn mức phiên mới). Mỗi lỗi: track đó im tới lần thử lại; lỗi kéo dài 20 s thì phòng hiện \"tạm dừng\"."
     },
     {
       "id": 8,
@@ -584,7 +584,7 @@
       "gridPos": {
         "x": 0,
         "y": 44,
-        "w": 24,
+        "w": 12,
         "h": 8
       },
       "fieldConfig": {
@@ -604,6 +604,39 @@
           "legendFormat": "{{capability}} {{status}}"
         }
       ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Lần chạy thư ký: đang ghi và im lặng",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 44,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (state) (uniwork_meeting_scribe_runs)",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "description": "Kiểm tra phía server, độc lập với metric của agent: active = lần chạy ACTIVE đang có người; silent = trong số đó, đã ghi được lời rồi 3 phút không có dòng nào (alert MeetingScribeRunsSilent)."
     }
   ]
 }
