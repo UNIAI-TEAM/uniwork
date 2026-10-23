@@ -233,6 +233,15 @@ func TestAppleClientRefusesAKeyItCannotSignWith(t *testing.T) {
 	}
 }
 
+// The production Secret (deploy/app/env/README.md › Apple) carries the .p8 file
+// as written, real line breaks and a trailing newline included.
+func TestAppleClientTakesThePEMAsTheSecretFileCarriesIt(t *testing.T) {
+	p8, _ := testP8(t)
+	if _, err := NewAppleClient("XJAM488A6D", "KEY123", p8+"\n", AppleIssuer); err != nil {
+		t.Fatalf("multi-line PEM: %v", err)
+	}
+}
+
 func TestAppleClientReportsAnAnswerWithoutRefreshToken(t *testing.T) {
 	p8, _ := testP8(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -445,6 +445,16 @@ func TestNewAPNsVoIPSenderNeedsTheWholeKey(t *testing.T) {
 	if s, err := NewAPNsVoIPSender(APNsConfig{KeyID: "K", TeamID: "T", PrivateKey: escaped}); err != nil || s == nil {
 		t.Fatalf("escaped newlines: %v, %v", s, err)
 	}
+	// The production Secret carries the .p8 file as written: real line breaks,
+	// a trailing newline, and the key id file's own newline.
+	if s, err := NewAPNsVoIPSender(APNsConfig{KeyID: "K\n", TeamID: "T", PrivateKey: pemKey + "\n"}); err != nil || s == nil {
+		t.Fatalf("multi-line PEM: %v, %v", s, err)
+	}
+	// The ConfigMap sets the team id; a cluster without the uniwork-apple
+	// Secret has nothing else. That is an error the server logs, never a sender.
+	if s, err := NewAPNsVoIPSender(APNsConfig{TeamID: "XJAM488A6D"}); err == nil || s != nil {
+		t.Fatalf("team id alone = %v, %v; want an error and VoIP off", s, err)
+	}
 }
 
 func TestPrefixSenderRoutesPushKitTokensToVoIP(t *testing.T) {
