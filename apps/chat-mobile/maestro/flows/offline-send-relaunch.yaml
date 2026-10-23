@@ -71,7 +71,8 @@ onFlowComplete:
 - assertVisible: .*${output.stamp} #2.*
 - setAirplaneMode: disabled
 # Delivered: the list's preview is the last one, as the server has it.
-- tapOn: "Back|Quay lại"
+# With unread elsewhere the back button reads "Back, 1 unread message" (chat-header.tsx › backBadge).
+- tapOn: "(Back|Quay lại)(, .+)?"
 - extendedWaitUntil:
     visible:
       id: room-row-${MAESTRO_ROOM_ID}

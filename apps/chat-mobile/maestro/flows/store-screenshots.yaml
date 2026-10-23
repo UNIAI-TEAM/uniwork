@@ -28,7 +28,8 @@ tags:
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: ${MAESTRO_SHOT_DIR}/2-conversation
-- tapOn: "Back|Quay lại"
+# With unread elsewhere the back button reads "Back, 1 unread message" (chat-header.tsx › backBadge).
+- tapOn: "(Back|Quay lại)(, .+)?"
 - tapOn: "People|Danh bạ"
 - waitForAnimationToEnd
 - takeScreenshot: ${MAESTRO_SHOT_DIR}/3-contacts
