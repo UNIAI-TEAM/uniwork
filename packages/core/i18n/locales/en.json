@@ -605,7 +605,10 @@
         "retention_description": "Past this window, UNI deletes meeting transcripts and uploaded recordings. Summaries, minutes, action items and tasks stay.",
         "retention_forever": "Forever",
         "retention_days_one": "{{count}} day",
-        "retention_days_other": "{{count}} days"
+        "retention_days_other": "{{count}} days",
+        "retention_shrink_title": "Keep transcripts for only {{days}} days?",
+        "retention_shrink_description": "Within an hour, UNI deletes every meeting transcript and uploaded recording older than {{days}} days across the organization. This cannot be undone. Summaries, minutes, action items and tasks are kept.",
+        "retention_shrink_confirm": "Delete and save"
       },
     "documents": {
       "title": "Documents",

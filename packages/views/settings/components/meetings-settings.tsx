@@ -1,12 +1,13 @@
 "use client";
 
-import { useId } from "react";
-import { RotateCcwClock, ShieldCheck, Sparkles } from "lucide-react";
+import { useId, useState } from "react";
+import { RotateCcwClock, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingSettings, useSetMeetingAutoSummary, useSetMeetingTranscriptRetention } from "@uniwork/core/meetings/settings";
 import { useOrgMembership } from "@uniwork/core/organizations";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { ConfirmDialog } from "../../common/form-dialog";
 import { useWorkspace } from "../../layout/workspace-context";
 import {
   SettingsCard,
@@ -53,6 +54,9 @@ export function MeetingsSettings() {
   const setRetention = useSetMeetingTranscriptRetention(workspace.organization_id);
   const hintId = useId();
   const retentionHintId = useId();
+  // A shorter window deletes for good within the hour: it waits for a confirm.
+  const [shrinkTo, setShrinkTo] = useState<number | null>(null);
+  const saveRetention = (days: number | null) => void setRetention.mutateAsync(days).catch(() => undefined);
 
   if (membership.isLoading) return <SettingsTabSkeleton />;
 
@@ -150,7 +154,10 @@ export function MeetingsSettings() {
                     disabled={setRetention.isPending}
                     onValueChange={(next) => {
                       if (typeof next !== "string" || setRetention.isPending) return;
-                      void setRetention.mutateAsync(next === FOREVER ? null : Number(next)).catch(() => undefined);
+                      const days = next === FOREVER ? null : Number(next);
+                      const current = settings.data?.transcript_retention_days ?? null;
+                      if (days !== null && (current === null || days < current)) setShrinkTo(days);
+                      else saveRetention(days);
                     }}
                     items={[
                       { value: FOREVER, label: t("retention_forever") },
@@ -163,6 +170,20 @@ export function MeetingsSettings() {
           </SettingsCard>
         </SettingsSection>
       )}
+      <ConfirmDialog
+        open={shrinkTo !== null}
+        onOpenChange={(open) => {
+          if (!open) setShrinkTo(null);
+        }}
+        title={t("retention_shrink_title", { days: shrinkTo ?? 0 })}
+        description={t("retention_shrink_description", { days: shrinkTo ?? 0 })}
+        confirmLabel={t("retention_shrink_confirm")}
+        icon={Trash2}
+        onConfirm={() => {
+          if (shrinkTo !== null) saveRetention(shrinkTo);
+          setShrinkTo(null);
+        }}
+      />
     </SettingsTab>
   );
 }

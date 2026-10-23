@@ -604,7 +604,10 @@
         "retention_description": "Quá thời hạn, UNI xóa lời thoại và tệp ghi âm tải lên của cuộc họp. Tóm tắt, biên bản, việc cần làm và task vẫn giữ nguyên.",
         "retention_forever": "Giữ mãi",
         "retention_days_one": "{{count}} ngày",
-        "retention_days_other": "{{count}} ngày"
+        "retention_days_other": "{{count}} ngày",
+        "retention_shrink_title": "Chỉ giữ lời thoại {{days}} ngày?",
+        "retention_shrink_description": "Trong vòng một giờ, UNI xóa mọi lời thoại và tệp ghi âm tải lên của cuộc họp cũ hơn {{days}} ngày trong cả tổ chức. Không khôi phục được. Tóm tắt, biên bản, việc cần làm và task vẫn giữ nguyên.",
+        "retention_shrink_confirm": "Xóa và lưu"
       },
     "documents": {
       "title": "Tài liệu",

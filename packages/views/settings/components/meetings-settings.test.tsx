@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -31,6 +31,10 @@ function serve(role: string, puts: unknown[] = [], read?: () => Promise<unknown>
   requestMock.mockReset();
   requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
     if (path === "/api/v1/orgs/acme/members/me") return Promise.resolve({ role });
+    if (path === `/api/v1/orgs/${ORG}/meetings/transcript-retention` && opts?.method === "PUT") {
+      puts.push(opts.body);
+      return Promise.resolve({ organization_id: ORG, auto_summary_enabled: true, ...(opts.body as object) });
+    }
     if (path === `/api/v1/orgs/${ORG}/meetings/settings`) {
       if (opts?.method === "PUT") {
         puts.push(opts.body);
@@ -92,6 +96,39 @@ describe("MeetingsSettings (UNI-2026)", () => {
     renderTab();
     const select = await screen.findByRole("combobox", { name: t("settings.meetings.retention_label") });
     await waitFor(() => expect(select).toHaveTextContent(t("settings.meetings.retention_days", { count: 90 })));
+  });
+
+  async function pickRetention(label: string) {
+    const select = await screen.findByRole("combobox", { name: t("settings.meetings.retention_label") });
+    fireEvent.click(select);
+    const option = await screen.findByRole("option", { name: label });
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+  }
+
+  it("asks before a shorter retention deletes old transcripts, and saves only once confirmed (UNI-1995 #5)", async () => {
+    const puts: unknown[] = [];
+    serve("owner", puts, () => Promise.resolve({ organization_id: ORG, auto_summary_enabled: true, transcript_retention_days: null }));
+    renderTab();
+    await pickRetention(t("settings.meetings.retention_days", { count: 30 }));
+    const dialog = await screen.findByRole("alertdialog", { name: t("settings.meetings.retention_shrink_title", { days: 30 }) });
+    expect(dialog).toHaveTextContent(t("settings.meetings.retention_shrink_description", { days: 30 }));
+    expect(puts).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: t("settings.meetings.retention_shrink_confirm") }));
+    await waitFor(() => expect(puts).toEqual([{ transcript_retention_days: 30 }]));
+  });
+
+  it("saves a longer retention without asking, and a cancelled shrink saves nothing", async () => {
+    const puts: unknown[] = [];
+    serve("owner", puts, () => Promise.resolve({ organization_id: ORG, auto_summary_enabled: true, transcript_retention_days: 90 }));
+    renderTab();
+    await pickRetention(t("settings.meetings.retention_days", { count: 30 }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: t("common.cancel") }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    await pickRetention(t("settings.meetings.retention_forever"));
+    await waitFor(() => expect(puts).toEqual([{ transcript_retention_days: null }]));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   it("tells a member who can change it, without reading the settings", async () => {
