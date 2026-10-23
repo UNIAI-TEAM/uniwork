@@ -808,6 +808,22 @@ test("every Maestro run in the mobile workflows goes through scripts/maestro-ret
   assert.ok(runs >= 13, `found ${runs} wrapped runs`);
 });
 
+// Audit "Security & privacy", no-pinning-or-attestation: the pins no OTA can change are checked against the live
+// chains every day and on every PR that touches them or the hosts the deploy names (runbook unichat-tls-pins).
+test("the TLS pins are checked against the live chains daily and on every PR that touches them, reading no secret", () => {
+  const wf = read("chat-mobile-tls-pins.yml");
+  assert.match(wf, /^ {2}schedule:\n {4}- cron: "\d+ \d+ \* \* \*"$/m, "daily");
+  assert.match(wf, /^ {2}workflow_dispatch:$/m);
+  const paths = [...(wf.match(/^ {2}pull_request:\n {4}paths:\n((?: {6}- .+\n)+)/m)?.[1] ?? "").matchAll(/- (\S+)/g)].map((m) => m[1]);
+  for (const file of ["apps/chat-mobile/tls-pins.json", "apps/chat-mobile/certs/tls-pins/**", "apps/chat-mobile/plugins/with-tls-pins.js", "scripts/mobile-tls-pins.mjs", "deploy/app/env/uniwork-be.env", ".github/workflows/chat-mobile-tls-pins.yml"]) {
+    assert.ok(paths.includes(file), `a PR touching ${file} runs the check`);
+  }
+  assert.match(wf, /run: node --test scripts\/mobile-tls-pins\.test\.mjs\n/, "the contract on the committed pins");
+  assert.match(wf, /run: node scripts\/mobile-tls-pins\.mjs$/m, "the live check, failing the job on a missing pin");
+  assert.doesNotMatch(wf, /secrets\.|vars\./, "a fork's PR can run it");
+  assert.doesNotMatch(wf, /continue-on-error/, "a missing pin is red");
+});
+
 // A contract test that no workflow runs holds nothing: every mobile one is in the checks job's step.
 test("the mobile contract step runs every mobile contract test in scripts/", () => {
   const step = read("mobile-verify.yml").match(/- name: Mobile repo contracts\n\s+run: node --test ([^\n]+)/)?.[1].split(/\s+/) ?? [];

@@ -1,0 +1,59 @@
+name: UniChat mobile TLS pins
+
+# Every staging and production binary of UniChat mobile pins the CA keys in
+# apps/chat-mobile/tls-pins.json for its API, web and LiveKit hosts
+# (plugins/with-tls-pins.js). No OTA can change a binary's pins, so the day a
+# server serves a chain without any of them, every phone with that binary
+# loses the server. This connects to every pinned host each day, and on every
+# PR that touches the pins, and is red when no pinned key is in a host's chain,
+# when a host cannot be reached, or once the pin-set has expired; it warns
+# warnDays (tls-pins.json) before the expiry and when a leaf certificate is
+# days from running out. scripts/mobile-tls-pins.mjs does the work. Runbook:
+# docs/runbooks/unichat-tls-pins.md.
+#
+# Reads no secret and no setting. A red scheduled run notifies whoever last
+# edited the schedule; the runbook asks the mobile owner to watch this
+# workflow (Actions › UniChat mobile TLS pins › "…" › enable notifications).
+
+on:
+  schedule:
+    - cron: "41 1 * * *"
+  pull_request:
+    paths:
+      - apps/chat-mobile/tls-pins.json
+      - apps/chat-mobile/certs/tls-pins/**
+      - apps/chat-mobile/plugins/with-tls-pins.js
+      - scripts/mobile-tls-pins.mjs
+      - deploy/app/env/uniwork-be.env
+      - deploy/edge/**
+      - .github/workflows/chat-mobile-tls-pins.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  pins:
+    name: Pinned hosts serve a pinned key
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # Node built-ins only: no install. The contract first (each pin is its committed certificate's key, two CA
+      # operators, production pins every host deploy/app/env/uniwork-be.env names), then the live chains.
+      - name: The committed pins hold to their certificates and to the deployed hosts
+        run: node --test scripts/mobile-tls-pins.test.mjs
+      - name: Check every pinned host's live chain and the pin-set's expiry
+        run: node scripts/mobile-tls-pins.mjs
