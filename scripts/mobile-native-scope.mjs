@@ -108,6 +108,9 @@ export const MOBILE_PATHS = [
   "server/internal/handler/workspace.go",
   "server/internal/handler/task.go",
   "server/internal/handler/organization_members.go",
+  // The routes the app's calls must find (scripts/mobile-route-catalogue.test.mjs): a router change that drops one
+  // fails there, not on the phones.
+  "server/internal/handler/router/*.go",
   "server/internal/config/unichat_downloads.go",
   "server/internal/featureflags/keys.go",
   "server/internal/service/account_deletion.go",

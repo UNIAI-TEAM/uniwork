@@ -126,10 +126,10 @@ function AuthInitializer({ children }: { children: ReactNode }) {
     const unsubscribe = session.onChange((token) => {
       // A callback that arrives as a deep link adopts the session outside login(): load /me so index.tsx leaves /login.
       if (token) void useAuthStore.getState().adoptSession();
-      // The server ended the session while a user is in (this device revoked elsewhere: socket 4001,
-      // refresh device_revoked): out now, not at the next request. logout() clears the user first,
-      // so the sign-out the app asked for never comes back here.
-      else if (useAuthStore.getState().user) signOut();
+      // The server ended the session (this device revoked elsewhere: socket 4001, refresh device_revoked): the
+      // store records it, so a boot or a sign-in on the way lets nobody in, and someone already in is out now, not at
+      // the next request. logout() clears the user first, so the sign-out the app asked for never comes back here.
+      else if (useAuthStore.getState().sessionEnded()) signOut();
     });
     // The session, the stored person, the workspace and the outbox are read together (data/auth/store.ts).
     void useAuthStore.getState().initialize();

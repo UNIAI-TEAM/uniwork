@@ -296,6 +296,25 @@ describe("auth store", () => {
     expect(apiMock.getMe).not.toHaveBeenCalled();
   });
 
+  // The first start of this build (nobody stored) with a fresh token: the restore's emit starts the sign-in's /me,
+  // and the boot, which needs /me too, joins it and ends with its answer.
+  it("initialize: the restore's own emit and a boot with nobody stored share one /me and one cache restore", async () => {
+    let answer: (u: typeof user) => void = () => undefined;
+    apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    sessionMock.restore.mockImplementationOnce(async () => {
+      void useAuthStore.getState().adoptSession();
+      return true;
+    });
+    const boot = useAuthStore.getState().initialize();
+    await vi.waitFor(() => expect(useAuthStore.getState().status).toBe("restoring"));
+    expect(useAuthStore.getState().isLoading).toBe(true);
+    answer(user);
+    await boot;
+    expect(useAuthStore.getState()).toMatchObject({ user, isLoading: false, status: "signedIn" });
+    expect(apiMock.getMe).toHaveBeenCalledTimes(1);
+    expect(cacheMock.restoreAccountCache).toHaveBeenCalledExactlyOnceWith("u1");
+  });
+
   it("adoptSession: /me answering about someone else than the person already in is not adopted", async () => {
     let answer: (u: typeof user) => void = () => undefined;
     apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
@@ -305,6 +324,108 @@ describe("auth store", () => {
     await adopt;
     expect(useAuthStore.getState().user?.id).toBe("u2");
     expect(cacheMock.restoreAccountCache).not.toHaveBeenCalled();
+  });
+
+  // The model (machine.test.ts) found it: a sign-in's /me that answers after the server ended the session let the
+  // person in with no session, until the next request's 401.
+  it("adoptSession: a /me answered after the server ended the session lets nobody in", async () => {
+    let answer: (u: typeof user) => void = () => undefined;
+    apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const adopt = useAuthStore.getState().adoptSession();
+    sessionMock.status.mockReturnValue("signed-out");
+    answer(user);
+    await adopt;
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(cacheMock.restoreAccountCache).not.toHaveBeenCalled();
+  });
+
+  it("a sign-out while a sign-in's /me is on the wire: its late answer lets nobody back in", async () => {
+    let answer: (u: typeof user) => void = () => undefined;
+    apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const login = useAuthStore.getState().login();
+    await vi.waitFor(() => expect(apiMock.getMe).toHaveBeenCalledTimes(1));
+    await useAuthStore.getState().logout();
+    answer(user);
+    await login;
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(cacheMock.restoreAccountCache).not.toHaveBeenCalled();
+  });
+
+  // The model found it: the server ending the session while a sign-in's (or a first start's) cached rooms were
+  // restored let nobody in but left those rooms in memory, and the disk writer on, for the next person's copy.
+  it("a verdict while a sign-in's cached rooms are restored lets nobody in and wipes the rooms", async () => {
+    cacheMock.restoreAccountCache.mockImplementationOnce(async () => {
+      sessionMock.status.mockReturnValue("signed-out");
+      // app/_layout.tsx › onChange(null)
+      useAuthStore.getState().sessionEnded();
+    });
+    await useAuthStore.getState().adoptSession();
+    expect(useAuthStore.getState().user).toBeNull();
+    await vi.waitFor(() => expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(1));
+    expect(clearAccountCache).toHaveBeenCalledExactlyOnceWith(queryClientMock, openDeviceStore);
+    await vi.waitFor(() => expect(useAuthStore.getState().status).toBe("signedOut"));
+  });
+
+  it("initialize: a verdict while a first start's cached rooms are restored lets nobody in and wipes the rooms", async () => {
+    // Nobody stored, no queue left: only the rooms this restore hydrated are there to go.
+    cacheMock.restoreAccountCache.mockImplementationOnce(async () => {
+      sessionMock.status.mockReturnValue("signed-out");
+    });
+    await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState()).toMatchObject({ user: null, isLoading: false, status: "signedOut" });
+    expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(1);
+    expect(clearAccountCache).toHaveBeenCalledExactlyOnceWith(queryClientMock, openDeviceStore);
+  });
+
+  it("a sign-in after a sign-out asks /me again: the old session's late /me lets nobody in", async () => {
+    // The stored person is in offline; the boot's revalidation /me is still on the wire.
+    let late: (u: typeof user) => void = () => undefined;
+    lastUserMock.readLastUser.mockResolvedValueOnce(user);
+    apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (late = resolve)));
+    await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState().status).toBe("signedInOffline");
+    await useAuthStore.getState().logout();
+
+    const next = { ...user, id: "u2", email: "n@b.c" };
+    apiMock.getMe.mockResolvedValueOnce(next);
+    const login = useAuthStore.getState().login();
+    await vi.waitFor(() => expect(apiMock.getMe).toHaveBeenCalledTimes(2));
+    await login;
+    expect(useAuthStore.getState().user).toEqual(next);
+    late(user);
+    await vi.waitFor(() => expect(useAuthStore.getState().status).toBe("signedIn"));
+    expect(useAuthStore.getState().user).toEqual(next);
+    expect(cacheMock.restoreAccountCache.mock.calls).toEqual([["u1"], ["u2"]]);
+  });
+
+  // A sign-in right after a sign-out: memory is cleared only once the sign-out's wipe is done, and the new person's
+  // restore dehydrates what memory holds into their copy. It waits.
+  it("a sign-in's cache restore waits for the sign-out's wipe under way", async () => {
+    const order: string[] = [];
+    let finishWipe: () => void = () => undefined;
+    wipeSessionTraces.mockImplementationOnce(() => new Promise<void>((resolve) => (finishWipe = resolve)));
+    clearAccountCache.mockImplementationOnce(() => order.push("memory cleared"));
+    cacheMock.restoreAccountCache.mockImplementationOnce(async () => {
+      order.push("restore");
+    });
+    useAuthStore.getState().setUser(user);
+    const logout = useAuthStore.getState().logout();
+    await vi.waitFor(() => expect(wipeSessionTraces).toHaveBeenCalledTimes(1));
+    const next = { ...user, id: "u2", email: "n@b.c" };
+    apiMock.getMe.mockResolvedValueOnce(next);
+    const login = useAuthStore.getState().login();
+    await vi.waitFor(() => expect(apiMock.getMe).toHaveBeenCalledTimes(1));
+    expect(cacheMock.restoreAccountCache).not.toHaveBeenCalled();
+    finishWipe();
+    await Promise.all([logout, login]);
+    expect(order).toEqual(["memory cleared", "restore"]);
+    expect(useAuthStore.getState().user).toEqual(next);
+  });
+
+  it("sessionEnded: the server's verdict asks for a sign-out only when someone is in", () => {
+    expect(useAuthStore.getState().sessionEnded()).toBe(false);
+    useAuthStore.setState({ user });
+    expect(useAuthStore.getState().sessionEnded()).toBe(true);
   });
 
   it("initialize: a 401 ends the session only once the session itself is signed out; a blip keeps it", async () => {
