@@ -560,10 +560,18 @@ func (s *AskUNIService) agentReadChatRoom(ctx context.Context, tc ai.ToolContext
 	if err != nil {
 		return nil, err
 	}
+	optOuts, err := loadAIOptOuts(ctx, s.q, chatSenderIDs(msgs))
+	if err != nil {
+		return nil, err
+	}
 	ts := searchTerms(a.Query)
 	var b strings.Builder
 	for _, m := range msgs {
 		if a.Query != "" && score(m.Body, ts) == 0 {
+			continue
+		}
+		// A member who declined AI processing never reaches the model or the connector (Apple 5.1.2(i)).
+		if optOuts.excludes(m.SenderID) {
 			continue
 		}
 		body := oneLine(m.Body)

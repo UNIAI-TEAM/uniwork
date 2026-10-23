@@ -146,11 +146,18 @@ function parseSession(raw: unknown, deploymentId: string): DesktopSession {
   return session;
 }
 
-export function createTransport(
-  config: { deploymentId: string },
-  options: { fetch?: FetchLike; timeoutMs?: number } = {},
-): Transport {
-  const fetchImpl: FetchLike = options.fetch ?? fetch;
+function appOrigin(): string | null {
+  try {
+    return new URL(runtimeConfig().appUrl).origin;
+  } catch {
+    return null;
+  }
+}
+
+/** `fetch` is the composition root's choice (data/auth/flow.ts › strictFetch): only a fetch that honours
+ *  redirect: "error" natively keeps the code and the refresh token on the API host. */
+export function createTransport(config: { deploymentId: string }, options: { fetch: FetchLike; timeoutMs?: number }): Transport {
+  const fetchImpl = options.fetch;
   const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const { deploymentId } = config;
 
@@ -218,7 +225,9 @@ export function createTransport(
       } catch (error) {
         throw error instanceof TransportError ? error : new TransportError("malformed_response");
       }
-      if ((parsed.protocol !== "https:" && parsed.protocol !== "http:") || parsed.username || parsed.password) {
+      // The sign-in page is the app's own (the server builds it from FRONTEND_ORIGIN): same scheme, host and port as
+      // appUrl, which a release build only accepts as https (app.config.ts › serverUrl). Anything else is not opened.
+      if (parsed.origin !== appOrigin() || parsed.username || parsed.password) {
         throw new TransportError("malformed_response");
       }
       return { authorizationUrl: parsed.href };

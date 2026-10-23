@@ -1,0 +1,19 @@
+{
+  "meta": [11],
+  "caption": [12, 16],
+  "footnote": [13],
+  "callout": [14, 20],
+  "subhead": [15],
+  "body": [16, 24],
+  "headline": [17],
+  "title3": [18, 28],
+  "title-nav": [19],
+  "title2": [20, 28],
+  "title1": [22],
+  "display-sm": [24, 32],
+  "display": [28],
+  "display-lg": [30, 36],
+  "display-xl": [36, 40],
+  "emoji": [26],
+  "emoji-lg": [30]
+}

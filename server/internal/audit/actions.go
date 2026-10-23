@@ -110,6 +110,13 @@ const (
 	// The person asked for their account to be erased (Nghị định 13); the
 	// row is anonymised and this is the last event that names it (F-01).
 	ActionUserDeleted = "user.deleted"
+	// The person's answer to the AI processing notice UniChat mobile shows
+	// before its first AI request (Apple 5.1.2(i)); withdrawing asks again.
+	ActionUserAIConsentGranted   = "user.ai_consent_granted"
+	ActionUserAIConsentWithdrawn = "user.ai_consent_withdrawn"
+	// The person chose whether a chat push shows the message's words on their
+	// phones (audit "Security & privacy", push-preview-plaintext).
+	ActionUserPushPreviewsChanged = "user.push_previews_changed"
 
 	ActionChatRoomCreated         = "chat.room.created"
 	ActionChatRoomMemberAdded     = "chat.room.member_added"
@@ -130,6 +137,15 @@ const (
 	ActionChatVoiceCallLogged     = "chat.voice_call.logged"
 	ActionChatVoiceTranscribed    = "chat.voice_message.transcribed"
 	ActionChatMessageForwarded    = "chat.message.forwarded"
+	// A member reported a message or a person (store UGC policy); the
+	// organization's owners and admins read it in the audit trail.
+	ActionChatReportCreated = "chat.report.created"
+	// The platform operator closed a report from the console's queue (store UGC policy: every report
+	// is acted on within 24 hours); the organization's owners and admins see that it was handled.
+	ActionChatReportResolved = "chat.report.resolved"
+	// The platform operator took a reported message down from the console (store UGC policy, Apple 1.2): the
+	// message is gone for everyone, as its sender's own deletion would be; the organization sees who and why.
+	ActionChatMessageRemoved = "chat.message.removed"
 
 	ActionSubscriptionChanged    = "subscription.changed"
 	ActionBillingInvoiceRefunded = "billing.invoice_refunded"
@@ -306,6 +322,13 @@ const (
 	ActionMcpTokenFamilyRevoked             = "mcp_token.family_revoked"
 	ActionOrganizationMcpPolicyChanged      = "organization.mcp_policy_changed"
 	ActionOrganizationMcpWritePolicyChanged = "organization.mcp_write_policy_changed"
+	// An owner or admin hid (or showed again) the message's words in every
+	// chat push of the organization (OrganizationService.SetPushPreviewPolicy).
+	ActionOrganizationPushPreviewPolicyChanged = "organization.push_preview_policy_changed"
+	// An owner or admin required (or stopped requiring) the UniChat app lock or
+	// screen-capture blocking on members' phones
+	// (OrganizationService.SetMobileSecurityPolicy).
+	ActionOrganizationMobileSecurityPolicyChanged = "organization.mobile_security_policy_changed"
 
 	// An organization owner/admin chose which Claude models Ask UNI offers
 	// (AskUNIService.SetAskModels).

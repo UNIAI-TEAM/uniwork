@@ -1,5 +1,5 @@
 import type { MentionCandidate } from "@uniwork/core/types/document-access";
-import { replaceComposerMention, suffixSharedLabels, type ChatMentionCandidate } from "../chat/chat-mention-utils";
+import { replaceComposerMention, suffixSharedLabels, type ChatMentionCandidate } from "@uniwork/core/chat/chat-mention-utils";
 import { extractMentionTokens } from "./document-comments-model";
 
 // The composer shows a mention as "@Name"; the draft store and the wire carry the

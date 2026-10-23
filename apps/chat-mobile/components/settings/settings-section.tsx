@@ -8,13 +8,13 @@ import { continuousCorners } from "@/lib/radius";
 export function SettingsSection({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
     <View className="gap-2">
-      <Text accessibilityRole="header" className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <Text accessibilityRole="header" className="px-1 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </Text>
       <View className="overflow-hidden rounded-xl bg-card" style={continuousCorners}>
         {children}
       </View>
-      {hint ? <Text className="px-1 text-[13px] leading-[18px] text-muted-foreground">{hint}</Text> : null}
+      {hint ? <Text className="px-1 text-footnote leading-[18px] text-muted-foreground">{hint}</Text> : null}
     </View>
   );
 }

@@ -127,7 +127,11 @@ func ruleChatVoiceInviteReceived(ctx context.Context, e env, ev outbox.Row, p ma
 	}
 	r := newRecipients(ctx, e, ev, wsID)
 	r.add(userID)
-	params := map[string]string{"actor": actorName(ctx, e.q, ev), "room": room.Name, "call_id": callID}
+	// The phone's ringing screen says what kind of call it is (push_consumer.go › CallPush).
+	params := map[string]string{"actor": actorName(ctx, e.q, ev), "room": room.Name, "call_id": callID, "call_kind": room.Kind}
+	if v, ok := e.calls.(CallVideoChecker); ok && v.VoiceCallVideo(roomID, callID) {
+		params["video"] = "1"
+	}
 	return r.drafts(room.OrganizationID, KindChatCallIncoming, service.ChatCallNotifyGroup(room.ID), "chat_room", room.ID, params)
 }
 

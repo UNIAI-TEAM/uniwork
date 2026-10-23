@@ -1,0 +1,50 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "copyright": "Unicom Technology Solutions Company Limited",
+    "categories": [
+      "BUSINESS",
+      "PRODUCTIVITY"
+    ],
+    "info": {
+      "vi": {
+        "title": "UniChat",
+        "subtitle": "Nhắn tin cho cả đội",
+        "description": "UniChat là ứng dụng nhắn tin của UniWork cho đội ngũ Việt Nam. Trò chuyện riêng, nhóm và kênh của workspace luôn đồng bộ với UniWork trên web và máy tính.\n\n- Tin nhắn tức thời, trả lời trích dẫn, luồng, cảm xúc, nhắc tên, đã đọc\n- Gửi ảnh và tệp vào cuộc trò chuyện\n- Danh bạ đồng nghiệp với trạng thái hoạt động\n- Thông báo đẩy có xem trước nội dung, trả lời hoặc đánh dấu đã đọc ngay trên thông báo, tự gỡ khi bạn đã đọc; không làm phiền khi bạn đang đọc chính workspace đó ở thiết bị khác\n- Bản nháp giữ nguyên khi rời cuộc trò chuyện, liên kết trong tin bấm được, mở lại phòng ở đúng tin chưa đọc đầu tiên (tới vài trăm tin chưa đọc)\n- Hỗ trợ VoiceOver và TalkBack, cỡ chữ lớn và chế độ tối\n\nCần một tài khoản UniWork. Đăng nhập an toàn qua trình duyệt, ứng dụng không lưu mật khẩu.",
+        "keywords": [
+          "uniwork",
+          "chat",
+          "nhắn tin",
+          "nhóm",
+          "công việc",
+          "team",
+          "messaging"
+        ],
+        "marketingUrl": "https://app.uniworkos.com/vi/apps/unichat",
+        "supportUrl": "https://app.uniworkos.com/vi/privacy",
+        "privacyPolicyUrl": "https://app.uniworkos.com/vi/privacy"
+      },
+      "en-US": {
+        "title": "UniChat",
+        "subtitle": "Messaging for your team",
+        "description": "UniChat is the messaging app of UniWork, built for Vietnamese teams. Direct messages, groups and workspace channels stay in sync with UniWork on the web and desktop.\n\n- Instant messages, quoted replies, threads, reactions, mentions and read receipts\n- Share photos and files in a conversation\n- A directory of your colleagues with their presence\n- Push notifications with message previews that you can reply to or mark as read in place, cleared once you have read them, and held back while you are reading the same workspace elsewhere\n- Drafts that wait for you, tappable links, and rooms that reopen at your first unread message (up to a few hundred unread)\n- Works with VoiceOver and TalkBack, large text and dark mode\n\nRequires a UniWork account. You sign in securely in the browser; the app never stores your password.",
+        "keywords": [
+          "uniwork",
+          "chat",
+          "nhắn tin",
+          "nhóm",
+          "công việc",
+          "team",
+          "messaging"
+        ],
+        "marketingUrl": "https://app.uniworkos.com/apps/unichat",
+        "supportUrl": "https://app.uniworkos.com/privacy",
+        "privacyPolicyUrl": "https://app.uniworkos.com/privacy"
+      }
+    },
+    "review": {
+      "demoRequired": true,
+      "notes": "Tap \"Sign in\". The app opens a secure browser sheet on uniworkos.com; enter the email and password above, then tap \"Allow\" and \"Open UniChat\" to return to the app.\n\nOur terms of use (https://app.uniworkos.com/terms#acceptable-use), which every user agrees to when they sign up and sign in, forbid objectionable content and abusive users with no tolerance. Long-press any message from another person and choose \"Report\": the message is hidden from you at once. In a direct conversation, open its details (tap the name at the top) for \"Block\" and \"Report\". The organization's owners and admins see each report (reason, the person or message reported, and who reported it) in the web app's Settings › Activity log, and can deactivate the member who posted it. Every report also reaches the operator's moderation queue, and anyone can report content or a user directly to the operator at contact@unicomhub.com. The operator reviews every report within 24 hours: we take the reported message down for everyone from our moderation console, the organization deactivates the offending account at our request, or we suspend the organization, after which none of its content can be seen."
+    }
+  }
+}

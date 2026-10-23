@@ -1,0 +1,47 @@
+# What another person writes while UniChat is in the background is on screen
+# when it comes back, without reopening the room. A second account writes it
+# (scripts/peer-session.js signs it in with MAESTRO_CALLER_EMAIL and
+# MAESTRO_CALLER_PASSWORD, scripts/post-as-peer.js posts into
+# MAESTRO_DM_ROOM_ID of MAESTRO_CALLER_WS_ID). Every mobile PR runs it on the
+# hermetic server (mobile-verify.yml › android-e2e); the nightly against
+# staging when the peer account is set.
+#
+# Twice: a short switch (inside the socket's 25 s grace,
+# data/realtime/background-grace.ts: the socket stayed, the frame lands on the
+# open timeline) and a long one (past the grace: the socket was paused, the
+# return redials and the reconnect refetches the shown timeline).
+appId: com.uniworkos.chat.staging
+name: Back from the background, the room has what was written meanwhile
+tags:
+  - two-account
+---
+- launchApp
+- runFlow: ../subflows/sign-in.yaml
+- runScript: ../scripts/app-scheme.js
+- openLink: ${output.scheme}://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat?room=' + MAESTRO_DM_ROOM_ID)}
+- extendedWaitUntil:
+    visible:
+      id: composer-input
+    timeout: 30000
+- runScript: ../scripts/peer-session.js
+# Inside the grace.
+- pressKey: Home
+- runScript: ../scripts/post-as-peer.js
+# Back to the running app, not a cold start (launchApp stops a running app unless told not to).
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: .*${output.peerBody}.*
+    timeout: 15000
+# Past it: 60 s away, then another message.
+- pressKey: Home
+- extendedWaitUntil:
+    visible: "UniChat never draws this text"
+    timeout: 60000
+    optional: true
+- runScript: ../scripts/post-as-peer.js
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: .*${output.peerBody}.*
+    timeout: 30000

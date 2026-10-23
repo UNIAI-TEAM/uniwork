@@ -107,6 +107,10 @@ func TestChatUnreadSummary(t *testing.T) {
 		w3.ID: {Unread: 2},
 	}
 	assertWorkspaceTotals(t, got.Workspaces, want)
+	// The iPhone icon's count is the same total the app draws: direct 2 + 3 + 1 + 2.
+	if badge, err := s.UnreadBadge(ctx, ua.ID); err != nil || badge != 8 {
+		t.Fatalf("UnreadBadge = %d, %v; want 8", badge, err)
+	}
 
 	if _, err := s.pool.Exec(ctx,
 		`UPDATE organization_members SET deactivated_at = now() WHERE organization_id = $1 AND user_id = $2`,
@@ -122,6 +126,9 @@ func TestChatUnreadSummary(t *testing.T) {
 	}
 	delete(want, w3.ID)
 	assertWorkspaceTotals(t, got.Workspaces, want)
+	if badge, err := s.UnreadBadge(ctx, ua.ID); err != nil || badge != 5 {
+		t.Fatalf("UnreadBadge after deactivation = %d, %v; want 5", badge, err)
+	}
 }
 
 func assertWorkspaceTotals(t *testing.T, got []ChatWorkspaceUnread, want map[string]ChatUnreadTotals) {

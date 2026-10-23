@@ -6,7 +6,7 @@ import type { Actor } from "@uniwork/core/types/people";
 import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Avatar, AvatarFallback, AvatarImage } from "@uniwork/ui/components/ui/avatar";
 import { cn } from "@uniwork/ui/lib/utils";
-import { identityTint } from "./identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 
 /**
  * One actor, drawn the same way everywhere: avatar and name for a person, a

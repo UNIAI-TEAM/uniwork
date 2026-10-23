@@ -7,6 +7,7 @@
 // row renders from `record` (a server message) or `pending` (a local send).
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { mergeOptimisticChatMessages, type PendingSend } from "./send-pipeline";
+import { dateTimeFormat } from "./locale-format";
 
 export interface TimelineMessage {
   id: string;
@@ -51,35 +52,54 @@ function startOfDay(value: Date): number {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
 }
 
+// A timeline asks for the day of each message several times per change (rows, runs, albums), and a local
+// day takes two Date objects and a time-zone lookup: on Hermes that was most of a 2,000-message rebuild
+// (lib/timeline-perf.test.ts). Each timestamp is worked out once. The memo is bounded, and starts over when
+// the device's current UTC offset moves (a trip, a DST change), looked at no more than once a minute.
+const DAY_KEYS_MAX = 10_000;
+const ZONE_CHECK_MS = 60_000;
+const dayKeys = new Map<number, number>();
+let zoneCheckedAt = Number.NEGATIVE_INFINITY;
+let zoneOffset = Number.NaN;
+/** Moves each time the day keys start over for a new UTC offset: a day worked out before then may be wrong now. */
+let zoneEpoch = 0;
+
+function dropDayKeysOnZoneChange(): void {
+  const now = Date.now();
+  if (now - zoneCheckedAt < ZONE_CHECK_MS) return;
+  zoneCheckedAt = now;
+  const offset = new Date(now).getTimezoneOffset();
+  if (offset === zoneOffset) return;
+  zoneOffset = offset;
+  zoneEpoch += 1;
+  dayKeys.clear();
+}
+
+/** The current time-zone epoch: anything that kept a day key (lib/timeline-layout.ts) is stale once it moves. */
+export function dayKeysEpoch(): number {
+  dropDayKeysOnZoneChange();
+  return zoneEpoch;
+}
+
 /** Local calendar day of a timestamp, as a comparable key. */
 export function messageDayKey(ts: number): number {
-  return startOfDay(new Date(ts));
+  dropDayKeysOnZoneChange();
+  const cached = dayKeys.get(ts);
+  if (cached !== undefined) return cached;
+  if (dayKeys.size >= DAY_KEYS_MAX) dayKeys.clear();
+  const key = startOfDay(new Date(ts));
+  dayKeys.set(ts, key);
+  return key;
 }
 
-const timeFormatters = new Map<string, Intl.DateTimeFormat>();
-const dateTimeFormatters = new Map<string, Intl.DateTimeFormat>();
-
-function cachedFormatter(
-  cache: Map<string, Intl.DateTimeFormat>,
-  locale: string,
-  options: Intl.DateTimeFormatOptions,
-): Intl.DateTimeFormat {
-  let formatter = cache.get(locale);
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat(locale, options);
-    cache.set(locale, formatter);
-  }
-  return formatter;
-}
-
-/** "14:05" — the time printed on a message. */
+/** "14:05" (or "2:05 pm" on a 12-hour phone) — the time printed on a message; `locale` is the app's language. */
 export function formatMessageTime(ts: number, locale: string): string {
-  return cachedFormatter(timeFormatters, locale, { hour: "2-digit", minute: "2-digit" }).format(ts);
+  return dateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(ts);
 }
 
 /** Full date and time, for a screen reader's label of a message. */
 export function formatMessageDateTime(ts: number, locale: string): string {
-  return cachedFormatter(dateTimeFormatters, locale, { dateStyle: "full", timeStyle: "short" }).format(ts);
+  return dateTimeFormat(locale, { dateStyle: "full", timeStyle: "short" }).format(ts);
 }
 
 /** Day separator: today and yesterday by name, this week by weekday, older by date. */
@@ -93,12 +113,12 @@ export function formatMessageDay(
   const diff = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
   if (diff === 0) return labels.today;
   if (diff === 1) return labels.yesterday;
-  if (diff > 1 && diff < 7) return date.toLocaleDateString(locale, { weekday: "long" });
-  return date.toLocaleDateString(locale, {
+  if (diff > 1 && diff < 7) return dateTimeFormat(locale, { weekday: "long" }).format(date);
+  return dateTimeFormat(locale, {
     day: "numeric",
     month: "long",
     ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
-  });
+  }).format(date);
 }
 
 type GroupedMessage = Pick<TimelineMessage, "kind" | "sender" | "ts" | "voiceCall" | "voiceCallSummary">;
@@ -135,11 +155,12 @@ export function buildMainTimelineMessages(input: {
 }): TimelineMessage[] {
   const { anchorRows, latestRows, pending, currentUserId } = input;
   if (anchorRows) return anchorRows.map(toTimelineMessage).filter((message) => !message.threadRootId);
-  const merged = mergeOptimisticChatMessages(
+  // A local send is a TimelineMessage too (its id, sender, body, time and the pending entry itself).
+  const merged: TimelineMessage[] = mergeOptimisticChatMessages(
     latestRows.map(toTimelineMessage),
     pending.filter((entry) => !entry.threadRootId),
     currentUserId,
-  ) as TimelineMessage[];
+  );
   return merged.filter((message) => !message.threadRootId);
 }
 
@@ -151,11 +172,11 @@ export function buildThreadViewMessages(input: {
   currentUserId: string;
 }): TimelineMessage[] {
   const { threadRoot, threadRows, pending, currentUserId } = input;
-  const merged = mergeOptimisticChatMessages(
+  const merged: TimelineMessage[] = mergeOptimisticChatMessages(
     (threadRows ?? []).map(toTimelineMessage),
     pending.filter((entry) => entry.threadRootId === threadRoot.id),
     currentUserId,
-  ) as TimelineMessage[];
+  );
   const root = toTimelineMessage(threadRoot);
   return [root, ...merged.filter((message) => message.id !== root.id)].sort((a, b) => a.ts - b.ts);
 }
@@ -164,7 +185,11 @@ export type TimelineRow =
   | { type: "day"; key: string; ts: number }
   | { type: "message"; key: string; message: TimelineMessage; compactTop: boolean; showAvatar: boolean };
 
-/** Messages (oldest first) with a day separator before each new local day, newest last. */
+/**
+ * Messages (oldest first) with a day separator before each new local day, newest last. The plain definition:
+ * the screen lays a timeline out with lib/timeline-layout.ts, which builds the same rows newest first, reusing each
+ * unchanged message's rows, and is checked against this one.
+ */
 export function buildTimelineRows(messages: readonly TimelineMessage[]): TimelineRow[] {
   const rows: TimelineRow[] = [];
   messages.forEach((message, index) => {

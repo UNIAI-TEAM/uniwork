@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
-import { identityTint } from "../people/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { chatRoomFaceOf } from "./voice-call-face";
 
 function room(overrides: Partial<ChatRoomRecord>): ChatRoomRecord {

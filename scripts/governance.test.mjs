@@ -153,10 +153,10 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   // rule, it is a trap for the next person who writes a correct message.
   //
   // e88a055 landed on develop via PR #62; c416bc6, e6eaf72d5, d95c9fe14,
-  // 78e441abd, 9c94b49eb, 30b6eb6b6, 4b7e81b2a, 874a6e438, 3adf1f657, ff4fd6912 and 6025d564c were
-  // pushed straight to develop without a conventional prefix. Shared history cannot
-  // be rewritten; pin both SHA and subject so a new commit cannot reuse an
-  // exempt subject to escape this check.
+  // 78e441abd, 9c94b49eb, 30b6eb6b6, 4b7e81b2a, 874a6e438, 3adf1f657, ff4fd6912
+  // and 6025d564c were pushed straight to develop without a conventional prefix.
+  // Shared history cannot be rewritten; pin both SHA and subject so a new
+  // commit cannot reuse an exempt subject to escape this check.
   const commits = execFileSync("git", ["log", "--format=%H%x00%s"], { cwd: root, encoding: "utf8" })
     .split("\n")
     .filter(Boolean)
@@ -439,7 +439,8 @@ describe("ADR 0011 — apps/chat-mobile", () => {
       const [head, ...steps] = job.split(/^ {6}- /m);
       assert.doesNotMatch(head, /MAESTRO_TEST_/, `${job.split(":")[0]}: the test account belongs on the Maestro steps, not the job env`);
       for (const step of steps.filter((s) => s.includes("MAESTRO_TEST_"))) {
-        assert.match(step, /maestro (--device \S+ )?test /, `a step that does not run Maestro gets the test account:\n${step}`);
+        // Directly or through scripts/maestro-retry.sh, the one-retry wrapper every device run uses.
+        assert.match(step, /maestro(-retry\.sh)? (--device \S+ )?test /, `a step that does not run Maestro gets the test account:\n${step}`);
       }
     }
   });

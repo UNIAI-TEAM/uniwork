@@ -9,7 +9,7 @@ import {
   ActorAvatar,
   type ActorAvatarStatus,
 } from "@uniwork/ui/components/common/actor-avatar";
-import { foldedIncludes } from "../../chat/chat-search-fold";
+import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 import {
   PickerEmpty,
   PickerItem,

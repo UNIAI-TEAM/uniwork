@@ -2,57 +2,65 @@
 // (resolveDMRoom opens the DM, creating it on first use) or browse the
 // workspace's channels.
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Alert, FlatList, Pressable, View } from "react-native";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
+import { Pressable, View } from "react-native";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
-import { PersonAvatar } from "@/components/people/person-avatar";
+import { DmPickRow } from "@/components/people/member-rows";
+import { ListLoadError, ListSkeleton } from "@/components/ui/list-states";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
-import { resolveDMRoom } from "@/data/chat-actions";
+import { useResolveDM } from "@/data/mutations/rooms";
 import { nicknamesOptions, workspaceMembersOptions } from "@/data/queries/chat";
-import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { chatRoutes } from "@/lib/chat-routes";
-import { displayLabelForChatContact } from "@/lib/rooms-display";
-import { foldedIncludes } from "@/lib/search-fold";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
-import { cn } from "@/lib/utils";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
+import { toast } from "@/data/stores/toast-store";
+import { pickerPeople } from "@/lib/contacts-display";
 
 function NewChat({ chat }: { chat: ChatWorkspace }) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
+  const resolveDM = useResolveDM(chat.wsId).mutateAsync;
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const members = useQuery(workspaceMembersOptions(chat.wsId));
   const nicknames = useQuery(nicknamesOptions(chat.wsId)).data;
-  const online = usePresenceStore((s) => s.onlineUserIds);
   const [q, setQ] = useState("");
   const [opening, setOpening] = useState<string | null>(null);
 
   const people = useMemo(
-    () =>
-      (members.data ?? [])
-        .filter((m) => m.user_id.toUpperCase() !== chat.userId.toUpperCase())
-        .map((m) => ({ ...m, label: displayLabelForChatContact(m, nicknames) }))
-        .filter((m) => foldedIncludes(m.label, q) || foldedIncludes(m.email, q))
-        .sort((a, b) => a.label.localeCompare(b.label)),
+    () => pickerPeople(members.data ?? [], { currentUserId: chat.userId, nicknames, query: q }),
     [members.data, nicknames, chat.userId, q],
   );
 
-  const open = (userId: string) => {
-    setOpening(userId);
-    resolveDMRoom(qc, chat.wsId, userId)
-      .then((room) => {
-        if (room) router.replace(chatRoutes.room(chat, room.id));
-        else Alert.alert(t("chat.dm_failed"));
-      })
-      .catch(() => Alert.alert(t("chat.dm_failed")))
-      .finally(() => setOpening(null));
-  };
+  // Stable, so a row redraws only for its own presence or its own busy state (member-rows.tsx).
+  const open = useCallback(
+    (userId: string) => {
+      setOpening(userId);
+      resolveDM(userId)
+        .then((room) => {
+          if (room) router.replace(chatRoutes.room(chat, room.id));
+          else toast.error(t("chat.dm_failed"));
+        })
+        .catch(() => toast.error(t("chat.dm_failed")))
+        .finally(() => setOpening(null));
+    },
+    [resolveDM, chat, t],
+  );
+
+  // A recycling list (audit unvirtualized-secondary-lists) with one stable cell renderer.
+  const lastId = people.at(-1)?.user_id;
+  const personKey = useCallback((person: (typeof people)[number]) => person.user_id, []);
+  const renderPerson: ListRenderItem<(typeof people)[number]> = useCallback(
+    ({ item }) => (
+      <DmPickRow person={item} last={item.user_id === lastId} busy={opening === item.user_id} disabled={opening !== null} onOpen={open} />
+    ),
+    [lastId, opening, open],
+  );
 
   return (
     <View className="flex-1 bg-background">
@@ -66,10 +74,12 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
           autoCapitalize="none"
         />
       </View>
-      <FlatList
+      <FlashList
         data={people}
-        keyExtractor={(m) => m.user_id}
+        extraData={opening}
+        keyExtractor={personKey}
         keyboardShouldPersistTaps="handled"
+        maintainVisibleContentPosition={{ disabled: true }}
         ListHeaderComponent={
           <View>
             <Pressable
@@ -80,7 +90,7 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
               <View className="h-11 w-11 items-center justify-center rounded-full bg-tint-blue">
                 <Ionicons name="people-outline" size={22} color={theme.tintBlueForeground} />
               </View>
-              <Text className="flex-1 text-base font-semibold text-primary">{t("chat.create_group")}</Text>
+              <Text className="flex-1 text-body font-semibold text-primary">{t("chat.create_group")}</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -90,57 +100,26 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
               <View className="h-11 w-11 items-center justify-center rounded-full bg-tint-blue">
                 <Ionicons name="globe-outline" size={22} color={theme.tintBlueForeground} />
               </View>
-              <Text className="flex-1 text-base font-semibold text-primary">{t("chat.channel.directory_title")}</Text>
+              <Text className="flex-1 text-body font-semibold text-primary">{t("chat.channel.directory_title")}</Text>
             </Pressable>
             <View className="mt-1 h-2 bg-muted" />
-            <Text accessibilityRole="header" className="px-4 pb-1.5 pt-3.5 text-[13px] font-semibold text-muted-foreground">
+            <Text accessibilityRole="header" className="px-4 pb-1.5 pt-3.5 text-footnote font-semibold text-muted-foreground">
               {t("chat.workspace_members")}
             </Text>
           </View>
         }
         ListEmptyComponent={
           members.isPending ? (
-            <ActivityIndicator className="py-8" accessibilityLabel={t("chat.loading_members")} />
+            <ListSkeleton label={t("chat.loading_members")} />
+          ) : members.isError ? (
+            <ListLoadError title={t("chat.members_load_failed")} onRetry={() => void members.refetch()} />
           ) : (
-            <Text className="px-4 py-8 text-center text-sm text-muted-foreground">
+            <Text className="px-4 py-8 text-center text-callout text-muted-foreground">
               {q.trim() ? t("chat.workspace_members_no_match", { query: q.trim() }) : t("chat.workspace_members_none")}
             </Text>
           )
         }
-        renderItem={({ item, index }) => {
-          const isOnline = Boolean(online[item.user_id.trim().toUpperCase()]);
-          const busy = opening === item.user_id;
-          return (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={[`${t("chat.start_dm")}: ${item.label}`, isOnline ? t("chat.presence_online") : null].filter(Boolean).join(", ")}
-              accessibilityState={{ busy }}
-              disabled={opening !== null}
-              onPress={() => open(item.user_id)}
-              className={cn("min-h-16 flex-row items-center gap-3 pl-4 active:bg-secondary", busy && "bg-muted")}
-            >
-              <PersonAvatar name={item.label} size={44} online={isOnline} seed={item.user_id} />
-              <View
-                className={cn(
-                  "min-w-0 flex-1 flex-row items-center gap-3 self-stretch py-2 pr-4",
-                  index < people.length - 1 && "border-b-hairline border-border",
-                )}
-              >
-                <View className="min-w-0 flex-1 gap-px">
-                  <Text className="text-base font-display font-bold text-foreground" numberOfLines={1}>
-                    {item.label}
-                  </Text>
-                  {item.email ? (
-                    <Text className="text-sm text-muted-foreground" numberOfLines={1}>
-                      {item.email}
-                    </Text>
-                  ) : null}
-                </View>
-                {busy ? <ActivityIndicator color={theme.primary} /> : null}
-              </View>
-            </Pressable>
-          );
-        }}
+        renderItem={renderPerson}
       />
     </View>
   );
