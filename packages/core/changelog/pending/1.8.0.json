@@ -1,21 +1,21 @@
 {
   "schemaVersion": 1,
   "version": "1.8.0",
-  "date": "2026-10-22",
+  "date": "2026-10-23",
   "ready": true,
-  "sourceRef": "4892d5b67cc9442004c304b002790e52ab95603f",
+  "sourceRef": "5cf0f16ee952a903e7d10fd98356580534c58c66",
   "previousSourceRef": "6e4f970568a4a02d3a9e647558048b9d4fac9874",
   "title": {
     "vi": "Chia sẻ tài liệu nhanh hơn, hình nền và biểu cảm nhanh trong Chat, thông báo hệ thống trên trình duyệt",
     "en": "Faster document sharing, Chat wallpapers and quick reactions, and browser system notifications"
   },
   "summary": {
-    "vi": "Danh sách Tài liệu cho chia sẻ ngay từ từng dòng, chọn nhiều để chia sẻ hoặc tải zip, sắp xếp và lọc tốt hơn, cùng báo cáo quyền truy cập mới. Chat có hình nền chung cho từng phòng, biểu cảm nhanh, thông báo khi có người bình chọn và bình chọn ghim hoặc thêm lựa chọn được. Trình duyệt có thể hiện thông báo hệ thống cho tin nhắn, nhắc họp và cuộc gọi. Trang Chính sách quyền riêng tư có tại /privacy, bình luận tài liệu cho xem lại phiên bản chứa đoạn được bình luận, và Việc của tôi tải đủ công việc theo từng cột.",
-    "en": "The Documents list lets you share from each row, select several documents to share or download as a zip, sort and filter better, and comes with a new access report. Chat gets a shared wallpaper per room, quick reactions, notices when someone votes, and polls you can pin or add options to. The browser can show system notifications for messages, meeting reminders and calls. A Privacy Policy page is available at /privacy, document comments let you view the version that holds the commented passage, and My Tasks loads every task column by column."
+    "vi": "Danh sách Tài liệu cho chia sẻ ngay từ từng dòng, chọn nhiều để chia sẻ hoặc tải zip, sắp xếp và lọc tốt hơn, cùng báo cáo quyền truy cập mới. Chat có hình nền chung cho từng phòng, biểu cảm nhanh, gửi được tệp CSV và Markdown, khung trò chuyện mượt hơn khi gửi liên tục và đọc lịch sử, thông báo khi có người bình chọn và bình chọn ghim hoặc thêm lựa chọn được. Trình duyệt có thể hiện thông báo hệ thống cho tin nhắn, nhắc họp và cuộc gọi. Hỏi UNI dùng nhãn trạng thái như trên màn hình, trang Chính sách quyền riêng tư có tại /privacy, bình luận tài liệu cho xem lại phiên bản chứa đoạn được bình luận, và Việc của tôi tải đủ công việc theo từng cột.",
+    "en": "The Documents list lets you share from each row, select several documents to share or download as a zip, sort and filter better, and comes with a new access report. Chat gets a shared wallpaper per room, quick reactions, CSV and Markdown file sharing, a smoother conversation when sending in a row or reading history, notices when someone votes, and polls you can pin or add options to. The browser can show system notifications for messages, meeting reminders and calls. Ask UNI uses the status labels shown on screen, a Privacy Policy page is available at /privacy, document comments let you view the version that holds the commented passage, and My Tasks loads every task column by column."
   },
   "note": {
-    "vi": "Tắt thông báo của một phòng chỉ chặn chuông với cuộc gọi nhóm và kênh; cuộc gọi trong trò chuyện riêng vẫn đổ chuông. Thông báo khi đã đóng tab trình duyệt chỉ có khi máy chủ được cấu hình thông báo đẩy.",
-    "en": "Muting a room only silences ringing for group and channel calls; calls in direct chats still ring. Notices after the browser tab is closed are available only when the server has push notifications configured."
+    "vi": "Tắt thông báo của một phòng chỉ chặn chuông với cuộc gọi nhóm và kênh; cuộc gọi trong trò chuyện riêng vẫn đổ chuông. Thông báo khi đã đóng tab trình duyệt chỉ có khi máy chủ được cấu hình thông báo đẩy, và cuộc gọi đến chỉ báo khi UniWork đang mở.",
+    "en": "Muting a room only silences ringing for group and channel calls; calls in direct chats still ring. Notices after the browser tab is closed are available only when the server has push notifications configured, and incoming calls are announced only while UniWork is open."
   },
   "changes": [
     {
@@ -853,8 +853,8 @@
       "include": true,
       "excludeReason": "",
       "text": {
-        "vi": "Thông báo hệ thống trên trình duyệt: UniWork mời bạn bật thông báo để nhận tin nhắn mới, nhắc họp và cuộc gọi đến bên ngoài cửa sổ khi ứng dụng còn mở, kèm nút gửi thông báo thử trong Cài đặt › Thông báo. Nhận thông báo cả khi đã đóng tab cần máy chủ được cấu hình thông báo đẩy.",
-        "en": "Browser system notifications: UniWork invites you to turn on notifications to get new messages, meeting reminders and incoming calls outside the window while the app is open, with a test button in Settings › Notifications. Getting notices after the tab is closed requires the server to have push notifications configured."
+        "vi": "Thông báo hệ thống trên trình duyệt: UniWork mời bạn bật thông báo để nhận tin nhắn mới, nhắc họp và cuộc gọi đến bên ngoài cửa sổ khi ứng dụng còn mở, kèm nút gửi thông báo thử trong Cài đặt › Thông báo. Nhận thông báo cả khi đã đóng tab cần máy chủ được cấu hình thông báo đẩy và không áp dụng cho cuộc gọi đến.",
+        "en": "Browser system notifications: UniWork invites you to turn on notifications to get new messages, meeting reminders and incoming calls outside the window while the app is open, with a test button in Settings › Notifications. Getting notices after the tab is closed requires the server to have push notifications configured and does not apply to incoming calls."
       },
       "evidence": {
         "kind": "commit",
@@ -918,6 +918,729 @@
         "paths": [
           "packages/views/chat/chat-message-hover-actions.tsx",
           "packages/views/chat/chat-message-hover-actions.test.tsx"
+        ]
+      }
+    },
+    {
+      "commit": "b04fa3ac533fedad6fcf11aa2cc554bb5bb2eca4",
+      "subject": "fix(chat): audit thread-link, batch links, follow-up, mention",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #399 chỉ có template mô tả chưa điền nên đọc diff theo commit. Gộp vào mục ff18730616 (sửa lỗi Chat): chặn nối một task với hai thread, gợi ý @ tối đa 20 người, thông báo nhắc theo dõi được đánh dấu đã đọc; phần bỏ route GET links theo tin là dọn API nội bộ.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/chat_links.go",
+          "server/internal/service/chat_follow_ups.go",
+          "packages/views/chat/chat-mention-utils.ts",
+          "server/internal/service/chat_links_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "0ab6bf9805dbdc9cd9a6bdaf8266725da9589140",
+      "subject": "fix(chat): summary sender_kind, typing prune, tenor cache",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #399 chỉ có template mô tả chưa điền nên đọc diff theo commit. Tóm tắt cuộc gọi lưu sender_kind system, dọn bộ đếm typing và cache Tenor phía server: chi tiết kỹ thuật, không có thay đổi người dùng thấy rõ.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/chat_voice_summary.go",
+          "server/internal/service/chat_typing_throttle.go",
+          "server/internal/service/chat_tenor.go"
+        ]
+      }
+    },
+    {
+      "commit": "96aa581ed901d161802da10815f5c6a9307d7276",
+      "subject": "fix(chat): audit batch for permissions, sidebar time, voice accept, ask rate",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #400 chỉ có template mô tả chưa điền nên đọc diff theo commit. Dọn quyền mặc định của nhóm về một helper dùng chung, làm tròn số ngày ở danh sách phòng khi đổi giờ mùa hè (không áp dụng ở Việt Nam), gom luồng nhận cuộc gọi, và giới hạn Hỏi UNI trong bộ nhớ khi máy chủ không có Redis (cấu hình triển khai); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/views/chat/chat-group-manage-section.tsx",
+          "packages/views/chat/chat-sidebar-preview.ts",
+          "server/internal/service/askuni_mem_rate.go"
+        ]
+      }
+    },
+    {
+      "commit": "4e1ef4c441b1d1cea4402d70e722734500c30824",
+      "subject": "chore(chat-mobile): sync locales after core i18n wallpaper keys",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Đồng bộ bản dịch cho app UniChat mobile chưa phát hành; không có thay đổi công khai. (PR #400)",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/400"
+      }
+    },
+    {
+      "commit": "8cf47fc0b336f38630d3f39faf268878884180ec",
+      "subject": "fix(core): web host focus follows visibilityState only for presence",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #399 chỉ có template mô tả chưa điền nên đọc diff theo commit. Trên web, trạng thái trực tuyến coi tab đang hiển thị là đang dùng; chỉnh nhỏ cho tín hiệu hiện diện, không đủ thành mục công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/core/platform/host-focus.ts"
+        ]
+      }
+    },
+    {
+      "commit": "83b7d33a769f1aaee9b2fbf69f4728b19d118283",
+      "subject": "fix(core): web host focus follows visibilityState only for presence",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Cùng thay đổi với 8cf47fc0b3, đi qua PR #400 (PR #400 chỉ có template mô tả chưa điền nên đọc diff theo commit); chỉnh nhỏ cho tín hiệu hiện diện.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/core/platform/host-focus.ts"
+        ]
+      }
+    },
+    {
+      "commit": "2e87abb78486be767a39258dcab9e4b79c1882c1",
+      "subject": "test(office): scope harness temp dirs by pid on shared CI runners",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test nội bộ của harness Office trên CI dùng chung (PR #400); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "scripts/office/g5g6g7/harness/lib.test.mjs"
+        ]
+      }
+    },
+    {
+      "commit": "40ac6b1c35c23f277e2d5c4488bb5554d4f0b0f3",
+      "subject": "fix(ci): call push mobile-only, wallpaper query scope, mobile i18n sync",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #399 chỉ có template mô tả chưa điền nên đọc diff theo commit. Cuộc gọi đến không còn gửi thông báo đẩy tới trình duyệt (máy tính đang mở nhận qua kết nối realtime, đẩy dành cho điện thoại); điều này được phản ánh trong mục thông báo trình duyệt 746cbd4249 và phần lưu ý. Phần còn lại là đồng bộ bản dịch mobile và dọn truy vấn.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/notification/push_consumer.go",
+          "apps/chat-mobile/locales/vi.json"
+        ]
+      }
+    },
+    {
+      "commit": "9cb574d1f7c13395b33a98aa5f5dedf26de7a31d",
+      "subject": "fix(office): g7-06 artifact paths relative on Windows",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Sửa đường dẫn artifact của script kiểm thử Office G7-06 trên Windows (PR #399); công cụ nội bộ.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "scripts/office/g5g6g7/g7-06/job-lib.mjs"
+        ]
+      }
+    },
+    {
+      "commit": "ef163606c699b1b0975f1b6422120bfc437c8eee",
+      "subject": "feat(scripts): refresh UniWork tokens before each UniAI sync",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Công cụ nội bộ scripts/uniai-sync làm mới token trước mỗi lần đồng bộ (commit đẩy thẳng vào develop, không có PR); không đổi ứng dụng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "scripts/uniai-sync/tokens.mjs",
+          "scripts/uniai-sync/sync.mjs"
+        ]
+      }
+    },
+    {
+      "commit": "f463c2ff735a0de783eeea49a7be109852eb8e11",
+      "subject": "fix(chat): tenant gate before wallpaper validation; views tests for wall",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #399 chỉ có template mô tả chưa điền nên đọc diff theo commit. Kiểm tra quyền thành viên phòng trước khi kiểm dữ liệu khi đổi/tải hình nền, cùng test giao diện; củng cố nội bộ, không đổi cách dùng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/handler/chat_room_wallpaper.go",
+          "server/internal/handler/chat.go"
+        ]
+      }
+    },
+    {
+      "commit": "3adf1f657e3d0388ed5c1b44050c70d621e05bfc",
+      "subject": "(ci): change branch build develop",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Cấu hình CI/triển khai môi trường dev (commit đẩy thẳng, không có PR); hạ tầng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          ".github/workflows"
+        ]
+      }
+    },
+    {
+      "commit": "5857f8e109d3d54b6e03d30a19f6e4f17f237097",
+      "subject": "docs(runbooks): align browser-notifications with alert contract",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Runbook vận hành thông báo trình duyệt (PR #399); tài liệu nội bộ.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "docs/runbooks/browser-notifications.md"
+        ]
+      }
+    },
+    {
+      "commit": "874a6e438e7e1de93cf5b334faede1e907604255",
+      "subject": "(ci): fix ci dev",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Cấu hình CI/triển khai môi trường dev (commit đẩy thẳng, không có PR); hạ tầng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          ".github/workflows"
+        ]
+      }
+    },
+    {
+      "commit": "9dc4cbdc366fe6b777ab57010b575160c9c6b1d4",
+      "subject": "fix(seo): strengthen Office guide content and discovery",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Hướng dẫn UniOffice trên trang giới thiệu có thêm phần thực hành rà soát một tài liệu DOCX với AI và phần xử lý khi không mở được file, không lưu được hoặc không dùng được AI; trang UniOffice có đường dẫn thẳng tới hướng dẫn này.",
+        "en": "The UniOffice guide on the website adds a walkthrough for reviewing a DOCX document with AI and a troubleshooting section for files that will not open, save or use AI; the UniOffice page links straight to the guide."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/features/landing/guide-content.ts",
+          "apps/web/features/landing/office-connection.tsx",
+          "apps/web/platform/seo-copy.ts",
+          "e2e/seo.spec.ts"
+        ]
+      }
+    },
+    {
+      "commit": "1a1256f5a5215545ee61d728be0bb0b85c6a46b5",
+      "subject": "fix(server): authorize chat room avatar before multipart parse",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #400 chỉ có template mô tả chưa điền nên đọc diff theo commit. Kiểm quyền phòng trước khi đọc tệp ảnh đại diện phòng; củng cố nội bộ, không đổi cách dùng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/handler/chat_room_avatar.go"
+        ]
+      }
+    },
+    {
+      "commit": "4b7e81b2a54c53b5a0760d09eb884004f26a0cea",
+      "subject": "(ci): fix ci dev",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Cấu hình CI/triển khai môi trường dev (commit đẩy thẳng, không có PR); hạ tầng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          ".github/workflows"
+        ]
+      }
+    },
+    {
+      "commit": "59253aa471b10dfba393387e89f84323c95f6590",
+      "subject": "fix(landing): show readable task lists in mobile demos",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trên trang giới thiệu, bản minh họa công việc trên điện thoại hiện dạng danh sách theo nhóm để thông tin công việc vừa màn hình, không bị cắt ngang.",
+        "en": "On the website, the task demos on phones show a grouped list so task details fit the screen instead of being cut off sideways."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/features/landing/product-task-board.tsx",
+          "apps/web/features/landing/product-task-board.css",
+          "e2e/landing-mobile-task-list.spec.ts"
+        ]
+      }
+    },
+    {
+      "commit": "3b8bae808ad64f9fa8fd213e589f348a6c87def5",
+      "subject": "fix(chat): wallpaper upload tx and auth-loading skeleton",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #400 chỉ có template mô tả chưa điền nên đọc diff theo commit. Sửa giao dịch khi tải hình nền phòng và khung chờ của Chat; hình nền là tính năng mới trong chính phiên bản này (mục 866159078a), nên gộp vào mục đó.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/chat_room_wallpaper.go",
+          "packages/views/chat/chat-conversation-skeleton.tsx"
+        ]
+      }
+    },
+    {
+      "commit": "8999637c957e5711dbec929c352fd75d10d218cb",
+      "subject": "chore(ci): allowlist mobile-apk-scan test PEM in gitleaks",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Cấu hình gitleaks cho fixture test của app mobile (PR #400); hạ tầng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/400"
+      }
+    },
+    {
+      "commit": "bc72a867e3faf442315b6ef758016c0c8d8eba02",
+      "subject": "UNI-2135: Chat room wallpaper uploads refused by the file_upload_sessions CHECK constraints (#407)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #407 sửa ràng buộc CHECK trong database khiến tải ảnh hình nền phòng bị từ chối; hình nền là tính năng mới trong chính phiên bản này (mục 866159078a), nên gộp vào mục đó.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/407"
+      }
+    },
+    {
+      "commit": "a215a38b869bdcd89f2dcaaa42db05199dc20044",
+      "subject": "refactor(chat): finish UNI-1745 and UNI-1751 audit cleanup",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Refactor dọn mã xác thực phòng và luồng nhận cuộc gọi không dùng (PR #409; PR #409 chỉ có template mô tả chưa điền nên đọc diff theo commit); không đổi hành vi.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/chat.go",
+          "packages/views/chat/use-chat-voice-handlers.ts"
+        ]
+      }
+    },
+    {
+      "commit": "85caecb81ee7a2f83d272c8f975a2acfc779f4ae",
+      "subject": "UNI-2136: Fix develop CI after the chat wallpaper merge (#408)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #408 chỉ sửa test và danh sách ngoại lệ lịch sử commit để CI develop xanh lại; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/408"
+      }
+    },
+    {
+      "commit": "df70aa4087602eb42032632586c487f360a1d966",
+      "subject": "fix(feature-flags): evaluate public flags for the workspace's organization (#401)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #401 cho ghi đè cờ tính năng theo tổ chức tới được trang web; đây là cơ chế bật/tắt dành cho vận hành, tự nó không đổi tính năng người dùng thấy.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/401"
+      }
+    },
+    {
+      "commit": "64fc7d38db143dd7c2849f4d1fee05fc6ab9aaec",
+      "subject": "UNI-2059: F-09 · Hỏi UNI v2 — P2b giao diện như ClickUp Brain (ô nhập một khung, @ trong câu, thẻ đối tượng, tiến độ, lịch sử) (#402)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #402 (Hỏi UNI v2 P2b, dock mới) nằm sau cờ ask_uni_stream mặc định tắt và PR #410 ghi production vẫn trả false; chưa công bố cho tới khi cờ được bật, như cách xử lý #389.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/402"
+      }
+    },
+    {
+      "commit": "ff18730616d298ece7119b09d7576642209166ce",
+      "subject": "fix(chat): thread read cursor, sidebar day labels, Tenor cache field",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Sửa lỗi Chat: khi có người trả lời chủ đề của bạn, chủ đề hiện là chưa đọc cho tới khi bạn mở nó, và trạng thái đã đọc không bị lùi lại; thông báo nhắc theo dõi được đánh dấu đã đọc khi bạn hoàn tất hoặc xóa nhắc đó; gợi ý khi gõ @ hiện tối đa 20 người, gõ thêm chữ để lọc; một công việc chỉ nối được với một chủ đề; nhãn ngày ở danh sách phòng tính đúng theo ngày của tin nhắn.",
+        "en": "Chat fixes: when someone replies to your thread, the thread shows as unread until you open it, and its read state no longer moves back; follow-up reminder notices are marked read when you complete or delete the reminder; @ suggestions show up to 20 people, and typing more letters narrows them; a task can be linked to only one thread; day labels in the room list follow the message's day correctly."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/pkg/db/queries/chat.sql",
+          "server/internal/service/chat_threads.go",
+          "server/internal/service/chat_threads_test.go",
+          "server/internal/service/chat_follow_ups.go",
+          "packages/views/chat/chat-mention-utils.ts",
+          "server/internal/service/chat_links.go",
+          "packages/views/chat/chat-sidebar-preview.ts"
+        ]
+      }
+    },
+    {
+      "commit": "29525a88ddb8c9b912b044b0a8bcd3b7f613a7df",
+      "subject": "fix(chat): UNI-1741 csv and md file messages readable",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chat cho gửi tệp CSV và Markdown (.csv, .md) bên cạnh ảnh, PDF, văn bản thuần, Word và Excel.",
+        "en": "Chat now lets you send CSV and Markdown files (.csv, .md) alongside images, PDFs, plain text, Word and Excel files."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/views/chat/chat-file-accept.ts",
+          "packages/core/i18n/locales/vi.json",
+          "server/internal/service/chat_media_fs_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "bef90894ab8bbb6a963e150d1a7e7c6931c2da79",
+      "subject": "chore(chat-mobile): sync i18n after UNI-1741 file_type copy",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Đồng bộ bản dịch cho app UniChat mobile chưa phát hành; không có thay đổi công khai. (PR #409)",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/409"
+      }
+    },
+    {
+      "commit": "ff4fd69124d6e429f644ef92a16d31a3d44ab944",
+      "subject": "(ci): fix ci and add nginx config",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Cấu hình CI, nginx và môi trường triển khai dev (commit đẩy thẳng, không có PR); hạ tầng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app-dev/docker-compose.yml",
+          "deploy/app-dev/nginx/uniwork.unicomhub.com"
+        ]
+      }
+    },
+    {
+      "commit": "01420ef606188a108de6d2d5ae7ba298d943972e",
+      "subject": "chore(deps): bump next and pin dompurify for audit high",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nâng phiên bản Next.js và ghim dompurify theo cảnh báo audit (PR #409); cập nhật phụ thuộc, không đưa chi tiết bảo mật vào mục công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/package.json",
+          "package.json",
+          "pnpm-lock.yaml"
+        ]
+      }
+    },
+    {
+      "commit": "6025d564c988e683b41c3b50dead39cfe7b5a25f",
+      "subject": "(deploy): change env",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Đổi biến môi trường triển khai dev (commit đẩy thẳng, không có PR); hạ tầng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app-dev/env/uniwork-be.env"
+        ]
+      }
+    },
+    {
+      "commit": "1b6da48ac2bb9bb2e087de98861d866caf967f6b",
+      "subject": "UNI-2059: Hỏi UNI — mức nền eval P0, chạy lại eval P2b và dòng trạng thái các P (#410)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #410 chỉ sửa tài liệu: kết quả eval Hỏi UNI và dòng trạng thái kế hoạch; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/410"
+      }
+    },
+    {
+      "commit": "b24b173983ee3a4282a47f40c94c47379fbf72ce",
+      "subject": "fix(ai): keep Ask UNI's in-memory limit on the service (#412)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #412 chuyển bộ đếm giới hạn Hỏi UNI trong bộ nhớ vào service và sửa eval giả; giữ nguyên giới hạn, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/412"
+      }
+    },
+    {
+      "commit": "1be533c5c907a6befd9241c747e1fdc49832ab2e",
+      "subject": "UNI-2139: F-09 · Hỏi UNI v2 — sửa nháp stream nhấp nháy và thẻ model thiếu tên (#411)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #411 sửa nháp nhấp nháy và tên model trong dock Hỏi UNI mới, nằm sau cờ ask_uni_stream đang tắt; chưa công bố.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/411"
+      }
+    },
+    {
+      "commit": "886caab063dd9967f8098c1a6a9121bcab357ea2",
+      "subject": "fix(ai): give Ask UNI's model the status label the web shows (#413)",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Hỏi UNI nhận trạng thái của công việc, dự án và cuộc họp bằng nhãn như trên màn hình (ví dụ Cần làm), nên câu trả lời tiếng Việt dùng nhãn này thay vì mã thô như todo hay planned; trạng thái tự đặt của workspace dùng đúng tên bạn đặt.",
+        "en": "Ask UNI now receives task, project and meeting statuses as the labels shown on screen (such as To do), so Vietnamese answers use those labels instead of raw codes like todo or planned; custom workspace statuses use the names you gave them."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/413"
+      }
+    },
+    {
+      "commit": "92b860efd2294bbe663de6357c4091199787dc4d",
+      "subject": "feat(server): liveness under /api for the phone's reachability probe (#414)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #414 thêm route kiểm tra /api/v1/healthz cho bộ kiểm tra mạng của app UniChat iOS (đang thử nghiệm qua TestFlight); không có thay đổi trên web.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/414"
+      }
+    },
+    {
+      "commit": "065517d8b29e67f22579007303f08242f4f5e59e",
+      "subject": "UNI-2053: UniChat mobile lên mức strong — crash reporting, offline-first, cuộc gọi native Android, tuân thủ store, CI native (#404)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #404 nâng chất lượng app UniChat mobile (crash reporting, offline, cuộc gọi native Android, tuân thủ store, CI native) cùng route server và mục cài đặt tổ chức cho chính sách mobile; app mobile đang ở TestFlight/Play internal testing, chưa phát hành công khai, như cách xử lý #337, #342, #345, #387. Cần người duyệt xác nhận nếu muốn công bố riêng phần cài đặt tổ chức.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/404"
+      }
+    },
+    {
+      "commit": "f9cdc3c6868c4a578845c50fa159696378144c29",
+      "subject": "fix(chat): mượt gửi tin liên tục gần Telegram",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Khung trò chuyện trong Chat mượt hơn: tin vừa gửi hiện ngay trong cuộc trò chuyện, gửi nhiều tin liên tiếp không làm khung bị giật; khi đọc lịch sử và tải tin cũ hơn, vị trí đang đọc được giữ nguyên; mọi bong bóng tin, kể cả tin đến trong một chuỗi liên tiếp, đều hiện giờ gửi.",
+        "en": "The Chat conversation is smoother: a message you send appears right away, and sending several in a row no longer makes the view jump; when you read history and load older messages, your reading position stays put; every message bubble, including incoming ones in a run of messages, shows its time."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/core/chat/optimistic-outbound-message.ts",
+          "packages/views/chat/virtual-chat-message-list.tsx",
+          "packages/views/chat/native-chat-message-panel.tsx",
+          "packages/views/chat/use-chat-older-prefetch.ts",
+          "packages/views/chat/chat-message-parts.tsx",
+          "packages/views/chat/chat-message-row.test.tsx"
+        ]
+      }
+    },
+    {
+      "commit": "34519a930ce7c382d491746d54dc90a51a7dbde1",
+      "subject": "UNI-2142: Sửa develop — re-export newerRoomPageParam không tồn tại và test chat sau merge (#419)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #419 sửa lỗi build (re-export không tồn tại) và kiểu trong test sau merge; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/419"
+      }
+    },
+    {
+      "commit": "fb7b0a5ef86eb82c1345b4aa7bb72bec412f0182",
+      "subject": "fix(chat): giữ vị trí cuộn khi đọc lịch sử và tải tin cũ",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng vào develop, không có PR; đọc diff: giữ vị trí cuộn khi đọc lịch sử và tải tin cũ. Gộp vào mục f9cdc3c686.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/views/chat/native-chat-message-panel.tsx",
+          "packages/views/chat/virtual-chat-message-list.tsx"
+        ]
+      }
+    },
+    {
+      "commit": "65a6c8d3451e89a8011471872905a19e557fedef",
+      "subject": "fix(chat): timeline virtual ổn định khi spam và cuộn lịch sử",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng vào develop, không có PR; đọc diff: timeline ổn định khi gửi nhanh và cuộn lịch sử. Gộp vào mục f9cdc3c686.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/views/chat/use-chat-older-prefetch.ts",
+          "packages/views/chat/use-chat-timeline-scroll.ts",
+          "packages/core/chat/optimistic-outbound-message.ts"
+        ]
+      }
+    },
+    {
+      "commit": "5cf0f16ee952a903e7d10fd98356580534c58c66",
+      "subject": "fix(chat): hiển thị giờ trên mọi bubble tin đến",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng vào develop, không có PR; đọc diff: hiện giờ trên mọi bong bóng tin đến. Gộp vào mục f9cdc3c686.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/views/chat/chat-message-parts.tsx",
+          "packages/views/chat/chat-voice-message-row.tsx"
         ]
       }
     }

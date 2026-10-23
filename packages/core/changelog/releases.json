@@ -2,8 +2,8 @@
   {
     "id": "release-1-8-0",
     "version": "1.8.0",
-    "date": "2026-10-22",
-    "sourceRef": "4892d5b67cc9442004c304b002790e52ab95603f",
+    "date": "2026-10-23",
+    "sourceRef": "5cf0f16ee952a903e7d10fd98356580534c58c66",
     "contentKey": "v1_8_0",
     "sections": [
       {
@@ -23,7 +23,11 @@
           "c70c6965823b95e78087da436b7f1f37d2d6220a1",
           "c0f496005d5c93547c653dd036fbe607549ea163f",
           "cd27f9296f7bf1434f4e6d55e221088886f3e8eec",
-          "c4892d5b67cc9442004c304b002790e52ab95603f"
+          "c4892d5b67cc9442004c304b002790e52ab95603f",
+          "c9dc4cbdc366fe6b777ab57010b575160c9c6b1d4",
+          "c29525a88ddb8c9b912b044b0a8bcd3b7f613a7df",
+          "c886caab063dd9967f8098c1a6a9121bcab357ea2",
+          "cf9cdc3c6868c4a578845c50fa159696378144c29"
         ]
       },
       {
@@ -35,7 +39,9 @@
           "cd4ace5438fda5aaa1dd4d0a9e2b1f3cf05d4f23c",
           "c97190ef880cb0becddefbac601fc868bfd3fe383",
           "cf26deea1665f84bf6164e04ca55f138363170372",
-          "cbd62328c1ab8482fcaec239e846678bdd723c6db"
+          "cbd62328c1ab8482fcaec239e846678bdd723c6db",
+          "c59253aa471b10dfba393387e89f84323c95f6590",
+          "cff18730616d298ece7119b09d7576642209166ce"
         ]
       }
     ]
