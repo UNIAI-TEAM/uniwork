@@ -147,10 +147,11 @@ func (s *AskUNIService) ownProposal(ctx context.Context, userID, id string) (db.
 	return row, err
 }
 
-// proposalMember is the gate every decision passes again (R13): the decider
-// made the row and is still a member of its workspace, in its organization.
+// proposalMember is the gate every decision passes again (R13): the row is an
+// Ask UNI row the decider made, and they are still a member of its workspace,
+// in its organization.
 func (s *AskUNIService) proposalMember(ctx context.Context, userID string, row db.AgentActionProposal) error {
-	if row.CreatedBy != userID {
+	if row.CreatedBy != userID || row.Source != "ask_uni" {
 		return ErrNotFound
 	}
 	m, err := s.ws.RequireMember(ctx, row.WorkspaceID, userID)
@@ -236,43 +237,63 @@ func (s *AskUNIService) answerRows(ctx context.Context, q *db.Queries, row db.Ag
 	return q.AiListProposalsForMessages(ctx, db.AiListProposalsForMessagesParams{OrganizationID: row.OrganizationID, MessageIds: []string{row.MessageID.String}})
 }
 
-// askRunDraft is the draft apply runs for row: each {{row:N.id}} in its
-// arguments becomes the id row N of the same answer made, and the workspace is
+// askRowRefsOf is, for each id field the tool declares in askIDFields, the
+// row N a {{row:N.id}} there names. Any other field is text, even a title that
+// reads {{row:9.id}}.
+func askRowRefsOf(tool string, payload string) map[string]int {
+	args := map[string]json.RawMessage{}
+	_ = json.Unmarshal([]byte(payload), &args)
+	out := map[string]int{}
+	for field := range askIDFields[tool].Refs {
+		var v string
+		if json.Unmarshal(args[field], &v) != nil {
+			continue
+		}
+		if n, ok := askRowRef(v); ok {
+			out[field] = n
+		}
+	}
+	return out
+}
+
+// askMadeID is the id of what row n of an answer made, "" until it is applied.
+func askMadeID(answer []db.AgentActionProposal, n int) string {
+	i := slices.IndexFunc(answer, func(r db.AgentActionProposal) bool { return int(r.Position) == n && r.Status == proposalApplied })
+	if i < 0 {
+		return ""
+	}
+	var made AskProposalResult
+	_ = json.Unmarshal([]byte(answer[i].Result), &made)
+	return made.ObjectID
+}
+
+// askRunDraft is the draft apply runs for row: each {{row:N.id}} in a declared
+// id field becomes the id row N of the same answer made, and the workspace is
 // the row's whatever the payload says. A row whose row N is not applied waits
-// (proposal_ref_pending). The stored payload keeps its references. A row whose
-// target is such a reference stored no revision, and its apply reads the
-// object as it is.
+// (proposal_ref_pending). The stored payload keeps its references; a target
+// that was one is known from here on (TargetID). Such a row stored no
+// revision, and its apply reads the object as it is.
 func (s *AskUNIService) askRunDraft(ctx context.Context, row db.AgentActionProposal) (askDraftRow, error) {
 	d := draftOfRow(row)
 	args := map[string]json.RawMessage{}
 	if err := json.Unmarshal(d.Args, &args); err != nil {
 		return askDraftRow{}, err
 	}
-	var answer []db.AgentActionProposal
-	for field, v := range args {
-		var ref string
-		if json.Unmarshal(v, &ref) != nil {
-			continue
+	if refs := askRowRefsOf(row.ActionType, row.Payload); len(refs) > 0 {
+		answer, err := s.answerRows(ctx, s.q, row)
+		if err != nil {
+			return askDraftRow{}, err
 		}
-		n, ok := askRowRef(ref)
-		if !ok {
-			continue
-		}
-		if answer == nil {
-			var err error
-			if answer, err = s.answerRows(ctx, s.q, row); err != nil {
-				return askDraftRow{}, err
+		for field, n := range refs {
+			id := askMadeID(answer, n)
+			if id == "" {
+				return askDraftRow{}, errProposalRefPending
+			}
+			args[field], _ = json.Marshal(id)
+			if field == askIDFields[row.ActionType].Target {
+				d.TargetID = id
 			}
 		}
-		i := slices.IndexFunc(answer, func(r db.AgentActionProposal) bool { return int(r.Position) == n && r.Status == proposalApplied })
-		if i < 0 {
-			return askDraftRow{}, errProposalRefPending
-		}
-		var made AskProposalResult
-		if err := json.Unmarshal([]byte(answer[i].Result), &made); err != nil || made.ObjectID == "" {
-			return askDraftRow{}, errProposalRefPending
-		}
-		args[field], _ = json.Marshal(made.ObjectID)
 	}
 	args["workspace_id"], _ = json.Marshal(row.WorkspaceID)
 	b, err := json.Marshal(args)
@@ -300,51 +321,59 @@ func askFailureCode(err error) string {
 	return askApplyFailed
 }
 
-// askResultKinds is the audit resource type of what a tool makes, where it is
-// not the tool's target kind.
-var askResultKinds = map[string]string{
-	"add_comment": "task_comment", "add_document_comment": "document_comment", "send_chat_message": "chat_message",
-}
-
-// proposalEntry is the audit row of a decision on row. It names the object
-// the row made or changed, or the row itself when there is none, so a sent
-// chat message, which has no business audit row, still has this one (R4).
+// proposalEntry is the audit row of a decision on row. It names what the row
+// made or changed the way the repo audits it: a comment under its task or page
+// with comment_id in the metadata; a sent chat message, which has no business
+// audit row, so this one is its trace (R4); else the object. A row that made
+// nothing names itself.
 func proposalEntry(row db.AgentActionProposal, action, actorID string) audit.Entry {
 	var res AskProposalResult
 	_ = json.Unmarshal([]byte(row.Result), &res)
+	meta := map[string]any{
+		"proposal_id": row.ID, "tool": row.ActionType, "level": row.RiskLevel, "mode": row.Mode,
+		"decision": row.Decision.String, "tainted": row.Tainted, "message_id": row.MessageID.String,
+	}
 	kind, id := "ai_proposal", row.ID
-	if res.ObjectID != "" {
-		kind, id = row.TargetKind, res.ObjectID
-		if k, ok := askResultKinds[row.ActionType]; ok {
-			kind = k
+	switch {
+	case res.ObjectID == "":
+	case row.ActionType == "add_comment" || row.ActionType == "add_document_comment":
+		meta["comment_id"] = res.ObjectID
+		if row.TargetID.Valid {
+			kind, id = row.TargetKind, row.TargetID.String
 		}
+	case row.ActionType == "send_chat_message":
+		kind, id = "chat_message", res.ObjectID
+	default:
+		kind, id = row.TargetKind, res.ObjectID
 	}
 	return audit.Entry{
 		OrganizationID: row.OrganizationID, WorkspaceID: row.WorkspaceID, Actor: audit.User(actorID), Action: action,
-		ResourceType: kind, ResourceID: id,
-		Metadata: map[string]any{
-			"proposal_id": row.ID, "tool": row.ActionType, "level": row.RiskLevel, "mode": row.Mode,
-			"decision": row.Decision.String, "tainted": row.Tainted, "message_id": row.MessageID.String,
-		},
+		ResourceType: kind, ResourceID: id, Metadata: meta,
 	}
 }
 
 // ApplyProposal applies one row as its asker pressed Áp dụng (decision
-// confirmed). A refusal leaves the row as it was. A command that fails
-// settles the row failed and returns its code as the error, with the row.
+// confirmed, or answer for the row "Tạo tài liệu" made). A refusal leaves the
+// row as it was. A command that fails settles the row failed and returns its
+// code as the error, with the row.
 func (s *AskUNIService) ApplyProposal(ctx context.Context, userID, proposalID string) (AskProposal, error) {
 	row, err := s.ownProposal(ctx, userID, proposalID)
 	if err != nil {
 		return AskProposal{}, err
 	}
-	return s.applyRow(ctx, userID, row, "confirmed")
+	decision := "confirmed"
+	if row.Position == askAnswerPosition {
+		decision = "answer"
+	}
+	return s.applyRow(ctx, userID, row, decision)
 }
 
 // applyRow claims, runs and settles one row: the manual apply, a plan's rows,
 // Auto mode's level-1 rows and "Tạo tài liệu" all come here. Every check runs
 // again here, whoever calls: the asker and their membership, the row still
 // pending and not expired, the rows it names applied, then the shared gate,
-// which spends the budget.
+// which spends the budget. The claim is pinned to row as read: if the row was
+// edited since, nothing runs (proposal_not_pending).
 func (s *AskUNIService) applyRow(ctx context.Context, userID string, row db.AgentActionProposal, decision string) (AskProposal, error) {
 	if err := s.proposalMember(ctx, userID, row); err != nil {
 		return AskProposal{}, err
@@ -366,23 +395,61 @@ func (s *AskUNIService) applyRow(ctx context.Context, userID string, row db.Agen
 	if err := s.askGate(ctx, proposalContext(row), true); err != nil {
 		return AskProposal{}, err
 	}
-	claimed, err := s.q.AiClaimProposal(ctx, db.AiClaimProposalParams{ID: row.ID, OrganizationID: row.OrganizationID, FromStatus: proposalPending, ToStatus: proposalApplying})
-	if errors.Is(err, pgx.ErrNoRows) {
+	if _, err := s.q.AiClaimProposal(ctx, db.AiClaimProposalParams{
+		ID: row.ID, OrganizationID: row.OrganizationID, FromStatus: proposalPending, ToStatus: proposalApplying, SeenUpdatedAt: row.UpdatedAt,
+	}); errors.Is(err, pgx.ErrNoRows) {
 		return AskProposal{}, errProposalNotPending
-	}
-	if err != nil {
+	} else if err != nil {
 		return AskProposal{}, err
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), askApplyTimeout)
+	return s.runClaimed(ctx, userID, row, decision, draft, tool.apply, askApplyTimeout)
+}
+
+// errAskPanicked is a claimed row whose command panicked. The row is left as
+// it is (it reads unknown): whether the command wrote is not known.
+var errAskPanicked = errors.New("ask uni: a proposal's command panicked")
+
+// askRecover runs a claimed row's command; a panic is logged with the row's id
+// and becomes errAskPanicked, so a run off the request (Auto mode) cannot take
+// the process down.
+func askRecover(ctx context.Context, proposalID string, run func() error) (err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			slog.ErrorContext(ctx, "ask uni: a proposal's command panicked", "proposal_id", proposalID, "panic", fmt.Sprint(v))
+			err = errAskPanicked
+		}
+	}()
+	return run()
+}
+
+// askCommand is a claimed row's command: its tool's apply.
+type askCommand func(ctx context.Context, p McpPrincipal, row askDraftRow) (AskProposalResult, *askInverse, error)
+
+// runClaimed runs a claimed row's command, within timeout and as the asker
+// under the proposal's via, then settles the row. Both outlive the request,
+// so a client that leaves does not strand the row; the settle has a deadline
+// of its own, so a command that ran out of time still leaves the row failed.
+func (s *AskUNIService) runClaimed(ctx context.Context, userID string, row db.AgentActionProposal, decision string, draft askDraftRow, run askCommand, timeout time.Duration) (AskProposal, error) {
+	via := audit.WithVia(context.WithoutCancel(ctx), audit.Via{Kind: "ask_uni", ProposalID: row.ID})
+	runCtx, cancel := context.WithTimeout(via, timeout)
 	defer cancel()
-	ctx = audit.WithVia(ctx, audit.Via{Kind: "ask_uni", ProposalID: row.ID})
-	res, inv, runErr := tool.apply(ctx, McpPrincipal{UserID: userID, OrganizationID: row.OrganizationID}, draft)
+	var res AskProposalResult
+	var inv *askInverse
+	runErr := askRecover(runCtx, row.ID, func() (err error) {
+		res, inv, err = run(runCtx, McpPrincipal{UserID: userID, OrganizationID: row.OrganizationID}, draft)
+		return err
+	})
+	if errors.Is(runErr, errAskPanicked) {
+		return AskProposal{}, runErr
+	}
+	ctx, done := outliving(via)
+	defer done()
 	if runErr != nil {
 		// apply wrote nothing (its contract): the row fails with the reason.
 		code := askFailureCode(runErr)
 		failed, err := s.q.AiSettleProposalApply(ctx, db.AiSettleProposalApplyParams{
 			ID: row.ID, OrganizationID: row.OrganizationID, FromStatus: proposalApplying, Status: proposalFailed,
-			Result: claimed.Result, Error: strText(code), Decision: strText(decision), DecidedBy: strText(userID),
+			Result: row.Result, Error: strText(code), Decision: strText(decision), DecidedBy: strText(userID), TargetID: strText(draft.TargetID),
 		})
 		if err != nil {
 			return AskProposal{}, err
@@ -393,7 +460,7 @@ func (s *AskUNIService) applyRow(ctx context.Context, userID string, row db.Agen
 		}
 		return askProposalOf(failed, s.now()), CodedError{Code: code, Status: http.StatusConflict}
 	}
-	applied, err := s.settleApplied(ctx, userID, row, decision, res, inv)
+	applied, err := s.settleApplied(ctx, userID, row, decision, draft.TargetID, res, inv)
 	if err != nil {
 		// The command is written; the row stays applying and reads unknown.
 		slog.ErrorContext(ctx, "ask uni: settling an applied proposal failed", "proposal_id", row.ID, "error", err)
@@ -409,7 +476,7 @@ func (s *AskUNIService) applyRow(ctx context.Context, userID string, row db.Agen
 
 // settleApplied marks the claimed row applied with what its command returned
 // and writes ai_proposal.applied in the same transaction.
-func (s *AskUNIService) settleApplied(ctx context.Context, userID string, row db.AgentActionProposal, decision string, res AskProposalResult, inv *askInverse) (db.AgentActionProposal, error) {
+func (s *AskUNIService) settleApplied(ctx context.Context, userID string, row db.AgentActionProposal, decision, targetID string, res AskProposalResult, inv *askInverse) (db.AgentActionProposal, error) {
 	result, err := json.Marshal(res)
 	if err != nil {
 		return db.AgentActionProposal{}, err
@@ -430,7 +497,7 @@ func (s *AskUNIService) settleApplied(ctx context.Context, userID string, row db
 	q := s.q.WithTx(tx)
 	applied, err := q.AiSettleProposalApply(ctx, db.AiSettleProposalApplyParams{
 		ID: row.ID, OrganizationID: row.OrganizationID, FromStatus: proposalApplying, Status: proposalApplied,
-		Result: string(result), Undo: undo, Decision: strText(decision), DecidedBy: strText(userID),
+		Result: string(result), Undo: undo, Decision: strText(decision), DecidedBy: strText(userID), TargetID: strText(targetID),
 	})
 	if err != nil {
 		return db.AgentActionProposal{}, err
@@ -449,6 +516,9 @@ func (s *AskUNIService) settleApplied(ctx context.Context, userID string, row db
 // (decision confirmed). It returns the answer's rows as they stand after the
 // call and why the run stopped, nil when every chosen row applied.
 func (s *AskUNIService) ApplyMessageProposals(ctx context.Context, userID, conversationID, messageID string, ids []string) ([]AskProposal, error) {
+	if len(ids) == 0 {
+		return nil, Invalid("proposal_ids is empty")
+	}
 	conv, err := s.ownConversation(ctx, userID, conversationID, "")
 	if err != nil {
 		return nil, err
@@ -475,6 +545,20 @@ func (s *AskUNIService) ApplyMessageProposals(ctx context.Context, userID, conve
 	}
 	if err := s.askGate(ctx, proposalContext(rows[0]), false); err != nil {
 		return nil, err
+	}
+	// A chosen row that names another needs it chosen too or applied already,
+	// or the run would stop half way: refuse before anything runs or is
+	// rejected.
+	for _, r := range rows {
+		if !chosen[r.ID] {
+			continue
+		}
+		for _, n := range askRowRefsOf(r.ActionType, r.Payload) {
+			i := slices.IndexFunc(rows, func(o db.AgentActionProposal) bool { return int(o.Position) == n })
+			if i < 0 || !(chosen[rows[i].ID] || rows[i].Status == proposalApplied) {
+				return nil, errProposalRefPending
+			}
+		}
 	}
 	plan := rows[0].Mode == AskModePlan
 	decision := "confirmed"

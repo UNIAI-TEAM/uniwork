@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -38,7 +39,9 @@ func askAnswerMarkdown(answer string, cited []AskCitation) string {
 // as the conversation. It is one create_document row of the answer at
 // askAnswerPosition, applied with decision answer and undone like any other.
 // An answer makes one page: a second call returns the row the first made,
-// applying it if it still waits.
+// applying it if it still waits. A row that failed or expired unapplied is
+// drafted again from the answer and tried again; any other row, an undone one
+// included (R14), is returned as it is.
 func (s *AskUNIService) SaveAnswerAsDocument(ctx context.Context, userID, conversationID, messageID string) (AskProposal, error) {
 	conv, err := s.ownConversation(ctx, userID, conversationID, "")
 	if err != nil {
@@ -92,9 +95,47 @@ func (s *AskUNIService) answerDocumentRow(ctx context.Context, tc ai.ToolContext
 	if err != nil {
 		return db.AgentActionProposal{}, err
 	}
-	if i := slices.IndexFunc(rows, func(r db.AgentActionProposal) bool { return r.Position == askAnswerPosition }); i >= 0 {
+	now := s.now()
+	i := slices.IndexFunc(rows, func(r db.AgentActionProposal) bool { return r.Position == askAnswerPosition })
+	if i >= 0 && rows[i].Status != proposalFailed && (rows[i].Status != proposalPending || !askExpired(rows[i], now)) {
 		return rows[i], tx.Commit(ctx)
 	}
+	d, err := s.answerDocumentDraft(ctx, tc, conv, msg)
+	if err != nil {
+		return db.AgentActionProposal{}, err
+	}
+	if i >= 0 {
+		preview, err := json.Marshal(d.Preview)
+		if err != nil {
+			return db.AgentActionProposal{}, err
+		}
+		row, err := q.AiResetProposalDraft(ctx, db.AiResetProposalDraftParams{
+			ID: rows[i].ID, OrganizationID: rows[i].OrganizationID, Payload: string(d.Args), Preview: string(preview),
+			RiskLevel: d.Level, TargetID: strText(d.TargetID), TargetRevision: int8Of(d.TargetRevision),
+			ExpiresAt: pgtype.Timestamptz{Time: now.Add(askProposalTTL), Valid: true},
+		})
+		if err != nil {
+			return db.AgentActionProposal{}, err
+		}
+		return row, tx.Commit(ctx)
+	}
+	// The caller passed the gate, so the mode is set; a ceiling lowered since
+	// fails the row's mode check and nothing is stored.
+	mode := s.askActions(ctx, tc, "").Mode
+	p, err := askProposalParams(tc, conv.ID, msg.ID, util.NewID(), askAnswerPosition, d, mode, convTainted(conv), now)
+	if err != nil {
+		return db.AgentActionProposal{}, err
+	}
+	row, err := q.AiInsertProposal(ctx, p)
+	if err != nil {
+		return db.AgentActionProposal{}, err
+	}
+	return row, tx.Commit(ctx)
+}
+
+// answerDocumentDraft is the create_document draft of the answer as it is
+// stored now: its Markdown with [S#] made links, titled as the conversation.
+func (s *AskUNIService) answerDocumentDraft(ctx context.Context, tc ai.ToolContext, conv db.AiConversation, msg db.AiMessage) (askDraftRow, error) {
 	var cited []AskCitation
 	_ = json.Unmarshal([]byte(msg.Citations), &cited)
 	content := askAnswerMarkdown(msg.Content, cited)
@@ -104,26 +145,11 @@ func (s *AskUNIService) answerDocumentRow(ctx context.Context, tc ai.ToolContext
 	}
 	args, err := json.Marshal(map[string]string{"title": capRunes(title, mcpMaxDocumentTitleRunes, ""), "content": content})
 	if err != nil {
-		return db.AgentActionProposal{}, err
+		return askDraftRow{}, err
 	}
 	tool, err := s.askWriteToolNamed("create_document")
 	if err != nil {
-		return db.AgentActionProposal{}, err
+		return askDraftRow{}, err
 	}
-	d, err := tool.prepare(ctx, tc, args, nil)
-	if err != nil {
-		return db.AgentActionProposal{}, err
-	}
-	// The caller passed the gate, so the mode is set; a ceiling lowered since
-	// fails the row's mode check and nothing is stored.
-	mode := s.askActions(ctx, tc, "").Mode
-	p, err := askProposalParams(tc, conv.ID, msg.ID, util.NewID(), askAnswerPosition, d, mode, convTainted(conv), s.now())
-	if err != nil {
-		return db.AgentActionProposal{}, err
-	}
-	row, err := q.AiInsertProposal(ctx, p)
-	if err != nil {
-		return db.AgentActionProposal{}, err
-	}
-	return row, tx.Commit(ctx)
+	return tool.prepare(ctx, tc, args, nil)
 }

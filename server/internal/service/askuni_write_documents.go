@@ -145,7 +145,7 @@ func (s *AskUNIService) prepareCreateDocument(ctx context.Context, tc ai.ToolCon
 	if _, err := mcpID("parent_id", in.ParentID); err != nil {
 		return askDraftRow{}, err
 	}
-	refs, _, err := askRowRefs(earlier, map[string]string{"parent_id": "create_document"}, map[string]string{"parent_id": in.ParentID})
+	refs, _, err := askRowRefs(earlier, askIDFields["create_document"].Refs, map[string]string{"parent_id": in.ParentID})
 	if err != nil {
 		return askDraftRow{}, err
 	}
@@ -223,7 +223,7 @@ func (s *AskUNIService) prepareUpdateDocument(ctx context.Context, tc ai.ToolCon
 	if err := askDocumentID(in.DocumentID); err != nil {
 		return askDraftRow{}, err
 	}
-	refs, _, err := askRowRefs(earlier, map[string]string{"document_id": "create_document"}, map[string]string{"document_id": in.DocumentID})
+	refs, _, err := askRowRefs(earlier, askIDFields["update_document"].Refs, map[string]string{"document_id": in.DocumentID})
 	if err != nil {
 		return askDraftRow{}, err
 	}
@@ -339,7 +339,7 @@ func (s *AskUNIService) prepareAddDocumentComment(ctx context.Context, tc ai.Too
 	if err := askDocumentID(in.DocumentID); err != nil {
 		return askDraftRow{}, err
 	}
-	refs, _, err := askRowRefs(earlier, map[string]string{"document_id": "create_document"}, map[string]string{"document_id": in.DocumentID})
+	refs, _, err := askRowRefs(earlier, askIDFields["add_document_comment"].Refs, map[string]string{"document_id": in.DocumentID})
 	if err != nil {
 		return askDraftRow{}, err
 	}

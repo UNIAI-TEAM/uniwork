@@ -155,7 +155,7 @@ func (s *AskUNIService) prepareUpdateProject(ctx context.Context, tc ai.ToolCont
 	if err := in.check(); err != nil {
 		return askDraftRow{}, err
 	}
-	refs, byField, err := askRowRefs(earlier, map[string]string{"project_id": "create_project"}, map[string]string{"project_id": in.ProjectID})
+	refs, byField, err := askRowRefs(earlier, askIDFields["update_project"].Refs, map[string]string{"project_id": in.ProjectID})
 	if err != nil {
 		return askDraftRow{}, err
 	}

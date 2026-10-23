@@ -22,16 +22,22 @@ ORDER BY message_id, position;
 SELECT * FROM agent_action_proposals WHERE id = $1;
 
 -- name: AiClaimProposal :one
+-- seen_updated_at, when set, pins the claim to the row as it was read: an
+-- edit since then (which moves updated_at) makes the claim miss, so apply
+-- never runs arguments other than the ones the card shows. Undo leaves it NULL.
 UPDATE agent_action_proposals SET status = sqlc.arg(to_status), updated_at = now()
 WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
   AND status = sqlc.arg(from_status)
+  AND (sqlc.narg(seen_updated_at)::timestamptz IS NULL OR updated_at = sqlc.narg(seen_updated_at)::timestamptz)
 RETURNING *;
 
 -- name: AiSettleProposalApply :one
 -- Apply path: applying -> applied | failed, and pending -> rejected. Guarded by
--- from_status so a settle never clobbers a row in another state.
+-- from_status so a settle never clobbers a row in another state. target_id
+-- records the object a {{row:N.id}} target turned out to be; a stored one stays.
 UPDATE agent_action_proposals SET
   status = sqlc.arg(status),
+  target_id = COALESCE(target_id, sqlc.narg(target_id)),
   result = sqlc.arg(result),
   undo = sqlc.narg(undo),
   error = sqlc.narg(error),
@@ -66,6 +72,18 @@ UPDATE agent_action_proposals SET
   target_revision = sqlc.narg(target_revision), updated_at = now()
 WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
   AND status = 'pending'
+RETURNING *;
+
+-- name: AiResetProposalDraft :one
+-- "Tạo tài liệu" again on an answer whose page row failed or expired: the row
+-- is drafted anew from the answer and waits to be applied, as if just made.
+UPDATE agent_action_proposals SET
+  payload = sqlc.arg(payload), preview = sqlc.arg(preview), risk_level = sqlc.arg(risk_level),
+  target_id = sqlc.narg(target_id), target_revision = sqlc.narg(target_revision),
+  expires_at = sqlc.arg(expires_at), status = 'pending', result = '{}', error = NULL,
+  decision = NULL, decided_by = NULL, decided_at = NULL, updated_at = now()
+WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
+  AND status IN ('failed', 'pending')
 RETURNING *;
 
 -- name: AiCountMessageProposals :one

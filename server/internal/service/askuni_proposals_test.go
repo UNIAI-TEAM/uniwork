@@ -184,7 +184,12 @@ func TestApplyProposalRefusals(t *testing.T) {
 		}
 	}
 
-	refused("someone else in the organization", x.ub.ID, func(err error) bool { return errors.Is(err, ErrNotFound) })
+	notFound := func(err error) bool { return errors.Is(err, ErrNotFound) }
+	refused("someone else in the organization", x.ub.ID, notFound)
+
+	exec(`UPDATE agent_action_proposals SET source = 'agent_run' WHERE id = $1`, row.ID)
+	refused("a row an agent run proposed", x.ua.ID, notFound)
+	exec(`UPDATE agent_action_proposals SET source = 'ask_uni' WHERE id = $1`, row.ID)
 
 	exec(`UPDATE organization_members SET deactivated_at = now() WHERE organization_id = $1 AND user_id = $2`, x.w.OrganizationID, x.ua.ID)
 	refused("the asker deactivated", x.ua.ID, code("member_deactivated"))
@@ -230,23 +235,31 @@ func TestApplyProposalRefusals(t *testing.T) {
 
 // A plan runs its rows in order and stops at the first that fails; in plan
 // mode the rows left out are rejected in the same call (R13).
+// proposePlan stores a plan-mode answer: row 1 creates the project, row 2 a
+// task in it ({{row:1.id}}), row 3 a task of its own.
+func proposePlan(t *testing.T, s *AskUNIService, tc ai.ToolContext, project string) (string, string, []db.AgentActionProposal) {
+	t.Helper()
+	convID, msgID := askAnswer(t, s, tc, "Kế hoạch", nil)
+	p := askPrepare(t, s, tc, "create_project", fmt.Sprintf(`{"title":%q}`, project))
+	task := askPrepare(t, s, tc, "create_task", `{"title":"Việc trong dự án","project_id":"{{row:1.id}}"}`, p)
+	other := askPrepare(t, s, tc, "create_task", `{"title":"Việc không chọn"}`)
+	return convID, msgID, propose(t, s, tc, convID, msgID, AskModePlan, p, task, other)
+}
+
+func statuses(ps []AskProposal) string {
+	var out []string
+	for _, p := range ps {
+		out = append(out, fmt.Sprintf("%d:%s", p.Position, p.Status))
+	}
+	return strings.Join(out, " ")
+}
+
 func TestApplyPlanStopsAtTheFirstFailure(t *testing.T) {
 	x, s, tc := proposalWorld(t)
 	ctx := context.Background()
 	plan := func(project string) (string, string, []db.AgentActionProposal) {
 		t.Helper()
-		convID, msgID := askAnswer(t, s, tc, "Kế hoạch", nil)
-		p := askPrepare(t, s, tc, "create_project", fmt.Sprintf(`{"title":%q}`, project))
-		task := askPrepare(t, s, tc, "create_task", `{"title":"Việc trong dự án","project_id":"{{row:1.id}}"}`, p)
-		other := askPrepare(t, s, tc, "create_task", `{"title":"Việc không chọn"}`)
-		return convID, msgID, propose(t, s, tc, convID, msgID, AskModePlan, p, task, other)
-	}
-	statuses := func(ps []AskProposal) string {
-		var out []string
-		for _, p := range ps {
-			out = append(out, fmt.Sprintf("%d:%s", p.Position, p.Status))
-		}
-		return strings.Join(out, " ")
+		return proposePlan(t, s, tc, project)
 	}
 	titled := func(title string) int {
 		return x.count(t, `SELECT count(*) FROM tasks WHERE workspace_id = $1 AND title = $2`, x.w.ID, title)
@@ -467,5 +480,291 @@ func TestSaveAnswerAsDocument(t *testing.T) {
 	}
 	if x.docRows(t) != pages {
 		t.Fatal("a refused save wrote a page")
+	}
+}
+
+// A plan whose chosen row needs a row neither chosen nor applied, or one that
+// chooses nothing, is refused before anything runs or is rejected.
+func TestApplyPlanRefusesBeforeRunning(t *testing.T) {
+	x, s, tc := proposalWorld(t)
+	ctx := context.Background()
+	convID, msgID, rows := proposePlan(t, s, tc, "Dự án phụ thuộc")
+	still := func(name string) {
+		t.Helper()
+		m, err := s.MessageProposals(ctx, tc.OrganizationID, []string{msgID})
+		if err != nil || statuses(m[msgID]) != "1:pending 2:pending 3:pending" {
+			t.Fatalf("%s: rows %s, %v", name, statuses(m[msgID]), err)
+		}
+		if n := x.count(t, `SELECT count(*) FROM audit_events WHERE action LIKE 'ai_proposal.%'`); n != 0 {
+			t.Fatalf("%s: %d ai_proposal audit rows", name, n)
+		}
+	}
+	if _, err := s.ApplyMessageProposals(ctx, x.ua.ID, convID, msgID, []string{rows[1].ID}); codeOf(err) != "proposal_ref_pending" {
+		t.Fatalf("the task without its project: %v, want proposal_ref_pending", err)
+	}
+	still("a missing dependency")
+	if _, err := s.ApplyMessageProposals(ctx, x.ua.ID, convID, msgID, nil); !errors.As(err, new(ValidationError)) {
+		t.Fatalf("no rows chosen: %v, want a validation error", err)
+	}
+	still("nothing chosen")
+}
+
+// The claim is pinned to the row as read: an edit in between means the run
+// does not happen, so no command runs arguments the card no longer shows.
+func TestApplyClaimPinsTheRowAsRead(t *testing.T) {
+	x, s, tc := proposalWorld(t)
+	ctx := context.Background()
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	row := propose(t, s, tc, convID, msgID, AskModeAsk, askPrepare(t, s, tc, "create_task", `{"title":"Tên đã đọc"}`))[0]
+	titled := func(title string) int {
+		return x.count(t, `SELECT count(*) FROM tasks WHERE workspace_id = $1 AND title = $2`, x.w.ID, title)
+	}
+	stale := proposalRow(t, s, row.ID)
+	if _, err := s.EditProposal(ctx, x.ua.ID, row.ID, map[string]json.RawMessage{"title": rawJSON("Tên đã sửa")}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.applyRow(ctx, x.ua.ID, stale, "confirmed"); codeOf(err) != "proposal_not_pending" {
+		t.Fatalf("apply of the row as read before the edit: %v, want proposal_not_pending", err)
+	}
+	if got := proposalRow(t, s, row.ID); got.Status != "pending" || !strings.Contains(got.Payload, "Tên đã sửa") || titled("Tên đã đọc")+titled("Tên đã sửa") != 0 {
+		t.Fatalf("after the refused claim: %s %s, %d tasks", got.Status, got.Payload, titled("Tên đã đọc")+titled("Tên đã sửa"))
+	}
+	if _, err := s.ApplyProposal(ctx, x.ua.ID, row.ID); err != nil || titled("Tên đã sửa") != 1 {
+		t.Fatalf("apply of the edited row: %v, %d tasks", err, titled("Tên đã sửa"))
+	}
+}
+
+func claimAs(t *testing.T, s *AskUNIService, row db.AgentActionProposal, from, to string) db.AgentActionProposal {
+	t.Helper()
+	got, err := s.q.AiClaimProposal(context.Background(), db.AiClaimProposalParams{ID: row.ID, OrganizationID: row.OrganizationID, FromStatus: from, ToStatus: to})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
+}
+
+// A command that runs out of time still settles its row: failed for an apply,
+// back to applied for an undo. Neither is left applying or undoing.
+func TestClaimedRowSettlesAfterItsDeadline(t *testing.T) {
+	x, s, tc := proposalWorld(t)
+	ctx := context.Background()
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	rows := propose(t, s, tc, convID, msgID, AskModeAsk,
+		askPrepare(t, s, tc, "create_task", `{"title":"Hết giờ"}`), askPrepare(t, s, tc, "create_task", `{"title":"Hoàn tác hết giờ"}`))
+	wait := func(ctx context.Context, _ McpPrincipal, _ askDraftRow) (AskProposalResult, *askInverse, error) {
+		<-ctx.Done()
+		return AskProposalResult{}, nil, ctx.Err()
+	}
+	claimed := claimAs(t, s, rows[0], "pending", "applying")
+	p, err := s.runClaimed(ctx, x.ua.ID, claimed, "confirmed", draftOfRow(claimed), wait, 20*time.Millisecond)
+	if !errors.Is(err, context.DeadlineExceeded) || p.Status != "failed" || p.ErrorCode != askApplyFailed || proposalRow(t, s, rows[0].ID).Status != "failed" {
+		t.Fatalf("apply past its deadline: %+v, %v; want a failed row", p, err)
+	}
+
+	if _, err := s.ApplyProposal(ctx, x.ua.ID, rows[1].ID); err != nil {
+		t.Fatal(err)
+	}
+	undoing := claimAs(t, s, proposalRow(t, s, rows[1].ID), "applied", "undoing")
+	u, err := s.finishUndo(ctx, x.ua.ID, undoing, func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }, 20*time.Millisecond)
+	if got := proposalRow(t, s, rows[1].ID); !errors.Is(err, context.DeadlineExceeded) || u.Status != "applied" || got.Status != "applied" || got.UndoneBy.Valid {
+		t.Fatalf("undo past its deadline: %+v, %v; row %s", u, err, got.Status)
+	}
+}
+
+// A command that panics is caught: the row stays claimed (it reads unknown
+// later) and the caller gets an error, not a dead process.
+func TestProposalCommandPanicIsCaught(t *testing.T) {
+	x, s, tc := proposalWorld(t)
+	ctx := context.Background()
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	rows := propose(t, s, tc, convID, msgID, AskModeAsk,
+		askPrepare(t, s, tc, "create_task", `{"title":"Hoảng"}`), askPrepare(t, s, tc, "create_task", `{"title":"Hoảng khi hoàn tác"}`))
+	boom := func(context.Context, McpPrincipal, askDraftRow) (AskProposalResult, *askInverse, error) {
+		panic("boom")
+	}
+	claimed := claimAs(t, s, rows[0], "pending", "applying")
+	if _, err := s.runClaimed(ctx, x.ua.ID, claimed, "confirmed", draftOfRow(claimed), boom, time.Second); !errors.Is(err, errAskPanicked) {
+		t.Fatalf("apply that panics: %v, want errAskPanicked", err)
+	}
+	got := proposalRow(t, s, rows[0].ID)
+	if got.Status != "applying" || askProposalOf(got, time.Now().Add(3*time.Minute)).Status != "unknown" {
+		t.Fatalf("a panicked apply left the row %s", got.Status)
+	}
+
+	if _, err := s.ApplyProposal(ctx, x.ua.ID, rows[1].ID); err != nil {
+		t.Fatal(err)
+	}
+	undoing := claimAs(t, s, proposalRow(t, s, rows[1].ID), "applied", "undoing")
+	if _, err := s.finishUndo(ctx, x.ua.ID, undoing, func(context.Context) error { panic("boom") }, time.Second); !errors.Is(err, errAskPanicked) {
+		t.Fatalf("undo that panics: %v, want errAskPanicked", err)
+	}
+	if got := proposalRow(t, s, rows[1].ID); got.Status != "undoing" {
+		t.Fatalf("a panicked undo left the row %s", got.Status)
+	}
+}
+
+// Only the id fields a tool declares take a row's id; a title that reads
+// {{row:9.id}} is text. A comment is audited under its task with its id in
+// the metadata, also when the task was a row of the same answer.
+func TestRowRefsOnlyInIDFields(t *testing.T) {
+	x, s, tc := proposalWorld(t)
+	ctx := context.Background()
+	for _, tool := range s.askWriteTools() {
+		if _, ok := askIDFields[tool.Name]; !ok {
+			t.Errorf("write tool %s declares no id fields", tool.Name)
+		}
+	}
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	created := askPrepare(t, s, tc, "create_task", `{"title":"{{row:9.id}}"}`)
+	comment := askPrepare(t, s, tc, "add_comment", `{"task_id":"{{row:1.id}}","body":"chào"}`, created)
+	rows := propose(t, s, tc, convID, msgID, AskModeAsk, created, comment)
+	task, err := s.ApplyProposal(ctx, x.ua.ID, rows[0].ID)
+	if err != nil || x.count(t, `SELECT count(*) FROM tasks WHERE id = $1 AND title = '{{row:9.id}}'`, task.Result.ObjectID) != 1 {
+		t.Fatalf("a title that reads like a reference: %+v, %v", task, err)
+	}
+	c, err := s.ApplyProposal(ctx, x.ua.ID, rows[1].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kind, id, commentID string
+	if err := s.pool.QueryRow(ctx, `SELECT resource_type, resource_id, metadata::jsonb->>'comment_id' FROM audit_events WHERE action = 'ai_proposal.applied' AND metadata::jsonb->>'proposal_id' = $1`, rows[1].ID).Scan(&kind, &id, &commentID); err != nil {
+		t.Fatal(err)
+	}
+	if kind != "task" || id != task.Result.ObjectID || commentID != c.Result.ObjectID {
+		t.Fatalf("comment audited as %s %s comment %s; want task %s comment %s", kind, id, commentID, task.Result.ObjectID, c.Result.ObjectID)
+	}
+}
+
+// Bỏ qua, Sửa and Hoàn tác stop with the flag off or the ceiling off, like
+// Áp dụng; the rows stay as they were.
+func TestDecisionsNeedAnOpenGate(t *testing.T) {
+	x, s, tc := proposalWorld(t)
+	ctx := context.Background()
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	rows := propose(t, s, tc, convID, msgID, AskModeAsk,
+		askPrepare(t, s, tc, "create_task", `{"title":"Chờ"}`), askPrepare(t, s, tc, "create_task", `{"title":"Đã áp dụng"}`))
+	if _, err := s.ApplyProposal(ctx, x.ua.ID, rows[1].ID); err != nil {
+		t.Fatal(err)
+	}
+	pending, applied := proposalRow(t, s, rows[0].ID), proposalRow(t, s, rows[1].ID)
+	ceiling := func(v string) {
+		t.Helper()
+		if err := s.q.SetOrganizationAskWriteCeiling(ctx, db.SetOrganizationAskWriteCeilingParams{Ceiling: v, ActorID: x.ua.ID, ID: x.w.OrganizationID}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, c := range []struct {
+		name       string
+		shut, open func()
+	}{
+		{"flag off", func() { s.SetFlags(actionsFlagFake{on: false}) }, func() { s.SetFlags(actionsFlagFake{on: true}) }},
+		{"ceiling off", func() { ceiling(AskCeilingOff) }, func() { ceiling(AskModePlan) }},
+	} {
+		c.shut()
+		if _, err := s.RejectProposal(ctx, x.ua.ID, rows[0].ID); codeOf(err) != "ai_actions_disabled" {
+			t.Errorf("%s: reject %v", c.name, err)
+		}
+		if _, err := s.EditProposal(ctx, x.ua.ID, rows[0].ID, map[string]json.RawMessage{"title": rawJSON("Khác")}); codeOf(err) != "ai_actions_disabled" {
+			t.Errorf("%s: edit %v", c.name, err)
+		}
+		if _, err := s.UndoProposal(ctx, x.ua.ID, rows[1].ID); codeOf(err) != "ai_actions_disabled" {
+			t.Errorf("%s: undo %v", c.name, err)
+		}
+		c.open()
+	}
+	if got := proposalRow(t, s, rows[0].ID); got.Status != "pending" || !got.UpdatedAt.Time.Equal(pending.UpdatedAt.Time) {
+		t.Errorf("the pending row changed: %+v", got)
+	}
+	if got := proposalRow(t, s, rows[1].ID); got.Status != "applied" || !got.UpdatedAt.Time.Equal(applied.UpdatedAt.Time) {
+		t.Errorf("the applied row changed: %+v", got)
+	}
+}
+
+// An edit cannot move a row: the workspace and the revision are the server's.
+func TestEditCannotRetargetTheWorkspace(t *testing.T) {
+	x, s, tc := proposalWorld(t)
+	ctx := context.Background()
+	other, err := s.ws.CreateInOrg(ctx, x.ua.ID, x.w.OrganizationID, "Beta", "beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	row := propose(t, s, tc, convID, msgID, AskModeAsk, askPrepare(t, s, tc, "create_task", `{"title":"Ở đâu"}`))[0]
+	if _, err := s.EditProposal(ctx, x.ua.ID, row.ID, map[string]json.RawMessage{
+		"workspace_id": rawJSON(other.Workspace.ID), "revision": rawJSON(99), "title": rawJSON("Ở đây"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var args map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(proposalRow(t, s, row.ID).Payload), &args); err != nil {
+		t.Fatal(err)
+	}
+	if _, has := args["revision"]; has || string(args["workspace_id"]) != string(rawJSON(x.w.ID)) {
+		t.Fatalf("stored arguments after the edit: %v", args)
+	}
+	if _, err := s.ApplyProposal(ctx, x.ua.ID, row.ID); err != nil {
+		t.Fatal(err)
+	}
+	here := x.count(t, `SELECT count(*) FROM tasks WHERE workspace_id = $1 AND title = 'Ở đây'`, x.w.ID)
+	there := x.count(t, `SELECT count(*) FROM tasks WHERE workspace_id = $1`, other.Workspace.ID)
+	if here != 1 || there != 0 {
+		t.Fatalf("task in the row's workspace %d, in the other %d", here, there)
+	}
+}
+
+// "Tạo tài liệu" tries again on a page row that failed or expired unapplied,
+// drafted anew from the answer; an undone one stays undone. A direct apply of
+// that row records decision answer.
+func TestSaveAnswerAsDocumentRetries(t *testing.T) {
+	x, s, tc := proposalWorld(t)
+	ctx := context.Background()
+	s.SetDocuments(x.docs(t))
+	pageRow := func(msgID, convID string, at time.Time) db.AgentActionProposal {
+		t.Helper()
+		p, err := askProposalParams(tc, convID, msgID, util.NewID(), askAnswerPosition, askPrepare(t, s, tc, "create_document", `{"title":"Cũ","content":"cũ"}`), AskModeAsk, false, at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		row, err := s.q.AiInsertProposal(ctx, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return row
+	}
+	saved := func(convID, msgID, rowID, want string) AskProposal {
+		t.Helper()
+		p, err := s.SaveAnswerAsDocument(ctx, x.ua.ID, convID, msgID)
+		if err != nil || p.ID != rowID || p.Status != "applied" || p.Decision != "answer" || !p.ExpiresAt.After(time.Now()) {
+			t.Fatalf("save: %+v, %v", p, err)
+		}
+		if md := x.pageMarkdown(t, p.Result.ObjectID); !strings.Contains(md, want) || x.docRow(t, p.Result.ObjectID).Title != "Báo cáo quý" {
+			t.Fatalf("page %q from the answer %q", md, want)
+		}
+		return p
+	}
+
+	convID, msgID := askAnswer(t, s, tc, "Lần một", nil)
+	failed := pageRow(msgID, convID, time.Now())
+	if _, err := s.pool.Exec(ctx, `UPDATE agent_action_proposals SET status = 'failed', error = 'apply_failed', decision = 'answer', decided_by = $2 WHERE id = $1`, failed.ID, x.ua.ID); err != nil {
+		t.Fatal(err)
+	}
+	saved(convID, msgID, failed.ID, "Lần một")
+
+	convID, msgID = askAnswer(t, s, tc, "Lần hai", nil)
+	expired := pageRow(msgID, convID, time.Now().Add(-25*time.Hour))
+	p := saved(convID, msgID, expired.ID, "Lần hai")
+
+	if _, err := s.UndoProposal(ctx, x.ua.ID, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	pages := x.docRows(t)
+	if again, err := s.SaveAnswerAsDocument(ctx, x.ua.ID, convID, msgID); err != nil || again.ID != p.ID || again.Status != "undone" || x.docRows(t) != pages {
+		t.Fatalf("save after undo: %+v, %v", again, err)
+	}
+
+	convID, msgID = askAnswer(t, s, tc, "Lần ba", nil)
+	direct := pageRow(msgID, convID, time.Now())
+	if d, err := s.ApplyProposal(ctx, x.ua.ID, direct.ID); err != nil || d.Decision != "answer" {
+		t.Fatalf("direct apply of the page row: %+v, %v", d, err)
 	}
 }

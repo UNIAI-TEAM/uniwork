@@ -15,22 +15,28 @@ const aiClaimProposal = `-- name: AiClaimProposal :one
 UPDATE agent_action_proposals SET status = $1, updated_at = now()
 WHERE id = $2 AND organization_id = $3
   AND status = $4
+  AND ($5::timestamptz IS NULL OR updated_at = $5::timestamptz)
 RETURNING id, organization_id, workspace_id, source, run_id, agent_id, conversation_id, message_id, position, action_type, target_kind, target_id, payload, preview, risk_level, mode, tainted, target_revision, status, decision, result, undo, error, decided_by, decided_at, applied_at, undone_by, undone_at, expires_at, created_by, created_by_kind, created_at, updated_at
 `
 
 type AiClaimProposalParams struct {
-	ToStatus       string `json:"to_status"`
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	FromStatus     string `json:"from_status"`
+	ToStatus       string             `json:"to_status"`
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	FromStatus     string             `json:"from_status"`
+	SeenUpdatedAt  pgtype.Timestamptz `json:"seen_updated_at"`
 }
 
+// seen_updated_at, when set, pins the claim to the row as it was read: an
+// edit since then (which moves updated_at) makes the claim miss, so apply
+// never runs arguments other than the ones the card shows. Undo leaves it NULL.
 func (q *Queries) AiClaimProposal(ctx context.Context, arg AiClaimProposalParams) (AgentActionProposal, error) {
 	row := q.db.QueryRow(ctx, aiClaimProposal,
 		arg.ToStatus,
 		arg.ID,
 		arg.OrganizationID,
 		arg.FromStatus,
+		arg.SeenUpdatedAt,
 	)
 	var i AgentActionProposal
 	err := row.Scan(
@@ -318,24 +324,100 @@ func (q *Queries) AiListProposalsForMessages(ctx context.Context, arg AiListProp
 	return items, nil
 }
 
+const aiResetProposalDraft = `-- name: AiResetProposalDraft :one
+UPDATE agent_action_proposals SET
+  payload = $1, preview = $2, risk_level = $3,
+  target_id = $4, target_revision = $5,
+  expires_at = $6, status = 'pending', result = '{}', error = NULL,
+  decision = NULL, decided_by = NULL, decided_at = NULL, updated_at = now()
+WHERE id = $7 AND organization_id = $8
+  AND status IN ('failed', 'pending')
+RETURNING id, organization_id, workspace_id, source, run_id, agent_id, conversation_id, message_id, position, action_type, target_kind, target_id, payload, preview, risk_level, mode, tainted, target_revision, status, decision, result, undo, error, decided_by, decided_at, applied_at, undone_by, undone_at, expires_at, created_by, created_by_kind, created_at, updated_at
+`
+
+type AiResetProposalDraftParams struct {
+	Payload        string             `json:"payload"`
+	Preview        string             `json:"preview"`
+	RiskLevel      string             `json:"risk_level"`
+	TargetID       pgtype.Text        `json:"target_id"`
+	TargetRevision pgtype.Int8        `json:"target_revision"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+}
+
+// "Tạo tài liệu" again on an answer whose page row failed or expired: the row
+// is drafted anew from the answer and waits to be applied, as if just made.
+func (q *Queries) AiResetProposalDraft(ctx context.Context, arg AiResetProposalDraftParams) (AgentActionProposal, error) {
+	row := q.db.QueryRow(ctx, aiResetProposalDraft,
+		arg.Payload,
+		arg.Preview,
+		arg.RiskLevel,
+		arg.TargetID,
+		arg.TargetRevision,
+		arg.ExpiresAt,
+		arg.ID,
+		arg.OrganizationID,
+	)
+	var i AgentActionProposal
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.Source,
+		&i.RunID,
+		&i.AgentID,
+		&i.ConversationID,
+		&i.MessageID,
+		&i.Position,
+		&i.ActionType,
+		&i.TargetKind,
+		&i.TargetID,
+		&i.Payload,
+		&i.Preview,
+		&i.RiskLevel,
+		&i.Mode,
+		&i.Tainted,
+		&i.TargetRevision,
+		&i.Status,
+		&i.Decision,
+		&i.Result,
+		&i.Undo,
+		&i.Error,
+		&i.DecidedBy,
+		&i.DecidedAt,
+		&i.AppliedAt,
+		&i.UndoneBy,
+		&i.UndoneAt,
+		&i.ExpiresAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const aiSettleProposalApply = `-- name: AiSettleProposalApply :one
 UPDATE agent_action_proposals SET
   status = $1,
-  result = $2,
-  undo = $3,
-  error = $4,
-  decision = $5,
-  decided_by = $6,
+  target_id = COALESCE(target_id, $2),
+  result = $3,
+  undo = $4,
+  error = $5,
+  decision = $6,
+  decided_by = $7,
   decided_at = now(),
   applied_at = CASE WHEN $1 = 'applied' THEN now() ELSE applied_at END,
   updated_at = now()
-WHERE id = $7 AND organization_id = $8
-  AND status = $9
+WHERE id = $8 AND organization_id = $9
+  AND status = $10
 RETURNING id, organization_id, workspace_id, source, run_id, agent_id, conversation_id, message_id, position, action_type, target_kind, target_id, payload, preview, risk_level, mode, tainted, target_revision, status, decision, result, undo, error, decided_by, decided_at, applied_at, undone_by, undone_at, expires_at, created_by, created_by_kind, created_at, updated_at
 `
 
 type AiSettleProposalApplyParams struct {
 	Status         string      `json:"status"`
+	TargetID       pgtype.Text `json:"target_id"`
 	Result         string      `json:"result"`
 	Undo           pgtype.Text `json:"undo"`
 	Error          pgtype.Text `json:"error"`
@@ -347,10 +429,12 @@ type AiSettleProposalApplyParams struct {
 }
 
 // Apply path: applying -> applied | failed, and pending -> rejected. Guarded by
-// from_status so a settle never clobbers a row in another state.
+// from_status so a settle never clobbers a row in another state. target_id
+// records the object a {{row:N.id}} target turned out to be; a stored one stays.
 func (q *Queries) AiSettleProposalApply(ctx context.Context, arg AiSettleProposalApplyParams) (AgentActionProposal, error) {
 	row := q.db.QueryRow(ctx, aiSettleProposalApply,
 		arg.Status,
+		arg.TargetID,
 		arg.Result,
 		arg.Undo,
 		arg.Error,

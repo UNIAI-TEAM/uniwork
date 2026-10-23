@@ -122,7 +122,7 @@ func (s *AskUNIService) askMeetingTarget(ctx context.Context, tc ai.ToolContext,
 	if s.reads == nil {
 		return before, target, nil, false, errAskReadsNotWired
 	}
-	refs, byField, err := askRowRefs(earlier, map[string]string{"meeting_id": "schedule_meeting", "project_id": "create_project"}, map[string]string{"meeting_id": id, "project_id": projectID})
+	refs, byField, err := askRowRefs(earlier, askIDFields["update_meeting"].Refs, map[string]string{"meeting_id": id, "project_id": projectID})
 	if err != nil {
 		return before, target, nil, false, err
 	}
@@ -205,7 +205,7 @@ func (s *AskUNIService) prepareScheduleMeeting(ctx context.Context, tc ai.ToolCo
 	if err != nil {
 		return askDraftRow{}, err
 	}
-	refs, _, err := askRowRefs(earlier, map[string]string{"project_id": "create_project"}, map[string]string{"project_id": in.ProjectID})
+	refs, _, err := askRowRefs(earlier, askIDFields["schedule_meeting"].Refs, map[string]string{"project_id": in.ProjectID})
 	if err != nil {
 		return askDraftRow{}, err
 	}

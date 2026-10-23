@@ -160,6 +160,33 @@ func (s *AskUNIService) authoredByAsker(ctx context.Context, tc ai.ToolContext, 
 	return out, nil
 }
 
+// askIDSpec is how a write tool names objects by id. Target is the field
+// naming the object it changes ("" for a create); Refs are the fields a
+// {{row:N.id}} may stand in, each with the create tool whose row makes that
+// kind of object (R11). Prepare checks a call's refs against Refs, and the
+// executor puts the real ids into exactly these fields, nowhere else.
+type askIDSpec struct {
+	Target string
+	Refs   map[string]string
+}
+
+var askIDFields = map[string]askIDSpec{
+	"create_task":          {Refs: map[string]string{"parent_task_id": "create_task", "project_id": "create_project"}},
+	"update_task":          {Target: "task_id", Refs: map[string]string{"task_id": "create_task", "parent_task_id": "create_task", "project_id": "create_project"}},
+	"add_comment":          {Target: "task_id", Refs: map[string]string{"task_id": "create_task"}},
+	"create_project":       {},
+	"update_project":       {Target: "project_id", Refs: map[string]string{"project_id": "create_project"}},
+	"schedule_meeting":     {Refs: map[string]string{"project_id": "create_project"}},
+	"update_meeting":       {Target: "meeting_id", Refs: map[string]string{"meeting_id": "schedule_meeting", "project_id": "create_project"}},
+	"invite_to_meeting":    {Target: "meeting_id", Refs: map[string]string{"meeting_id": "schedule_meeting"}},
+	"cancel_meeting":       {Target: "meeting_id", Refs: map[string]string{"meeting_id": "schedule_meeting"}},
+	"restore_meeting":      {Target: "meeting_id", Refs: map[string]string{"meeting_id": "schedule_meeting"}},
+	"create_document":      {Refs: map[string]string{"parent_id": "create_document"}},
+	"update_document":      {Target: "document_id", Refs: map[string]string{"document_id": "create_document"}},
+	"add_document_comment": {Target: "document_id", Refs: map[string]string{"document_id": "create_document"}},
+	"send_chat_message":    {},
+}
+
 var askRowRefRe = regexp.MustCompile(`^\{\{row:([0-9]{1,3})\.id\}\}$`)
 
 // askRowRef reads {{row:N.id}}: the id of the object row N of this turn creates.

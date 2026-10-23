@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -44,7 +45,10 @@ func (s *AskUNIService) EditProposal(ctx context.Context, userID, proposalID str
 	for k, v := range changes {
 		args[k] = v
 	}
-	delete(args, "workspace_id") // prepare binds the row's own
+	// The server owns these: prepare binds the row's own workspace and reads
+	// the revision again.
+	delete(args, "workspace_id")
+	delete(args, "revision")
 	merged, err := json.Marshal(args)
 	if err != nil {
 		return AskProposal{}, err
@@ -117,10 +121,25 @@ func (s *AskUNIService) UndoProposal(ctx context.Context, userID, proposalID str
 	} else if err != nil {
 		return AskProposal{}, err
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), askApplyTimeout)
+	p := McpPrincipal{UserID: userID, OrganizationID: row.OrganizationID}
+	return s.finishUndo(ctx, userID, row, func(ctx context.Context) error { return askInverses[inv.Op](ctx, s, p, inv.Args) }, askApplyTimeout)
+}
+
+// finishUndo runs an undoing row's inverse, within timeout and under the
+// proposal's via, then settles the row; like runClaimed, both outlive the
+// request and the settle has a deadline of its own. A panic leaves the row
+// undoing (it reads unknown).
+func (s *AskUNIService) finishUndo(ctx context.Context, userID string, row db.AgentActionProposal, run func(context.Context) error, timeout time.Duration) (AskProposal, error) {
+	via := audit.WithVia(context.WithoutCancel(ctx), audit.Via{Kind: "ask_uni", ProposalID: row.ID})
+	runCtx, cancel := context.WithTimeout(via, timeout)
 	defer cancel()
-	ctx = audit.WithVia(ctx, audit.Via{Kind: "ask_uni", ProposalID: row.ID})
-	if runErr := askInverses[inv.Op](ctx, s, McpPrincipal{UserID: userID, OrganizationID: row.OrganizationID}, inv.Args); runErr != nil {
+	runErr := askRecover(runCtx, row.ID, func() error { return run(runCtx) })
+	if errors.Is(runErr, errAskPanicked) {
+		return AskProposal{}, runErr
+	}
+	ctx, done := outliving(via)
+	defer done()
+	if runErr != nil {
 		// The row goes back to applied; a guard's refusal is kept as its error.
 		guarded := codeOf(runErr) == errAskUndoUnavailable.Code
 		why := pgtype.Text{}

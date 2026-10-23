@@ -269,7 +269,7 @@ func (s *AskUNIService) prepareCreateTask(ctx context.Context, tc ai.ToolContext
 			return askDraftRow{}, err
 		}
 	}
-	refs, _, err := askRowRefs(earlier, map[string]string{"parent_task_id": "create_task", "project_id": "create_project"},
+	refs, _, err := askRowRefs(earlier, askIDFields["create_task"].Refs,
 		map[string]string{"parent_task_id": in.ParentTaskID, "project_id": in.ProjectID})
 	if err != nil {
 		return askDraftRow{}, err
@@ -363,7 +363,7 @@ func (s *AskUNIService) prepareUpdateTask(ctx context.Context, tc ai.ToolContext
 	if err := in.check(); err != nil {
 		return askDraftRow{}, err
 	}
-	refs, byField, err := askRowRefs(earlier, map[string]string{"task_id": "create_task", "parent_task_id": "create_task", "project_id": "create_project"},
+	refs, byField, err := askRowRefs(earlier, askIDFields["update_task"].Refs,
 		map[string]string{"task_id": in.TaskID, "parent_task_id": optValue(in.ParentTaskID), "project_id": optValue(in.ProjectID)})
 	if err != nil {
 		return askDraftRow{}, err
@@ -498,7 +498,7 @@ func (s *AskUNIService) prepareAddComment(ctx context.Context, tc ai.ToolContext
 	if err := in.check(); err != nil {
 		return askDraftRow{}, err
 	}
-	refs, _, err := askRowRefs(earlier, map[string]string{"task_id": "create_task"}, map[string]string{"task_id": in.TaskID})
+	refs, _, err := askRowRefs(earlier, askIDFields["add_comment"].Refs, map[string]string{"task_id": in.TaskID})
 	if err != nil {
 		return askDraftRow{}, err
 	}
