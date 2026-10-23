@@ -1,6 +1,6 @@
 # Hỏi UNI: gắn file vào câu hỏi — Implementation Plan
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt ngày 2026-10-22; Task 1–13 đã làm xong trên nhánh `feature/UNI-2119-hoi-uni-v2-gan-file-vao-cau-hoi-tai-len`, chưa đẩy lên; còn chờ eval thật cho `copilot_answer@5` (Task 13 bước 2, cần chủ sản phẩm đồng ý) và thử tay trên app (bước 3), nên chưa shipped.
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt ngày 2026-10-22; Đã làm trên nhánh `feature/UNI-2119-hoi-uni-v2-gan-file-vao-cau-hoi-tai-len`: Task 1–13 và đợt sửa sau review toàn nhánh. Còn chờ: eval thật cho `copilot_answer@5` (Task 13 bước 2, cần chủ sản phẩm đồng ý), thử tay trên app (bước 3), và chủ sản phẩm đồng ý đẩy nhánh lên, nên chưa shipped.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
