@@ -1736,7 +1736,8 @@
       "reply": "Trả lời",
       "reply_placeholder": "Nhập tin trả lời…",
       "send": "Gửi",
-      "mark_read": "Đánh dấu đã đọc"
+      "mark_read": "Đánh dấu đã đọc",
+      "reply_locked": "Chưa gửi tin trả lời vì UniChat đang khoá. Mở UniChat để trả lời."
     },
     "voice": {
       "seek_forward": "Tua tới {{seconds}} giây",

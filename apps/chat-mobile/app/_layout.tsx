@@ -22,10 +22,11 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ChatCategorySync } from "@/components/app/chat-category-sync";
 import { loadPrivacySettings, usageStatsEnabled } from "@/components/app/privacy";
 import { PrivacyFloorSync } from "@/components/app/privacy-floor-sync";
 import { PrivacyGuard } from "@/components/app/privacy-guard";
@@ -41,7 +42,7 @@ import { perfMark } from "@/data/logger";
 import { startNativeCalls } from "@/data/calls/call-wiring";
 import { startAppServices, trackFirstScreen, trackPushOpen } from "@/data/app-startup";
 import { nativeCalls } from "@/data/calls/native-calls";
-import { runChatNotificationAction, registerChatMessageCategory } from "@/data/chat-notification-actions";
+import { runChatNotificationAction } from "@/data/chat-notification-actions";
 import { ensureNotificationChannels } from "@/data/notification-channels";
 import { queryClient } from "@/data/query-client";
 import { createDevicePersister, installAccountCache } from "@/data/query-persister";
@@ -104,11 +105,10 @@ function AuthInitializer({ children }: { children: ReactNode }) {
   const signingOut = useRef(false);
   const { t, i18n } = useTranslation();
 
-  // Android's channels (calls, missed calls, mentions, messages, the rest) in the app's language, renamed when it changes;
-  // and a chat message push's Reply and Mark as read buttons, in that language too (data/chat-notification-actions.ts).
+  // Android's channels (calls, missed calls, mentions, messages, the rest) in the app's language, renamed when it
+  // changes. A chat message push's Reply and Mark as read follow the language and the app lock (ChatCategorySync).
   useEffect(() => {
     void ensureNotificationChannels(t, { platform: Platform.OS, native: nativeCalls });
-    void registerChatMessageCategory(t, Platform.OS);
   }, [t, i18n.language]);
 
   useEffect(() => {
@@ -139,10 +139,14 @@ function AuthInitializer({ children }: { children: ReactNode }) {
     });
     const urlSub = Linking.addEventListener("url", ({ url }) => openUrl(url));
     // The server's push payload carries the web URL of the message in `data.url`; Reply or Mark as read on a chat
-    // notification acts where it was tapped and opens nothing (lib/notification-response.ts).
+    // notification acts where it was tapped and opens nothing, unless the app lock refused the reply in an app the
+    // person is looking at: then the room opens behind the lock (lib/notification-response.ts). iOS brought the app
+    // forward for the action; Android's Reply does not, yet a live app hidden in the background hears it too, and a
+    // room opened there would be read, and its notifications cleared, for nobody.
     const handleResponse = createNotificationResponseHandler({
       openUrl: (url) => openUrl(url, true),
-      runChatAction: (action) => void runChatNotificationAction(action),
+      runChatAction: async (action) =>
+        (await runChatNotificationAction(action)) === "locked" && (Platform.OS !== "android" || AppState.currentState === "active"),
       trackPushOpen,
       clearLast: () => Notifications.clearLastNotificationResponse(),
     });
@@ -214,8 +218,10 @@ function RootLayout() {
                 </UpdateGate>
                 <ToastHost />
                 <PermissionPrimerHost />
-                {/* Above everything the person could read: the app switcher cover and the app lock, with the organization's floor. */}
+                {/* Above everything the person could read: the app switcher cover and the app lock, with the organization's floor;
+                    a chat push's buttons follow that lock. */}
                 <PrivacyFloorSync />
+                <ChatCategorySync />
                 <PrivacyGuard />
               </ThemeProvider>
             </QueryClientProvider>
