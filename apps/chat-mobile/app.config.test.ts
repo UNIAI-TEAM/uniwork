@@ -168,6 +168,8 @@ describe("app.config per UNICHAT_ENV", () => {
       "android.permission.WRITE_EXTERNAL_STORAGE",
       // expo-screen-capture's screenshot listener before Android 14, which UniChat does not use.
       "android.permission.READ_MEDIA_IMAGES",
+      // installreferrer, through expo-application: UniChat never asks how it was installed.
+      "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
     ]);
     // Blocking it killed the app at launch on Android 14+: the module registers its capture callback when created.
     expect(config.android?.blockedPermissions).not.toContain("android.permission.DETECT_SCREEN_CAPTURE");

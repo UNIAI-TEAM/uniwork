@@ -66,12 +66,16 @@ describe("the release build's Android manifest", () => {
     // BLUETOOTH_CONNECT takes over), and the storage ones that expo-file-system and expo-image-picker cap at 32 are
     // removed outright below. A cap that appears or goes changes what Play reviews: it fails here.
     expect(manifest.maxSdkVersion).toEqual({});
-    // A call never draws over other apps, and UniChat reads no shared storage (app.config.ts › blockedPermissions).
+    // A call never draws over other apps, UniChat reads no shared storage and no install referrer (app.config.ts ›
+    // blockedPermissions).
     expect(manifest.removedPermissions).toEqual([
       "android.permission.READ_EXTERNAL_STORAGE",
       "android.permission.READ_MEDIA_IMAGES",
       "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.WRITE_EXTERNAL_STORAGE",
+      // installreferrer (a Maven dependency of expo-application): only getInstallReferrerAsync binds Play's referrer
+      // service, and UniChat never calls it.
+      "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
     ]);
     // Nothing leaves the phone in a backup or a device transfer, and no cleartext exception exists: Android 9+
     // refuses http:// by default and a release build only knows https:// servers (app.config.ts › serverUrl).
