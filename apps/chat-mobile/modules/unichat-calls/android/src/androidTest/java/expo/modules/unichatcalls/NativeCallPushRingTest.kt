@@ -6,12 +6,10 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.Until
 import java.util.regex.Pattern
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,6 +28,7 @@ class NativeCallPushRingTest {
   private val instrumentation = InstrumentationRegistry.getInstrumentation()
   private val context = instrumentation.targetContext
   private val device = UiDevice.getInstance(instrumentation)
+  private val shade = ShadeProbe(device, context)
 
   @After
   fun tearDown() {
@@ -41,6 +40,7 @@ class NativeCallPushRingTest {
 
   @Test
   fun aPushedRingReachesTheShadeWithNoJavaScriptAndItsEndTakesItOut() {
+    shade.prepare()
     RingConfig.write(
       context,
       RingConfig().apply {
@@ -69,13 +69,12 @@ class NativeCallPushRingTest {
     )
     assertEquals(NativeCallPush.Outcome.RANG, NativeCallPush.handle(context, ring, now, appInFront = false))
 
-    device.openNotification()
-    assertTrue("the caller shows in the shade", device.wait(Until.hasObject(By.text(CALLER)), TIMEOUT_MS))
-    assertTrue("Answer", device.wait(Until.hasObject(By.text(Pattern.compile("(?i)answer"))), TIMEOUT_MS))
+    shade.awaitInShade(CALLER, TIMEOUT_MS, "the caller shows in the shade")
+    shade.assertShown(By.text(Pattern.compile("(?i)answer")), TIMEOUT_MS, "Answer")
 
     val end = expo("type" to "call_end", "call_id" to CALL_ID, "room_id" to "room-1")
     assertEquals(NativeCallPush.Outcome.CLEARED, NativeCallPush.handle(context, end, System.currentTimeMillis(), appInFront = false))
-    assertTrue("the end of the ring takes it out of the shade", device.wait(Until.gone(By.text(CALLER)), TIMEOUT_MS))
+    shade.assertGone(By.text(CALLER), TIMEOUT_MS, "the end of the ring takes it out of the shade")
   }
 
   private companion object {

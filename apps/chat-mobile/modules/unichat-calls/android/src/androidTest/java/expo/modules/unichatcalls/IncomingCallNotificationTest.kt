@@ -8,7 +8,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.Until
 import java.util.regex.Pattern
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -34,6 +33,7 @@ class IncomingCallNotificationTest {
   private val instrumentation = InstrumentationRegistry.getInstrumentation()
   private val context = instrumentation.targetContext
   private val device = UiDevice.getInstance(instrumentation)
+  private val shade = ShadeProbe(device, context)
 
   @After
   fun tearDown() {
@@ -43,6 +43,7 @@ class IncomingCallNotificationTest {
 
   @Test
   fun aRingReachesTheShadeAsACallWithAnswerAndDeclineAndLeavesWhenCancelled() {
+    shade.prepare()
     val posted = CallNotifications.showIncoming(
       context,
       IncomingCall().apply {
@@ -62,13 +63,12 @@ class IncomingCallNotificationTest {
     assertEquals(CallNotifications.CHANNEL_CALLS, active.notification.channelId)
     assertNotNull("the full-screen intent survives the system's checks", active.notification.fullScreenIntent)
 
-    device.openNotification()
-    assertTrue("the caller shows in the shade", device.wait(Until.hasObject(By.text(CALLER)), TIMEOUT_MS))
-    assertTrue("Answer", device.wait(Until.hasObject(By.text(Pattern.compile("(?i)answer"))), TIMEOUT_MS))
-    assertTrue("Decline", device.hasObject(By.text(Pattern.compile("(?i)decline"))))
+    shade.awaitInShade(CALLER, TIMEOUT_MS, "the caller shows in the shade")
+    shade.assertShown(By.text(Pattern.compile("(?i)answer")), TIMEOUT_MS, "Answer")
+    shade.assertShown(By.text(Pattern.compile("(?i)decline")), TIMEOUT_MS, "Decline")
 
     CallNotifications.cancelIncoming(context, CALL_ID)
-    assertTrue("cancelling the ring takes it out of the shade", device.wait(Until.gone(By.text(CALLER)), TIMEOUT_MS))
+    shade.assertGone(By.text(CALLER), TIMEOUT_MS, "cancelling the ring takes it out of the shade")
   }
 
   private companion object {
