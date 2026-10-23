@@ -29,6 +29,10 @@ mỗi loại micro, và toàn bộ), không chỉ trung bình:
 | p95 độ trễ live | ≤ 4 s | Phụ đề trễ hơn thì người họp bỏ đọc (cùng ngưỡng với alert đề xuất trong benchmark). |
 | Tổng âm thanh | ≥ 2 giờ | Ít hơn thì một cuộc họp lệch kéo cả kết quả. |
 
+`Đạt` chỉ ra khi chạy **cả hai đường** (`--path both`) và đường live đã đo độ trễ ở
+`--speed 1`; chạy một đường, hay live ở tốc độ khác, luôn ra `Không đạt` với lý do "chưa
+chạy đường …" / "chưa đo độ trễ" (đó là phép đo, không phải cổng).
+
 Đổi ngưỡng là quyết định của chủ sản phẩm; ghi ngưỡng đã dùng cạnh kết quả.
 
 ## Việc của chủ sản phẩm
@@ -74,7 +78,10 @@ SCRIBE_STT_PROVIDER=assemblyai .venv/bin/python -m eval.run \
 
 - **live** phát lại từng file **theo thời gian thực** qua đúng đường của agent: Silero VAD →
   `TrackTranscriber` → `make_stt(SCRIBE_STT_PROVIDER, keyterms)`. 3 giờ âm thanh là 3 giờ
-  chạy và ~3 giờ phiên STT (khoảng 0,45 USD/giờ). `--speed 0` chỉ để thử đường ống với
+  chạy và ~3 giờ phiên STT (khoảng 0,45 USD/giờ). File `mic: room` được mở STT **có
+  phân tách người nói** (`diarize`), đúng như `scribe/job.py` làm với micro chung của phòng
+  (spec §4.3) — phân tách làm thưa phụ đề tạm và đổi bản chốt, nên lát `mic=room` phải đo
+  đúng cấu hình đó; các loại micro khác không phân tách. `--speed 0` chỉ để thử đường ống với
   `SCRIBE_STT_PROVIDER=fake`; độ trễ chỉ có nghĩa ở `--speed 1`.
 - **batch** tải file lên AssemblyAI, gửi đúng request của server (`speech_models`,
   `language_codes`; `tests/test_eval_run.py` fail nếu hai bên lệch), chờ kết quả rồi xóa

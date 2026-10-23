@@ -219,6 +219,15 @@ async def transcribe_batch(
                     print(f"warning: {path.name}: vendor copy not deleted ({r.status})", file=sys.stderr)
 
 
+def live_stt(it: Item) -> tuple[stt.STT, str]:
+    """The STT production would open for this item's track: scribe/job.py
+    diarizes the room's shared microphone (spec §4.3) and only that one."""
+    from scribe.stt import make_stt
+
+    provider = os.environ.get("SCRIBE_STT_PROVIDER", "assemblyai")
+    return make_stt(provider, it.keyterms, diarize=it.mic == "room"), provider
+
+
 def _p(values: list[float], q: float) -> float | None:
     if not values:
         return None
@@ -241,10 +250,8 @@ async def _hypotheses(args: argparse.Namespace, items: list[Item], paths: list[s
                     from livekit.plugins import silero
 
                     vad = silero.VAD.load()
-                from scribe.stt import make_stt
-
-                provider = os.environ.get("SCRIBE_STT_PROVIDER", "assemblyai")
-                run = await replay_live(it.audio, stt_impl=make_stt(provider, it.keyterms), vad=vad, speed=args.speed)
+                impl, provider = live_stt(it)
+                run = await replay_live(it.audio, stt_impl=impl, vad=vad, speed=args.speed)
                 rec = asdict(run) | {"speed": args.speed, "provider": provider}
             else:
                 key = os.environ.get("ASSEMBLYAI_API_KEY", "")
@@ -334,9 +341,17 @@ def main(argv: list[str] | None = None) -> int:
     hours = sum(read_frames(it.audio)[1] for it in items) / 3600
     if hours < args.min_hours:
         reasons.append(f"chỉ có {hours:.2f} giờ âm thanh, cần ≥ {args.min_hours:g} giờ")
-    lat = [x for (_, p), h in hyps.items() if p == "live" and h.get("speed") == 1.0 for x in h.get("latencies_s", [])]
-    if (p95 := _p(lat, 95)) is not None and p95 > args.max_p95_latency:
-        reasons.append(f"live: p95 độ trễ {p95:.2f} s > {args.max_p95_latency:g} s")
+    # The launch gate scores both paths; a run of one is a measurement, never a pass.
+    for p in ("live", "batch"):
+        if p not in paths:
+            reasons.append(f"chưa chạy đường {p}: cổng bật cờ cần cả hai (--path both)")
+    if "live" in paths:
+        live = [h for (_, p), h in hyps.items() if p == "live" and h.get("speed") == 1.0]
+        lat = [x for h in live for x in h.get("latencies_s", [])]
+        if (p95 := _p(lat, 95)) is None:
+            reasons.append("live: chưa đo độ trễ ở --speed 1 (thời gian thực)")
+        elif p95 > args.max_p95_latency:
+            reasons.append(f"live: p95 độ trễ {p95:.2f} s > {args.max_p95_latency:g} s")
     passed = not reasons
     out = Path(args.out)
     (out / "report.md").write_text(_report(args, items, scored, all_slices, hyps, hours, passed, reasons), "utf-8")

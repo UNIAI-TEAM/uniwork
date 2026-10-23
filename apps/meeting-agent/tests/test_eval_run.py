@@ -204,6 +204,13 @@ def test_manifest_rejects_unknown_slices_and_missing_files(tmp_path):
         run.load_manifest(good)
 
 
+def cache(out: Path, i: str, path: str, text: str, *, speed: float = 1.0, latencies: list[float] | None = None):
+    (out / f"{i}.{path}.txt").write_text(text, encoding="utf-8")
+    if path == "live":
+        stats = {"speed": speed, "latencies_s": latencies or [1.0, 2.0], "session_ms": 1000, "speech_ms": 1000}
+        (out / f"{i}.live.json").write_text(json.dumps(stats), encoding="utf-8")
+
+
 def test_main_scores_cached_hypotheses_and_applies_the_gate(tmp_path):
     m = manifest(
         tmp_path,
@@ -214,20 +221,60 @@ def test_main_scores_cached_hypotheses_and_applies_the_gate(tmp_path):
     )
     out = tmp_path / "out"
     out.mkdir()
-    (out / "hn.batch.txt").write_text("anh an gửi báo giá cho uniwork", encoding="utf-8")
-    (out / "sg.batch.txt").write_text("chị bình chốt năm mươi phần trăm ngân sách", encoding="utf-8")
-    args = ["--manifest", str(m), "--out", str(out), "--path", "batch", "--min-hours", "0"]
+    for p in ("live", "batch"):
+        cache(out, "hn", p, "anh an gửi báo giá cho uniwork")
+        cache(out, "sg", p, "chị bình chốt năm mươi phần trăm ngân sách")
+    args = ["--manifest", str(m), "--out", str(out), "--min-hours", "0"]
     assert run.main(args) == 0
     results = json.loads((out / "results.json").read_text())
     assert results["passed"] is True
     assert {s["key"] for s in results["slices"]} >= {"all", "accent=north", "accent=south", "mic=phone"}
     report = (out / "report.md").read_text()
-    assert "| batch | all | 2 |" in report and "Đạt" in report
+    assert "| batch | all | 2 |" in report and "| live | all | 2 |" in report and "Đạt" in report
 
     # One accent below the bar fails the whole set, and too little audio fails it too.
-    (out / "sg.batch.txt").write_text("chị chốt ngân sách", encoding="utf-8")
+    cache(out, "sg", "batch", "chị chốt ngân sách")
     assert run.main(args) == 1
     assert "accent=south" in (out / "report.md").read_text()
-    (out / "sg.batch.txt").write_text("chị bình chốt năm mươi phần trăm ngân sách", encoding="utf-8")
+    cache(out, "sg", "batch", "chị bình chốt năm mươi phần trăm ngân sách")
     assert run.main(args[:-1] + ["2"]) == 1
     assert "giờ âm thanh" in (out / "report.md").read_text()
+
+
+def test_the_gate_needs_both_paths_and_real_time_latency(tmp_path):
+    """README "Cổng bật cờ": a pass means live and batch both scored and the
+    live latency measured at --speed 1 under the bar."""
+    m = manifest(tmp_path, [item("hn", ref_text="xin chào")])
+    out = tmp_path / "out"
+    out.mkdir()
+    cache(out, "hn", "batch", "xin chào")
+    base = ["--manifest", str(m), "--out", str(out), "--min-hours", "0"]
+
+    assert run.main(base + ["--path", "batch"]) == 1
+    assert "đường live" in (out / "report.md").read_text()
+
+    cache(out, "hn", "live", "xin chào")
+    assert run.main(base + ["--path", "live"]) == 1
+    assert "đường batch" in (out / "report.md").read_text()
+
+    cache(out, "hn", "live", "xin chào", speed=0.0)
+    assert run.main(base) == 1
+    assert "--speed 1" in (out / "report.md").read_text()
+
+    cache(out, "hn", "live", "xin chào", latencies=[1.0, 9.0])
+    assert run.main(base) == 1
+    assert "p95 độ trễ" in (out / "report.md").read_text()
+
+    cache(out, "hn", "live", "xin chào")
+    assert run.main(base) == 0
+
+
+def test_a_room_microphone_is_replayed_diarized_like_production(monkeypatch):
+    """scribe/job.py diarizes the room's shared microphone (spec §4.3), which
+    changes the vendor's captions; the room slice must be scored the same way."""
+    monkeypatch.setenv("SCRIBE_STT_PROVIDER", "fake")
+    room = run.Item("r", Path("r.wav"), Path("r.txt"), "north", "room")
+    laptop = run.Item("l", Path("l.wav"), Path("l.txt"), "north", "laptop")
+    assert run.live_stt(room)[0].diarize is True
+    assert run.live_stt(laptop)[0].diarize is False
+    assert run.live_stt(room)[1] == "fake"
