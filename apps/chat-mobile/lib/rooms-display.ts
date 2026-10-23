@@ -232,8 +232,10 @@ export function formatChatSidebarTime(
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
   const now = options.now ?? new Date();
-  const startOfDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate());
-  const dayDiff = (startOfDay(now).getTime() - startOfDay(date).getTime()) / (24 * 60 * 60 * 1000);
+  // The web rounds the local-midnight difference so a DST day still counts as
+  // one; the local calendar date read as UTC midnight is that same whole day.
+  const startOfDay = (value: Date) => Date.UTC(value.getFullYear(), value.getMonth(), value.getDate());
+  const dayDiff = (startOfDay(now) - startOfDay(date)) / 86_400_000;
   if (dayDiff === 0) return sidebarTimeFormatter(options.locale, "time").format(date);
   if (dayDiff === 1) return options.yesterdayLabel;
   if (dayDiff < 7) return sidebarTimeFormatter(options.locale, "weekday").format(date);

@@ -319,6 +319,17 @@ describe("chat-sidebar-preview", () => {
     ).toBe("Hôm qua");
   });
 
+  it("labels yesterday when calendar days differ by almost one day (DST-safe)", () => {
+    const now = new Date(2026, 2, 26, 10, 0, 0);
+    const yesterday = new Date(2026, 2, 25, 23, 30, 0);
+    expect(
+      formatChatSidebarTime(yesterday.toISOString(), {
+        now,
+        yesterdayLabel: "Hôm qua",
+      }),
+    ).toBe("Hôm qua");
+  });
+
   it("returns null for missing previews and empty bodies", () => {
     expect(
       formatChatSidebarPreviewText(null, {
