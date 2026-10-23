@@ -31,7 +31,7 @@ const ignored = (file: string): boolean => {
 interface ModuleConfig {
   platforms: string[];
   android?: { modules?: string[] };
-  apple?: { modules?: string[] };
+  apple?: { modules?: string[]; appDelegateSubscribers?: string[] };
 }
 
 const localModules = readdirSync(modulesRoot, { withFileTypes: true })
@@ -108,11 +108,15 @@ describe("the app's local Expo modules", () => {
         for (const classifier of config.android?.modules ?? []) expect(files).toContain(classFile(classifier));
         // Nothing under the native folder may be ignored: a new file there would be left behind.
         expect(ignored(path.join(dir, "android/src/main/java/Probe.kt"))).toBe(false);
-      } else if (platform === "apple") {
+      } else if (platform === "apple" || platform === "ios") {
         // CocoaPods links a local module through its podspec (autolinking finds it under ios/); without one the
-        // module is skipped as silently as an Android module without build.gradle.
+        // module is skipped as silently as an Android module without build.gradle. "ios" and "apple" link the same
+        // way (expo-modules-autolinking › supportsPlatform), and both read the `apple` block.
         expect(files.filter((file) => /^ios\/[^/]+\.podspec$/.test(file))).toHaveLength(1);
-        for (const name of config.apple?.modules ?? []) expect(files).toContain(`ios/${name}.swift`);
+        expect(config.apple?.modules?.length).toBeGreaterThan(0);
+        // Each class the generated ExpoModulesProvider names lives in a file named after it.
+        const classes = [...(config.apple?.modules ?? []), ...(config.apple?.appDelegateSubscribers ?? [])];
+        for (const name of classes) expect(files).toContain(`ios/${name}.swift`);
         expect(ignored(path.join(dir, "ios/Probe.swift"))).toBe(false);
       } else {
         throw new Error(`no guard for platform ${platform}: add one here`);
@@ -164,6 +168,27 @@ describe("the app's local Expo modules", () => {
     expect(android?.projects?.[0]?.modules.map((module) => module.classifier)).toEqual(["expo.modules.unichatbackground.UniChatBackgroundModule"]);
     const apple = resolve("apple").modules.find((module) => module.packageName === "unichat-background");
     expect(apple?.pods?.map((pod) => pod.podName)).toEqual(["UniChatBackground"]);
+  });
+
+  // docs/adr/0038: the iOS half is its own native module ("UniChatCallKit"), so the Android-shaped "UniChatCalls" stays
+  // null on iPhone and data/calls/native-calls.ts never calls a Kotlin function there; the launch subscriber creates
+  // the PushKit registry before a closed app's VoIP push is handed over.
+  it("autolinking registers the calls module's iOS half and its launch subscriber", { timeout: 60_000 }, () => {
+    const out = execFileSync("npx", ["expo-modules-autolinking", "resolve", "-p", "apple", "--json"], {
+      cwd: appRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const resolved = JSON.parse(out) as {
+      modules: { packageName: string; pods: { podName: string }[]; modules: { class: string }[]; appDelegateSubscribers: string[] }[];
+    };
+    const calls = resolved.modules.find((module) => module.packageName === "unichat-calls");
+    expect(calls?.pods.map((pod) => pod.podName)).toEqual(["UniChatCalls"]);
+    expect(calls?.modules.map((module) => module.class)).toEqual(["UniChatCallKitModule"]);
+    expect(calls?.appDelegateSubscribers).toEqual(["UniChatCallsAppDelegateSubscriber"]);
+    const swift = readFileSync(path.join(modulesRoot, "unichat-calls/ios/UniChatCallKitModule.swift"), "utf8");
+    expect(swift).toContain('Name("UniChatCallKit")');
+    expect(readFileSync(path.join(modulesRoot, "unichat-calls/index.ts"), "utf8")).toContain('requireOptionalNativeModule<UniChatCallKitModule>("UniChatCallKit")');
   });
 
   it("autolinking registers the calls module and its lock-screen Package", { timeout: 60_000 }, () => {
@@ -240,6 +265,17 @@ describe("native build wiring", () => {
 // lintVitalRelease cannot see that UniChatMessagingService is a Service (firebase-messaging is only
 // expo-notifications' implementation dependency) and failed the first EAS release build on it.
 describe("calls plugin manifest", () => {
+  it("declares iOS's voip and audio modes exactly in a build with calls, and never fetch", async () => {
+    const plugin = (await import("./plugins/with-unichat-calls.js")) as unknown as {
+      iosBackgroundModes: (modes: unknown, iosCalls: boolean) => string[] | undefined;
+    };
+    expect(plugin.iosBackgroundModes(["audio", "fetch", "processing", "voip"], false)).toEqual(["processing"]);
+    expect(plugin.iosBackgroundModes(["fetch", "processing", "audio"], true)).toEqual(["processing", "audio", "voip"]);
+    expect(plugin.iosBackgroundModes(undefined, true)).toEqual(["audio", "voip"]);
+    expect(plugin.iosBackgroundModes(["fetch", "audio", 3], false)).toBeUndefined();
+    expect(plugin.iosBackgroundModes("audio", false)).toBeUndefined();
+  });
+
   it("tells lint the messaging service is instantiable, with the tools namespace it needs", async () => {
     // The plugin is CommonJS: MESSAGING_SERVICE hangs off module.exports, which the inferred type does not show.
     const plugin = (await import("./plugins/with-unichat-calls.js")) as unknown as { MESSAGING_SERVICE: { $: Record<string, string> } };
@@ -247,3 +283,40 @@ describe("calls plugin manifest", () => {
     expect(readFileSync(path.join(appRoot, "plugins/with-unichat-calls.js"), "utf8")).toContain('"xmlns:tools": TOOLS');
   });
 });
+
+// Apple: from iOS 13 a VoIP push whose app does not report a call to CallKit before PushKit's completion runs ends the
+// app, and repeated, stops VoIP delivery to it. Nothing on a developer machine runs Swift, so the shape is held here:
+// the push callback hands every push (ours or not) to report(), and report() calls the completion only once CallKit
+// has taken the report (or when no provider exists, which cannot happen: the registry is made after it).
+describe("every VoIP push is reported to CallKit (ios/CallCenter.swift)", () => {
+  const source = readFileSync(path.join(modulesRoot, "unichat-calls/ios/CallCenter.swift"), "utf8");
+  const body = (signature: string): string => {
+    const start = source.indexOf(signature);
+    expect(start).toBeGreaterThanOrEqual(0);
+    let depth = 0;
+    for (let i = source.indexOf("{", start); i < source.length; i++) {
+      if (source[i] === "{") depth++;
+      if (source[i] === "}" && --depth === 0) return source.slice(start, i + 1);
+    }
+    throw new Error(`${signature} never closes`);
+  };
+
+  it("hands every VoIP push to report()", () => {
+    const callback = body("didReceiveIncomingPushWith payload: PKPushPayload");
+    expect(callback).toContain("report(VoipCallPush(payload.dictionaryPayload), completion: completion)");
+    // The only other completion is for a push type the registry never asked for.
+    expect(callback.match(/completion\(\)/g)).toHaveLength(1);
+    expect(callback).toMatch(/guard type == \.voIP else \{\s*completion\(\)/);
+  });
+
+  it("reports before it completes, whatever the push held", () => {
+    const report = body("private func report(_ push: VoipCallPush?, completion:");
+    const reported = report.indexOf("provider.reportNewIncomingCall(");
+    expect(reported).toBeGreaterThan(0);
+    const completions = [...report.matchAll(/completion\(\)/g)].map((match) => match.index);
+    expect(completions).toHaveLength(2);
+    expect(report.slice(0, completions[0])).toMatch(/guard let provider else \{\s*$/);
+    expect(completions[1]).toBeGreaterThan(reported);
+  });
+});
+
