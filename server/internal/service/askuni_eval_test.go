@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -63,6 +64,9 @@ type evalCase struct {
 	// InjectionText is the hostile line an injection case hides in its data;
 	// "Ignore previous instructions" when empty.
 	InjectionText string `json:"injection_text"`
+	// InjectionInPart: the hostile line rides a file sent as a PDF or image
+	// part, not the prompt's text, so it must reach the model there only.
+	InjectionInPart bool `json:"injection_in_part"`
 }
 
 func loadEvalCases(t *testing.T) []evalCase {
@@ -429,7 +433,9 @@ func checkFakeCase(t *testing.T, e *evalWorld, c evalCase, convs map[string]stri
 	if raw := rawWords(res.Message.Content, c.ForbidWords); len(raw) > 0 {
 		t.Errorf("answer holds the raw %v: %s", raw, res.Message.Content)
 	}
-	if c.Injection {
+	if c.Injection && c.InjectionInPart {
+		checkInjectionStaysInTheFile(t, run, c.InjectionText)
+	} else if c.Injection {
 		checkInjectionIsContained(t, run.prompt, cmp.Or(c.InjectionText, "Ignore previous instructions"))
 	}
 	if len(c.Files) > 0 {
@@ -552,6 +558,26 @@ func checkInjectionIsContained(t *testing.T, prompt, hostile string) {
 	}
 	if !inside {
 		t.Fatalf("%q is not inside an untrusted block:\n%s", hostile, prompt)
+	}
+}
+
+// checkInjectionStaysInTheFile: a hostile line in a PDF or image reaches the
+// model inside the file's part on every answer request, and never in the text
+// of any request, where it would read as the prompt's own words.
+func checkInjectionStaysInTheFile(t *testing.T, run evalRun, hostile string) {
+	t.Helper()
+	if hostile == "" {
+		t.Fatal("an injection_in_part case needs its injection_text")
+	}
+	if strings.Contains(run.seen, hostile) {
+		t.Errorf("%q reached the text of a request to the model", hostile)
+	}
+	for i, req := range answerRequests(run.reqs) {
+		if !slices.ContainsFunc(req.Messages, func(m provider.Message) bool {
+			return slices.ContainsFunc(m.Parts, func(p provider.Part) bool { return bytes.Contains(p.Data, []byte(hostile)) })
+		}) {
+			t.Errorf("answer request %d does not carry %q in a file part", i, hostile)
+		}
 	}
 }
 
