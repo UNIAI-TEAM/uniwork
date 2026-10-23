@@ -67,7 +67,7 @@ func TestEveryRouteFieldIsBound(t *testing.T) {
 			t.Errorf("Routes.%s is not bound to any route", rt.Field(i).Name)
 		}
 	}
-	for _, want := range []string{"GET /healthz", "GET /api/v1/admin/me", "GET /swagger/doc.json", "POST /api/v1/rum"} {
+	for _, want := range []string{"GET /healthz", "GET /api/v1/healthz", "GET /api/v1/admin/me", "GET /swagger/doc.json", "POST /api/v1/rum"} {
 		if _, ok := bound[want]; !ok {
 			t.Errorf("missing route %s", want)
 		}
@@ -250,10 +250,12 @@ func TestRouterShedsLoadPastTheInFlightBound(t *testing.T) {
 	if rec.Header().Get("Access-Control-Allow-Origin") == "" {
 		t.Fatal("a shed response without CORS headers is unreadable to the browser")
 	}
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
-	if rec.Code == http.StatusServiceUnavailable {
-		t.Fatal("/healthz was shed")
+	for _, probe := range []string{"/healthz", "/api/v1/healthz"} {
+		rec = httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, probe, nil))
+		if rec.Code == http.StatusServiceUnavailable {
+			t.Fatalf("%s was shed", probe)
+		}
 	}
 }
 

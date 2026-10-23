@@ -418,6 +418,7 @@ var isoRoutes = map[string]isoSpec{
 	// Sign-in and probes.
 	"GET /healthz":                    {class: isoPublic, reason: reasonProbe},
 	"GET /readyz":                     {class: isoPublic, reason: reasonProbe},
+	"GET /api/v1/healthz":             {class: isoPublic, reason: reasonProbe},
 	"GET /api/v1/config":              {class: isoPublic, reason: reasonProbe},
 	"GET /api/v1/plans":               {class: isoPublic, reason: reasonProbe},
 	"POST /api/v1/rum":                {class: isoPublic, reason: reasonProbe},
