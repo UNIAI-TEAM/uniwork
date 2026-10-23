@@ -16,6 +16,7 @@ type AskUniSDI struct {
 	Model               string           `json:"model,omitempty" maxLength:"20" description:"Rỗng = Tự động; haiku, sonnet hoặc opus. Giá trị không dùng được (tắt, chưa có giá, lạ) thì server dùng Tự động, không báo lỗi. Chỉ có tác dụng khi agent bật" example:"sonnet"`
 	Effort              string           `json:"effort,omitempty" maxLength:"20" description:"low, medium hoặc high; rỗng hoặc giá trị lạ = medium. Chỉ có tác dụng khi agent bật" example:"medium"`
 	RegenerateMessageID string           `json:"regenerate_message_id,omitempty" description:"Chỉ route stream: id câu trả lời cuối của hội thoại để trả lời lại tại chỗ bằng câu hỏi và ngữ cảnh đã lưu (question bị bỏ qua); không phải câu trả lời cuối thì 400" example:"01K4AIMSG000000000000001"`
+	AttachmentIDs       []string         `json:"attachment_ids,omitempty" maxItems:"5" description:"File do chính người hỏi tải lên qua POST …/ai/attachments và chưa gắn câu hỏi nào, theo thứ tự gắn; tối đa 5 file khác nhau, tổng tối đa 20 MB. Quá 5, trùng id hoặc đi kèm regenerate_message_id thì 400 ai_attachments_invalid; tổng quá 20 MB thì 422 ai_attachments_too_large; cờ tắt thì 403 ai_attachments_unavailable; id không phải file chưa gắn của chính người hỏi trong workspace này thì 404" example:"[\"01J8X4FILEN1P2Q3R4S5T6U7V8\"]"`
 }
 
 // ListAiConversationsSDI documents GET /api/v1/workspaces/{workspaceID}/ai/conversations query params.

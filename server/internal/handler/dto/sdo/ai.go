@@ -70,6 +70,15 @@ type AiContextRefDTO struct {
 	Title string `json:"title" description:"Tên đối tượng lúc hỏi" example:"Viết spec F-09"`
 }
 
+// AiAttachmentDTO is one file a question carried.
+type AiAttachmentDTO struct {
+	ID   string `json:"id" description:"Id của file trên câu hỏi (không phải file_id lúc tải lên); dùng để tải file về" example:"01K4AIATT0000000000000001"`
+	Name string `json:"name" description:"Tên tệp đã làm sạch" example:"bao-cao-quy-3.pdf"`
+	MIME string `json:"mime" description:"Loại tệp xét theo nội dung" example:"application/pdf"`
+	Size int64  `json:"size" description:"Số byte" example:"184320"`
+	Kind string `json:"kind" description:"image, pdf hoặc text: cách Hỏi UNI đọc tệp này" example:"pdf"`
+}
+
 // AiMessageDTO is one turn of a conversation.
 type AiMessageDTO struct {
 	ID        string            `json:"id" example:"01K4AIMSG0000000000000001"`
@@ -82,7 +91,10 @@ type AiMessageDTO struct {
 	Focus     *AiContextRefDTO  `json:"focus,omitempty" description:"Đối tượng câu hỏi đang xem; vắng khi không có" example:"{\"kind\":\"task\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\",\"title\":\"Viết spec F-09\"}"`
 	Mentions  []AiContextRefDTO `json:"mentions" description:"Các đối tượng người hỏi @-nhắc tới" example:"[{\"kind\":\"member\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\",\"title\":\"An\"}]"`
 	Model     string            `json:"model" description:"Model người hỏi chọn cho câu trả lời (haiku, sonnet, opus); rỗng khi là Tự động" example:"opus"`
-	CreatedAt string            `json:"created_at" example:"2026-09-06T08:00:00Z"`
+	// Attachments is filled by the list of messages only; the stored answer an
+	// ask or a done event returns is not the question, so it carries none.
+	Attachments []AiAttachmentDTO `json:"attachments" description:"File câu hỏi đã gắn, theo thứ tự gắn; chỉ có trên tin nhắn của người hỏi trong danh sách tin nhắn, rỗng ở mọi tin nhắn khác (kể cả câu trả lời trong done)"`
+	CreatedAt   string            `json:"created_at" example:"2026-09-06T08:00:00Z"`
 }
 
 // AiUsageDTO is what the call cost.

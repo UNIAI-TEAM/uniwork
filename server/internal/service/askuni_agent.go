@@ -640,7 +640,7 @@ func namedSources(answer string, b *sourceBook) string {
 // finishAgent stores the turn with the last call's usage row. Its text
 // already streamed, so it ends with citations, any follow-ups and done.
 func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, base askTurn, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep, followups []string) (AskResult, error) {
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model})
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model, Files: base.Files, UserID: base.UserID, WorkspaceID: base.WorkspaceID})
 	if err != nil {
 		return AskResult{}, err
 	}

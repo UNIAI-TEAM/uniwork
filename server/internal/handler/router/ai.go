@@ -52,17 +52,18 @@ func registerAI(r api, h Routes) {
 		auth:        true,
 	})
 	r.Post("/workspaces/{workspaceID}/ai/ask", h.AskUni, apiOp{
-		summary:     "Ask UNI",
-		description: "Một lượt hỏi, chỉ đọc, trả lời có trích dẫn [S1]… tới dữ liệu người gọi được xem. 402 ai_quota_exceeded, 429 ai_rate_limited, 503 ai_disabled.",
-		tags:        []string{"ai"},
-		sdi:         sdi.AskUniSDI{},
-		sdo:         sdo.AskUniSDO{},
-		auth:        true,
+		summary: "Ask UNI",
+		description: "Một lượt hỏi, chỉ đọc, trả lời có trích dẫn [S1]… tới dữ liệu người gọi được xem. Câu hỏi có thể gắn tối đa 5 file đã tải lên qua POST …/ai/attachments (attachment_ids): câu hỏi và các file được lưu cùng lúc, file nào sai thì cả câu bị từ chối và không lưu gì. " +
+			"400 ai_attachments_invalid, 402 ai_quota_exceeded, 403 ai_attachments_unavailable, 404 khi một id không phải file chưa gắn của chính người hỏi, 422 ai_attachments_too_large, 429 ai_rate_limited, 503 ai_disabled.",
+		tags: []string{"ai"},
+		sdi:  sdi.AskUniSDI{},
+		sdo:  sdo.AskUniSDO{},
+		auth: true,
 	})
 	r.Post("/workspaces/{workspaceID}/ai/ask/stream", h.AskUniStream, apiOp{
 		summary: "Ask UNI (stream)",
 		description: "Như Ask UNI nhưng trả text/event-stream. Frame: event run, step, delta, citations, done hoặc error (data chỉ có mã). " +
-			"Lỗi trước sự kiện đầu tiên trả JSON như POST …/ai/ask (402, 429 kèm Retry-After, 503); sau đó là event error. Cứ 15 giây có dòng `: ping`.",
+			"Lỗi trước sự kiện đầu tiên trả JSON như POST …/ai/ask (400, 402, 403, 404, 422, 429 kèm Retry-After, 503); sau đó là event error. Cứ 15 giây có dòng `: ping`.",
 		tags:     []string{"ai"},
 		sdi:      sdi.AskUniSDI{},
 		produces: "text/event-stream",

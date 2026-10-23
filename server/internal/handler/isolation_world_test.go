@@ -924,6 +924,14 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	// cancel route's own row, and the control that the route works at all.
 	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/ai/attachments", tn.token, isoMultipart{filename: "brief.pdf", contentType: "application/pdf", content: tinyPDF})
 	tn.ids["aiUpload"] = isoString(t, out, "file_id")
+	// One unsent file for each question route's own-rows control, which a
+	// question claims; and one a question carried, the row every tenant has in
+	// ai_attachments.
+	for _, key := range []string{"aiUploadAsk", "aiUploadStream", "aiUploadSent"} {
+		out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/ai/attachments", tn.token, isoMultipart{filename: key + ".pdf", contentType: "application/pdf", content: tinyPDF})
+		tn.ids[key] = isoString(t, out, "file_id")
+	}
+	w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/ai/ask", tn.token, map[string]any{"question": m + " question about a file", "attachment_ids": []any{tn.ids["aiUploadSent"]}})
 	w.call(t, "PUT", "/api/v1/ai/conversations/"+tn.ids["conversation"]+"/messages/"+tn.ids["aiAnswer"]+"/feedback", tn.token, map[string]any{"rating": "up"}, http.StatusNoContent)
 }
 

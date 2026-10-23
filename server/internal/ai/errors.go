@@ -69,6 +69,11 @@ var (
 	// ErrAttachmentsUnavailable is a file sent to Ask UNI while ask_uni_attachments
 	// is off for the asker or their turn would not run the agent (UNI-2119).
 	ErrAttachmentsUnavailable = &Error{Code: "ai_attachments_unavailable", Status: 403, Msg: "Hỏi UNI chưa nhận file đính kèm"}
+	// ErrAttachmentsInvalid is a set of files no question may carry: more than
+	// five, the same file twice, or files with a regenerated answer.
+	ErrAttachmentsInvalid = &Error{Code: "ai_attachments_invalid", Status: 400, Msg: "tối đa 5 file khác nhau cho một câu hỏi, và không đính kèm khi trả lời lại"}
+	// ErrAttachmentsTooLarge is a question whose files add up to more than 20 MB.
+	ErrAttachmentsTooLarge = &Error{Code: "ai_attachments_too_large", Status: 422, Msg: "các file đính kèm của một câu hỏi tối đa 20 MB"}
 
 	// BYOK proxy (UNI-1008). Messages never carry the key or the vendor URL.
 	ErrProviderNotSupported = &Error{Code: "provider_not_supported", Status: 400, Msg: "nhà cung cấp này không dùng được qua proxy cho thao tác này"}

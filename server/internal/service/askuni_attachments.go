@@ -24,10 +24,18 @@ import (
 
 const askAttachmentsFlag = "ask_uni_attachments"
 
+// Limits of one question's files (UNI-2119); the client checks them too.
+const (
+	askMaxAttachments      = 5
+	askMaxAttachmentsBytes = 20 << 20
+)
+
 // AskAttachment is one file as the API and the answer path know it. Kind is
 // what the model is given: image, pdf or text (everything else the file store
-// admits is read as text).
+// admits is read as text). ID is the ai_attachments row a stored question
+// holds the file by; it is empty on an upload that no question has claimed.
 type AskAttachment struct {
+	ID                       string
 	FileID, Name, MIME, Kind string
 	Size                     int64
 }
@@ -131,11 +139,128 @@ func (s *AskUNIService) CancelAttachment(ctx context.Context, userID, workspaceI
 	err = s.files.CancelUpload(ctx, files.CancelInput{
 		Actor: Human(userID), Scope: files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}, FileID: files.FileID(fileID),
 	})
-	// One answer for every file that is not the asker's to cancel: filesError
-	// would name the id (file_not_found), which tells a stranger it exists.
+	return askFileError(err)
+}
+
+// askFileError is err as the asker is told it. One answer for every file that
+// is not theirs to use: filesError would name the id (file_not_found), which
+// tells a stranger it exists.
+func askFileError(err error) error {
 	var fe *files.Error
 	if errors.As(err, &fe) && (fe.Code == files.CodeAlreadyClaimed || fe.Code == files.CodeNotFound) {
 		return ErrNotFound
 	}
 	return filesError(err)
+}
+
+// askAttachments checks the files a question names and returns them in attach
+// order, before anything is stored or claimed (the claim is store's). More than
+// five or the same id twice is ai_attachments_invalid; any id while files are
+// off for this asker is ai_attachments_unavailable; an id that is not an
+// unsent ai_attachment upload of theirs in this workspace is the bare
+// ErrNotFound, the answer for an id that names nothing; files that add up to
+// more than 20 MB are ai_attachments_too_large.
+func (s *AskUNIService) askAttachments(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, ids []string) ([]AskAttachment, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	seen := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		if seen[id] {
+			return nil, ai.ErrAttachmentsInvalid
+		}
+		seen[id] = true
+	}
+	if len(ids) > askMaxAttachments {
+		return nil, ai.ErrAttachmentsInvalid
+	}
+	if !s.attachmentsEnabled(ctx, userID, w) {
+		return nil, ai.ErrAttachmentsUnavailable
+	}
+	out := make([]AskAttachment, 0, len(ids))
+	var total int64
+	for _, id := range ids {
+		a, err := s.unsentUpload(ctx, userID, w, id)
+		if err != nil {
+			return nil, err
+		}
+		total += a.Size
+		out = append(out, a)
+	}
+	if total > askMaxAttachmentsBytes {
+		return nil, ai.ErrAttachmentsTooLarge
+	}
+	return out, nil
+}
+
+// unsentUpload is the file id names when it is an ai_attachment the asker
+// uploaded to this workspace and no question has claimed; anything else is
+// ErrNotFound, whatever the reason. The upload session is the grant: it names
+// who uploaded, for what and where, and ends once a question claims the file.
+func (s *AskUNIService) unsentUpload(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, id string) (AskAttachment, error) {
+	sess, err := s.q.GetUploadSessionByFile(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AskAttachment{}, ErrNotFound
+	}
+	if err != nil {
+		return AskAttachment{}, err
+	}
+	if sess.Purpose != string(files.AiAttachment) || sess.CreatedBy != userID ||
+		sess.OrganizationID.String != w.OrganizationID || sess.WorkspaceID.String != w.ID ||
+		files.SessionStatus(sess.Status) != files.SessionStaged || sessionGrant(sess, s.now()) != nil {
+		return AskAttachment{}, ErrNotFound
+	}
+	row, err := s.q.GetOrgFile(ctx, db.GetOrgFileParams{ID: id, OrganizationID: strText(w.OrganizationID)})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AskAttachment{}, ErrNotFound
+	}
+	if err != nil {
+		return AskAttachment{}, err
+	}
+	if fileState(row) != nil {
+		return AskAttachment{}, ErrNotFound
+	}
+	f := fileView(row)
+	return AskAttachment{FileID: id, Name: f.Filename, MIME: f.ContentType, Kind: askAttachmentKind(f.ContentType), Size: f.SizeBytes}, nil
+}
+
+// attachAskFiles claims a question's files and writes their ai_attachments
+// rows in the transaction that stores the question: q is store's q.WithTx(tx),
+// so a failed question leaves every file unsent. The claim comes first, as
+// FileService's lock order asks. The upload and the cancel are not audited,
+// like the stage-only uploads of documents: they change no business row, and
+// the claim is part of storing the question, which is the asker's private
+// history like the rest of it.
+func (s *AskUNIService) attachAskFiles(ctx context.Context, q *db.Queries, orgID, convID, messageID string, t askTurn) error {
+	ids := make([]files.FileID, len(t.Files))
+	raw := make([]string, len(t.Files))
+	for i, f := range t.Files {
+		ids[i], raw[i] = files.FileID(f.FileID), f.FileID
+	}
+	if _, err := s.files.ClaimInTx(ctx, q, files.ClaimInput{
+		Actor: Human(t.UserID), Purpose: files.AiAttachment, Scope: files.Scope{OrganizationID: orgID, WorkspaceID: t.WorkspaceID}, FileIDs: ids,
+	}); err != nil {
+		return askFileError(err)
+	}
+	// ClaimInTx attaches a file a question already holds again, which is how
+	// other modules stay safe to retry; here a file belongs to one question, so
+	// the second of two that raced past the check is refused.
+	held, err := q.AiListAttachmentFileIDs(ctx, raw)
+	if err != nil {
+		return err
+	}
+	if len(held) > 0 {
+		return ErrNotFound
+	}
+	// One id each, minted in attach order: rows of one question share their
+	// created_at, so the ULID order is what lists them as they were attached.
+	for _, f := range t.Files {
+		if err := q.AiInsertAttachment(ctx, db.AiInsertAttachmentParams{
+			ID: util.NewID(), OrganizationID: orgID, WorkspaceID: t.WorkspaceID, UserID: t.UserID, ConversationID: convID,
+			MessageID: messageID, FileID: f.FileID, Name: f.Name, Mime: f.MIME, SizeBytes: f.Size, Kind: f.Kind,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

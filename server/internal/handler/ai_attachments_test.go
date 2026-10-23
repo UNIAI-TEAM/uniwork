@@ -277,3 +277,142 @@ func TestCancelAskAttachmentAnswersOneNotFound(t *testing.T) {
 		t.Fatalf("the owner's own cancel = %d %s, want 204", status, body)
 	}
 }
+
+// sizedAskPDF is a PDF of size bytes.
+func sizedAskPDF(size int) []byte {
+	head, tail := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n"), []byte("trailer\n<<>>\n%%EOF\n")
+	pad := max(0, size-len(head)-len(tail))
+	return append(append(head, bytes.Repeat([]byte("x"), pad)...), tail...)
+}
+
+// A question carries the files it names: the answer to the ask holds none, the
+// list of messages shows them on the question in the order they were attached,
+// and every id the asker may not attach, or not at all, is refused with one
+// body and nothing stored.
+func TestAskWithAttachmentsOverHTTP(t *testing.T) {
+	env := attachWorld(t)
+	srv, flags, owner, member, wsID := env.srv, env.flags, env.owner, env.member, env.wsID
+	askPath, streamPath := "/api/v1/workspaces/"+wsID+"/ai/ask", "/api/v1/workspaces/"+wsID+"/ai/ask/stream"
+	upload := func(token, ws, name string, content []byte) string {
+		t.Helper()
+		res, out := postAskFile(t, srv, token, ws, name, content, false)
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("upload %s: %d %v", name, res.StatusCode, out)
+		}
+		return out["file_id"].(string)
+	}
+	small := sizedAskPDF(200)
+	a, b := upload(owner, wsID, "a.pdf", small), upload(owner, wsID, "b.pdf", small)
+
+	res, out := doJSON(t, srv, "POST", askPath, owner, map[string]any{"question": "tóm tắt hai file", "attachment_ids": []string{b, a}})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("ask with files: %d %v", res.StatusCode, out)
+	}
+	if got, ok := out["message"].(map[string]any)["attachments"].([]any); !ok || len(got) != 0 {
+		t.Fatalf("the stored answer carries attachments %v, want []", out["message"].(map[string]any)["attachments"])
+	}
+	convID := out["conversation_id"].(string)
+
+	res, out = doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+convID+"/messages", owner, nil)
+	msgs, _ := out["messages"].([]any)
+	if res.StatusCode != http.StatusOK || len(msgs) != 2 {
+		t.Fatalf("messages: %d %v", res.StatusCode, out)
+	}
+	question, answer := msgs[0].(map[string]any), msgs[1].(map[string]any)
+	atts, _ := question["attachments"].([]any)
+	if question["role"] != "user" || len(atts) != 2 {
+		t.Fatalf("the question carries %v, want two files", question["attachments"])
+	}
+	for i, want := range []string{"b.pdf", "a.pdf"} {
+		got := atts[i].(map[string]any)
+		if got["name"] != want || got["mime"] != "application/pdf" || got["kind"] != "pdf" || got["size"] != float64(len(small)) || got["id"] == "" || got["id"] == a || got["id"] == b || len(got) != 5 {
+			t.Errorf("attachment %d = %v, want %s with id, name, mime, size and kind only", i, got, want)
+		}
+	}
+	if got, ok := answer["attachments"].([]any); !ok || len(got) != 0 {
+		t.Errorf("the answer carries attachments %v, want []", answer["attachments"])
+	}
+
+	// A file the question holds is not an unsent upload any more; it answers
+	// like an id that names nothing, and so does another member's.
+	otherOwner, otherWS := registerOrgWorkspace(t, srv, "askatt-elsewhere@example.com", "Elsewhere", "askatt-elsewhere")
+	foreign := upload(otherOwner, otherWS, "foreign.pdf", small)
+	res, want := doJSON(t, srv, "POST", askPath, owner, map[string]any{"question": "x", "attachment_ids": []string{"01J8X4NOSUCHFILE00000000000"}})
+	wantError(t, "an id that names nothing", res, want, http.StatusNotFound, "not_found")
+	for name, id := range map[string]string{"a sent file": a, "another tenant's upload": foreign} {
+		for route, path := range map[string]string{"ask": askPath, "stream": streamPath} {
+			if route == "stream" {
+				res = postStream(t, srv, wsID, owner, map[string]any{"question": "x", "attachment_ids": []string{id}})
+				raw, _ := readAll(res)
+				var got map[string]any
+				_ = json.Unmarshal(raw, &got)
+				if res.StatusCode != http.StatusNotFound || !equalJSON(got, want) {
+					t.Errorf("%s on stream = %d %v, want the 404 of an id that names nothing %v", name, res.StatusCode, got, want)
+				}
+				continue
+			}
+			res, out = doJSON(t, srv, "POST", path, owner, map[string]any{"question": "x", "attachment_ids": []string{id}})
+			if res.StatusCode != http.StatusNotFound || !equalJSON(out, want) {
+				t.Errorf("%s on %s = %d %v, want the 404 of an id that names nothing %v", name, route, res.StatusCode, out, want)
+			}
+		}
+	}
+
+	c := upload(owner, wsID, "c.pdf", small)
+	res, out = doJSON(t, srv, "POST", askPath, owner, map[string]any{"question": "x", "attachment_ids": []string{c, c}})
+	wantError(t, "the same file twice", res, out, http.StatusBadRequest, "ai_attachments_invalid")
+	res, out = doJSON(t, srv, "POST", askPath, owner, map[string]any{"question": "x", "attachment_ids": []string{"1", "2", "3", "4", "5", "6"}})
+	wantError(t, "six files", res, out, http.StatusBadRequest, "ai_attachments_invalid")
+	big1, big2 := upload(owner, wsID, "big1.pdf", sizedAskPDF(10<<20)), upload(owner, wsID, "big2.pdf", sizedAskPDF(10<<20+1))
+	res, out = doJSON(t, srv, "POST", askPath, owner, map[string]any{"question": "x", "attachment_ids": []string{big1, big2}})
+	wantError(t, "over 20 MB in total", res, out, http.StatusUnprocessableEntity, "ai_attachments_too_large")
+
+	// The stream route takes the same ids; its done event carries the answer,
+	// and the list then shows the file on the new question.
+	sres := postStream(t, srv, wsID, owner, map[string]any{"question": "tóm tắt c", "attachment_ids": []string{c}})
+	var done struct {
+		Message struct {
+			Attachments []any `json:"attachments"`
+		}
+	}
+	for _, f := range collectFrames(readSSE(sres.Body)) {
+		if f.event == "done" {
+			_ = json.Unmarshal([]byte(f.data), &done)
+		}
+	}
+	if sres.StatusCode != http.StatusOK || done.Message.Attachments == nil || len(done.Message.Attachments) != 0 {
+		t.Fatalf("stream with a file: %d, done attachments %v, want 200 and []", sres.StatusCode, done.Message.Attachments)
+	}
+	_, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/ai/conversations", owner, nil)
+	var withC int
+	for _, conv := range out["conversations"].([]any) {
+		_, listed := doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+conv.(map[string]any)["id"].(string)+"/messages", owner, nil)
+		for _, m := range listed["messages"].([]any) {
+			for _, att := range m.(map[string]any)["attachments"].([]any) {
+				if att.(map[string]any)["name"] == "c.pdf" {
+					withC++
+				}
+			}
+		}
+	}
+	if withC != 1 {
+		t.Errorf("c.pdf is listed on %d messages, want the one question that sent it", withC)
+	}
+
+	// Files are off: a question that names one is refused, a plain one is not.
+	d := upload(owner, wsID, "d.pdf", small)
+	flags.on.Store(false)
+	res, out = doJSON(t, srv, "POST", askPath, owner, map[string]any{"question": "x", "attachment_ids": []string{d}})
+	wantError(t, "a file while the flags are off", res, out, http.StatusForbidden, "ai_attachments_unavailable")
+	flags.on.Store(true)
+	// Someone outside the workspace is refused before the files are looked at.
+	res, out = doJSON(t, srv, "POST", askPath, member, map[string]any{"question": "x", "attachment_ids": []string{d}})
+	wantError(t, "a non-member", res, out, http.StatusForbidden, "ai_context_forbidden")
+}
+
+// equalJSON is whether two decoded bodies are the same.
+func equalJSON(a, b map[string]any) bool {
+	x, _ := json.Marshal(a)
+	y, _ := json.Marshal(b)
+	return bytes.Equal(x, y)
+}

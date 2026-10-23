@@ -113,6 +113,9 @@ type AskInput struct {
 	// in place with the stored question and context; Dock only, and Question
 	// is ignored.
 	Regenerate string
+	// AttachmentIDs are the files the asker uploaded for this question, in the
+	// order they were attached: at most five, each an unsent upload of theirs.
+	AttachmentIDs []string
 }
 
 // errRegenerateTarget is the one refusal for a message id that is not the
@@ -240,6 +243,10 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 		if in.ConversationID == "" {
 			return AskResult{}, Invalid(errRegenerateTarget)
 		}
+		// The answer is read again from the stored question's own files.
+		if len(in.AttachmentIDs) > 0 {
+			return AskResult{}, ai.ErrAttachmentsInvalid
+		}
 	} else {
 		if question == "" {
 			return AskResult{}, Invalid("câu hỏi không được để trống")
@@ -269,11 +276,17 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 			return AskResult{}, err
 		}
 	}
+	// The files are checked before the conversation exists, so a refused
+	// question leaves nothing behind; the claim is store's.
+	attached, err := s.askAttachments(ctx, userID, w, in.AttachmentIDs)
+	if err != nil {
+		return AskResult{}, err
+	}
 	conv, err := s.conversation(ctx, userID, w, in.ConversationID)
 	if err != nil {
 		return AskResult{}, err
 	}
-	base := askTurn{Question: question}
+	base := askTurn{Question: question, Files: attached, UserID: userID, WorkspaceID: workspaceID}
 	if regen {
 		// The conversation is the asker's (above); the target must be its last
 		// live answer, right after a question, or nothing runs.
@@ -298,6 +311,10 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	agent := s.agentOn(ctx, tc) // read once: a flag flip between reads would send a regenerate down P0
 	if regen && !agent {
 		return AskResult{}, Invalid("regenerate: needs the agent")
+	}
+	// P0 reads no file; the check above passed on a read of the same flags.
+	if len(attached) > 0 && !agent {
+		return AskResult{}, ai.ErrAttachmentsUnavailable
 	}
 	ctxItems, refs, err := s.askContext(ctx, tc, in.Focus, mentions)
 	if err != nil {
@@ -751,6 +768,11 @@ type askTurn struct {
 	Regenerates              string
 	// Model is the catalogue key of the model the person chose; "" for Auto.
 	Model string
+	// Files are the question's checked files, in attach order. store claims
+	// them and writes their rows with the question; UserID and WorkspaceID are
+	// the asker and the workspace they asked from, which those rows record.
+	Files               []AskAttachment
+	UserID, WorkspaceID string
 }
 
 // jsonOrEmptyList marshals v, writing "[]" for a nil slice.
@@ -775,8 +797,14 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTu
 			fj, _ := json.Marshal(t.Focus)
 			focus = strText(string(fj))
 		}
+		questionID := util.NewID()
+		if len(t.Files) > 0 {
+			if err := s.attachAskFiles(ctx, q, orgID, convID, questionID, t); err != nil {
+				return db.AiMessage{}, err
+			}
+		}
 		if _, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
-			ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "user", Content: t.Question, Citations: "[]",
+			ID: questionID, OrganizationID: orgID, ConversationID: convID, Role: "user", Content: t.Question, Citations: "[]",
 			Steps: "[]", Followups: "[]", Focus: focus, Mentions: jsonOrEmptyList(t.Mentions),
 		}); err != nil {
 			return db.AiMessage{}, err
@@ -822,11 +850,44 @@ func (s *AskUNIService) ListConversations(ctx context.Context, userID, workspace
 	return s.q.AiListConversations(ctx, db.AiListConversationsParams{WorkspaceID: workspaceID, UserID: userID})
 }
 
-func (s *AskUNIService) Messages(ctx context.Context, userID, conversationID string) ([]db.AiMessage, error) {
-	if _, err := s.ownConversation(ctx, userID, conversationID, ""); err != nil {
+// AskMessage is a stored message and, on a question, the files it carried.
+type AskMessage struct {
+	db.AiMessage
+	Attachments []AskAttachment
+}
+
+// Messages is the conversation's messages, each question with its files in the
+// order they were attached; one read for all of them.
+func (s *AskUNIService) Messages(ctx context.Context, userID, conversationID string) ([]AskMessage, error) {
+	conv, err := s.ownConversation(ctx, userID, conversationID, "")
+	if err != nil {
 		return nil, err
 	}
-	return s.q.AiListMessages(ctx, conversationID)
+	rows, err := s.q.AiListMessages(ctx, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	var questions []string
+	for _, r := range rows {
+		if r.Role == "user" {
+			questions = append(questions, r.ID)
+		}
+	}
+	byQuestion := map[string][]AskAttachment{}
+	if len(questions) > 0 {
+		atts, err := s.q.AiListAttachmentsForMessages(ctx, db.AiListAttachmentsForMessagesParams{OrganizationID: conv.OrganizationID, MessageIds: questions})
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range atts {
+			byQuestion[a.MessageID] = append(byQuestion[a.MessageID], AskAttachment{ID: a.ID, FileID: a.FileID, Name: a.Name, MIME: a.Mime, Kind: a.Kind, Size: a.SizeBytes})
+		}
+	}
+	out := make([]AskMessage, len(rows))
+	for i, r := range rows {
+		out[i] = AskMessage{AiMessage: r, Attachments: byQuestion[r.ID]}
+	}
+	return out, nil
 }
 
 func (s *AskUNIService) DeleteConversation(ctx context.Context, userID, conversationID string) error {
