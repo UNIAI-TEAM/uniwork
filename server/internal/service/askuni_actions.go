@@ -179,6 +179,7 @@ func askRowRef(v string) (int, bool) {
 // and for each ref'd field the row it names.
 func askRowRefs(earlier []askDraftRow, fields map[string]string, values map[string]string) (refs []int, byField map[string]askDraftRow, err error) {
 	byField = map[string]askDraftRow{}
+	refs = []int{} // serializes as [], never null
 	for field, v := range values {
 		n, ok := askRowRef(v)
 		if !ok {

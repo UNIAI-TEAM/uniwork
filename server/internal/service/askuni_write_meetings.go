@@ -61,7 +61,9 @@ func init() {
 		_, err := s.reads.UpdateMeeting(ctx, p, in)
 		return askMeetingGuard(err)
 	}
-	// Removes only the people the invite added; someone already gone is skipped.
+	// shortcut: RemoveParticipant takes no version, so an edit made to the meeting
+	// since apply is not detected. Removal is idempotent (someone already gone is
+	// skipped) and touches only the people this invite added. Upgrade when it takes one.
 	askInverses["remove_meeting_participants"] = func(ctx context.Context, s *AskUNIService, p McpPrincipal, args json.RawMessage) error {
 		var a struct {
 			MeetingID string   `json:"meeting_id"`
@@ -116,17 +118,18 @@ func (s *AskUNIService) askMeetingTools() []askWriteTool {
 // askMeetingTarget reads the meeting a row acts on. A meeting made earlier this
 // turn ({{row:N.id}}) has nothing to read: the card shows the title of its row,
 // and apply reads the real one.
-func (s *AskUNIService) askMeetingTarget(ctx context.Context, tc ai.ToolContext, id string, earlier []askDraftRow) (before db.Meeting, target AskContextRef, refs []int, isRef bool, err error) {
+func (s *AskUNIService) askMeetingTarget(ctx context.Context, tc ai.ToolContext, id, projectID string, earlier []askDraftRow) (before db.Meeting, target AskContextRef, refs []int, isRef bool, err error) {
 	if s.reads == nil {
 		return before, target, nil, false, errAskReadsNotWired
 	}
-	refs, byField, err := askRowRefs(earlier, map[string]string{"meeting_id": "schedule_meeting"}, map[string]string{"meeting_id": id})
+	refs, byField, err := askRowRefs(earlier, map[string]string{"meeting_id": "schedule_meeting", "project_id": "create_project"}, map[string]string{"meeting_id": id, "project_id": projectID})
 	if err != nil {
 		return before, target, nil, false, err
 	}
 	target = AskContextRef{Kind: "meeting"}
 	if _, isRef = byField["meeting_id"]; isRef {
-		target.Title = earlier[refs[0]-1].Preview.Target.Title
+		n, _ := askRowRef(id)
+		target.Title = earlier[n-1].Preview.Target.Title
 		return before, target, refs, true, nil
 	}
 	if before, err = s.reads.meeting(ctx, principalOf(tc), tc.WorkspaceID, id); err != nil {
@@ -149,11 +152,11 @@ func askMeetingClash(tool, meetingID string, earlier []askDraftRow) error {
 		if json.Unmarshal(r.Args, &a) != nil || a.MeetingID != meetingID || r.Tool == "schedule_meeting" {
 			continue
 		}
-		if r.Tool == "cancel_meeting" && tool != "restore_meeting" {
-			return McpInvalidArgs{Msg: fmt.Sprintf("row %d of this turn already cancels this meeting; leave this change out or restore it first", i+1)}
+		if r.Tool == "cancel_meeting" {
+			return McpInvalidArgs{Msg: fmt.Sprintf("row %d of this turn already cancels this meeting; make one change per meeting per turn", i+1)}
 		}
 		if r.TargetRevision != nil && changes(tool) && changes(r.Tool) {
-			return McpInvalidArgs{Msg: fmt.Sprintf("row %d of this turn already changes this meeting; ask for one change at a time", i+1)}
+			return McpInvalidArgs{Msg: fmt.Sprintf("row %d of this turn already changes this meeting; make one change per meeting per turn", i+1)}
 		}
 	}
 	return nil
@@ -202,6 +205,10 @@ func (s *AskUNIService) prepareScheduleMeeting(ctx context.Context, tc ai.ToolCo
 	if err != nil {
 		return askDraftRow{}, err
 	}
+	refs, _, err := askRowRefs(earlier, map[string]string{"project_id": "create_project"}, map[string]string{"project_id": in.ProjectID})
+	if err != nil {
+		return askDraftRow{}, err
+	}
 	stored, err := askStoredArgs(args, tc.WorkspaceID)
 	if err != nil {
 		return askDraftRow{}, err
@@ -234,7 +241,7 @@ func (s *AskUNIService) prepareScheduleMeeting(ctx context.Context, tc ai.ToolCo
 	return askDraftRow{
 		Tool: "schedule_meeting", Args: stored, TargetKind: "meeting", Level: askLevel2,
 		Preview: AskProposalPreview{
-			Target: AskContextRef{Kind: "meeting", Title: strings.TrimSpace(in.Title)}, Fields: fields, Refs: []int{},
+			Target: AskContextRef{Kind: "meeting", Title: strings.TrimSpace(in.Title)}, Fields: fields, Refs: refs,
 			Audience: AskAudience{Visibility: "workspace", Notifies: []AskContextRef{}}, // scheduling records no invitation event
 		},
 	}, nil
@@ -254,7 +261,7 @@ func (s *AskUNIService) prepareUpdateMeeting(ctx context.Context, tc ai.ToolCont
 	if err != nil {
 		return askDraftRow{}, err
 	}
-	before, target, refs, isRef, err := s.askMeetingTarget(ctx, tc, in.MeetingID, earlier)
+	before, target, refs, isRef, err := s.askMeetingTarget(ctx, tc, in.MeetingID, optValue(in.ProjectID), earlier)
 	if err != nil {
 		return askDraftRow{}, err
 	}
@@ -329,7 +336,7 @@ func (s *AskUNIService) prepareInviteToMeeting(ctx context.Context, tc ai.ToolCo
 	if err != nil {
 		return askDraftRow{}, err
 	}
-	before, target, refs, isRef, err := s.askMeetingTarget(ctx, tc, in.MeetingID, earlier)
+	before, target, refs, isRef, err := s.askMeetingTarget(ctx, tc, in.MeetingID, "", earlier)
 	if err != nil {
 		return askDraftRow{}, err
 	}
@@ -368,7 +375,7 @@ func (s *AskUNIService) prepareInviteToMeeting(ctx context.Context, tc ai.ToolCo
 // prepareMeetingState is cancel_meeting and restore_meeting: one meeting, one
 // state change, nobody notified.
 func (s *AskUNIService) prepareMeetingState(ctx context.Context, tc ai.ToolContext, tool string, args json.RawMessage, meetingID string, earlier []askDraftRow, reason string) (askDraftRow, error) {
-	before, target, refs, isRef, err := s.askMeetingTarget(ctx, tc, meetingID, earlier)
+	before, target, refs, isRef, err := s.askMeetingTarget(ctx, tc, meetingID, "", earlier)
 	if err != nil {
 		return askDraftRow{}, err
 	}

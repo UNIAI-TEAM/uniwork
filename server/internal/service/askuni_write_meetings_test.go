@@ -63,6 +63,14 @@ func TestAskWriteMeetingApplyAndUndo(t *testing.T) {
 		}
 		return askInverses[inv.Op](ctx, s, p, inv.Args)
 	}
+	setup := func(name, args string) *askInverse { // a step whose result a later one depends on
+		t.Helper()
+		_, inv, err := run(name, args)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		return inv
+	}
 	status := func(id string) string { return x.meetingRow(t, id).Status }
 
 	// schedule → cancel
@@ -95,7 +103,7 @@ func TestAskWriteMeetingApplyAndUndo(t *testing.T) {
 	if status(m.ID) != MeetingScheduled {
 		t.Fatal("not restored")
 	}
-	_, _, _ = run("cancel_meeting", fmt.Sprintf(`{"meeting_id":%q}`, m.ID))
+	setup("cancel_meeting", fmt.Sprintf(`{"meeting_id":%q}`, m.ID))
 	if _, inv, err = run("restore_meeting", fmt.Sprintf(`{"meeting_id":%q}`, m.ID)); err != nil || inv == nil || inv.Op != "cancel_meeting" {
 		t.Fatalf("restore: %v %v", inv, err)
 	}
@@ -106,7 +114,7 @@ func TestAskWriteMeetingApplyAndUndo(t *testing.T) {
 		t.Fatal("not cancelled again")
 	}
 	// someone restored it meanwhile: undo of the cancel refuses
-	_, inv, _ = run("restore_meeting", fmt.Sprintf(`{"meeting_id":%q}`, m.ID))
+	inv = setup("restore_meeting", fmt.Sprintf(`{"meeting_id":%q}`, m.ID))
 	v := x.meetingRow(t, m.ID).Version
 	if err := s.meetings.CancelAt(ctx, x.ua.ID, m.ID, "", v); err != nil {
 		t.Fatal(err)
@@ -175,8 +183,33 @@ func TestAskWriteMeetingApplyAndUndo(t *testing.T) {
 	if got.Title != "Gốc" || got.Description != "mô tả cũ" || !got.StartsAt.Time.Equal(before.StartsAt.Time) || !got.EndsAt.Time.Equal(before.EndsAt.Time) {
 		t.Fatalf("not restored: %+v", got)
 	}
+	// project and timezone: set, then cleared, and both come back
+	pid := x.project(t, "Dự án họp")
+	if res, inv, err = run("update_meeting", fmt.Sprintf(`{"meeting_id":%q,"project_id":%q,"timezone":"UTC"}`, upd.ID, pid)); err != nil || inv == nil || len(res.Changes) != 2 {
+		t.Fatalf("project update: %+v %v %v", res, inv, err)
+	}
+	got = x.meetingRow(t, upd.ID)
+	if got.ProjectID.String != pid || got.Timezone != "UTC" {
+		t.Fatalf("project update wrote %+v", got)
+	}
+	if err := undo(inv); err != nil {
+		t.Fatal(err)
+	}
+	if got = x.meetingRow(t, upd.ID); got.ProjectID.Valid || got.Timezone != before.Timezone {
+		t.Fatalf("not restored: project %+v zone %q", got.ProjectID, got.Timezone)
+	}
+	setup("update_meeting", fmt.Sprintf(`{"meeting_id":%q,"project_id":%q}`, upd.ID, pid))
+	if res, inv, err = run("update_meeting", fmt.Sprintf(`{"meeting_id":%q,"project_id":null}`, upd.ID)); err != nil || inv == nil || x.meetingRow(t, upd.ID).ProjectID.Valid {
+		t.Fatalf("clear project: %+v %v %v", res, inv, err)
+	}
+	if err := undo(inv); err != nil {
+		t.Fatal(err)
+	}
+	if got = x.meetingRow(t, upd.ID); got.ProjectID.String != pid {
+		t.Fatalf("project not back: %+v", got.ProjectID)
+	}
 	// an edit after the update: undo refuses and writes nothing
-	_, inv, _ = run("update_meeting", fmt.Sprintf(`{"meeting_id":%q,"title":"Hai"}`, upd.ID))
+	inv = setup("update_meeting", fmt.Sprintf(`{"meeting_id":%q,"title":"Hai"}`, upd.ID))
 	other := "Người khác"
 	if _, err := s.meetings.Update(ctx, x.ua.ID, upd.ID, UpdateMeetingInput{Title: &other}); err != nil {
 		t.Fatal(err)
@@ -273,5 +306,68 @@ func TestAskWriteMeetingSameTurnConflicts(t *testing.T) {
 		if _, err := writeToolNamed(t, s, c.tool).prepare(ctx, tc, json.RawMessage(c.args), nil); err == nil {
 			t.Errorf("%s was accepted", c.tool)
 		}
+	}
+}
+
+// A row that names an earlier schedule_meeting applies once the executor has put
+// the real id in its arguments. That substitution lands in Task 9, so this does
+// it by hand and checks what apply does with the result.
+func TestAskWriteMeetingRefRowApplies(t *testing.T) {
+	x, s, tc, _ := meetingWorld(t)
+	p := principalOf(tc)
+	ctx := context.Background()
+	create := askPrepare(t, s, tc, "schedule_meeting", scheduleArgsAt(time.Now().Add(24*time.Hour), ""))
+	edit := askPrepare(t, s, tc, "update_meeting", `{"meeting_id":"{{row:1.id}}","title":"Đổi tên"}`, create)
+	cancel := askPrepare(t, s, tc, "cancel_meeting", `{"meeting_id":"{{row:1.id}}"}`, create)
+	if edit.TargetRevision != nil || cancel.TargetRevision != nil {
+		t.Fatalf("a row with a ref has a revision: %v %v", edit.TargetRevision, cancel.TargetRevision)
+	}
+	made, _, err := writeToolNamed(t, s, "schedule_meeting").apply(ctx, p, create)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub := func(r askDraftRow) askDraftRow {
+		r.Args = json.RawMessage(strings.ReplaceAll(string(r.Args), "{{row:1.id}}", made.ObjectID))
+		return r
+	}
+	res, inv, err := writeToolNamed(t, s, "update_meeting").apply(ctx, p, sub(edit))
+	if err != nil || inv == nil || res.ObjectID != made.ObjectID || x.meetingRow(t, made.ObjectID).Title != "Đổi tên" {
+		t.Fatalf("update: %+v %v %v", res, inv, err)
+	}
+	res, inv, err = writeToolNamed(t, s, "cancel_meeting").apply(ctx, p, sub(cancel))
+	if err != nil || inv == nil || inv.Op != "restore_meeting" || res.ObjectID != made.ObjectID || x.meetingRow(t, made.ObjectID).Status != MeetingCanceled {
+		t.Fatalf("cancel: %+v %v %v", res, inv, err)
+	}
+	if err := askInverses[inv.Op](ctx, s, p, inv.Args); err != nil {
+		t.Fatal(err)
+	}
+	if x.meetingRow(t, made.ObjectID).Status != MeetingScheduled {
+		t.Fatal("not restored")
+	}
+}
+
+// project_id may name a project an earlier row of the turn creates.
+func TestAskWriteMeetingProjectRowRef(t *testing.T) {
+	x, s, tc, _ := meetingWorld(t)
+	project := askPrepare(t, s, tc, "create_project", `{"title":"Sắp có"}`)
+	sched := askPrepare(t, s, tc, "schedule_meeting", scheduleArgsAt(time.Now().Add(24*time.Hour), `,"project_id":"{{row:1.id}}"`), project)
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Họp", "")
+	upd := askPrepare(t, s, tc, "update_meeting", fmt.Sprintf(`{"meeting_id":%q,"project_id":"{{row:1.id}}"}`, m.ID), project)
+	for _, row := range []askDraftRow{sched, upd} {
+		var shown any
+		for _, f := range row.Preview.Fields {
+			if f.Field == "project_id" {
+				shown = f.To
+			}
+		}
+		if row.Level != askLevel2 || !slices.Equal(row.Preview.Refs, []int{1}) || shown != "Sắp có" {
+			t.Errorf("%s row: level %s refs %v project %v", row.Tool, row.Level, row.Preview.Refs, shown)
+		}
+	}
+	if upd.TargetRevision == nil {
+		t.Error("an update of a real meeting lost its revision")
+	}
+	if got := askPrepare(t, s, tc, "cancel_meeting", fmt.Sprintf(`{"meeting_id":%q}`, m.ID)); got.Preview.Refs == nil {
+		t.Error("Refs is nil: it would serialize as null")
 	}
 }
