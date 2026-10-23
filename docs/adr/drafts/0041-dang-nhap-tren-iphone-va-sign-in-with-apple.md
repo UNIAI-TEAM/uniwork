@@ -4,7 +4,7 @@
 được chọn cần tài khoản Apple Developer (UNI-1838), mà tài khoản đó chưa có. Chấp nhận thì chuyển ra `docs/adr/`, thêm
 vào bảng của `README.md`, đưa luật vào `CLAUDE.md` kèm test giữ luật (mục "Hệ quả").
 **Liên quan:** [0011](../0011-mobile-la-app-expo-doc-lap.md) (UniChat mobile đăng nhập qua trình duyệt hệ thống, PKCE),
-[0038](0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md) (phần iOS cũng chờ tài khoản Apple),
+[0038](../0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md) (phần iOS cũng chờ tài khoản Apple),
 `docs/runbooks/unichat-mobile-release.md` › Play Console App content và App Store Connect.
 
 ## Bối cảnh

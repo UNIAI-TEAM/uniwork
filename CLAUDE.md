@@ -378,6 +378,13 @@ Every command that changes business state writes an `audit_events` row and its
   (`TestMCPWriteToolsDeclareUndo`), and every row they audit carries
   `metadata.via` (`TestMcpCallCarriesTheVia`,
   `TestRecordWritesTheViaOfTheRequest`).
+- iPhone calls ring through CallKit from VoIP pushes the server sends straight
+  to APNs (ADR 0038): an iPhone's PushKit token is a `push_subscriptions` row
+  with `transport = 'apns_voip'`, and only `server/internal/notification/push_apns.go`
+  sends to it — a ring still within its window or its end, never a chat,
+  missed-call or tray push, since iOS stops waking an app whose VoIP push does
+  not ring CallKit. `TestAPNsVoIPSenderSkipsWhatCallKitDoesNotRing` and
+  `TestChatPushNeverReachesAPushKitToken` hold it.
 
 ## Platform Admin and Observability
 
