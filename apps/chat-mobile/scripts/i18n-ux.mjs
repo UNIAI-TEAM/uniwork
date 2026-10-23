@@ -24,6 +24,8 @@ export const UX_ONLY = {
       reply_placeholder: "Nhập tin trả lời…",
       send: "Gửi",
       mark_read: "Đánh dấu đã đọc",
+      // A reply typed into a notification while UniChat's lock is on: Android posts the notification again with this.
+      reply_locked: "Chưa gửi tin trả lời vì UniChat đang khoá. Mở UniChat để trả lời.",
     },
     voice: {
       seek_forward: "Tua tới {{seconds}} giây",
@@ -83,6 +85,7 @@ export const UX_ONLY = {
       reply_placeholder: "Write a reply…",
       send: "Send",
       mark_read: "Mark as read",
+      reply_locked: "Reply not sent: UniChat is locked. Open UniChat to reply.",
     },
     voice: {
       // The step is always several seconds (VOICE_SEEK_STEP_S): no singular form.

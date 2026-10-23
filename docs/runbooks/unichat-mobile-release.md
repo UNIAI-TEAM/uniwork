@@ -232,7 +232,9 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    (`EXPO_APPLE_TEAM_ID` trên EAS, `UNICHAT_IOS_TEAM_ID` ở `deploy/app/env/uniwork-fe.env`), app App Store Connect
    "UniWork Chat" (tên "UniChat" đã có người giữ) Apple ID `6825689656` → `submit.production.ios.ascAppId`. EAS giữ
    chứng chỉ phân phối, profile, khoá APNs (`.p8` tự tạo ở Keys để server dùng cho push VoIP sau này) và khoá
-   App Store Connect API.
+   App Store Connect API. Tên đó là tên trên cả hai store (`store/listing.md › Tên trên store`, sinh ra
+   `store/apple/store.config.json` và `store/play/*/title.txt`; `store-listing.test.ts` giữ): Play Console › Main store
+   listing › App name cũng là "UniWork Chat". Tên dưới biểu tượng trên máy vẫn là "UniChat".
 4. Google: Play Console, tạo app `com.uniworkos.chat.staging`. Bản AAB đầu tiên phải tải tay (API của Google không tạo
    được bản đầu): `eas build -p android --profile internal`, tải `.aab` lên Internal testing. Service account Google
    Cloud có quyền phát hành trên app → khoá JSON tải lên EAS (`eas credentials -p android`, mục khoá cho submit). Khoá
@@ -360,7 +362,10 @@ dưới `…<os>.ota.<id>`, mục Phát OTA; tên có OS vì số build iOS và 
    credential đó vì nó đã nằm trong một artifact trên EAS, build lại; chỉ khi chắc là dương tính giả mới thêm vào
    `apps/chat-mobile/apk-scan-baseline.json` kèm lý do; `dex-class-missing` là R8 đã bỏ một lớp mã native tìm theo tên,
    như `livekit.org.jni_zero.JniInit` khiến 0.3.0 (11) chết khi mở: thêm luật `-keep` mà lỗi in ra vào
-   `ANDROID_KEEP_RULES`, bump `version`, build lại) → kiểm Sentry đã có release `com.uniworkos.chat@<version>+<version code>` (Gradle tải source map
+   `ANDROID_KEEP_RULES`, bump `version`, build lại; `permission-unlisted` là bản build xin một quyền ngoài
+   `apps/chat-mobile/android-permissions.json`, thường do nâng thư viện: không cần thì chặn bằng `blockedPermissions`
+   trong `app.config.ts`, cần thì thêm vào danh sách kèm ai thêm, vì sao giữ, Play hỏi gì, và cập nhật `store/listing.md`
+   › Quyền cùng mục App content dưới đây nếu Play cần khai) → kiểm Sentry đã có release `com.uniworkos.chat@<version>+<version code>` (Gradle tải source map
    và symbol dưới tên đó; không có là tải hỏng, đỏ) → `eas submit --profile production-internal --id <build>`: đúng
    binary đó lên **internal track của app production** `com.uniworkos.chat`. Summary ghi version code.
 2. **Thử** bản đó trên internal track của app production (người thử nội bộ, checklist máy thật bên dưới).
@@ -510,7 +515,10 @@ máy mở lạnh không có mạng vẫn theo công tắc và mức tối thiể
   `unichat_mobile_media_upload` (ẩn gửi ảnh/tệp trong menu đính kèm; tin đã xếp hàng vẫn đi),
   `unichat_mobile_voice_messages` (ẩn nút ghi tin thoại), `unichat_mobile_ai_catch_up` (ẩn banner "Bắt kịp nhanh"),
   `unichat_mobile_outbox_flush` (ngừng tự gửi lại tin và thao tác đang chờ khi có mạng lại / về foreground / socket nối
-  lại — chúng nằm yên trên máy; gửi từ ô soạn tin và nút Thử lại vẫn chạy; dùng khi bản app gây bão gửi lại),
+  lại — chúng nằm yên trên máy; gửi từ ô soạn tin và nút Thử lại vẫn chạy; dùng khi bản app gây bão gửi lại; tắt cả
+  đường nền bên dưới), `unichat_mobile_background_send` (ngừng gửi tiếp khi app đã rời màn hình: iOS không xin thêm
+  thời gian và bỏ task theo lịch, Android huỷ job WorkManager — phần còn nợ chờ lần mở app sau; dùng khi job nền làm hao
+  pin hay gửi lặp),
   `unichat_mobile_chat_sync` (ngừng đồng bộ theo nhật ký thay đổi `GET …/chat/sync`: reconnect lại refetch mọi
   timeline đang hiện như trước; dùng khi endpoint sync chậm hay trả sai — app không cần bản mới).
 - `unichat_mobile_timeline_recycled` thì ngược lại: mặc định **tắt** (FlatList đảo ngược); bật là A/B danh sách tin
@@ -524,7 +532,9 @@ máy mở lạnh không có mạng vẫn theo công tắc và mức tối thiể
 
 **Play Console App content và App Store Connect (trước bản production đầu tiên; làm lại khi quyền, dịch vụ hay dữ liệu
 đổi).** Nguồn chữ là `apps/chat-mobile/store/listing.md`; danh sách quyền và dịch vụ của bản release là
-`apps/chat-mobile/android-manifest.test.ts` (in lại bằng `node apps/chat-mobile/scripts/android-manifest.mjs`). Đánh dấu
+`apps/chat-mobile/android-manifest.test.ts` (in lại bằng `node apps/chat-mobile/scripts/android-manifest.mjs`), cộng các
+quyền thư viện Maven gộp vào mà chỉ binary có — danh sách đầy đủ, mỗi quyền một lý do và cột Play cần gì, là
+`apps/chat-mobile/android-permissions.json`, `scripts/mobile-apk-scan.mjs` giữ nó trên APK và AAB thật. Đánh dấu
 từng mục khi đã nộp:
 
 - [ ] **Privacy policy**: `https://app.uniworkos.com/privacy` (tiếng Việt `/vi/privacy`). Trang phải nói đúng những gì
@@ -573,11 +583,25 @@ từng mục khi đã nộp:
   hộp thư `contact@unicomhub.com` có người trực — **mọi báo cáo được xử lý trong 24 giờ**, điều khoản sử dụng hứa vậy
   (Apple 1.2).
 - [ ] **Sign in with Apple (Apple 4.8, chỉ iOS)**: trang đăng nhập mà app mở có "Tiếp tục với Google" và cho tự đăng ký,
-  nên bản iOS đầu tiên gửi review (cả TestFlight external) phải có Sign in with Apple —
-  `docs/adr/drafts/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md`. Chưa land thì không nộp bản iOS để review.
-- [ ] **iOS background modes (Apple 2.5.4)**: Info.plist của bản nộp không có `UIBackgroundModes` khi gọi còn tắt trên
-  iPhone (`app.config.test.ts` đọc Info.plist cuối của bản release); bản có gọi build với `UNICHAT_IOS_CALLS=1` và ghi
-  chú review nói cách thử cuộc gọi.
+  nên bản iOS gửi review (cả TestFlight external) phải hiện nút Apple — ADR
+  [0041](../adr/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md). Trước khi nộp: App ID `com.uniworkos.chat` (và
+  `.staging`) bật capability Sign In with Apple (EAS bật khi ký bằng credential nó quản lý; không thì Certificates,
+  Identifiers & Profiles › Identifiers › App ID › Sign In with Apple, "Enable as a primary App ID", rồi tạo lại profile);
+  một khoá ở Keys › "+" › Sign in with Apple › Configure với primary App ID `com.uniworkos.chat`, tải `.p8` (một lần);
+  server production có `APPLE_SIWA_AUDIENCES=com.uniworkos.chat,com.uniworkos.chat.staging` và
+  `APPLE_SIWA_TEAM_ID=XJAM488A6D` (`deploy/app/env/uniwork-be.env`), `APPLE_SIWA_KEY_ID`, `APPLE_SIWA_PRIVATE_KEY`
+  (nội dung `.p8`, Secret `uniwork-apple`, `deploy/app/env/README.md › Apple`) và đã deploy bản có
+  migration `users.apple_id`; `GET https://uniworkos.com/api/v1/auth/providers` trả `"apple":true`. Tên miền và địa
+  chỉ gửi mail của UniWork đã đăng ký ở Certificates, Identifiers & Profiles › Services › Sign in with Apple for Email
+  Communication (qua SPF/DKIM), không thì mail tới địa chỉ relay của "Ẩn email" bị Apple bỏ. Thử trên máy
+  thật: đăng nhập bằng Apple (cả "Ẩn email"), đăng xuất, đăng nhập lại vào đúng tài khoản (hộp thư nhận mail
+  `new_login`), xoá tài khoản — log server không có `apple revoke failed`. Ghi chú review: "Sign in with Apple is on the first screen."
+- [ ] **iOS background modes (Apple 2.5.4)**: Info.plist của bản nộp chỉ có `UIBackgroundModes: processing` khi gọi còn
+  tắt trên iPhone (`app.config.test.ts` đọc Info.plist cuối của bản release), và ghi chú review giải thích nó: "UniChat
+  schedules a background processing task (BGTaskScheduler) that sends messages the user wrote while offline once the
+  network is back; to try it, turn on Airplane Mode, send a message, leave the app, turn Airplane Mode off" (iOS chạy
+  task khi nó muốn: reviewer có thể không thấy nó chạy, ghi chú nói vậy). Bản có gọi build với `UNICHAT_IOS_CALLS=1`
+  và ghi chú review nói cách thử cuộc gọi.
 - [ ] **iOS privacy manifest**: bản iOS archive đầu tiên trên EAS — mở `.xcarchive` trong Xcode › Organizer › Generate
   Privacy Report, đối chiếu với `store/listing.md` › "iOS privacy manifest" (dữ liệu thu thập, không tracking, lý do API).
   Email ITMS-91053/91061 sau khi upload nghĩa là một lý do hay một SDK thiếu manifest: thêm vào
@@ -637,8 +661,10 @@ test JS), rồi mỗi bản store. Ghi kết quả (ảnh, lệnh, log) vào b�
   Tổ chức. Trên máy thành viên, mở lại app: Cài đặt hiện hai công tắc bật, bị khoá, kèm "Tổ chức của bạn yêu cầu…"; mở
   lạnh hỏi Face ID/vân tay/mã; chụp màn hình bị chặn, màn đa nhiệm trống. Máy không có khoá màn hình: màn khoá nói đặt
   khoá trong Cài đặt của máy. Owner tắt lại: lựa chọn của người dùng quay lại. Đăng xuất: mức tối thiểu được gỡ.
-- [ ] Ghim TLS (khi đã bật, Khắc phục 19): qua mitmproxy với CA người dùng tự cài, REST, socket `wss://` và cuộc gọi
-  LiveKit đều hỏng mà không lộ token; trên mạng thường mọi thứ chạy.
+- [ ] Ghim TLS (Khắc phục 19, runbook `unichat-tls-pins`): qua mitmproxy mà CA của nó được máy **tin** (Android: CA
+  trong kho hệ thống của máy ảo/máy test đã root; iOS: CA người dùng cài và bật Full Trust), REST, socket `wss://` và
+  cuộc gọi LiveKit đều hỏng mà không lộ token, trong khi một host không ghim (ảnh/tệp của tin nhắn trên S3, hay một
+  trang công khai trong trình duyệt của máy) vẫn tải được qua cùng proxy; trên mạng thường mọi thứ chạy.
 - [ ] iOS — Keychain sau gỡ cài: gỡ app, cài lại, mở: về màn đăng nhập (dấu cài đặt trong MMKV), thiết bị cũ biến mất
   khỏi danh sách thiết bị trên web (đã thu hồi).
 - [ ] iOS — bản sao lưu: sao lưu mã hoá bằng Finder, mở bằng công cụ đọc backup (iMazing hay `idevicebackup2` +
@@ -649,7 +675,7 @@ test JS), rồi mỗi bản store. Ghi kết quả (ảnh, lệnh, log) vào b�
   che (app switcher protection + lớp phủ của guard). Bật chặn chụp: chụp màn hình ra ảnh trống, quay màn hình ra đen.
 - [ ] iOS — đăng nhập: `ASWebAuthenticationSession` trả callback về app và đăng nhập xong; mở
   `uniworkchat://auth/callback?code=x&state=y` từ Safari khi không có lượt đăng nhập nào thì không đăng nhập được gì.
-- [ ] iOS — ghim TLS và socket: với pin bật, kiểm riêng socket `wss://` qua mitmproxy (chưa xác minh `NSPinnedDomains`
+- [ ] iOS — ghim TLS và socket: kiểm riêng socket `wss://` qua mitmproxy (chưa xác minh `NSPinnedDomains`
   phủ WebSocket SocketRocket/CFStream); nếu socket vẫn nối được qua proxy thì ghi là lỗ hổng đã biết và mở việc.
 - [ ] iOS — redirect: chưa xác minh URLSession có giữ `Authorization` khi theo 3xx sang host khác; app chặn 3xx cho
   mọi request JSON (`data/auth/strict-fetch.ts`), upload multipart vẫn theo fetch của React Native — bỏ qua dòng này nếu
@@ -722,6 +748,18 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   Chỉ máy thật xác nhận đường app đã kill: test chỉ giữ dạng payload task nền nhận (`content.dataString`, theo
   `NotificationSerializer` của expo-notifications 57); vòng xoay mãi trên ô trả lời mà tin không đi là task không đọc
   được payload — xem log `push` "chat notification action" trong logcat.
+- [ ] Mỗi tin một push (UNI-2141; app ở nền hay đã kill, server đã deploy migration `pushed_message_id`, `pushed_message_at`): người kia gửi
+  liên tiếp 4 tin DM trong 10 giây — Android: một thông báo của phòng, chữ đổi theo tin mới nhất, tiêu đề thêm "· 4 tin
+  nhắn mới", chỉ reo/rung ở tin đầu, và sau các tin im thông báo vẫn ở mục thường (không bị dồn vào "Im lặng") và còn
+  biểu tượng trên thanh trạng thái (Cài đặt › Thông báo của UniChat có kênh "Tin nhắn liền sau"); iPhone: 4 thông báo
+  xếp chồng dưới một mục của phòng, chỉ tin đầu có tiếng. Chờ hơn 30 giây rồi gửi tin nữa: reo lại. Đọc phòng trên web
+  rồi gửi tin: reo ngay. Tắt thông báo phòng: không push nào. Nhóm 3 người, một người gửi tin không nhắc ai: hai người
+  kia đều nhận push "X đã nhắn trong <nhóm>", gom và im như DM; tắt push "Tin nhắn trong nhóm và kênh" ở Cài đặt ›
+  Thông báo: tin thường không còn push, tin nhắc tên vẫn reo. "Trả lời" ở thông báo tin thứ hai sau khi đã trả lời tin
+  đầu: tin vẫn đi (khoá hành động theo id tin); chạm thông báo đó sau khi đã chạm thông báo của tin đầu: mở đúng tin
+  mới. Android cho thấy nhiều thông báo của cùng một phòng thay vì một là bước nhấc tag (`PushTag.kt`) không chạy —
+  xem logcat "push tag not lifted". Bản Android cũ (chưa đăng ký `chat_quiet`): chỉ nhận tin reo, mỗi tin một thông
+  báo, tiêu đề không có "· N tin nhắn mới", không có kênh dự phòng "Miscellaneous" mới.
 - [ ] Ngôn ngữ: iOS Cài đặt › UniChat › Ngôn ngữ và Android 13+ Cài đặt › Ứng dụng › UniChat › Ngôn ngữ chỉ liệt kê
   Tiếng Việt và English; đổi ngôn ngữ trong app rồi nhận một push: push nói đúng ngôn ngữ đó (`users.locale` đổi theo,
   xem bằng `GET /api/v1/me`). Tiếng Anh: "1 reply", "2 replies".
@@ -744,7 +782,7 @@ tên kênh "Miscellaneous"). Khi 0.3.1 đã có trên track người dùng thấ
 để mọi máy có cùng giao diện cuộc gọi (không dùng 0.3.0: bản Android 0.3.0 (11) chết khi mở, chỉ lên track nội bộ). Kiểm sau deploy: `push_subscriptions.user_agent = 'expo/android; call-ui'` tăng
 dần theo số máy đã cập nhật.
 
-**Cuộc gọi native trên Android (UNI-2053 S4, `docs/adr/drafts/0038-…`).** Test node/jest giữ chính sách (khi nào reo,
+**Cuộc gọi native trên Android (UNI-2053 S4, `docs/adr/0038-…`).** Test node/jest giữ chính sách (khi nào reo,
 khi nào dịch vụ chạy, ai được báo) với module native giả; test JVM Robolectric của module
 (`modules/unichat-calls/android/src/test`, chạy trong `android-release`) giữ token khởi chạy, hành động chờ, thông báo
 như hệ thống nhận, dịch vụ nền của cuộc gọi, nút Từ chối/Gác máy, màn khoá và tiếng reo theo chế độ chuông; test
@@ -837,6 +875,71 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
   quay màn hình của UniChat đen, trình chuyển app thấy lớp phủ. Tắt: chụp lại được.
 - [ ] Gỡ app trên iPhone khi đang đăng nhập rồi cài lại: mở app vào màn đăng nhập (không vào thẳng inbox cũ); web ›
   Thiết bị không còn phiên của máy cũ.
+
+**Cuộc gọi trên iPhone: PushKit + CallKit (UNI-2141, ADR 0038 §4, `docs/engineering/unichat-mobile/calls-ios.md`).**
+Test node/jest giữ phần JavaScript (đăng ký token VoIP, `NativeCallSession`, Nghe/Từ chối/Kết thúc của CallKit, đồng bộ
+engine → CallKit, tắt tiếng và giữ máy); `native-modules.test.ts` giữ hình của Swift (mọi VoIP push được báo cho CallKit
+trước completion, module `UniChatCallKit` và subscriber khởi động được autolink). Swift chỉ được biên dịch ở
+`mobile-verify › ios-release` (simulator, không ký): đỏ ở bước build thì đọc log Xcode của job (lỗi trong pod
+`UniChatCalls`), sửa, đẩy lại. Thứ tự bật (owner), mỗi bước một lần (phía server: `calls.md` › Cuộc gọi trên iPhone):
+
+1. **Apple Developer › Identifiers**: App ID `com.uniworkos.chat` và `com.uniworkos.chat.staging` bật capability **Push
+   Notifications** (EAS bật khi ký nếu thiếu; kiểm lại bằng tay). VoIP push dùng topic `<bundle id>.voip`, không cần App
+   ID riêng.
+2. **Apple Developer › Keys**: tạo khoá **Apple Push Notifications service (APNs)**, môi trường Sandbox & Production
+   (`AuthKey_<KeyID>.p8`, tải được đúng một lần), ghi Key ID; Team ID là `XJAM488A6D`. Cất `.p8` trong kho bí mật.
+3. **Server**: Secret `uniwork-apple` (`APNS_KEY_ID`, `APNS_PRIVATE_KEY` = nội dung PEM của `.p8`; lệnh tạo và cách
+   xoay khoá ở `deploy/app/env/README.md › Apple`) trong namespace của server, `APNS_TEAM_ID=XJAM488A6D` đã nằm trong
+   `deploy/app/env/uniwork-be.env`; deploy, log có "APNs VoIP push enabled". Thiếu khoá thì iPhone giữ hành vi cũ.
+4. **EAS** (`eas env:create`, môi trường `preview` cho profile `internal`, rồi `production`): `UNICHAT_IOS_CALLS=1`.
+   Không đặt trong `eas.json` (`app.config.test.ts › is set by no EAS profile`). Biến này đổi Info.plist (thêm `voip`,
+   `audio`) nên đổi fingerprint: cần bản store mới (`eas build -p ios --profile internal`), không OTA được.
+5. **App Store Connect**: App Review Information › Notes: "UniChat uses PushKit VoIP pushes only to ring incoming
+   voice/video calls between members of an organization through CallKit; background audio keeps an ongoing call
+   audible." kèm tài khoản demo gọi được. **Pricing and Availability**: bỏ storefront **Trung Quốc đại lục** (Apple không
+   duyệt app dùng CallKit ở đó). Mô tả App Store thêm lại dòng "Gọi thoại và video" / "Voice and video calls"
+   (`store/listing.md`).
+6. **Công tắc**: chạy checklist dưới trên bản TestFlight với `unichat_mobile_calls_ios` bật cho một người thử (console
+   `/admin` › Feature flags, override theo user); qua hết thì bật cho tổ chức rồi toàn cục. Tắt lại là rollback: server
+   thôi gửi VoIP, iPhone ẩn nút gọi.
+
+Kiểm sau deploy: `push_subscriptions` có hàng `transport = 'apns_voip'` cho iPhone đã mở bản mới, `apns_environment` đúng
+(TestFlight là `production`); metric `uniwork_push_apns_voip_total` không có `reason` `InvalidProviderToken` (sai khoá hay
+Team) hay `TopicDisallowed`/`DeviceTokenNotForTopic` (sai bundle id/topic). Checklist trên iPhone thật (bản TestFlight,
+hai tài khoản cùng tổ chức, A gọi B; B là iPhone):
+
+- [ ] B mở app một lần sau khi cài (đã đăng nhập), rồi kill app (vuốt khỏi đa nhiệm) và khoá máy; A gọi 1-1: màn cuộc
+  gọi đến của iOS hiện trên màn khoá trong 1–3 s với tên A, nhạc chuông của máy.
+- [ ] Trượt để nghe trên màn khoá (app đã kill, máy khoá), **không mở app**: màn của iOS chuyển sang đang gọi, tiếng hai
+  chiều có trong vài giây (app nối LiveKit ở nền), A thấy B đã nghe; mở khoá và chạm biểu tượng UniChat trên màn của
+  iOS: app mở đúng màn cuộc gọi. Không có tiếng và A vẫn thấy đang đổ chuông: lần mở app ở nền không nối scene nên
+  JavaScript không chạy (`calls-ios.md` › Native); ghi vào checklist go/no-go, kiểm tiếp: sau khoảng 30 s màn của iOS
+  báo cuộc gọi thất bại và tự đóng (không treo "đang gọi"), A thấy B từ chối khi B mở app. Có lỗi này thì runbook và mô
+  tả cho người dùng phải nói "mở UniChat để nghe" cho tới khi có bản sửa.
+- [ ] Trượt để nghe trên màn khoá rồi A gác ngay, trước khi B có tiếng: màn của iOS trên máy B đi mất, không treo.
+- [ ] Gác máy trên màn của iOS: A thấy cuộc gọi kết thúc; A gác trước: màn của iOS trên máy B đi mất.
+- [ ] Từ chối trên màn khoá (app đã kill): A thấy "từ chối" trong vài giây, không đợi hết chuông; trên máy B không có
+  màn cuộc gọi đến thứ hai nào sáng lên sau đó (một `end` gửi nhầm tới iPhone đã từ chối là một cuộc gọi ma). Làm lại
+  với app đang mở.
+- [ ] Không ai nghe: máy B thôi reo khi hết cửa sổ đổ chuông (khoảng 60 s), A thấy "không trả lời"; A gác ngay sau
+  đó thì máy B không sáng lại.
+- [ ] Máy B bật chế độ máy bay, A gọi rồi gác trong 60 s; B tắt chế độ máy bay: không reo, nhiều nhất một chớp màn
+  cuộc gọi đến tắt ngay (push `end` APNs giữ lại).
+- [ ] B có iPhone và máy thứ hai (Android hay web): nghe ở máy kia thì iPhone thôi reo trong vài giây (push `end`); nghe
+  trên iPhone thì cuộc gọi trên iPhone không bị cắt khi `end` của lượt đổ chuông tới.
+- [ ] Bật Không làm phiền / Tập trung: cuộc gọi theo luật của iOS cho cuộc gọi (không reo nếu iOS chặn), app không lỗi;
+  tắt đi, gọi lại thì reo. Công tắc chuông im lặng: chỉ rung.
+- [ ] App đang mở trên màn hình: cuộc gọi hiện banner của iOS, app không reo thêm tiếng thứ hai; nghe ở banner hay ở
+  app đều nối, màn của iOS và app cùng ở trạng thái đang gọi; từ chối trong app thì banner đi mất.
+- [ ] Trong cuộc gọi: tắt tiếng trên màn của iOS thì A không nghe B; bật lại thì nghe. Có cuộc điện thoại tới và B nghe
+  (giữ UniChat): màn UniChat hiện "Đang tạm giữ"; gác cuộc điện thoại rồi quay lại UniChat thì nghe lại.
+- [ ] Tai nghe Bluetooth / AirPods: nghe bằng nút tai nghe khi đổ chuông; tiếng đi qua tai nghe.
+- [ ] Cài đặt › Thông báo trong app › tắt push trên máy: hàng `apns_voip` của máy bị gỡ, A gọi thì iPhone không reo; bật
+  lại thì hàng quay lại. Đăng xuất: hàng bị gỡ.
+- [ ] Bản cài từ Xcode (ký development) đăng ký `apns_environment = 'sandbox'` và reo qua APNs sandbox.
+- [ ] Bản TestFlight có gọi, rồi cập nhật lên một bản không có gọi (không `UNICHAT_IOS_CALLS`) giữ nguyên đăng nhập, mở
+  app một lần: hàng `apns_voip` của máy bị gỡ; A gọi thì máy nhận push "A đang gọi" như iPhone chưa có CallKit.
+- [ ] `unichat_mobile_calls_ios` tắt: iPhone không reo, không có nút gọi; cuộc gọi đang diễn ra không bị cắt.
 
 ## Triệu chứng
 
@@ -999,23 +1102,23 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
    giờ đổ chuông). Mất tiếng khi khoá máy: dịch vụ cuộc gọi không chạy (Sentry/breadcrumb của bản đó; quyền micro chưa
    cấp lúc bắt đầu thì dịch vụ chạy lại khi LiveKit nối). Lỗi trong Kotlin cần bản store; trong lúc chờ có thể tắt gọi
    (mục 12).
-19. **Ghim khoá TLS** (`apps/chat-mobile/plugins/with-tls-pins.js`, tắt mặc định; audit bảo mật
-   "no-pinning-or-attestation"). Bật: lấy SPKI SHA-256 của khoá CA trung gian đang ký chứng chỉ của API và web, và của
-   ít nhất một CA dự phòng (CA khác, hoặc khoá kế tiếp của cùng CA):
-   `openssl s_client -connect api.uniworkos.com:443 -showcerts </dev/null | awk '/BEGIN/{n++} n==2' | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64`
-   (`n==2` là chứng chỉ trung gian; dự phòng tính từ PEM của CA đó). Đặt trong môi trường EAS của bản build (`preview`
-   trước, `production` sau một tuần không lỗi): `UNICHAT_TLS_PINS=<pin1>,<pin2>`, `UNICHAT_TLS_PIN_EXPIRES=<ngày,
-   ~12 tháng sau>` và `UNICHAT_TLS_PIN_HOSTS=<host signalling LiveKit>` (host trong `LIVEKIT_URL` của server, bỏ
-   `wss://`; tính pin của nó như trên — nếu CA khác CA của API thì thêm pin của CA đó vào `UNICHAT_TLS_PINS`); config từ chối một pin, pin sai dạng, thiếu hay quá ngày hết hạn. Đây là thay đổi native (bản store
-   mới). Xoay vòng: thêm pin của CA mới vào bản store trước khi server đổi CA, bỏ pin cũ ở bản sau; gia hạn ngày hết hạn
-   mỗi bản store. Sự cố (server đổi sang CA không có trong pin): Android tự bỏ ghim sau ngày hết hạn, trước đó cần bản
-   store mới; iOS không có hết hạn — chỉ bật pin trên bản iOS khi đã có quy trình phát bản khẩn. OTA vẫn tới được vì
-   `u.expo.dev` không bị ghim, nhưng OTA không đổi được cấu hình native. Kiểm sau khi bật, trên Android và (khi có) iOS:
-   app vào được inbox và gọi được trên mạng thường; qua proxy chặn TLS (mitmproxy với CA người dùng tự cài, hoặc CA hệ
-   thống trên máy test đã root) thì cả request REST, socket `wss://` và cuộc gọi LiveKit đều hỏng, app báo mất kết nối,
-   không lộ token. Ghi kết quả vào bằng chứng của bản (iOS: kiểm riêng socket, vì chưa xác minh `NSPinnedDomains` có
-   phủ WebSocket SocketRocket hay không). Lỗi ghim không phân biệt được với mất mạng trong JS (đều là lỗi mạng), nên
-   không có sự kiện Sentry riêng: theo dõi tỉ lệ `ApiError` status 0 theo bản sau khi bật.
+19. **Ghim khoá TLS** (`apps/chat-mobile/tls-pins.json`, bật cho mọi bản staging và production; audit bảo mật
+   "no-pinning-or-attestation"). Runbook riêng: `docs/runbooks/unichat-tls-pins.md` — host và khoá đang ghim, vì sao
+   OTA không sửa được pin, đổi CA hay host đã ghim, gia hạn `expires`, sự cố app bị khoá. Job
+   `chat-mobile-tls-pins.yml` kiểm chuỗi thật mỗi ngày. Kiểm sau mỗi bản store, trên Android và (khi có) iOS: app vào
+   được inbox và gọi được trên mạng thường; qua proxy chặn TLS mà máy **tin** CA của proxy thì cả request REST, socket
+   `wss://` và cuộc gọi LiveKit đều hỏng, app báo mất kết nối, không lộ token. Android: CA người dùng tự cài **không**
+   chứng minh gì — từ Android 7 app (targetSdk ≥ 24) không tin CA người dùng, và network security config của app không
+   thêm `<trust-anchors>` nào, nên mọi kết nối qua proxy đó đều hỏng dù có pin hay không. Đặt CA của mitmproxy vào kho
+   hệ thống: máy ảo image Google APIs (không phải Google Play) `emulator -writable-system`, `adb root && adb remount`,
+   đẩy `<hash>.0` (`openssl x509 -inform PEM -subject_hash_old -in mitmproxy-ca-cert.pem`) vào
+   `/system/etc/security/cacerts/` rồi `adb reboot`; hay một máy test đã root. iOS: CA người dùng cài rồi bật Cài đặt ›
+   Cài đặt chung › Giới thiệu › Cài đặt tin cậy chứng nhận (Full Trust) là phép thử hợp lệ. Cùng thiết lập đó phải có
+   **đối chứng**: một host không ghim (ảnh/tệp của tin nhắn tải từ S3 qua URL ký sẵn, hay một trang công khai trong
+   trình duyệt của máy) vẫn tải được qua proxy — chứng tỏ máy tin proxy, nên host đã ghim hỏng là vì pin. Đối chứng
+   cũng hỏng thì phép thử không đo gì: sửa thiết lập, đừng ghi là đạt. Ghi kết quả vào bằng chứng của bản (iOS: kiểm riêng socket, vì chưa xác minh `NSPinnedDomains` có phủ
+   WebSocket SocketRocket hay không). Lỗi ghim không phân biệt được với mất mạng trong JS (đều là lỗi mạng), nên không
+   có sự kiện Sentry riêng: theo dõi tỉ lệ `ApiError` status 0 theo bản sau khi bật.
 
 ## Leo thang
 

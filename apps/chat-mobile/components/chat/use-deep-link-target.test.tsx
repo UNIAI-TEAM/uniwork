@@ -25,7 +25,8 @@ jest.mock("@/components/ui/permission-gate", () => ({
 const mockParams: { current: Record<string, string | undefined> } = { current: {} };
 jest.mock("expo-router", () => ({ router: { push: jest.fn(), setParams: jest.fn() }, useLocalSearchParams: () => mockParams.current }));
 jest.mock("@/data/calls/call-store", () => ({ callEngine: { ringFromPush: jest.fn(async () => true), joinFromPush: jest.fn(async () => true) } }));
-jest.mock("@/data/calls/native-calls", () => ({ nativeCalls: { cancelIncomingCall: jest.fn(), releaseLockScreen: jest.fn(), takeAnsweredCall: jest.fn(() => false) } }));
+jest.mock("@/data/calls/native-calls", () => ({ nativeCalls: { releaseLockScreen: jest.fn() } }));
+jest.mock("@/data/calls/native-call-session", () => ({ nativeCallSession: { ended: jest.fn(), takeAnswered: jest.fn(() => false) } }));
 const mockFlags = { calls: true };
 jest.mock("@/data/remote-config", () => ({ readMobileFlag: () => mockFlags.calls }));
 const mockResolveDM = jest.fn(async (_userId: string): Promise<{ id: string } | null> => ({ id: "dm-1" }));
@@ -33,7 +34,13 @@ jest.mock("@/data/mutations/rooms", () => ({ useResolveDM: () => ({ mutateAsync:
 
 const mockRouter = jest.requireMock<{ router: { push: jest.Mock; setParams: jest.Mock } }>("expo-router").router;
 const mockCalls = jest.requireMock<{ callEngine: { ringFromPush: jest.Mock; joinFromPush: jest.Mock } }>("@/data/calls/call-store").callEngine;
-const mockNative = jest.requireMock<{ nativeCalls: { cancelIncomingCall: jest.Mock; releaseLockScreen: jest.Mock; takeAnsweredCall: jest.Mock } }>("@/data/calls/native-calls").nativeCalls;
+const mockNative = {
+  ...jest.requireMock<{ nativeCalls: { releaseLockScreen: jest.Mock } }>("@/data/calls/native-calls").nativeCalls,
+  ...(() => {
+    const session = jest.requireMock<{ nativeCallSession: { ended: jest.Mock; takeAnswered: jest.Mock } }>("@/data/calls/native-call-session").nativeCallSession;
+    return { cancelIncomingCall: session.ended, takeAnsweredCall: session.takeAnswered };
+  })(),
+};
 
 const chat: ChatWorkspace = { wsId: "w1", orgSlug: "acme", wsSlug: "main", workspaceName: "Main", userId: "me" };
 

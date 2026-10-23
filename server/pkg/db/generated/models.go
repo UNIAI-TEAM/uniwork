@@ -1936,27 +1936,30 @@ type MeetingTranscriptSegment struct {
 }
 
 type Notification struct {
-	ID             string             `json:"id"`
-	UserID         string             `json:"user_id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    pgtype.Text        `json:"workspace_id"`
-	Kind           string             `json:"kind"`
-	GroupKey       string             `json:"group_key"`
-	ResourceType   string             `json:"resource_type"`
-	ResourceID     string             `json:"resource_id"`
-	ActorKind      string             `json:"actor_kind"`
-	ActorID        string             `json:"actor_id"`
-	TitleKey       string             `json:"title_key"`
-	Params         string             `json:"params"`
-	Count          int32              `json:"count"`
-	CorrelationID  pgtype.Text        `json:"correlation_id"`
-	ReadAt         pgtype.Timestamptz `json:"read_at"`
-	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
-	PushedAt       pgtype.Timestamptz `json:"pushed_at"`
-	DigestedAt     pgtype.Timestamptz `json:"digested_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	PhonePushedAt  pgtype.Timestamptz `json:"phone_pushed_at"`
+	ID                  string             `json:"id"`
+	UserID              string             `json:"user_id"`
+	OrganizationID      string             `json:"organization_id"`
+	WorkspaceID         pgtype.Text        `json:"workspace_id"`
+	Kind                string             `json:"kind"`
+	GroupKey            string             `json:"group_key"`
+	ResourceType        string             `json:"resource_type"`
+	ResourceID          string             `json:"resource_id"`
+	ActorKind           string             `json:"actor_kind"`
+	ActorID             string             `json:"actor_id"`
+	TitleKey            string             `json:"title_key"`
+	Params              string             `json:"params"`
+	Count               int32              `json:"count"`
+	CorrelationID       pgtype.Text        `json:"correlation_id"`
+	ReadAt              pgtype.Timestamptz `json:"read_at"`
+	ArchivedAt          pgtype.Timestamptz `json:"archived_at"`
+	PushedAt            pgtype.Timestamptz `json:"pushed_at"`
+	DigestedAt          pgtype.Timestamptz `json:"digested_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	PhonePushedAt       pgtype.Timestamptz `json:"phone_pushed_at"`
+	PushedMessageID     pgtype.Text        `json:"pushed_message_id"`
+	PushedMessageAt     pgtype.Timestamptz `json:"pushed_message_at"`
+	VoipSubscriptionIds []string           `json:"voip_subscription_ids"`
 }
 
 type NotificationDelivery struct {
@@ -2211,16 +2214,19 @@ type ProjectResource struct {
 }
 
 type PushSubscription struct {
-	ID         string             `json:"id"`
-	UserID     string             `json:"user_id"`
-	Endpoint   string             `json:"endpoint"`
-	P256dh     string             `json:"p256dh"`
-	Auth       string             `json:"auth"`
-	UserAgent  pgtype.Text        `json:"user_agent"`
-	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
-	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	SessionID  pgtype.Text        `json:"session_id"`
+	ID              string             `json:"id"`
+	UserID          string             `json:"user_id"`
+	Endpoint        string             `json:"endpoint"`
+	P256dh          string             `json:"p256dh"`
+	Auth            string             `json:"auth"`
+	UserAgent       pgtype.Text        `json:"user_agent"`
+	LastUsedAt      pgtype.Timestamptz `json:"last_used_at"`
+	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	SessionID       pgtype.Text        `json:"session_id"`
+	Transport       pgtype.Text        `json:"transport"`
+	ApnsEnvironment pgtype.Text        `json:"apns_environment"`
+	ApnsBundleID    pgtype.Text        `json:"apns_bundle_id"`
 }
 
 type RefreshToken struct {
@@ -2531,6 +2537,9 @@ type User struct {
 	AiConsentAt          pgtype.Timestamptz `json:"ai_consent_at"`
 	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
 	AiOptOutAt           pgtype.Timestamptz `json:"ai_opt_out_at"`
+	AppleID              pgtype.Text        `json:"apple_id"`
+	AppleClientID        pgtype.Text        `json:"apple_client_id"`
+	AppleRefreshTokenEnc pgtype.Text        `json:"apple_refresh_token_enc"`
 }
 
 type WebhookInbox struct {

@@ -14,6 +14,7 @@ import { permissionGate } from "@/components/ui/permission-gate";
 import { api } from "@/data/api";
 import { useAuthStore } from "@/data/auth/store";
 import { setAppBadge } from "@/data/badge";
+import { voipPush } from "@/data/calls/native-call-session";
 import { nativeCalls } from "@/data/calls/native-calls";
 import { createLogger } from "@/data/logger";
 import { ensureNotificationChannels } from "@/data/notification-channels";
@@ -39,7 +40,15 @@ export default function AppLayout() {
     const channels = () => ensureNotificationChannels((key) => i18n.t(key), { platform: Platform.OS, native: nativeCalls });
     // The notifications primer explains first and asks unprompted once per phone (data/permissions.ts).
     const ask = () => permissionGate.ensure("notifications", "notifications", { once: true });
-    const options = { api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS, channels, callUI: nativeCalls.available };
+    // An iPhone build with calls registers PushKit's VoIP token alongside (voipPush is null everywhere else).
+    const options = {
+      api,
+      projectId: easProjectId(Constants.expoConfig?.extra),
+      platform: Platform.OS,
+      channels,
+      callUI: nativeCalls.available,
+      voip: voipPush,
+    };
     registerPushToken({ ...options, ask }).catch(
       // A simulator has no push token; the app works without one.
       (err: unknown) => log.warn("registration failed", { error: err instanceof Error ? err.name : typeof err }),

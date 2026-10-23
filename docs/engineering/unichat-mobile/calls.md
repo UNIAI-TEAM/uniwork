@@ -47,7 +47,7 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   PendingIntent); listener kiểm token rồi ghi "đã bấm Nghe", tab Chat hỏi `nativeCalls.takeAnsweredCall(callId)` rồi mới
   `joinFromPush`. Launch không có token đúng (app khác giả extra của cuộc gọi) không hiện trên màn khoá và không nghe.
   Link `dm=` hỏi trước khi mở/tạo DM (`Alert`, nêu tên nếu cache thành viên có). Cần dev client (EAS), không chạy Expo Go.
-- Cuộc gọi native trên Android (UNI-2053 S4; `docs/adr/drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md`).
+- Cuộc gọi native trên Android (UNI-2053 S4; `docs/adr/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md`).
   `modules/unichat-calls` là Expo module cục bộ (Kotlin, tự autolink từ `modules/`; `index.ts` trả `null` ngoài
   Android) — chỉ là cầu nối, không chính sách: thông báo cuộc gọi đến `CallStyle.forIncomingCall` + full-screen intent
   trên kênh `calls` (nhạc chuông của máy, `USAGE_NOTIFICATION_RINGTONE`, lặp tới khi hết `timeoutMs`), foreground
@@ -129,13 +129,44 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   (`lib/notification-presentation.ts`: push của workspace đang mở thì im, khác thì banner). `data/boot.ts` là phần
   boot chung (Sentry, `configureRuntime`, header) mà task nền cũng gọi; `data/app-locale.ts` cho task nền nói đúng ngôn
   ngữ. Kênh Android (`lib/notification-channels.ts`, `data/notification-channels.ts`): `calls`, `call_ongoing` (native),
-  `missed_calls`, `mentions`, `messages`, `general`, dịch theo ngôn ngữ app lúc mở và khi đổi ngôn ngữ (hai kênh native,
+  `missed_calls`, `mentions`, `messages`, `general`, `chat_quiet`, dịch theo ngôn ngữ app lúc mở và khi đổi ngôn ngữ (hai kênh native,
   khi máy reo trước lần chạy JavaScript đầu, lấy tên từ `res/values*/strings.xml` của module — `values` tiếng Anh,
   `values-vi` tiếng Việt — mà `scripts/sync-i18n.mjs` sinh từ cùng chuỗi `mobile.notify.channel_*`), kênh cũ `chat`
   bị xoá; server chọn kênh theo kind (`push_expo.go › pushChannel`) — đổi âm thanh/độ ưu tiên của kênh thì phải đổi id.
-  Thông báo tin chat (DM, nhắc tên, trả lời chủ đề) mang category `chat_message` và id workspace/phòng/tin/chủ đề
-  (server `push_expo.go › ChatMessageCategory`, `chatData`); app đăng ký category đó lúc mở và khi đổi ngôn ngữ
-  (`data/chat-notification-actions.ts`): **Trả lời** (ô nhập) gửi qua outbox như mọi lần gửi rồi đánh dấu phòng đã đọc,
+  Mỗi tin chat (DM, nhắc tên, trả lời thread, và tin thường trong nhóm/kênh/phòng workspace) là một push (UNI-2141;
+  trước đó chỉ tin đầu của một hàng thông báo còn mở, và tin nhóm/kênh không nhắc tên thì không báo gì):
+  `Consumer.write` của server ghi `notification.push` cho mọi tin, kể cả khi hàng gộp, kèm `message_id`; tắt thông báo
+  phòng, tắt push theo loại, người gửi và đang đọc phòng (presence) vẫn chặn như cũ. Tin thường trong phòng không phải DM
+  là loại `chat_message` (`chat.message.received`, `emitChatMessageNotifications`): mỗi thành viên khác mà tin không
+  nhắc tên một hàng, gom theo phòng (`chat_room:<id>:message`, đọc phòng thì đóng), chỉ khi phòng có tối đa
+  `chatSmallRoomMembers` (50) thành viên — phòng lớn hơn chỉ báo khi được nhắc tên, như @all; trả lời thread chỉ tới
+  người theo dõi thread. Push mặc định bật, email tổng hợp mặc định tắt; tắt push của "Tin nhắn trong nhóm và kênh" ở
+  Cài đặt › Thông báo là "chỉ khi được nhắc tên" cho mọi phòng (chưa có mức riêng từng phòng ngoài tắt thông báo phòng). Lane push (nhiều
+  worker, nhiều node) giành quyền gửi một tin bằng một câu lệnh dưới khoá của hàng trước khi gửi
+  (`ClaimChatNotificationPush`): chỉ được khi hàng chưa đọc và tin đứng sau tin đã giành gần nhất theo thứ tự của phòng
+  (`pushed_message_at` = `chat_messages.created_at` theo đồng hồ DB, rồi `pushed_message_id`; không so ULID vì id sinh
+  theo đồng hồ từng node). Nên push lặp, push của tin cũ hơn tin đã giành, hay hai worker chạy cùng lúc không gửi
+  trùng; gửi lỗi thì trả lại quyền (`ReleaseChatNotificationPush`) để lần thử lại gửi như lần đầu. Gom theo phòng: iPhone nhận `threadId` (aps.thread-id) = `group_key` của hàng và xếp chồng
+  các push của phòng. Android: expo-notifications đặt tên thông báo theo `data["tag"]` ở cấp ngoài của tin FCM
+  (`FirebaseMessagingDelegate.getNotificationIdentifier`), còn Expo gửi data của server thành một chuỗi JSON dưới
+  `body`, nên `UniChatMessagingService` nhấc `tag` (= `group_key`) từ chuỗi đó lên trước khi chuyển cho
+  expo-notifications (`PushTag.kt`, test `PushTagTest`) — mỗi push thay thông báo của phòng, và chỉ bản có bước nhấc
+  này (cùng bản đăng ký `chat_quiet`) mới nhận tiêu đề thêm "· N tin nhắn mới"; bản cũ vẫn mỗi push một thông báo,
+  tiêu đề trơn. Một đợt tin chỉ reo một lần mỗi `chatAlertWindow` (30 s, `push_consumer.go`): `phone_pushed_at`
+  là lần cuối điện thoại reo cho hàng, đặt cùng lúc giành quyền và tính theo đồng hồ DB; tin tới trong cửa sổ là tin im (`quiet` = `1` trong data): iPhone không
+  `sound`, mức `passive`; Android đi kênh `chat_quiet` (độ ưu tiên mặc định, không chuông, không rung — không để mức thấp, vì Android 10+
+  dồn thông báo mức thấp vào mục "Im lặng" thu gọn và bỏ biểu tượng trên thanh trạng thái), chỉ tới bản đã
+  đăng ký `chat_quiet: true` (`data/push.ts`, user agent `…; chat-quiet`) — bản cũ không có kênh đó sẽ hiện trên kênh
+  dự phòng có chuông, nên không nhận tin im; listener khi app mở cũng không phát tiếng cho tin im
+  (`foregroundBehavior`). Đọc phòng đóng hàng, nên tin đầu sau khi đọc luôn reo. Khoá của hành động thông báo là
+  `<id thông báo>:<id tin>:<hành động>` (`lib/chat-notification.ts`), và khoá chống chạm hai lần cũng có id tin
+  (`lib/notification-response.ts`): Android giữ một id cho mọi push của phòng.
+  Thông báo tin chat (DM, nhắc tên, tin nhóm/kênh, trả lời thread) mang category `chat_message` và id workspace/phòng/tin/chủ đề
+  (server `push_expo.go › ChatMessageCategory`, `chatData`); app đăng ký category đó lúc mở, khi đổi ngôn ngữ và khi
+  khoá UniChat bật/tắt (`components/app/chat-category-sync.tsx`, `data/chat-notification-actions.ts`; khoá đang bật
+  thì chỉ còn Đánh dấu đã đọc, câu trả lời gõ vào thông báo cũ bị từ chối và Android đăng lại thông báo nói chưa gửi —
+  `device-privacy.md`):
+  **Trả lời** (ô nhập) gửi qua outbox như mọi lần gửi rồi đánh dấu phòng đã đọc,
   **Đánh dấu đã đọc** xếp lượt đọc; cả hai gỡ thông báo, không mở app trên Android (task nền thông báo —
   `runCallPushTask` chuyển tiếp — hoặc listener của app đang chạy; mỗi hành động chạy một lần), mở app trên iOS (iOS
   không giao câu trả lời cho JS khi app bị kill và hành động ở nền). `lib/chat-notification.ts` đọc phản hồi (thuần)
@@ -153,8 +184,8 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   category `chat_message` (Trả lời có RemoteInput) do expo dựng (`NotificationsService.createNotificationResponseIntent`)
   để `runChatNotificationAction` và `data.url` của lần chạm còn chạy; ẩn xem trước (`hiddenPushTitle`, thân rỗng) giữ
   phẳng. Còn thiếu ở server: data push chat chỉ có id, nên MessagingStyle không có tên người gửi và tên phòng tách
-  riêng (cần `sender_name`, `room_name`, loại phòng — chỉ khi không ẩn xem trước); và mỗi nhóm mở chỉ push một lần
-  (`pushed_at`), nên hội thoại chỉ có tin đầu tới khi phòng được đọc. Hoãn vì: không build/kiểm được Android ở máy làm
+  riêng (cần `sender_name`, `room_name`, loại phòng — chỉ khi không ẩn xem trước); mỗi tin giờ đã có push riêng
+  (UNI-2141), nên MessagingStyle chỉ cần nối các push cùng tag thay vì thay. Hoãn vì: không build/kiểm được Android ở máy làm
   việc này, và một lỗi ở bước bọc làm hỏng Trả lời/chạm trên mọi push chat; làm sau công tắc mobile mới (keys.go +
   `MOBILE_FLAG_DEFAULTS`), có test Robolectric giữ tag/id/extra/nút, và checklist máy thật Android 11+ (mục Hội thoại
   cần `setShortcutId` với shortcut động dài hạn).
@@ -178,7 +209,7 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   phát sự kiện, không hỏi quyền, token Expo đổi thì gỡ cái cũ; server lưu
   user agent `expo/android; call-ui`), bản Android cũ giữ push hiển thị, iPhone không nhận push đổ chuông khi công tắc
   `unichat_mobile_calls_ios` tắt (mặc định; server gộp nó vào `unichat_mobile_calls` của máy gửi `X-Client-OS: ios`, nên
-  iPhone cũng ẩn nút gọi — chưa có CallKit/PushKit); `chat.voice.ring_closed` (outbox, cùng transaction đóng hàng ring) → push data-only "kết thúc"
+  iPhone cũng ẩn nút gọi; bật nó là bước cuối của PushKit + CallKit, `calls-ios.md`); `chat.voice.ring_closed` (outbox, cùng transaction đóng hàng ring) → push data-only "kết thúc"
   tới máy Android; cuộc gọi 1-1 nhỡ là "Cuộc gọi nhỡ từ X" trên `missed_calls`. Phiên cuộc gọi của server (ai đang đổ
   chuông, đã nghe, đã từ chối) được ghi nhật ký vào Redis (`server/internal/service/chat_voice_journal.go`) nên restart
   hay deploy giữa lúc đổ chuông không làm mất danh sách chờ, push đổ chuông đang xếp hàng hay quyền gác máy của người
@@ -223,3 +254,59 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   composer ghi âm (`components/chat/use-voice-recorder.ts`), mở
   `expression-sheet.tsx` và `reminder-sheet.tsx`; follow-up và "Tạo việc" ở
   sheet nhấn giữ; thẻ việc `task-card.tsx` dưới tin.
+- Cuộc gọi trên iPhone: PushKit + CallKit (UNI-2141; `docs/adr/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md`
+  §4 là hợp đồng, file này là chi tiết). Expo push service không gửi được VoIP push, nên server gửi thẳng tới APNs.
+  **Đăng ký** (app → server): ngoài token Expo, app đăng ký token PushKit qua `POST /api/v1/me/push-subscriptions`
+  với `{"endpoint": "<token hex>", "transport": "apns_voip", "apns_environment": "production" | "sandbox",
+  "apns_bundle_id": "com.uniworkos.chat" | "com.uniworkos.chat.staging", "platform": "ios"}` (`kind` và
+  `bundle_id` được nhận thay `transport` và `apns_bundle_id`). `apns_environment` theo bản build: development → `sandbox`, TestFlight/App Store → `production`. Gọi lại
+  mỗi lần mở app và khi PushKit đổi token (`pushRegistry(_:didUpdate:for:)`); `DELETE` cùng route với endpoint là token
+  khi đăng xuất. Server (`notification.Service.SubscribeVoIPPush`) kiểm token hex 64–200 ký tự, môi trường và bundle id,
+  lưu thành hàng `push_subscriptions` có `transport = 'apns_voip'`, `apns_environment`, `apns_bundle_id` và
+  `session_id` của phiên thiết bị; endpoint lưu chữ thường. **Gửi** (`server/internal/notification/push_apns.go`):
+  HTTP/2 tới `api.push.apple.com` hoặc `api.sandbox.push.apple.com` theo môi trường của token, JWT ES256 từ khoá `.p8`
+  (`APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`; dùng lại 50 phút, `ExpiredProviderToken` thì ký lại và thử một
+  lần nữa), header `apns-push-type: voip`, `apns-topic: <bundle id>.voip` (`APNS_VOIP_TOPIC` ghi đè), `apns-priority:
+  10`, `apns-expiration` = lúc hết đổ chuông (lời mời) hoặc bây giờ + 60 giây (kết thúc). 410 `Unregistered` và 400
+  `BadDeviceToken` thu hồi token, và 400 `DeviceTokenNotForTopic` cũng vậy khi topic là của chính token (có
+  `APNS_VOIP_TOPIC` thì đó là lỗi cấu hình server, token giữ nguyên); mọi 4xx khác trừ 429 (topic bị cấm, payload quá lớn,
+  khoá bị từ chối) là `ErrPushRefused`: gửi lại cũng bị từ chối, nên chỉ đếm và log; chỉ 429, 5xx và lỗi mạng là lỗi
+  tạm. Không lỗi VoIP nào làm outbox thử lại hàng: thử lại sẽ reo hay kết thúc lại mọi máy khác.
+  Metric `uniwork_push_apns_voip_total{result, reason}` (reason là mã của Apple, không có token); log không có token
+  hay tên. Thiếu cả ba biến thì VoIP tắt; thiếu một phần hay khoá hỏng thì server log lỗi lúc khởi động và VoIP tắt.
+  **Payload** (không có `aps`): `{"uniwork": {"kind": "invite" | "end", "call_id", "room_id", "workspace_id",
+  "org_slug", "ws_slug", "caller_name", "video": true | false, "expires_at": "<RFC3339 UTC>", "reason"}}`; push `end`
+  không có `caller_name` và có `reason`: `answered` (người đó nghe ở máy khác), `declined` (từ chối ở máy khác) hay
+  `ended` (cuộc gọi kết thúc, hoặc nhóm gọi xong mà họ không vào); lời mời không có `reason`. Tên người gọi theo cùng luật với push gọi Android: lời mời luôn mang nó (kể cả khi ẩn xem trước), vì nó
+  chỉ sống trong cửa sổ đổ chuông. **Định tuyến** (`push_consumer.go › sendVoIP`): `unichat_mobile_calls_ios` bật và
+  người đó có token PushKit → lời mời đi VoIP trước, token Expo `expo/ios` cùng `session_id` với một token PushKit đã
+  nhận thì bỏ qua (không có banner "X đang gọi" chồng lên CallKit); iPhone khác (bản cũ, phiên khác), server không có
+  khoá hay token chết thì vẫn nhận push hiển thị như trước; công tắc tắt thì không iPhone nào reo. Token PushKit nào nhận
+  lời mời thì được ghi lên hàng notification đổ chuông (`notifications.voip_subscription_ids`). `chat.voice.ring_closed`
+  (nghe ở máy khác, từ chối, kết thúc; payload mang `reason` và `session_id` của phiên thiết bị đã nghe hay từ chối)
+  gửi `end` khi công tắc bật (`push_consumer.go › endCallKitRings`) chỉ tới các token đã ghi đó, một lần (danh sách
+  được lấy đi cùng lúc đọc, nên outbox thử lại hay `ring_closed` của lúc cuộc gọi kết thúc không gửi lần hai), chỉ khi
+  hàng đổ chuông còn trong cửa sổ 60 giây, và không bao giờ tới token của chính phiên đã nghe hay đã từ chối: iOS bắt
+  app báo một cuộc gọi cho mỗi VoIP push, nên `end` ở nơi không còn reo là một cuộc gọi hiện lên rồi tắt, còn ở máy
+  vừa nghe thì là gác máy. Lời mời bị bỏ trước khi gửi (đã nghe ở máy khác) không ghi token nào nên không có `end`;
+  `end` gửi lỗi không làm hàng thử lại, iPhone reo hết cửa sổ rồi tự dừng. Push tin, cuộc gọi nhỡ và `room_read` không bao giờ tới token PushKit. Outbox có thể gửi lại cùng
+  một lời mời (thử lại sau lỗi), nên app coi `call_id` trùng là một cuộc gọi. **App** (nửa Swift của
+  `modules/unichat-calls`): mỗi VoIP push gọi `CXProvider.reportNewIncomingCall` đồng bộ trong callback PushKit — iOS
+  13+ giết app và rồi thôi giao VoIP push nếu không báo; `end`, lời mời đã quá `expires_at` hay `call_id` đã kết thúc thì
+  báo rồi kết thúc ngay (`reportCall(with:endedAt:reason:)`, lý do theo `reason`: `answered` → `.answeredElsewhere`,
+  `declined` → `.declinedElsewhere`, `ended` hay thiếu → `.remoteEnded`; lời mời quá hạn → `.unanswered`), còn `end`
+  của cuộc gọi đã nghe hay đang diễn ra trên chính máy đó thì không gác máy (server không gửi nó, app vẫn phải giữ luật
+  này). UUID của CallKit là `call_id` khi nó là UUID, nếu không thì suy ra tất định từ nó (server cho tới 64
+  ký tự). Nghe → mở `uniworkchat://open?url=/<org>/<ws>/chat?room=<room>&call=<call_id>` và phát sự kiện JS để màn cuộc
+  gọi nối LiveKit; Từ chối → `POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/decline` với
+  `{"call_id"}`, đúng API Android dùng. JS thấy cả hai nền tảng qua giao diện trung lập `NativeCallSession` (đến, đã
+  nghe, đã từ chối, đã kết thúc; tắt tiếng/giữ máy tuỳ chọn). Test server: `push_apns_test.go` (APNs giả HTTP/2 TLS:
+  header, topic, push type, expiration, JWT và cache, payload, 410, tắt khi thiếu khoá), `chat_call_voip_test.go`
+  (định tuyến, thu hồi, kết thúc chỉ tới máy đã reo và không tới máy đã nghe/từ chối, push tin không tới PushKit),
+  `TestVoiceSignalNamesTheDeviceThatClosedTheRing`, `service_voip_test.go`, `TestNotificationEndpoints`.
+  **Việc của chủ sở hữu** trước khi bật công tắc: tạo khoá APNs (Apple Developer › Keys, bật Apple Push Notifications
+  service, môi trường Sandbox & Production, tải `AuthKey_<KeyID>.p8` một lần), bật Push Notifications cho App ID
+  `com.uniworkos.chat` và `com.uniworkos.chat.staging`, tạo Secret `uniwork-apple` (khoá `APNS_KEY_ID`,
+  `APNS_PRIVATE_KEY` = nội dung PEM; `APNS_TEAM_ID` = `XJAM488A6D` ở `deploy/app/env/uniwork-be.env`; lệnh ở
+  `deploy/app/env/README.md › Apple`) trong namespace của server rồi deploy, kiểm log "APNs VoIP push
+  enabled", rồi bật `unichat_mobile_calls_ios` cho một người thử trước (override theo user ở console `/admin`).

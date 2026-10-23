@@ -176,7 +176,7 @@ describe("runCallPushTask", () => {
       notification: { request: { identifier: "n1", content: { data: { workspace_id: "w-1", room_id: "r-1", message_id: "m-1" } } } },
     };
     await wiring.runCallPushTask(response);
-    expect(chatActions.runChatNotificationAction).toHaveBeenCalledWith(expect.objectContaining({ action: "reply", text: "ok", key: "n1:reply" }));
+    expect(chatActions.runChatNotificationAction).toHaveBeenCalledWith(expect.objectContaining({ action: "reply", text: "ok", key: "n1:m-1:reply" }));
     expect(deps.bootRuntime).not.toHaveBeenCalled();
   });
 
@@ -185,8 +185,8 @@ describe("runCallPushTask", () => {
     const content = { title: "Minh", body: "hi", dataString };
     await wiring.runCallPushTask({ actionIdentifier: "reply", userText: "ok", notification: { request: { identifier: "n1", content } } });
     await wiring.runCallPushTask({ actionIdentifier: "mark_read", notification: { request: { identifier: "n2", content } } });
-    expect(chatActions.runChatNotificationAction).toHaveBeenNthCalledWith(1, expect.objectContaining({ action: "reply", text: "ok", key: "n1:reply" }));
-    expect(chatActions.runChatNotificationAction).toHaveBeenNthCalledWith(2, expect.objectContaining({ action: "mark_read", key: "n2:mark_read" }));
+    expect(chatActions.runChatNotificationAction).toHaveBeenNthCalledWith(1, expect.objectContaining({ action: "reply", text: "ok", key: "n1:m-1:reply" }));
+    expect(chatActions.runChatNotificationAction).toHaveBeenNthCalledWith(2, expect.objectContaining({ action: "mark_read", key: "n2:m-1:mark_read" }));
     expect(deps.bootRuntime).not.toHaveBeenCalled();
   });
 
@@ -381,6 +381,12 @@ describe("foregroundBehavior", () => {
     engine.ctx = null;
     expect((await wiring.foregroundBehavior(INVITE)).shouldPlaySound).toBe(true);
     expect(engine.syncPendingInvites).not.toHaveBeenCalled();
+  });
+
+  it("shows a quiet chat follow-up without its sound", async () => {
+    engine.ctx = null;
+    const quiet = { url: "https://app.test/acme/sales/chat?room=r&message=m", workspace_id: "w", room_id: "r", message_id: "m", quiet: "1" };
+    expect(await wiring.foregroundBehavior(quiet)).toEqual({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false });
   });
 });
 

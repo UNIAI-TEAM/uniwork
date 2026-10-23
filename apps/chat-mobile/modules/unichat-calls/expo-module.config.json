@@ -1,5 +1,9 @@
 {
-  "platforms": ["android"],
+  "platforms": ["android", "ios"],
+  "apple": {
+    "modules": ["UniChatCallKitModule"],
+    "appDelegateSubscribers": ["UniChatCallsAppDelegateSubscriber"]
+  },
   "android": {
     "modules": ["expo.modules.unichatcalls.UniChatCallsModule"]
   }

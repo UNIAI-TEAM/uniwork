@@ -54,6 +54,24 @@ export interface PrivacyState {
 
 const defaultWait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Whether the app lock is on as saved on the phone (the person's choice raised to the saved floor), for what must
+ * follow it without the store: a notification's Reply, heard by Android's headless task as well as by the running
+ * app (data/chat-notification-actions.ts). Read fresh each time, with the same cap as the boot read; a read that
+ * fails or does not answer reads as locked, since a reply refused costs less than one sent past the lock.
+ */
+export async function savedAppLockOn(read: () => Promise<string | null>, wait: (ms: number) => Promise<void> = defaultWait): Promise<boolean> {
+  const timeout = wait(PRIVACY_READ_CAP_MS).then(() => {
+    throw new Error("privacy_read_timeout");
+  });
+  try {
+    const raw = await Promise.race([read(), timeout]);
+    return withFloor(parsePrivacySettings(raw), parsePrivacyFloor(raw)).appLock;
+  } catch {
+    return true;
+  }
+}
+
 export function createPrivacySettings(deps: PrivacyDeps) {
   const store = createStore<PrivacyState>(() => ({ settings: DEFAULT_PRIVACY_SETTINGS, floor: NO_PRIVACY_FLOOR, loaded: false, restored: false }));
   const wait = deps.wait ?? defaultWait;

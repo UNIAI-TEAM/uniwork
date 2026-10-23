@@ -81,6 +81,7 @@ jest.mock("./use-cellular-hold", () => ({
 // The link itself is use-call-link.test.tsx; here only what the screen says about it.
 const mockLink: { reconnecting: boolean; weak: "self" | "peer" | null } = { reconnecting: false, weak: null };
 jest.mock("./use-call-link", () => ({ useCallLink: () => mockLink }));
+jest.mock("./use-system-mute", () => ({ useSystemMute: jest.fn() }));
 // The output picker reads the phone's routes; its own test is audio-output-button.test.tsx. The stand-in says
 // whether the room told it its screen is in front (the proximity wake lock hangs on that).
 jest.mock("./audio-output-button", () => ({

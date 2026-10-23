@@ -16,6 +16,8 @@ export interface ChannelSpec {
   importance: ChannelImportance;
   /** Whether the lock screen shows the text, or only that something came. */
   lockscreen: "public" | "private";
+  /** No sound and no vibration, at the importance above (not a lower one, which Android files as "Silent"). */
+  silent?: boolean;
 }
 
 export const NOTIFICATION_CHANNELS: readonly ChannelSpec[] = [
@@ -46,6 +48,19 @@ export const NOTIFICATION_CHANNELS: readonly ChannelSpec[] = [
     descriptionKey: "mobile.notify.channel_general_hint",
     importance: "default",
     lockscreen: "private",
+  },
+  // No sound and no vibration: a chat message that follows one its room alerted for within the server's window
+  // (push_consumer.go › chatAlertWindow) replaces the room's notification on it quietly. Default importance, not
+  // low: Android 10+ moves a low-importance notification into the collapsed "Silent" section without its
+  // status-bar icon, which would demote the conversation a few seconds after it alerted. The server sends it only
+  // to a build that says it has it (data/push.ts › chat_quiet).
+  {
+    id: "chat_quiet",
+    nameKey: "mobile.notify.channel_quiet",
+    descriptionKey: "mobile.notify.channel_quiet_hint",
+    importance: "default",
+    lockscreen: "private",
+    silent: true,
   },
 ];
 

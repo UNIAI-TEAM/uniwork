@@ -4,11 +4,12 @@
 // create conversations on the account by itself; the app's own "Message" taps
 // are vouched for in memory, lib/deep-link.ts › inAppDmHref, and open at once), show
 // a ringing call's screen, answer it after the microphone primer when the
-// notification's own Answer button opened the app (nativeCalls.takeAnsweredCall:
-// a token only that PendingIntent carries, so no URL, page or other app can
-// answer for the person), or — with the server's calls switch off, or a call
-// already over — drop the phone's ringing notification and open the room where
-// the call is logged.
+// system's own Answer did (nativeCallSession.takeAnswered: on Android a token
+// only the notification's PendingIntent carries, on iPhone CallKit's answer of
+// the VoIP push, so no URL, page or other app can answer for the person), or
+// — with the server's calls switch off, or a call already over — drop the
+// system's ringing notification or CallKit call and open the room where the
+// call is logged.
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef } from "react";
@@ -16,6 +17,7 @@ import { Alert } from "react-native";
 import { useTranslation } from "react-i18next";
 import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { callEngine } from "@/data/calls/call-store";
+import { nativeCallSession } from "@/data/calls/native-call-session";
 import { nativeCalls } from "@/data/calls/native-calls";
 import { useResolveDM } from "@/data/mutations/rooms";
 import { workspaceMembersOptions } from "@/data/queries/chat";
@@ -48,7 +50,7 @@ export function useDeepLinkTarget(chat: ChatWorkspace | null) {
     const plan = planDeepLink(params, readMobileFlag(qc, "unichat_mobile_calls"));
     switch (plan.kind) {
       case "calls-off":
-        nativeCalls.cancelIncomingCall(plan.callId);
+        nativeCallSession.ended(plan.callId);
         // The ringing notification may have opened the app over the lock screen; no call shows now, so the lock comes back.
         nativeCalls.releaseLockScreen();
         toast.info(t("mobile.calls.disabled"));
@@ -57,7 +59,7 @@ export function useDeepLinkTarget(chat: ChatWorkspace | null) {
       case "ring": {
         // Answer explains and asks for the microphone before the call connects; a call ringing here meanwhile
         // (the app reconciling as it comes to the front) leaves that primer open.
-        const open = nativeCalls.takeAnsweredCall(plan.callId)
+        const open = nativeCallSession.takeAnswered(plan.callId)
           ? ensureCallPermissions(false, plan.callId).then(() => callEngine.joinFromPush(plan.roomId, plan.callId))
           : callEngine.ringFromPush(plan.roomId, plan.callId);
         void open.then((ringing) => {
@@ -65,7 +67,7 @@ export function useDeepLinkTarget(chat: ChatWorkspace | null) {
           // Over (its end push not here yet): the phone's own ringing notification goes too. The app may be showing
           // over the lock screen for that ring; the call screen never came, so the room must not open past the lock
           // (the engine's sync only releases it on a change of call, and nothing changed).
-          nativeCalls.cancelIncomingCall(plan.callId);
+          nativeCallSession.ended(plan.callId);
           nativeCalls.releaseLockScreen();
           router.push(chatRoutes.room(chat, plan.roomId));
         });

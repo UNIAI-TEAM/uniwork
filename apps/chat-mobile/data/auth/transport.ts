@@ -4,7 +4,8 @@
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 
 /**
- * HTTP client for the four UniWork native auth routes. The only URLs it can
+ * HTTP client for the four UniWork native auth routes (and, through createAuthRequest, Sign in with Apple's two in
+ * apple-transport.ts). The only URLs it can
  * build are `apiUrl` + one of the routes below; responses are parsed strictly
  * from the server's snake_case DTOs and fail closed on a missing or mistyped
  * field.
@@ -23,7 +24,12 @@ export type TransportErrorCode =
   | "wrong_deployment"
   | "desktop_auth_unavailable"
   | "invalid_request"
-  | "forbidden";
+  | "forbidden"
+  // Sign in with Apple (ADR 0041, apple-transport.ts)
+  | "apple_token_invalid"
+  | "apple_account_conflict"
+  | "mfa_required"
+  | "apple_auth_unavailable";
 
 export class TransportError extends Error {
   readonly code: TransportErrorCode;
@@ -78,7 +84,13 @@ export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
-type Route = "/auth/desktop/start" | "/auth/desktop/exchange" | "/auth/desktop/refresh" | "/auth/desktop/logout";
+type Route =
+  | "/auth/desktop/start"
+  | "/auth/desktop/exchange"
+  | "/auth/desktop/refresh"
+  | "/auth/desktop/logout"
+  | "/auth/apple/native"
+  | "/auth/providers";
 
 /** server error code -> transport code; anything else falls back by status */
 const SERVER_CODES: ReadonlySet<string> = new Set([
@@ -90,6 +102,10 @@ const SERVER_CODES: ReadonlySet<string> = new Set([
   "desktop_auth_unavailable",
   "invalid_request",
   "forbidden",
+  "apple_token_invalid",
+  "apple_account_conflict",
+  "mfa_required",
+  "apple_auth_unavailable",
 ]);
 
 async function errorFromResponse(response: Response): Promise<TransportError> {
@@ -113,7 +129,7 @@ async function errorFromResponse(response: Response): Promise<TransportError> {
   return new TransportError("invalid_request", status);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
@@ -129,7 +145,7 @@ function positiveInt(value: unknown): number {
   return value;
 }
 
-function parseSession(raw: unknown, deploymentId: string): DesktopSession {
+export function parseSession(raw: unknown, deploymentId: string): DesktopSession {
   if (!isRecord(raw)) throw new TransportError("malformed_response");
   const session: DesktopSession = {
     accountId: str(raw.account_id),
@@ -154,14 +170,11 @@ function appOrigin(): string | null {
   }
 }
 
-/** `fetch` is the composition root's choice (data/auth/flow.ts › strictFetch): only a fetch that honours
- *  redirect: "error" natively keeps the code and the refresh token on the API host. */
-export function createTransport(config: { deploymentId: string }, options: { fetch: FetchLike; timeoutMs?: number }): Transport {
+/** One request to an auth route: the timeout, the strict parsing of errors, no redirect, no cache. */
+export function createAuthRequest(options: { fetch: FetchLike; timeoutMs?: number }) {
   const fetchImpl = options.fetch;
   const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
-  const { deploymentId } = config;
-
-  async function request(
+  return async function request(
     method: "GET" | "POST",
     route: Route,
     opts: { query?: URLSearchParams; body?: unknown; headers?: Record<string, string> } = {},
@@ -203,7 +216,14 @@ export function createTransport(config: { deploymentId: string }, options: { fet
     } finally {
       clearTimeout(timer);
     }
-  }
+  };
+}
+
+/** `fetch` is the composition root's choice (data/auth/flow.ts › strictFetch): only a fetch that honours
+ *  redirect: "error" natively keeps the code and the refresh token on the API host. */
+export function createTransport(config: { deploymentId: string }, options: { fetch: FetchLike; timeoutMs?: number }): Transport {
+  const { deploymentId } = config;
+  const request = createAuthRequest(options);
 
   return {
     async start(input) {
