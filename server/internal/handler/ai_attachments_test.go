@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -278,11 +279,41 @@ func TestCancelAskAttachmentAnswersOneNotFound(t *testing.T) {
 	}
 }
 
-// sizedAskPDF is a PDF of size bytes.
+// sizedAskPDF is a valid one-page PDF of size bytes, padded by a comment line
+// (or its own size, when that is larger): a question that is sent reads its
+// files, so they must open.
 func sizedAskPDF(size int) []byte {
-	head, tail := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n"), []byte("trailer\n<<>>\n%%EOF\n")
-	pad := max(0, size-len(head)-len(tail))
-	return append(append(head, bytes.Repeat([]byte("x"), pad)...), tail...)
+	build := func(pad int) []byte {
+		var b bytes.Buffer
+		b.WriteString("%PDF-1.4\n")
+		if pad >= 0 {
+			b.WriteString("%" + strings.Repeat("x", pad) + "\n")
+		}
+		var offs []int
+		for _, obj := range []string{"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>"} {
+			offs = append(offs, b.Len())
+			fmt.Fprintf(&b, "%d 0 obj\n%s\nendobj\n", len(offs), obj)
+		}
+		xref := b.Len()
+		fmt.Fprintf(&b, "xref\n0 %d\n0000000000 65535 f \n", len(offs)+1)
+		for _, o := range offs {
+			fmt.Fprintf(&b, "%010d 00000 n \n", o)
+		}
+		fmt.Fprintf(&b, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(offs)+1, xref)
+		return b.Bytes()
+	}
+	pad, b := 0, build(0)
+	// Later passes absorb a startxref that grew a digit with the padding.
+	for range 3 {
+		if d := size - len(b); d != 0 && pad+d >= 0 {
+			pad += d
+			b = build(pad)
+		}
+	}
+	if len(b) > size {
+		return build(-1)
+	}
+	return b
 }
 
 // A question carries the files it names: the answer to the ask holds none, the

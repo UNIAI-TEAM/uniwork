@@ -37,7 +37,29 @@ func planPDFFile(name string, body []byte) askFileBytes {
 
 // pdfOfPages writes a valid PDF of n empty pages by hand, so a test needs no
 // large fixture.
-func pdfOfPages(n int) []byte {
+func pdfOfPages(n int) []byte { return paddedPDF(n, -1) }
+
+// pdfOfSize is pdfOfPages padded by a comment line to exactly size bytes, or
+// left at its own size when that is larger.
+func pdfOfSize(n, size int) []byte {
+	pad := 0
+	b := paddedPDF(n, pad)
+	// Later passes absorb a startxref that grew a digit with the padding.
+	for range 3 {
+		if d := size - len(b); d != 0 && pad+d >= 0 {
+			pad += d
+			b = paddedPDF(n, pad)
+		}
+	}
+	if len(b) > size {
+		return pdfOfPages(n)
+	}
+	return b
+}
+
+// paddedPDF writes the PDF with a comment line of pad bytes after its header
+// (none for pad < 0); the offsets are taken as written, so it stays valid.
+func paddedPDF(n, pad int) []byte {
 	var b bytes.Buffer
 	var offs []int
 	obj := func(body string) {
@@ -45,6 +67,9 @@ func pdfOfPages(n int) []byte {
 		fmt.Fprintf(&b, "%d 0 obj\n%s\nendobj\n", len(offs), body)
 	}
 	b.WriteString("%PDF-1.4\n")
+	if pad >= 0 {
+		b.WriteString("%" + strings.Repeat("x", pad) + "\n")
+	}
 	obj("<< /Type /Catalog /Pages 2 0 R >>")
 	kids := make([]string, n)
 	for i := range kids {

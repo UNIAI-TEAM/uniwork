@@ -21,6 +21,7 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	_ = json.Unmarshal([]byte(m.Citations), &cites)
 	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: citationDTOs(cites), Notice: m.Notice.String, Model: m.Model, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
 	out.Steps, out.Followups, out.Mentions, out.Attachments = []sdo.AiStepDTO{}, []string{}, []sdo.AiContextRefDTO{}, []sdo.AiAttachmentDTO{}
+	out.FileNotes = decodeList[sdo.AiFileNoteDTO](m.FileNotes) // stored in the DTO's own shape
 	// A column that is NULL or does not decode reads as empty, never an error.
 	for _, st := range decodeList[service.AskStep](m.Steps) {
 		counts := st.Counts

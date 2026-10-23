@@ -54,7 +54,8 @@ func registerAI(r api, h Routes) {
 	r.Post("/workspaces/{workspaceID}/ai/ask", h.AskUni, apiOp{
 		summary: "Ask UNI",
 		description: "Một lượt hỏi, chỉ đọc, trả lời có trích dẫn [S1]… tới dữ liệu người gọi được xem. Câu hỏi có thể gắn tối đa 5 file đã tải lên qua POST …/ai/attachments (attachment_ids): câu hỏi và các file được lưu cùng lúc, file nào sai thì cả câu bị từ chối và không lưu gì. " +
-			"400 ai_attachments_invalid, 402 ai_quota_exceeded, 403 ai_attachments_unavailable, 404 khi một id không phải file chưa gắn của chính người hỏi, 422 ai_attachments_too_large, 429 ai_rate_limited, 503 ai_disabled.",
+			"Mỗi lượt UNI đọc file của câu hỏi và file của các câu hỏi còn trong lịch sử (tối đa 5, file gắn sau được ưu tiên), trong phần token dành cho file; file chỉ đọc một phần được ghi ở file_notes của câu trả lời. " +
+			"400 ai_attachments_invalid, 402 ai_quota_exceeded, 403 ai_attachments_unavailable, 404 khi một id không phải file chưa gắn của chính người hỏi, 422 ai_attachments_too_large, 422 ai_attachment_unreadable khi một file đúng loại nhưng hỏng hoặc có mật khẩu (câu hỏi không được lưu), 422 media_unsupported khi provider đang chạy không đọc được loại file, 429 ai_rate_limited, 503 ai_disabled.",
 		tags: []string{"ai"},
 		sdi:  sdi.AskUniSDI{},
 		sdo:  sdo.AskUniSDO{},
@@ -63,7 +64,7 @@ func registerAI(r api, h Routes) {
 	r.Post("/workspaces/{workspaceID}/ai/ask/stream", h.AskUniStream, apiOp{
 		summary: "Ask UNI (stream)",
 		description: "Như Ask UNI nhưng trả text/event-stream. Frame: event run, step, delta, citations, done hoặc error (data chỉ có mã). " +
-			"Lỗi trước sự kiện đầu tiên trả JSON như POST …/ai/ask (400, 402, 403, 404, 422, 429 kèm Retry-After, 503); sau đó là event error. Cứ 15 giây có dòng `: ping`.",
+			"Lỗi trước sự kiện đầu tiên trả JSON như POST …/ai/ask (400, 402, 403, 404, 422 gồm ai_attachment_unreadable, 429 kèm Retry-After, 503); sau đó là event error, ví dụ mã media_unsupported khi provider không đọc được file đã gắn. done mang câu trả lời đã lưu, kèm file_notes. Cứ 15 giây có dòng `: ping`.",
 		tags:     []string{"ai"},
 		sdi:      sdi.AskUniSDI{},
 		produces: "text/event-stream",

@@ -216,7 +216,7 @@ func (q *Queries) AiGetConversation(ctx context.Context, id string) (AiConversat
 }
 
 const aiGetMessageInConversation = `-- name: AiGetMessageInConversation :one
-SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model FROM ai_messages WHERE id = $1 AND conversation_id = $2
+SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes FROM ai_messages WHERE id = $1 AND conversation_id = $2
 `
 
 type AiGetMessageInConversationParams struct {
@@ -244,6 +244,7 @@ func (q *Queries) AiGetMessageInConversation(ctx context.Context, arg AiGetMessa
 		&i.Mentions,
 		&i.SupersededAt,
 		&i.Model,
+		&i.FileNotes,
 	)
 	return i, err
 }
@@ -368,9 +369,9 @@ func (q *Queries) AiInsertAttachment(ctx context.Context, arg AiInsertAttachment
 }
 
 const aiInsertMessage = `-- name: AiInsertMessage :one
-INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model
+INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model, file_notes)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+RETURNING id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes
 `
 
 type AiInsertMessageParams struct {
@@ -387,6 +388,7 @@ type AiInsertMessageParams struct {
 	Focus          pgtype.Text `json:"focus"`
 	Mentions       string      `json:"mentions"`
 	Model          string      `json:"model"`
+	FileNotes      string      `json:"file_notes"`
 }
 
 func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams) (AiMessage, error) {
@@ -404,6 +406,7 @@ func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams
 		arg.Focus,
 		arg.Mentions,
 		arg.Model,
+		arg.FileNotes,
 	)
 	var i AiMessage
 	err := row.Scan(
@@ -422,6 +425,7 @@ func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams
 		&i.Mentions,
 		&i.SupersededAt,
 		&i.Model,
+		&i.FileNotes,
 	)
 	return i, err
 }
@@ -722,8 +726,8 @@ func (q *Queries) AiListConversations(ctx context.Context, arg AiListConversatio
 }
 
 const aiListMessages = `-- name: AiListMessages :many
-SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model FROM (
-  SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model FROM ai_messages WHERE conversation_id = $1 AND superseded_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 200
+SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes FROM (
+  SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes FROM ai_messages WHERE conversation_id = $1 AND superseded_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 200
 ) m ORDER BY created_at ASC, id ASC
 `
 
@@ -755,6 +759,7 @@ func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]
 			&i.Mentions,
 			&i.SupersededAt,
 			&i.Model,
+			&i.FileNotes,
 		); err != nil {
 			return nil, err
 		}

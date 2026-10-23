@@ -14,6 +14,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
@@ -366,6 +367,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	first := base.Regenerates == "" && !slices.ContainsFunc(rows, func(r db.AiMessage) bool {
 		return r.Role == "assistant" && r.Content != "" && r.Notice.String == ""
 	})
+	var regenerated db.AiMessage // the question a regenerate answers again
 	if base.Regenerates != "" {
 		// The model sees the conversation as it was before the question it
 		// answers again: neither that question nor the old answer.
@@ -374,8 +376,26 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			outcome = "rejected" // a refusal, not a failed run
 			return AskResult{}, Invalid(errRegenerateTarget)
 		}
-		rows = rows[:i-1]
+		regenerated, rows = rows[i-1], rows[:i-1]
 	}
+	// The turn reads its question's files and those of the questions history
+	// replays (UNI-2119); a regenerate reads its question's again. The flag
+	// turned off stops the earlier files, never the ones this question sent.
+	window := historyWindow(rows)
+	if regenerated.ID != "" {
+		window = append(slices.Clip(window), regenerated)
+	}
+	var plan askFilePlan
+	if len(base.Files) > 0 || s.attachmentsEnabled(runCtx, userID, w) {
+		if plan, err = s.turnFilePlan(runCtx, files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: w.ID}, window, base.Files); err != nil {
+			if errors.Is(err, ai.ErrAttachmentUnreadable) {
+				outcome = "rejected"
+			}
+			return AskResult{}, err
+		}
+	}
+	withFiles := len(plan.Files) > 0
+	base.FileNotes = plan.Notes
 	stored, err := s.q.AiListConversationCitations(runCtx, db.AiListConversationCitationsParams{OrganizationID: w.OrganizationID, ConversationID: conv.ID})
 	if err != nil {
 		return AskResult{}, err
@@ -413,11 +433,19 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	if in.Dock {
 		promptID = ai.PromptCopilotAnswerV4
 	}
+	// A turn with files runs @5, the dock's prompt with them, on either route,
+	// so its follow-ups are split off on either route too.
+	splitOff := in.Dock || withFiles
+	if withFiles {
+		promptID, vars["files"] = ai.PromptCopilotAnswerV5, plan.Files
+	}
 	prompt, _ := ai.LookupPrompt(promptID)
 	hist := history(rows, true)
-	// The rendered question as the gateway sends it on the first call; later
-	// calls replay it byte for byte, so the cached prefix holds.
-	msgs := append(slices.Clip(hist), provider.Message{Role: "user", Content: prompt.Render(vars)})
+	// The rendered question as the gateway sends it on the first call, with
+	// the files; later calls replay it byte for byte, so the cached prefix
+	// holds, and send the files again on it (a tool-result turn or a
+	// continuation takes no Attachments).
+	msgs := append(slices.Clip(hist), provider.Message{Role: "user", Content: prompt.Render(vars), Parts: plan.Parts})
 	tools := s.agentTools()
 	model, effort := s.resolveAskModel(runCtx, w.OrganizationID, in.Model, in.Effort)
 	// The answer records the choice when it held, Auto ("") when it fell back.
@@ -428,10 +456,11 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
 		Capability: ai.CapCopilotAgent, PromptID: promptID, Vars: vars, History: hist,
 		Tools: agentRegistry(tools), FilterToolCalls: true, RunID: res.RunID, Model: model, Effort: effort,
+		Attachments: plan.Parts,
 	}
 	// Every call streams its text to the asker as it arrives (R2); without a
 	// sink nothing streams.
-	draft := &askDraft{emit: emit, cutFollowups: in.Dock}
+	draft := &askDraft{emit: emit, cutFollowups: splitOff}
 	if emit != nil {
 		req.OnDelta = draft.add
 	}
@@ -443,10 +472,17 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		req.MeterKey = "ask-uni:" + res.RunID + ":" + strconv.Itoa(calls)
 		r, err := s.gw.Complete(runCtx, req)
 		calls++
+		req.Attachments = nil // from here on the files ride the question in msgs
 		res.InputTokens += r.InputTokens
 		res.OutputTokens += r.OutputTokens
 		res.Usage.add(r.InputTokens, r.OutputTokens, r.CacheReadTokens, r.CacheWriteTokens)
-		spentInput += r.InputTokens + r.CacheReadTokens + r.CacheWriteTokens
+		if withFiles {
+			// The files are sent again every round and mostly read back from the
+			// cache, which counts a tenth here, as it is priced (spec §5.6).
+			spentInput += r.InputTokens + r.CacheWriteTokens + r.CacheReadTokens/10
+		} else {
+			spentInput += r.InputTokens + r.CacheReadTokens + r.CacheWriteTokens
+		}
 		if err == nil {
 			billed = r.UsageEventID
 		}
@@ -612,7 +648,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	}
 	answer := strings.TrimSpace(ai.StripUntrustedTags(resp.Text))
 	var followups []string
-	if in.Dock {
+	if splitOff {
 		answer, followups = splitFollowups(answer)
 	}
 	res, err = s.finishAgent(sctx, emit, res, w, conv, base, answer, "", agentCitations(answer, book), resp.UsageEventID, steps, followups)
@@ -641,7 +677,7 @@ func namedSources(answer string, b *sourceBook) string {
 // finishAgent stores the turn with the last call's usage row. Its text
 // already streamed, so it ends with citations, any follow-ups and done.
 func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, base askTurn, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep, followups []string) (AskResult, error) {
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model, Files: base.Files, UserID: base.UserID, WorkspaceID: base.WorkspaceID})
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model, Files: base.Files, UserID: base.UserID, WorkspaceID: base.WorkspaceID, FileNotes: base.FileNotes})
 	if err != nil {
 		return AskResult{}, err
 	}

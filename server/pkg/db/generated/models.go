@@ -83,6 +83,7 @@ type AiMessage struct {
 	Mentions       string             `json:"mentions"`
 	SupersededAt   pgtype.Timestamptz `json:"superseded_at"`
 	Model          string             `json:"model"`
+	FileNotes      string             `json:"file_notes"`
 }
 
 type AiMessageFeedback struct {

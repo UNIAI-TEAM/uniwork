@@ -926,9 +926,9 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	tn.ids["aiUpload"] = isoString(t, out, "file_id")
 	// One unsent file for each question route's own-rows control, which a
 	// question claims; and one a question carried, the row every tenant has in
-	// ai_attachments.
+	// ai_attachments. They are valid PDFs: a sent question reads its files.
 	for _, key := range []string{"aiUploadAsk", "aiUploadStream", "aiUploadSent"} {
-		out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/ai/attachments", tn.token, isoMultipart{filename: key + ".pdf", contentType: "application/pdf", content: tinyPDF})
+		out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/ai/attachments", tn.token, isoMultipart{filename: key + ".pdf", contentType: "application/pdf", content: sizedAskPDF(0)})
 		tn.ids[key] = isoString(t, out, "file_id")
 	}
 	w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/ai/ask", tn.token, map[string]any{"question": m + " question about a file", "attachment_ids": []any{tn.ids["aiUploadSent"]}})
@@ -1112,22 +1112,6 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		VALUES ($1, $2, $3, 1, $4, 'human', now() + interval '30 minutes')`,
 		tn.ids["aiUniworkRun"], tn.orgID, tn.ids["aiUniworkConversation"], tn.userID); err != nil {
 		t.Fatalf("uniwork ai run: %v", err)
-	}
-
-	// A file the tenant's Ask UNI question carried (UNI-2119), on the question
-	// buildOrganization asked. No route attaches one yet, so it is written the
-	// way the ask path will write it.
-	var questionID string
-	if err := w.pool.QueryRow(ctx, `SELECT id FROM ai_messages WHERE conversation_id = $1 AND role = 'user'`, tn.ids["conversation"]).Scan(&questionID); err != nil {
-		t.Fatalf("ask uni question: %v", err)
-	}
-	tn.ids["aiAttachment"] = util.NewID()
-	if err := w.q.AiInsertAttachment(ctx, db.AiInsertAttachmentParams{
-		ID: tn.ids["aiAttachment"], OrganizationID: tn.orgID, WorkspaceID: tn.wsID, UserID: tn.userID,
-		ConversationID: tn.ids["conversation"], MessageID: questionID, FileID: util.NewID(),
-		Name: strings.ToLower(m) + "-brief.pdf", Mime: "application/pdf", SizeBytes: 2048, Kind: "pdf",
-	}); err != nil {
-		t.Fatalf("ask uni attachment: %v", err)
 	}
 }
 

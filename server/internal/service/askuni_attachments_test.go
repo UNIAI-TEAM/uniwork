@@ -41,7 +41,15 @@ func (f *attachFlags) IsEnabled(ctx context.Context, key string, def bool) bool 
 // both flags on.
 func attachFixture(t *testing.T) (*AskUNIService, *attachFlags, db.User, db.User, db.Workspace) {
 	t.Helper()
-	s, _, ua, ub, w := askFixture(t)
+	s, _, flags, ua, ub, w := attachAgentFixture(t)
+	return s, flags, ua, ub, w
+}
+
+// attachAgentFixture is attachFixture with the fake provider behind the
+// gateway, for a test that scripts the model.
+func attachAgentFixture(t *testing.T) (*AskUNIService, *provider.Fake, *attachFlags, db.User, db.User, db.Workspace) {
+	t.Helper()
+	s, fake, ua, ub, w := askFixture(t)
 	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, s.q, w.ID, ub.ID)
 	stores, err := storage.BuildStores(context.Background(),
@@ -57,7 +65,7 @@ func attachFixture(t *testing.T) (*AskUNIService, *attachFlags, db.User, db.User
 	s.SetReadTools(NewMcpToolService(s.q, s, NewHomeService(s.q, s.ws), s.ws, "https://app.example.test"))
 	flags := &attachFlags{org: w.OrganizationID, user: ua.ID, attachments: true, agent: true}
 	s.SetFlags(flags)
-	return s, flags, ua, ub, w
+	return s, fake, flags, ua, ub, w
 }
 
 // oneNotFound is the answer of a cancel that is not the asker's to make: the
@@ -294,11 +302,12 @@ func TestAskAttachmentKind(t *testing.T) {
 // ---- Files on a question (UNI-2119, Task 6) ---------------------------------
 
 // uploadPDFs uploads one small PDF per name as userID and returns the file ids.
+// The PDFs are valid: a question that is sent reads its files.
 func uploadPDFs(t *testing.T, s *AskUNIService, userID, workspaceID string, names ...string) []string {
 	t.Helper()
 	ids := make([]string, len(names))
 	for i, n := range names {
-		up, err := s.UploadAttachment(context.Background(), userID, workspaceID, n, bytes.NewReader(pdfBody(n)))
+		up, err := s.UploadAttachment(context.Background(), userID, workspaceID, n, bytes.NewReader(pdfOfPages(1)))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -351,8 +360,8 @@ func TestAskStoresAttachmentsOnTheQuestion(t *testing.T) {
 		t.Fatalf("messages = %d (%v), want [user assistant]", len(msgs), err)
 	}
 	want := []AskAttachment{
-		{FileID: ids[1], Name: "b.pdf", MIME: "application/pdf", Kind: "pdf", Size: int64(len(pdfBody("b.pdf")))},
-		{FileID: ids[0], Name: "a.pdf", MIME: "application/pdf", Kind: "pdf", Size: int64(len(pdfBody("a.pdf")))},
+		{FileID: ids[1], Name: "b.pdf", MIME: "application/pdf", Kind: "pdf", Size: int64(len(pdfOfPages(1)))},
+		{FileID: ids[0], Name: "a.pdf", MIME: "application/pdf", Kind: "pdf", Size: int64(len(pdfOfPages(1)))},
 	}
 	rows, err := s.q.AiListAttachmentsForMessages(ctx, db.AiListAttachmentsForMessagesParams{OrganizationID: w.OrganizationID, MessageIds: []string{msgs[0].ID, msgs[1].ID}})
 	if err != nil || len(rows) != 2 {
@@ -456,7 +465,7 @@ func TestAskRefusesOver20MBInTotal(t *testing.T) {
 	ctx := context.Background()
 	upload := func(name string, size int) string {
 		t.Helper()
-		up, err := s.UploadAttachment(ctx, ua.ID, w.ID, name, bytes.NewReader(sizedPDF(name, size)))
+		up, err := s.UploadAttachment(ctx, ua.ID, w.ID, name, bytes.NewReader(pdfOfSize(1, size)))
 		if err != nil {
 			t.Fatal(err)
 		}

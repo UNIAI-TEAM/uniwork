@@ -47,6 +47,8 @@ type AskUNIService struct {
 	agentMetrics AskAgentMetrics
 	// askMem holds askCount's hits when there is no Redis (askMemIncrement).
 	askMem sync.Map // key -> *askMemRateEntry
+	// fileReaders holds a slot per turn reading its files (askFileReaders).
+	fileReaders chan struct{}
 	// life ends when Shutdown runs; every agent run is cancelled with it.
 	life     context.Context
 	shutdown context.CancelCauseFunc
@@ -76,8 +78,9 @@ func NewAskUNIService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, o
 	return &AskUNIService{
 		pool: pool, q: q, ws: ws, orgs: orgs, tasks: tasks, meetings: meetings, chat: chat, gw: gw,
 		ent: NewEntitlementService(pool, q), rdb: rdb, now: time.Now,
-		agentRuns: newUniworkConcurrency(rdb, "ai:ask:", askAgentPodMax, askAgentOrgMax, askAgentGlobalMax, askAgentDeadline+10*time.Second),
-		life:      life, shutdown: shutdown,
+		agentRuns:   newUniworkConcurrency(rdb, "ai:ask:", askAgentPodMax, askAgentOrgMax, askAgentGlobalMax, askAgentDeadline+10*time.Second),
+		fileReaders: make(chan struct{}, askFileReaders),
+		life:        life, shutdown: shutdown,
 	}
 }
 
@@ -700,18 +703,7 @@ func citedID(c AskCitation) (string, bool) {
 // history replays the conversation's last turns, wrapped as untrusted; with
 // cited (the agent), each answer is followed by the sources it cited.
 func history(rows []db.AiMessage, cited bool) []provider.Message {
-	// Drop notice replies (no sources, empty answer, or the fixed text older
-	// rows stored) before windowing, so they neither mislead the model nor eat a turn.
-	var kept []db.AiMessage
-	for _, r := range rows {
-		if r.Role == "assistant" && (r.Notice.String != "" || r.Content == ai.NoSourcesAnswer) {
-			continue
-		}
-		kept = append(kept, r)
-	}
-	if len(kept) > askHistory {
-		kept = kept[len(kept)-askHistory:]
-	}
+	kept := historyWindow(rows)
 	out := make([]provider.Message, 0, len(kept))
 	for _, r := range kept {
 		src := "question"
@@ -725,6 +717,23 @@ func history(rows []db.AiMessage, cited bool) []provider.Message {
 		out = append(out, provider.Message{Role: r.Role, Content: content})
 	}
 	return out
+}
+
+// historyWindow is the rows history replays: notice replies (no sources, empty
+// answer, or the fixed text older rows stored) are dropped before windowing, so
+// they neither mislead the model nor eat a turn; then the last askHistory.
+func historyWindow(rows []db.AiMessage) []db.AiMessage {
+	var kept []db.AiMessage
+	for _, r := range rows {
+		if r.Role == "assistant" && (r.Notice.String != "" || r.Content == ai.NoSourcesAnswer) {
+			continue
+		}
+		kept = append(kept, r)
+	}
+	if len(kept) > askHistory {
+		kept = kept[len(kept)-askHistory:]
+	}
+	return kept
 }
 
 // priorSources lists what an earlier answer cited, so a follow-up trusts those
@@ -777,6 +786,8 @@ type askTurn struct {
 	// the asker and the workspace they asked from, which those rows record.
 	Files               []AskAttachment
 	UserID, WorkspaceID string
+	// FileNotes are the files of the turn read only in part, stored on the answer.
+	FileNotes []askFileNote
 }
 
 // jsonOrEmptyList marshals v, writing "[]" for a nil slice.
@@ -809,7 +820,7 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTu
 		}
 		if _, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
 			ID: questionID, OrganizationID: orgID, ConversationID: convID, Role: "user", Content: t.Question, Citations: "[]",
-			Steps: "[]", Followups: "[]", Focus: focus, Mentions: jsonOrEmptyList(t.Mentions),
+			Steps: "[]", Followups: "[]", Focus: focus, Mentions: jsonOrEmptyList(t.Mentions), FileNotes: "[]",
 		}); err != nil {
 			return db.AiMessage{}, err
 		}
@@ -823,6 +834,7 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTu
 		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: t.Answer,
 		Citations: jsonOrEmptyList(t.Citations), UsageEventID: strText(t.UsageEventID), Notice: strText(t.Notice),
 		Steps: jsonOrEmptyList(t.Steps), Followups: jsonOrEmptyList(t.Followups), Mentions: "[]", Model: t.Model,
+		FileNotes: jsonOrEmptyList(t.FileNotes),
 	})
 	if err != nil {
 		return db.AiMessage{}, err
@@ -884,7 +896,7 @@ func (s *AskUNIService) Messages(ctx context.Context, userID, conversationID str
 			return nil, err
 		}
 		for _, a := range atts {
-			byQuestion[a.MessageID] = append(byQuestion[a.MessageID], AskAttachment{ID: a.ID, FileID: a.FileID, Name: a.Name, MIME: a.Mime, Kind: a.Kind, Size: a.SizeBytes})
+			byQuestion[a.MessageID] = append(byQuestion[a.MessageID], askAttachmentRow(a))
 		}
 	}
 	out := make([]AskMessage, len(rows))

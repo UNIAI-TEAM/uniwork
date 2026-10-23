@@ -79,6 +79,14 @@ type AiAttachmentDTO struct {
 	Kind string `json:"kind" description:"image, pdf hoặc text: cách Hỏi UNI đọc tệp này" example:"pdf"`
 }
 
+// AiFileNoteDTO is a file of the turn that UNI read only in part.
+type AiFileNoteDTO struct {
+	Name  string `json:"name" description:"Tên tệp" example:"bao-cao-quy-3.pdf"`
+	Unit  string `json:"unit" description:"Đơn vị đếm: page, slide, row, paragraph hoặc line" example:"page"`
+	Read  int    `json:"read" description:"Số đơn vị đầu đã đọc; 0 khi chỉ đọc được phần đầu của đơn vị thứ nhất" example:"15"`
+	Total int    `json:"total" description:"Tổng số đơn vị của tệp" example:"80"`
+}
+
 // AiMessageDTO is one turn of a conversation.
 type AiMessageDTO struct {
 	ID        string            `json:"id" example:"01K4AIMSG0000000000000001"`
@@ -94,7 +102,9 @@ type AiMessageDTO struct {
 	// Attachments is filled by the list of messages only; the stored answer an
 	// ask or a done event returns is not the question, so it carries none.
 	Attachments []AiAttachmentDTO `json:"attachments" description:"File câu hỏi đã gắn, theo thứ tự gắn; chỉ có trên tin nhắn của người hỏi trong danh sách tin nhắn, rỗng ở mọi tin nhắn khác (kể cả câu trả lời trong done)"`
-	CreatedAt   string            `json:"created_at" example:"2026-09-06T08:00:00Z"`
+	// FileNotes is stored on the answer; a question carries none.
+	FileNotes []AiFileNoteDTO `json:"file_notes" description:"Trên câu trả lời: các file của lượt hỏi UNI chỉ đọc một phần (vì vượt phần token dành cho file), theo thứ tự đọc; rỗng khi đọc đủ, khi không có file và ở tin nhắn của người hỏi" example:"[{\"name\":\"bao-cao-quy-3.pdf\",\"unit\":\"page\",\"read\":15,\"total\":80}]"`
+	CreatedAt string          `json:"created_at" example:"2026-09-06T08:00:00Z"`
 }
 
 // AiUsageDTO is what the call cost.

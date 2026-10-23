@@ -29,8 +29,10 @@ type askFileBytes struct {
 // knows it by (page, slide, row, paragraph, line). Read 0 means the opening was
 // cut to size without one whole unit fitting.
 type askFileNote struct {
-	Name, Unit  string
-	Read, Total int
+	Name  string `json:"name"`
+	Unit  string `json:"unit"`
+	Read  int    `json:"read"`
+	Total int    `json:"total"`
 }
 
 // askFileText is the text of one Word, Excel, PowerPoint, ODT or text file.
@@ -38,10 +40,12 @@ type askFileText struct{ Name, Text string }
 
 // askFilePlan is what one turn gives the model from its files: images and PDFs
 // as parts, everything else as text, and a note for each file read in part.
+// Files is every file as the prompt lists it, its text and note with it.
 type askFilePlan struct {
 	Parts []provider.Part
 	Texts []askFileText
 	Notes []askFileNote
+	Files []ai.AttachedFile
 }
 
 // planAskFiles fits files into budget tokens, in attach order. Each file may
@@ -51,11 +55,21 @@ type askFilePlan struct {
 func planAskFiles(files []askFileBytes, budget int) (askFilePlan, error) {
 	var plan askFilePlan
 	for i, f := range files {
+		texts, notes := len(plan.Texts), len(plan.Notes)
 		cost, err := plan.add(f, max(budget, 0)/(len(files)-i))
 		if err != nil {
 			return askFilePlan{}, askFileUnreadable(f.Name, err)
 		}
 		budget -= cost
+		af := ai.AttachedFile{Name: f.Name, Kind: f.Kind}
+		if len(plan.Texts) > texts {
+			af.Kind, af.Text = "text", plan.Texts[texts].Text
+		}
+		if len(plan.Notes) > notes {
+			n := plan.Notes[notes]
+			af.Unit, af.Read, af.Total = n.Unit, n.Read, n.Total
+		}
+		plan.Files = append(plan.Files, af)
 	}
 	return plan, nil
 }
