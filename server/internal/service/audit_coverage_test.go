@@ -60,6 +60,7 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionOrganizationMcpPolicyChanged:      "covered by mcp_grants_test.go",
 	audit.ActionOrganizationMcpWritePolicyChanged: "covered by mcp_grants_test.go",
 	audit.ActionOrganizationAskModelsChanged:      "covered by askuni_models_test.go",
+	audit.ActionOrganizationAskWritePolicyChanged: "covered by askuni_modes_test.go",
 	audit.ActionMeetingRestored:                   "covered by meeting_restore_test.go",
 }
 
@@ -2142,6 +2143,7 @@ func auditActions() []string {
 		audit.ActionOrganizationPushPreviewPolicyChanged,
 		audit.ActionOrganizationMobileSecurityPolicyChanged,
 		audit.ActionOrganizationAskModelsChanged,
+		audit.ActionOrganizationAskWritePolicyChanged,
 	}
 }
 

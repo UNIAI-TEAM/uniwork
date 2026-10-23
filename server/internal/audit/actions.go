@@ -334,6 +334,10 @@ const (
 	// (AskUNIService.SetAskModels).
 	ActionOrganizationAskModelsChanged = "organization.ask_models_changed"
 
+	// An organization owner/admin set the highest permission mode Ask UNI may use
+	// (AskUNIService.SetAskWritePolicy).
+	ActionOrganizationAskWritePolicyChanged = "organization.ask_uni_write_policy_changed"
+
 	// A cancelled meeting brought back (MeetingService.Restore).
 	ActionMeetingRestored = "meeting.restored"
 

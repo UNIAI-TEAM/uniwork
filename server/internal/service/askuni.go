@@ -101,6 +101,8 @@ type AICapabilities struct {
 	// Attachments is whether the asker may send files with a question: the
 	// attachments flag is on and their turn would run the agent (agentOn).
 	Attachments bool
+	// Actions is Ask UNI's write state: the flag, the ceiling, the asker's mode.
+	Actions AskActions
 }
 
 type AskInput struct {
@@ -219,6 +221,7 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 	}
 	out.AskUni = true
 	out.Attachments = s.attachmentsEnabled(ctx, userID, w)
+	out.Actions = s.askActions(ctx, ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}, "")
 	out.Models, out.AutoModel = s.askModelOptions(ctx, w.OrganizationID)
 	out.MeetingSummary = s.ent.Can(ctx, w.OrganizationID, FeatureMeetingAISummary) == nil
 	snap, err := s.ent.Snapshot(ctx, w.OrganizationID)

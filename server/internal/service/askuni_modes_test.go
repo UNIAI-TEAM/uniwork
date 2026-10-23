@@ -1,0 +1,124 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/unicomhub/uniwork/server/internal/ai"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+type actionsFlagFake struct{ on bool }
+
+func (f actionsFlagFake) IsEnabled(_ context.Context, key string, def bool) bool {
+	if key == askActionsFlag {
+		return f.on
+	}
+	return def
+}
+
+func TestClampAskMode(t *testing.T) {
+	for _, c := range []struct{ mode, ceiling, want string }{
+		{"auto", "", "plan"},
+		{"auto", "plan", "plan"},
+		{"plan", "ask", "ask"},
+		{"ask", "auto", "ask"},
+		{"auto", "auto", "auto"},
+		{"auto", "off", ""},
+		{"", "auto", "ask"},
+		{"weird", "auto", "ask"},
+		{"auto", "weird", "plan"},
+	} {
+		if got := clampAskMode(c.mode, c.ceiling); got != c.want {
+			t.Errorf("clampAskMode(%q, %q) = %q, want %q", c.mode, c.ceiling, got, c.want)
+		}
+	}
+}
+
+func TestAskUniModeIsClampedToTheCeiling(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	s.SetFlags(actionsFlagFake{on: true})
+	tc := ai.ToolContext{ActorID: ua.ID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
+	setCeiling := func(v string) {
+		t.Helper()
+		if err := s.q.SetOrganizationAskWriteCeiling(ctx, db.SetOrganizationAskWriteCeilingParams{Ceiling: v, ActorID: ua.ID, ID: w.OrganizationID}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := s.askActions(ctx, tc, "auto"); got != (AskActions{Enabled: true, Ceiling: "plan", Mode: "plan"}) {
+		t.Fatalf("NULL ceiling: %+v", got)
+	}
+	setCeiling("ask")
+	if got := s.askActions(ctx, tc, "plan"); got.Mode != "ask" || got.Ceiling != "ask" {
+		t.Fatalf("ceiling ask: %+v", got)
+	}
+	setCeiling("off")
+	if got := s.askActions(ctx, tc, "auto"); got.Mode != "" || got.Ceiling != "off" {
+		t.Fatalf("ceiling off: %+v", got)
+	}
+	setCeiling("auto")
+	if got := s.askActions(ctx, tc, ""); got.Mode != "ask" || !got.Enabled {
+		t.Fatalf("unset mode: %+v", got)
+	}
+	// A saved mode is used when the turn names none.
+	if _, err := s.SetAskUniMode(ctx, ua.ID, "auto"); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.askActions(ctx, tc, ""); got.Mode != "auto" {
+		t.Fatalf("saved mode: %+v", got)
+	}
+	if _, err := s.SetAskUniMode(ctx, ua.ID, "yolo"); !errors.As(err, new(ValidationError)) {
+		t.Fatalf("unknown mode: %v, want a validation error", err)
+	}
+	s.SetFlags(actionsFlagFake{on: false})
+	if got := s.askActions(ctx, tc, "auto"); got.Enabled {
+		t.Fatalf("flag off: %+v, want Enabled false", got)
+	}
+	if why := s.askWriteGate(ctx, tc).Refusal(ctx); why != "ai_actions_disabled" {
+		t.Fatalf("flag off gate: %q", why)
+	}
+	s.SetFlags(actionsFlagFake{on: true})
+	if why := s.askWriteGate(ctx, tc).Refusal(ctx); why != "" {
+		t.Fatalf("open gate: %q", why)
+	}
+}
+
+func TestSetAskWritePolicyNeedsAnAdminAndAudits(t *testing.T) {
+	s, _, ua, ub, w := askFixture(t)
+	ctx := context.Background()
+	org := w.OrganizationID
+	if err := s.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: org, UserID: ub.ID, Role: "member"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetAskWritePolicy(ctx, ub.ID, org, "auto"); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("member: %v, want ErrForbidden", err)
+	}
+	if _, err := s.SetAskWritePolicy(ctx, ua.ID, org, "yolo"); !errors.As(err, new(ValidationError)) {
+		t.Fatalf("unknown: %v, want a validation error", err)
+	}
+	if got, err := s.AskWritePolicy(ctx, ub.ID, org); err != nil || got != "plan" {
+		t.Fatalf("default: %q %v, want plan", got, err)
+	}
+	if got, err := s.SetAskWritePolicy(ctx, ua.ID, org, "auto"); err != nil || got != "auto" {
+		t.Fatalf("owner: %q %v", got, err)
+	}
+	var from, to, by string
+	var by2 pgtype.Text
+	if err := s.pool.QueryRow(ctx, `SELECT changes::jsonb->'ask_uni_write_ceiling'->>'from', changes::jsonb->'ask_uni_write_ceiling'->>'to' FROM audit_events WHERE organization_id = $1 AND action = 'organization.ask_uni_write_policy_changed'`, org).Scan(&from, &to); err != nil {
+		t.Fatal(err)
+	}
+	if from != "plan" || to != "auto" {
+		t.Fatalf("audit from/to %q/%q, want plan/auto", from, to)
+	}
+	if err := s.pool.QueryRow(ctx, `SELECT ask_uni_write_ceiling_updated_by FROM organizations WHERE id = $1`, org).Scan(&by2); err != nil {
+		t.Fatal(err)
+	}
+	by = by2.String
+	if by != ua.ID {
+		t.Fatalf("updated_by %q, want %q", by, ua.ID)
+	}
+}
