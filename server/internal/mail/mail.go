@@ -19,8 +19,12 @@ const (
 	KindOrganizationInvite = "organization_invite"
 	KindWelcome            = "welcome"
 	KindNotificationDigest = "notification_digest"
-	// A sign-in from a browser the account has never used (F-01).
+	// A sign-in from a browser the account has never used (F-01), or a new
+	// phone session on an account that already had one (ADR 0041).
 	KindNewLogin = "new_login"
+	// Sign in with Apple was linked to an existing account by its address
+	// (ADR 0041): a new way in that the owner did not set up from Settings.
+	KindAppleLinked = "apple_linked"
 )
 
 type Message struct {

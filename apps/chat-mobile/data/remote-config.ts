@@ -35,6 +35,10 @@ export const MOBILE_FLAG_DEFAULTS = {
   unichat_mobile_ai_catch_up: true,
   // The outbox's automatic re-send: off stops data/owed.ts › flushOwed (server: featureflags.unichat_mobile_outbox_flush).
   unichat_mobile_outbox_flush: true,
+  // Sending on once the app is off screen (data/outbox-drain/: iOS's borrowed time and scheduled task, Android's
+  // WorkManager job): off leaves what is owed for the next time the app is open (server:
+  // featureflags.unichat_mobile_background_send).
+  unichat_mobile_background_send: true,
   // The chat change log: off makes a reconnect refetch every shown timeline again (server: featureflags.unichat_mobile_chat_sync).
   unichat_mobile_chat_sync: true,
   // The message list on FlashList 2 (components/chat/timeline-list.tsx): off keeps the tuned inverted FlatList; a share

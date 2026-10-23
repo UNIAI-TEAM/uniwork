@@ -155,9 +155,10 @@ jobs:
           ' "$RUNNER_TEMP/build.json"
       - name: Security scan of the built bundle
         # Audit "Security & privacy", no-ci-binary-security-scan: the AAB the store would get, built with the production
-        # EAS environment, carries no credential in any file and still defines every class native code finds by name
-        # (scripts/mobile-apk-scan.mjs; 0.3.0 (11) reached Play without WebRTC's JniInit). Its manifest is protobuf, so
-        # the CI release APK (mobile-verify.yml › android-release) is what scans the manifest. Before anything is submitted.
+        # EAS environment, carries no credential in any file, still defines every class native code finds by name
+        # (scripts/mobile-apk-scan.mjs; 0.3.0 (11) reached Play without WebRTC's JniInit), and its merged manifest (read
+        # from the bundle's protobuf) is locked down and asks only for the permissions of
+        # apps/chat-mobile/android-permissions.json. Before anything is submitted.
         run: |
           set -euo pipefail
           url="$(node -e '

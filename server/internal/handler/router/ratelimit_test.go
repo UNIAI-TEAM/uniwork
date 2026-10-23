@@ -285,6 +285,16 @@ func TestChatWritesBudgetEachUserPerRoute(t *testing.T) {
 	}
 }
 
+// The iPhone's Sign in with Apple (ADR 0041) turns a token into a session like
+// the other credential routes, so it shares their budget: 60 a minute per
+// address and path.
+func TestAppleNativeSignInRidesTheCredentialBudget(t *testing.T) {
+	h, _ := limitedMux(t)
+	c := caller{ip: "10.20.9.1"}
+	c.spend(t, h, http.MethodPost, "/api/v1/auth/apple/native", 60)
+	c.wantRefused(t, h, http.MethodPost, "/api/v1/auth/apple/native", "credential budget: 60 a minute")
+}
+
 // OAuth endpoints for external MCP clients (ADR 0031): authorize, token and
 // revoke ride the credential budget, 60 a minute per address and path;
 // registration is a public write that creates rows, so it gets 10 an hour.

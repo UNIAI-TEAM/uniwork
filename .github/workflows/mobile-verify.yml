@@ -22,14 +22,16 @@ name: Mobile Verify
 #                   apps/chat-mobile/bundle-budget.json
 #   android-release `expo prebuild` + `./gradlew :app:assembleRelease` on the
 #                   production config: proves the native project still builds;
-#                   the same Gradle run tests the calls module's Kotlin on
-#                   Robolectric (`:unichat-calls:testReleaseUnitTest`), then
+#                   the same Gradle run tests the local modules' Kotlin on
+#                   Robolectric (`:unichat-calls:testReleaseUnitTest`,
+#                   `:unichat-background:testReleaseUnitTest`), then
 #                   the APK gets a static security scan
 #                   (scripts/mobile-apk-scan.mjs: no credential in any file,
 #                   not debuggable, no backup or cleartext, no component other
 #                   apps reach without a permission beyond
-#                   apps/chat-mobile/apk-scan-baseline.json, every class
-#                   native code finds by name still in the dex).
+#                   apps/chat-mobile/apk-scan-baseline.json, no permission
+#                   outside apps/chat-mobile/android-permissions.json, every
+#                   class native code finds by name still in the dex).
 #                   Only when the change reaches the binary
 #                   (scripts/mobile-native-scope.mjs): the app's code, config
 #                   or assets, the install graph, or a packages/core file the
@@ -105,6 +107,7 @@ on:
       - ".github/workflows/chat-mobile-rollback.yml"
       - ".github/workflows/chat-mobile-device-farm.yml"
       - ".github/workflows/chat-mobile-store-screenshots.yml"
+      - ".github/workflows/chat-mobile-tls-pins.yml"
       - "docs/runbooks/unichat-mobile-release.md"
       - "docs/events/CATALOGUE.md"
       - "server/internal/handler/dto/sdo/**"
@@ -116,6 +119,7 @@ on:
       - "server/internal/handler/workspace.go"
       - "server/internal/handler/task.go"
       - "server/internal/handler/organization_members.go"
+      - "server/internal/handler/router/*.go"
       - "server/internal/config/unichat_downloads.go"
       - "server/internal/featureflags/keys.go"
       - "server/internal/service/account_deletion.go"
@@ -258,7 +262,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/ktlint"
           "$RUNNER_TEMP/ktlint" "apps/chat-mobile/modules/**/*.kt"
       - name: Mobile repo contracts
-        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-bundle-composition.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/mobile-e2e-seed.test.mjs scripts/mobile-ci-provisioning.test.mjs scripts/mobile-ftl-devices.test.mjs scripts/maestro-retry.test.mjs scripts/mobile-canary.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs scripts/mobile-play-release.test.mjs scripts/mobile-release-notes.test.mjs scripts/mobile-release-health.test.mjs scripts/mobile-docs.test.mjs scripts/mobile-data-layout.test.mjs scripts/mobile-apk-scan.test.mjs scripts/mobile-asc-release.test.mjs scripts/mobile-play-vitals.test.mjs scripts/mobile-ota-rollback.test.mjs scripts/mobile-sentry-alerts.test.mjs scripts/mobile-store-screenshots.test.mjs
+        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-bundle-composition.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/mobile-e2e-seed.test.mjs scripts/mobile-ci-provisioning.test.mjs scripts/mobile-ftl-devices.test.mjs scripts/maestro-retry.test.mjs scripts/mobile-canary.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs scripts/mobile-play-release.test.mjs scripts/mobile-release-notes.test.mjs scripts/mobile-release-health.test.mjs scripts/mobile-docs.test.mjs scripts/mobile-data-layout.test.mjs scripts/mobile-apk-scan.test.mjs scripts/mobile-asc-release.test.mjs scripts/mobile-play-vitals.test.mjs scripts/mobile-ota-rollback.test.mjs scripts/mobile-sentry-alerts.test.mjs scripts/mobile-store-screenshots.test.mjs scripts/mobile-route-catalogue.test.mjs scripts/mobile-tls-pins.test.mjs
 
   doctor-bundle:
     name: expo-doctor and JS bundle budget
@@ -351,15 +355,16 @@ jobs:
       - name: Prebuild the native project
         working-directory: apps/chat-mobile
         run: pnpm exec expo prebuild -p android --no-install --clean
-      - name: Assemble the release APK and run the calls module's JVM tests
+      - name: Assemble the release APK and run the local modules' JVM tests
         working-directory: apps/chat-mobile/android
         # One ABI, the emulator's: what can break is shared by all four, and it
         # halves the build. The nightly builds every ABI (android-production).
-        # The calls module's Robolectric tests (modules/unichat-calls/android/src/test)
-        # share the release compilation; Robolectric runs SDK 34 on this JDK 17.
+        # The local modules' Robolectric tests (modules/unichat-calls/android/src/test,
+        # modules/unichat-background/android/src/test: the outbox drain job on WorkManager's
+        # test runtime) share the release compilation; Robolectric runs SDK 34 on this JDK 17.
         # :unichat-calls:assembleDebugAndroidTest builds the module's instrumented test APK
         # (src/androidTest), which android-smoke runs on its emulator.
-        run: ./gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest :unichat-calls:assembleDebugAndroidTest --no-daemon -PreactNativeArchitectures=x86_64 "-Dorg.gradle.jvmargs=$GRADLE_DAEMON_JVMARGS"
+        run: ./gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest :unichat-background:testReleaseUnitTest :unichat-calls:assembleDebugAndroidTest --no-daemon -PreactNativeArchitectures=x86_64 "-Dorg.gradle.jvmargs=$GRADLE_DAEMON_JVMARGS"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -367,6 +372,8 @@ jobs:
           path: |
             apps/chat-mobile/modules/unichat-calls/android/build/reports/tests/**
             apps/chat-mobile/android/**/unichat-calls/reports/tests/**
+            apps/chat-mobile/modules/unichat-background/android/build/reports/tests/**
+            apps/chat-mobile/android/**/unichat-background/reports/tests/**
           if-no-files-found: ignore
           retention-days: 7
       - name: APK size
@@ -376,7 +383,8 @@ jobs:
           { echo "### UniChat Android release APK (x86_64)"; echo; ls -l *.apk | awk '{printf "- `%s`: %.1f MB\n", $9, $5/1048576}'; } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Security scan of the release APK
         # Audit "Security & privacy", no-ci-binary-security-scan: what Gradle merged and the bundler shipped, read from
-        # the APK itself (aapt2 from the runner's Android SDK). Blocks on a finding outside apk-scan-baseline.json.
+        # the APK itself (aapt2 from the runner's Android SDK). Blocks on a finding outside apk-scan-baseline.json and on
+        # a permission (a library's included) that android-permissions.json does not review.
         run: node scripts/mobile-apk-scan.mjs apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
       - uses: actions/upload-artifact@v4
         with:

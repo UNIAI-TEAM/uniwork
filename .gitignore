@@ -75,6 +75,7 @@ server/internal/handler/data/
 !.github/workflows/chat-mobile-rollback.yml
 !.github/workflows/chat-mobile-device-farm.yml
 !.github/workflows/chat-mobile-store-screenshots.yml
+!.github/workflows/chat-mobile-tls-pins.yml
 .codex/
 .pnpm-store/
 .uniwork-dev/

@@ -116,6 +116,30 @@ describe("the generated store metadata", () => {
     expect(apple.apple.review.notes).not.toMatch(/password: /i);
   });
 
+  // App Store Connect holds the app as "UniWork Chat": "UniChat" belongs to someone else
+  // (docs/evidence/unichat/release-accounts.md). `eas metadata:push` sends the title, so any other one asks App Store
+  // Connect to rename the app to a name it cannot have; Play's listing carries the same name.
+  it("names the app in both stores as App Store Connect holds it", () => {
+    const apple = JSON.parse(fs.readFileSync(path.join(__dirname, "store/apple/store.config.json"), "utf8")) as { apple: { info: Record<string, { title: string }> } };
+    expect(Object.values(apple.apple.info).map((info) => info.title)).toEqual(["UniWork Chat", "UniWork Chat"]);
+    for (const locale of ["vi-VN", "en-US"]) {
+      expect(fs.readFileSync(path.join(__dirname, "store/play", locale, "title.txt"), "utf8"), locale).toBe("UniWork Chat\n");
+    }
+  });
+
+  it("names only each platform's screen reader: TalkBack on Play, VoiceOver on the App Store", () => {
+    for (const locale of ["vi-VN", "en-US"]) {
+      const full = fs.readFileSync(path.join(__dirname, "store/play", locale, "full_description.txt"), "utf8");
+      expect(full).toMatch(/TalkBack/);
+      expect(full).not.toMatch(/VoiceOver/);
+    }
+    const apple = JSON.parse(fs.readFileSync(path.join(__dirname, "store/apple/store.config.json"), "utf8")) as { apple: { info: Record<string, { description: string }> } };
+    for (const info of Object.values(apple.apple.info)) {
+      expect(info.description).toMatch(/VoiceOver/);
+      expect(info.description).not.toMatch(/TalkBack/);
+    }
+  });
+
   it("refuses copy over a store's limit", async () => {
     const { storeMetadata } = (await import("./scripts/store-metadata.mjs")) as { storeMetadata: (listing: string) => unknown };
     const long = listing.replace(/(\*\*en — subtitle:\*\*) .*/, "$1 A subtitle far longer than thirty characters");

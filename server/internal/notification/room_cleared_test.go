@@ -146,10 +146,12 @@ func (s *readingSender) Send(ctx context.Context, sub db.PushSubscription, m Pus
 	return s.spySender.Send(ctx, sub, m)
 }
 
-// A read that closes the row while its push is on the way finds no phone
-// mark and writes nothing, so the push lane takes the push it just delivered
-// back out of the Android tray itself. A thread reply, which a room read does
-// not close, is left alone.
+// A read that closes the row while its push is on the way may tell the phone
+// before the push lands there: a chat push claims the row, phone mark
+// included, before it is sent (ClaimChatNotificationPush), so the read writes
+// its own cleared row, and the push lane, once the push it just delivered is
+// in the tray, takes it back out of the Android tray itself. A thread reply,
+// which a room read does not close, is left alone.
 func TestARoomReadDuringThePushClearsWhatTheLaneJustSent(t *testing.T) {
 	f, chat, dm := roomFixture(t)
 	sendDM(t, f, chat, dm, "chào")
@@ -163,8 +165,8 @@ func TestARoomReadDuringThePushClearsWhatTheLaneJustSent(t *testing.T) {
 	if err := NewPushConsumer(f.q, spy, "http://app.test").Handle(f.ctx, push); err != nil {
 		t.Fatal(err)
 	}
-	if after := f.events(t, TopicRoomNotificationsCleared); len(after) != before {
-		t.Fatalf("the read wrote %d cleared rows before any phone was marked", len(after)-before)
+	if after := f.events(t, TopicRoomNotificationsCleared); len(after) != before+1 {
+		t.Fatalf("the read wrote %d cleared rows, want 1 for the phone the claim marked", len(after)-before)
 	}
 	if n := f.notificationOf(t, push); !n.PhonePushedAt.Valid || !n.ReadAt.Valid {
 		t.Fatalf("phone_pushed_at %v, read_at %v; want both", n.PhonePushedAt, n.ReadAt)

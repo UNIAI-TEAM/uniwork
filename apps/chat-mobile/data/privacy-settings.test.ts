@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { installReportSink } from "./report";
-import { PRIVACY_READ_CAP_MS, createPrivacySettings } from "./privacy-settings";
+import { PRIVACY_READ_CAP_MS, createPrivacySettings, savedAppLockOn } from "./privacy-settings";
 
 const ON = { appLock: true, relockAfterMs: 0, screenSecurity: true, usageStats: false } as const;
 const OFF = { appLock: false, relockAfterMs: 60_000, screenSecurity: false, usageStats: true } as const;
@@ -175,5 +175,25 @@ describe("createPrivacySettings", () => {
       expect(privacy.store.getState().floor).toEqual(LOCK);
       expect(d.write).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("savedAppLockOn", () => {
+  const never = () => new Promise<void>(() => undefined);
+
+  it("reads the lock as saved on the phone: the person's choice raised to the organization's floor", async () => {
+    expect(await savedAppLockOn(async () => JSON.stringify(ON), never)).toBe(true);
+    expect(await savedAppLockOn(async () => JSON.stringify(OFF), never)).toBe(false);
+    expect(await savedAppLockOn(async () => null, never)).toBe(false);
+    expect(await savedAppLockOn(async () => JSON.stringify({ ...OFF, floor: { appLock: true, screenSecurity: false } }), never)).toBe(true);
+    // The capture block alone is no lock.
+    expect(await savedAppLockOn(async () => JSON.stringify({ ...OFF, screenSecurity: true, floor: { appLock: false, screenSecurity: true } }), never)).toBe(false);
+  });
+
+  it("reads a Keychain that fails or never answers as locked: a reply refused costs less than one sent past the lock", async () => {
+    expect(await savedAppLockOn(() => Promise.reject(new Error("keychain")), never)).toBe(true);
+    const wait = vi.fn(async (_ms: number) => undefined);
+    expect(await savedAppLockOn(() => new Promise<string | null>(() => undefined), wait)).toBe(true);
+    expect(wait).toHaveBeenCalledWith(PRIVACY_READ_CAP_MS);
   });
 });

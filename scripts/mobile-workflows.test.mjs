@@ -9,7 +9,7 @@ import { MOBILE_PATHS } from "./mobile-native-scope.mjs";
 import { ABI } from "./mobile-ftl-devices.mjs";
 import { JOBS as GATE_JOBS } from "./mobile-verify-gate.mjs";
 import { REQUIRED_DEX_CLASSES } from "./mobile-apk-scan.mjs";
-import { fakeDex } from "./mobile-apk-scan.fixture.mjs";
+import { fakeDex, protoXml } from "./mobile-apk-scan.fixture.mjs";
 
 // The release path of UniChat mobile (docs/runbooks/unichat-mobile-release.md,
 // ADR 0043): what the four workflows promise, held so an edit cannot quietly
@@ -236,7 +236,7 @@ test("the production build is verified, built from a main tag once, proved in Se
 });
 
 // Audit "Security & privacy", no-ci-binary-security-scan: the AAB that would be submitted is scanned first.
-test("the production AAB is scanned for credentials before it is submitted", () => {
+test("the production AAB is scanned for credentials, its manifest and its permissions before it is submitted", () => {
   const wf = read("chat-mobile-production.yml");
   const order = ["- id: build", "- name: Security scan of the built bundle", "- name: Submit this binary"].map((step) => wf.indexOf(step));
   assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), "build, then scan, then submit");
@@ -246,12 +246,32 @@ test("the production AAB is scanned for credentials before it is submitted", () 
     const bin = path.join(dir, "bin");
     fs.mkdirSync(bin);
     fs.writeFileSync(path.join(bin, "curl"), '#!/bin/sh\nwhile [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2;; *) shift;; esac; done\ncp "$FAKE_AAB" "$out"\n', { mode: 0o755 });
+    const reviewed = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/android-permissions.json"), "utf8")).permissions;
+    const bundleManifest = {
+      tag: "manifest",
+      attrs: { package: "com.uniworkos.chat" },
+      children: [
+        ...reviewed.map((entry) => ({
+          tag: entry.tag ?? "uses-permission",
+          attrs: {
+            "android:name": entry.name.replace("{package}", "com.uniworkos.chat"),
+            ...(entry.minSdkVersion ? { "android:minSdkVersion": String(entry.minSdkVersion) } : {}),
+            ...(entry.maxSdkVersion ? { "android:maxSdkVersion": String(entry.maxSdkVersion) } : {}),
+          },
+        })),
+        // The TLS pin-set every release binary carries (scripts/mobile-apk-scan.mjs › unpinned).
+        { tag: "application", attrs: { "android:allowBackup": "false", "android:networkSecurityConfig": "" } },
+      ],
+    };
     const aab = (name, bundle) => {
       const src = path.join(dir, name);
       fs.mkdirSync(path.join(src, "base", "assets"), { recursive: true });
       fs.writeFileSync(path.join(src, "base", "assets", "index.android.bundle"), bundle);
       fs.mkdirSync(path.join(src, "base", "dex"));
       fs.writeFileSync(path.join(src, "base", "dex", "classes.dex"), fakeDex(REQUIRED_DEX_CLASSES.map((entry) => entry.descriptor)));
+      // A manifest that asks for exactly the reviewed permissions (apps/chat-mobile/android-permissions.json).
+      fs.mkdirSync(path.join(src, "base", "manifest"));
+      fs.writeFileSync(path.join(src, "base", "manifest", "AndroidManifest.xml"), protoXml(bundleManifest));
       execFileSync("zip", ["-qr", "../" + name + ".aab", "base"], { cwd: src });
       return path.join(dir, `${name}.aab`);
     };
@@ -786,6 +806,24 @@ test("every Maestro run in the mobile workflows goes through scripts/maestro-ret
     runs += [...wf.matchAll(/\$\{\{ github\.workspace \}\}\/scripts\/maestro-retry\.sh (?:test|--device)/g)].length;
   }
   assert.ok(runs >= 13, `found ${runs} wrapped runs`);
+});
+
+// Audit "Security & privacy", no-pinning-or-attestation: the pins no OTA can change are checked against the live
+// chains every day and on every PR that touches them or the hosts the deploy names (runbook unichat-tls-pins).
+test("the TLS pins are checked against the live chains daily and on every PR that touches them, reading no secret", () => {
+  const wf = read("chat-mobile-tls-pins.yml");
+  assert.match(wf, /^ {2}schedule:\n {4}- cron: "\d+ \d+ \* \* \*"$/m, "daily");
+  assert.match(wf, /^ {2}workflow_dispatch:$/m);
+  const paths = [...(wf.match(/^ {2}pull_request:\n {4}paths:\n((?: {6}- .+\n)+)/m)?.[1] ?? "").matchAll(/- (\S+)/g)].map((m) => m[1]);
+  for (const file of ["apps/chat-mobile/tls-pins.json", "apps/chat-mobile/certs/tls-pins/**", "apps/chat-mobile/plugins/with-tls-pins.js", "scripts/mobile-tls-pins.mjs", "deploy/app/env/uniwork-be.env", ".github/workflows/chat-mobile-tls-pins.yml"]) {
+    assert.ok(paths.includes(file), `a PR touching ${file} runs the check`);
+  }
+  assert.match(wf, /run: node --test scripts\/mobile-tls-pins\.test\.mjs\n/, "the contract on the committed pins");
+  assert.match(wf, /run: node scripts\/mobile-tls-pins\.mjs$/m, "the live check, failing the job on a missing pin");
+  assert.match(wf, /- uses: actions\/checkout@v4\n {8}with:\n {10}fetch-depth: 0\n/, "every chat-mobile-v* tag: the pin-sets of the binaries in the field are checked too");
+  assert.ok(paths.includes("deploy/**/*.yaml") && paths.includes("deploy/**/*.yml"), "a PR that changes a cert-manager issuer runs the issuer contract");
+  assert.doesNotMatch(wf, /secrets\.|vars\./, "a fork's PR can run it");
+  assert.doesNotMatch(wf, /continue-on-error/, "a missing pin is red");
 });
 
 // A contract test that no workflow runs holds nothing: every mobile one is in the checks job's step.

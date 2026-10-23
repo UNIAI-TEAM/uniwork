@@ -49,3 +49,8 @@ b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.
 a06ec2f47eae0845a2a72de4f0c343e1c8522710:server/internal/notification/chat_call_voip_test.go:generic-api-key:65
 a06ec2f47eae0845a2a72de4f0c343e1c8522710:server/internal/notification/push_apns_test.go:generic-api-key:30
 770a35260973d4860be8adb139cc4b273634cc6e:server/internal/notification/chat_call_voip_test.go:generic-api-key:248
+# The squash of #432 (c6f478d66) carried the same three PushKit test tokens. The
+# tests now use one-digit runs, so no later commit brings them back.
+c6f478d6696a1829634d45575b8b7a736f16f0fb:server/internal/notification/chat_call_voip_test.go:generic-api-key:67
+c6f478d6696a1829634d45575b8b7a736f16f0fb:server/internal/notification/chat_call_voip_test.go:generic-api-key:248
+c6f478d6696a1829634d45575b8b7a736f16f0fb:server/internal/notification/push_apns_test.go:generic-api-key:30

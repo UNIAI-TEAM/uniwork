@@ -37,7 +37,10 @@ type Deps struct {
 	GoogleAuth    *service.GoogleAuthService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
-	Google              GoogleExchanger
+	Google GoogleExchanger
+	// AppleAuth is nil unless APPLE_SIWA_AUDIENCES is set: the native Sign in
+	// with Apple route answers 503 and /auth/providers reports apple=false.
+	AppleAuth           *service.AppleAuthService
 	Organizations       *service.OrganizationService
 	OrgMembers          *service.OrganizationMemberService
 	People              *service.PeopleService
@@ -304,6 +307,7 @@ func New(d Deps) http.Handler {
 		AuthProviders:         h.authProviders,
 		GoogleStart:           h.googleStart,
 		GoogleCallback:        h.googleCallback,
+		AppleSignIn:           h.appleSignIn,
 		DesktopStart:          h.desktopStart,
 		DesktopConsent:        h.desktopConsent,
 		DesktopConsentCommand: h.desktopConsentCommand,

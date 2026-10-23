@@ -8,7 +8,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConfigContext } from "expo/config";
 import { createRequire } from "node:module";
-import createConfig, { ANDROID_KEEP_RULES, iosCallsBuilt, tlsPinning } from "./app.config";
+import createConfig, { ANDROID_KEEP_RULES, iosCallsBuilt, tlsPinning, type TlsPins } from "./app.config";
 
 const build = (projectRoot?: string) => createConfig({ config: {}, projectRoot } as ConfigContext);
 
@@ -17,6 +17,11 @@ const build = (projectRoot?: string) => createConfig({ config: {}, projectRoot }
 const stubServers = () => {
   vi.stubEnv("UNICHAT_API_URL", "https://api.example");
   vi.stubEnv("UNICHAT_APP_URL", "https://app.example");
+};
+// On the EAS builder a release variant's servers must be hosts tls-pins.json pins.
+const stubPinnedServers = () => {
+  vi.stubEnv("UNICHAT_API_URL", "https://uniworkos.com");
+  vi.stubEnv("UNICHAT_APP_URL", "https://uniworkos.com");
 };
 
 afterEach(() => vi.unstubAllEnvs());
@@ -83,6 +88,8 @@ describe("app.config per UNICHAT_ENV", () => {
           expect.objectContaining({ image: "./assets/adaptive-icon.png", backgroundColor: "#ffffff", dark: expect.objectContaining({ backgroundColor: "#111111" }) }),
         ],
         "expo-secure-store",
+        // Sign in with Apple's entitlement (com.apple.developer.applesignin) on the iOS binary (ADR 0041).
+        "expo-apple-authentication",
         // A one-colour status-bar glyph with the brand's accent; the call notifications use the same drawable.
         ["expo-notifications", { icon: "./assets/notification-icon.png", color: "#0044E3" }],
         [
@@ -102,6 +109,8 @@ describe("app.config per UNICHAT_ENV", () => {
           },
         ],
         "@livekit/react-native-expo-plugin",
+        // The outbox's scheduled drain on iOS: its BGTask identifier and the processing mode.
+        "expo-background-task",
         // org, project and token stay in the build env: they must not move the fingerprint
         ["@sentry/react-native/expo", { url: "https://sentry.io/" }],
       ]),
@@ -168,6 +177,8 @@ describe("app.config per UNICHAT_ENV", () => {
       "android.permission.WRITE_EXTERNAL_STORAGE",
       // expo-screen-capture's screenshot listener before Android 14, which UniChat does not use.
       "android.permission.READ_MEDIA_IMAGES",
+      // installreferrer, through expo-application: UniChat never asks how it was installed.
+      "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
     ]);
     // Blocking it killed the app at launch on Android 14+: the module registers its capture callback when created.
     expect(config.android?.blockedPermissions).not.toContain("android.permission.DETECT_SCREEN_CAPTURE");
@@ -282,8 +293,9 @@ describe("EAS project and release servers", () => {
   it("refuses a production store build that would accept unsigned updates", () => {
     vi.stubEnv("UNICHAT_ENV", "production");
     vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
-    stubServers();
+    stubPinnedServers();
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "unichat-config-"));
+    fs.copyFileSync(path.join(__dirname, "tls-pins.json"), path.join(root, "tls-pins.json"));
     try {
       vi.stubEnv("EAS_BUILD", "true");
       expect(() => build(root)).toThrow("certs/eas-update-certificate.pem is required for a production build");
@@ -324,7 +336,7 @@ describe("EAS project and release servers", () => {
     expect(cert.verify(cert.publicKey), "self-signed by its own key, as expo-updates generates it").toBe(true);
     vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
     vi.stubEnv("EAS_BUILD", "true");
-    stubServers();
+    stubPinnedServers();
     for (const env of ["staging", "production"]) {
       vi.stubEnv("UNICHAT_ENV", env);
       expect(build(import.meta.dirname).updates).toMatchObject({ codeSigningCertificate: "./certs/eas-update-certificate.pem", codeSigningMetadata: { keyid: "main" } });
@@ -414,8 +426,8 @@ describe("EAS project and release servers", () => {
   });
 });
 
-// Audit (Security & privacy, no-pinning-or-attestation): pinning is ready for a release build to switch on from its
-// environment, and refuses any half of it that would leave phones unable to reach their server.
+// Audit (Security & privacy, no-pinning-or-attestation): every staging and production build pins the CA keys committed in
+// tls-pins.json, and refuses any half of it that would leave phones unable to reach their server.
 describe("TLS pinning", () => {
   const PIN_A = "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=";
   const PIN_B = "YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=";
@@ -426,70 +438,72 @@ describe("TLS pinning", () => {
   };
   const pinsPlugin = (config: ReturnType<typeof build>) =>
     (config.plugins ?? []).find((p): p is [string, { domains: string[]; pins: string[]; expiration: string }] => Array.isArray(p) && p[0] === "./plugins/with-tls-pins")?.[1];
+  const committed = JSON.parse(fs.readFileSync(path.join(__dirname, "tls-pins.json"), "utf8")) as TlsPins;
+  const file = (over: Partial<TlsPins> = {}): TlsPins => ({
+    expires: "2099-01-01",
+    pins: [
+      { sha256: PIN_A, ca: "Root A", operator: "CA One", certificate: "a.pem" },
+      { sha256: PIN_B, ca: "Root B", operator: "CA Two", certificate: "b.pem" },
+    ],
+    hosts: { staging: ["staging.example"], production: ["api.example", "livekit.example:7880"] },
+    ...over,
+  });
+  const NOW = new Date("2026-10-23T00:00:00Z");
 
-  it("pins nothing unless the build's environment names the pins", () => {
-    vi.stubEnv("UNICHAT_ENV", "production");
-    stubServers();
-    vi.stubEnv("UNICHAT_TLS_PINS", undefined);
-    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", undefined);
+  it("pins every staging and production build with the committed file, and never a dev build", () => {
+    vi.stubEnv("UNICHAT_ENV", "dev");
     expect(pinsPlugin(build())).toBeUndefined();
-  });
-
-  it("pins the API and web hosts with every pin, and an expiry for Android", () => {
-    vi.stubEnv("UNICHAT_ENV", "production");
-    vi.stubEnv("UNICHAT_API_URL", "https://api.uniworkos.com");
-    vi.stubEnv("UNICHAT_APP_URL", "https://app.uniworkos.com");
-    vi.stubEnv("UNICHAT_TLS_PINS", ` ${PIN_A}, ${PIN_B} ,${PIN_A}`);
-    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", "2099-01-01");
-    expect(pinsPlugin(build())).toEqual({ domains: ["api.uniworkos.com", "app.uniworkos.com"], pins: [PIN_A, PIN_B], expiration: "2099-01-01" });
-  });
-
-  // Audit "Security & privacy", tls-pinning-off: the LiveKit signalling host carries the call's join token, so it
-  // is pinned with the API and the web app when the build names it.
-  it("adds the hosts UNICHAT_TLS_PIN_HOSTS names (the LiveKit signalling host), and refuses one that is not a host", () => {
-    vi.stubEnv("UNICHAT_ENV", "production");
-    vi.stubEnv("UNICHAT_API_URL", "https://api.uniworkos.com");
-    vi.stubEnv("UNICHAT_APP_URL", "https://app.uniworkos.com");
-    vi.stubEnv("UNICHAT_TLS_PINS", `${PIN_A},${PIN_B}`);
-    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", "2099-01-01");
-    vi.stubEnv("UNICHAT_TLS_PIN_HOSTS", " livekit.uniworkos.com , api.uniworkos.com,");
-    expect(pinsPlugin(build())?.domains).toEqual(["api.uniworkos.com", "app.uniworkos.com", "livekit.uniworkos.com"]);
-    for (const bad of ["wss://livekit.uniworkos.com", "livekit.uniworkos.com:7880", "*.uniworkos.com", "live kit"]) {
-      vi.stubEnv("UNICHAT_TLS_PIN_HOSTS", bad);
-      expect(build).toThrow("UNICHAT_TLS_PIN_HOSTS");
+    for (const env of ["staging", "production"] as const) {
+      vi.stubEnv("UNICHAT_ENV", env);
+      stubServers();
+      expect(pinsPlugin(build())).toEqual({
+        domains: committed.hosts[env]!.map((host) => host.replace(/:\d+$/, "")),
+        pins: committed.pins.map((pin) => pin.sha256),
+        expiration: committed.expires,
+      });
     }
   });
 
-  it("refuses hosts to pin without pins", () => {
+  // The fingerprint is the native runtime OTAs are matched to: the pins come from the committed file only, never
+  // from a URL of the build's environment, so the OTA workflow and the EAS builder compute the same one.
+  it("takes the pinned hosts from the file, not from the servers' URLs", () => {
     vi.stubEnv("UNICHAT_ENV", "production");
-    stubServers();
-    vi.stubEnv("UNICHAT_TLS_PINS", undefined);
-    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", undefined);
-    vi.stubEnv("UNICHAT_TLS_PIN_HOSTS", "livekit.uniworkos.com");
-    expect(build).toThrow("at least two pins");
+    vi.stubEnv("UNICHAT_API_URL", "https://elsewhere.example");
+    vi.stubEnv("UNICHAT_APP_URL", "https://elsewhere.example");
+    expect(pinsPlugin(build())?.domains).toEqual(committed.hosts.production!.map((host) => host.replace(/:\d+$/, "")));
+  });
+
+  it("strips the port, lowercases and de-duplicates the hosts, and keeps the pins in order", () => {
+    const pinning = tlsPinning("production", [], file({ hosts: { production: ["API.example", "livekit.example:7880", "api.example:443"] } }), NOW, false);
+    expect(pinning).toEqual({ domains: ["api.example", "livekit.example"], pins: [PIN_A, PIN_B], expiration: "2099-01-01" });
+    expect(tlsPinning("dev", [], file(), NOW, false)).toBeNull();
   });
 
   it.each([
-    ["one pin, no backup", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=", "2099-01-01", "at least two pins"],
-    ["a value that is not a SHA-256", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,not-a-pin", "2099-01-01", "not a base64 SHA-256"],
-    ["no expiry", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=", "", "must be a date"],
-    ["an expiry that is no date", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=", "2099-13-45", "must be a date"],
-    ["an expiry in the past", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=", "2020-01-01", "in the past"],
-    ["an expiry without pins", "", "2099-01-01", "at least two pins"],
-  ])("refuses %s", (_label, pins, expires, message) => {
-    vi.stubEnv("UNICHAT_ENV", "production");
-    stubServers();
-    vi.stubEnv("UNICHAT_TLS_PINS", pins);
-    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", expires);
-    expect(build).toThrow(message);
+    ["one pin, no backup", file({ pins: file().pins.slice(0, 1) }), "at least two pins"],
+    ["a value that is not a SHA-256", file({ pins: [...file().pins, { sha256: "not-a-pin", ca: "X", operator: "CA Three", certificate: "x.pem" }] }), "not a base64 SHA-256"],
+    ["every pin from one CA operator", file({ pins: file().pins.map((pin) => ({ ...pin, operator: "CA One" })) }), "two CA operators"],
+    ["no expiry", file({ expires: "" }), "must be a date"],
+    ["an expiry that is no date", file({ expires: "2099-13-45" }), "must be a date"],
+    ["no host for the variant", file({ hosts: { staging: ["staging.example"] } }), "no hosts for production"],
+    ["a host with a scheme", file({ hosts: { production: ["wss://livekit.example"] } }), "not a hostname"],
+    ["a wildcard host", file({ hosts: { production: ["*.example"] } }), "not a hostname"],
+    ["a host with a bad port", file({ hosts: { production: ["api.example:99999"] } }), "not a hostname"],
+  ])("refuses %s, wherever the config is read", (_label, pins, message) => {
+    expect(() => tlsPinning("production", [], pins, NOW, false)).toThrow(message);
   });
 
-  it("never pins a dev build, and needs hosts to pin", () => {
-    vi.stubEnv("UNICHAT_TLS_PINS", `${PIN_A},${PIN_B}`);
-    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", "2099-01-01");
-    expect(() => tlsPinning("dev", ["localhost"])).toThrow("staging and production");
-    expect(() => tlsPinning("production", ["", ""])).toThrow("name the hosts");
-    expect(tlsPinning("staging", ["api.example", "api.example"])?.domains).toEqual(["api.example"]);
+  // An expired pin-set or an unpinned server is a broken store binary, refused on the EAS builder; everywhere else
+  // (CI's placeholder builds, the OTA workflow's fingerprint, these tests) the config still reads, and the scheduled
+  // check (scripts/mobile-tls-pins.mjs) is what turns red.
+  it("refuses, on the EAS builder only, an expired pin-set and a server host the file does not pin", () => {
+    const expired = file({ expires: "2026-10-01" });
+    expect(() => tlsPinning("production", [], expired, NOW, true)).toThrow("in the past");
+    expect(tlsPinning("production", [], expired, NOW, false)?.expiration).toBe("2026-10-01");
+    expect(() => tlsPinning("production", ["api.example", "app.example"], file(), NOW, true)).toThrow("app.example is not pinned");
+    expect(() => tlsPinning("staging", ["API.example"], file(), NOW, true)).toThrow("hosts.staging");
+    expect(tlsPinning("production", ["API.example", "", "livekit.example"], file(), NOW, true)?.domains).toEqual(["api.example", "livekit.example"]);
+    expect(tlsPinning("production", ["app.example"], file(), NOW, false)?.domains).toEqual(["api.example", "livekit.example"]);
   });
 
   it("writes an Android pin-set with its expiry and refuses cleartext, and iOS pinned CA identities", () => {
@@ -506,6 +520,7 @@ describe("TLS pinning", () => {
     });
   });
 });
+
 
 describe("fingerprint.config.js", () => {
   // extra (URLs, DSN, project id) is read by JavaScript from the update's own
@@ -536,14 +551,14 @@ describe("fingerprint.config.js", () => {
   });
 });
 
-// Audit "ios-dormant-calls-bg-audio" (Apple 2.5.4, 2.3.1): calls are off on iPhone until CallKit and PushKit ship, so an
-// iPhone binary declares no background audio a reviewer could not exercise, and no server switch can turn calling on
-// in a binary reviewed without it.
+// Audit "ios-dormant-calls-bg-audio" (Apple 2.5.4, 2.3.1): an iPhone binary declares no background audio or VoIP a
+// reviewer could not exercise, and no server switch can turn calling on in a binary reviewed without it. Calls on
+// iPhone (CallKit and PushKit, docs/adr/0038) are a build made with UNICHAT_IOS_CALLS=1.
 describe("calls on iPhone are a build capability", () => {
-  const withIosModule = () => {
+  const withModule = (platforms: string[]) => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "unichat-ios-calls-"));
     fs.mkdirSync(path.join(root, "modules/unichat-calls"), { recursive: true });
-    fs.writeFileSync(path.join(root, "modules/unichat-calls/expo-module.config.json"), JSON.stringify({ platforms: ["android", "ios"] }));
+    fs.writeFileSync(path.join(root, "modules/unichat-calls/expo-module.config.json"), JSON.stringify({ platforms }));
     return root;
   };
 
@@ -555,18 +570,24 @@ describe("calls on iPhone are a build capability", () => {
     expect(config.plugins).toContainEqual(["./plugins/with-unichat-calls", { iosCalls: false }]);
   });
 
-  it("refuses UNICHAT_IOS_CALLS=1 while the call module has no iOS half", () => {
+  it("refuses UNICHAT_IOS_CALLS=1 where the call module has no iOS half", () => {
     vi.stubEnv("UNICHAT_IOS_CALLS", "1");
-    expect(() => build()).toThrow(/CallKit/);
-    expect(() => iosCallsBuilt(__dirname)).toThrow(/CallKit/);
+    expect(() => build(withModule(["android"]))).toThrow(/CallKit/);
+    expect(() => iosCallsBuilt(withModule(["android"]))).toThrow(/CallKit/);
   });
 
-  it("declares background audio and tells the app once the module ships iOS", () => {
+  it("allows it now that the call module ships its iOS half", () => {
     vi.stubEnv("UNICHAT_IOS_CALLS", "1");
-    const config = build(withIosModule());
-    expect(config.ios?.infoPlist?.UIBackgroundModes).toEqual(["audio"]);
-    expect(config.extra?.iosCalls).toBe(true);
-    expect(config.plugins).toContainEqual(["./plugins/with-unichat-calls", { iosCalls: true }]);
+    expect(iosCallsBuilt(__dirname)).toBe(true);
+  });
+
+  it("declares background audio and VoIP and tells the app once the module ships iOS", () => {
+    vi.stubEnv("UNICHAT_IOS_CALLS", "1");
+    for (const config of [build(withModule(["android", "ios"])), build()]) {
+      expect(config.ios?.infoPlist?.UIBackgroundModes).toEqual(["audio", "voip"]);
+      expect(config.extra?.iosCalls).toBe(true);
+      expect(config.plugins).toContainEqual(["./plugins/with-unichat-calls", { iosCalls: true }]);
+    }
   });
 
   it("is set by no EAS profile", () => {
@@ -575,8 +596,10 @@ describe("calls on iPhone are a build capability", () => {
   });
 
   // The Info.plist expo prebuild writes, after every plugin (expo-audio, expo-task-manager and expo-notifications
-  // each add a mode for features UniChat keeps off): nothing in the release build.
-  it("leaves the release Info.plist without any background mode", { timeout: 120_000 }, () => {
+  // each add a mode for features UniChat keeps off): only `processing`, for the outbox's scheduled drain
+  // (expo-background-task's BGProcessingTask, data/outbox-drain/background-send.ts), with the one task identifier it
+  // registers at launch (an identifier missing here makes iOS refuse the registration and stop the app).
+  it("leaves the release Info.plist with the outbox's processing mode only", { timeout: 120_000 }, () => {
     const out = execFileSync(process.execPath, [createRequire(__filename).resolve("expo/bin/cli"), "config", "--type", "introspect", "--json"], {
       cwd: __dirname,
       encoding: "utf8",
@@ -585,7 +608,22 @@ describe("calls on iPhone are a build capability", () => {
       env: { ...process.env, UNICHAT_ENV: "production", UNICHAT_API_URL: "https://api.example.invalid", UNICHAT_APP_URL: "https://app.example.invalid", UNICHAT_IOS_CALLS: "", EAS_BUILD: "", EXPO_NO_TELEMETRY: "1", EXPO_OFFLINE: "1" },
     });
     const plist = (JSON.parse(out) as { ios: { infoPlist: Record<string, unknown> } }).ios.infoPlist;
-    expect(plist.UIBackgroundModes).toBeUndefined();
+    expect(plist.UIBackgroundModes).toEqual(["processing"]);
+    expect(plist.BGTaskSchedulerPermittedIdentifiers).toEqual(["com.expo.modules.backgroundtask.processing"]);
+  });
+
+  // The same Info.plist of a build with calls: PushKit's `voip` and the call's `audio` beside `processing`, nothing
+  // else (ios/CallCenter.swift starts only where `voip` is declared).
+  it("leaves the release Info.plist of a build with calls with voip and audio added", { timeout: 120_000 }, () => {
+    const out = execFileSync(process.execPath, [createRequire(__filename).resolve("expo/bin/cli"), "config", "--type", "introspect", "--json"], {
+      cwd: __dirname,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 16 * 1024 * 1024,
+      env: { ...process.env, UNICHAT_ENV: "production", UNICHAT_API_URL: "https://api.example.invalid", UNICHAT_APP_URL: "https://app.example.invalid", UNICHAT_IOS_CALLS: "1", EAS_BUILD: "", EXPO_NO_TELEMETRY: "1", EXPO_OFFLINE: "1" },
+    });
+    const plist = (JSON.parse(out) as { ios: { infoPlist: { UIBackgroundModes: string[] } } }).ios.infoPlist;
+    expect([...plist.UIBackgroundModes].sort()).toEqual(["audio", "processing", "voip"]);
   });
 });
 
@@ -593,11 +631,12 @@ describe("calls on iPhone are a build capability", () => {
 // R8 is on for every release build: a class native code finds by name and no library rule keeps is gone from the
 // dex, and the app dies at launch (0.3.0 (11) lost WebRTC's livekit.org.jni_zero.JniInit this way).
 describe("R8 keep rules", () => {
-  it("keep what native code finds by name: Nitro, the calls module and WebRTC's relocated jni_zero", () => {
+  it("keep what native code finds by name: Nitro, the app's modules and WebRTC's relocated jni_zero", () => {
     expect(ANDROID_KEEP_RULES.split("\n")).toEqual(
       expect.arrayContaining([
         "-keep class com.margelo.nitro.** { *; }",
         "-keep class expo.modules.unichatcalls.** { *; }",
+        "-keep class expo.modules.unichatbackground.** { *; }",
         "-keep class livekit.org.jni_zero.** { *; }",
       ]),
     );

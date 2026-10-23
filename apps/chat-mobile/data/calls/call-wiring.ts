@@ -1,4 +1,4 @@
-// Wires the native call support (docs/adr/drafts/0038) to the app: the
+// Wires the native call support (docs/adr/0038) to the app: the
 // pieces in this folder hold the policy and are tested on their own; this
 // file hands them the real call engine, session, socket-free API, i18n,
 // AppState and the native module.
@@ -26,7 +26,7 @@ import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
 import { AppRegistry, AppState, PermissionsAndroid, Platform } from "react-native";
 import { callPushFromData, ringLatencyMs, taskPayloadData } from "@/lib/call-push";
-import { chatNotificationAction } from "@/lib/chat-notification";
+import { chatNotificationAction, isQuietPush } from "@/lib/chat-notification";
 import { roomReadPushFromData, type RoomReadPush } from "@/lib/room-read-push";
 import { i18n } from "@/lib/i18n/singleton";
 import { showInForeground } from "@/lib/notification-presentation";
@@ -132,7 +132,10 @@ async function clearReadRoom(push: RoomReadPush): Promise<void> {
  */
 export async function runCallPushTask(payload: unknown): Promise<void> {
   const chatAction = chatNotificationAction(payload);
-  if (chatAction) return runChatNotificationAction(chatAction);
+  if (chatAction) {
+    await runChatNotificationAction(chatAction);
+    return;
+  }
   const data = taskPayloadData(payload);
   const roomRead = roomReadPushFromData(data);
   if (roomRead) return clearReadRoom(roomRead).catch(bestEffort("push", "read room's notifications not cleared", "breadcrumb"));
@@ -194,7 +197,8 @@ export const nativeCallSync = createNativeCallSync({
 /**
  * A push that arrives while UniChat is open: quiet when it is about the
  * workspace on screen (a call there rings in the app; the pending list picks
- * up one the socket missed), a banner with sound otherwise.
+ * up one the socket missed), a banner with sound otherwise — without it for a
+ * chat follow-up the server sent quietly (lib/chat-notification.ts › isQuietPush).
  */
 export async function foregroundBehavior(data: unknown): Promise<Notifications.NotificationBehavior> {
   const workspace = callEngine.contextWorkspaceId() ? getCurrentWorkspace() : null;
@@ -202,7 +206,7 @@ export async function foregroundBehavior(data: unknown): Promise<Notifications.N
   if (!show && callPushFromData(data)?.type === "call_invite" && readMobileFlag(queryClient, "unichat_mobile_calls")) {
     void callEngine.syncPendingInvites();
   }
-  return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: false };
+  return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show && !isQuietPush(data), shouldSetBadge: false };
 }
 
 /**
