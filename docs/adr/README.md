@@ -73,7 +73,9 @@ do quản trị tổ chức đặt là hướng mở rộng). Giữ số 0034.
 
 [0043](0043-cong-chat-luong-mobile-chan-o-moi-muc.md) (cổng chất lượng mobile, UNI-2053) được chấp nhận
 ngày 2026-10-21 với số 0037, đổi thành 0043 khi merge develop vì 0037 đã là thư mục workspace (UNI-2055);
-0038–0041 vẫn giữ cho các bản nháp bên dưới.
+0039–0041 vẫn giữ cho các bản nháp bên dưới. Số 0038 đã thuộc về agent họp
+([0038](0038-agent-hop-goi-stt-truc-tiep-llm-qua-gateway.md), UNI-1995), nên bản nháp
+`drafts/0038-cuoc-goi-native-…` nhận số 0044 khi được chấp nhận.
 
 `drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md` (UNI-2053 S4, 2026-10-21, `proposed`):
 cuộc gọi native trên Android (CallStyle, full-screen intent, foreground service, push data-only và
