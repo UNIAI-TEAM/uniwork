@@ -84,11 +84,17 @@ function posts(suffix: string): { path: string; body: unknown }[] {
     .map((c) => ({ path: String(c[0]), body: (c[1] as { body?: unknown } | undefined)?.body }));
 }
 
-function renderSection(props: { canClerk?: boolean; projectId?: string } = {}) {
+function renderSection(props: { canClerk?: boolean; projectId?: string; aiRestricted?: boolean } = {}) {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
-        <MeetingActionItemsSection workspaceId="w1" meetingId="m1" canClerk={props.canClerk ?? true} projectId={props.projectId} />
+        <MeetingActionItemsSection
+          workspaceId="w1"
+          meetingId="m1"
+          canClerk={props.canClerk ?? true}
+          projectId={props.projectId}
+          aiRestricted={props.aiRestricted}
+        />
       </WorkspaceProvider>,
     ),
   );
@@ -122,6 +128,15 @@ describe("MeetingActionItemsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: /Đã bỏ qua \(1\)/ }));
     expect(await screen.findByText("In tài liệu")).toBeInTheDocument();
     expect(screen.getByText("Lý do: Đã có bản in")).toBeInTheDocument();
+  });
+
+  // UNI-1995 access review: the items stay with the workspace, the lines they cite do not.
+  it("shows a member outside the meeting the items without their evidence chips", async () => {
+    renderSection({ canClerk: false, aiRestricted: true });
+    expect(await screen.findByText("Gửi biên bản")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Đã giao (1)" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Căn cứ \d/ })).not.toBeInTheDocument();
+    expect(requestMock.mock.calls.some((c) => String(c[0]).includes("/evidence"))).toBe(false);
   });
 
   it("labels an item the AI scribe heard during the meeting as the scribe's, with its time", async () => {

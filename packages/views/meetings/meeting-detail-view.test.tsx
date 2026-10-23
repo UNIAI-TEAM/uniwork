@@ -507,10 +507,19 @@ describe("MeetingDetailView", () => {
           meeting: { ...meeting, host_user_id: "u-other", status: "ENDED", ai_content_readable: false },
         });
       }
+      if (p.endsWith("/action-items")) {
+        return Promise.resolve({
+          items: [{ id: "a0", source: "AI", title: "Gửi biên bản", status: "PENDING", evidence: [{ kind: "segment", id: "g1" }] }],
+          counts: { pending: 1, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 },
+        });
+      }
       return Promise.resolve({});
     });
     render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
     expect(await screen.findByTestId("meeting-ai-restricted")).toBeInTheDocument();
+    // The action items stay with the workspace; the lines they cite do not.
+    expect(await screen.findByText("Gửi biên bản")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Căn cứ \d/ })).not.toBeInTheDocument();
     expect(asked.some((p) => p.endsWith("/transcript") || p.endsWith("/summary"))).toBe(false);
   });
 

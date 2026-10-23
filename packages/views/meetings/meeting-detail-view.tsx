@@ -331,6 +331,7 @@ export function MeetingDetailView({
                     meetingId={meeting.id}
                     projectId={meeting.project_id}
                     canClerk={isClerk}
+                    aiRestricted={aiRestricted}
                   />
                 </div>
               ) : null}
