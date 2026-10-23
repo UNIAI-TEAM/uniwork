@@ -1,0 +1,47 @@
+{
+  "$comment": "TLS pins of UniChat's staging and production builds (app.config.ts › tlsPinning, plugins/with-tls-pins.js). Each pin is the base64 SHA-256 of a CA certificate's SubjectPublicKeyInfo, the certificate committed beside it. Android stops enforcing the pin-set after `expires`; iOS never does. A change here is a new store binary: no OTA reaches it. Runbook: docs/runbooks/unichat-tls-pins.md. Checked against the live chains by scripts/mobile-tls-pins.mjs (.github/workflows/chat-mobile-tls-pins.yml).",
+  "expires": "2027-10-31",
+  "warnDays": 60,
+  "pins": [
+    {
+      "sha256": "fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=",
+      "ca": "Root YR",
+      "operator": "ISRG (Let's Encrypt)",
+      "certificate": "certs/tls-pins/isrg-root-yr.pem"
+    },
+    {
+      "sha256": "C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=",
+      "ca": "ISRG Root X1",
+      "operator": "ISRG (Let's Encrypt)",
+      "certificate": "certs/tls-pins/isrg-root-x1.pem"
+    },
+    {
+      "sha256": "sCkq5UWXjg+7mKu9lMhhYF5bGLsy7VI/UNW3tccdR7w=",
+      "ca": "Root YE",
+      "operator": "ISRG (Let's Encrypt)",
+      "certificate": "certs/tls-pins/isrg-root-ye.pem"
+    },
+    {
+      "sha256": "diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=",
+      "ca": "ISRG Root X2",
+      "operator": "ISRG (Let's Encrypt)",
+      "certificate": "certs/tls-pins/isrg-root-x2.pem"
+    },
+    {
+      "sha256": "hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc=",
+      "ca": "GTS Root R1",
+      "operator": "Google Trust Services",
+      "certificate": "certs/tls-pins/gts-root-r1.pem"
+    },
+    {
+      "sha256": "mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=",
+      "ca": "GTS Root R4",
+      "operator": "Google Trust Services",
+      "certificate": "certs/tls-pins/gts-root-r4.pem"
+    }
+  ],
+  "hosts": {
+    "staging": ["uniworkos.com", "livekit.vn247.info:7880", "uniwork.unicomhub.com", "livekit.ubos.vn"],
+    "production": ["uniworkos.com", "livekit.vn247.info:7880"]
+  }
+}

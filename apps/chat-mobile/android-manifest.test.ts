@@ -87,12 +87,13 @@ describe("the release build's Android manifest", () => {
       "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
     ]);
     // Nothing leaves the phone in a backup or a device transfer, and no cleartext exception exists: Android 9+
-    // refuses http:// by default and a release build only knows https:// servers (app.config.ts › serverUrl).
+    // refuses http:// by default, a release build only knows https:// servers (app.config.ts › serverUrl), and its
+    // network security config (the TLS pins, plugins/with-tls-pins.js) refuses cleartext too.
     expect(manifest.application).toEqual({
       allowBackup: "false",
       dataExtractionRules: "@xml/unichat_data_extraction_rules",
       usesCleartextTraffic: "",
-      networkSecurityConfig: "",
+      networkSecurityConfig: "@xml/unichat_network_security_config",
     });
 
     // One foreground service, the call's own (modules/unichat-calls): phoneCall,
@@ -229,12 +230,9 @@ describe("the store listing's permission section", () => {
 });
 
 describe("TLS pinning in the release manifest", () => {
-  // plugins/with-tls-pins.js, switched on by the build's environment (app.config.ts › tlsPinning).
-  it("points the app at its network security config once the pins are set", { timeout: 120_000 }, () => {
-    const manifest = report({
-      UNICHAT_TLS_PINS: "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=",
-      UNICHAT_TLS_PIN_EXPIRES: "2099-01-01",
-    });
+  // plugins/with-tls-pins.js, on for every staging and production build (app.config.ts › tlsPinning, tls-pins.json).
+  it("points the release app at its network security config", { timeout: 120_000 }, () => {
+    const manifest = releaseReport();
     expect(manifest.application.networkSecurityConfig).toBe("@xml/unichat_network_security_config");
     expect(manifest.application.allowBackup).toBe("false");
   });
