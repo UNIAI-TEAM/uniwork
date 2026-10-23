@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/outbox"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -35,8 +36,9 @@ func recapMeeting(ctx context.Context, e env, ev outbox.Row, p map[string]string
 // (follow-1): its active user participants - invitees and the people who
 // joined - who are still workspace members, without the host and the
 // secretaries (they have meeting_summary_ready and the clerk's screens) and
-// without the actor. A meeting-level AI-content gate, when it lands, filters
-// here.
+// without the actor. Each one passes the meeting's AI-content gate
+// (service.AIContentReadable), so a recap never reaches someone the summary
+// page would refuse.
 func recapRecipients(ctx context.Context, e env, ev outbox.Row, m db.Meeting) (*recipients, error) {
 	ps, err := e.q.ListMeetingParticipants(ctx, m.ID)
 	if err != nil {
@@ -50,7 +52,8 @@ func recapRecipients(ctx context.Context, e env, ev outbox.Row, m db.Meeting) (*
 	}
 	r := newRecipients(ctx, e, ev, m.WorkspaceID)
 	for _, pt := range ps {
-		if pt.PrincipalType == "USER" && pt.Status == "ACTIVE" && pt.UserID.Valid && !clerks[pt.UserID.String] {
+		if pt.PrincipalType == "USER" && pt.Status == "ACTIVE" && pt.UserID.Valid && !clerks[pt.UserID.String] &&
+			service.AIContentReadable(m, pt.UserID.String, false, true) {
 			r.add(pt.UserID.String)
 		}
 	}

@@ -48,9 +48,17 @@ func (s *MeetingService) authorizeAIContent(ctx context.Context, userID, meeting
 	return m, nil
 }
 
+// AIContentReadable is the gate's rule once the caller's standing is read:
+// the host, a workspace admin, an ACTIVE user participant, or anyone in the
+// workspace once a clerk shared it. The notification rules that tell people
+// about AI content (the recap) filter through it too.
+func AIContentReadable(m db.Meeting, userID string, wsAdmin, activeParticipant bool) bool {
+	return m.HostUserID == userID || wsAdmin || m.AiContentSharedAt.Valid || activeParticipant
+}
+
 // aiContentReader decides for a caller who already passed authorize.
 func (s *MeetingService) aiContentReader(ctx context.Context, m db.Meeting, mem db.WorkspaceMember, userID string) (bool, error) {
-	if m.HostUserID == userID || isWSAdmin(mem.Role) || m.AiContentSharedAt.Valid {
+	if AIContentReadable(m, userID, isWSAdmin(mem.Role), false) {
 		return true, nil
 	}
 	_, err := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(userID)})
