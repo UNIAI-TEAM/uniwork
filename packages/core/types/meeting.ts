@@ -234,6 +234,25 @@ const SummaryDecisionsSchema = z.array(z.unknown()).transform((raw) =>
   }),
 );
 
+/** A topic of a meeting_summary@7 record: where it starts and its key points. */
+const SummaryTopicSchema = z.object({
+  title: z.string(),
+  /** The transcript segment the topic starts at; null when none is known. */
+  start: EvidenceRefSchema.nullish().catch(null),
+  /** RFC 3339: when that segment was said; null when unknown (and on a summary just created). */
+  start_at: z.string().nullish().catch(null),
+  points: SummaryDecisionsSchema.catch([]),
+});
+export type MeetingSummaryTopic = z.infer<typeof SummaryTopicSchema>;
+
+/** Topics kept one by one: a malformed topic is dropped, not the summary. */
+const SummaryTopicsSchema = z.array(z.unknown()).transform((raw) =>
+  raw.flatMap((t) => {
+    const parsed = SummaryTopicSchema.safeParse(t);
+    return parsed.success ? [parsed.data] : [];
+  }),
+);
+
 export const MeetingSummarySchema = z.object({
   id: z.string(),
   meeting_id: z.string(),
@@ -248,8 +267,28 @@ export const MeetingSummarySchema = z.object({
   partial: z.boolean().optional(),
   /** The transcript was corrected, cut or replaced after this summary was made (UNI-1995 #5). */
   transcript_changed_at: z.string().nullish(),
+  /** meeting_summary@7's topics in the order discussed; empty on an older summary. */
+  topics: SummaryTopicsSchema.catch([]).optional(),
+  /** Questions raised and left open, each with its evidence (meeting_summary@7). */
+  open_questions: SummaryDecisionsSchema.catch([]).optional(),
 });
 export type MeetingSummary = z.infer<typeof MeetingSummarySchema>;
+
+/**
+ * Whether a summary is being made (UNI-1995): running = a model call is under
+ * way, queued = the server will make one (waiting for the last lines or for a
+ * retry after a passing failure), idle = none. An unknown status reads idle.
+ */
+export const MeetingSummaryRunSchema = z
+  .object({
+    status: z.enum(["idle", "queued", "running"]).catch("idle"),
+    /** RFC 3339: when the run started (running) or is due (queued); null when idle. */
+    at: z.string().nullish().catch(null),
+    /** How many times the server has tried the automatic summary. */
+    attempts: z.number().int().nonnegative().catch(0),
+  })
+  .catch({ status: "idle", at: null, attempts: 0 });
+export type MeetingSummaryRun = z.infer<typeof MeetingSummaryRunSchema>;
 
 /** The organization's meeting settings (UNI-2026). */
 export const MeetingSettingsSchema = z.object({

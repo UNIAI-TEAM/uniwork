@@ -67,6 +67,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   onToggleCopilot,
   copilotActive = false,
   copilotBadge = false,
+  copilotLiveItems = 0,
 }: {
   className?: string;
   onLeave: () => void;
@@ -82,6 +83,8 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   copilotActive?: boolean;
   /** Something waits in the UNI panel for this viewer (a late joiner's catch-up). */
   copilotBadge?: boolean;
+  /** Live items the scribe wrote that this viewer has not seen in the UNI panel. */
+  copilotLiveItems?: number;
 }) {
   const { t } = useTranslation();
   const mobile = useIsMobile();
@@ -289,7 +292,13 @@ export const MeetingControlBar = memo(function MeetingControlBar({
               {onToggleCopilot ? (
                 <span className="relative inline-flex">
                   <IconControl
-                    label={copilotBadge ? t("meetings.aiCopilotCatchUp") : t("meetings.aiCopilot")}
+                    label={
+                      copilotBadge
+                        ? t("meetings.aiCopilotCatchUp")
+                        : copilotLiveItems > 0
+                          ? t("meetings.aiCopilotLiveItems", { count: copilotLiveItems })
+                          : t("meetings.aiCopilot")
+                    }
                     tooltip={copilotActive ? t("meetings.aiCopilotClose") : t("meetings.aiCopilotToggle")}
                     pressed={copilotActive}
                     tone={copilotActive ? "active" : undefined}
@@ -297,7 +306,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                   >
                     <Sparkles aria-hidden />
                   </IconControl>
-                  {copilotBadge ? (
+                  {copilotBadge || copilotLiveItems > 0 ? (
                     <span
                       aria-hidden
                       data-slot="copilot-badge"

@@ -35,16 +35,47 @@ describe("meeting summary endpoints", () => {
 
   it("getMeetingSummary answers null for no summary, an old server's 404, and a summary that does not parse", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ summary: null }));
-    expect(await getMeetingSummary("m1")).toBeNull();
+    expect((await getMeetingSummary("m1")).summary).toBeNull();
     vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "not_found", message: "not found" } }, 404));
-    expect(await getMeetingSummary("m1")).toBeNull();
+    expect(await getMeetingSummary("m1")).toEqual({ summary: null, run: { status: "idle", at: null, attempts: 0 } });
     vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { id: "x" } }));
-    expect(await getMeetingSummary("m1")).toBeNull();
+    expect((await getMeetingSummary("m1")).summary).toBeNull();
+  });
+
+  it("getMeetingSummary reads the run, and a malformed or unknown run reads idle", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: null, run: { status: "running", at: "2026-10-23T02:00:00Z", attempts: 2 } }));
+    expect((await getMeetingSummary("m1")).run).toEqual({ status: "running", at: "2026-10-23T02:00:00Z", attempts: 2 });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary, run: { status: "exploding", at: 5, attempts: "x" } }));
+    const drifted = await getMeetingSummary("m1");
+    expect(drifted.summary?.summary).toBe("S");
+    expect(drifted.run).toEqual({ status: "idle", at: null, attempts: 0 });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary, run: "nope" }));
+    expect((await getMeetingSummary("m1")).run.status).toBe("idle");
+  });
+
+  it("getMeetingSummary reads @7 topics and open questions, dropping a malformed topic", async () => {
+    const topics = [
+      { title: "Ngân sách", start: { kind: "segment", id: "g1" }, start_at: "2026-10-23T02:05:00Z", points: [{ text: "2 tỷ", evidence: [{ kind: "segment", id: "g2" }] }, 9] },
+      { title: "Tuyển dụng", start: "bad", start_at: 3, points: "x" },
+      { start: null },
+    ];
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { ...summary, topics, open_questions: [{ text: "Ai duyệt?" }, 1] } }));
+    const got = (await getMeetingSummary("m1")).summary;
+    expect(got?.topics).toEqual([
+      { title: "Ngân sách", start: { kind: "segment", id: "g1" }, start_at: "2026-10-23T02:05:00Z", points: [{ text: "2 tỷ", evidence: [{ kind: "segment", id: "g2" }] }] },
+      { title: "Tuyển dụng", start: null, start_at: null, points: [] },
+    ]);
+    expect(got?.open_questions).toEqual([{ text: "Ai duyệt?", evidence: [] }]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { ...summary, topics: "x", open_questions: {} } }));
+    const drifted = (await getMeetingSummary("m1")).summary;
+    expect(drifted?.summary).toBe("S");
+    expect(drifted?.topics).toEqual([]);
+    expect(drifted?.open_questions).toEqual([]);
   });
 
   it("getMeetingSummary drops one malformed decision, not the whole summary", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { ...summary, decisions: ["D", 7], model: null } }));
-    const got = await getMeetingSummary("m1");
+    const got = (await getMeetingSummary("m1")).summary;
     expect(got?.summary).toBe("S");
     expect(got?.decisions).toEqual([{ text: "D", evidence: [] }]);
   });
@@ -57,7 +88,7 @@ describe("meeting summary endpoints", () => {
       { evidence: [] },
     ];
     vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { ...summary, decisions } }));
-    expect((await getMeetingSummary("m1"))?.decisions).toEqual([
+    expect((await getMeetingSummary("m1")).summary?.decisions).toEqual([
       { text: "Chốt A", evidence: [{ kind: "segment", id: "g1" }] },
       { text: "Chốt B", evidence: [] },
       { text: "Chốt C", evidence: [] },

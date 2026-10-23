@@ -33,19 +33,46 @@ func optInt32(v pgtype.Int4) *int32 {
 	return &v.Int32
 }
 
-func toSummaryDTO(s db.MeetingSummary) sdo.MeetingSummaryDTO {
+func toSummaryDTO(s db.MeetingSummary, starts map[string]time.Time) sdo.MeetingSummaryDTO {
+	points := func(in []service.SummaryDecision) []sdo.MeetingSummaryDecisionDTO {
+		out := make([]sdo.MeetingSummaryDecisionDTO, 0, len(in))
+		for _, dec := range in {
+			out = append(out, sdo.MeetingSummaryDecisionDTO{Text: dec.Text, Evidence: toEvidenceRefsDTO(dec.Evidence)})
+		}
+		return out
+	}
 	d := sdo.MeetingSummaryDTO{
 		ID: s.ID, MeetingID: s.MeetingID, Summary: s.Summary, Model: s.Model,
-		CreatedBy: s.CreatedBy, CreatedByKind: s.CreatedByKind, CreatedAt: rfc3339(s.CreatedAt), Partial: s.Partial, Decisions: []sdo.MeetingSummaryDecisionDTO{},
+		CreatedBy: s.CreatedBy, CreatedByKind: s.CreatedByKind, CreatedAt: rfc3339(s.CreatedAt), Partial: s.Partial,
+		Decisions:     points(service.DecodeSummaryDecisions(s.Decisions)),
+		OpenQuestions: points(service.DecodeSummaryDecisions(s.OpenQuestions)),
+		Topics:        []sdo.MeetingSummaryTopicDTO{},
 	}
 	if s.TranscriptChangedAt.Valid {
 		at := rfc3339(s.TranscriptChangedAt)
 		d.TranscriptChangedAt = &at
 	}
-	for _, dec := range service.DecodeSummaryDecisions(s.Decisions) {
-		d.Decisions = append(d.Decisions, sdo.MeetingSummaryDecisionDTO{Text: dec.Text, Evidence: toEvidenceRefsDTO(dec.Evidence)})
+	for _, t := range service.DecodeSummaryTopics(s.Topics) {
+		topic := sdo.MeetingSummaryTopicDTO{Title: t.Title, Points: points(t.Points)}
+		if t.Start != nil {
+			topic.Start = &sdo.MeetingEvidenceRefDTO{Kind: t.Start.Kind, ID: t.Start.ID}
+			if at, ok := starts[t.Start.ID]; ok {
+				v := at.UTC().Format(time.RFC3339)
+				topic.StartAt = &v
+			}
+		}
+		d.Topics = append(d.Topics, topic)
 	}
 	return d
+}
+
+func toSummaryRunDTO(r service.SummaryRun) sdo.MeetingSummaryRunDTO {
+	out := sdo.MeetingSummaryRunDTO{Status: r.Status, Attempts: r.Attempts}
+	if !r.At.IsZero() {
+		v := r.At.UTC().Format(time.RFC3339)
+		out.At = &v
+	}
+	return out
 }
 
 func toEvidenceRefsDTO(refs []service.EvidenceRef) []sdo.MeetingEvidenceRefDTO {
@@ -144,14 +171,14 @@ func (h *handlers) listTranscript(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) getMeetingSummary(w http.ResponseWriter, r *http.Request) {
-	sum, err := h.Meetings.Summary(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	v, err := h.Meetings.SummaryWithRun(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := sdo.MeetingSummarySDO{}
-	if sum != nil {
-		dto := toSummaryDTO(*sum)
+	out := sdo.MeetingSummarySDO{Run: toSummaryRunDTO(v.Run)}
+	if v.Summary != nil {
+		dto := toSummaryDTO(*v.Summary, v.TopicStarts)
 		out.Summary = &dto
 	}
 	respondJSON(w, 200, out)
@@ -176,8 +203,9 @@ func (h *handlers) createSummary(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	dto := toSummaryDTO(s)
-	respondJSON(w, 200, sdo.MeetingSummarySDO{Summary: &dto})
+	// The run that made it has ended; topic start times come with the next GET.
+	dto := toSummaryDTO(s, nil)
+	respondJSON(w, 200, sdo.MeetingSummarySDO{Summary: &dto, Run: sdo.MeetingSummaryRunDTO{Status: service.SummaryRunIdle}})
 }
 
 func (h *handlers) meetingCatchUp(w http.ResponseWriter, r *http.Request) {

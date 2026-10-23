@@ -99,7 +99,7 @@ func (q *Queries) GetActiveMeetingRecording(ctx context.Context, meetingID strin
 }
 
 const getLatestMeetingSummary = `-- name: GetLatestMeetingSummary :one
-SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
+SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at, topics, open_questions FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
 // tenant: parent meeting_id
@@ -120,6 +120,8 @@ func (q *Queries) GetLatestMeetingSummary(ctx context.Context, meetingID string)
 		&i.Partial,
 		&i.CreatedByKind,
 		&i.TranscriptChangedAt,
+		&i.Topics,
+		&i.OpenQuestions,
 	)
 	return i, err
 }
@@ -284,9 +286,9 @@ func (q *Queries) InsertMeetingRecording(ctx context.Context, arg InsertMeetingR
 }
 
 const insertMeetingSummary = `-- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind, topics, open_questions)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at, topics, open_questions
 `
 
 type InsertMeetingSummaryParams struct {
@@ -301,6 +303,8 @@ type InsertMeetingSummaryParams struct {
 	OrganizationID string      `json:"organization_id"`
 	Partial        bool        `json:"partial"`
 	CreatedByKind  string      `json:"created_by_kind"`
+	Topics         string      `json:"topics"`
+	OpenQuestions  string      `json:"open_questions"`
 }
 
 func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSummaryParams) (MeetingSummary, error) {
@@ -316,6 +320,8 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		arg.OrganizationID,
 		arg.Partial,
 		arg.CreatedByKind,
+		arg.Topics,
+		arg.OpenQuestions,
 	)
 	var i MeetingSummary
 	err := row.Scan(
@@ -332,6 +338,8 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		&i.Partial,
 		&i.CreatedByKind,
 		&i.TranscriptChangedAt,
+		&i.Topics,
+		&i.OpenQuestions,
 	)
 	return i, err
 }
@@ -916,6 +924,66 @@ func (q *Queries) ListTranscriptSegmentsLatest(ctx context.Context, arg ListTran
 			&i.OriginalText,
 			&i.EditedAt,
 			&i.EditedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceMeetingSearchTexts = `-- name: ListWorkspaceMeetingSearchTexts :many
+SELECT m.id AS meeting_id,
+  COALESCE(sm.summary, '')::text AS summary,
+  COALESCE(sm.decisions, '[]')::text AS decisions,
+  COALESCE(sm.topics, '[]')::text AS topics,
+  COALESCE((SELECT string_agg(i.title, E'\n' ORDER BY i.position, i.id) FROM meeting_action_items i
+    WHERE i.organization_id = m.organization_id AND i.meeting_id = m.id AND i.dismissed_at IS NULL), '')::text AS item_titles
+FROM meetings m
+LEFT JOIN LATERAL (
+  SELECT s.summary, s.decisions, s.topics FROM meeting_summaries s
+  WHERE s.meeting_id = m.id AND s.organization_id = m.organization_id
+  ORDER BY s.created_at DESC, s.id DESC LIMIT 1
+) sm ON true
+WHERE m.organization_id = $1 AND m.workspace_id = $2
+  AND m.id = ANY($3::text[])
+`
+
+type ListWorkspaceMeetingSearchTextsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	MeetingIds     []string `json:"meeting_ids"`
+}
+
+type ListWorkspaceMeetingSearchTextsRow struct {
+	MeetingID  string `json:"meeting_id"`
+	Summary    string `json:"summary"`
+	Decisions  string `json:"decisions"`
+	Topics     string `json:"topics"`
+	ItemTitles string `json:"item_titles"`
+}
+
+// Ask UNI and MCP search a meeting by what it said too (UNI-1995 benchmark
+// #14): each meeting's latest summary (paragraph, decisions, topics) and the
+// titles of its pending and converted action items, for the meetings named.
+func (q *Queries) ListWorkspaceMeetingSearchTexts(ctx context.Context, arg ListWorkspaceMeetingSearchTextsParams) ([]ListWorkspaceMeetingSearchTextsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceMeetingSearchTexts, arg.OrganizationID, arg.WorkspaceID, arg.MeetingIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspaceMeetingSearchTextsRow{}
+	for rows.Next() {
+		var i ListWorkspaceMeetingSearchTextsRow
+		if err := rows.Scan(
+			&i.MeetingID,
+			&i.Summary,
+			&i.Decisions,
+			&i.Topics,
+			&i.ItemTitles,
 		); err != nil {
 			return nil, err
 		}

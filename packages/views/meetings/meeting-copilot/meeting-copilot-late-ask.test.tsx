@@ -162,7 +162,7 @@ describe("Hỏi UNI box (B8)", () => {
     fireEvent.change(input, { target: { value: "Đã chốt gì về demo?" } });
     fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
 
-    expect(await screen.findByText(/An chốt demo thứ Sáu/)).toBeInTheDocument();
+    expect(await screen.findByText("Lúc 09:05 An chốt demo thứ Sáu [S1].")).toBeInTheDocument();
     const [, init] = calls("/ai/ask")[0]!;
     expect((init as { body: unknown }).body).toMatchObject({
       question: "Đã chốt gì về demo?",
@@ -177,6 +177,7 @@ describe("Hỏi UNI box (B8)", () => {
     // One success signal, in place: no toast on top of it.
     const box = screen.getByTestId("meeting-ask-uni");
     expect(await within(box).findByRole("status")).toHaveTextContent("Đã chia sẻ vào chat cuộc họp");
+    expect(within(box).getAllByRole("status")).toHaveLength(1);
     expect(toast.success).not.toHaveBeenCalled();
   });
 
@@ -189,7 +190,7 @@ describe("Hỏi UNI box (B8)", () => {
     const input = await screen.findByRole("textbox", { name: "Câu hỏi cho UNI về cuộc họp này" });
     fireEvent.change(input, { target: { value: "Ai trình bày?" } });
     fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
-    expect(await screen.findByText("UNI đang tra lời thoại…")).toBeInTheDocument();
+    expect(await screen.findByTestId("meeting-ask-live")).toHaveTextContent("UNI đang tra lời thoại…");
     expect(screen.getByText("Ai trình bày?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hỏi" })).toHaveAttribute("aria-disabled", "true");
   });

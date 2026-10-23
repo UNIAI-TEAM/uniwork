@@ -1950,6 +1950,8 @@ type MeetingSummary struct {
 	Partial             bool               `json:"partial"`
 	CreatedByKind       string             `json:"created_by_kind"`
 	TranscriptChangedAt pgtype.Timestamptz `json:"transcript_changed_at"`
+	Topics              string             `json:"topics"`
+	OpenQuestions       string             `json:"open_questions"`
 }
 
 type MeetingSummaryRun struct {

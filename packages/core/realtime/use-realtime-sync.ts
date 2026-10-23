@@ -246,6 +246,8 @@ function keysFor(
         push(meetingKeys.attendance(payload.meeting_id));
         // Ending the meeting closes and counts every open motion.
         if (type === "meeting.ended") push(meetingKeys.motions(payload.meeting_id));
+        // The auto summary is queued with the end: an open panel reads the run and starts polling it.
+        if (type === "meeting.ended") push(meetingKeys.summary(payload.meeting_id));
       }
       pushCalendar();
       break;

@@ -282,6 +282,14 @@ describe("MeetingControlBar", () => {
     expect(screen.getByRole("button", { name: "UNI" }).parentElement?.querySelector("[data-slot=copilot-badge]")).toBeNull();
   });
 
+  it("marks the UNI button and names the count while live items wait unseen (UNI-1995 #21)", () => {
+    mobile = true;
+    handRaised = false;
+    render(wrapWithNav(<MeetingControlBar onLeave={() => {}} onToggleCopilot={() => {}} copilotLiveItems={2} />));
+    const button = screen.getByRole("button", { name: "UNI · 2 việc mới ghi" });
+    expect(button.parentElement?.querySelector("[data-slot=copilot-badge]")).not.toBeNull();
+  });
+
   it("toggles mic with Ctrl+D and camera with Ctrl+E, but not while typing", () => {
     mobile = false;
     handRaised = false;

@@ -79,7 +79,8 @@ export function resolveErrorKey(err: unknown): string {
 
 type Translate = ReturnType<typeof useTranslation>["t"];
 
-function noticeText(t: Translate, code: string): string {
+/** What an empty answer's notice says; `t` is keyed under "ai". */
+export function noticeText(t: Translate, code: string): string {
   switch (code) {
     case "no_sources":
       return t("notice.no_sources");

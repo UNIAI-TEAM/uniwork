@@ -86,7 +86,8 @@ func TestAgentExtractCursorFollowsTheDBClock(t *testing.T) {
 	if _, err := s.AgentExtract(ctx, c); err != nil {
 		t.Fatal(err)
 	}
-	if p := lastPrompt(llm.Last); llm.Calls != calls+1 || !strings.Contains(p, "Dòng trễ") || strings.Contains(p, "Dòng một") {
+	// "Dòng một" may come back as unlabelled context, never in the transcript.
+	if _, p, _ := strings.Cut(lastPrompt(llm.Last), "\nTranscript:\n"); llm.Calls != calls+1 || !strings.Contains(p, "Dòng trễ") || strings.Contains(p, "Dòng một") {
 		t.Fatalf("calls %d→%d, prompt:\n%s", calls, llm.Calls, p)
 	}
 }
@@ -142,7 +143,7 @@ func TestAgentExtractStoresLiveItems(t *testing.T) {
 	if n := countSummaryRows(t, s, `SELECT count(*) FROM outbox_events WHERE topic = 'action_item.created' AND payload::jsonb->>'action_item_id' = $1`, it.ID); n != 1 {
 		t.Fatalf("outbox rows = %d", n)
 	}
-	if n := countSummaryRows(t, s, `SELECT count(*) FROM ai_usage_events WHERE capability = 'meeting_live_items' AND prompt_id = 'meeting_live_items@2' AND actor_kind = 'system'`); n != 1 {
+	if n := countSummaryRows(t, s, `SELECT count(*) FROM ai_usage_events WHERE capability = 'meeting_live_items' AND prompt_id = 'meeting_live_items@3' AND actor_kind = 'system'`); n != 1 {
 		t.Fatalf("usage rows = %d", n)
 	}
 	r := latestRun(t, s, m.ID)
@@ -155,13 +156,20 @@ func TestAgentExtractStoresLiveItems(t *testing.T) {
 	if res, err := s.AgentExtract(ctx, c); err != nil || res.Created != 0 || llm.Calls != calls {
 		t.Fatalf("empty extract = %+v, %v, calls %d→%d", res, err, calls, llm.Calls)
 	}
-	// Only the lines after the cursor reach the model.
+	// Only the lines after the cursor are labelled for the model; the lines
+	// before it come back as unlabelled context (benchmark #21).
 	add("Chốt lịch demo")
 	if _, err := s.AgentExtract(ctx, c); err != nil {
 		t.Fatal(err)
 	}
-	if p := lastPrompt(llm.Last); strings.Contains(p, "Bình gửi báo giá") || !strings.Contains(p, "[S1] ") || !strings.Contains(p, "Chốt lịch demo") {
-		t.Fatalf("second prompt re-read old lines:\n%s", p)
+	p := lastPrompt(llm.Last)
+	earlier, transcript, _ := strings.Cut(p, "\nTranscript:\n")
+	if strings.Contains(transcript, "Bình gửi báo giá") || !strings.Contains(transcript, "[S1] ") || !strings.Contains(transcript, "Chốt lịch demo") {
+		t.Fatalf("second prompt labelled old lines:\n%s", p)
+	}
+	if !strings.Contains(earlier, "<untrusted source=\"transcript_context\">\n") || !strings.Contains(earlier, ": Bình gửi báo giá cho khách trước thứ Sáu nhé\n") ||
+		!strings.Contains(earlier, ": Ok anh\n") || strings.Contains(earlier, "[S") {
+		t.Fatalf("second prompt lacks the earlier lines as unlabelled context:\n%s", p)
 	}
 	if n := len(liveItems(t, s, m)); n != 1 {
 		t.Fatalf("a repeated title was stored again: %d live items", n)
@@ -300,7 +308,7 @@ func TestAgentExtractRefusalMovesTheCursor(t *testing.T) {
 	if _, err := s.AgentExtract(ctx, c); err != nil {
 		t.Fatal(err)
 	}
-	if p := lastPrompt(llm.Last); strings.Contains(p, ": Một") || !strings.Contains(p, ": Hai") {
+	if _, p, _ := strings.Cut(lastPrompt(llm.Last), "\nTranscript:\n"); strings.Contains(p, ": Một") || !strings.Contains(p, ": Hai") {
 		t.Fatalf("next call re-read the refused lines:\n%s", p)
 	}
 }

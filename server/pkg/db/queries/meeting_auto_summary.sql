@@ -62,6 +62,15 @@ DELETE FROM meeting_auto_summaries
 WHERE organization_id = sqlc.arg(organization_id) AND meeting_id = sqlc.arg(meeting_id)
   AND lease_until = sqlc.arg(lease_until);
 
+-- name: DeferMeetingAutoSummary :execrows
+-- A run that failed for a reason that passes (rate limit, timeout, provider
+-- error, UNI-1995 benchmark #12) gives its row back due again later; only the
+-- holder of the lease defers it, and attempts keeps its count.
+UPDATE meeting_auto_summaries
+SET due_at = now() + make_interval(secs => sqlc.arg(after_seconds)::int), lease_until = NULL
+WHERE organization_id = sqlc.arg(organization_id) AND meeting_id = sqlc.arg(meeting_id)
+  AND lease_until = sqlc.arg(lease_until);
+
 -- name: MeetingAutoSummaryQueued :one
 -- tenant: parent meeting_id
 -- The summary nudge stays quiet while the system is still to summarize.

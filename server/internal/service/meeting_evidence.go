@@ -40,14 +40,29 @@ type SummaryDecision struct {
 	Evidence []EvidenceRef `json:"evidence"`
 }
 
-// summaryLabels is one Summarize call's label → row table.
+// summaryLabels is one Summarize call's label → row table, and its draft
+// label → pending live item table (D1, D2, … meeting_summary@7).
 type summaryLabels struct {
-	refs map[string]EvidenceRef
-	next map[string]int
+	refs   map[string]EvidenceRef
+	next   map[string]int
+	drafts map[string]string
 }
 
 func newSummaryLabels() *summaryLabels {
-	return &summaryLabels{refs: map[string]EvidenceRef{}, next: map[string]int{}}
+	return &summaryLabels{refs: map[string]EvidenceRef{}, next: map[string]int{}, drafts: map[string]string{}}
+}
+
+// draft gives a pending live item its D label.
+func (l *summaryLabels) draft(itemID string) string {
+	label := "D" + strconv.Itoa(len(l.drafts)+1)
+	l.drafts[label] = itemID
+	return label
+}
+
+// draftID is the item a D label names; ok is false for any other label.
+func (l *summaryLabels) draftID(label string) (string, bool) {
+	id, ok := l.drafts[strings.ToUpper(strings.Trim(strings.TrimSpace(label), "[]"))]
+	return id, ok
 }
 
 // label gives the row its label, or "" for a line that is no row (the
@@ -124,6 +139,40 @@ func DecodeSummaryDecisions(raw string) []SummaryDecision {
 	return out
 }
 
+// SummaryTopic is one topic of a stored @7 summary: Start is the transcript
+// segment it begins at, nil when no segment does.
+type SummaryTopic struct {
+	Title  string            `json:"title"`
+	Start  *EvidenceRef      `json:"start"`
+	Points []SummaryDecision `json:"points"`
+}
+
+// DecodeSummaryTopics reads meeting_summaries.topics; a row before @7, or one
+// that does not parse, reads as none. Never nil.
+func DecodeSummaryTopics(raw string) []SummaryTopic {
+	var topics []SummaryTopic
+	_ = json.Unmarshal([]byte(raw), &topics)
+	out := []SummaryTopic{}
+	for _, t := range topics {
+		if t.Title = strings.TrimSpace(t.Title); t.Title == "" {
+			continue
+		}
+		if t.Start != nil && (t.Start.Kind != EvidenceSegment || t.Start.ID == "") {
+			t.Start = nil
+		}
+		points := []SummaryDecision{}
+		for _, p := range t.Points {
+			if p.Text = strings.TrimSpace(p.Text); p.Text != "" {
+				p.Evidence = validEvidence(p.Evidence)
+				points = append(points, p)
+			}
+		}
+		t.Points = points
+		out = append(out, t)
+	}
+	return out
+}
+
 // summaryDecisionTexts is the decisions as a JSON array of strings, the shape
 // Ask UNI and MCP excerpts have always quoted, whichever shape the row holds.
 func summaryDecisionTexts(raw string) string {
@@ -133,24 +182,6 @@ func summaryDecisionTexts(raw string) string {
 		texts[i] = d.Text
 	}
 	b, _ := json.Marshal(texts)
-	return string(b)
-}
-
-// summaryActionItemTitles is the raw action items of a summary row as a JSON
-// array of their titles: the evidence labels of @5 ("S2") would collide with
-// Ask UNI's own source labels and only cost runes in an excerpt.
-func summaryActionItemTitles(raw string) string {
-	var items []struct {
-		Title string `json:"title"`
-	}
-	_ = json.Unmarshal([]byte(raw), &items)
-	titles := []string{}
-	for _, it := range items {
-		if t := strings.TrimSpace(it.Title); t != "" {
-			titles = append(titles, t)
-		}
-	}
-	b, _ := json.Marshal(titles)
 	return string(b)
 }
 

@@ -317,14 +317,24 @@ func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, 
 	if err != nil {
 		return nil, err
 	}
+	// A meeting is found by what it said too (benchmark #14): its latest
+	// summary, decisions, topics and open action items' titles.
+	said, err := s.meetingSearchTexts(ctx, tc.ActorID, meetings)
+	if err != nil {
+		return nil, err
+	}
 	for _, m := range meetings {
-		sc := score(m.Title+" "+m.Description, ts)
+		rec := said[m.ID]
+		sc := score(m.Title+" "+m.Description+"\n"+rec.content, ts)
 		if sc == 0 && len(ts) > 0 {
 			continue
 		}
+		excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", m.Status, m.StartsAt.Time.Format(time.RFC3339), m.Description)
+		if rec.summary != "" {
+			excerpt += "\nTóm tắt: " + rec.summary
+		}
 		items = append(items, scored{src: ai.Source{
-			Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID,
-			Excerpt: fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", m.Status, m.StartsAt.Time.Format(time.RFC3339), m.Description),
+			Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt,
 		}, score: sc, when: m.StartsAt.Time})
 	}
 	return items, nil
@@ -547,8 +557,19 @@ func (s *AskUNIService) meetingContext(ctx context.Context, tc ai.ToolContext, m
 		return nil, err
 	}
 	excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", m.Status, m.StartsAt.Time.Format(time.RFC3339), m.Description)
-	if sum, err := s.meetings.Summary(ctx, tc.ActorID, meetingID); err == nil && sum != nil {
-		excerpt += "\nTóm tắt: " + sum.Summary + "\nQuyết định: " + summaryDecisionTexts(sum.Decisions) + "\nViệc cần làm: " + summaryActionItemTitles(sum.ActionItems)
+	sum, err := s.meetings.Summary(ctx, tc.ActorID, meetingID)
+	if codedIs(err, "meeting_ai_restricted") {
+		sum, err = nil, nil // the meeting's items stay; its summary is for the people of the meeting
+	}
+	if err != nil {
+		return nil, err
+	}
+	record, err := s.meetingRecordExcerpt(ctx, tc, meetingID, sum)
+	if err != nil {
+		return nil, err
+	}
+	if record != "" {
+		excerpt += "\n" + record
 	}
 	return []ai.Source{{Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt}}, nil
 }

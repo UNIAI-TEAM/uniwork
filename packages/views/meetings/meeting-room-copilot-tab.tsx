@@ -1,5 +1,5 @@
 "use client";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toastApiError } from "../toast-api-error";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
@@ -20,13 +20,13 @@ import {
 } from "./meeting-summary/summary-generate-controls";
 import { summarySourceFacts, summarySourceList } from "./meeting-summary/summary-sources";
 import { useSummaryGeneration } from "./meeting-summary/use-summary-generation";
-import { MeetingUnderlineTabs } from "./meeting-underline-tabs";
+import { MeetingUnderlineTabBadge, MeetingUnderlineTabs } from "./meeting-underline-tabs";
 import { meetingLocale } from "./meeting-datetime";
 import { formatMeetingMoment } from "./meeting-detail-format";
 import { MeetingRowsSkeleton, MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
 import { MeetingRoomTranscript } from "./meeting-room-transcript";
 
-type CopilotSection = "notes" | "transcript" | "insights" | "actions";
+export type CopilotSection = "notes" | "transcript" | "insights" | "actions";
 
 // The overview opens first, so it leads the row.
 const SECTIONS: CopilotSection[] = ["insights", "notes", "transcript", "actions"];
@@ -39,6 +39,8 @@ export function MeetingRoomCopilotTab({
   lateMinutes,
   onDismissCatchUp,
   scribeOn = false,
+  actionsUnseen = 0,
+  onSectionChange,
 }: {
   workspaceId?: string;
   meetingId: string;
@@ -52,9 +54,18 @@ export function MeetingRoomCopilotTab({
   onDismissCatchUp?: () => void;
   /** The AI scribe is in the room, so the transcript fills without anyone turning captions on. */
   scribeOn?: boolean;
+  /** Live items the scribe wrote that this viewer has not had on screen (useUnseenLiveItems). */
+  actionsUnseen?: number;
+  /** Which section is on screen, so the room knows when the live items have been seen. */
+  onSectionChange?: (section: CopilotSection) => void;
 }) {
   const { t, i18n } = useTranslation();
   const [section, setSection] = useState<CopilotSection>("insights");
+  // Unmounted (another tab), the panel opens on the overview again: say so, or the room keeps "actions".
+  useEffect(() => {
+    onSectionChange?.(section);
+    return () => onSectionChange?.("insights");
+  }, [onSectionChange, section]);
   // The clerk's ticks outlive the Actions section, so a look at the
   // transcript does not cost them.
   const actionSelection = useState<ReadonlySet<string>>(() => new Set());
@@ -150,6 +161,13 @@ export function MeetingRoomCopilotTab({
           label={sectionLabel}
           ariaLabel={t("meetings.copilotSections")}
           panelId={sectionPanelId}
+          badge={(id) =>
+            id === "actions" && actionsUnseen > 0 ? (
+              <MeetingUnderlineTabBadge srLabel={t("meetings.liveItemsUnseen", { count: actionsUnseen })}>
+                {actionsUnseen > 9 ? "9+" : actionsUnseen}
+              </MeetingUnderlineTabBadge>
+            ) : null
+          }
           className="sticky top-0 z-10 mb-2 bg-surface"
         />
 

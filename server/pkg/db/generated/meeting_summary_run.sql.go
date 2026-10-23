@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const claimMeetingSummaryRun = `-- name: ClaimMeetingSummaryRun :one
@@ -48,6 +50,38 @@ func (q *Queries) ClaimMeetingSummaryRun(ctx context.Context, arg ClaimMeetingSu
 	var run_id string
 	err := row.Scan(&run_id)
 	return run_id, err
+}
+
+const getMeetingSummaryRunState = `-- name: GetMeetingSummaryRunState :one
+SELECT
+  (SELECT r.started_at FROM meeting_summary_runs r
+    WHERE r.organization_id = $1 AND r.meeting_id = $2 AND r.expires_at > now())::timestamptz AS running_since,
+  (SELECT a.due_at FROM meeting_auto_summaries a
+    WHERE a.organization_id = $1 AND a.meeting_id = $2)::timestamptz AS queued_due_at,
+  COALESCE((SELECT a.attempts FROM meeting_auto_summaries a
+    WHERE a.organization_id = $1 AND a.meeting_id = $2), 0)::int AS attempts
+`
+
+type GetMeetingSummaryRunStateParams struct {
+	OrganizationID string `json:"organization_id"`
+	MeetingID      string `json:"meeting_id"`
+}
+
+type GetMeetingSummaryRunStateRow struct {
+	RunningSince pgtype.Timestamptz `json:"running_since"`
+	QueuedDueAt  pgtype.Timestamptz `json:"queued_due_at"`
+	Attempts     int32              `json:"attempts"`
+}
+
+// What the summary panel shows while no summary is stored yet (UNI-1995
+// benchmark #12): a run holding a live lease (a clerk's or the system's), and
+// the system's queued summary with when it is next due (a retry waits out its
+// backoff there).
+func (q *Queries) GetMeetingSummaryRunState(ctx context.Context, arg GetMeetingSummaryRunStateParams) (GetMeetingSummaryRunStateRow, error) {
+	row := q.db.QueryRow(ctx, getMeetingSummaryRunState, arg.OrganizationID, arg.MeetingID)
+	var i GetMeetingSummaryRunStateRow
+	err := row.Scan(&i.RunningSince, &i.QueuedDueAt, &i.Attempts)
+	return i, err
 }
 
 const releaseMeetingSummaryRun = `-- name: ReleaseMeetingSummaryRun :exec

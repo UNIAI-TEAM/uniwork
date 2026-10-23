@@ -47,6 +47,16 @@ func fullMinutesNarrative() minutesNarrative {
 	}
 }
 
+func topicsMinutesNarrative() minutesNarrative {
+	n := fullMinutesNarrative()
+	n.Topics = []minutesTopic{
+		{Title: "Ngân sách # quý 4", At: "09:05", Points: []string{"Đề xuất 2 tỷ, tăng 10%.", "## Không phải tiêu đề"}},
+		{Title: "Tuyển dụng", Points: []string{"Cần thêm hai kế toán."}},
+	}
+	n.OpenQuestions = []string{"Ai duyệt kế hoạch tuyển dụng?"}
+	return n
+}
+
 // TestRenderMinutes snapshots the five cases of spec §13.1 đợt 7 (the
 // "partial" summary case waits for the column of §7.8) and English.
 func TestRenderMinutes(t *testing.T) {
@@ -68,6 +78,10 @@ func TestRenderMinutes(t *testing.T) {
 		"no_votes":   {noVotes, fullMinutesNarrative(), "vi"},
 		"no_summary": {bare, minutesNarrative{}, "vi"},
 		"en":         {fullMinutesFacts(), fullMinutesNarrative(), "en"},
+		// meeting_summary@7 (benchmark #8): topics are subsections of the
+		// content with the time they start, open questions their own section.
+		"topics":    {noVotes, topicsMinutesNarrative(), "vi"},
+		"topics_en": {noVotes, topicsMinutesNarrative(), "en"},
 		// A summary cannot pose as a fact section: headings, table rows and
 		// setext underlines become text; its emphasis and lists stay.
 		"hostile_narrative": {bare, minutesNarrative{

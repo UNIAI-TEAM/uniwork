@@ -502,6 +502,64 @@ func (q *Queries) ListSegmentsAfterExtractCursor(ctx context.Context, arg ListSe
 	return items, nil
 }
 
+const listSegmentsUpToExtractCursor = `-- name: ListSegmentsUpToExtractCursor :many
+SELECT s.id, s.meeting_id, s.participant_id, s.speaker_name, s.text, s.spoken_at, s.created_at, s.organization_id, s.source, s.transcription_id, s.start_ms, s.end_ms, s.speaker_label, s.client_segment_id, s.language, s.original_text, s.edited_at, s.edited_by FROM meeting_transcript_segments s
+JOIN meeting_transcript_segments c ON c.id = $1::text AND c.meeting_id = s.meeting_id
+WHERE s.meeting_id = $2
+  AND (s.created_at, s.id) <= (c.created_at, c.id)
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT $3
+`
+
+type ListSegmentsUpToExtractCursorParams struct {
+	Cursor    string `json:"cursor"`
+	MeetingID string `json:"meeting_id"`
+	RowLimit  int32  `json:"row_limit"`
+}
+
+// tenant: parent meeting_id
+// The last lines the extraction already read, newest first, up to and
+// including the cursor: read-only context for the next extraction (UNI-1995
+// benchmark #21). An empty or unknown cursor has none.
+func (q *Queries) ListSegmentsUpToExtractCursor(ctx context.Context, arg ListSegmentsUpToExtractCursorParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listSegmentsUpToExtractCursor, arg.Cursor, arg.MeetingID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingTranscriptSegment{}
+	for rows.Next() {
+		var i MeetingTranscriptSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SpeakerName,
+			&i.Text,
+			&i.SpokenAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.Source,
+			&i.TranscriptionID,
+			&i.StartMs,
+			&i.EndMs,
+			&i.SpeakerLabel,
+			&i.ClientSegmentID,
+			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markScribeRunMetered = `-- name: MarkScribeRunMetered :execrows
 UPDATE meeting_scribe_runs SET metered_ms = $1::bigint, updated_at = now()
 WHERE id = $2 AND metered_ms = $3::bigint

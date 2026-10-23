@@ -434,6 +434,7 @@ type Routes struct {
 	GetMeetingMinutes              http.HandlerFunc
 	CreateMeetingMinutes           http.HandlerFunc
 	FinalizeMeetingMinutes         http.HandlerFunc
+	RefreshMeetingMinutes          http.HandlerFunc
 	ReopenMeetingMinutes           http.HandlerFunc
 	AddActionItem                  http.HandlerFunc
 	DismissActionItem              http.HandlerFunc

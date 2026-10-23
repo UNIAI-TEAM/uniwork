@@ -24,3 +24,16 @@ RETURNING run_id;
 -- and was taken over deletes nothing.
 DELETE FROM meeting_summary_runs
 WHERE organization_id = sqlc.arg(organization_id) AND meeting_id = sqlc.arg(meeting_id) AND run_id = sqlc.arg(run_id);
+
+-- name: GetMeetingSummaryRunState :one
+-- What the summary panel shows while no summary is stored yet (UNI-1995
+-- benchmark #12): a run holding a live lease (a clerk's or the system's), and
+-- the system's queued summary with when it is next due (a retry waits out its
+-- backoff there).
+SELECT
+  (SELECT r.started_at FROM meeting_summary_runs r
+    WHERE r.organization_id = sqlc.arg(organization_id) AND r.meeting_id = sqlc.arg(meeting_id) AND r.expires_at > now())::timestamptz AS running_since,
+  (SELECT a.due_at FROM meeting_auto_summaries a
+    WHERE a.organization_id = sqlc.arg(organization_id) AND a.meeting_id = sqlc.arg(meeting_id))::timestamptz AS queued_due_at,
+  COALESCE((SELECT a.attempts FROM meeting_auto_summaries a
+    WHERE a.organization_id = sqlc.arg(organization_id) AND a.meeting_id = sqlc.arg(meeting_id)), 0)::int AS attempts;

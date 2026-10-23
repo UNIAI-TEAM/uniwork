@@ -63,6 +63,17 @@ UPDATE meeting_action_items
 SET dismissed_at = NULL, dismissed_by = NULL, dismiss_reason = '', updated_at = now()
 WHERE organization_id = sqlc.arg(organization_id) AND id = sqlc.arg(id);
 
+-- name: RefineLiveMeetingActionItem :execrows
+-- A summary refines a pending live item in place (UNI-1995 benchmark #21):
+-- owner, due, priority, description and evidence, never its title. Only while
+-- nobody handled it: not dismissed and no task that still exists.
+UPDATE meeting_action_items i
+SET owner_text = sqlc.arg(owner_text), due_text = sqlc.arg(due_text), suggested_priority = sqlc.arg(suggested_priority),
+  description = sqlc.arg(description), evidence = sqlc.arg(evidence), updated_at = now()
+WHERE i.organization_id = sqlc.arg(organization_id) AND i.meeting_id = sqlc.arg(meeting_id) AND i.id = sqlc.arg(id)
+  AND i.source = 'LIVE' AND i.dismissed_at IS NULL
+  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id);
+
 -- name: DeletePendingAIMeetingActionItems :execrows
 -- A regenerated summary replaces the AI items nobody has handled yet: not
 -- dismissed, and no task, or a task that was deleted since.

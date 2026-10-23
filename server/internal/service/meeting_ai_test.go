@@ -262,7 +262,7 @@ func TestSummarizeWithClosedMotionOnly(t *testing.T) {
 	if fake.Calls != 1 || sum.Summary != "Đã biểu quyết." {
 		t.Fatalf("calls=%d summary=%+v", fake.Calls, sum)
 	}
-	if ev, err := s.q.AiGetUsageEvent(ctx, sum.UsageEventID.String); err != nil || ev.PromptID != "meeting_summary@6" {
+	if ev, err := s.q.AiGetUsageEvent(ctx, sum.UsageEventID.String); err != nil || ev.PromptID != "meeting_summary@7" {
 		t.Fatalf("usage row: %+v %v", ev, err)
 	}
 	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
@@ -728,22 +728,26 @@ func TestSummaryWindowKeepsTheEnd(t *testing.T) {
 	}
 }
 
-// G18: a long meeting's summary is built from its end - where the decisions
-// are - plus a short opening, with the cut marked, not from its first lines.
+// G18, benchmark #8: a long meeting is read whole, in parts, up to
+// summaryMaxParts budgets of transcript; past that its middle is dropped
+// with the cut marked, keeping a short opening and the end, where the
+// decisions are, and the summary says it is partial.
 func TestSummarizeKeepsTheEndOfALongMeeting(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()
-	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+	var prompts []string
+	fake := &provider.Fake{Reply: func(req provider.CompletionRequest) provider.CompletionResponse {
+		prompts = append(prompts, req.Messages[len(req.Messages)-1].Content)
 		return provider.CompletionResponse{Text: `{"summary":"ok","decisions":[],"action_items":[]}`, Model: "fake"}
 	}}
-	s.AI = ai.NewGateway(s.q, fake, NewAIQuota(s.ent), nil, ai.Options{})
+	s.AI = ai.NewGateway(s.q, &lockedFake{Fake: fake}, NewAIQuota(s.ent), nil, ai.Options{})
 	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Long")
 	if err != nil {
 		t.Fatal(err)
 	}
 	base := time.Now().UTC().Add(-2 * time.Hour)
 	filler := strings.Repeat("x", 996)
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 300; i++ {
 		seedTranscript(t, s, m, fmt.Sprintf("seg%03d", i), fmt.Sprintf("L%03d", i)+filler, base.Add(time.Duration(i)*time.Second))
 	}
 	sum, err := s.Summarize(ctx, ua.ID, m.ID, "vi")
@@ -754,19 +758,21 @@ func TestSummarizeKeepsTheEndOfALongMeeting(t *testing.T) {
 	if !sum.Partial {
 		t.Fatal("summary of a windowed transcript is not marked partial")
 	}
-	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
-	for _, want := range []string{"L000", "L006", "L048", "L099", "(41 lines omitted)"} {
-		if !strings.Contains(prompt, want) {
-			t.Fatalf("prompt lacks %q", want)
+	if len(prompts) != summaryMaxParts+1 {
+		t.Fatalf("model calls = %d, want %d parts and the reduce", len(prompts), summaryMaxParts)
+	}
+	all := strings.Join(prompts[:summaryMaxParts], "\n")
+	for _, want := range []string{"L000", "L020", "L120", "L299", "lines omitted)"} {
+		if !strings.Contains(all, want) {
+			t.Fatalf("parts lack %q", want)
 		}
 	}
-	for _, gone := range []string{"L007", "L030", "L047"} {
-		if strings.Contains(prompt, gone) {
-			t.Fatalf("prompt kept %q from the middle", gone)
+	for _, gone := range []string{"L040", "L060", "L080"} {
+		if strings.Contains(all, gone) {
+			t.Fatalf("parts kept %q from the middle", gone)
 		}
 	}
-	if !(strings.Index(prompt, "L006") < strings.Index(prompt, "(41 lines omitted)") &&
-		strings.Index(prompt, "(41 lines omitted)") < strings.Index(prompt, "L048")) {
+	if !(strings.Index(all, "L020") < strings.Index(all, "lines omitted)") && strings.Index(all, "lines omitted)") < strings.Index(all, "L299")) {
 		t.Fatal("omission marker is not between the opening and the end")
 	}
 }
@@ -777,7 +783,7 @@ func TestSummarizeKeepsTheEndOfALongMeeting(t *testing.T) {
 func TestSummarizeLongBudgetReadsTheWholeMeeting(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	s.rt.SummaryMaxRunes = 400000
-	if b := s.summaryBudget(); b.rows != 20000 || b.lease != summaryRunLease+4*time.Minute {
+	if b := s.summaryBudget(); b.rows != 20000 || b.lease != 2*(summaryRunLease+4*time.Minute) {
 		t.Fatalf("budget %+v", b)
 	}
 	ctx := context.Background()

@@ -145,3 +145,54 @@ func TestParseCaptionTranslateJSON(t *testing.T) {
 		t.Fatalf("not cleaned: %+v", got)
 	}
 }
+
+// TestParseSummaryJSONV7 (benchmark #8, #21): the @7 paragraph arrives as
+// "tldr", topics keep their start line and cited points, open questions read
+// like decisions, a draft label is kept for the caller to resolve, and blank
+// entries are dropped. Topics alone are a record worth keeping.
+func TestParseSummaryJSONV7(t *testing.T) {
+	out, err := ParseSummaryJSON(`{"tldr":" Bàn ngân sách. ","topics":[{"title":" Ngân sách ","start_label":" S3 ","points":[{"text":" Giữ 2 tỷ ","evidence":["S3"]},{"text":" ","evidence":[]}]},{"title":" ","start_label":"S9","points":[]}],
+		"decisions":[],"action_items":[{"title":"Gửi báo giá","owner":"Bình","due":"thứ Năm","description":"","priority":"","evidence":["S7"],"draft":" D2 "},{"title":"Đặt phòng","owner":"","due":"","description":"","priority":"","evidence":[],"draft":"a label far too long to be one"}],
+		"open_questions":[{"text":" Ai phỏng vấn? ","evidence":["S8"]},{"text":"","evidence":[]}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Summary != "Bàn ngân sách." || out.TLDR != "" {
+		t.Fatalf("tldr not moved into Summary: %+v", out)
+	}
+	want := []SummaryTopic{{Title: "Ngân sách", StartLabel: "S3", Points: []Decision{{Text: "Giữ 2 tỷ", Evidence: []string{"S3"}}}}}
+	if !reflect.DeepEqual(out.Topics, want) {
+		t.Fatalf("topics = %+v", out.Topics)
+	}
+	if !reflect.DeepEqual(out.OpenQuestions, []Decision{{Text: "Ai phỏng vấn?", Evidence: []string{"S8"}}}) {
+		t.Fatalf("open questions = %+v", out.OpenQuestions)
+	}
+	if out.ActionItems[0].Draft != "D2" || out.ActionItems[1].Draft != "" {
+		t.Fatalf("drafts = %q %q", out.ActionItems[0].Draft, out.ActionItems[1].Draft)
+	}
+	if _, err := ParseSummaryJSON(`{"tldr":"","topics":[{"title":"Ngân sách","start_label":"","points":[]}],"decisions":[],"action_items":[],"open_questions":[]}`); err != nil {
+		t.Fatalf("topics only: %v", err)
+	}
+	// A @6 answer still reads.
+	if old, err := ParseSummaryJSON(`{"summary":"Cũ","decisions":[],"action_items":[]}`); err != nil || old.Summary != "Cũ" || len(old.Topics) != 0 {
+		t.Fatalf("@6 answer = %+v, %v", old, err)
+	}
+}
+
+// TestMeetingSummaryV7BriefMode (benchmark #6): the retry after a cut answer
+// asks for the brief output, which the system prompt defines.
+func TestMeetingSummaryV7BriefMode(t *testing.T) {
+	for _, key := range []string{PromptMeetingSummary, PromptMeetingSummaryPart} {
+		p, _ := LookupPrompt(key)
+		if !strings.Contains(p.Render(map[string]any{"brief": true}), "\nOutput mode: brief\n") ||
+			strings.Contains(p.Render(map[string]any{}), "Output mode") {
+			t.Errorf("%s: brief mode not rendered only when asked", key)
+		}
+		if !strings.Contains(p.System, `When the caller sets "Output mode: brief"`) || !strings.Contains(p.System, "at most two sentences") {
+			t.Errorf("%s: system does not define the brief mode or the two-sentence description", key)
+		}
+	}
+	if policies[CapMeetingSummarization].MaxTokens < 8000 || policies[CapMeetingLiveItems].MaxTokens < 2000 {
+		t.Fatalf("meeting output caps = %d / %d, want ≥ 8000 / 2000", policies[CapMeetingSummarization].MaxTokens, policies[CapMeetingLiveItems].MaxTokens)
+	}
+}

@@ -8,8 +8,8 @@ import (
 
 // Prompt keys used by callers.
 const (
-	PromptMeetingSummary     = "meeting_summary@6"
-	PromptMeetingLiveItems   = "meeting_live_items@2"
+	PromptMeetingSummary     = "meeting_summary@7"
+	PromptMeetingLiveItems   = "meeting_live_items@3"
 	PromptCopilotAnswer      = "copilot_answer@1"
 	PromptCopilotAnswerV2    = "copilot_answer@2"
 	PromptCopilotAnswerV3    = "copilot_answer@3"
@@ -104,20 +104,6 @@ const meetingSummaryInputRules = `- The transcript comes from automatic speech r
 const meetingSummaryExistingRules = `- "Existing action items" lists tasks this meeting already has: assigned, set aside or added by hand. Never put one of them in "action_items" again, even in different words.
 `
 
-// meetingSummaryRulesV5 replaces the @3 opening for @5 (UNI-2002, spec
-// §7.2): decisions become objects, and decisions and action items cite the
-// labelled input lines they rest on.
-const meetingSummaryRulesV5 = `You turn meeting transcripts and notes into a written record for a Vietnamese work team.
-Respond with a single JSON object and nothing else, shaped exactly as:
-{"summary": string, "decisions": [{"text": string, "evidence": string[]}], "action_items": [{"title": string, "owner": string, "due": string, "evidence": string[]}]}
-- "summary": at most 6 sentences covering what was discussed and the outcome; one or two sentences when little was said. Never pad it.
-- "decisions": concrete decisions that were made; empty array if none. "text" states the decision.
-- "action_items": tasks someone must do next that the input states or clearly agrees on; empty array if none. "title" is an imperative sentence. "owner" is a person the input names as responsible, written as it appears there, or "" when nobody is named. "due" is a date or relative time as stated in the input, or "" when none is stated. Never guess an owner or a due date.
-- Each transcript line, note and chat message starts with a label in square brackets: [S1] for a transcript line, [N1] for a note, [C1] for a chat message.
-- "evidence" lists the labels of the lines a decision or action item rests on, written without brackets, for example ["S12", "N3"]. Use only labels that appear in the input. Use an empty array when no line supports it, for example a vote taken from "Recorded votes".
-- Write every string in the language named by the caller.
-`
-
 // meetingSummaryRulesV6 is the @5 opening with two more fields per action
 // item (actionItemProseRules): a prose description and a suggested priority,
 // which the task composer prefills.
@@ -139,22 +125,9 @@ const actionItemProseRules = `- "description": one to three sentences of prose r
 - "priority": "urgent", "high", "medium" or "low" only when the input signals how pressing the task is: an explicit word of urgency or priority (for example "gấp", "ưu tiên"), work that blocks other work, or a close deadline stated in the input. Otherwise "". Never guess a priority.
 `
 
-// meetingLiveItemsRules is meeting_live_items@1 (scribe spec §4.4, §8): the
-// newest transcript lines of a meeting under way, the meeting's existing
-// items, and the same owner/due rules as meeting_summary@3+.
-const meetingLiveItemsRules = `You pick out follow-up tasks from the newest lines of a meeting that is still under way, for a Vietnamese work team.
-Respond with a single JSON object and nothing else, shaped exactly as:
-{"action_items": [{"title": string, "owner": string, "due": string, "evidence": string[]}]}
-- "action_items": tasks someone must do next that these lines state or clearly agree on; empty array if none. Leave out a topic the lines are still discussing. "title" is an imperative sentence. "owner" is a person the input names as responsible, written as it appears there, or "" when nobody is named. "due" is a date or relative time as stated in the input, or "" when none is stated. Never guess an owner or a due date.
-- Each transcript line starts with a label in square brackets, for example [S1]. "evidence" lists the labels of the lines an item rests on, written without brackets, for example ["S3"]. Use only labels that appear in the input.
-- The transcript comes from automatic speech recognition and may contain misheard words and names. Do not invent names, dates or numbers to repair it; leave out a passage you cannot understand.
-- A speaker label may be a technical identifier rather than a name; never use an identifier as an owner.
-- "Existing action items" lists tasks this meeting already has. Never put one of them in "action_items" again, even in different words.
-- Most stretches of a meeting settle nothing: an empty "action_items" array is a correct answer.
-- Write every string in the language named by the caller.
-`
-
-// meetingLiveItemsRulesV2 is @1 with actionItemProseRules.
+// meetingLiveItemsRulesV2 is meeting_live_items@2 (scribe spec §4.4, §8):
+// the newest transcript lines of a meeting under way, the meeting's existing
+// items, the owner/due rules of meeting_summary@3+ and actionItemProseRules.
 const meetingLiveItemsRulesV2 = `You pick out follow-up tasks from the newest lines of a meeting that is still under way, for a Vietnamese work team.
 Respond with a single JSON object and nothing else, shaped exactly as:
 {"action_items": [{"title": string, "owner": string, "due": string, "description": string, "priority": string, "evidence": string[]}]}
@@ -175,11 +148,7 @@ const meetingLiveItemsSchemaV2 = `{"type":"object","properties":{"action_items":
 
 const meetingSummarySchemaV6 = `{"type":"object","properties":{"summary":{"type":"string"},"decisions":{"type":"array","items":{"type":"object","properties":{"text":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}},"required":["text","evidence"],"additionalProperties":false}},"action_items":{"type":"array","items":` + actionItemSchemaV6 + `}},"required":["summary","decisions","action_items"],"additionalProperties":false}`
 
-const meetingLiveItemsSchema = `{"type":"object","properties":{"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}},"required":["title","owner","due","evidence"],"additionalProperties":false}}},"required":["action_items"],"additionalProperties":false}`
-
 const meetingSummarySchema = `{"type":"object","properties":{"summary":{"type":"string"},"decisions":{"type":"array","items":{"type":"string"}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"}},"required":["title","owner","due"],"additionalProperties":false}}},"required":["summary","decisions","action_items"],"additionalProperties":false}`
-
-const meetingSummarySchemaV5 = `{"type":"object","properties":{"summary":{"type":"string"},"decisions":{"type":"array","items":{"type":"object","properties":{"text":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}},"required":["text","evidence"],"additionalProperties":false}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}},"required":["title","owner","due","evidence"],"additionalProperties":false}}},"required":["summary","decisions","action_items"],"additionalProperties":false}`
 
 // attendanceOrder fixes the order statuses are listed in, so the rendered
 // prompt does not depend on map iteration.
@@ -187,11 +156,14 @@ var attendanceOrder = []struct{ status, label string }{
 	{"PRESENT", "Present"}, {"LATE", "Late"}, {"EXCUSED", "Excused"}, {"ABSENT", "Absent"},
 }
 
-// renderMeetingSummary is shared by @1 to @5. From @2 on it adds the
+// renderMeetingSummary is shared by every meeting_summary and
+// meeting_live_items version. From @2 on it adds the
 // recorded attendance and vote blocks (without facts @2 renders exactly like
 // @1); @3 also moves the title inside an untrusted tag; @4 adds the block of
 // action items the meeting already handled; @5 prints each source line's
-// label (sourceLabel). Every value a person
+// label (sourceLabel); @7 adds the record size, the draft items, the partial
+// records of a long transcript and the read-only context lines of live
+// extraction (prompts_meeting.go). Every value a person
 // typed goes through EscapeUntrusted, which leaves ordinary text unchanged, so
 // the @1 and @2 snapshots still hold byte for byte.
 func renderMeetingSummary(vars map[string]any, version int) string {
@@ -200,6 +172,9 @@ func renderMeetingSummary(vars map[string]any, version int) string {
 		fmt.Fprintf(&b, "Output language: %s\nMeeting title: %s\n", language(str(vars, "locale")), UntrustedInline("title", str(vars, "title")))
 	} else {
 		fmt.Fprintf(&b, "Output language: %s\nMeeting title: %s\n", language(str(vars, "locale")), EscapeUntrustedLine(str(vars, "title")))
+	}
+	if version >= 7 {
+		renderSummaryShape(&b, vars)
 	}
 	if agenda := strings.TrimSpace(str(vars, "agenda")); agenda != "" {
 		fmt.Fprintf(&b, "Agenda:\n<untrusted source=\"agenda\">%s</untrusted>\n", EscapeUntrusted(agenda))
@@ -234,9 +209,18 @@ func renderMeetingSummary(vars map[string]any, version int) string {
 		}
 		b.WriteString("</untrusted>\n")
 	}
+	parts, _ := vars["parts"].([]MeetingSummary)
+	if version >= 7 {
+		renderSummaryDrafts(&b, vars)
+		renderSummaryParts(&b, parts)
+		renderTranscriptContext(&b, vars)
+	}
 	b.WriteString("\nTranscript:\n<untrusted source=\"transcript\">\n")
 	lines, _ := vars["transcript"].([]TranscriptLine)
-	if len(lines) == 0 {
+	switch {
+	case len(lines) == 0 && len(parts) > 0:
+		b.WriteString("(summarized in the partial records above)\n")
+	case len(lines) == 0:
 		b.WriteString("(no transcript captured)\n")
 	}
 	for _, l := range lines {
@@ -322,13 +306,8 @@ func init() {
 		OutputSchema: json.RawMessage(meetingSummarySchema),
 		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 3) },
 	})
-	register(Prompt{
-		ID: "meeting_summary", Version: 5,
-		System:       meetingSummaryRulesV5 + meetingSummaryFactRules + meetingSummaryInputRules + meetingSummaryExistingRules + UntrustedFooter,
-		OutputSchema: json.RawMessage(meetingSummarySchemaV5),
-		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 5) },
-	})
-	// @6 renders exactly like @5; only the asked-for item fields change.
+	// @6 renders with the labels @5 introduced (@5 itself never shipped and
+	// is no longer registered); @7 replaces it, @6 stays for old usage rows.
 	register(Prompt{
 		ID: "meeting_summary", Version: 6,
 		System:       meetingSummaryRulesV6 + meetingSummaryFactRules + meetingSummaryInputRules + meetingSummaryExistingRules + UntrustedFooter,
@@ -337,13 +316,7 @@ func init() {
 	})
 
 	// The input is a subset of a summary's (title, existing items, labelled
-	// transcript), so it renders the way meeting_summary@5 does.
-	register(Prompt{
-		ID: "meeting_live_items", Version: 1,
-		System:       meetingLiveItemsRules + UntrustedFooter,
-		OutputSchema: json.RawMessage(meetingLiveItemsSchema),
-		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 5) },
-	})
+	// transcript), so it renders the way meeting_summary@6 does.
 	register(Prompt{
 		ID: "meeting_live_items", Version: 2,
 		System:       meetingLiveItemsRulesV2 + UntrustedFooter,

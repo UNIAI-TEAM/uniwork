@@ -42,6 +42,16 @@ type minutesTask struct{ Title, Assignee, Due string }
 type minutesNarrative struct {
 	Summary   string
 	Decisions []minutesDecision
+	// Topics and OpenQuestions are meeting_summary@7's (benchmark #8).
+	Topics        []minutesTopic
+	OpenQuestions []string
+}
+
+// minutesTopic is a subject of the content: At is the clock time (HH:MM) of
+// the transcript line it starts at, "" when none is known.
+type minutesTopic struct {
+	Title, At string
+	Points    []string
 }
 
 // minutesDecision is a decision and the clock times (HH:MM, the meeting's
@@ -55,7 +65,7 @@ type minutesDecision struct {
 type minutesLayout struct {
 	TitlePrefix, TimeLabel, HostLabel, SecretaryLabel        string
 	Attendance, Invited, Content, Decisions, Votes, Assigned string
-	NoSummary, EvidenceAt                                    string
+	NoSummary, EvidenceAt, OpenQuestions                     string
 	PresentRatio                                             string // members present, total, percent
 	QuorumMet, QuorumNotMet                                  string // quorum percent
 	StatusNames                                              map[string]string
@@ -70,7 +80,7 @@ var minutesLayouts = map[string]minutesLayout{
 		TitlePrefix: "Biên bản", TimeLabel: "Thời gian", HostLabel: "Chủ trì", SecretaryLabel: "Thư ký",
 		Attendance: "Thành phần", Invited: "Người được mời", Content: "Nội dung", Decisions: "Kết luận",
 		Votes: "Kết quả biểu quyết", Assigned: "Việc đã giao",
-		NoSummary: "Chưa có tóm tắt.", EvidenceAt: "lúc",
+		NoSummary: "Chưa có tóm tắt.", EvidenceAt: "lúc", OpenQuestions: "Vấn đề còn mở",
 		PresentRatio: "Có mặt %d/%d thành viên (%d%%).",
 		QuorumMet:    "Đủ tỉ lệ có mặt tối thiểu %d%%.", QuorumNotMet: "Chưa đủ tỉ lệ có mặt tối thiểu %d%%.",
 		StatusNames: map[string]string{
@@ -85,7 +95,7 @@ var minutesLayouts = map[string]minutesLayout{
 		TitlePrefix: "Minutes", TimeLabel: "Time", HostLabel: "Chair", SecretaryLabel: "Secretary",
 		Attendance: "Attendance", Invited: "Invited", Content: "Discussion", Decisions: "Decisions",
 		Votes: "Votes", Assigned: "Assigned tasks",
-		NoSummary: "No summary yet.", EvidenceAt: "at",
+		NoSummary: "No summary yet.", EvidenceAt: "at", OpenQuestions: "Open questions",
 		PresentRatio: "%d of %d members present (%d%%).",
 		QuorumMet:    "Quorum of %d%% met.", QuorumNotMet: "Quorum of %d%% not met.",
 		StatusNames: map[string]string{
@@ -175,6 +185,20 @@ func renderMinutes(f minutesFacts, n minutesNarrative, l minutesLayout) string {
 	} else {
 		line(l.NoSummary)
 	}
+	for _, t := range n.Topics {
+		head := minutesEscape(t.Title)
+		if t.At != "" {
+			head += " (" + l.EvidenceAt + " " + t.At + ")"
+		}
+		line("")
+		line("### " + head)
+		if len(t.Points) > 0 {
+			line("")
+		}
+		for _, p := range t.Points {
+			line("- " + mdNarrative(oneLine(p)))
+		}
+	}
 
 	if len(n.Decisions) > 0 {
 		section(l.Decisions)
@@ -184,6 +208,13 @@ func renderMinutes(f minutesFacts, n minutesNarrative, l minutesLayout) string {
 				text += " (" + l.EvidenceAt + " " + strings.Join(d.At, ", ") + ")"
 			}
 			line(fmt.Sprintf("%d. %s", i+1, text))
+		}
+	}
+
+	if len(n.OpenQuestions) > 0 {
+		section(l.OpenQuestions)
+		for _, q := range n.OpenQuestions {
+			line("- " + mdNarrative(oneLine(q)))
 		}
 	}
 

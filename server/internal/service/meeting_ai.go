@@ -180,6 +180,82 @@ func (s *MeetingService) Summary(ctx context.Context, userID, meetingID string) 
 	if _, err := s.authorizeAIContent(ctx, userID, meetingID); err != nil {
 		return nil, err
 	}
+	return s.latestSummary(ctx, meetingID)
+}
+
+// SummaryWithRun answers GET /meetings/{id}/summary: the latest summary,
+// when each of its topics starts, and whether one is being made (benchmark
+// #12), so every viewer sees "being generated" instead of "no summary", and
+// nobody clicks into a 409.
+func (s *MeetingService) SummaryWithRun(ctx context.Context, userID, meetingID string) (SummaryView, error) {
+	m, err := s.authorizeAIContent(ctx, userID, meetingID)
+	if err != nil {
+		return SummaryView{}, err
+	}
+	sum, err := s.latestSummary(ctx, meetingID)
+	if err != nil {
+		return SummaryView{}, err
+	}
+	out := SummaryView{Summary: sum, Run: SummaryRun{Status: SummaryRunIdle}, TopicStarts: map[string]time.Time{}}
+	if sum != nil {
+		var ids []string
+		for _, t := range DecodeSummaryTopics(sum.Topics) {
+			if t.Start != nil {
+				ids = append(ids, t.Start.ID)
+			}
+		}
+		if len(ids) > 0 {
+			rows, err := s.q.ListTranscriptSegmentsByIDs(ctx, db.ListTranscriptSegmentsByIDsParams{OrganizationID: m.OrganizationID, MeetingID: m.ID, Ids: ids})
+			if err != nil {
+				return SummaryView{}, err
+			}
+			for _, r := range rows {
+				if r.SpokenAt.Valid {
+					out.TopicStarts[r.ID] = r.SpokenAt.Time
+				}
+			}
+		}
+	}
+	st, err := s.q.GetMeetingSummaryRunState(ctx, db.GetMeetingSummaryRunStateParams{OrganizationID: m.OrganizationID, MeetingID: m.ID})
+	if err != nil {
+		return SummaryView{}, err
+	}
+	switch {
+	case st.RunningSince.Valid:
+		out.Run = SummaryRun{Status: SummaryRunRunning, At: st.RunningSince.Time, Attempts: int(st.Attempts)}
+	case st.QueuedDueAt.Valid:
+		out.Run = SummaryRun{Status: SummaryRunQueued, At: st.QueuedDueAt.Time, Attempts: int(st.Attempts)}
+	}
+	return out, nil
+}
+
+// SummaryView is GET summary's answer. TopicStarts maps a topic's start
+// segment to when it was spoken; a segment deleted since is absent.
+type SummaryView struct {
+	Summary     *db.MeetingSummary
+	Run         SummaryRun
+	TopicStarts map[string]time.Time
+}
+
+// Summary run states (SummaryRun.Status).
+const (
+	SummaryRunIdle    = "idle"
+	SummaryRunQueued  = "queued"
+	SummaryRunRunning = "running"
+)
+
+// SummaryRun is a summary being made: running holds the run lease (a
+// clerk's run or the system's), queued is the system's summary waiting for
+// its due time (the meeting's last lines, or a retry's backoff). At is when
+// the run started, or when the queued one is due; Attempts counts the
+// system's tries so far.
+type SummaryRun struct {
+	Status   string
+	At       time.Time
+	Attempts int
+}
+
+func (s *MeetingService) latestSummary(ctx context.Context, meetingID string) (*db.MeetingSummary, error) {
 	sum, err := s.q.GetLatestMeetingSummary(ctx, meetingID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -285,6 +361,7 @@ func (s *MeetingService) summarize(ctx context.Context, m db.Meeting, actor Acto
 	var rep AttendanceReport
 	var closed []db.MeetingMotion
 	var existing []string
+	var drafts []db.MeetingActionItem
 	g, gctx := errgroup.WithContext(runCtx)
 	g.Go(func() error {
 		src, err := s.q.TranscriptSources(gctx, meetingID)
@@ -292,7 +369,7 @@ func (s *MeetingService) summarize(ctx context.Context, m db.Meeting, actor Acto
 			return err
 		}
 		segs, err = s.q.ListTranscriptSegmentsLatest(gctx, db.ListTranscriptSegmentsLatestParams{
-			MeetingID: meetingID, RowLimit: int32(budget.rows),
+			MeetingID: meetingID, RowLimit: int32(budget.rows * summaryMaxParts),
 			Rich: src.HasAgent || len(src.TranscriptionIds) > 0, TranscriptionIds: src.TranscriptionIds,
 		})
 		slices.Reverse(segs)
@@ -321,11 +398,16 @@ func (s *MeetingService) summarize(ctx context.Context, m db.Meeting, actor Acto
 	})
 	g.Go(func() error {
 		var err error
-		existing, err = s.handledActionItemTitles(gctx, m)
+		existing, drafts, err = s.summaryPromptItems(gctx, m)
 		return err
 	})
 	if err := g.Wait(); err != nil {
 		return db.MeetingSummary{}, err
+	}
+	// The system's own run speaks the meeting's language (benchmark #22 j);
+	// a clerk's run speaks the clerk's.
+	if locale == "" {
+		locale = meetingLanguage(segs, notes, chat)
 	}
 	if _, err := s.nameSpeakers(runCtx, meetingID, segs, locale); err != nil {
 		return db.MeetingSummary{}, err
@@ -349,14 +431,11 @@ func (s *MeetingService) summarize(ctx context.Context, m db.Meeting, actor Acto
 		transcript = append(transcript, ai.TranscriptLine{Label: sg.ID, Speaker: sg.SpeakerName, Text: sg.Text})
 	}
 	// partial (parent spec §7.8): the newest rows did not reach the start of
-	// the meeting, or the window dropped lines.
-	partial := len(segs) >= budget.rows || len(chat) >= summaryChatRows
-	var cut bool
-	transcript, cut = windowSummaryLines(transcript, budget.runes-notesUsed,
-		func(l ai.TranscriptLine) int {
-			return utf8.RuneCountInString(l.Speaker) + utf8.RuneCountInString(l.Text) + 3
-		},
-		func(n int) ai.TranscriptLine { return ai.TranscriptLine{Speaker: "…", Text: summaryOmitted(n)} })
+	// the meeting, or the window dropped lines. A transcript longer than one
+	// call's budget is read in parts (benchmark #8) up to summaryMaxParts of
+	// them; only past that are lines dropped.
+	partial := len(segs) >= budget.rows*summaryMaxParts || len(chat) >= summaryChatRows
+	chunks, cut := splitSummaryTranscript(transcript, budget.runes-notesUsed, summaryMaxParts)
 	chatLines := make([]ai.ChatLine, 0, len(chat))
 	for _, c := range chat {
 		chatLines = append(chatLines, ai.ChatLine{Label: c.ID, Sender: c.SenderName, Text: c.Message})
@@ -367,8 +446,12 @@ func (s *MeetingService) summarize(ctx context.Context, m db.Meeting, actor Acto
 		func(n int) ai.ChatLine { return ai.ChatLine{Sender: "…", Text: summaryOmitted(n)} })
 	partial = partial || cut
 	labels := newSummaryLabels()
-	for i := range transcript {
-		transcript[i].Label = labels.label(EvidenceSegment, transcript[i].Label)
+	transcriptRunes := 0
+	for _, chunk := range chunks {
+		for i := range chunk {
+			chunk[i].Label = labels.label(EvidenceSegment, chunk[i].Label)
+			transcriptRunes += summaryLineRunes(chunk[i])
+		}
 	}
 	for i := range noteLines {
 		noteLines[i].Label = labels.label(EvidenceNote, noteLines[i].Label)
@@ -376,27 +459,29 @@ func (s *MeetingService) summarize(ctx context.Context, m db.Meeting, actor Acto
 	for i := range chatLines {
 		chatLines[i].Label = labels.label(EvidenceChat, chatLines[i].Label)
 	}
-	resp, err := s.AI.Complete(runCtx, ai.Request{
+	req := ai.Request{
 		Actor: actor, OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingSummarization, PromptID: ai.PromptMeetingSummary,
 		Vars: map[string]any{
 			"title": m.Title, "agenda": m.Description, "locale": locale,
-			"transcript": transcript, "notes": noteLines, "chat": chatLines,
+			"size":  summarySizeFor(transcriptRunes + notesUsed),
+			"notes": noteLines, "chat": chatLines,
 			"attendance": summaryAttendanceFacts(m, rep), "motions": summaryMotionFacts(closed),
-			"existing_action_items": existing,
+			"existing_action_items": existing, "drafts": summaryDraftLines(drafts, labels),
 		},
-	})
-	if err != nil {
-		return db.MeetingSummary{}, s.summaryFailure(m.ID, "", err)
 	}
-	if strings.TrimSpace(resp.Text) == "" {
-		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonEmpty, err: errSummaryEmptyOutput})
+	if len(chunks) == 1 {
+		req.Vars["transcript"] = chunks[0]
+	} else {
+		parts, err := s.summarizeParts(runCtx, req, chunks)
+		if err != nil {
+			return db.MeetingSummary{}, s.summaryFailure(m.ID, "", err)
+		}
+		req.Vars["parts"] = parts
 	}
-	// ParseSummaryJSON also refuses an object with no summary, decisions or
-	// action items, so that answer counts as parse; empty is blank text only.
-	res, err := ai.ParseSummaryJSON(resp.Text)
+	resp, res, err := s.completeSummary(runCtx, req)
 	if err != nil {
-		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonParse, err: err})
+		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, err)
 	}
 	// The answer is billed: store it even if the request has gone away, the
 	// way the gateway still settles its usage row.
@@ -460,8 +545,11 @@ type summaryBudgetPlan struct {
 }
 
 // summaryBudget sizes a run from MEETING_SUMMARY_MAX_RUNES (parent spec
-// §7.8): rows at ~20 runes a line, and a minute more of lease per 100k runes
-// on top of summaryRunLease, since a longer prompt takes the model longer.
+// §7.8): the runes and rows (~20 runes a line) one model call reads, and a
+// minute more of lease per 100k runes on top of summaryRunLease, since a
+// longer prompt takes the model longer. The lease is doubled: a long
+// transcript is read in parts (in parallel) and then combined, two model
+// calls back to back.
 // shortcut: the lease follows the configured cap, not this meeting's actual
 // length; size it from the rows read if long leases ever block re-runs.
 func (s *MeetingService) summaryBudget() summaryBudgetPlan {
@@ -469,7 +557,7 @@ func (s *MeetingService) summaryBudget() summaryBudgetPlan {
 	return summaryBudgetPlan{
 		runes: runes,
 		rows:  max(summaryTranscriptRows, runes/20),
-		lease: summaryRunLease + time.Duration(runes/100000)*time.Minute,
+		lease: 2 * (summaryRunLease + time.Duration(runes/100000)*time.Minute),
 	}
 }
 

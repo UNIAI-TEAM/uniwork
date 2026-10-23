@@ -353,6 +353,14 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 			"409 minutes_missing.",
 		sdo: sdo.MeetingMinutesSDO{}, auth: true,
 	})
+	minutes.Post("/meetings/{meetingID}/minutes/refresh", h.RefreshMeetingMinutes, apiOp{
+		summary: "Rewrite the fact sections of draft minutes from the meeting's data (clerk with edit)", tags: []string{"meetings"},
+		description: "Chỉ khi biên bản còn là bản nháp (đã chốt → 409 minutes_finalized). Viết lại các mục lấy từ bảng: thành phần " +
+			"(hoặc người được mời), kết quả biểu quyết, việc đã giao; phần nội dung, kết luận và những gì thư ký đã sửa giữ nguyên. " +
+			"Ghi như một lần sửa trang của người gọi (kiểm tra phiên bản và khoá sửa của trang); không có gì đổi thì không ghi. " +
+			"403 not_meeting_clerk, 403 minutes_edit_required, 409 minutes_missing.",
+		sdo: sdo.MeetingMinutesSDO{}, auth: true,
+	})
 	minutes.Post("/meetings/{meetingID}/minutes/reopen", h.ReopenMeetingMinutes, apiOp{
 		summary: "Reopen finalized minutes as a draft (clerk with edit)", tags: []string{"meetings"},
 		description: "Xoá thông tin chốt trên cuộc họp; phiên bản vẫn ở lịch sử tài liệu. Như chốt: 403 minutes_edit_required, 409 minutes_missing.",

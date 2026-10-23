@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
@@ -211,5 +211,51 @@ describe("MeetingMinutesSection", () => {
     renderSection(false);
     expect(await screen.findByText("Chưa có biên bản.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Lập biên bản" })).not.toBeInTheDocument();
+  });
+
+  it("warns while action items are still pending and asks before finalizing over them (UNI-1995 #22)", async () => {
+    respond({ ...draft, pending_items: 2 }, { finalize: finalized });
+    renderSection();
+    expect(await screen.findByText(/^Còn 2 việc chưa giao hoặc bỏ qua/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Chốt biên bản" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(posted()).toEqual([]);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Vẫn chốt" }));
+    await waitFor(() => expect(posted()).toEqual(["/api/v1/meetings/m1/minutes/finalize"]));
+  });
+
+  it("finalizes at once when no item is pending, and says nothing about items", async () => {
+    respond({ ...draft, pending_items: 0 }, { finalize: finalized });
+    renderSection();
+    await userEvent.click(await screen.findByRole("button", { name: "Chốt biên bản" }));
+    await waitFor(() => expect(posted()).toEqual(["/api/v1/meetings/m1/minutes/finalize"]));
+    expect(screen.queryByText(/việc chưa giao/)).not.toBeInTheDocument();
+  });
+
+  it("refreshes the facts of draft minutes, and offers no refresh once finalized", async () => {
+    respond({ ...draft, pending_items: 1 }, { refresh: { ...draft, pending_items: 0 } });
+    renderSection();
+    await userEvent.click(await screen.findByRole("button", { name: "Cập nhật dữ kiện" }));
+    await waitFor(() => expect(posted()).toEqual(["/api/v1/meetings/m1/minutes/refresh"]));
+    await waitFor(() => expect(screen.queryByText(/việc chưa giao/)).not.toBeInTheDocument());
+  });
+
+  it("offers no refresh on finalized minutes or to a reader", async () => {
+    respond(finalized);
+    renderSection();
+    expect(await screen.findByText("Đã chốt")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cập nhật dữ kiện" })).not.toBeInTheDocument();
+  });
+
+  it("says why a refresh was refused", async () => {
+    respond(draft);
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      init?.method === "POST" ? Promise.reject(new ApiError("x", "minutes_finalized", 409)) : base(path, init),
+    );
+    renderSection();
+    await userEvent.click(await screen.findByRole("button", { name: "Cập nhật dữ kiện" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Biên bản đã chốt");
   });
 });

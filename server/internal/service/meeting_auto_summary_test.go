@@ -267,8 +267,12 @@ func TestAutoSummaryWorker(t *testing.T) {
 			t.Fatalf("summary.created rows = %d", n)
 		}
 	})
+	// A failure that passes is retried (TestAutoSummaryRetriesWhatPasses);
+	// a billed answer that does not parse is not.
 	t.Run("failure", func(t *testing.T) {
-		s, ua, m, _ := summaryFixture(t, &provider.Fake{Err: errors.New("vendor down")}, ai.Options{})
+		s, ua, m, _ := summaryFixture(t, &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+			return provider.CompletionResponse{Text: "not json"}
+		}}, ai.Options{})
 		if _, err := s.End(ctx, ua.ID, m.ID); err != nil {
 			t.Fatal(err)
 		}

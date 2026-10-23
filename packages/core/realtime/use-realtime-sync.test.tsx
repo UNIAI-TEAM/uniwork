@@ -1300,12 +1300,14 @@ describe("useRealtimeSync › meeting summary", () => {
         JSON.stringify(["meeting-summary", "m1"]),
         JSON.stringify(["meeting-activity", "m1"]),
         JSON.stringify(["meeting-action-items", "m1"]),
+        // The minutes count the pending items before finalizing.
+        JSON.stringify(["meeting-minutes", "m1"]),
       ]),
     );
   });
 
   it.each(["action_item.created", "action_item.dismissed", "action_item.restored", "action_item.converted"])(
-    "refreshes the meeting's action items on %s",
+    "refreshes the meeting's action items and the minutes' pending count on %s",
     (type) => {
       vi.useFakeTimers();
       const { invalidate, client } = setup();
@@ -1313,9 +1315,21 @@ describe("useRealtimeSync › meeting summary", () => {
       act(() => {
         vi.advanceTimersByTime(250);
       });
-      expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting-action-items", "m1"])]));
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["meeting-action-items", "m1"]), JSON.stringify(["meeting-minutes", "m1"])]),
+      );
     },
   );
+
+  it("reads the summary run again on meeting.ended, when the auto summary is queued", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "meeting.ended", payload: { meeting_id: "m1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["meeting-summary", "m1"]));
+  });
 
   it.each(["minutes.created", "minutes.finalized", "minutes.reopened"])("refreshes the meeting's minutes on %s", (type) => {
     vi.useFakeTimers();

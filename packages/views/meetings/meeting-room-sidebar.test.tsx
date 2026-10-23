@@ -124,6 +124,15 @@ describe("MeetingRoomSidebar", () => {
     expect(screen.getByRole("tablist")).toHaveAccessibleName("Bảng phụ cuộc họp");
   });
 
+  it("badges the UNI tab with the live items the scribe wrote while it was off screen (UNI-1995 #21)", () => {
+    render(
+      wrapWithNav(
+        <MeetingRoomSidebar meetingId="m1" meeting={meeting} workspaceId="w1" tab="chat" onTabChange={() => {}} liveItemsUnseen={2} />,
+      ),
+    );
+    expect(screen.getByRole("tab", { name: /^UNI\W+2 việc UNI mới ghi$/ })).toBeInTheDocument();
+  });
+
   it("names the recordings tab for what it lists", async () => {
     const onTabChange = vi.fn();
     const { rerender } = render(
