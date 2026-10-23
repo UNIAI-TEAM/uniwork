@@ -58,7 +58,10 @@ mật khẩu" trước; trải nghiệm hai nền tảng khác nhau. Chi phí: S
      bằng nhà cung cấp mà Google dùng (`email_verified_at` có, `onboarded_at` để trống: onboarding vẫn ở phía trước);
    - tài khoản bật MFA nhận 403 `mfa_required` (bước hai chỉ hỏi ở trình duyệt) và không được liên kết;
    - trả phiên thiết bị native cùng hình với `POST /auth/desktop/exchange` (`DesktopAuthService.issueDeviceSession`),
-     audit `auth.login_succeeded` (`via: apple`) và `auth.desktop_session_created`.
+     audit `auth.login_succeeded` (`via: apple`) và `auth.desktop_session_created`;
+   - sau commit (best effort, như mail đăng nhập mới của trình duyệt): liên kết theo email gửi cho chủ tài khoản mail
+     `apple_linked` (thiết bị, IP, thời điểm, link tới các phiên đang mở); không thì tài khoản đã có phiên trước lần
+     này nhận mail `new_login` ghi thiết bị của app. Tài khoản vừa tạo và lần đăng nhập bị từ chối không nhận gì.
 3. Server đổi authorization code lấy refresh token của Apple (client secret ES256 ký bằng khoá Sign in with Apple
    `APPLE_SIWA_KEY_ID`/`APPLE_SIWA_PRIVATE_KEY` của team `APPLE_SIWA_TEAM_ID`), giữ nó **mã hoá**
    (`users.apple_refresh_token_enc`, cùng bundle id ở `users.apple_client_id`) chỉ để thu hồi: xoá tài khoản xoá các
@@ -78,6 +81,8 @@ mật khẩu" trước; trải nghiệm hai nền tảng khác nhau. Chi phí: S
   `TestAppleVerifierRefusesWhatAppleDidNotIssueForThisApp` (aud sai, hết hạn, nonce sai hay nonce gốc trong token, iss
   sai, chữ ký giả), `TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay`,
   `TestAppleSignInSendsAnMFAAccountToTheBrowserWithoutLinking`, `TestDeleteAccountRevokesTheAppleToken`,
+  `TestAppleSignInTellsTheOwnerOfTheLinkAndOfEveryNewSession` (mail `apple_linked` và `new_login`, vi/en,
+  `server/internal/mail/templates/`),
   `TestAppleSignInRefusals` (handler), `TestAppleNativeSignInRidesTheCredentialBudget`, và dòng
   `POST /api/v1/auth/apple/native` trong `isoRoutes` của `TestIsolationMatrix`.
 - App: `data/auth/apple.ts` (nonce, sheet), `data/auth/apple-transport.ts` (hai route), `MobileSession.loginWith`
@@ -88,6 +93,19 @@ mật khẩu" trước; trải nghiệm hai nền tảng khác nhau. Chi phí: S
   `store/listing.md` (`privacy-content.test.ts`).
 - Xoá tài khoản chỉ Apple vẫn xác nhận bằng cách gõ lại email; với email relay thì đó là địa chỉ dài của Apple (app hiện
   nó làm placeholder). Xác nhận lại bằng sheet của Apple là việc sau.
+- Tài khoản tạo bằng Sign in with Apple chưa vào được workspace nào chỉ bằng điện thoại. Lời mời chỉ đọc và nhận
+  được bởi tài khoản đã chứng minh đúng hộp thư được mời (`invitation_accept.go` › `sameMailbox`); app chưa có màn
+  nhận lời mời, và trên web tài khoản chỉ có Apple không đăng nhập được (web chưa có nút Apple, không có mật khẩu, quên
+  mật khẩu bỏ qua nó). Với Ẩn địa chỉ email (Hide My Email) còn tệ hơn: địa chỉ của tài khoản là địa chỉ relay của
+  Apple nên lời mời gửi tới email công việc thuộc về tài khoản khác. Hiện giờ màn workspace trống của tài khoản relay
+  nói điều đó và chỉ đường đang đi được: đăng xuất rồi đăng nhập qua trình duyệt bằng email đã được mời
+  (`mobile.account.no_workspace_relay`, `lib/apple-relay.ts`, `test/routes/entry.test.tsx`). Việc sau, owner là
+  luồng mobile UNI-2053, cần xong trước khi mở App Store cho người ngoài TestFlight: nhận lời mời ngay trong app
+  (`GET /api/v1/me/invitations` đã có), hay thêm và xác minh một địa chỉ thứ hai cho tài khoản; cân nhắc gợi ý chọn
+  "Chia sẻ email của tôi" cạnh nút Apple cho người vào workspace công ty.
+- Mail tới địa chỉ relay (mã xác minh, `new_login`, lời mời) chỉ tới được người dùng khi tên miền gửi mail của
+  UniWork đã đăng ký với Private Email Relay Service của Apple (Certificates, Identifiers & Profiles › Services › Sign
+  in with Apple for Email Communication) và qua SPF/DKIM. Owner action, cùng nhóm bên dưới.
 - Server-to-server notification của Apple (người dùng gỡ quyền từ cài đặt Apple ID) chưa được nhận: phiên native vẫn
   sống tới khi hết hạn hay bị thu hồi. Việc sau.
 - Owner action: bật capability Sign In with Apple cho App ID `com.uniworkos.chat` (và `.staging`) — EAS bật khi ký nếu

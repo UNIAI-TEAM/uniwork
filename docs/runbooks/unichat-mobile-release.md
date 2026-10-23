@@ -590,9 +590,11 @@ từng mục khi đã nộp:
   một khoá ở Keys › "+" › Sign in with Apple › Configure với primary App ID `com.uniworkos.chat`, tải `.p8` (một lần);
   server production có `APPLE_SIWA_AUDIENCES=com.uniworkos.chat` (staging thêm `com.uniworkos.chat.staging`),
   `APPLE_SIWA_TEAM_ID=XJAM488A6D`, `APPLE_SIWA_KEY_ID`, `APPLE_SIWA_PRIVATE_KEY` (nội dung `.p8`) và đã deploy bản có
-  migration `users.apple_id`; `GET https://uniworkos.com/api/v1/auth/providers` trả `"apple":true`. Thử trên máy
-  thật: đăng nhập bằng Apple (cả "Ẩn email"), đăng xuất, đăng nhập lại vào đúng tài khoản, xoá tài khoản — log server
-  không có `apple revoke failed`. Ghi chú review: "Sign in with Apple is on the first screen."
+  migration `users.apple_id`; `GET https://uniworkos.com/api/v1/auth/providers` trả `"apple":true`. Tên miền và địa
+  chỉ gửi mail của UniWork đã đăng ký ở Certificates, Identifiers & Profiles › Services › Sign in with Apple for Email
+  Communication (qua SPF/DKIM), không thì mail tới địa chỉ relay của "Ẩn email" bị Apple bỏ. Thử trên máy
+  thật: đăng nhập bằng Apple (cả "Ẩn email"), đăng xuất, đăng nhập lại vào đúng tài khoản (hộp thư nhận mail
+  `new_login`), xoá tài khoản — log server không có `apple revoke failed`. Ghi chú review: "Sign in with Apple is on the first screen."
 - [ ] **iOS background modes (Apple 2.5.4)**: Info.plist của bản nộp chỉ có `UIBackgroundModes: processing` khi gọi còn
   tắt trên iPhone (`app.config.test.ts` đọc Info.plist cuối của bản release), và ghi chú review giải thích nó: "UniChat
   schedules a background processing task (BGTaskScheduler) that sends messages the user wrote while offline once the
