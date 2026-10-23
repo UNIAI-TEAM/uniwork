@@ -103,6 +103,19 @@ func (q *Queries) HurryMeetingAutoSummary(ctx context.Context, arg HurryMeetingA
 	return err
 }
 
+const lockMeetingSettings = `-- name: LockMeetingSettings :exec
+SELECT pg_advisory_xact_lock(hashtextextended('meeting-settings:' || $1::text, 0))
+`
+
+// Serializes SetMeetingSettings of one organization: it reads the row, then
+// upserts both columns, so two saves of different fields would otherwise
+// write each other's field back. An advisory lock, because the row may not
+// exist yet.
+func (q *Queries) LockMeetingSettings(ctx context.Context, organizationID string) error {
+	_, err := q.db.Exec(ctx, lockMeetingSettings, organizationID)
+	return err
+}
+
 const meetingAutoSummaryQueued = `-- name: MeetingAutoSummaryQueued :one
 SELECT EXISTS (SELECT 1 FROM meeting_auto_summaries WHERE meeting_id = $1)::boolean AS queued
 `

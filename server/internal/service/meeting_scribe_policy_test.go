@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 )
@@ -117,6 +118,60 @@ func TestSetMeetingSettingsScribePolicy(t *testing.T) {
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'meeting.settings_changed'
 		AND resource_id = $1 AND changes::jsonb ? 'scribe_policy' AND NOT changes::jsonb ? 'auto_summary_enabled'`, w.OrganizationID).Scan(&rows); err != nil || rows != 1 {
 		t.Fatalf("scribe_policy audit rows %d %v", rows, err)
+	}
+}
+
+// Review round (access): two admins saving different fields at once both
+// land. The settings row is held by an outside transaction so both saves have
+// read it before either can write; without the per-organization lock the
+// second upsert writes the first one's field back to its old value.
+func TestSetMeetingSettingsConcurrentSavesKeepBothFields(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	setScribePolicy(t, s, ua.ID, w.OrganizationID, ScribePolicyOn) // the row exists
+	hold, err := s.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = hold.Rollback(ctx) }()
+	if _, err := hold.Exec(ctx, `SELECT 1 FROM meeting_settings WHERE organization_id = $1 FOR UPDATE`, w.OrganizationID); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+	policy := ScribePolicyOptIn
+	for _, in := range []MeetingSettingsInput{{AutoSummaryEnabled: new(false)}, {ScribePolicy: &policy}} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := s.SetMeetingSettings(ctx, Human(ua.ID), w.OrganizationID, in)
+			errs <- err
+		}()
+	}
+	// Both saves are under way (blocked on the held row or the lock).
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
+		var waiting int
+		if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM pg_locks WHERE NOT granted`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting >= 2 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err := hold.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	set, err := s.GetMeetingSettings(ctx, Human(ua.ID), w.OrganizationID)
+	if err != nil || set.AutoSummaryEnabled || set.ScribePolicy != ScribePolicyOptIn {
+		t.Fatalf("settings %+v %v, want auto summary off and policy opt_in", set, err)
 	}
 }
 

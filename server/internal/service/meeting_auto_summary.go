@@ -287,6 +287,9 @@ func (s *MeetingService) SetMeetingSettings(ctx context.Context, actor Actor, or
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
+	if err := q.LockMeetingSettings(ctx, organizationID); err != nil {
+		return db.MeetingSetting{}, err
+	}
 	before, err := meetingSettings(ctx, q, organizationID)
 	if err != nil {
 		return db.MeetingSetting{}, err

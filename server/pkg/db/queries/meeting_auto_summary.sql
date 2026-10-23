@@ -5,6 +5,13 @@
 -- name: GetMeetingSettings :one
 SELECT * FROM meeting_settings WHERE organization_id = sqlc.arg(organization_id);
 
+-- name: LockMeetingSettings :exec
+-- Serializes SetMeetingSettings of one organization: it reads the row, then
+-- upserts both columns, so two saves of different fields would otherwise
+-- write each other's field back. An advisory lock, because the row may not
+-- exist yet.
+SELECT pg_advisory_xact_lock(hashtextextended('meeting-settings:' || sqlc.arg(organization_id)::text, 0));
+
 -- name: UpsertMeetingSettings :one
 INSERT INTO meeting_settings (organization_id, auto_summary_enabled, scribe_policy, updated_by, updated_by_kind)
 VALUES (sqlc.arg(organization_id), sqlc.arg(auto_summary_enabled), sqlc.arg(scribe_policy), sqlc.arg(updated_by), sqlc.arg(updated_by_kind))
