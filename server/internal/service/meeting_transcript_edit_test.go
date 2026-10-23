@@ -470,6 +470,11 @@ func TestTranscriptRetentionSweep(t *testing.T) {
 	if n := countWhere(t, e.s, `SELECT count(*) FROM meeting_summaries WHERE meeting_id = $1`, e.m.ID); n != 1 {
 		t.Fatal("summary swept")
 	}
+	// The summary outlives its transcript on purpose: it is not "stale", and
+	// nothing invites a regenerate that could only make it poorer.
+	if e.summaryChanged(t) {
+		t.Fatal("the sweep marked the summary as made from a changed transcript")
+	}
 	if transcriptAuditRows(t, e.s, audit.ActionMeetingTranscriptExpired, e.m.ID) != 1 || transcriptAuditRows(t, e.s, audit.ActionMeetingTranscriptionDeleted, tr.ID) != 1 {
 		t.Fatal("sweep not audited")
 	}

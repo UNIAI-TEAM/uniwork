@@ -17,14 +17,19 @@ import (
 // line's text, one line, a stretch of time, the whole transcript, or an
 // uploaded transcription together with its recording. Each command commits
 // with its audit row and transcript.changed, and marks the meeting's
-// summaries as made from a transcript that has changed since. Audit rows
+// summaries as made from a transcript that has changed since (the retention
+// sweep does not: see transcriptChanged). Audit rows
 // count lines; they never copy what was said, or a deletion would live on
 // in the audit log.
 
 // transcriptChanged is the tail every command shares, inside its transaction.
 func (s *MeetingService) transcriptChanged(ctx context.Context, q *db.Queries, m db.Meeting, actor audit.Actor, action, resourceType, resourceID string, metadata map[string]any) error {
-	if err := q.MarkMeetingSummariesTranscriptChanged(ctx, m.ID); err != nil {
-		return err
+	// Retention is not a correction: the summary is kept on purpose and
+	// stays current, or Regenerate would rebuild it from what is left.
+	if actor != transcriptRetentionActor {
+		if err := q.MarkMeetingSummariesTranscriptChanged(ctx, m.ID); err != nil {
+			return err
+		}
 	}
 	if metadata == nil {
 		metadata = map[string]any{}
