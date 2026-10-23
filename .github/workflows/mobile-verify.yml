@@ -610,6 +610,9 @@ jobs:
           # A flow that fails for good appends the device's log here (scripts/maestro-retry.sh): a JavaScript error an
           # error boundary caught shows only as its fallback screen, and the emulator is gone after this step.
           MAESTRO_LOGCAT: ${{ runner.temp }}/logcat.txt
+          # The web (3000) and API (8080) on the runner, mapped again before every attempt (scripts/maestro-retry.sh):
+          # a failed attempt can restart adbd, and the retry then met localhost refused in the sign-in Custom Tab.
+          MAESTRO_ADB_REVERSE: "3000 8080"
         with:
           api-level: 35
           # google_apis carries Chrome, which hosts the sign-in Custom Tab.

@@ -22,7 +22,11 @@ function run(failures, env = {}, { logcat = false } = {}) {
       `#!/bin/sh\nn=$(($(cat "${count}") + 1))\necho "$n" > "${count}"\necho "maestro $*"\n[ "$n" -gt ${failures} ]\n`,
       { mode: 0o755 },
     );
-    fs.writeFileSync(path.join(dir, "adb"), '#!/bin/sh\necho "adb $* | E ReactNativeJS: TypeError: boom"\n', { mode: 0o755 });
+    fs.writeFileSync(
+      path.join(dir, "adb"),
+      `#!/bin/sh\necho "adb $*" >> "${path.join(dir, "adb-calls")}"\necho "adb $* | E ReactNativeJS: TypeError: boom"\n`,
+      { mode: 0o755 },
+    );
     const summary = path.join(dir, "summary");
     const log = path.join(dir, "logcat.txt");
     const result = spawnSync("bash", [script, "test", "flows/smoke-launch.yaml"], {
@@ -35,6 +39,7 @@ function run(failures, env = {}, { logcat = false } = {}) {
       calls: Number(fs.readFileSync(count, "utf8")),
       summary: fs.existsSync(summary) ? fs.readFileSync(summary, "utf8") : "",
       logcat: fs.existsSync(log) ? fs.readFileSync(log, "utf8") : null,
+      adb: fs.existsSync(path.join(dir, "adb-calls")) ? fs.readFileSync(path.join(dir, "adb-calls"), "utf8").trim().split("\n") : [],
     };
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -84,6 +89,13 @@ test("a run that fails for good dumps the device log where MAESTRO_LOGCAT says, 
 // pass: one flake became a hard red. Every such flow starts by turning it off, before it launches the app.
 const flows = path.join(import.meta.dirname, "..", "apps", "chat-mobile", "maestro", "flows");
 const commandsOf = (text) => (text.split(/^---$/m)[1] ?? "").split("\n").filter((line) => /^- \S/.test(line)).map((line) => line.slice(2).trim());
+
+test("MAESTRO_ADB_REVERSE maps its ports again before every attempt, and without it nothing calls adb", () => {
+  const twice = run(1, { MAESTRO_ADB_REVERSE: "3000 8080" });
+  assert.equal(twice.status, 0);
+  assert.deepEqual(twice.adb, ["adb reverse tcp:3000 tcp:3000", "adb reverse tcp:8080 tcp:8080", "adb reverse tcp:3000 tcp:3000", "adb reverse tcp:8080 tcp:8080"]);
+  assert.deepEqual(run(0).adb, []);
+});
 
 test("every flow that turns airplane mode on starts online, so a retry is not born offline", () => {
   const offline = fs.readdirSync(flows).filter((f) => f.endsWith(".yaml") && /^\s*- setAirplaneMode: enabled$/m.test(fs.readFileSync(path.join(flows, f), "utf8")));

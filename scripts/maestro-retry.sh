@@ -17,11 +17,19 @@
 # boundary caught leaves only its fallback in the screenshots, and the error
 # itself only in logcat (ReactNativeJS). The emulator is gone once the job's
 # emulator step ends, so the dump has to happen here.
+#
+# With MAESTRO_ADB_REVERSE set to ports ("3000 8080", an Android run against
+# servers on the runner), every attempt first maps them again with `adb
+# reverse`: a failed attempt can restart Maestro's driver and adbd with it,
+# which drops the mappings, and the retry then finds localhost refused.
 set -u
 
 attempts="${MAESTRO_ATTEMPTS:-2}"
 attempt=1
 while :; do
+  for port in ${MAESTRO_ADB_REVERSE:-}; do
+    adb reverse "tcp:$port" "tcp:$port" > /dev/null || echo "::warning::adb reverse tcp:$port failed before attempt $attempt"
+  done
   if maestro "$@"; then
     if [ "$attempt" -gt 1 ]; then
       echo "::warning title=Flaky device run::maestro $* failed, then passed on attempt $attempt of $attempts"
