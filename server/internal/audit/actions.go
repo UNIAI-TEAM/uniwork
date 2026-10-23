@@ -375,6 +375,16 @@ const (
 	ActionMeetingTranscriptionRequested = "meeting.transcription_requested"
 	ActionMeetingTranscriptionCompleted = "meeting.transcription_completed"
 	ActionMeetingTranscriptionFailed    = "meeting.transcription_failed"
+	// A clerk corrected or removed transcript lines, or deleted an uploaded
+	// transcription with its recording; the retention sweep removed lines
+	// past the organization's window (UNI-1995 #5). Rows say how many lines
+	// changed, never what they said.
+	ActionMeetingTranscriptSegmentEdited  = "meeting.transcript_segment_edited"
+	ActionMeetingTranscriptSegmentDeleted = "meeting.transcript_segment_deleted"
+	ActionMeetingTranscriptRangeDeleted   = "meeting.transcript_range_deleted"
+	ActionMeetingTranscriptDeleted        = "meeting.transcript_deleted"
+	ActionMeetingTranscriptionDeleted     = "meeting.transcription_deleted"
+	ActionMeetingTranscriptExpired        = "meeting.transcript_expired"
 	// A host or admin, or the server when another meeting holds the PIN,
 	// drew a new dial-in PIN (MeetingService.RotateDialInPin, UNI-2029).
 	ActionMeetingDialInPinRotated = "meeting.dial_in_pin_rotated"

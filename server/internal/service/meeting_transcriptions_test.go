@@ -463,7 +463,9 @@ func TestTranscriptSourceRule(t *testing.T) {
 	insert("TRANSCRIPTION", latest, "file 1 at 3s", 3*time.Second)
 	insert("TRANSCRIPTION", other, "file 2 at 10s", 10*time.Second)
 	insert("AGENT", "", "agent at 5s", 5*time.Second)
-	want := []string{"file 1 at 3s", "agent at 5s", "file 2 at 10s"}
+	// A completed upload replaces the scribe's lines (UNI-1995 #11): one
+	// transcript, never both copies of the same speech.
+	want := []string{"file 1 at 3s", "file 2 at 10s"}
 	got := texts()
 	if len(got) != len(want) {
 		t.Fatalf("rich transcript = %v, want %v", got, want)
@@ -487,7 +489,7 @@ func TestTranscriptSourceRule(t *testing.T) {
 			t.Fatalf("summary input lacks %q: %s", w, prompt)
 		}
 	}
-	if bytes.Contains([]byte(prompt), []byte("caption")) || bytes.Contains([]byte(prompt), []byte("old run")) {
+	if bytes.Contains([]byte(prompt), []byte("caption")) || bytes.Contains([]byte(prompt), []byte("old run")) || bytes.Contains([]byte(prompt), []byte("agent at 5s")) {
 		t.Fatalf("summary input carries a superseded source: %s", prompt)
 	}
 }

@@ -270,5 +270,8 @@ func respondMeetingSettings(w http.ResponseWriter, set db.MeetingSetting) {
 		at := rfc3339(set.UpdatedAt)
 		out.UpdatedAt = &at
 	}
+	if set.TranscriptRetentionDays.Valid {
+		out.TranscriptRetentionDays = &set.TranscriptRetentionDays.Int32
+	}
 	respondJSON(w, http.StatusOK, out)
 }

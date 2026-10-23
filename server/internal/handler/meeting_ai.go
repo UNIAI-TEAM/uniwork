@@ -22,6 +22,7 @@ func toTranscriptDTO(s db.MeetingTranscriptSegment) sdo.TranscriptSegmentDTO {
 		ID: s.ID, MeetingID: s.MeetingID, ParticipantID: s.ParticipantID.String,
 		SpeakerName: s.SpeakerName, Text: s.Text, SpokenAt: rfc3339(s.SpokenAt),
 		Source: s.Source, TranscriptionID: s.TranscriptionID.String, StartMs: optInt32(s.StartMs), EndMs: optInt32(s.EndMs),
+		Language: s.Language, EditedAt: rfc3339(s.EditedAt),
 	}
 }
 
@@ -36,6 +37,10 @@ func toSummaryDTO(s db.MeetingSummary) sdo.MeetingSummaryDTO {
 	d := sdo.MeetingSummaryDTO{
 		ID: s.ID, MeetingID: s.MeetingID, Summary: s.Summary, Model: s.Model,
 		CreatedBy: s.CreatedBy, CreatedByKind: s.CreatedByKind, CreatedAt: rfc3339(s.CreatedAt), Partial: s.Partial, Decisions: []sdo.MeetingSummaryDecisionDTO{},
+	}
+	if s.TranscriptChangedAt.Valid {
+		at := rfc3339(s.TranscriptChangedAt)
+		d.TranscriptChangedAt = &at
 	}
 	for _, dec := range service.DecodeSummaryDecisions(s.Decisions) {
 		d.Decisions = append(d.Decisions, sdo.MeetingSummaryDecisionDTO{Text: dec.Text, Evidence: toEvidenceRefsDTO(dec.Evidence)})
@@ -110,6 +115,17 @@ func (h *handlers) listTranscript(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// The transcript also reads forward (UNI-1995 #9).
+	v := r.URL.Query()
+	switch order := strings.TrimSpace(v.Get("order")); order {
+	case "", "desc":
+	case "asc":
+		q.Asc = true
+	default:
+		respondError(w, http.StatusBadRequest, "invalid_request", "order phải là asc hoặc desc")
+		return
+	}
+	q.From, q.Around = strings.TrimSpace(v.Get("from")), strings.TrimSpace(v.Get("around"))
 	page, err := h.Meetings.Transcript(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), q)
 	if err != nil {
 		h.mapServiceError(w, err)

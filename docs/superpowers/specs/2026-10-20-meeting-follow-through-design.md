@@ -452,9 +452,24 @@ vẫn đăng ký cho các dòng usage cũ.
 
 Tóm tắt, biên bản và màn transcript dùng cùng một quy tắc:
 
-1. Lấy hợp của segment `AGENT` (thư ký AI) và segment `TRANSCRIPTION` (với mỗi file tải
-   lên, lấy **lần `COMPLETE` mới nhất của file đó**), xếp theo `spoken_at`.
-2. Không có cả hai → segment `CAPTION` (Web Speech) như hiện nay.
+1. Có file tải lên đã ghi lời → segment `TRANSCRIPTION` (với mỗi file, lấy **lần `COMPLETE`
+   mới nhất của file đó**), xếp theo `spoken_at`. File tải lên là lần ghi lời lại có độ chính
+   xác cao: nó **thay** lời thoại trong phòng, không cộng thêm (UNI-1995 #11, chủ sản phẩm
+   chốt 2026-10-23). Lúc lần ghi lời đó `COMPLETE`, server xóa segment `AGENT` và `CAPTION`
+   của cuộc họp trong cùng giao dịch (file không nghe được gì thì không xóa), và dòng
+   `AGENT` nào tới muộn sau đó cũng không được đọc cạnh nó: chỉ giữ một bản.
+2. Không có file nào → segment `AGENT` (thư ký AI).
+3. Không có cả hai → segment `CAPTION` (Web Speech) như hiện nay.
+
+Hộp tải file nói trước điều này khi cuộc họp đã có lời thoại trong phòng, và phút ghi lời
+của file vẫn được tính (nó là một lần ghi lời mới). Cuộc họp nửa trực tuyến nửa tại chỗ
+mà chỉ tải phần tại chỗ sẽ mất phần trực tuyến: muốn giữ cả hai thì tải bản ghi của cả
+buổi.
+
+Màn transcript của cuộc họp **đã kết thúc** đọc từ đầu (cũ nhất trước, "Tải thêm lời thoại"
+ở cuối; `?order=asc`, `?from=`); cuộc họp đang diễn ra giữ trang mới nhất trước. Phụ đề của
+bản ghi dựng từ toàn bộ lời thoại của cuộc họp (tối đa 10.000 câu), không chỉ phần người
+đọc đã tải; ngôn ngữ phụ đề lấy theo `language` của các câu (UNI-1995 #9).
 
 Tên người nói ưu tiên: tên đã gán ở `meeting_speaker_labels` → tên người tham gia → nhãn
 của nhà cung cấp ("Người nói 1"). Luật hiện có của prompt vẫn đúng: không bao giờ dùng nhãn kỹ
@@ -542,6 +557,36 @@ Nghị định 13/2023/NĐ-CP). Việc này không chặn code; nó chặn việ
 Bản ghi lời file tải lên bị xóa ở AssemblyAI (`DELETE /v2/transcript/{id}`) ngay sau khi
 server lấy về và lưu xong, và cả việc bị bỏ (quá hạn chót, hoặc lỗi rồi gửi lại bằng việc
 mới); xóa hỏng thì ghi log, việc vẫn đi tiếp.
+
+**Sửa, xóa và thời hạn lưu lời thoại (UNI-1995 #5, chủ sản phẩm chốt 2026-10-23).**
+Chủ tọa, thư ký hoặc quản trị workspace (clerk) được:
+
+- sửa nội dung một câu (`PATCH /meetings/{id}/transcript/{segmentID}`): nguyên văn đầu tiên
+  giữ ở cột `original_text` trên server (không trả về client), câu hiện "đã sửa";
+- xóa một câu (`DELETE .../transcript/{segmentID}`), một đoạn từ câu này tới câu kia, gồm cả
+  hai (`DELETE .../transcript?from_segment_id=&to_segment_id=`, mọi nguồn, theo thứ tự đọc
+  `(spoken_at, id)`; server đọc mốc từ chính hai câu nên client không gửi thời gian nào —
+  thời gian làm tròn từng bỏ sót câu cuối) hoặc toàn bộ lời thoại (`DELETE .../transcript`);
+- xóa từng lần ghi lời file đã `COMPLETE`/`FAILED` cùng các câu của nó và file ghi âm
+  (`DELETE .../transcriptions/{transcriptionID}`: nhả giữ file cho bộ thu gom xóa); mọi lần
+  tải lên đã xong đều xóa được trên giao diện, không chỉ lần mới nhất.
+
+Mỗi lệnh ghi audit (`meeting.transcript_segment_edited`, `…_segment_deleted`,
+`…_range_deleted`, `meeting.transcript_deleted`, `meeting.transcription_deleted`) và phát
+`transcript.changed` trong cùng giao dịch; dòng audit chỉ ghi số câu, không chép nội dung.
+Sau mỗi thay đổi của clerk, tóm tắt hiện có được đánh dấu `transcript_changed_at`: trang cuộc
+họp nói "Lời thoại đã thay đổi sau khi tóm tắt này được tạo" và cho clerk "Tạo lại tóm tắt"
+(qua hộp xác nhận tạo lại như mọi lần). Lượt quét thời hạn lưu **không** đánh dấu: tóm tắt
+được giữ có chủ đích, tạo lại khi lời thoại đã hết hạn chỉ cho bản nghèo hơn.
+
+Owner/admin tổ chức chọn thời hạn lưu (`PUT /orgs/{orgID}/meetings/transcript-retention`):
+giữ mãi (mặc định), 30, 90, 180 hoặc 365 ngày; đổi giá trị ghi `meeting.settings_changed`.
+Rút ngắn thời hạn (từ giữ mãi, hoặc xuống số ngày nhỏ hơn) phải qua hộp xác nhận nói rõ trong
+vòng một giờ lời thoại và file ghi âm cũ hơn sẽ bị xóa vĩnh viễn trong cả tổ chức.
+Mỗi giờ một máy chủ (khóa advisory, các máy khác bỏ lượt) xóa câu lời thoại và file ghi âm
+tải lên cũ hơn thời hạn (`meeting.transcript_expired`, `meeting.transcription_deleted` với
+`reason: retention`, người làm là system). Tóm tắt, biên bản, việc cần làm và task không bị
+xóa; chúng có thể còn trích dẫn câu đã xóa, và chip căn cứ khi đó nói "Các nguồn này không còn".
 
 ### 7.6 Dựng biên bản (đợt 7)
 

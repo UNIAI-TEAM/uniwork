@@ -1405,6 +1405,25 @@ describe("useRealtimeSync › meeting scribe", () => {
         JSON.stringify(["meeting-transcriptions", "m1"]),
         JSON.stringify(["meeting-transcript", "m1"]),
         JSON.stringify(["meeting-speaker-labels", "m1"]),
+        JSON.stringify(["meeting-transcript-read", "m1"]),
+        JSON.stringify(["meeting-summary", "m1"]),
+      ]),
+    );
+  });
+
+  it("refreshes every read of the transcript and the summary on transcript.changed (UNI-1995 #5)", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "transcript.changed", payload: { meeting_id: "m1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(1750);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["meeting-transcript", "m1"]),
+        JSON.stringify(["meeting-transcript-read", "m1"]),
+        JSON.stringify(["meeting-transcriptions", "m1"]),
+        JSON.stringify(["meeting-summary", "m1"]),
       ]),
     );
   });

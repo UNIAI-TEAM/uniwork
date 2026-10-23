@@ -17,7 +17,7 @@ const ids = (list: Row[]) => list.map((x) => x.id);
 const key = ["feed", "m1"];
 
 function page(items: Row[], more: Partial<MeetingFeedPage<Row>> = {}): MeetingFeedPage<Row> {
-  return { items, olderCursor: "", afterCursor: "", hasMoreAfter: false, ...more };
+  return { items, olderCursor: "", afterCursor: "", hasMoreAfter: false, newerCursor: "", ...more };
 }
 
 function specWith(...pages: MeetingFeedPage<Row>[]) {

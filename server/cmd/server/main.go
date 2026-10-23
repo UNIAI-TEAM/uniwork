@@ -587,6 +587,11 @@ func main() {
 	go func() { meetingSvc.RunWorkers(runCtx); close(meetingWorkersDone) }()
 	meetingAutoEndDone := make(chan struct{})
 	go func() { meetingSvc.RunAutoEnd(runCtx); close(meetingAutoEndDone) }()
+	// Transcript retention (UNI-1995 #5): hourly, one replica per pass (an
+	// advisory lock); awaited in the shutdown sequence below.
+	transcriptRetention := meetingSvc.NewTranscriptRetentionSweeper()
+	transcriptRetentionDone := make(chan struct{})
+	go func() { transcriptRetention.Run(runCtx); close(transcriptRetentionDone) }()
 	billingWorkersDone := make(chan struct{})
 	go func() { billingSvc.RunWorkers(runCtx); close(billingWorkersDone) }()
 	go digest.Run(runCtx)
@@ -896,6 +901,11 @@ func main() {
 	case <-meetingAutoEndDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("meetings: auto-end did not stop in time")
+	}
+	select {
+	case <-transcriptRetentionDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("meetings: transcript retention did not stop in time")
 	}
 	select {
 	case <-chatRemindersDone:

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useOlderTranscript } from "@uniwork/core/meetings";
 import type { MeetingTranscriptSegment } from "@uniwork/core/types/meeting";
 import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
-import { transcriptSpeaker } from "./meeting-transcript-panel";
+import { transcriptSpeaker } from "./transcript/transcript-speaker";
 
 // This close to the bottom still counts as reading the newest line.
 const STICK_PX = 48;

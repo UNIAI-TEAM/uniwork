@@ -1,6 +1,11 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getMeetingSettings, setMeetingAutoSummary, setMeetingScribePolicy } from "../api/endpoints/meeting-settings";
+import {
+  getMeetingSettings,
+  setMeetingAutoSummary,
+  setMeetingScribePolicy,
+  setMeetingTranscriptRetention,
+} from "../api/endpoints/meeting-settings";
 import type { ScribePolicy } from "../types/meeting";
 
 /** Organization-scoped, beside the meeting keys (UNI-2026). */
@@ -43,5 +48,18 @@ export function useSetMeetingScribePolicy(orgId: string) {
       // The meeting screens read the policy from their workspace's capabilities.
       void qc.invalidateQueries({ queryKey: ["meeting-capabilities"] });
     },
+  });
+}
+
+/** How long the organization keeps transcripts and uploaded audio (UNI-1995 #5); null keeps them. */
+export function useSetMeetingTranscriptRetention(orgId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (days: number | null) => {
+      const settings = await setMeetingTranscriptRetention(orgId, days);
+      if (!settings) throw new Error("meeting_settings_invalid");
+      return settings;
+    },
+    onSuccess: (settings) => qc.setQueryData(meetingSettingsKey(orgId), settings),
   });
 }

@@ -146,7 +146,24 @@ func (s *MeetingService) transcriptPage(ctx context.Context, userID, meetingID s
 		if err != nil {
 			return FeedPage[db.MeetingTranscriptSegment]{}, err
 		}
-		return pageFromNewest(rows, limit, transcriptFeedKeys, false), nil
+		p := pageFromNewest(rows, limit, transcriptFeedKeys, false)
+		// A reader refetches an infinite list from its first page, which may
+		// be this one: the cursor forward lets it find the rest again.
+		p.NewerCursor = encodeFeedCursor(at.Add(-time.Microsecond), id)
+		if len(p.Items) > 0 {
+			last := p.Items[len(p.Items)-1]
+			p.NewerCursor = encodeFeedCursor(last.SpokenAt.Time, last.ID)
+		}
+		return p, nil
+	case q.Around != "":
+		return s.transcriptAround(ctx, meetingID, rich, src.TranscriptionIds, q.Around, limit)
+	case q.From != "" || q.Asc:
+		var at time.Time
+		var id string
+		if q.From != "" {
+			at, id, _ = decodeFeedCursor(q.From)
+		}
+		return s.transcriptForward(ctx, meetingID, rich, src.TranscriptionIds, at, id, limit)
 	}
 	rows, err := s.q.ListTranscriptSegmentsLatest(ctx, db.ListTranscriptSegmentsLatestParams{
 		MeetingID: meetingID, RowLimit: int32(limit + 1), Rich: rich, TranscriptionIds: src.TranscriptionIds,

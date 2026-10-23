@@ -1,42 +1,21 @@
 "use client";
 import { useState } from "react";
-import { Play, Quote } from "lucide-react";
+import { Play, Quote, ScrollText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeeting, useRecordings } from "@uniwork/core/meetings";
 import { useMeetingEvidence } from "@uniwork/core/meetings/summary";
-import type { MeetingEvidenceRef, MeetingRecording } from "@uniwork/core/types/meeting";
+import { paths } from "@uniwork/core/paths";
+import type { MeetingEvidenceRef } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { useOptionalWorkspace } from "../layout/workspace-context";
+import { useOptionalNavigation } from "../navigation";
 import { meetingDayKey, meetingLocale } from "./meeting-datetime";
 import { formatMeetingMoment } from "./meeting-detail-format";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
+import { formatOffset, recordingOffset } from "./meeting-recording-offset";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
-
-/** Where in a recording a moment falls: the COMPLETE recording running then, and the second into it. */
-export function recordingOffset(
-  at: string | null | undefined,
-  recordings: readonly MeetingRecording[],
-): { recordingId: string; seconds: number } | null {
-  const t = Date.parse(at ?? "");
-  if (!Number.isFinite(t)) return null;
-  for (const r of recordings) {
-    const start = Date.parse(r.started_at ?? "");
-    const end = Date.parse(r.ended_at ?? "");
-    if (r.status !== "COMPLETE" || !Number.isFinite(start) || t < start || (Number.isFinite(end) && t > end)) continue;
-    return { recordingId: r.id, seconds: Math.floor((t - start) / 1000) };
-  }
-  return null;
-}
-
-/** 75 → "1:15", 3725 → "1:02:05". */
-export function formatOffset(seconds: number): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
-}
 
 function kindKey(kind: string): string {
   switch (kind) {
@@ -94,6 +73,7 @@ export function MeetingEvidenceChip({
                 setOpen(false);
                 setPlayAt(at);
               }}
+              onClose={() => setOpen(false)}
             />
           ) : null}
         </PopoverContent>
@@ -117,12 +97,19 @@ function EvidenceSources({
   meetingId,
   evidence,
   onPlay,
+  onClose,
 }: {
   meetingId: string;
   evidence: readonly MeetingEvidenceRef[];
   onPlay: (at: { recordingId: string; seconds: number }) => void;
+  onClose: () => void;
 }) {
   const { t, i18n } = useTranslation();
+  const nav = useOptionalNavigation();
+  const workspace = useOptionalWorkspace()?.workspace;
+  // "View in transcript" (UNI-1995 #14): the meeting page opens the transcript
+  // on the cited line. In the room the panel's navigation opens it in a new tab.
+  const meetingPath = workspace ? paths.workspace(workspace.organization_slug, workspace.slug).meeting(meetingId) : null;
   const query = useMeetingEvidence(meetingId, evidence, true);
   const { data: recordings } = useRecordings(meetingId);
   const { data: meeting } = useMeeting(meetingId);
@@ -164,12 +151,29 @@ function EvidenceSources({
             </p>
             {/* Whole, not clamped: the list scrolls, and a cut quote cannot be opened any further. */}
             <p className="whitespace-pre-wrap text-pretty text-body text-foreground">{src.text}</p>
-            {play ? (
-              <Button type="button" size="xs" variant="link" className="h-auto px-0" onClick={() => onPlay(play)}>
-                <Play aria-hidden />
-                {t("meetings.evidence.openRecording", { time: formatOffset(play.seconds) })}
-              </Button>
-            ) : null}
+            <div className="flex flex-wrap gap-x-3 empty:hidden">
+              {play ? (
+                <Button type="button" size="xs" variant="link" className="h-auto px-0" onClick={() => onPlay(play)}>
+                  <Play aria-hidden />
+                  {t("meetings.evidence.openRecording", { time: formatOffset(play.seconds) })}
+                </Button>
+              ) : null}
+              {src.kind === "segment" && nav && meetingPath ? (
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="link"
+                  className="h-auto px-0"
+                  onClick={() => {
+                    onClose();
+                    nav.push(`${meetingPath}?section=transcript&segment=${encodeURIComponent(src.id)}`);
+                  }}
+                >
+                  <ScrollText aria-hidden />
+                  {t("meetings.evidence.viewInTranscript")}
+                </Button>
+              ) : null}
+            </div>
           </li>
         );
       })}

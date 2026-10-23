@@ -1948,6 +1948,61 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				}
 			}
 		},
+		// UNI-1995 #5: a clerk corrects or removes transcript lines, or an
+		// uploaded transcription with its audio; the retention sweep expires them.
+		audit.ActionMeetingTranscriptSegmentEdited: func(t *testing.T, f *auditFixture) {
+			s, m, id := auditTranscriptLine(t, f)
+			if _, err := s.EditTranscriptSegment(f.ctx, f.owner.ID, m.ID, id, "Đã sửa"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingTranscriptSegmentDeleted: func(t *testing.T, f *auditFixture) {
+			s, m, id := auditTranscriptLine(t, f)
+			if err := s.DeleteTranscriptSegment(f.ctx, f.owner.ID, m.ID, id); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingTranscriptRangeDeleted: func(t *testing.T, f *auditFixture) {
+			s, m, id := auditTranscriptLine(t, f)
+			if _, err := s.DeleteTranscriptRange(f.ctx, f.owner.ID, m.ID, id, id); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingTranscriptDeleted: func(t *testing.T, f *auditFixture) {
+			s, m, _ := auditTranscriptLine(t, f)
+			if _, err := s.DeleteTranscript(f.ctx, f.owner.ID, m.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingTranscriptionDeleted: func(t *testing.T, f *auditFixture) {
+			s, _ := auditTranscription(t, f, errors.New("vendor down"))
+			for range transcriptionMaxAttempts {
+				auditTranscriptionDue(t, f)
+				if err := s.runTranscriptions(f.ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var id, meetingID string
+			if err := f.pool.QueryRow(f.ctx, `SELECT id, meeting_id FROM meeting_transcriptions WHERE organization_id = $1`, f.orgID).Scan(&id, &meetingID); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.DeleteTranscription(f.ctx, f.owner.ID, meetingID, id); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingTranscriptExpired: func(t *testing.T, f *auditFixture) {
+			s, m, id := auditTranscriptLine(t, f)
+			if _, err := f.pool.Exec(f.ctx, `UPDATE meeting_transcript_segments SET created_at = now() - interval '40 days' WHERE id = $1`, id); err != nil {
+				t.Fatal(err)
+			}
+			days := int32(30)
+			if _, err := s.SetMeetingTranscriptRetention(f.ctx, Human(f.owner.ID), m.OrganizationID, &days); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.SweepTranscriptRetention(f.ctx); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-2029: the host draws a new dial-in PIN.
 		audit.ActionMeetingDialInPinRotated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2287,6 +2342,22 @@ func auditTranscription(t *testing.T, f *auditFixture, submitErr error) (*Meetin
 		t.Fatal(err)
 	}
 	return s, vendor
+}
+
+// auditTranscriptLine is a live meeting with one caption line.
+func auditTranscriptLine(t *testing.T, f *auditFixture) (*MeetingService, db.Meeting, string) {
+	t.Helper()
+	w := f.build(t)
+	s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+	m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seg, err := s.AppendTranscript(f.ctx, f.owner.ID, m.ID, "Chốt lịch", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s, m, seg.ID
 }
 
 func auditTranscriptionDue(t *testing.T, f *auditFixture) {

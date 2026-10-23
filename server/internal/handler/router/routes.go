@@ -409,6 +409,11 @@ type Routes struct {
 	CreateMeetingAudioUpload       http.HandlerFunc
 	RequestMeetingTranscription    http.HandlerFunc
 	ListMeetingTranscriptions      http.HandlerFunc
+	DeleteMeetingTranscription     http.HandlerFunc
+	EditTranscriptSegment          http.HandlerFunc
+	DeleteTranscriptSegment        http.HandlerFunc
+	DeleteTranscript               http.HandlerFunc
+	SetTranscriptRetention         http.HandlerFunc
 	MeetingDialIn                  http.HandlerFunc
 	RotateMeetingDialInPin         http.HandlerFunc
 	MeetingAgentStarted            http.HandlerFunc

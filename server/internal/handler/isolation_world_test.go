@@ -1199,7 +1199,8 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 	}
 	w.call(t, "PUT", live+"/attendance/"+hostPID, tn.token, map[string]any{"status": "PRESENT"})
 	w.call(t, "POST", live+"/chat", tn.token, map[string]any{"message": m + " meeting chat"})
-	w.call(t, "POST", live+"/transcript", tn.token, map[string]any{"text": m + " spoken line"})
+	out = w.call(t, "POST", live+"/transcript", tn.token, map[string]any{"text": m + " spoken line"})
+	tn.ids["transcriptSegment"] = isoID(t, out, "segment")
 	w.call(t, "POST", live+"/summary", tn.token, map[string]any{"locale": "en"})
 	out = w.call(t, "POST", live+"/motions", tn.token, map[string]any{
 		"title": m + " Live motion", "ballot_mode": "PUBLIC", "threshold": "MAJORITY", "base": "PRESENT",

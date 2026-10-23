@@ -26,6 +26,8 @@ export function useMeetingSectionDeepLink({ ready }: { ready: boolean }): void {
   const handled = useRef<string | null>(null);
 
   useEffect(() => {
+    // Once the param is gone, the same section may be linked again (a second citation).
+    if (!section) handled.current = null;
     if (!nav || !section || !ready || handled.current === section) return;
     handled.current = section;
     const anchor = SECTION_ANCHORS[section];
@@ -38,6 +40,8 @@ export function useMeetingSectionDeepLink({ ready }: { ready: boolean }): void {
     }
     const params = new URLSearchParams(nav.searchParams);
     params.delete(SECTION_PARAM);
+    // The transcript card reads ?segment= (a cited line) in the same pass.
+    params.delete("segment");
     const qs = params.toString();
     nav.replace(qs ? `${nav.pathname}?${qs}` : nav.pathname);
   }, [nav, ready, section]);

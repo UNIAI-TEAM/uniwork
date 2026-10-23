@@ -800,6 +800,7 @@ var isoRoutes = map[string]isoSpec{
 	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":                            {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
 	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":                   {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},
 	"PATCH /api/v1/meetings/{meetingID}/motions/{motionID}":                                  {body: isoJSON(map[string]any{"title": "edited"})},
+	"PATCH /api/v1/meetings/{meetingID}/transcript/{segmentID}":                              {body: isoJSON(map[string]any{"text": "edited"})},
 	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/ballot":                            {body: isoJSON(map[string]any{"choice": "YES"})},
 	"PATCH /api/v1/meetings/{meetingID}/participants/{participantID}":                        {body: isoJSON(map[string]any{"standing": "OBSERVER"})},
 	"POST /api/v1/meetings/{meetingID}/agent/started":                                        {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},

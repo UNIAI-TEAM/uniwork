@@ -65,7 +65,7 @@ func (q *Queries) DeleteMeetingAutoSummary(ctx context.Context, arg DeleteMeetin
 
 const getMeetingSettings = `-- name: GetMeetingSettings :one
 
-SELECT organization_id, auto_summary_enabled, updated_by, updated_by_kind, created_at, updated_at, scribe_policy FROM meeting_settings WHERE organization_id = $1
+SELECT organization_id, auto_summary_enabled, updated_by, updated_by_kind, created_at, updated_at, scribe_policy, transcript_retention_days FROM meeting_settings WHERE organization_id = $1
 `
 
 // The summary the system makes when a meeting ends (UNI-2026, spec
@@ -82,6 +82,7 @@ func (q *Queries) GetMeetingSettings(ctx context.Context, organizationID string)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ScribePolicy,
+		&i.TranscriptRetentionDays,
 	)
 	return i, err
 }
@@ -161,7 +162,7 @@ SET auto_summary_enabled = EXCLUDED.auto_summary_enabled,
     updated_by = EXCLUDED.updated_by,
     updated_by_kind = EXCLUDED.updated_by_kind,
     updated_at = now()
-RETURNING organization_id, auto_summary_enabled, updated_by, updated_by_kind, created_at, updated_at, scribe_policy
+RETURNING organization_id, auto_summary_enabled, updated_by, updated_by_kind, created_at, updated_at, scribe_policy, transcript_retention_days
 `
 
 type UpsertMeetingSettingsParams struct {
@@ -189,6 +190,7 @@ func (q *Queries) UpsertMeetingSettings(ctx context.Context, arg UpsertMeetingSe
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ScribePolicy,
+		&i.TranscriptRetentionDays,
 	)
 	return i, err
 }

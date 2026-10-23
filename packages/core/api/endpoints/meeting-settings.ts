@@ -34,3 +34,14 @@ export async function setMeetingAutoSummary(orgId: string, enabled: boolean): Pr
     endpoint: "PUT /api/v1/orgs/{orgID}/meetings/settings",
   });
 }
+
+/** How long the organization keeps transcripts and uploaded audio (UNI-1995 #5): null keeps them. */
+export async function setMeetingTranscriptRetention(orgId: string, days: number | null): Promise<MeetingSettings | null> {
+  const raw = await request(`/api/v1/orgs/${enc(orgId)}/meetings/transcript-retention`, {
+    method: "PUT",
+    body: { transcript_retention_days: days },
+  });
+  return parseWithFallback<MeetingSettings | null>(raw, MeetingSettingsSchema, null, {
+    endpoint: "PUT /api/v1/orgs/{orgID}/meetings/transcript-retention",
+  });
+}

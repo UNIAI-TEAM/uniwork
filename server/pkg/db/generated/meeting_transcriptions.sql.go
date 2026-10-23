@@ -727,9 +727,10 @@ type TranscriptSourcesRow struct {
 }
 
 // tenant: parent meeting_id
-// Parent spec §7.3: the transcript is the union of the scribe's lines and,
-// per uploaded file, its latest COMPLETE transcription; Web Speech captions
-// only when neither exists.
+// Parent spec §7.3: per uploaded file, its latest COMPLETE transcription;
+// the scribe's lines only while no upload completed (UNI-1995 #11: an upload
+// is the high-accuracy re-pass that replaces them); Web Speech captions only
+// when neither exists.
 func (q *Queries) TranscriptSources(ctx context.Context, meetingID string) (TranscriptSourcesRow, error) {
 	row := q.db.QueryRow(ctx, transcriptSources, meetingID)
 	var i TranscriptSourcesRow

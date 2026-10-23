@@ -610,11 +610,23 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{projectID}":
 		return tn.get(t, "project")
 	case "{meetingID}":
+		// A transcript line lives in the live meeting, an uploaded
+		// transcription in the held one (UNI-1995 #5).
+		switch {
+		case under("/transcript/{segmentID}"):
+			return tn.get(t, "liveMeeting")
+		case under("/transcriptions/{transcriptionID}"):
+			return tn.get(t, "heldMeeting")
+		}
 		return tn.get(t, "meeting")
 	case "{participantID}":
 		return tn.get(t, "participant")
 	case "{speakerLabelID}":
 		return tn.get(t, "speakerLabel")
+	case "{segmentID}":
+		return tn.get(t, "transcriptSegment")
+	case "{transcriptionID}":
+		return tn.get(t, "transcription")
 	case "{motionID}":
 		return tn.get(t, "motion")
 	case "{actionItemID}":

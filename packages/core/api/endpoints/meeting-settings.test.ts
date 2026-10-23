@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import { scribePolicyOf } from "../../types/meeting";
-import { getMeetingSettings, setMeetingAutoSummary, setMeetingScribePolicy } from "./meeting-settings";
+import {
+  getMeetingSettings,
+  setMeetingAutoSummary,
+  setMeetingScribePolicy,
+  setMeetingTranscriptRetention,
+} from "./meeting-settings";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -73,5 +78,25 @@ describe("meeting settings endpoints (UNI-2026)", () => {
   it.each(malformedBodies)("setMeetingAutoSummary degrades %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(setMeetingAutoSummary("o1", true)).resolves.toBeNull();
+  });
+
+  it("setMeetingTranscriptRetention PUTs the window (UNI-1995 #5)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ organization_id: "o1", auto_summary_enabled: true, transcript_retention_days: 90 }));
+    const out = await setMeetingTranscriptRetention("o1", 90);
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/orgs/o1/meetings/transcript-retention");
+    expect(init?.method).toBe("PUT");
+    expect(JSON.parse(String(init?.body))).toEqual({ transcript_retention_days: 90 });
+    expect(out?.transcript_retention_days).toBe(90);
+  });
+
+  it("reads a retention the client does not know as kept, not as a failure", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ organization_id: "o1", auto_summary_enabled: true, transcript_retention_days: "forever" }));
+    expect((await getMeetingSettings("o1"))?.transcript_retention_days).toBeNull();
+  });
+
+  it.each(malformedBodies)("setMeetingTranscriptRetention degrades %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(setMeetingTranscriptRetention("o1", null)).resolves.toBeNull();
   });
 });

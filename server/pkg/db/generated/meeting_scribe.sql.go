@@ -272,7 +272,7 @@ INSERT INTO meeting_transcript_segments (
   $1, $2, $3, $4, $5, $6, $7, 'AGENT', $8, $9, $10, $11, $12
 )
 ON CONFLICT (meeting_id, client_segment_id) WHERE client_segment_id IS NOT NULL DO NOTHING
-RETURNING id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language
+RETURNING id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by
 `
 
 type InsertAgentTranscriptSegmentParams struct {
@@ -323,6 +323,9 @@ func (q *Queries) InsertAgentTranscriptSegment(ctx context.Context, arg InsertAg
 		&i.SpeakerLabel,
 		&i.ClientSegmentID,
 		&i.Language,
+		&i.OriginalText,
+		&i.EditedAt,
+		&i.EditedBy,
 	)
 	return i, err
 }
@@ -439,7 +442,7 @@ func (q *Queries) ListScribeSweepMeetings(ctx context.Context, arg ListScribeSwe
 }
 
 const listSegmentsAfterExtractCursor = `-- name: ListSegmentsAfterExtractCursor :many
-SELECT s.id, s.meeting_id, s.participant_id, s.speaker_name, s.text, s.spoken_at, s.created_at, s.organization_id, s.source, s.transcription_id, s.start_ms, s.end_ms, s.speaker_label, s.client_segment_id, s.language FROM meeting_transcript_segments s
+SELECT s.id, s.meeting_id, s.participant_id, s.speaker_name, s.text, s.spoken_at, s.created_at, s.organization_id, s.source, s.transcription_id, s.start_ms, s.end_ms, s.speaker_label, s.client_segment_id, s.language, s.original_text, s.edited_at, s.edited_by FROM meeting_transcript_segments s
 LEFT JOIN meeting_transcript_segments c ON c.id = $1::text AND c.meeting_id = s.meeting_id
 WHERE s.meeting_id = $2
   AND s.created_at < now() - interval '5 seconds'
@@ -485,6 +488,9 @@ func (q *Queries) ListSegmentsAfterExtractCursor(ctx context.Context, arg ListSe
 			&i.SpeakerLabel,
 			&i.ClientSegmentID,
 			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
 		); err != nil {
 			return nil, err
 		}

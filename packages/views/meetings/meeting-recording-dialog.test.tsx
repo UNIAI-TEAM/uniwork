@@ -3,7 +3,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { initI18n } from "@uniwork/core/i18n";
 import { getI18n } from "react-i18next";
 import { requestMock, wrap } from "../test/api-mock";
-import { MeetingRecordingDialog, recordingCaptionsVtt } from "./meeting-recording-dialog";
+import { captionsLanguage, MeetingRecordingDialog, recordingCaptionsVtt } from "./meeting-recording-dialog";
 
 const resolvePlayback = vi.fn();
 const loadBlob = vi.fn();
@@ -94,7 +94,11 @@ describe("MeetingRecordingDialog", () => {
         return { recordings: [{ id: "r-cap", meeting_id: "m1", status: "COMPLETE", started_at: "2026-10-20T02:00:00Z", ended_at: "2026-10-20T02:10:00Z" }] };
       }
       if (path.includes("/transcript")) {
-        return { segments: [{ id: "s1", meeting_id: "m1", speaker_name: "An", text: "Chốt ngày giao", spoken_at: "2026-10-20T02:00:05Z" }] };
+        // The whole meeting is read forward for the captions, not the reader's pages (UNI-1995 #9).
+        expect(path).toContain("order=asc");
+        return {
+          segments: [{ id: "s1", meeting_id: "m1", speaker_name: "An", text: "Chốt ngày giao", spoken_at: "2026-10-20T02:00:05Z", language: "en" }],
+        };
       }
       return {};
     });
@@ -106,6 +110,7 @@ describe("MeetingRecordingDialog", () => {
       return el!;
     });
     expect(track).toHaveAttribute("kind", "captions");
+    expect(track).toHaveAttribute("srclang", "en");
     expect(track.getAttribute("src")).toMatch(/^blob:/);
   });
 });
@@ -134,5 +139,14 @@ describe("recordingCaptionsVtt", () => {
   it("is null when nothing was said while the recording ran", () => {
     expect(recordingCaptionsVtt([line("s0", "2026-10-20T01:59:00Z", "x")], "2026-10-20T02:00:00Z", undefined, t)).toBeNull();
     expect(recordingCaptionsVtt([], undefined, undefined, t)).toBeNull();
+  });
+});
+
+describe("captionsLanguage", () => {
+  const seg = (language?: string) => ({ id: "x", meeting_id: "m1", text: "x", spoken_at: "2026-10-20T02:00:00Z", language });
+  it("takes the language most lines carry, else the reader's", () => {
+    expect(captionsLanguage([seg("en"), seg("vi"), seg("en")], "vi")).toBe("en");
+    expect(captionsLanguage([seg(), seg()], "en-US")).toBe("en");
+    expect(captionsLanguage(undefined, "vi")).toBe("vi");
   });
 });

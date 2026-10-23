@@ -267,6 +267,10 @@ var catalogue = []EventDef{
 	{Topic: "transcription.requested", Version: 1, Payload: []string{"meeting_id", "transcription_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "transcription.completed", Version: 1, Payload: []string{"meeting_id", "transcription_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "transcription.failed", Version: 1, Payload: []string{"meeting_id", "transcription_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// A clerk corrected or removed transcript lines or an uploaded
+	// transcription, or the retention sweep removed old ones (UNI-1995 #5):
+	// the transcript, transcriptions and summary of the meeting refetch.
+	{Topic: "transcript.changed", Version: 1, Payload: []string{"meeting_id", "workspace_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "chat.message", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	// The AI summary is written with its audit row in one transaction and
 	// announced from the outbox (UNI-1853): a host who missed the frame would

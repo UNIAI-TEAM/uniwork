@@ -153,6 +153,12 @@ type SetMeetingAISharingSDI struct {
 	Shared bool `json:"shared" description:"true = chia sẻ nội dung AI của cuộc họp với cả workspace; false = chỉ người của cuộc họp (mặc định)" example:"true"`
 }
 
+// SetTranscriptRetentionSDI is PUT /orgs/{orgID}/meetings/transcript-retention (UNI-1995 #5).
+type SetTranscriptRetentionSDI struct {
+	// A missing field or null keeps transcripts: the safe default.
+	TranscriptRetentionDays *int32 `json:"transcript_retention_days" enum:"30,90,180,365" description:"Số ngày giữ lời thoại và file ghi âm tải lên của cuộc họp; null = giữ mãi (mặc định). Tóm tắt, biên bản, việc và task không bị xoá" example:"90"`
+}
+
 type SetMeetingScribeSDI struct {
 	Enabled bool `json:"enabled" description:"false = tắt thư ký AI cho cuộc họp này; true = bật lại (mặc định bật)" example:"false"`
 }
