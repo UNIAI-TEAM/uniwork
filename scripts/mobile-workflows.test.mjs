@@ -228,11 +228,36 @@ test("the production build is verified, built from a main tag once, proved in Se
   assert.doesNotMatch(wf, /--auto-submit/, "no second build behind a submit");
   const eas = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/eas.json"), "utf8"));
   assert.deepEqual(eas.submit["production-internal"], { android: { track: "internal" } });
-  // The Gradle upload names the release <appId>@<versionName>+<versionCode>: its presence proves the symbols arrived.
+  // The Gradle upload names the release <appId>@<versionName>+<versionCode>; the messages name it.
   assert.match(wf, /RELEASE: com\.uniworkos\.chat@\$\{\{ steps\.version\.outputs\.version \}\}\+\$\{\{ steps\.build\.outputs\.version_code \}\}/);
   assert.match(wf, /if: steps\.crash\.outputs\.verify == 'true'/);
   assert.match(wf, /::error::EXPO_TOKEN is not set[^\n]*\n\s+exit 1/);
   assert.doesNotMatch(wf.split(/^jobs:$/m)[1] ?? "", /run: [^\n]*\$\{\{ inputs\./, "inputs reach the shell through env");
+});
+
+// UNI-2142: the artifact-bundle upload creates no Sentry release, so 0.3.1 (12) failed a release lookup after an
+// upload that worked. The proof is Sentry resolving the debug ID of the bundle in the AAB that is then submitted.
+test("the production build proves its JS source map in Sentry by the debug ID of the scanned AAB, unless waived", () => {
+  const wf = read("chat-mobile-production.yml");
+  assert.doesNotMatch(wf, /\/releases\//, "no lookup of a release object the upload never creates");
+  const order = ["- name: Security scan of the built bundle", "- id: symbols", "- name: Submit this binary"].map((step) => wf.indexOf(step));
+  assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), "download and scan, then the Sentry proof, then submit");
+  const step = wf.split("- id: symbols")[1].split(/^ {6}- /m)[0];
+  for (const name of ["SENTRY_AUTH_TOKEN", "SENTRY_ORG", "SENTRY_PROJECT", "SENTRY_URL"]) assert.match(step, new RegExp(`^ {10}${name}: \\$\\{\\{ (secrets|vars)\\.${name} \\}\\}$`, "m"), name);
+  assert.match(wf, /DEBUG_ID: \$\{\{ steps\.symbols\.outputs\.debug_id \}\}/, "the summary names the debug ID");
+  const bin = nodeStub();
+  try {
+    const run = (env) => runStep("chat-mobile-production.yml", /^ {6}- id: symbols$/m, { GITHUB_WORKSPACE: "/ws", RELEASE: "com.uniworkos.chat@0.3.1+12", ...env }, bin);
+    const proved = run({ NODE_EXIT: "0" });
+    assert.equal(proved.status, 0);
+    assert.match(proved.stdout, /node \/ws\/scripts\/mobile-sentry-symbols\.mjs \S+\/app\.aab --release com\.uniworkos\.chat@0\.3\.1\+12/);
+    assert.notEqual(run({ NODE_EXIT: "1" }).status, 0, "no source map: not submitted");
+    const waived = run({ NODE_EXIT: "1", ALLOW_NO_CRASH_REPORTING: "true" });
+    assert.equal(waived.status, 0);
+    assert.match(waived.stdout, /::warning::submitting com\.uniworkos\.chat@0\.3\.1\+12 without its source map proved in Sentry: allow_missing_crash_reporting waives it/);
+  } finally {
+    fs.rmSync(bin, { recursive: true, force: true });
+  }
 });
 
 // Audit "Security & privacy", no-ci-binary-security-scan: the AAB that would be submitted is scanned first.

@@ -278,11 +278,14 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
 8. **Sentry (báo crash, UNI-2053).** Tạo project React Native trong tổ chức Sentry. Trong EAS, cho `preview` và
    `production`: `SENTRY_DSN` (plaintext — DSN không phải bí mật, và `eas update` trong CI phải đọc được nó),
    `SENTRY_ORG`, `SENTRY_PROJECT` (plaintext) và `SENTRY_AUTH_TOKEN` (secret, token tổ chức quyền
-   `project:releases` + `org:read`). Bản build có token thì Gradle/Xcode tải source map và symbol native lên Sentry;
-   thiếu token thì build vẫn xanh (`SENTRY_ALLOW_FAILURE=true` trong `eas.json`) và crash hiện stack chưa giải.
+   `project:releases` + `org:read`). Bản build có token thì Gradle (`sentry.gradle`) tải bundle JS và source map lên
+   Sentry thành một *artifact bundle* gắn với debug ID của bundle (Xcode tải thêm dSYM khi có bản iOS); **mapping R8 và
+   symbol NDK của Android không lên Sentry** (plugin Sentry Android Gradle chưa bật — `experimental_android` của
+   `@sentry/react-native/expo` trong `app.config.ts`), nên crash Kotlin/Java hiện frame đã làm rối trong Sentry; Play
+   vẫn có cả hai trong `BUNDLE-METADATA` của AAB cho Android vitals. Thiếu token thì build vẫn xanh (`SENTRY_ALLOW_FAILURE=true` trong `eas.json`) và crash hiện stack chưa giải.
    Thiếu `SENTRY_DSN` thì app không khởi động Sentry. GitHub Environment `chat-mobile-update`: secret
    `SENTRY_AUTH_TOKEN`, variables `SENTRY_ORG`, `SENTRY_PROJECT` cho source map của OTA; Environment
-   `chat-mobile-production` cùng ba thứ đó (bản production chứng minh symbol đã lên). Bản production và OTA kênh
+   `chat-mobile-production` cùng ba thứ đó (bản production chứng minh source map JS đã lên). Bản production và OTA kênh
    `production` không phát khi thiếu báo crash (trừ khi miễn có ghi lại). **Alert của Sentry là code**
    (`deploy/sentry/unichat-mobile-alerts.json`: crash-free sessions < 99.5 %, cold start p75 > 3 s, crash mới hay quay
    lại, bản OTA máy không khởi động được): đặt variables `SENTRY_PROJECT` và `SENTRY_ALERT_TEAM` (slug team nhận email)
@@ -360,8 +363,17 @@ dưới `…<os>.ota.<id>`, mục Phát OTA; tên có OS vì số build iOS và 
    credential đó vì nó đã nằm trong một artifact trên EAS, build lại; chỉ khi chắc là dương tính giả mới thêm vào
    `apps/chat-mobile/apk-scan-baseline.json` kèm lý do; `dex-class-missing` là R8 đã bỏ một lớp mã native tìm theo tên,
    như `livekit.org.jni_zero.JniInit` khiến 0.3.0 (11) chết khi mở: thêm luật `-keep` mà lỗi in ra vào
-   `ANDROID_KEEP_RULES`, bump `version`, build lại) → kiểm Sentry đã có release `com.uniworkos.chat@<version>+<version code>` (Gradle tải source map
-   và symbol dưới tên đó; không có là tải hỏng, đỏ) → `eas submit --profile production-internal --id <build>`: đúng
+   `ANDROID_KEEP_RULES`, bump `version`, build lại) → **kiểm source map trên Sentry theo debug ID** (`scripts/mobile-sentry-symbols.mjs`): đọc debug ID
+   trong bundle JS của chính AAB vừa quét (`base/assets/index.android.bundle` là bytecode Hermes, mang chuỗi
+   `sentry-dbid-<uuid>` mà Metro chèn — `metro.config.js` › `getSentryExpoConfig`) rồi hỏi Sentry
+   `GET /api/0/projects/<org>/<project>/artifact-lookup/?debug_id=<uuid>` có artifact bundle đó không. Không hỏi
+   release: lần tải artifact bundle không tạo release (Sentry tạo khi event đầu tiên tới), nên 0.3.1 (12) bị 404 dù đã
+   tải xong. Đỏ theo ba kiểu, mỗi kiểu một dòng `::error::`: bundle không có debug ID (build không qua
+   `getSentryExpoConfig`); Sentry từ chối token (401/403) hay không có project (404) — sửa `SENTRY_AUTH_TOKEN`,
+   `SENTRY_ORG`, `SENTRY_PROJECT` rồi chạy lại, lỗi này **không** nói gì về việc tải; Sentry không có debug ID đó sau
+   vài lần hỏi — tải hỏng thật, đọc bước `Sentry-CLI` trong log EAS. `allow_missing_crash_reporting` biến lỗi này
+   thành cảnh báo và summary ghi lại; summary ghi debug ID để tìm trong Sentry › Settings › Source Maps › Artifact
+   Bundles. Bước này chỉ chứng minh phần JS (mapping R8 không lên Sentry, xem bước 8 của Thiết lập lần đầu) → `eas submit --profile production-internal --id <build>`: đúng
    binary đó lên **internal track của app production** `com.uniworkos.chat`. Summary ghi version code.
 2. **Thử** bản đó trên internal track của app production (người thử nội bộ, checklist máy thật bên dưới).
 3. **Promote** (cùng binary, theo version code): Actions → "UniChat mobile promote" (`chat-mobile-promote.yml`,
