@@ -49,7 +49,12 @@ describe("AskUniModelPicker", () => {
     mount();
     const menu = await openMenu();
     fireEvent.click(within(menu).getByRole("menuitem", { name: /Haiku 5.5/ }));
-    expect(await screen.findByText("Nhanh và nhẹ nhất, hợp câu hỏi ngắn và tra cứu nhanh.")).toBeInTheDocument();
+    const description = await screen.findByText("Nhanh và nhẹ nhất, hợp câu hỏi ngắn và tra cứu nhanh.");
+    // The card names its model with the provider mark, as the row does.
+    const card = description.closest<HTMLElement>("[role=menu]");
+    expect(card).not.toBe(menu);
+    const title = within(card!).getByText("Haiku 5.5");
+    expect(title.closest("p")?.querySelector("[data-mark]")).toHaveAttribute("data-mark", "anthropic");
     expect(screen.getByRole("img", { name: "Tốc độ 5/5" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Trí tuệ 3/5" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Chi phí 1/5" })).toBeInTheDocument();

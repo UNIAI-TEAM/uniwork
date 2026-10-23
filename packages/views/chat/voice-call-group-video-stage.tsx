@@ -5,7 +5,7 @@ import { MicOff, MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { tileGridClass } from "../meetings/conference-layout";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { chatPersonFaceClass } from "./chat-person-card";
 import type { VoiceCallParticipantTile } from "./voice-call-room";
 

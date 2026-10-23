@@ -21,6 +21,11 @@ type Flag struct {
 	Default     bool
 	// Public flags are published to the web client through GET /api/v1/config.
 	Public bool
+	// Mobile flags are published to UniChat mobile under mobile_flags of
+	// GET /api/v1/config, evaluated for the caller like the public ones. They
+	// are the phone's remote kill switches: a binary in a store cannot be
+	// recalled, so a feature it ships can still be turned off here.
+	Mobile bool
 	Owner  string
 	// ReviewAt is the date the flag must be deleted or extended (§7.3).
 	ReviewAt time.Time
@@ -69,8 +74,82 @@ var catalogue = []Flag{
 	{Key: "graph_ui", Description: "Work Graph: section Liên quan và dòng thời gian trên trang việc (C-11)", Default: false, Public: true, Owner: "graph", ReviewAt: day(2027, 1, 31)},
 	{Key: "mcp_connector", Description: "Connector MCP: client AI bên ngoài (Claude, ChatGPT, Gemini) đọc task và cuộc họp (UNI-1308)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 1, 31)},
 	{Key: "mcp_connector_write", Description: "Connector MCP: tool ghi (tạo, sửa task, dự án, cuộc họp, tài liệu) cho grant có scope write (UNI-1567, ADR 0033)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 3, 31)},
+	// UniChat mobile (UNI-2053). On by default: FF_UNICHAT_MOBILE_CALLS=false
+	// (or an organization/user override) hides calling on every installed
+	// phone at its next config read, incoming calls included.
+	{Key: "unichat_mobile_calls", Description: "UniChat mobile: gọi thoại/video, cả màn cuộc gọi đến native trên Android; tắt là kill switch ẩn và ngừng nhận cuộc gọi trên mọi bản đã cài (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	// Calls on an iPhone wait for CallKit and PushKit (docs/adr/drafts/0038): without them a locked
+	// iPhone plays one short sound and keeps "X đang gọi" after the call ends. Off by default; an
+	// iPhone's unichat_mobile_calls reads off while this is off (MobileFlagsFor), and the push
+	// consumer sends no ring to an iPhone (PushConsumer.SetMobileCallsIOS).
+	{Key: "unichat_mobile_calls_ios", Description: "UniChat mobile: gọi điện trên iPhone; tắt (mặc định) thì iPhone không hiện nút gọi và không nhận push đổ chuông, vì chưa có CallKit/PushKit (UNI-2053)", Default: false, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	// The phone's other risky subsystems (UNI-2053 audit "remote-config-thin"): each is on by default and
+	// read by the app through useMobileFlag / readMobileFlag; FF_<KEY>=false, FF_<KEY>=N% (by user id) or a
+	// console override turns one off for everyone, a share of people, an organization or one person.
+	{Key: "unichat_mobile_media_upload", Description: "UniChat mobile: gửi ảnh và tệp; tắt thì ẩn ảnh/tệp trong menu đính kèm (tin đã xếp hàng vẫn gửi) (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	{Key: "unichat_mobile_voice_messages", Description: "UniChat mobile: ghi và gửi tin thoại; tắt thì ẩn nút ghi âm của ô soạn tin (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	{Key: "unichat_mobile_ai_catch_up", Description: "UniChat mobile: \"Bắt kịp nhanh\" bằng AI trên danh sách chat; tắt thì ẩn banner (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	{Key: "unichat_mobile_outbox_flush", Description: "UniChat mobile: tự gửi lại tin và thao tác đang chờ (khi có mạng lại, về foreground, socket nối lại); tắt thì chúng nằm yên trên máy, gửi từ ô soạn tin và nút Thử lại vẫn chạy (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	{Key: "unichat_mobile_chat_sync", Description: "UniChat mobile: đồng bộ chat theo nhật ký thay đổi (GET .../chat/sync, ADR 0039 nháp): reconnect và mỗi phút yên lặng chỉ đọc phần đã đổi; tắt thì reconnect refetch mọi timeline đang hiện như trước (UNI-2071)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	// The conversation's message list on FlashList 2 (audit timeline-flatlist): off by default keeps the tuned
+	// inverted FlatList; FF_UNICHAT_MOBILE_TIMELINE_RECYCLED=N% puts a share of people (by user id) on the recycled
+	// list, the A/B the nightly's frame numbers and Sentry's slow and frozen frames decide. Each conversation reads it
+	// once when shown, so turning it off takes effect at the next room opened.
+	{Key: "unichat_mobile_timeline_recycled", Description: "UniChat mobile: danh sách tin của một phòng chạy trên FlashList 2 (tái chế ô, đo chiều cao từng ô); tắt (mặc định) giữ FlatList đảo ngược; bật theo % người dùng để A/B hiệu năng cuộn (UNI-2053)", Default: false, Mobile: true, Owner: "chat", ReviewAt: day(2027, 3, 31)},
 	{Key: "ask_uni_agent", Description: "Hỏi UNI chạy như agent tự tra cứu bằng tool chỉ đọc (UNI-1962, P1); tắt thì giữ luồng P0", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 1, 31)},
 	{Key: "ask_uni_stream", Description: "Hỏi UNI dùng dock mới và luồng stream SSE thay cho panel cũ (UNI-2015, P2); tắt thì giữ panel cũ và POST …/ai/ask. Chỉ chuyển giao diện, server không chặn route stream", Default: false, Public: true, Owner: "ai", ReviewAt: day(2027, 2, 28)},
+}
+
+// EvaluateMobileFlags evaluates every mobile key for the request's context,
+// the same way EvaluateFrontendPublicFlags does for the web: a nil service
+// yields each at its catalogue default.
+func EvaluateMobileFlags(ctx context.Context, flags *featureflag.Service) map[string]bool {
+	out := make(map[string]bool)
+	for _, f := range catalogue {
+		if f.Mobile {
+			out[f.Key] = flags.IsEnabled(ctx, f.Key, f.Default)
+		}
+	}
+	return out
+}
+
+// mobilePlatformGates: a mobile switch that on one platform also needs a
+// platform switch on. The phone reads only the first key, so the platform's
+// answer is folded into it here and no installed build needs to know.
+var mobilePlatformGates = map[string]map[string]string{
+	"unichat_mobile_calls": {"ios": "unichat_mobile_calls_ios"},
+}
+
+// MobileFlagsFor is EvaluateMobileFlags for a phone on os (X-Client-OS:
+// "ios", "android"; anything else, including none, gets no platform gate):
+// a switch with a platform gate reads on only when its gate is on too. The
+// header is the client's word, which is enough to hide a capability; a flag
+// never grants a permission.
+func MobileFlagsFor(ctx context.Context, flags *featureflag.Service, os string) map[string]bool {
+	out := EvaluateMobileFlags(ctx, flags)
+	for key, gates := range mobilePlatformGates {
+		if gate, ok := gates[os]; ok {
+			out[key] = out[key] && out[gate]
+		}
+	}
+	return out
+}
+
+// ForPerson returns a check of one catalogue flag for a person in an
+// organization, evaluated the way GET /api/v1/config evaluates it for that
+// person's client (user > organization > global overrides, then FF_* env and
+// the flag file). It is for server-side work done on someone's behalf with no
+// request behind it, such as a push. A key missing from the catalogue reads
+// false; a nil service reads the catalogue default.
+func ForPerson(flags *featureflag.Service, key string) func(ctx context.Context, userID, organizationID string) bool {
+	def := false
+	if f, ok := Lookup(key); ok {
+		def = f.Default
+	}
+	return func(ctx context.Context, userID, organizationID string) bool {
+		ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: userID, OrganizationID: organizationID})
+		return flags.IsEnabled(ctx, key, def)
+	}
 }
 
 // Catalogue returns a copy of the declared flags.

@@ -1,0 +1,122 @@
+name: UniChat mobile device farm
+
+# Weekly run of UniChat mobile (apps/chat-mobile) on real phones in Firebase Test Lab (audit "no-real-device-farm":
+# every device run was an emulator, while the market the app ships to first runs Samsung, Xiaomi, Oppo and Vivo
+# phones, whose skins, battery managers and notification shades are where Android apps break).
+# scripts/mobile-ftl-devices.mjs picks the phones from Test Lab's own catalogue each week (one per maker at its newest
+# Android, plus the oldest Android at or above the app's floor), so no model id goes stale here.
+#
+#   robo           the production-config release APK (arm64, placeholder servers: no account, nothing leaves the
+#                  phone but the crawl) cold-starts and is crawled by Test Lab's Robo; a crash, an ANR or a launch
+#                  that never draws fails the run.
+#   calls          the calls module's instrumented test APK (modules/unichat-calls/android/src/androidTest, the one
+#                  android-smoke runs on an emulator): an incoming call posted through CallNotifications reaches each
+#                  maker's own shade as a call with Answer and Decline. A library's test APK instruments itself, so it
+#                  is passed as both --app and --test.
+#
+# Not here: a signed-in golden flow on these phones (Maestro does not run on Test Lab; the flows run on emulators in
+# mobile-verify.yml › android-e2e and the nightly), and an FCM push to a killed app on an OEM battery manager (needs a
+# signed-in staging build and a second account on a real phone: runbook › Native calls on Android).
+#
+# Repository settings (names only; `node scripts/mobile-ci-provisioning.mjs --check` lists what is missing):
+#   vars     FIREBASE_TEST_LAB_PROJECT   the Google Cloud project with Test Lab enabled
+#   secrets  FIREBASE_TEST_LAB_SA_KEY    a service account key of that project (role: Firebase Test Lab Admin,
+#                                        plus Storage Object Viewer on the results bucket)
+# Without them a scheduled run fails, naming what is missing. GitHub reads a scheduled workflow from the default
+# branch only; workflow_dispatch runs it on any branch. Runbook: docs/runbooks/unichat-mobile-release.md.
+
+on:
+  schedule:
+    - cron: "0 21 * * 0" # Mondays 04:00 Asia/Ho_Chi_Minh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  JAVA_VERSION: "17"
+  EXPO_NO_TELEMETRY: "1"
+  # The release configuration with placeholder servers, as mobile-verify.yml › android-release builds it.
+  UNICHAT_ENV: production
+  UNICHAT_API_URL: https://api.example.invalid
+  UNICHAT_APP_URL: https://app.example.invalid
+  # The @sentry/react-native/expo plugin runs sentry-cli in the Gradle release build; these binaries never ship.
+  SENTRY_DISABLE_AUTO_UPLOAD: "true"
+
+jobs:
+  devices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Need a Test Lab project
+        env:
+          FIREBASE_TEST_LAB_PROJECT: ${{ vars.FIREBASE_TEST_LAB_PROJECT }}
+          FIREBASE_TEST_LAB_SA_KEY: ${{ secrets.FIREBASE_TEST_LAB_SA_KEY }}
+        run: |
+          missing=""
+          for name in FIREBASE_TEST_LAB_PROJECT FIREBASE_TEST_LAB_SA_KEY; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::The device farm cannot run, not set:$missing. Setup: docs/runbooks/unichat-mobile-release.md"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - name: Build the release APK and the calls module's test APK for real phones
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          pnpm exec expo prebuild -p android --no-install --clean
+          # arm64 only: scripts/mobile-ftl-devices.mjs picks only phones whose catalogue entry lists arm64-v8a (its ABI).
+          (cd android && ./gradlew :app:assembleRelease :unichat-calls:assembleDebugAndroidTest --no-daemon -PreactNativeArchitectures=arm64-v8a)
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_TEST_LAB_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Pick the phones
+        env:
+          PROJECT: ${{ vars.FIREBASE_TEST_LAB_PROJECT }}
+        run: |
+          set -euo pipefail
+          gcloud firebase test android models list --project "$PROJECT" --format=json > "$RUNNER_TEMP/models.json"
+          node scripts/mobile-ftl-devices.mjs "$RUNNER_TEMP/models.json" | tee "$RUNNER_TEMP/devices.txt"
+          { echo "### UniChat device farm phones"; echo; sed 's/^/- `/; s/$/`/' "$RUNNER_TEMP/devices.txt"; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Cold start and Robo crawl on each phone
+        env:
+          PROJECT: ${{ vars.FIREBASE_TEST_LAB_PROJECT }}
+        run: |
+          set -euo pipefail
+          mapfile -t devices < "$RUNNER_TEMP/devices.txt"
+          gcloud firebase test android run --project "$PROJECT" --type robo \
+            --app apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk \
+            "${devices[@]}" --timeout 300s --num-flaky-test-attempts 1
+      - name: The incoming-call notification in each maker's shade
+        if: ${{ !cancelled() }}
+        env:
+          PROJECT: ${{ vars.FIREBASE_TEST_LAB_PROJECT }}
+        run: |
+          set -euo pipefail
+          mapfile -t devices < "$RUNNER_TEMP/devices.txt"
+          test_apk="$(find apps/chat-mobile -path '*/outputs/apk/androidTest/debug/*.apk' | head -n 1)"
+          [ -n "$test_apk" ] || { echo "::error::The calls module's test APK was not built"; exit 1; }
+          gcloud firebase test android run --project "$PROJECT" --type instrumentation \
+            --app "$test_apk" --test "$test_apk" \
+            "${devices[@]}" --timeout 600s --num-flaky-test-attempts 1

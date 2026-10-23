@@ -26,8 +26,8 @@ import type {
 } from "@uniwork/core/chat";
 import type { ChatMessage } from "./chat-messages";
 import type { ChatSidebarTarget } from "./chat-sidebar";
-import type { ChatMentionCandidate } from "./chat-mention-utils";
-import { serializeComposerDraftToMessageBody } from "./chat-mention-utils";
+import type { ChatMentionCandidate } from "@uniwork/core/chat/chat-mention-utils";
+import { serializeComposerDraftToMessageBody } from "@uniwork/core/chat/chat-mention-utils";
 
 export function useChatPageActions({
   workspaceId,

@@ -278,8 +278,9 @@ func agentMalformed(r ai.Response) bool {
 }
 
 // agentCallOver counts one model call against the organization's minute and
-// reports whether it is past askAgentOrgCallsPerMinute. Without Redis nothing
-// is counted; a Redis error fails open, in the limiters' 100 ms.
+// reports whether it is past askAgentOrgCallsPerMinute. Without Redis it
+// counts in this service's memory; a Redis error fails open, in the limiters'
+// 100 ms.
 func (s *AskUNIService) agentCallOver(ctx context.Context, orgID string) bool {
 	n, ok := s.askCount(ctx, askAgentOrgCallKey+orgID)
 	return ok && n > askAgentOrgCallsPerMinute

@@ -6,16 +6,18 @@ import { chatKeys } from "./chat-keys";
 import {
   CHAT_HISTORY_PAGE_SIZE,
   CHAT_MESSAGE_CACHE_MAX,
-  catchUpRoomTimeline,
   flattenRoomTimeline,
   insertCreatedTimelineMessage,
   keepRoomTimelineHead,
   olderRoomPageParam,
+  replaceTimelineMessage,
+  type RoomTimeline,
+} from "./room-timeline-pages";
+import {
+  catchUpRoomTimeline,
   refreshLoadedRoomTimelines,
   refreshRoomTimelineOnOpen,
-  replaceTimelineMessage,
   ROOM_TIMELINE_STALE_MS,
-  type RoomTimeline,
 } from "./room-timeline";
 
 const msg = (id: string, minute: number): ChatMessageRecord => ({

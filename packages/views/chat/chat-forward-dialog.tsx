@@ -14,7 +14,7 @@ import { Label } from "@uniwork/ui/components/ui/label";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
-import { identityTint } from "../people/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 import {
   CHAT_DIALOG_BODY_CLASS,
   CHAT_DIALOG_CLASS,
@@ -24,11 +24,11 @@ import {
   CHAT_SECTION_LABEL_CLASS,
 } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
-import { initialsOf, roomInitialsOf } from "./chat-initials";
+import { initialsOf, roomInitialsOf } from "@uniwork/core/chat/initials";
 import type { ChatMessage } from "./chat-messages";
 import { replyPreviewLabel } from "./chat-reply-quote";
 import { ChatRoomPhoto } from "./chat-room-mark";
-import { foldedIncludes } from "./chat-search-fold";
+import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 import { WorkspaceMemberSearchField } from "./workspace-member-picker";
 
 /** The server's cap per forward (maxChatForwardTargets). */

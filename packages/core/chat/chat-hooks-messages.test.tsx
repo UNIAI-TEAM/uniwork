@@ -21,7 +21,7 @@ import {
   useToggleChatReaction,
 } from "./chat-hooks-messages";
 import { pendingChatMessageId } from "./pending-message-id";
-import { flattenRoomTimeline, type RoomTimeline } from "./room-timeline";
+import { flattenRoomTimeline, type RoomTimeline } from "./room-timeline-pages";
 import { useSendChatThreadMessage } from "./thread-hooks";
 
 const row = (id: string, minute: number, extra: Partial<ChatMessageRecord> = {}): ChatMessageRecord => ({

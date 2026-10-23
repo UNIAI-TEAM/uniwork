@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHAT_HISTORY_PAGE_SIZE } from "@uniwork/core/chat/room-timeline";
+import { CHAT_HISTORY_PAGE_SIZE } from "@uniwork/core/chat/room-timeline-pages";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
 
 describe("chat message paging constants", () => {

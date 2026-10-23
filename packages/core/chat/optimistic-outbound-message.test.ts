@@ -9,7 +9,7 @@ import {
   insertOptimisticRoomMessageIfLoaded,
   removeOptimisticRoomMessage,
 } from "./optimistic-outbound-message";
-import { flattenRoomTimeline, type RoomTimeline } from "./room-timeline";
+import { flattenRoomTimeline, type RoomTimeline } from "./room-timeline-pages";
 
 const row = (id: string, minute: number, extra: Partial<ChatMessageRecord> = {}): ChatMessageRecord => ({
   id,

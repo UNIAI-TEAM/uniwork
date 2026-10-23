@@ -52,7 +52,7 @@ describe("fetchCallLogs", () => {
 describe("callLogsOptions", () => {
   it("keys by workspace and follows next_cursor until it is null", async () => {
     const options = callLogsOptions("w1");
-    expect(options.queryKey).toEqual(["chat-call-logs", "w1"]);
+    expect(options.queryKey).toEqual(["chat", "w1", "call-logs"]);
     expect(options.initialPageParam).toBeNull();
     expect(options.getNextPageParam({ call_logs: [], next_cursor: "c2" }, [], null, [])).toBe("c2");
     expect(options.getNextPageParam({ call_logs: [], next_cursor: null }, [], null, [])).toBeUndefined();

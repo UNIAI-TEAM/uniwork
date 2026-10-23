@@ -1,0 +1,20 @@
+# Cold-start smoke, on every PR that reaches the binary (mobile-verify.yml ›
+# android-smoke): the release build of the production config opens on an
+# emulator, its native modules load, the embedded bundle runs and the sign-in
+# screen shows, and it is still there a few seconds later (a crash on boot or
+# just after it fails here). No server and no account: the build points at
+# placeholder URLs, so nothing past the sign-in screen is in scope.
+appId: com.uniworkos.chat
+name: Cold start reaches sign-in
+tags:
+  - smoke
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Sign in|Đăng nhập"
+    timeout: 60000
+- assertVisible: "Sign in with your UniWork account in the browser|Đăng nhập bằng tài khoản UniWork trong trình duyệt"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "Sign in|Đăng nhập"

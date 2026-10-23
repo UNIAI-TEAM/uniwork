@@ -2,7 +2,7 @@ import type {
   VoiceCallDeviceError,
   VoiceCallDeviceFailure,
   VoiceCallDeviceKind,
-} from "./voice-call-overlay-types";
+} from "@uniwork/core/chat/voice-call-types";
 
 export type VoiceCapturePrep = { ok: true } | { ok: false; device: VoiceCallDeviceError };
 

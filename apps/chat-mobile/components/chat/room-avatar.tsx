@@ -7,12 +7,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { View } from "react-native";
 import { letterStyle, PersonAvatar } from "@/components/people/person-avatar";
 import { Text } from "@/components/ui/text";
-import { identityTint, SOLID_TINT_BG, type IdentityTint } from "@/lib/identity-tint";
-import { roomInitialsOf } from "@/lib/initials";
+import { SOLID_TINT_BG } from "@/lib/identity-tint";
+import { identityTint, type IdentityTint } from "@uniwork/core/chat/identity-tint";
+import { roomInitialsOf } from "@uniwork/core/chat/initials";
 import { continuousCorners } from "@/lib/radius";
 import type { RoomMark } from "@/lib/room-list";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 /** `seed` is the room id the colour is hashed from. */
 export function RoomAvatar({ mark, size = 54, seed = "" }: { mark: RoomMark; size?: number; seed?: string }) {

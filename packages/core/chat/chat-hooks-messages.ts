@@ -8,14 +8,8 @@ import { runWithChatSendRetry } from "./send-retry";
 import { lookupChatUserCached } from "./user-lookup";
 import { useAuthStore } from "../auth/store";
 import { documentKeys } from "../documents/keys";
+import { patchRoomSidebarFromMessage } from "./chat-cache-records";
 import { chatKeys } from "./chat-keys";
-import {
-  applyChatMessageResponse,
-  insertCreatedRoomMessage,
-  invalidateRoomSharedSummary,
-  patchChatMessageDeleted,
-  patchRoomSidebarFromMessage,
-} from "./realtime-cache";
 import {
   buildOptimisticRoomMessageRecord,
   commitOptimisticRoomSend,
@@ -23,6 +17,12 @@ import {
   removeOptimisticRoomMessage,
 } from "./optimistic-outbound-message";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
+import {
+  applyChatMessageResponse,
+  insertCreatedRoomMessage,
+  invalidateRoomSharedSummary,
+  patchChatMessageDeleted,
+} from "./realtime-cache";
 
 type RoomSendVariables = {
   roomId: string;

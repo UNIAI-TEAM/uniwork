@@ -5,7 +5,7 @@ import { Mic, MicOff, Users, Video, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { chatPersonFaceClass } from "./chat-person-card";
 import { useVoiceCallMedia } from "./voice-call-room-context";
 import type { VoiceCallParticipantTile } from "./voice-call-room-types";

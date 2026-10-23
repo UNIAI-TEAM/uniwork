@@ -500,6 +500,92 @@ func TestChecksumFollowsThePolicy(t *testing.T) {
 	}
 }
 
+// Two completions of one provider output that overlap (a client retry, a
+// replayed webhook) both read the file pending; the one that publishes second
+// finds the session already staged by its sibling. That is the documented
+// replay after success, not a cancel: it answers the same ready file, and it
+// neither queues a cleanup for that file nor touches its session. Before the
+// fix it answered upload_canceled and queued the cleanup, and a folder upload
+// then reset the file and canceled the sibling's good upload.
+func TestCompleteProviderOutputOverlappingCompletionsAnswerTheSameFile(t *testing.T) {
+	h := newFileHarness(t, localFileBackend(), nil)
+	ctx := context.Background()
+	out, err := h.svc.RegisterProviderOutput(ctx, files.ProviderOutputInput{
+		Actor: t3Actor, Purpose: files.TaskAttachment, Scope: t3Scope, OperationID: "op-overlap", Deadline: h.clock.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	putWriteTarget(t, out.WriteTarget, t3PNG, "image/png")
+
+	// Each late completion loaded the rows before its sibling published, so
+	// its attempt still carries the receiving session.
+	stale := func() uploadAttempt {
+		t.Helper()
+		records, err := h.svc.loadInScope(ctx, h.svc.q, t3Scope, []files.FileID{out.FileID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := records[out.FileID]
+		if rec.file.Status != string(files.StatusPending) || rec.session.Status != string(files.SessionReceiving) {
+			t.Fatalf("stale load = file %s session %s, want pending/receiving", rec.file.Status, rec.session.Status)
+		}
+		return uploadAttempt{file: rec.file, session: rec.session, leaseOwner: providerKey("op-overlap")}
+	}
+	late, later := stale(), stale()
+
+	won, err := h.svc.CompleteProviderOutput(ctx, files.CompleteOutputInput{Actor: t3Actor, Scope: t3Scope, FileID: out.FileID, OperationID: "op-overlap"})
+	if err != nil {
+		t.Fatalf("first completion: %v", err)
+	}
+	cleanups := func() int {
+		return fileCountRows(t, h.pool, `SELECT count(*) FROM file_jobs WHERE file_id = $1 AND operation = 'cleanup' AND status = 'pending'`, string(out.FileID))
+	}
+	sessionStatus := func() string {
+		sess, err := h.svc.q.GetUploadSessionByID(ctx, late.session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return sess.Status
+	}
+
+	up, err := h.svc.publishUpload(ctx, late, won.ContentType, won.SizeBytes, won.ChecksumSHA256, "")
+	if err != nil {
+		t.Fatalf("overlapping completion = %v, want the published file", err)
+	}
+	if up.File.ID != won.ID || up.File.Status != files.StatusReady || up.UploadSessionID != late.session.ID || up.ClaimExpiresAt.IsZero() {
+		t.Fatalf("overlapping completion = %+v, want ready file %s", up, won.ID)
+	}
+	if n := cleanups(); n != 0 {
+		t.Fatalf("overlapping completion queued %d cleanup jobs for the published file", n)
+	}
+	if st := sessionStatus(); st != string(files.SessionStaged) {
+		t.Fatalf("session = %s, want staged", st)
+	}
+
+	// Once the file is claimed, a completion that loaded it earlier still
+	// answers it rather than a cancel.
+	if err := h.svc.inTx(ctx, func(q *db.Queries) error {
+		_, err := h.svc.ClaimInTx(ctx, q, files.ClaimInput{Actor: t3Actor, Purpose: files.TaskAttachment, Scope: t3Scope, FileIDs: []files.FileID{out.FileID}})
+		return err
+	}); err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	up, err = h.svc.publishUpload(ctx, later, won.ContentType, won.SizeBytes, won.ChecksumSHA256, "")
+	if err != nil || up.File.ID != won.ID {
+		t.Fatalf("completion after the claim = %+v, %v, want the claimed file", up, err)
+	}
+	if n := cleanups(); n != 0 {
+		t.Fatalf("completion after the claim queued %d cleanup jobs", n)
+	}
+	if st := sessionStatus(); st != string(files.SessionClaimed) {
+		t.Fatalf("session = %s, want claimed", st)
+	}
+	if row, err := h.svc.q.GetFileByID(ctx, string(out.FileID)); err != nil || row.Status != string(files.StatusReady) {
+		t.Fatalf("file = %s, %v, want ready", row.Status, err)
+	}
+}
+
 // Recording keys end in ".mp4" (LiveKit egress) and every key follows the
 // spec 6.2 layout for its scope branch.
 func TestObjectKeysFollowTheLayout(t *testing.T) {

@@ -250,7 +250,8 @@ func (s *McpToolService) GetTask(ctx context.Context, p McpPrincipal, workspaceI
 	// The excerpt is Ask UNI's rendering of the task (status, priority, due
 	// date, assignee by name, description); the comments have a field of their
 	// own, with the ids add_comment's reply_to takes.
-	out.Excerpt = capRunes(taskSource(base, t, s.ask.memberNames(ctx, s.tc(p, workspaceID))).Excerpt, mcpMaxItemRunes, mcpItemCut)
+	tc := s.tc(p, workspaceID)
+	out.Excerpt = capRunes(taskSource(base, t, s.ask.memberNames(ctx, tc), s.ask.taskStatusLabels(ctx, tc)).Excerpt, mcpMaxItemRunes, mcpItemCut)
 	if out.Labels, err = s.labelsOf(ctx, p, t.ID); err != nil {
 		return McpTask{}, hidden(err)
 	}

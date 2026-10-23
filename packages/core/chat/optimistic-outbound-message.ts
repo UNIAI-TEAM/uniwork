@@ -6,7 +6,7 @@ import {
   insertCreatedTimelineMessage,
   mapRoomTimeline,
   type RoomTimeline,
-} from "./room-timeline";
+} from "./room-timeline-pages";
 
 export type OutboundRoomMessageInput = {
   roomId: string;

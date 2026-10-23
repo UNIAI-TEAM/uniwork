@@ -8,7 +8,7 @@ import { usePresenceStore } from "@uniwork/core/chat/presence-store";
 import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
 import { cn } from "@uniwork/ui/lib/utils";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { ChatInfoLink, ChatInfoSection } from "./chat-info-panel-parts";
 import { chatPersonFaceClass } from "./chat-person-card";
 import { ChatPresenceAvatar } from "./chat-presence-avatar";

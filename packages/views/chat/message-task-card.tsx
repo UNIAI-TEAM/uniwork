@@ -21,7 +21,7 @@ import { useChatMessageLinksFor } from "./chat-message-links-context";
 import { CHAT_BUBBLE_OTHER, CHAT_ON_BUBBLE_HOVER, CHAT_ON_BUBBLE_LINE, chatBubbleShape } from "./chat-message-row";
 import { formatTaskDue } from "./chat-info-panel-utils";
 import { chatPersonFaceClass } from "./chat-person-card";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 
 function MessageTaskLinkRow({
   workspaceId,

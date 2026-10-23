@@ -15,10 +15,10 @@ import { useWorkspace } from "../layout/workspace-context";
 import { useNativeVoiceCall } from "./use-native-voice-call";
 import { useCallNotification } from "./use-call-notification";
 import type { VoiceCallPanelMode } from "./voice-call-floating-panel";
-import { voiceCallPrimaryLeaveEndsForAll } from "./voice-call-kind-utils";
+import { voiceCallPrimaryLeaveEndsForAll } from "@uniwork/core/chat/voice-call-kind";
 import { prepareVideoCapture, prepareVoiceCapture } from "./voice-call-media";
 import { VoiceCallOverlay, type VoiceCallKind } from "./voice-call-overlay";
-import type { VoiceCallDeviceError, VoiceCallOverlayState } from "./voice-call-overlay-types";
+import type { VoiceCallDeviceError, VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 
 type ChatVoiceCallContextValue = {
   voiceCall: VoiceCallOverlayState;

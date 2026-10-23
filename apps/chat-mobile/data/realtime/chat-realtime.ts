@@ -1,8 +1,9 @@
 // What each chat frame does to the phone's caches: the parity table of the
 // native-apps spec §8, mirroring packages/core/realtime/use-realtime-sync.ts
-// (its chat cases) and packages/core/chat/realtime-cache.ts. Pure apart from
-// the query client it is handed, so chat-realtime.test.ts drives it frame by
-// frame; use-chat-realtime.ts wires it to the socket.
+// (its chat cases). A message frame lands through core's shared cache wiring
+// (chat-message-cache, bound in ../chat-cache.ts). Pure apart from the query
+// client it is handed, so chat-realtime.test.ts drives it frame by frame;
+// use-chat-realtime.ts wires it to the socket.
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import {
   fetchAndPatchChatMessage,
@@ -11,15 +12,24 @@ import {
   patchChatRoomRead,
   type ChatViewer,
 } from "../chat-cache";
-import { catchUpOnChatSubscribeAck, refreshLoadedRoomTimelines } from "../chat-timeline";
+import type { ChatSyncOutcome } from "../chat-sync/sync";
+import { catchUpOnChatSubscribeAck, catchUpRoomTimeline, refreshLoadedRoomTimelines } from "../chat-timeline";
 import { chatKeys } from "../queries/chat-keys";
-import type { WSMessage } from "./ws-types";
+import { bestEffort } from "../report";
+import { roomWasRead } from "../room-read-signal";
+import { roomTimelineHas, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
+import { sameUser } from "@/lib/user-id";
+import { isKnownFrame, type RealtimeFrame } from "./frames";
 
 export interface ChatRealtimeDeps {
   wsId: string;
   viewer: () => ChatViewer;
   typing: { bump: (roomId: string, userId: string, currentUserId: string) => void };
   presence: { bump: (userId: string, currentUserId: string) => void; markOffline: (userId: string) => void };
+  /** The chat change log (data/chat-sync/sync.ts); without it a reconnect refetches every shown timeline. */
+  sync?: () => Promise<ChatSyncOutcome>;
+  /** The socket is up and the app in front; given, the live check (LIVE_CHECK_MS) runs while it holds. */
+  isLive?: () => boolean;
 }
 
 /**
@@ -28,10 +38,54 @@ export interface ChatRealtimeDeps {
  */
 export const ROOM_ACTIVITY_DEBOUNCE_MS = 300;
 
+/**
+ * A busy room sends a frame per message and the phone used to GET each one
+ * (there are no sequence events). One GET per room runs at a time; the frames
+ * that pile up behind it are read together: this many new messages or more,
+ * on a timeline someone shows, is one catch-up read instead of a GET each.
+ */
+export const BURST_CATCH_UP_MIN = 2;
+
+/**
+ * A frame the relay drops while the socket stays up (a Redis hiccup, a node
+ * dying between commit and publish) would never be noticed: there is no
+ * sequence on frames. Every this often, while the socket is up and the app in
+ * front, the phone asks the change log what changed (one small request), or,
+ * without it, reads what the shown rooms missed after their newest message.
+ */
+export const LIVE_CHECK_MS = 60_000;
+
+/**
+ * The live check runs after a quiet minute: while message frames flow the
+ * relay is evidently delivering, and a check would mostly re-read what they
+ * brought. However busy the socket, it still runs this often, since a frame
+ * lost in the middle of a burst leaves no other trace.
+ */
+export const LIVE_CHECK_MAX_MS = 5 * 60_000;
+
+/** Frames that carry a message change: while they flow the minute is not quiet. */
+const MESSAGE_FRAMES: ReadonlySet<string> = new Set([
+  "chat.message.created",
+  "chat.message.updated",
+  "chat.message.deleted",
+  "chat.thread.replied",
+]);
+
+interface MessageFrame {
+  roomId: string;
+  messageId: string;
+  /** A new main-timeline message (counts as unread, can be read by a catch-up). */
+  created: boolean;
+  senderId?: string;
+  threadRootId?: string;
+}
+
 export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
   const { wsId } = deps;
   const scheduled = new Map<string, QueryKey>();
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let lastMessageFrameAt = Number.NEGATIVE_INFINITY;
+  let lastLiveCheckAt = Date.now();
 
   function schedule(...keys: QueryKey[]) {
     for (const key of keys) scheduled.set(JSON.stringify(key), key);
@@ -44,34 +98,102 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
     }, ROOM_ACTIVITY_DEBOUNCE_MS);
   }
 
-  function handle(msg: WSMessage): void {
-    const payload = (msg.payload ?? {}) as Record<string, string | undefined>;
-    if (catchUpOnChatSubscribeAck(qc, wsId, msg.type, payload as Record<string, string>)) return;
+  /**
+   * The echo of a message this phone sent: the POST's answer already put the
+   * server's copy in the timeline (chat-send.ts › applyChatMessageResponse) and
+   * moved the room's preview, so its frame needs no GET. Another device's send
+   * is not in the cache and is read as any other.
+   */
+  function isOwnEcho(roomId: string, messageId: string, senderId: string | undefined, threadRootId: string | undefined): boolean {
+    const { userId } = deps.viewer();
+    if (!userId || !senderId || !sameUser(senderId, userId)) return false;
+    const key = threadRootId ? chatKeys.threadMessages(wsId, roomId, threadRootId) : chatKeys.roomMessages(wsId, roomId);
+    return roomTimelineHas(qc.getQueryData<RoomTimeline>(key), messageId);
+  }
+
+  const isShown = (roomId: string) =>
+    (qc.getQueryCache().find({ queryKey: chatKeys.roomMessages(wsId, roomId), exact: true })?.getObserversCount() ?? 0) > 0;
+
+  /**
+   * A frame whose GET failed is not dropped: a new message is read
+   * by a catch-up, anything else refetches the room (and its thread), and the
+   * list follows, so the message shows without reopening the room.
+   */
+  function recover(frame: MessageFrame): void {
+    const roomKey = chatKeys.roomMessages(wsId, frame.roomId);
+    if (frame.created) void catchUpRoomTimeline(qc, wsId, frame.roomId).catch(() => qc.invalidateQueries({ queryKey: roomKey }));
+    else void qc.invalidateQueries({ queryKey: roomKey });
+    if (frame.threadRootId) void qc.invalidateQueries({ queryKey: chatKeys.threadMessages(wsId, frame.roomId, frame.threadRootId) });
+    schedule(chatKeys.rooms(wsId), chatKeys.unreadSummary());
+  }
+
+  function patchOne(frame: MessageFrame): Promise<void> {
+    const { roomId, messageId, created, senderId } = frame;
+    return fetchAndPatchChatMessage(qc, wsId, deps.viewer(), { roomId, messageId, created, senderId }).catch(() => recover(frame));
+  }
+
+  // One line of frames per room: the frames that arrive while it reads are merged by message and read next.
+  const lines = new Map<string, Map<string, MessageFrame>>();
+
+  async function drain(roomId: string, queue: Map<string, MessageFrame>): Promise<void> {
+    try {
+      while (queue.size > 0) {
+        const frames = [...queue.values()];
+        queue.clear();
+        const fresh = frames.filter((frame) => frame.created && !frame.threadRootId);
+        const burst = fresh.length >= BURST_CATCH_UP_MIN && isShown(roomId);
+        if (burst) {
+          await catchUpRoomTimeline(qc, wsId, roomId).catch(() => recover(fresh[0]!));
+          // The previews and counts come from the list, not from each message.
+          schedule(chatKeys.rooms(wsId), chatKeys.unreadSummary());
+        }
+        for (const frame of burst ? frames.filter((f) => !fresh.includes(f)) : frames) await patchOne(frame);
+      }
+    } finally {
+      lines.delete(roomId);
+    }
+  }
+
+  function enqueueFrame(frame: MessageFrame): void {
+    const running = lines.get(frame.roomId);
+    const queue = running ?? new Map<string, MessageFrame>();
+    const prior = queue.get(frame.messageId);
+    queue.set(frame.messageId, prior ? { ...frame, created: prior.created || frame.created, senderId: frame.senderId ?? prior.senderId } : frame);
+    if (running) return;
+    lines.set(frame.roomId, queue);
+    void drain(frame.roomId, queue);
+  }
+
+  /** One decoded frame (frames.ts: a malformed one never gets here, so every id below is a non-empty string). */
+  function handle(msg: RealtimeFrame): void {
+    if (!isKnownFrame(msg)) return;
+    if (MESSAGE_FRAMES.has(msg.type)) lastMessageFrameAt = Date.now();
     const viewer = deps.viewer();
-    const roomId = payload.room_id;
-    const messageId = payload.message_id;
     switch (msg.type) {
+      case "subscribe_ack":
+        catchUpOnChatSubscribeAck(qc, wsId, msg.type, msg.payload);
+        return;
       case "chat.message.created":
       case "chat.message.updated":
-      case "chat.thread.replied":
-        if (!roomId || !messageId) return;
+      case "chat.thread.replied": {
+        const { room_id: roomId, message_id: messageId } = msg.payload;
+        const senderId = msg.type === "chat.message.created" ? msg.payload.sender_id : undefined;
+        const threadRootId = msg.type === "chat.message.updated" ? undefined : msg.payload.thread_root_id;
+        if (msg.type === "chat.message.created" && isOwnEcho(roomId, messageId, senderId, threadRootId)) return;
         // A thread reply is not unread on the main timeline.
-        void fetchAndPatchChatMessage(qc, wsId, viewer, {
-          roomId,
-          messageId,
-          created: msg.type === "chat.message.created" && !payload.thread_root_id,
-          senderId: payload.sender_id,
-        });
+        enqueueFrame({ roomId, messageId, created: msg.type === "chat.message.created" && !threadRootId, senderId, threadRootId });
         if (msg.type === "chat.message.created") schedule(chatKeys.unreadSummary());
         return;
+      }
       case "chat.message.deleted":
-        if (roomId && messageId) patchChatMessageDeleted(qc, wsId, roomId, messageId);
+        patchChatMessageDeleted(qc, wsId, msg.payload.room_id, msg.payload.message_id);
         return;
-      case "chat.mention.created":
-        if (!roomId) return;
-        if (!payload.thread_root_id) patchChatMentionCreated(qc, wsId, viewer, roomId, payload.sender_id ?? "");
-        if (messageId) void fetchAndPatchChatMessage(qc, wsId, viewer, { roomId, messageId });
+      case "chat.mention.created": {
+        const { room_id: roomId, message_id: messageId, thread_root_id: threadRootId } = msg.payload;
+        if (!threadRootId) patchChatMentionCreated(qc, wsId, viewer, roomId, msg.payload.sender_id ?? "");
+        if (messageId) enqueueFrame({ roomId, messageId, created: false, threadRootId });
         return;
+      }
       case "chat.room.activity":
         schedule(chatKeys.rooms(wsId), chatKeys.unreadSummary());
         return;
@@ -79,9 +201,11 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
       case "chat.room.updated":
       case "chat.room.member_added":
       case "chat.room.members_added":
-      case "chat.room.member_removed":
+      case "chat.room.member_removed": {
+        const roomId = msg.payload.room_id;
         schedule(chatKeys.rooms(wsId), ...(roomId ? [chatKeys.roomMembers(wsId, roomId)] : []));
         return;
+      }
       case "chat.channel.created":
       case "chat.channel.updated":
       case "chat.channel.archived":
@@ -93,35 +217,94 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
       case "chat.follow_up.deleted":
         schedule(chatKeys.followUps(wsId));
         return;
-      case "chat.room.read":
-        if (roomId && payload.user_id && viewer.userId) patchChatRoomRead(qc, wsId, viewer.userId, roomId, payload.user_id);
-        // The reader's own pointer moved: the per-workspace counts follow.
-        if (payload.user_id && payload.user_id === viewer.userId) schedule(chatKeys.unreadSummary());
+      case "chat.room.read": {
+        const { room_id: roomId, user_id: userId } = msg.payload;
+        if (viewer.userId) patchChatRoomRead(qc, wsId, viewer.userId, roomId, userId);
+        // The reader's own pointer moved (here or on another device): the per-workspace counts follow, and the
+        // room's notifications come down on this phone too.
+        if (userId === viewer.userId) {
+          schedule(chatKeys.unreadSummary());
+          roomWasRead(roomId);
+        }
+        return;
+      }
+      case "chat.voice.hangup":
+        // The hangup is published after the server wrote the call's log (SignalVoiceHangup).
+        schedule(chatKeys.callLogs(wsId));
         return;
       case "chat.typing":
-        if (roomId && payload.user_id && viewer.userId) deps.typing.bump(roomId, payload.user_id, viewer.userId);
+        if (viewer.userId) deps.typing.bump(msg.payload.room_id, msg.payload.user_id, viewer.userId);
         return;
       case "user.presence":
-        if (payload.user_id && viewer.userId) deps.presence.bump(payload.user_id, viewer.userId);
+        if (viewer.userId) deps.presence.bump(msg.payload.user_id, viewer.userId);
         return;
       case "user.offline":
-        if (payload.user_id) deps.presence.markOffline(payload.user_id);
+        deps.presence.markOffline(msg.payload.user_id);
         return;
       default:
         return;
     }
   }
 
-  /** Frames sent while the socket was down are gone: each cache refreshes its own keys (ADR 0011 §5). */
-  function reconnect(): void {
-    schedule(chatKeys.rooms(wsId), chatKeys.nicknames(wsId), chatKeys.unreadSummary());
-    void qc.invalidateQueries({ queryKey: ["chat", wsId, "thread-messages"] });
+  /** Reload what is shown: every loaded page of each shown timeline, and the threads (ADR 0011 §5). */
+  function reloadShown(): void {
+    void qc.invalidateQueries({ queryKey: chatKeys.threadsRoot(wsId) });
     refreshLoadedRoomTimelines(qc, wsId);
   }
+
+  /** A sync that threw (the device store, a bug) is reported and answers nothing: the old path runs. */
+  const syncOutcome = (sync: () => Promise<ChatSyncOutcome>) => sync().catch(bestEffort("chat-sync", "sync threw", "report"));
+
+  /**
+   * Frames sent while the socket was down are gone. The lists refetch; the
+   * timelines read what changed from the change log (data/chat-sync/sync.ts,
+   * one request), and only when it cannot answer (switched off, failed, too far
+   * behind) does every shown timeline refetch its loaded pages.
+   */
+  function reconnect(): void {
+    schedule(chatKeys.rooms(wsId), chatKeys.nicknames(wsId), chatKeys.members(wsId), chatKeys.callLogs(wsId), chatKeys.unreadSummary());
+    if (!deps.sync) {
+      reloadShown();
+      return;
+    }
+    // A change whose log row was lost (a failed write) is in no sync; the open room still reads what it got after its
+    // newest message, because the socket replays its chat scope after auth and the subscribe_ack catches it up.
+    void syncOutcome(deps.sync).then((outcome) => {
+      if (outcome !== "synced") reloadShown();
+    });
+  }
+
+  /** Each shown room reads what it got after its newest message. */
+  function catchUpShown(): void {
+    for (const [queryKey, data] of qc.getQueriesData({ queryKey: chatKeys.roomMessagesRoot(wsId) })) {
+      const roomId = queryKey[3];
+      if (data === undefined || typeof roomId !== "string" || !isShown(roomId)) continue;
+      void catchUpRoomTimeline(qc, wsId, roomId).catch(bestEffort("chat-sync", "catch-up of a shown room failed", "breadcrumb"));
+    }
+  }
+
+  /** The live check: after a quiet LIVE_CHECK_MS, and at least every LIVE_CHECK_MAX_MS. */
+  async function checkLive(): Promise<void> {
+    if (!deps.isLive?.()) return;
+    const now = Date.now();
+    if (now - lastMessageFrameAt < LIVE_CHECK_MS && now - lastLiveCheckAt < LIVE_CHECK_MAX_MS) return;
+    lastLiveCheckAt = now;
+    const outcome = deps.sync ? await syncOutcome(deps.sync) : undefined;
+    if (outcome === "synced") return;
+    if (outcome === "reset") {
+      reloadShown();
+      schedule(chatKeys.rooms(wsId), chatKeys.unreadSummary());
+      return;
+    }
+    catchUpShown();
+  }
+
+  const liveCheck = deps.isLive ? setInterval(() => void checkLive(), LIVE_CHECK_MS) : null;
 
   function dispose(): void {
     if (timer) clearTimeout(timer);
     timer = null;
+    if (liveCheck) clearInterval(liveCheck);
     scheduled.clear();
   }
 

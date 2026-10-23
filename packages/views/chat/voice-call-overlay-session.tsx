@@ -6,7 +6,7 @@ import type {
   VoiceCallDisconnectInfo,
   VoiceCallEndInit,
   VoiceCallKind,
-} from "./voice-call-overlay-types";
+} from "@uniwork/core/chat/voice-call-types";
 import type { VoiceCallPanelMode } from "./voice-call-floating-panel";
 
 export function ActiveVoiceCallSession({

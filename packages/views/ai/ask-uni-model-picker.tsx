@@ -54,6 +54,8 @@ function Bar({ label, value }: { label: string; value: number }) {
 
 interface Row {
   modelKey: string;
+  /** The model's name alone, for the card; the row's label may add the model Auto runs today. */
+  name: string;
   label: string;
   description: string;
   look: AskLook | null;
@@ -83,6 +85,10 @@ function ModelRow({ row, chosen, effort, onPick }: { row: Row; chosen: boolean; 
         ) : null}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent side="left" className="flex w-60 flex-col gap-2 p-2">
+        <p className="flex items-center gap-1.5 px-1.5 pt-0.5 text-body font-medium text-foreground">
+          <AskUniProviderMark look={row.look} size={14} />
+          {row.name}
+        </p>
         <p className="px-1.5 text-body text-foreground">{row.description}</p>
         {row.bars ? (
           <div className="flex flex-col gap-1 px-1.5">
@@ -124,12 +130,14 @@ export function AskUniModelPicker() {
   const rows: Row[] = [
     {
       modelKey: "",
+      name: t("model.auto"),
       label: autoModel ? t("model.auto_current", { model: name(autoModel) }) : t("model.auto"),
       description: t("model.auto_description"),
       look: null,
     },
     ...enabled.map((m) => ({
       modelKey: m.key,
+      name: name(m.key),
       label: name(m.key),
       description: t(`models.${m.key}.description`, { defaultValue: "" }),
       look: askLook(m.provider),

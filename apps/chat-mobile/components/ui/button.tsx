@@ -1,14 +1,24 @@
 // Ported from usf apps/mobile/components/ui/button.tsx (React Native Reusables).
+// Sized for touch: every size reaches 44 pt on iOS and 48 dp on
+// Android, the small one through hit slop so it keeps its look; Android
+// answers a press with a ripple (components/ui/ripple.ts).
 import { cva, type VariantProps } from "class-variance-authority";
 import { Platform, Pressable } from "react-native";
+import { useRipple } from "@/components/ui/ripple";
 import { TextClassContext } from "@/components/ui/text";
+import { hitSlopFor } from "@/lib/platform-ui";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
   cn(
     "group shrink-0 flex-row items-center justify-center gap-2 rounded-md shadow-none",
     Platform.select({
-      web: "focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive whitespace-nowrap outline-none transition-all focus-visible:ring-[3px] disabled:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+      web: cn(
+        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+        "whitespace-nowrap outline-none transition-all disabled:pointer-events-none",
+        "[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+      ),
     }),
   ),
   {
@@ -28,17 +38,17 @@ const buttonVariants = cva(
         link: "",
       },
       size: {
-        default: cn("h-10 px-4 py-2 sm:h-9", Platform.select({ web: "has-[>svg]:px-3" })),
-        sm: cn("h-9 gap-1.5 rounded-md px-3 sm:h-8", Platform.select({ web: "has-[>svg]:px-2.5" })),
-        lg: cn("h-11 rounded-md px-6 sm:h-10", Platform.select({ web: "has-[>svg]:px-4" })),
-        icon: "h-10 w-10 sm:h-9 sm:w-9",
+        default: cn("min-h-11 px-4 py-2", Platform.select({ web: "has-[>svg]:px-3" })),
+        sm: cn("min-h-9 gap-1.5 rounded-md px-3 py-1.5", Platform.select({ web: "has-[>svg]:px-2.5" })),
+        lg: cn("min-h-12 rounded-md px-6 py-2", Platform.select({ web: "has-[>svg]:px-4" })),
+        icon: "h-11 w-11",
       },
     },
     defaultVariants: { variant: "default", size: "default" },
   },
 );
 
-const buttonTextVariants = cva(cn("text-foreground text-sm font-medium", Platform.select({ web: "pointer-events-none transition-colors" })), {
+const buttonTextVariants = cva(cn("text-foreground text-callout font-medium", Platform.select({ web: "pointer-events-none transition-colors" })), {
   variants: {
     variant: {
       default: "text-primary-foreground",
@@ -55,10 +65,20 @@ const buttonTextVariants = cva(cn("text-foreground text-sm font-medium", Platfor
 
 type ButtonProps = React.ComponentProps<typeof Pressable> & React.RefAttributes<typeof Pressable> & VariantProps<typeof buttonVariants>;
 
+/** How tall each size is drawn at least, in points: the hit slop makes up the rest of the platform's target. */
+const DRAWN: Record<NonNullable<ButtonProps["size"]>, number> = { default: 44, sm: 36, lg: 48, icon: 44 };
+
 function Button({ className, variant, size, ...props }: ButtonProps) {
+  const ripple = useRipple(size === "icon");
   return (
     <TextClassContext.Provider value={buttonTextVariants({ variant, size })}>
-      <Pressable className={cn(props.disabled && "opacity-50", buttonVariants({ variant, size }), className)} role="button" {...props} />
+      <Pressable
+        className={cn(props.disabled && "opacity-50", buttonVariants({ variant, size }), className)}
+        role="button"
+        hitSlop={hitSlopFor(DRAWN[size ?? "default"], Platform.OS)}
+        android_ripple={ripple}
+        {...props}
+      />
     </TextClassContext.Provider>
   );
 }

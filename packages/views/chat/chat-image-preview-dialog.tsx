@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogTitle } from "@uniwork/ui/components/ui/di
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { chatPersonFaceClass } from "./chat-person-card";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { formatMessageDay, formatMessageTime } from "./chat-message-time";
 
 /** A soft round control on the dark stage (canvas: a white wash). */

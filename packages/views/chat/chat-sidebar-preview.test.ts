@@ -7,7 +7,7 @@ import {
   formatChatSidebarPreviewText,
   formatChatSidebarTime,
 } from "./chat-sidebar-preview";
-import { givenNameOf, initialsOf, roomInitialsOf } from "./chat-initials";
+import { givenNameOf, initialsOf, roomInitialsOf } from "@uniwork/core/chat/initials";
 
 describe("chat-sidebar-preview", () => {
   it("formats group preview with sender prefix", () => {

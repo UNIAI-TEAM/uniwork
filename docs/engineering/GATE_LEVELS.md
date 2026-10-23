@@ -56,6 +56,10 @@ in đủ, không đánh đỏ. Lý do và cái giá ở `docs/adr/0014-coverage-
 `standard`: PR đổi mức chạy `GATE_LEVEL=standard make check` và dán kết quả.
 Tính tới 2026-09-09 lệnh đó xanh.
 
+Ngoại lệ là `apps/chat-mobile` (ADR 0043): sàn coverage của app (vitest 100% và sàn
+jest-expo), lint và ngân sách bundle JS Android của nó chặn ở mọi mức, vì app kiểm
+trong `.github/workflows/mobile-verify.yml` riêng, chỉ chạy khi PR chạm tới nó.
+
 Job `backend-test` chia bộ Go thành ba shard (`service`, `handler`, `rest`), mỗi shard
 một database riêng, vì `server/internal/testutil` nối tiếp mọi test DB sau một advisory
 lock: hai package dùng chung một database thì cộng thời gian chứ không chồng lên nhau.

@@ -4,27 +4,25 @@
 //   buildUnifiedSidebarEntries      ← packages/views/chat/chat-sidebar-unified.ts
 //   formatChatSidebarPreviewText, formatChatSidebarTime, compareRoomPreviewRecency,
 //   applyKnownPeopleToRoomPreviews  ← packages/views/chat/chat-sidebar-preview.ts
-//   displayLabelForChatContact, resolveChatNicknameForUser ← packages/core/chat/contacts-store.ts
 //   comparePinnedRoomOrder          ← packages/core/chat/room-preferences-store.ts
 //   sidebarEntryRoomId              ← packages/views/chat/chat-sidebar-unified-row.tsx
 //   canSendInRoom                   ← packages/views/chat/{use-resolved-room-permissions,chat-room-moderation-utils}.ts
 // The room → list mapping itself (sidebarFromChatRooms, unreadMapFromRooms,
-// mentionUnreadMapFromRooms, roomPreviewMapFromRooms) is imported from core.
+// mentionUnreadMapFromRooms, roomPreviewMapFromRooms), the contact labels and
+// the search folding are imported from core. scripts/mobile-web-copies.test.mjs
+// fails when a web source above changes without this copy being reviewed.
 import type { ChatRoomMemberRecord, ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { isPlaceholderChatDisplayName, type ChatRoomPreview } from "@uniwork/core/chat/chat-room-helpers";
 import { isRoomSendBlocked, mergeRoomMemberPermissions } from "@uniwork/core/chat/room-permissions-utils";
 import { describeChatMediaBody, type ChatMediaLabels } from "./media-body";
-import { deserializeMessageBodyToComposerDraft } from "./mentions";
-import { foldedIncludes } from "./search-fold";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
+import { givenNameOf } from "@uniwork/core/chat/initials";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
+import { foldedIncludes } from "@uniwork/core/chat/search-fold";
+import { displayLabelForChatContact, normalizeChatUserId, resolveChatNicknameForUser, type ChatContact } from "@uniwork/core/chat/contact-labels";
+import { dateTimeFormat } from "./locale-format";
 
 export type { ChatRoomPreview };
-
-export interface ChatContact {
-  user_id: string;
-  email: string;
-  display_name: string;
-  dm_room_id?: string | null;
-}
 
 export interface GroupChat {
   id: string;
@@ -35,40 +33,6 @@ export interface GroupChat {
 
 /** Pins stay on the device, as the web keeps them in the browser. */
 export type ChatRoomPreference = { pinned: boolean; pinnedAt: number };
-
-function normalizeChatUserId(userId: string): string {
-  return userId.trim().toUpperCase();
-}
-
-/** Resolves a personal nickname regardless of ULID casing in map keys. */
-export function resolveChatNicknameForUser(
-  nicknamesByUserId: Readonly<Record<string, string>> | undefined,
-  userId: string,
-): string | undefined {
-  if (!nicknamesByUserId) return undefined;
-  const direct = nicknamesByUserId[userId]?.trim();
-  if (direct) return direct;
-  const key = normalizeChatUserId(userId);
-  for (const [id, nickname] of Object.entries(nicknamesByUserId)) {
-    if (normalizeChatUserId(id) === key) {
-      const trimmed = nickname.trim();
-      if (trimmed) return trimmed;
-    }
-  }
-  return undefined;
-}
-
-/** Human-readable label for a row or header — never a raw ULID when an email exists. */
-export function displayLabelForChatContact(
-  contact: Pick<ChatContact, "user_id" | "display_name" | "email">,
-  nicknamesByUserId?: Readonly<Record<string, string>>,
-): string {
-  const nickname = resolveChatNicknameForUser(nicknamesByUserId, contact.user_id);
-  if (nickname) return nickname;
-  if (!isPlaceholderChatDisplayName(contact.display_name, contact.user_id)) return contact.display_name;
-  if (contact.email.trim()) return contact.email;
-  return contact.display_name;
-}
 
 function readPreference(byRoomId: Record<string, ChatRoomPreference>, roomId: string): ChatRoomPreference {
   return byRoomId[roomId] ?? { pinned: false, pinnedAt: 0 };
@@ -180,16 +144,6 @@ export function sidebarEntryRoomId(entry: UnifiedSidebarEntry): string | null {
   }
 }
 
-/** "0:42" — message-display.ts › formatVoiceCallDuration, repeated here because message-display imports this module. */
-function formatVoiceCallDuration(totalSeconds: number): string {
-  const safe = Math.max(0, Math.floor(totalSeconds));
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const seconds = safe % 60;
-  if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
 function sameUser(a: string, b: string): boolean {
   return a.trim().toUpperCase() === b.trim().toUpperCase();
 }
@@ -200,18 +154,6 @@ export function isMissedCallPreview(preview: ChatRoomPreview | null | undefined,
 }
 
 const IMAGE_FILE_NAME = /\.(avif|bmp|gif|heic|heif|jpe?g|png|webp)$/i;
-
-/**
- * The name a busy list line uses for a person, the given name a Vietnamese
- * name ends with ("Bùi Minh Quân" → "Quân"). An all-capitals last word is an
- * acronym, not a given name ("Phòng HC"), so that name stays whole
- * (packages/views/chat/chat-initials.ts › givenNameOf).
- */
-export function givenNameOf(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  const last = words[words.length - 1] ?? "";
-  return words.length < 2 || /^\p{Lu}+$/u.test(last) ? name.trim() : last;
-}
 
 export function formatChatSidebarPreviewText(
   preview: ChatRoomPreview | null | undefined,
@@ -277,17 +219,9 @@ const SIDEBAR_TIME_OPTIONS: Record<SidebarTimeFormat, Intl.DateTimeFormatOptions
   date: { month: "numeric", day: "numeric", year: "numeric" },
 };
 
-// One formatter per locale and shape: building one is the expensive part.
-const sidebarTimeFormatters = new Map<string, Intl.DateTimeFormat>();
-
+// The app's language and the device's clock, one cached formatter per shape (lib/locale-format.ts).
 function sidebarTimeFormatter(locale: string | undefined, format: SidebarTimeFormat): Intl.DateTimeFormat {
-  const key = `${locale ?? ""}|${format}`;
-  let formatter = sidebarTimeFormatters.get(key);
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat(locale, SIDEBAR_TIME_OPTIONS[format]);
-    sidebarTimeFormatters.set(key, formatter);
-  }
-  return formatter;
+  return dateTimeFormat(locale, SIDEBAR_TIME_OPTIONS[format]);
 }
 
 export function formatChatSidebarTime(
@@ -298,8 +232,10 @@ export function formatChatSidebarTime(
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
   const now = options.now ?? new Date();
-  const startOfDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate());
-  const dayDiff = (startOfDay(now).getTime() - startOfDay(date).getTime()) / (24 * 60 * 60 * 1000);
+  // The web rounds the local-midnight difference so a DST day still counts as
+  // one; the local calendar date read as UTC midnight is that same whole day.
+  const startOfDay = (value: Date) => Date.UTC(value.getFullYear(), value.getMonth(), value.getDate());
+  const dayDiff = (startOfDay(now) - startOfDay(date)) / 86_400_000;
   if (dayDiff === 0) return sidebarTimeFormatter(options.locale, "time").format(date);
   if (dayDiff === 1) return options.yesterdayLabel;
   if (dayDiff < 7) return sidebarTimeFormatter(options.locale, "weekday").format(date);

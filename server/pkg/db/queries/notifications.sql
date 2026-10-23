@@ -86,6 +86,24 @@ WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND read_at IS NULL;
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND group_key = ANY(sqlc.arg('group_keys')::text[]) AND read_at IS NULL;
 
+-- name: CloseNotificationGroups :execrows
+-- tenant: self
+-- MarkNotificationGroupsRead that counts the open rows it closed: an answered
+-- call's open ring row is the durable sign that the call rang that person.
+UPDATE notifications SET read_at = now(), updated_at = now()
+WHERE user_id = $1 AND group_key = ANY(sqlc.arg('group_keys')::text[]) AND read_at IS NULL;
+
+-- name: CloseRoomNotificationGroups :one
+-- tenant: self
+-- MarkNotificationGroupsRead that counts the closed rows a phone was shown
+-- (phone_pushed_at): only those left something in a phone's tray to clear.
+WITH closed AS (
+  UPDATE notifications SET read_at = now(), updated_at = now()
+  WHERE user_id = $1 AND group_key = ANY(sqlc.arg('group_keys')::text[]) AND read_at IS NULL
+  RETURNING phone_pushed_at
+)
+SELECT count(*)::bigint FROM closed WHERE phone_pushed_at IS NOT NULL;
+
 -- name: MarkAllNotificationsRead :many
 -- tenant: self
 UPDATE notifications SET read_at = now(), updated_at = now()
@@ -191,6 +209,25 @@ WHERE p.user_id = $1 AND p.revoked_at IS NULL
 -- name: ListActivePushSubscriptions :many
 SELECT * FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL;
 
+-- name: ListDeliverablePushSubscriptions :many
+-- What the push lane sends to: the live subscriptions, minus those a native
+-- device session registered once that session is over. A phone whose refresh
+-- token ran out (or whose device was revoked without the push following) can
+-- no longer unsubscribe itself, and must stop showing message previews.
+-- A browser session or a row older than session_id names no device session
+-- family and is kept.
+SELECT p.* FROM push_subscriptions p
+WHERE p.user_id = $1 AND p.revoked_at IS NULL
+  AND (
+    p.session_id IS NULL
+    OR NOT EXISTS (SELECT 1 FROM device_sessions d WHERE d.user_id = p.user_id AND d.session_family_id = p.session_id)
+    OR EXISTS (
+      SELECT 1 FROM device_sessions d
+      WHERE d.user_id = p.user_id AND d.session_family_id = p.session_id
+        AND d.revoked_at IS NULL AND d.expires_at > now()
+    )
+  );
+
 -- name: RevokePushSubscription :exec
 UPDATE push_subscriptions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL;
 
@@ -201,6 +238,15 @@ WHERE user_id = $1 AND endpoint = $2 AND revoked_at IS NULL;
 -- name: MarkNotificationPushed :exec
 -- tenant: system
 UPDATE notifications SET pushed_at = now() WHERE id = $1 AND pushed_at IS NULL;
+
+-- name: MarkNotificationPhonePushed :one
+-- tenant: system
+-- MarkNotificationPushed for a push a phone was actually sent. It answers
+-- whether the row was read meanwhile: a read that closed it while the push was
+-- on its way found no phone_pushed_at, so the sender clears the tray itself.
+UPDATE notifications SET pushed_at = COALESCE(pushed_at, now()), phone_pushed_at = now()
+WHERE id = $1
+RETURNING (read_at IS NOT NULL)::bool AS read;
 
 -- name: ListDigestCandidateUsers :many
 -- tenant: system

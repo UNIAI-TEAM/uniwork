@@ -8,7 +8,10 @@ import type { PushSubscriptionBody } from "@uniwork/core/types/notification";
 import type { User } from "@uniwork/core/types/user";
 import type { Workspace } from "@uniwork/core/types/workspace";
 import type { ZodType } from "zod";
+import { endpointShape } from "@/lib/redact";
+import { issuePaths, SchemaMismatchError } from "@/lib/schema-mismatch";
 import { session } from "./auth/flow";
+import type { FetchLike } from "./auth/transport";
 import { MeResponseSchema, WorkspacesResponseSchema } from "./schemas";
 
 /**
@@ -26,12 +29,15 @@ export class ApiError extends Error {
   readonly body?: unknown;
   /** A numeric Retry-After, so a send retry waits out the window instead of guessing. */
   readonly retryAfterSeconds?: number;
-  constructor(message: string, status: number, body?: unknown, retryAfterSeconds?: number) {
+  /** The route that answered, ids as {id} (lib/redact.ts › endpointShape): crash reports group by it. */
+  readonly endpoint?: string;
+  constructor(message: string, status: number, body?: unknown, retryAfterSeconds?: number, endpoint?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.endpoint = endpoint;
   }
 }
 
@@ -56,8 +62,11 @@ interface Opts {
   signal?: AbortSignal;
 }
 
-/** the Expo push token goes in `endpoint`; `platform` is required for it (server SDI) */
-export type PushSubscription = PushSubscriptionBody & { platform: string };
+/**
+ * the Expo push token goes in `endpoint`; `platform` is required for it, and
+ * `call_ui` says an Android build draws its own incoming call (server SDI)
+ */
+export type PushSubscription = PushSubscriptionBody & { platform: string; call_ui?: boolean };
 
 const createRequestId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -69,12 +78,21 @@ function messageOf(body: unknown, res: Response): string {
 export function createApiClient(deps: ApiClientDeps) {
   let onUnauthorized = deps.onUnauthorized;
   let unauthorizedReported = false;
+  // The fetch a JSON request goes through: the global one until the boot hands over data/auth/strict-fetch.ts, which
+  // makes the native stack honour redirect: "error" (React Native's own ignores it). A multipart body always takes
+  // the global fetch, the only one that sends React Native's { uri } file parts; there the platform decides whether
+  // a cross-host redirect keeps the Authorization header (OkHttp drops it).
+  let credentialFetch: FetchLike = (input, init) => fetch(input, init);
+  // X-Client-Version / -OS / -Update-Id (lib/build-info.ts › clientHeaders),
+  // set once at boot: the server logs and gates by them.
+  let identity: Record<string, string> = {};
 
   async function send(path: string, init: RequestInit, token: string | null): Promise<Response> {
     const headers: Record<string, string> = {
       // A FormData body (chat attachments) must let fetch write the multipart boundary.
       ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       Accept: "application/json",
+      ...identity,
       "X-Client-Platform": "mobile",
       "X-Request-ID": createRequestId(),
     };
@@ -86,16 +104,29 @@ export function createApiClient(deps: ApiClientDeps) {
     const onCallerAbort = () => controller.abort();
     if (caller?.aborted) controller.abort();
     else caller?.addEventListener("abort", onCallerAbort);
+    const impl: FetchLike = init.body instanceof FormData ? (input, request) => fetch(input, request) : credentialFetch;
     try {
-      return await fetch(`${runtimeConfig().apiUrl}${path}`, {
+      return await impl(`${runtimeConfig().apiUrl}${path}`, {
         ...init,
         method: init.method ?? "GET",
         headers,
+        // The bearer goes to the API host only, never where a 3xx points (audit "Security & privacy").
+        redirect: "error",
         signal: controller.signal,
       });
     } catch (error) {
       if (controller.signal.aborted && !caller?.aborted) {
         throw new ApiError(`Request timed out after ${timeoutMs}ms`, 0);
+      }
+      // React Native's fetch rejects with TypeError("Network request failed")
+      // when the server cannot be reached (DNS, a captive portal, a dead link
+      // that NetInfo still calls online). That is the network, not a bug:
+      // status 0, like the timeout, so crash reporting leaves it out
+      // (data/report.ts) and a send retries it (lib/send-pipeline.ts).
+      if (error instanceof TypeError) {
+        const offline = new ApiError(error.message || "Network request failed", 0);
+        offline.cause = error;
+        throw offline;
       }
       throw error;
     } finally {
@@ -126,7 +157,13 @@ export function createApiClient(deps: ApiClientDeps) {
         body = undefined;
       }
       const retryAfter = Number(res.headers.get("Retry-After"));
-      throw new ApiError(messageOf(body, res), res.status, body, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined);
+      throw new ApiError(
+        messageOf(body, res),
+        res.status,
+        body,
+        Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
+        endpointShape(init.method, path),
+      );
     }
     unauthorizedReported = false;
     if (res.status === 204) return undefined;
@@ -138,10 +175,29 @@ export function createApiClient(deps: ApiClientDeps) {
     return parseWithFallback(raw, schema, fallback, { endpoint: opts.endpoint });
   }
 
+  /**
+   * For an answer no fallback stands in for: a drifted body rejects with a SchemaMismatchError (endpoint and paths,
+   * never the body) that the screen shows as an error with Retry and crash reporting hears of (data/report.ts). A
+   * drifted workspace list read as `[]` told a person "you are in no workspace" and nobody else anything.
+   */
+  async function fetchStrict<T>(path: string, schema: ZodType<T>, opts: Opts & { endpoint: string }): Promise<T> {
+    const raw = await request(path, { signal: opts.signal });
+    const parsed = schema.safeParse(raw);
+    if (!parsed.success) throw new SchemaMismatchError(opts.endpoint, issuePaths(parsed.error.issues));
+    return parsed.data;
+  }
+
   return {
     request,
     setOnUnauthorized(cb: () => void) {
       onUnauthorized = cb;
+    },
+    setClientIdentity(headers: Record<string, string>) {
+      identity = { ...headers };
+    },
+    /** The boot's strict fetch (data/auth/strict-fetch.ts) for every request but a multipart upload. */
+    setCredentialFetch(impl: FetchLike) {
+      credentialFetch = impl;
     },
     async getMe(opts?: Opts): Promise<User | null> {
       const parsed = await fetchValidated<{ user: User } | null>("/api/v1/me", MeResponseSchema, null, {
@@ -150,13 +206,9 @@ export function createApiClient(deps: ApiClientDeps) {
       });
       return parsed?.user ?? null;
     },
+    /** Strict (fetchStrict): `[]` here means "you are in no workspace", so a drifted answer must not read as one. */
     async listWorkspaces(opts?: Opts): Promise<Workspace[]> {
-      const parsed = await fetchValidated<{ workspaces: Workspace[] }>(
-        "/api/v1/workspaces",
-        WorkspacesResponseSchema,
-        { workspaces: [] },
-        { ...opts, endpoint: "GET /api/v1/workspaces" },
-      );
+      const parsed = await fetchStrict("/api/v1/workspaces", WorkspacesResponseSchema, { ...opts, endpoint: "GET /api/v1/workspaces" });
       return parsed.workspaces;
     },
     async subscribePush(body: PushSubscription): Promise<void> {

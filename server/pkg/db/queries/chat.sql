@@ -214,6 +214,12 @@ INSERT INTO chat_messages (
 SELECT * FROM chat_messages
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL;
 
+-- name: ListChatMessagesInRoomByIDs :many
+-- GetChatMessageInRoom for many ids at once (the chat sync answer, one read per room).
+SELECT * FROM chat_messages
+WHERE room_id = sqlc.arg(room_id) AND workspace_id = sqlc.arg(workspace_id)
+  AND id = ANY(sqlc.arg(ids)::text[]) AND deleted_at IS NULL;
+
 -- name: GetChatMessageInRoomForUpdate :one
 -- Locks the row so a metadata read-modify-write cannot lose a concurrent one.
 SELECT * FROM chat_messages
@@ -243,6 +249,14 @@ RETURNING *;
 UPDATE chat_messages
 SET deleted_at = now()
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND sender_id = $4 AND deleted_at IS NULL
+RETURNING *;
+
+-- name: ModerationRemoveChatMessage :one
+-- The platform operator takes a reported message down (store UGC policy, Apple 1.2): any sender's, in the
+-- report's organization (ChatService.RemoveReportedMessageQ, called by AdminService.RemoveReportedMessage).
+UPDATE chat_messages
+SET deleted_at = now()
+WHERE id = $1 AND room_id = $2 AND organization_id = $3 AND deleted_at IS NULL
 RETURNING *;
 
 -- name: SoftDeleteChatReminderMessage :one
