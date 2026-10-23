@@ -194,6 +194,19 @@ func TestReadPDFOpensAScannedFileNearTheCap(t *testing.T) {
 	}
 }
 
+// A turn holds the PDF it sends until it ends, so a copy cut to a page of a
+// large scan keeps about that page, not a buffer sized for the whole file.
+func TestReadPDFCutCopyKeepsNoMoreThanItsSize(t *testing.T) {
+	data := scannedPDF(16, 1_300_000)
+	_, out, err := ReadPDF(data, 1)
+	if err != nil || pagesOf(t, out) != 1 {
+		t.Fatalf("ReadPDF(data, 1) = %d bytes, %v; want one page", len(out), err)
+	}
+	if cap(out) > 2*len(out) {
+		t.Errorf("a %d-byte copy keeps %d bytes of a %d-byte file", len(out), cap(out), len(data))
+	}
+}
+
 var garbageSink []byte
 
 // The guard measures from the live heap: garbage still standing when a parse

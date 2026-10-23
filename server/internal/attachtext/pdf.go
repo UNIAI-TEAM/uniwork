@@ -62,8 +62,9 @@ func ReadPDF(data []byte, keep int) (pages int, out []byte, err error) {
 		return 0, nil, fmt.Errorf("attachtext: cannot keep %d PDF pages", keep)
 	}
 	type result struct {
-		pages int
-		out   []byte
+		pages     int
+		out       []byte
+		rewritten bool
 	}
 	r, err := pdfWork(len(data), func(ctx context.Context, conf *model.Configuration) (result, error) {
 		src, err := api.ReadAndValidate(ctx, bytes.NewReader(data), conf)
@@ -74,7 +75,7 @@ func ReadPDF(data []byte, keep int) (pages int, out []byte, err error) {
 			return result{}, errNoPages
 		}
 		if src.PageCount <= keep && src.Encrypt == nil {
-			return result{src.PageCount, data}, nil
+			return result{src.PageCount, data, false}, nil
 		}
 		nums := make([]int, min(keep, src.PageCount))
 		for i := range nums {
@@ -94,8 +95,15 @@ func ReadPDF(data []byte, keep int) (pages int, out []byte, err error) {
 		if err := api.WriteContext(ctx, dst, b); err != nil {
 			return result{}, err
 		}
-		return result{src.PageCount, b.Bytes()}, nil
+		return result{src.PageCount, b.Bytes(), true}, nil
 	})
+	// The caller keeps what is returned for as long as its turn runs, and a cut
+	// copy can be a small part of its buffer (one page of a 20 MB scan is about
+	// 1 MB of 21). Copied here, once pdfcpu's contexts are garbage and the guard
+	// has stopped, it keeps no more than its own size.
+	if r.rewritten && len(r.out) < cap(r.out)/2 {
+		r.out = bytes.Clone(r.out)
+	}
 	return r.pages, r.out, err
 }
 
