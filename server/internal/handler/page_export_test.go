@@ -52,3 +52,29 @@ func TestPageExportRoute(t *testing.T) {
 		t.Fatalf("owner on an engine without export = %d %v", res.StatusCode, out)
 	}
 }
+
+// GET /documents/{documentID}/export (follow-6): the formats the menu may
+// offer, behind the same flag and read gate; the stub engine binds no export,
+// so it offers none.
+func TestPageExportFormatsRoute(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents", w.token, map[string]any{"title": "Biên bản họp", "kind": "page"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create page: %d %v", res.StatusCode, out)
+	}
+	path := "/api/v1/documents/" + out["document"].(map[string]any)["id"].(string) + "/export"
+	res, out = doJSON(t, w.srv, "GET", path, w.token, nil)
+	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "feature_disabled" {
+		t.Fatalf("flag off = %d %v", res.StatusCode, out)
+	}
+	setFlagOverride(t, "page_export", featureflags.ScopeOrganization, w.orgID, true)
+	t.Cleanup(func() { clearFlagOverride(t, "page_export", featureflags.ScopeOrganization, w.orgID) })
+	res, out = doJSON(t, w.srv, "GET", path, w.outsiderToken(t), nil)
+	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
+		t.Fatalf("outsider = %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "GET", path, w.token, nil)
+	if formats, ok := out["formats"].([]any); res.StatusCode != 200 || !ok || len(formats) != 0 {
+		t.Fatalf("owner on an engine without export = %d %v", res.StatusCode, out)
+	}
+}

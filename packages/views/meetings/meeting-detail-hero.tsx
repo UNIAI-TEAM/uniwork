@@ -1,5 +1,5 @@
 "use client";
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { Ban, CalendarClock, CalendarDays, CalendarX2, Clock, Globe, Hourglass, ListChecks, PhoneOff, Play, Users, Video, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { displayMeetingStatus } from "@uniwork/core/meetings";
@@ -70,6 +70,7 @@ export function MeetingDetailHero({
   onEnd,
   onCancel,
   nextStep,
+  followUpAction,
 }: {
   workspaceId: string;
   meeting: Meeting;
@@ -89,6 +90,8 @@ export function MeetingDetailHero({
   onEnd: () => void;
   onCancel: () => void;
   nextStep?: MeetingNextStep | null;
+  /** Scheduling the next meeting of the series, offered once this one has ended (follow-4). */
+  followUpAction?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
   const locale = meetingLocale(i18n.language);
@@ -312,6 +315,8 @@ export function MeetingDetailHero({
             </Button>
           </div>
         ) : null}
+
+        {ended && followUpAction ? <div className="mt-4 flex flex-wrap gap-2">{followUpAction}</div> : null}
 
         {!showActions ? null : (
           <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 lg:flex-row lg:items-center lg:justify-between">

@@ -5,7 +5,7 @@ import { useOptionalNavigation } from "../navigation";
 
 const SECTION_PARAM = "section";
 /** Section name in the URL → id of the heading the page scrolls to. */
-const SECTION_ANCHORS: Record<string, string> = { summary: "summary-heading", "action-items": "action-items-heading", transcript: "transcript-heading" };
+const SECTION_ANCHORS: Record<string, string> = { summary: "summary-heading", "action-items": "action-items-heading", transcript: "transcript-heading", minutes: "meeting-minutes-heading" };
 
 /** Bring a section's heading to the top: smooth, unless the reader asked for less motion. */
 export function scrollSectionIntoView(el: Element): void {

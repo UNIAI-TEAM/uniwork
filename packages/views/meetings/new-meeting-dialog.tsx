@@ -51,6 +51,7 @@ export function NewMeetingDialog({
   open: openProp,
   onOpenChange,
   showTrigger = true,
+  followUp,
 }: {
   workspaceId: string;
   onCreated?: (id: string) => void;
@@ -60,6 +61,11 @@ export function NewMeetingDialog({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   showTrigger?: boolean;
+  /**
+   * The meeting this one is the next of (follow-4): the form opens on its
+   * title, agenda, project and people, and the new meeting joins its series.
+   */
+  followUp?: { meetingId: string; title: string; description: string; projectId?: string; attendeeUserIds: string[] };
 }) {
   const { t } = useTranslation();
   const id = useId();
@@ -107,6 +113,12 @@ export function NewMeetingDialog({
       setDate(draft.date);
       setStart(draft.start);
       setEnd(draft.end);
+      if (followUp) {
+        setTitle(followUp.title);
+        setDescription(followUp.description);
+        setProjectId(followUp.projectId);
+        setAttendees(followUp.attendeeUserIds);
+      }
     } else {
       reset();
     }
@@ -125,7 +137,10 @@ export function NewMeetingDialog({
         <DialogTrigger render={trigger ?? <Button size="sm">{t("meetings.new")}</Button>} />
       ) : null}
       <FormDialogContent size="lg">
-        <FormDialogHeader title={t("meetings.new")} description={t("meetings.newDescription")} />
+        <FormDialogHeader
+          title={t(followUp ? "meetings.followUp.title" : "meetings.new")}
+          description={t(followUp ? "meetings.followUp.description" : "meetings.newDescription")}
+        />
         <form
           noValidate
           onSubmit={(e) => {
@@ -154,6 +169,7 @@ export function NewMeetingDialog({
                 attendee_user_ids: attendees,
                 ...(projectId ? { project_id: projectId } : {}),
                 ...(scribeOffered ? { scribe: scribeOn } : {}),
+                ...(followUp ? { previous_meeting_id: followUp.meetingId } : {}),
               },
               {
                 onSuccess: (m) => {

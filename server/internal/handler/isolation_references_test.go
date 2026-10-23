@@ -244,6 +244,9 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/meetings", what: "project", body: map[string]any{
 		"title": isoUnique("ref"), "timezone": "Asia/Ho_Chi_Minh", "starts_at": isoAt(72 * time.Hour), "ends_at": isoAt(73 * time.Hour),
 		"project_id": isoRef("project")}, covers: []string{"CreateMeetingSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/meetings", what: "previous meeting", body: map[string]any{
+		"title": isoUnique("ref"), "timezone": "Asia/Ho_Chi_Minh", "starts_at": isoAt(96 * time.Hour), "ends_at": isoAt(97 * time.Hour),
+		"previous_meeting_id": isoRef("meeting")}, covers: []string{"CreateMeetingSDI.previous_meeting_id"}},
 	{method: "PATCH", pattern: "/api/v1/meetings/{meetingID}", what: "project", body: map[string]any{"project_id": isoRef("project")}, covers: []string{"PatchMeetingSDI.project_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/invitations", what: "invitee", body: map[string]any{"user_id": isoRef("peer")},
 		noControl: "B's peer is already an attendee", covers: []string{"InviteParticipantSDI.user_id"}},
@@ -276,6 +279,9 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "attachment", body: map[string]any{
 		"items": []any{map[string]any{"action_item_id": isoOwn("actionItem6"), "attachment_ids": []any{isoRef("attachment")}}}},
 		noControl: "the attachment is already attached to a task; a staged one would be needed", covers: []string{"ConvertActionItemSDI.attachment_ids"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/{actionItemID}/link", what: "task", body: map[string]any{"task_id": isoRef("task")},
+		noControl: "linking converts the tenant's one pending {actionItemID} item, which later cases and passes name; the write-control pass links it on its own tenant",
+		covers:    []string{"LinkActionItemSDI.task_id"}},
 
 	// Documents.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent page", body: map[string]any{

@@ -439,6 +439,7 @@ type Routes struct {
 	AddActionItem                  http.HandlerFunc
 	DismissActionItem              http.HandlerFunc
 	RestoreActionItem              http.HandlerFunc
+	LinkActionItem                 http.HandlerFunc
 	ConvertActionItems             http.HandlerFunc
 	MeetingCatchUp                 http.HandlerFunc
 	StartRecording                 http.HandlerFunc
@@ -627,6 +628,8 @@ type Routes struct {
 	ExportOfficeFramePDF http.HandlerFunc
 	// DOCX/PDF export of a UniNote page (UNI-2004).
 	ExportDocumentPage http.HandlerFunc
+	// The formats that export can render here (follow-6).
+	GetDocumentPageExportFormats http.HandlerFunc
 	// GO-A7's AI handlers on the frame-token mount (UNI-1014, ADR 0029 D9).
 	OfficeFrameAiCredentialsList     http.HandlerFunc
 	OfficeFrameAiCredentialSave      http.HandlerFunc

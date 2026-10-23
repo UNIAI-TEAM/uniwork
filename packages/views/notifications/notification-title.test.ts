@@ -102,6 +102,26 @@ describe("notificationTitleKey", () => {
     expect(t(notificationTitleKey(row), row.params)).toBe("An đã giao bạn 3 việc");
   });
 
+  it("words a recap of finalized minutes in its own sentence", () => {
+    const row = notification({
+      kind: "meeting_recap_ready", resource_type: "meeting", resource_id: "m1",
+      title_key: "notifications.kind.meeting_recap_ready", params: { meeting: "Giao ban", stage: "minutes" },
+    });
+    expect(t(notificationTitleKey(row), row.params)).toBe('Biên bản "Giao ban" đã chốt · Xem lại các quyết định và việc được giao');
+    const summary = { ...row, params: { meeting: "Giao ban" } };
+    expect(t(notificationTitleKey(summary), summary.params)).toBe('Đã có tóm tắt cuộc họp "Giao ban" · Xem các quyết định và việc cần làm');
+  });
+
+  it("words an overdue meeting task in its own sentence", () => {
+    const row = notification({
+      kind: "meeting_task_due", resource_type: "task", resource_id: "t1",
+      title_key: "notifications.kind.meeting_task_due", params: { task: "Gửi báo cáo", meeting: "Giao ban", stage: "overdue" },
+    });
+    expect(t(notificationTitleKey(row), row.params)).toBe('Việc "Gửi báo cáo" từ cuộc họp "Giao ban" đã quá hạn');
+    const today = { ...row, params: { task: "Gửi báo cáo", meeting: "Giao ban" } };
+    expect(t(notificationTitleKey(today), today.params)).toBe('Việc "Gửi báo cáo" từ cuộc họp "Giao ban" đến hạn hôm nay');
+  });
+
   it("leaves a document row whose key is not a document kind alone", () => {
     const row = notification({ title_key: "notifications.kind.other", params: {} });
     expect(notificationTitleKey(row)).toBe("notifications.kind.other");

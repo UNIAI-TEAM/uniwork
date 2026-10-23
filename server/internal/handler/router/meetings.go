@@ -304,10 +304,11 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 		sdo: sdo.MeetingActionItemsSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/carried-over-items", h.ListCarriedOverItems, apiOp{
-		summary: "Open tasks carried over from earlier meetings of the same project", tags: []string{"meetings"},
+		summary: "Open tasks carried over from earlier meetings of the same project or series", tags: []string{"meetings"},
 		description: "Mọi thành viên workspace. Việc đã giao mà task chưa xong (nhóm trạng thái khác done/cancelled) từ các cuộc họp " +
 			"ENDED khác cùng workspace và dự án, bắt đầu trước cuộc họp này (giờ thực tế nếu có, không thì theo lịch). " +
-			"Sắp theo hạn, không hạn xếp cuối, tối đa 100. Cuộc họp không có dự án → items rỗng.",
+			"Sắp theo hạn, không hạn xếp cuối, tối đa 100, total là tổng. Cùng dự án hoặc cùng chuỗi (previous_meeting_id lúc lên lịch), trong 90 ngày trước cuộc họp. " +
+			"Cuộc họp không có dự án và không thuộc chuỗi → items rỗng.",
 		sdo: sdo.MeetingCarriedOverItemsSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/action-items", h.AddActionItem, apiOp{
@@ -326,6 +327,12 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 		summary: "Dismiss a pending action item (clerk)", tags: []string{"meetings"},
 		description: "Chỉ từ chờ xử lý, không thì 409 action_item_not_pending. Lý do không bắt buộc, tối đa 500 ký tự.",
 		sdi:         sdi.DismissActionItemSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/action-items/{actionItemID}/link", h.LinkActionItem, apiOp{
+		summary: "Link a pending action item to an existing task (clerk)", tags: []string{"meetings"},
+		description: "Việc chờ xử lý theo dõi một task đã có trong workspace thay vì tạo task mới (thường là task đang mở mà " +
+			"409 active_duplicate_task nêu tên). Việc thành CONVERTED. 404 khi task không thuộc workspace; 409 action_item_not_pending.",
+		sdi: sdi.LinkActionItemSDI{}, sdo: sdo.StatusSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/action-items/{actionItemID}/restore", h.RestoreActionItem, apiOp{
 		summary: "Restore a dismissed action item (clerk)", tags: []string{"meetings"},

@@ -162,7 +162,7 @@ func (q *Queries) InsertMeetingActionItem(ctx context.Context, arg InsertMeeting
 }
 
 const listCarriedOverActionItems = `-- name: ListCarriedOverActionItems :many
-SELECT i.id AS action_item_id,
+SELECT i.id AS action_item_id, COUNT(*) OVER ()::int AS total,
   m.id AS meeting_id, m.title AS meeting_title,
   COALESCE(m.actual_start_at, m.starts_at)::timestamptz AS meeting_started_at,
   t.id AS task_id, t.title AS task_title, t.status AS task_status,
@@ -172,25 +172,32 @@ JOIN meeting_action_items i ON i.meeting_id = m.id AND i.organization_id = m.org
 JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE m.organization_id = $1 AND m.workspace_id = $2
-  AND m.project_id = $3::text AND m.id <> $4
+  AND (($3::text IS NOT NULL AND m.project_id = $3::text)
+    OR ($4::text IS NOT NULL AND (m.series_id = $4::text OR m.id = $4::text)))
+  AND m.id <> $5
   AND m.status = 'ENDED'
-  AND COALESCE(m.actual_start_at, m.starts_at) < $5::timestamptz
+  AND COALESCE(m.actual_start_at, m.starts_at) < $6::timestamptz
+  AND COALESCE(m.actual_start_at, m.starts_at) >= $7::timestamptz
   AND i.dismissed_at IS NULL
   AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
 ORDER BY t.due_date NULLS LAST, COALESCE(m.actual_start_at, m.starts_at), m.id, i.position, i.id
-LIMIT 100
+LIMIT $8
 `
 
 type ListCarriedOverActionItemsParams struct {
 	OrganizationID string             `json:"organization_id"`
 	WorkspaceID    string             `json:"workspace_id"`
-	ProjectID      string             `json:"project_id"`
+	ProjectID      pgtype.Text        `json:"project_id"`
+	SeriesID       pgtype.Text        `json:"series_id"`
 	MeetingID      string             `json:"meeting_id"`
 	StartedBefore  pgtype.Timestamptz `json:"started_before"`
+	StartedAfter   pgtype.Timestamptz `json:"started_after"`
+	RowLimit       int32              `json:"row_limit"`
 }
 
 type ListCarriedOverActionItemsRow struct {
 	ActionItemID     string             `json:"action_item_id"`
+	Total            int32              `json:"total"`
 	MeetingID        string             `json:"meeting_id"`
 	MeetingTitle     string             `json:"meeting_title"`
 	MeetingStartedAt pgtype.Timestamptz `json:"meeting_started_at"`
@@ -201,17 +208,22 @@ type ListCarriedOverActionItemsRow struct {
 	TaskDueDate      pgtype.Date        `json:"task_due_date"`
 }
 
-// Carried over to a meeting (spec §6.5): converted items whose task is still
-// open, from the other ENDED meetings of the same project that started
-// before it (actual start, else the scheduled one). Open reads the status
-// category as ListMeetingActionItems does. Soonest due first, no due last.
+// Carried over to a meeting (spec §6.5, follow-4): converted items whose task
+// is still open, from the other ENDED meetings of the same project or the
+// same series (series_id, or the series' first meeting itself) that started
+// before it (actual start, else the scheduled one) and after started_after.
+// Open reads the status category as ListMeetingActionItems does. Soonest due
+// first, no due last; total counts every row past the page's limit.
 func (q *Queries) ListCarriedOverActionItems(ctx context.Context, arg ListCarriedOverActionItemsParams) ([]ListCarriedOverActionItemsRow, error) {
 	rows, err := q.db.Query(ctx, listCarriedOverActionItems,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.ProjectID,
+		arg.SeriesID,
 		arg.MeetingID,
 		arg.StartedBefore,
+		arg.StartedAfter,
+		arg.RowLimit,
 	)
 	if err != nil {
 		return nil, err
@@ -222,6 +234,7 @@ func (q *Queries) ListCarriedOverActionItems(ctx context.Context, arg ListCarrie
 		var i ListCarriedOverActionItemsRow
 		if err := rows.Scan(
 			&i.ActionItemID,
+			&i.Total,
 			&i.MeetingID,
 			&i.MeetingTitle,
 			&i.MeetingStartedAt,

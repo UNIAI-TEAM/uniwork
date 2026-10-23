@@ -704,7 +704,7 @@ UPDATE meetings SET
   scribe_off_by = CASE WHEN $1::bool THEN COALESCE(scribe_off_by, $2::text) ELSE NULL END,
   updated_at = now()
 WHERE id = $3
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id
 `
 
 type SetMeetingScribeOffParams struct {
@@ -758,6 +758,7 @@ func (q *Queries) SetMeetingScribeOff(ctx context.Context, arg SetMeetingScribeO
 		&i.SipDispatchRuleID,
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
+		&i.SeriesID,
 	)
 	return i, err
 }

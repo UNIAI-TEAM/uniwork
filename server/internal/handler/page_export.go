@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
@@ -17,6 +18,21 @@ import (
 var pageExportTypes = map[string]string{
 	"docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 	"pdf":  "application/pdf",
+}
+
+// getDocumentPageExportFormats is GET /documents/{documentID}/export
+// (follow-6): the formats the export menu may offer for this page.
+func (h *handlers) getDocumentPageExportFormats(w http.ResponseWriter, r *http.Request) {
+	if h.Office == nil {
+		respondError(w, http.StatusServiceUnavailable, "office_not_configured", "office engine is not configured")
+		return
+	}
+	formats, err := h.Office.PageExportFormats(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"))
+	if err != nil {
+		h.mapOfficeError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.PageExportFormatsSDO{Formats: formats})
 }
 
 // exportDocumentPage is POST /documents/{documentID}/export (UNI-2004): the

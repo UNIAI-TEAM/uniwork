@@ -6,6 +6,7 @@ import { errorCode } from "@uniwork/core/api/http";
 import {
   useAddMeetingActionItem,
   useConvertMeetingActionItems,
+  useLinkMeetingActionItem,
   type MeetingActionItem,
 } from "@uniwork/core/meetings/action-items";
 import { useMeetingEvidenceOf } from "@uniwork/core/meetings/summary";
@@ -18,6 +19,7 @@ import type { CreateTaskSubmitter } from "../../tasks/use-create-task-manual";
 import { meetingLocale } from "../meeting-datetime";
 import { summaryErrorText } from "../meeting-summary/summary-error-copy";
 import { actionItemTaskDescription } from "./action-item-task-description";
+import { duplicateLinkTarget } from "./duplicate-link";
 
 /** Refusals after which the ticks no longer describe the list on screen. */
 const STALE_SELECTION = new Set(["action_item_not_pending", "action_item_not_found"]);
@@ -58,6 +60,7 @@ export function useActionItemConversion({
   const { t, i18n } = useTranslation();
   const convert = useConvertMeetingActionItems(workspaceId, meetingId);
   const add = useAddMeetingActionItem(meetingId);
+  const link = useLinkMeetingActionItem(workspaceId, meetingId);
   const workspace = useOptionalWorkspace()?.workspace;
   const nav = useOptionalNavigation();
   const own = useState<ReadonlySet<string>>(NONE);
@@ -128,12 +131,37 @@ export function useActionItemConversion({
           report(result.links.length, result.links.length === 1 ? result.links[0]?.task_id : undefined);
         },
         onError: (err) => {
-          // A duplicate names the clashing items, so the clerk unticks them.
-          toast.error(summaryErrorText(err, t, "tasks", { items }));
+          // A duplicate names the clashing items, so the clerk unticks them;
+          // one item whose work is already an open task can track that task.
+          if (!offerLink(err)) toast.error(summaryErrorText(err, t, "tasks", { items }));
           if (STALE_SELECTION.has(errorCode(err) ?? "")) setPicked(NONE);
         },
       },
     );
+  }
+
+  /** Says a single-item duplicate with the offer to link it; false for any other refusal. */
+  function offerLink(err: unknown): boolean {
+    const target = duplicateLinkTarget(err);
+    if (!target) return false;
+    toast.error(summaryErrorText(err, t, "tasks", { items }), {
+      action: { label: t("meetings.actionItemsSection.linkToOpenTask"), onClick: () => linkToTask(target) },
+    });
+    return true;
+  }
+
+  function linkToTask(target: { itemId: string; taskId: string }) {
+    link.mutate(target, {
+      onSuccess: () => {
+        toggle(target.itemId, false);
+        if (editingId === target.itemId) closeComposer();
+        toast.success(t("meetings.actionItemsSection.linkedStatus"), {
+          action:
+            wsPaths && nav ? { label: t("meetings.summaryAi.viewTasks", { count: 1 }), onClick: () => nav.push(wsPaths.task(target.taskId)) } : undefined,
+        });
+      },
+      onError: (err) => toast.error(summaryErrorText(err, t, "tasks", { items })),
+    });
   }
 
   function closeComposer() {
@@ -161,6 +189,8 @@ export function useActionItemConversion({
         result = await convert.mutateAsync({ items: [convertActionItemInput(id, body)], locale });
       } catch (err) {
         if (STALE_SELECTION.has(errorCode(err) ?? "")) closeComposer();
+        // Said here with the link offer; resolving keeps the composer and its edits open.
+        if (offerLink(err)) return;
         throw err;
       }
       closeComposer();
@@ -190,6 +220,6 @@ export function useActionItemConversion({
     submitter,
     composerDefaults: editDefaults ?? addDefaults,
     // Also while the ticked items' lines are read: the assign button says it is busy.
-    pending: convert.isPending || (pickedPending.length > 0 && !evidence.settled),
+    pending: convert.isPending || link.isPending || (pickedPending.length > 0 && !evidence.settled),
   };
 }

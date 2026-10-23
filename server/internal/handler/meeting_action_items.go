@@ -89,6 +89,19 @@ func (h *handlers) restoreActionItem(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.StatusSDO{Status: "ok"})
 }
 
+func (h *handlers) linkActionItem(w http.ResponseWriter, r *http.Request) {
+	var in sdi.LinkActionItemSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	if err := h.Meetings.LinkActionItem(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"),
+		chi.URLParam(r, "actionItemID"), in.TaskID); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.StatusSDO{Status: "ok"})
+}
+
 func (h *handlers) convertActionItems(w http.ResponseWriter, r *http.Request) {
 	var in sdi.ConvertActionItemsSDI
 	if !decode(w, r, &in, maxJSONBody) {
@@ -117,13 +130,13 @@ func (h *handlers) convertActionItems(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) listCarriedOverItems(w http.ResponseWriter, r *http.Request) {
-	items, err := h.Meetings.CarriedOverItems(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	list, err := h.Meetings.CarriedOverItems(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := sdo.MeetingCarriedOverItemsSDO{Items: make([]sdo.MeetingCarriedOverItemDTO, 0, len(items))}
-	for _, it := range items {
+	out := sdo.MeetingCarriedOverItemsSDO{Items: make([]sdo.MeetingCarriedOverItemDTO, 0, len(list.Items)), Total: list.Total}
+	for _, it := range list.Items {
 		t := it.Task
 		out.Items = append(out.Items, sdo.MeetingCarriedOverItemDTO{
 			ActionItemID: it.ActionItemID,

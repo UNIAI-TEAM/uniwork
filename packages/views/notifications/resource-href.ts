@@ -30,6 +30,10 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
         case "meeting_summary_reminder":
         case "meeting_summary_ready":
           return `${ws.meeting(n.resource_id)}?section=summary`;
+        case "meeting_action_items_pending":
+          return `${ws.meeting(n.resource_id)}?section=action-items`;
+        case "meeting_recap_ready":
+          return `${ws.meeting(n.resource_id)}?section=${n.params.stage === "minutes" ? "minutes" : "summary"}`;
         case "meeting_transcript_ready":
         case "meeting_transcript_failed":
           return `${ws.meeting(n.resource_id)}?section=transcript`;

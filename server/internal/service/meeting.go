@@ -262,6 +262,10 @@ type CreateMeetingInput struct {
 	AllowJoinRequest *bool
 	ProjectID        string
 	AttendeeUserIDs  []string
+	// FollowUpOf names the meeting this one is the next of (follow-4): the
+	// new meeting joins that meeting's series. A meeting of another
+	// workspace, or none, is not found.
+	FollowUpOf string
 }
 
 func (s *MeetingService) Create(ctx context.Context, userID, workspaceID string, in CreateMeetingInput) (db.Meeting, error) {
@@ -293,6 +297,10 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	if err := s.requireMeetingProject(ctx, mem.OrganizationID, workspaceID, projectID); err != nil {
 		return db.Meeting{}, err
 	}
+	series, err := s.followUpSeries(ctx, userID, workspaceID, in.FollowUpOf)
+	if err != nil {
+		return db.Meeting{}, err
+	}
 	id := util.NewID()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -308,7 +316,7 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
 		Status: MeetingScheduled, MeetingType: MeetingTypeScheduled,
 		HostUserID: userID, Timezone: tz, AllowJoinRequest: allow,
-		ProjectID: strText(projectID),
+		ProjectID: strText(projectID), SeriesID: strText(series),
 	})
 	if err != nil {
 		return db.Meeting{}, err
@@ -330,12 +338,36 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	if err := s.writeAudit(ctx, q, m, "MEETING_CREATED", userID, "", MeetingScheduled, `{"meeting_type":"SCHEDULED"}`); err != nil {
 		return db.Meeting{}, err
 	}
-	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil,
-		audit.Diff(nil, map[string]any{"meeting_type": MeetingTypeScheduled, "title": m.Title}))
+	created := map[string]any{"meeting_type": MeetingTypeScheduled, "title": m.Title}
+	if series != "" {
+		created["series_id"] = series
+	}
+	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil, audit.Diff(nil, created))
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
 	return m, nil
+}
+
+// followUpSeries is the series a meeting scheduled after previousID joins:
+// the previous meeting's series, or the previous meeting itself when it
+// starts one. "" when there is no previous meeting.
+func (s *MeetingService) followUpSeries(ctx context.Context, userID, workspaceID, previousID string) (string, error) {
+	previousID = strings.TrimSpace(previousID)
+	if previousID == "" {
+		return "", nil
+	}
+	prev, _, err := s.authorize(ctx, userID, previousID)
+	if err != nil {
+		return "", err
+	}
+	if prev.WorkspaceID != workspaceID {
+		return "", ErrNotFound
+	}
+	if prev.SeriesID.Valid && prev.SeriesID.String != "" {
+		return prev.SeriesID.String, nil
+	}
+	return prev.ID, nil
 }
 
 func (s *MeetingService) List(ctx context.Context, userID, workspaceID string) ([]db.Meeting, error) {

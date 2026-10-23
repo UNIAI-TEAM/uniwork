@@ -301,6 +301,11 @@ const (
 	RuntimeNone            RuntimeKind = "none"
 )
 
+// CapabilityExportPDF is the engine's capability row for the pdf lane of an
+// export (follow-6): supported only where the Docs renderer is staged. It
+// names a capability row, not a grantable operation.
+const CapabilityExportPDF Operation = "export_pdf"
+
 // CapabilityEntry is one capability row as the engine reports it.
 type CapabilityEntry struct {
 	Operation     string        `json:"operation"`

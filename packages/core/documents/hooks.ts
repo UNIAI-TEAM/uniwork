@@ -18,7 +18,7 @@ import {
   type DocumentCreateDestination,
   type PatchDocumentBody,
 } from "../api/endpoints/documents";
-import { exportDocumentPage, type PageExportFormat } from "../api/endpoints/documents-page-export";
+import { exportDocumentPage, getPageExportFormats, type PageExportFormat } from "../api/endpoints/documents-page-export";
 import {
   DocumentNotVerifiableError,
   type Document,
@@ -301,6 +301,21 @@ export const usePageExportUnavailable = create<{
     setTimeout(() => set((s) => ({ formats: s.formats.filter((f) => !formats.includes(f)) })), PAGE_EXPORT_UNAVAILABLE_MS);
   },
 }));
+
+/**
+ * The formats a page exports to on this deployment (follow-6): pdf only where
+ * the engine has the Docs renderer staged. Fetched once the export is offered
+ * at all; null when the answer could not be read.
+ */
+export function usePageExportFormats(wsId: string, documentId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: documentKeys.pageExportFormats(wsId, documentId),
+    queryFn: () => getPageExportFormats(documentId),
+    enabled,
+    staleTime: PAGE_EXPORT_UNAVAILABLE_MS,
+    retry: false,
+  });
+}
 
 /**
  * The page autosave loop as a hook: one DocumentSaveMachine per document,

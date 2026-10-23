@@ -1763,6 +1763,21 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// follow-5: a clerk links a pending item to a task that already exists.
+		audit.ActionMeetingActionItemLinked: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
+			items, err := svc.ActionItems(f.ctx, f.owner.ID, m.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, err := svc.Tasks.Create(f.ctx, Human(f.owner.ID), m.WorkspaceID, CreateTaskInput{Title: "Báo cáo tuần"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.LinkActionItem(f.ctx, f.owner.ID, m.ID, items.Items[0].Item.ID, task.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-1998: a clerk adds an item by hand.
 		audit.ActionMeetingActionItemCreated: func(t *testing.T, f *auditFixture) {
 			svc, m := auditMeetingWithItems(t, f)
@@ -2279,6 +2294,7 @@ func auditActions() []string {
 		audit.ActionMeetingActionItemCreated,
 		audit.ActionMeetingActionItemDismissed,
 		audit.ActionMeetingActionItemRestored,
+		audit.ActionMeetingActionItemLinked,
 		audit.ActionMeetingMinutesCreated,
 		audit.ActionMeetingMinutesFinalized,
 		audit.ActionMeetingMinutesReopened,

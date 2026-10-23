@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
@@ -113,6 +113,15 @@ describe("MeetingDetailHero", () => {
   it("offers the minutes as the next step when nothing waits to be assigned", () => {
     renderHero({ status: "ENDED", ...windowFromNow(-2 * 60 * 60_000) }, { nextStep: { kind: "minutes", onGo: vi.fn() } });
     expect(screen.getByRole("button", { name: "Lập biên bản" })).toBeInTheDocument();
+  });
+
+  it("offers scheduling the next meeting once this one has ended, not before", () => {
+    const action = <button type="button">Lên lịch cuộc họp tiếp theo</button>;
+    renderHero({ status: "ENDED", ...windowFromNow(-2 * 60 * 60_000) }, { followUpAction: action });
+    expect(screen.getByRole("button", { name: "Lên lịch cuộc họp tiếp theo" })).toBeInTheDocument();
+    cleanup();
+    renderHero({ status: "SCHEDULED", ...windowFromNow(60 * 60_000) }, { followUpAction: action });
+    expect(screen.queryByRole("button", { name: "Lên lịch cuộc họp tiếp theo" })).toBeNull();
   });
 
   it("keeps a cancelled meeting at full contrast and says when it was cancelled", () => {

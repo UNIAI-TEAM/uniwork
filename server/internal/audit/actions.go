@@ -324,6 +324,10 @@ const (
 	ActionMeetingActionItemCreated    = "meeting.action_item_created"
 	ActionMeetingActionItemDismissed  = "meeting.action_item_dismissed"
 	ActionMeetingActionItemRestored   = "meeting.action_item_restored"
+	// A clerk linked a pending item to a task that already exists, instead
+	// of creating one (follow-5, MeetingService.LinkActionItem, metadata
+	// task_id).
+	ActionMeetingActionItemLinked = "meeting.action_item_linked"
 
 	// The minutes of a meeting (UNI-2003): a clerk made the minutes page
 	// (MeetingService.CreateMinutes, metadata document_id), finalized it as a

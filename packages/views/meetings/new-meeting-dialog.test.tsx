@@ -155,6 +155,38 @@ describe("NewMeetingDialog", () => {
     );
   });
 
+  it("opens a follow-up on the meeting's title and people and links it to that meeting's series", async () => {
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      init?.method === "POST" ? Promise.resolve({ meeting: { id: "m2", title: "Giao ban tuần" } }) : Promise.resolve({ members: [] }),
+    );
+    const future = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const date = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, "0")}-${String(future.getDate()).padStart(2, "0")}`;
+    render(
+      wrapWithNav(
+        <NewMeetingDialog
+          workspaceId="w1"
+          scheduleDefaults={{ date, start: "09:00", end: "09:30" }}
+          followUp={{ meetingId: "m1", title: "Giao ban tuần", description: "Rà việc tồn", attendeeUserIds: ["u-mai"] }}
+          trigger={<button type="button">Mở</button>}
+        />,
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mở" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Lên lịch cuộc họp tiếp theo" })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Tiêu đề")).toHaveValue("Giao ban tuần");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/w1/meetings",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.objectContaining({ previous_meeting_id: "m1", description: "Rà việc tồn", attendee_user_ids: ["u-mai"] }),
+        }),
+      ),
+    );
+  });
+
   it("hides the project field when projects are unavailable", async () => {
     requestMock.mockImplementation((path: unknown) =>
       String(path).startsWith("/api/v1/config")

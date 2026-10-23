@@ -274,3 +274,48 @@ func TestPageExport(t *testing.T) {
 		}
 	})
 }
+
+// follow-6: the export menu offers pdf only where the engine reports the Docs
+// renderer staged; an engine without export offers nothing, one that predates
+// the export_pdf row docx only, and a file document is refused as on export.
+func TestPageExportFormats(t *testing.T) {
+	ctx := context.Background()
+	// Each fixture holds the test database's lock until its (sub)test ends.
+	t.Run("a file document is refused as on export", func(t *testing.T) {
+		file, _ := exportFixture(t)
+		var ce CodedError
+		if _, err := file.service(newScriptedEngine()).PageExportFormats(ctx, file.actor, file.doc); !errors.As(err, &ce) || ce.Code != "page_export_not_page" {
+			t.Fatalf("file document: %v", err)
+		}
+	})
+	f := newOfficeFixture(t, "unused\n")
+	page, err := f.docs.CreatePage(ctx, f.actor, f.ws, CreatePageInput{Title: "Biên bản", Visibility: documentVisibilityWorkspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader := human(f.tn.member)
+	for _, tc := range []struct {
+		name  string
+		bound map[office.Operation]bool
+		want  []string
+	}{
+		{"no export bound", map[office.Operation]bool{}, []string{}},
+		{"export without the renderer", map[office.Operation]bool{office.OperationExport: true}, []string{"docx"}},
+		{"export with the renderer", map[office.Operation]bool{office.OperationExport: true, office.CapabilityExportPDF: true}, []string{"docx", "pdf"}},
+	} {
+		eng := newScriptedEngine()
+		eng.bound = tc.bound
+		got, err := f.service(eng).PageExportFormats(ctx, reader, page.Document.ID)
+		if err != nil || fmt.Sprint(got) != fmt.Sprint(tc.want) {
+			t.Fatalf("%s: formats = %v, %v; want %v", tc.name, got, err, tc.want)
+		}
+	}
+
+	if _, err := f.service(nil).PageExportFormats(ctx, reader, page.Document.ID); !errors.Is(err, office.ErrNotConfigured) {
+		t.Fatalf("no engine: %v", err)
+	}
+	outsider := human(f.tn.outsider)
+	if _, err := f.service(newScriptedEngine()).PageExportFormats(ctx, outsider, page.Document.ID); !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrForbidden) {
+		t.Fatalf("outsider: %v", err)
+	}
+}

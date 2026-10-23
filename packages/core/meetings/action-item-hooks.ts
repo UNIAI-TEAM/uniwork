@@ -11,6 +11,7 @@ export type {
   MeetingActionItem,
   MeetingActionItemCounts,
   MeetingActionItems,
+  MeetingCarriedOver,
   MeetingCarriedOverItem,
 } from "../api/endpoints/meeting-action-items";
 
@@ -24,7 +25,7 @@ export function useMeetingActionItems(meetingId: string) {
   });
 }
 
-/** Open tasks from the earlier ended meetings of the same project (spec §6.5); empty without a project. */
+/** Open tasks from the earlier ended meetings of the same project or series (spec §6.5, follow-4); empty without either. */
 export function useMeetingCarriedOverItems(meetingId: string) {
   return useQuery({
     queryKey: meetingKeys.carriedOver(meetingId),
@@ -65,6 +66,15 @@ export function useDismissMeetingActionItem(meetingId: string) {
 
 export function useRestoreMeetingActionItem(meetingId: string) {
   return useActionItemMutation(meetingId, (itemId: string) => api.restoreMeetingActionItem(meetingId, itemId));
+}
+
+/** Links a pending item to an existing task; refreshes the timeline and the task collections like a conversion. */
+export function useLinkMeetingActionItem(workspaceId: string, meetingId: string) {
+  return useActionItemMutation(
+    meetingId,
+    (v: { itemId: string; taskId: string }) => api.linkMeetingActionItem(meetingId, v.itemId, v.taskId),
+    workspaceId,
+  );
 }
 
 /** Turns pending items into tasks; also refreshes the timeline and every task collection. */

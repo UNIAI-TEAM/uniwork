@@ -76,7 +76,8 @@ describe("MeetingCarriedOverSection", () => {
     const older = await screen.findByRole("region", { name: "Từ cuộc họp Giao ban tuần 40" });
     const newer = screen.getByRole("region", { name: "Từ cuộc họp Giao ban tuần 41" });
     expect(screen.getByText("Việc còn tồn từ các cuộc họp trước")).toBeInTheDocument();
-    expect(screen.getByText("3 việc chưa xong, giao ở các cuộc họp đã kết thúc của cùng dự án.")).toBeInTheDocument();
+    expect(screen.getByText("3 việc chưa xong, giao trong 90 ngày qua ở các cuộc họp cùng dự án hoặc cùng chuỗi.")).toBeInTheDocument();
+    expect(screen.queryByText(/chưa hiện ở đây/)).not.toBeInTheDocument();
     // The group whose task is due first heads the list.
     expect(older.compareDocumentPosition(newer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(older).getByRole("link", { name: "Giao ban tuần 40" })).toHaveAttribute("href", "/org/team/meetings/m-1");
@@ -86,6 +87,13 @@ describe("MeetingCarriedOverSection", () => {
     expect(within(older).getByText("Quá hạn")).toBeInTheDocument();
     expect(within(newer).getByText("Đặt phòng hội thảo")).toBeInTheDocument();
     expect(within(newer).getByText("Chưa giao")).toBeInTheDocument();
+  });
+
+  it("counts the tasks beyond the page and says how many more there are", async () => {
+    respond({ items, total: 105 });
+    renderSection();
+    expect(await screen.findByText("105 việc chưa xong, giao trong 90 ngày qua ở các cuộc họp cùng dự án hoặc cùng chuỗi.")).toBeInTheDocument();
+    expect(screen.getByText("Còn 102 việc nữa chưa hiện ở đây.")).toBeInTheDocument();
   });
 
   it("renders nothing when nothing carries over, or the answer is unreadable", async () => {

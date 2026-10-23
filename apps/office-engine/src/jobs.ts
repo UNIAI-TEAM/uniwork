@@ -114,6 +114,11 @@ export class JobManager {
     return this.draining;
   }
 
+  /** Whether workers run under the per-slot uid sandbox (renderPdf needs it). */
+  get sandboxActive(): boolean {
+    return this.sandbox.active;
+  }
+
   /** Slot uids held by surviving processes — a nonzero count means the pool
       has permanently shrunk; health/readiness should notice. */
   get sandboxQuarantined(): number {

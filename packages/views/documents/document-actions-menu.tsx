@@ -114,16 +114,15 @@ export function DocumentActionsMenu({
   const commentsEnabled = useFlag("documents", false);
   // Page export (UNI-2004): any reader of a live page, behind page_export at the page's organization.
   const pageExportEnabled = usePageExportEnabled(doc.organization_id);
-  const pageExport = usePageExport(doc);
+  const pageExport = usePageExport(doc, pageExportEnabled && doc.kind === "page" && !archived);
 
   type ItemId = Exclude<PanelId, null> | "export_docx" | "export_pdf";
   type Item = { id: ItemId; label: string; icon?: typeof RotateCcwClock; mark?: "docx" | "pdf"; destructive?: boolean };
   const items: Item[] = [];
   items.push({ id: "versions", label: t("documents.actions.versions"), icon: RotateCcwClock });
   if (pageExportEnabled && doc.kind === "page" && !archived) {
-    // Each format by its own file mark; a format this deployment cannot render is left out.
-    for (const format of ["docx", "pdf"] as const) {
-      if (pageExport.unavailable.has(format)) continue;
+    // Each format by its own file mark; only those this deployment renders (follow-6).
+    for (const format of pageExport.formats) {
       items.push({ id: `export_${format}`, label: t(`documents.actions.export_${format}`), mark: format });
     }
   }

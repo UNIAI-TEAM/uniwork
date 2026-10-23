@@ -126,6 +126,8 @@ describe("capability and unsupported operations", () => {
       reason: expect.stringContaining("page -> docx, pdf"),
     });
     expect(page.find((r) => r.operation === "open")).toMatchObject({ supported: false });
+    // No renderer staged in the harness: pdf is not claimed (follow-6).
+    expect(page.find((r) => r.operation === "export_pdf")).toMatchObject({ supported: false, reason: "docs_pdf_assets_missing" });
   });
 
   it("runs export:page to docx through the real job path and uploads the package", async () => {

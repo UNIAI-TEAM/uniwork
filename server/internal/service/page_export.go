@@ -88,6 +88,36 @@ func (s *DocumentOfficeService) ExportPage(ctx context.Context, actor Actor, doc
 	return out, nil
 }
 
+// PageExportFormats lists the formats a reader of the page can export it to
+// on this deployment (follow-6): docx when the engine binds export of a page,
+// pdf only when it also reports the Docs renderer staged (export_pdf). An
+// engine that predates that row offers docx only, so "Xuất PDF" is never
+// offered where it would answer 409 engine_incompatible.
+func (s *DocumentOfficeService) PageExportFormats(ctx context.Context, actor Actor, documentID string) ([]string, error) {
+	if s.engine == nil || s.files == nil || s.documents == nil {
+		return nil, office.ErrNotConfigured
+	}
+	doc, _, err := s.documents.authorizeDocument(ctx, actor, documentID, DocumentLevelView)
+	if err != nil {
+		return nil, err
+	}
+	if doc.Kind != DocumentKindPage {
+		return nil, coded(http.StatusUnprocessableEntity, "page_export_not_page", "chỉ trang UniNote mới xuất được DOCX/PDF")
+	}
+	res, err := office.Negotiate(ctx, s.engine, office.FormatPage)
+	if err != nil {
+		return nil, err
+	}
+	out := []string{}
+	if res.Supports(office.OperationExport) {
+		out = append(out, string(office.FormatDOCX))
+		if res.Supports(office.CapabilityExportPDF) {
+			out = append(out, string(office.FormatPDF))
+		}
+	}
+	return out, nil
+}
+
 // pageExportBytes builds the engine input: the content passed through the
 // closed-schema sanitizer again (the engine only ever sees that schema), and
 // the bytes of the images it references among the page's own assets.

@@ -7,14 +7,15 @@ import (
 
 // CreateMeetingSDI is POST /api/v1/workspaces/{workspaceID}/meetings.
 type CreateMeetingSDI struct {
-	Title            string    `json:"title" minLength:"1" description:"Tiêu đề cuộc họp" example:"Standup tuần"`
-	Description      string    `json:"description" description:"Agenda tùy chọn" example:"Review sprint"`
-	StartsAt         time.Time `json:"starts_at" description:"Thời điểm bắt đầu (RFC3339)" example:"2026-08-28T02:00:00Z"`
-	EndsAt           time.Time `json:"ends_at" description:"Thời điểm kết thúc (RFC3339)" example:"2026-08-28T02:30:00Z"`
-	Timezone         string    `json:"timezone" example:"Asia/Ho_Chi_Minh"`
-	AllowJoinRequest *bool     `json:"allow_join_request"`
-	ProjectID        string    `json:"project_id" example:""`
-	AttendeeUserIDs  []string  `json:"attendee_user_ids"`
+	Title             string    `json:"title" minLength:"1" description:"Tiêu đề cuộc họp" example:"Standup tuần"`
+	Description       string    `json:"description" description:"Agenda tùy chọn" example:"Review sprint"`
+	StartsAt          time.Time `json:"starts_at" description:"Thời điểm bắt đầu (RFC3339)" example:"2026-08-28T02:00:00Z"`
+	EndsAt            time.Time `json:"ends_at" description:"Thời điểm kết thúc (RFC3339)" example:"2026-08-28T02:30:00Z"`
+	Timezone          string    `json:"timezone" example:"Asia/Ho_Chi_Minh"`
+	AllowJoinRequest  *bool     `json:"allow_join_request"`
+	ProjectID         string    `json:"project_id" example:""`
+	AttendeeUserIDs   []string  `json:"attendee_user_ids"`
+	PreviousMeetingID string    `json:"previous_meeting_id,omitempty" description:"ULID cuộc họp mà cuộc họp này là buổi tiếp theo: cuộc họp mới vào cùng chuỗi, việc chưa xong được mang sang theo chuỗi" example:""`
 }
 
 // ListMeetingsSDI documents GET /api/v1/workspaces/{workspaceID}/meetings query params.
@@ -230,6 +231,11 @@ type AddActionItemSDI struct {
 // DismissActionItemSDI is POST .../action-items/{actionItemID}/dismiss.
 type DismissActionItemSDI struct {
 	Reason string `json:"reason,omitempty" maxLength:"500" description:"Lý do bỏ qua, không bắt buộc" example:"Đã có người làm"`
+}
+
+// LinkActionItemSDI is POST .../action-items/{actionItemID}/link.
+type LinkActionItemSDI struct {
+	TaskID string `json:"task_id" minLength:"1" description:"ULID task đã có trong workspace của cuộc họp, thường là task đang mở mà 409 active_duplicate_task nêu tên" example:"01J8X4TASK1P2Q3R4S5T6U7V8W"`
 }
 
 // ConvertActionItemSDI is one pending action item the clerk turns into a
