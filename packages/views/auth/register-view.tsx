@@ -9,6 +9,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@un
 import { Input } from "@uniwork/ui/components/ui/input";
 import { AppLink } from "../navigation";
 import { AUTH_INPUT, AuthSubmit } from "./auth-controls";
+import { AuthLegalNote } from "./auth-legal-note";
 import { AuthShell } from "./auth-shell";
 import { GoogleButton } from "./google-button";
 import { AUTH_LINK } from "./login-view";
@@ -103,6 +104,7 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
               {t("auth.login")}
             </AppLink>
           </p>
+          <AuthLegalNote action="signUp" />
         </div>
       </form>
     </AuthShell>

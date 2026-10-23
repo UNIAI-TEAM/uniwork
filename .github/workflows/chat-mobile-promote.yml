@@ -1,0 +1,165 @@
+name: UniChat mobile promote
+
+# Moves one production build of UniChat mobile (com.uniworkos.chat) between
+# Google Play tracks by version code (audit
+# "no-production-pipeline-binary-promotion"): what chat-mobile-production.yml
+# submitted to internal goes on to alpha / beta and to production, with a
+# staged rollout, and only a version code that has been live on the track it
+# comes from is accepted (scripts/mobile-play-release.mjs). The same workflow
+# widens a staged rollout (from = to = production, a larger rollout), completes
+# it (status completed) and halts it. Play's release notes come from
+# apps/chat-mobile/store/release-notes.md for `version`.
+#
+# The chat-mobile-production environment (required reviewers) holds
+# PLAY_SERVICE_ACCOUNT_JSON: the key of a Google Cloud service account with
+# release rights on the app (the one EAS submits with may be reused).
+# Runbook: docs/runbooks/unichat-mobile-release.md › Phát hành production theo
+# giai đoạn.
+#
+# platform ios moves the App Store version's 7-day phased release instead
+# (scripts/mobile-asc-release.mjs, audit "ios-no-release-path"): halt pauses
+# it, promote with status inProgress resumes it, completed releases it to every
+# phone. The build itself reaches the App Store through a store submission and App Review;
+# this only paces it. The same environment holds ASC_KEY_ID, ASC_ISSUER_ID and
+# ASC_PRIVATE_KEY (an App Store Connect API key, App Manager role) and the
+# variable ASC_APP_ID, once the Apple account exists (UNI-1838).
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: android (Play tracks) or ios (App Store phased release)
+        type: choice
+        options: [android, ios]
+        default: android
+      action:
+        description: promote (or widen) a release, or halt one
+        type: choice
+        options: [promote, halt]
+        required: true
+      version_code:
+        description: The Android version code (the production build's summary names it; not used for ios)
+        type: string
+        required: false
+      version:
+        description: The store version whose release notes go with it (promote), or the App Store version (ios)
+        type: string
+        required: false
+      from_track:
+        description: Where the build is live now (promote)
+        type: choice
+        options: [internal, alpha, beta, production]
+        default: internal
+      to_track:
+        description: Where it goes (promote), or the track to halt
+        type: choice
+        options: [alpha, beta, production]
+        default: production
+      status:
+        description: draft while the Play app has no public release; inProgress for a staged rollout
+        type: choice
+        options: [draft, inProgress, completed]
+        default: draft
+      rollout:
+        description: Share of phones for inProgress (0.05 = 5 %)
+        type: string
+        default: "0.05"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-mobile-promote
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  play:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: chat-mobile-production
+    env:
+      PLATFORM: ${{ inputs.platform }}
+      ACTION: ${{ inputs.action }}
+      VERSION_CODE: ${{ inputs.version_code }}
+      VERSION: ${{ inputs.version }}
+      FROM: ${{ inputs.from_track }}
+      TO: ${{ inputs.to_track }}
+      STATUS: ${{ inputs.status }}
+      ROLLOUT: ${{ inputs.rollout }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # Audit "store-assets-missing": a store version never ships without its screenshots (every listed language) and,
+      # on Play, the 512 px icon (apps/chat-mobile/scripts/store-screenshots.mjs; runbook › Ảnh chụp).
+      - name: Store pictures are in place
+        if: ${{ inputs.action == 'promote' && (inputs.to_track == 'production' || inputs.platform == 'ios') }}
+        run: node apps/chat-mobile/scripts/store-screenshots.mjs check --platform "$PLATFORM"
+      - name: Pace the phased release on the App Store
+        if: ${{ inputs.platform == 'ios' }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ASC_APP_ID" ] || [ -z "$VERSION" ]; then
+            echo "::error::ios needs the App Store version and the ASC_APP_ID variable (runbook › Thiết lập lần đầu, Apple)"
+            exit 1
+          fi
+          case "$ACTION/$STATUS" in
+            halt/*) command=pause ;;
+            promote/inProgress) command=resume ;;
+            promote/completed) command=complete ;;
+            *) echo "::error::on the App Store, promote is inProgress (resume) or completed (release to all); draft is App Store Connect's own"; exit 1 ;;
+          esac
+          node scripts/mobile-asc-release.mjs "$command" --app-id "$ASC_APP_ID" --version "$VERSION"
+      - name: Move the release on Play
+        if: ${{ inputs.platform != 'ios' }}
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "$VERSION_CODE" ]; then
+            echo "::error::android needs the version code"
+            exit 1
+          fi
+          if [ "$ACTION" = "halt" ]; then
+            node scripts/mobile-play-release.mjs halt --package com.uniworkos.chat --version-code "$VERSION_CODE" --track "$TO"
+            exit 0
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "::error::promote needs the store version, for its release notes"
+            exit 1
+          fi
+          args=(promote --package com.uniworkos.chat --version-code "$VERSION_CODE" --from "$FROM" --to "$TO" --status "$STATUS" --notes-version "$VERSION")
+          if [ "$STATUS" = "inProgress" ]; then args+=(--rollout "$ROLLOUT"); fi
+          node scripts/mobile-play-release.mjs "${args[@]}"
+      - name: Summary
+        if: always()
+        run: |
+          if [ "$PLATFORM" = "ios" ]; then
+            if [ "$ACTION" = "halt" ]; then what="phased release paused"; else what="phased release $STATUS"; fi
+            {
+              echo "### UniChat App Store: $ACTION"
+              echo
+              echo "- version \`$VERSION\`: $what"
+              echo "- resume only on crash-free sessions ≥ 99.5 % (runbook); the release-health job pauses it below that"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$ACTION" = "halt" ]; then what="halted on $TO"; else what="$FROM → $TO, $STATUS"; fi
+          if [ "$ACTION" = "promote" ] && [ "$STATUS" = "inProgress" ]; then what="$what at $ROLLOUT"; fi
+          {
+            echo "### UniChat Play: $ACTION"
+            echo
+            echo "- version code \`$VERSION_CODE\` ${VERSION:+($VERSION) }: $what"
+            echo "- widen only on crash-free sessions ≥ 99.5 % over ≥ 200 sessions (runbook); the release-health job halts it below that"
+          } >> "$GITHUB_STEP_SUMMARY"

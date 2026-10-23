@@ -72,6 +72,7 @@ export const paths = {
   about: () => "/about",
   security: () => "/security",
   privacy: () => "/privacy",
+  terms: () => "/terms",
   guide: (slug: string) => `/learn/${encodeURIComponent(slug)}`,
   marketing: marketingHref,
   vietnamese: vietnamesePath,
@@ -87,6 +88,7 @@ export const paths = {
     root: () => "/admin",
     organizations: () => "/admin/organizations",
     demoRequests: () => "/admin/demo-requests",
+    chatReports: () => "/admin/chat-reports",
     organization: (id: string) => `/admin/organizations/${id}`,
     flags: () => "/admin/flags",
     plans: () => "/admin/plans",
@@ -201,6 +203,7 @@ export const GLOBAL_PREFIXES = [
   "/about",
   "/security",
   "/privacy",
+  "/terms",
 ] as const;
 
 export function isGlobalPath(path: string): boolean {

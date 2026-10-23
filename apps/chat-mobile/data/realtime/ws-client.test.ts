@@ -3,7 +3,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { WSClient, type WSClientOptions } from "./ws-client";
+import { WSClient } from "./ws-client";
+import { reconnectDelayMs, type WSClientOptions } from "./ws-types";
 
 class MockWebSocket {
   static readonly CONNECTING = 0;
@@ -110,6 +111,23 @@ describe("WSClient application heartbeat", () => {
     vi.advanceTimersByTime(10_000);
 
     expect(MockWebSocket.instances).toHaveLength(1);
+    client.disconnect();
+  });
+
+  it("probes now on demand: one check at a time, none without an authenticated socket", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const { client, socket } = connectAuthenticatedClient();
+    // The connect's own heartbeat is still in flight: a probe adds nothing.
+    client.probe();
+    expect(socket.frames().filter((f) => (f as { type: string }).type === "ping")).toHaveLength(1);
+    socket.receive({ type: "pong" });
+    client.probe();
+    expect(socket.frames().filter((f) => (f as { type: string }).type === "ping")).toHaveLength(2);
+    // No pong to the probe: the socket is replaced within the timeout, not at the next interval.
+    vi.advanceTimersByTime(10_001);
+    expect(MockWebSocket.instances).toHaveLength(2);
+    client.probe();
+    expect(latest().sent).toEqual([]);
     client.disconnect();
   });
 
@@ -273,6 +291,25 @@ describe("WSClient frame validation", () => {
     off();
     socket.receive({ type: "chat.message.created", payload: {} });
     expect(onCreated).not.toHaveBeenCalled();
+    client.disconnect();
+  });
+
+  it("drops a catalogued event whose payload is malformed before any handler sees it (frames.ts)", () => {
+    const { client, socket } = connectAuthenticatedClient();
+    const onAny = vi.fn();
+    const onInvite = vi.fn();
+    client.onAny(onAny);
+    client.on("chat.voice.invite", onInvite);
+
+    socket.receive({ type: "chat.voice.invite", payload: { room_id: "room-1", call_id: 7, caller_id: "u2" } });
+    socket.receive({ type: "chat.voice.invite" });
+    expect(onInvite).not.toHaveBeenCalled();
+    expect(onAny).not.toHaveBeenCalled();
+
+    const payload = { room_id: "room-1", call_id: "call-1", caller_id: "u2" };
+    socket.receive({ type: "chat.voice.invite", payload });
+    expect(onInvite).toHaveBeenCalledExactlyOnceWith(payload, undefined, undefined);
+    expect(onAny).toHaveBeenCalledOnce();
     client.disconnect();
   });
 
@@ -625,5 +662,69 @@ describe("WSClient foreground recovery", () => {
     off();
     offAny();
     client.disconnect();
+  });
+});
+
+describe("WSClient connection state (audit R3)", () => {
+  useMockSocket();
+
+  it("says whether it is connecting, online, waiting to redial or not trying, once per change", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const client = makeClient();
+    const seen: string[] = [];
+    const unsubscribe = client.onConnectionStateChange((state) => seen.push(state));
+    expect(client.getConnectionState()).toBe("offline");
+
+    client.connect();
+    latest().open();
+    latest().receive({ type: "auth_ack" });
+    expect(client.getConnectionState()).toBe("online");
+
+    // A dropped socket waits for its backoff, then dials again.
+    latest().close();
+    expect(client.getConnectionState()).toBe("waiting");
+    vi.advanceTimersByTime(1_000);
+    latest().open();
+    latest().receive({ type: "auth_ack" });
+
+    // The server ended the session: waiting on the host's refresh.
+    latest().close(4001);
+    expect(client.getConnectionState()).toBe("waiting");
+    client.forceReconnect();
+    latest().open();
+    latest().receive({ type: "auth_ack" });
+
+    client.pause();
+    client.resume();
+    client.disconnect();
+    client.disconnect();
+    expect(seen).toEqual([
+      "connecting",
+      "online",
+      "waiting",
+      "connecting",
+      "online",
+      "waiting",
+      "connecting",
+      "online",
+      "offline",
+      "connecting",
+      "offline",
+    ]);
+
+    unsubscribe();
+    client.connect();
+    expect(seen).toHaveLength(11);
+    client.disconnect();
+  });
+});
+
+describe("reconnectDelayMs", () => {
+  it("waits a random point below a ceiling that doubles from 1 s and stops at 30 s", () => {
+    expect(reconnectDelayMs(1, 0.999)).toBe(1_998);
+    expect(reconnectDelayMs(4, 0.5)).toBe(8_000);
+    expect(reconnectDelayMs(5, 0.999)).toBe(29_970);
+    expect(reconnectDelayMs(50, 0.999)).toBe(29_970);
+    expect(reconnectDelayMs(3, 0)).toBe(0);
   });
 });

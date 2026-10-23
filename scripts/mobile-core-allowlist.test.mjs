@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { ALLOWLIST, CORE, resolveCore, runtimeSpecifiers, target } from "./mobile-core-graph.mjs";
 
 // ADR 0011: apps/chat-mobile imports only types and pure functions from
 // packages/core. The M1 spec (§3.1) names those modules path by path, and the
@@ -13,10 +14,6 @@ import path from "node:path";
 // cannot carry, with the chain that reached it.
 
 const root = path.resolve(import.meta.dirname, "..");
-const CORE = "packages/core";
-
-// One source for the lint rule and this walk: apps/chat-mobile/core-allowlist.json.
-const ALLOWLIST = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/core-allowlist.json"), "utf8"));
 
 const BARE_ALLOWED = new Set(["zod"]);
 
@@ -27,39 +24,6 @@ const FORBIDDEN_FILES = [
   `${CORE}/api/http.ts`,
   `${CORE}/api/session.ts`,
 ];
-
-/** Resolve a module path (no extension) under core to a file, or null. */
-function resolveCore(rel) {
-  for (const candidate of [`${rel}.ts`, `${rel}.tsx`, `${rel}/index.ts`]) {
-    if (fs.existsSync(path.join(root, CORE, candidate))) return `${CORE}/${candidate}`;
-  }
-  return null;
-}
-
-/**
- * Runtime import specifiers of a file. `import type` / `export type`
- * statements vanish at compile time and are skipped; value imports,
- * side-effect imports and dynamic import() are followed.
- */
-function runtimeSpecifiers(file) {
-  const src = fs.readFileSync(path.join(root, file), "utf8");
-  const out = [];
-  const stmt = /\b(?:import|export)\s+(type\s+)?(?:\*\s+as\s+[\w$]+|\*|[\w$]+(?:\s*,\s*\{[^}]*\})?|\{[^}]*\})\s+from\s*["']([^"']+)["']/g;
-  for (const m of src.matchAll(stmt)) if (!m[1]) out.push(m[2]);
-  for (const m of src.matchAll(/\bimport\s*["']([^"']+)["']/g)) out.push(m[1]);
-  for (const m of src.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)) out.push(m[1]);
-  return out;
-}
-
-/** A specifier seen from `from`: a core file, a bare package name, or null for a core path that does not resolve. */
-function target(spec, from) {
-  let rel;
-  if (spec.startsWith("@uniwork/core")) rel = spec.replace(/^@uniwork\/core\/?/, "") || "index";
-  else if (spec.startsWith(".")) rel = path.relative(path.join(root, CORE), path.resolve(root, path.dirname(from), spec));
-  else return { bare: spec };
-  const file = resolveCore(rel.replace(/\.tsx?$/, ""));
-  return file ? { file } : { unresolved: `${CORE}/${rel}` };
-}
 
 function violation(file, t) {
   if (t.bare) return BARE_ALLOWED.has(t.bare) ? null : `bare import "${t.bare}"`;

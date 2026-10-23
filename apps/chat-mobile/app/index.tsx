@@ -1,6 +1,7 @@
 // Ported from usf apps/mobile/app/index.tsx.
 import { Redirect } from "expo-router";
 import { useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { ActivityIndicator, View } from "react-native";
 import { useAuthStore } from "@/data/auth/store";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
@@ -14,6 +15,7 @@ import { deepLinkHref, takePendingDeepLink, type DeepLink } from "@/lib/deep-lin
  *   else                    → /{org}/{ws}/chat
  */
 export default function Index() {
+  const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
   const current = useWorkspaceStore((s) => s.current);
@@ -24,7 +26,7 @@ export default function Index() {
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
-        <ActivityIndicator />
+        <ActivityIndicator accessibilityLabel={t("common.loading")} />
       </View>
     );
   }

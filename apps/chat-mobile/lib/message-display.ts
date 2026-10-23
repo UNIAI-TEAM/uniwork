@@ -1,77 +1,91 @@
 // How one message reads on the phone: which card it gets (spec §4), and the
 // few labels the cards print.
 //   voiceCallLogLabel       ← packages/views/chat/voice-call-log-row.tsx
-//   formatVoiceCallDuration ← packages/views/chat/voice-call-duration.ts
 //   pollResults             ← packages/views/chat/chat-poll-message-row.tsx (hide_results_until_vote, closed)
 // message-display.test.ts covers every kind in chat-schemas plus an unknown one.
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { isPollExpired } from "@uniwork/core/chat/poll-utils";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { isChatImageContentType, resolveChatFileContentType } from "./file-accept";
+import { numberFormat } from "./locale-format";
 import { parseChatMediaMessageBody } from "./media-body";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { formatChatSidebarPreviewText } from "./rooms-display";
+import type { PendingSend } from "./send-pipeline";
 
 /** Every `chat_messages.kind` the server writes (migration poll_vote_kind + document kinds). */
 export const KNOWN_MESSAGE_KINDS = ["text", "system", "voice_call_log", "poll", "poll_vote", "reminder", "note", "voice", "file", "post"] as const;
 
-export type MessageView =
-  | "text"
-  | "media"
-  | "system"
-  | "image"
-  | "file"
-  | "voice"
-  | "poll"
-  | "note"
-  | "post"
-  | "reminder"
-  | "call-log"
-  | "call-summary"
-  | "poll-vote-activity"
-  | "unsupported";
+type Payload<K extends keyof ChatMessageRecord> = NonNullable<ChatMessageRecord[K]>;
 
-/** The card a message renders as; a kind this build does not know reads "unsupported" (→ "Mở trên web"). */
-export function messageView(
-  record: Pick<
-    ChatMessageRecord,
-    "kind" | "body" | "file" | "voice" | "poll" | "poll_vote" | "note" | "post" | "reminder" | "voice_call" | "voice_call_summary"
-  >,
-): MessageView {
-  if (record.voice_call_summary) return "call-summary";
+/**
+ * What a message renders as, with the payload its card draws, read once from
+ * the record. The tag and the payload travel together, so a card never
+ * asserts that a field is there: a record whose payload is missing (drifted,
+ * or a kind this build does not know) is "unsupported" (→ "Mở trên web").
+ */
+export type MessageContent =
+  | { view: "text" }
+  | { view: "media"; media: NonNullable<ReturnType<typeof parseChatMediaMessageBody>> }
+  | { view: "system" }
+  | { view: "image"; file: Payload<"file"> }
+  | { view: "file"; file: Payload<"file"> }
+  | { view: "voice"; voice: Payload<"voice"> }
+  | { view: "poll"; poll: Payload<"poll"> }
+  | { view: "note"; note: Payload<"note"> }
+  | { view: "post"; post: Payload<"post"> }
+  | { view: "reminder"; reminder: Payload<"reminder"> }
+  | { view: "call-log" }
+  | { view: "call-summary"; summary: Payload<"voice_call_summary"> }
+  | { view: "poll-vote-activity"; pollVote: Payload<"poll_vote"> }
+  | { view: "unsupported" };
+
+export type MessageView = MessageContent["view"];
+
+type ContentFields = Pick<
+  ChatMessageRecord,
+  "kind" | "body" | "file" | "voice" | "poll" | "poll_vote" | "note" | "post" | "reminder" | "voice_call" | "voice_call_summary"
+>;
+
+const UNSUPPORTED: MessageContent = { view: "unsupported" };
+
+/** The card a message renders as and what it draws; a kind this build does not know reads "unsupported". */
+export function messageContent(record: ContentFields): MessageContent {
+  if (record.voice_call_summary) return { view: "call-summary", summary: record.voice_call_summary };
   switch (record.kind) {
-    case "text":
-      return parseChatMediaMessageBody(record.body) ? "media" : "text";
+    case "text": {
+      const media = parseChatMediaMessageBody(record.body);
+      return media ? { view: "media", media } : { view: "text" };
+    }
     case "system":
-      return "system";
+      return { view: "system" };
     case "voice_call_log":
-      return "call-log";
+      return { view: "call-log" };
     case "file":
-      if (!record.file) return "unsupported";
-      return isChatImageContentType(resolveChatFileContentType(record.file), record.file.filename) ? "image" : "file";
+      if (!record.file) return UNSUPPORTED;
+      return { view: isChatImageContentType(resolveChatFileContentType(record.file), record.file.filename) ? "image" : "file", file: record.file };
     case "voice":
-      return record.voice ? "voice" : "unsupported";
+      return record.voice ? { view: "voice", voice: record.voice } : UNSUPPORTED;
     case "poll":
-      return record.poll ? "poll" : "unsupported";
-    case "poll_vote":
-      return record.poll_vote?.poll_message_id && record.poll_vote.question ? "poll-vote-activity" : "unsupported";
+      return record.poll ? { view: "poll", poll: record.poll } : UNSUPPORTED;
+    case "poll_vote": {
+      const pollVote = record.poll_vote;
+      return pollVote?.poll_message_id && pollVote.question ? { view: "poll-vote-activity", pollVote } : UNSUPPORTED;
+    }
     case "note":
-      return record.note ? "note" : "unsupported";
+      return record.note ? { view: "note", note: record.note } : UNSUPPORTED;
     case "post":
-      return record.post ? "post" : "unsupported";
+      return record.post ? { view: "post", post: record.post } : UNSUPPORTED;
     case "reminder":
-      return record.reminder ? "reminder" : "unsupported";
+      return record.reminder ? { view: "reminder", reminder: record.reminder } : UNSUPPORTED;
     default:
-      return "unsupported";
+      return UNSUPPORTED;
   }
 }
 
-/** Formats elapsed seconds as M:SS or H:MM:SS. */
-export function formatVoiceCallDuration(totalSeconds: number): string {
-  const safe = Math.max(0, Math.floor(totalSeconds));
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const seconds = safe % 60;
-  if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+/** The card's tag alone, for a caller that only branches on it. */
+export function messageView(record: ContentFields): MessageView {
+  return messageContent(record).view;
 }
 
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
@@ -92,11 +106,13 @@ export function voiceCallLogLabel(call: ChatMessageRecord["voice_call"], current
   }
 }
 
-/** "820 KB", "1.4 MB" — the size on a file card. */
-export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${Math.max(0, Math.round(bytes))} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+const ONE_DECIMAL = { minimumFractionDigits: 1, maximumFractionDigits: 1 } as const;
+
+/** "820 KB", "1,4 MB" (vi) / "1.4 MB" (en) — the size on a file card, in the app's language. */
+export function formatFileSize(bytes: number, language: string | undefined): string {
+  if (bytes < 1024) return `${numberFormat(language).format(Math.max(0, Math.round(bytes)))} B`;
+  if (bytes < 1024 * 1024) return `${numberFormat(language).format(Math.round(bytes / 1024))} KB`;
+  return `${numberFormat(language, ONE_DECIMAL).format(bytes / (1024 * 1024))} MB`;
 }
 
 type Poll = NonNullable<ChatMessageRecord["poll"]>;
@@ -167,4 +183,15 @@ export function messagePreviewText(
       mediaLabels: { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") },
     }) ?? ""
   );
+}
+
+/**
+ * A message still on its way, in its bubble and its sheet: the text with
+ * mentions as names, its file's name, "Voice message", or the reminder's text.
+ */
+export function pendingPreviewText(pending: Pick<PendingSend, "body" | "file" | "voiceDurationMs" | "reminder">, t: TranslateFn): string {
+  if (pending.voiceDurationMs !== undefined) return t("chat.sidebar_voice_message_preview");
+  if (pending.file) return pending.file.name;
+  if (pending.reminder) return pending.reminder.body;
+  return deserializeMessageBodyToComposerDraft(pending.body);
 }

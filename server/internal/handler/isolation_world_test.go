@@ -686,7 +686,9 @@ func (w *isoWorld) buildChat(t *testing.T, tn *isoTenant) {
 	rp := ws + "/chat/rooms/" + tn.ids["room"]
 	out = w.call(t, "POST", rp+"/messages", tn.token, map[string]any{"body": m + " chat message", "client_msg_id": util.NewID()})
 	tn.ids["message"] = isoID(t, out, "message")
-	w.call(t, "POST", rp+"/threads/"+tn.ids["message"]+"/messages", tn.peerToken, map[string]any{"body": m + " thread reply", "client_msg_id": util.NewID()})
+	// The peer's reply is what a member reports (a report of one's own message is refused).
+	out = w.call(t, "POST", rp+"/threads/"+tn.ids["message"]+"/messages", tn.peerToken, map[string]any{"body": m + " thread reply", "client_msg_id": util.NewID()})
+	tn.ids["peerMessage"] = isoID(t, out, "message")
 	out = w.call(t, "POST", rp+"/messages", tn.token, map[string]any{
 		"client_msg_id": util.NewID(), "poll": map[string]any{
 			"question": m + " poll", "options": []string{"Canteen", "Outside"},
@@ -1181,6 +1183,8 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/audit/retention", tn.token, map[string]any{"retain_days": 180})
 	w.call(t, "PUT", ws+"/chat/users/"+tn.peerID+"/nickname", tn.token, map[string]any{"nickname": m + " nick"})
 	w.call(t, "POST", ws+"/chat/users/"+tn.thirdID+"/block", tn.peerToken, nil)
+	report := w.call(t, "POST", ws+"/chat/reports", tn.peerToken, map[string]any{"message_id": tn.ids["message"], "reason": "spam", "details": m + " report"})
+	tn.ids["chatReport"], _ = report["id"].(string)
 	w.call(t, "POST", ws+"/chat/threads/"+tn.ids["channelMessage"]+"/task-sync", tn.token, map[string]any{"task_id": tn.ids["task2"]})
 	// A call ringing in the group: the voice routes act on a live call.
 	w.call(t, "POST", ws+"/chat/rooms/"+tn.ids["room"]+"/voice/invite", tn.token, map[string]any{"call_id": tn.ids["callID"]})

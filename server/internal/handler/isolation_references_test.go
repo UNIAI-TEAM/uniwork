@@ -192,6 +192,10 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/groups", what: "members", body: map[string]any{
 		"name": isoUnique("ref"), "member_user_ids": []any{isoRef("peer"), isoOwn("third")}}, covers: []string{"CreateGroupSDI.member_user_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/dm", what: "other person", body: map[string]any{"user_id": isoRef("peer")}, covers: []string{"ResolveDMSDI.user_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/reports", what: "reported message", body: map[string]any{
+		"message_id": isoRef("peerMessage"), "reason": "spam"}, covers: []string{"ReportChatSDI.message_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/reports", what: "reported person", body: map[string]any{
+		"user_id": isoRef("peer"), "reason": "harassment"}, covers: []string{"ReportChatSDI.user_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members", what: "new member", body: map[string]any{
 		"member_user_ids": []any{isoRef("peer")}}, noControl: "the peer is already in B's group", covers: []string{"InviteGroupMembersSDI.member_user_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/channels", what: "project", body: map[string]any{

@@ -10,7 +10,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { describeChatMediaBody } from "./chat-expression-utils";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { chatPersonFaceClass } from "./chat-person-card";
 import { formatResultTime, highlightSnippet } from "./chat-search-highlight";
 import { cn } from "@uniwork/ui/lib/utils";

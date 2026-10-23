@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -46,7 +48,7 @@ func TestExpoPushSenderMapsTickets(t *testing.T) {
 	if err := s.Send(context.Background(), db.PushSubscription{Endpoint: "ExponentPushToken[ok]"}, msg); err != nil {
 		t.Fatal(err)
 	}
-	if auth != "Bearer secret" || got[0]["title"] != msg.Title || got[0]["body"] != "chào" || got[0]["channelId"] != "chat" || got[0]["priority"] != "high" || got[0]["ttl"] != float64(3600) || got[0]["data"].(map[string]any)["url"] != msg.URL || got[0]["data"].(map[string]any)["tag"] != msg.Tag {
+	if auth != "Bearer secret" || got[0]["title"] != msg.Title || got[0]["body"] != "chào" || got[0]["channelId"] != ChannelGeneral || got[0]["priority"] != "high" || got[0]["ttl"] != float64(3600) || got[0]["data"].(map[string]any)["url"] != msg.URL || got[0]["data"].(map[string]any)["tag"] != msg.Tag {
 		t.Fatalf("request = %v auth=%q", got, auth)
 	}
 	if err := s.Send(context.Background(), db.PushSubscription{Endpoint: "ExponentPushToken[gone]"}, msg); !errors.Is(err, ErrSubscriptionGone) {
@@ -96,6 +98,313 @@ func TestPrefixSenderRoutesByEndpoint(t *testing.T) {
 	for ep, want := range map[string]bool{"ExponentPushToken[abc]": true, "ExpoPushToken[abc]": true, "ExponentPushToken[]": false, "ExponentPushToken[a b]": false, "xExponentPushToken[a]": false, "https://a": false} {
 		if isExpoPushToken(ep) != want {
 			t.Errorf("isExpoPushToken(%q) = %v", ep, !want)
+		}
+	}
+}
+
+// Each kind lands in the Android channel the app created for it, so a person
+// can keep calls loud and quiet the rest; anything else is "general".
+func TestPushChannelPerKind(t *testing.T) {
+	for kind, want := range map[string]string{
+		KindChatCallIncoming:            ChannelCalls,
+		KindChatMentioned:               ChannelMentions,
+		KindMentioned:                   ChannelMentions,
+		KindDocumentMentioned:           ChannelMentions,
+		KindDocumentBodyMentioned:       ChannelMentions,
+		KindDocumentDiscussionMentioned: ChannelMentions,
+		KindChatDM:                      ChannelMessages,
+		KindChatThreadReplied:           ChannelMessages,
+		KindTaskAssigned:                ChannelGeneral,
+		KindChatReminder:                ChannelGeneral,
+	} {
+		if got := pushChannel(kind); got != want {
+			t.Errorf("pushChannel(%s) = %s, want %s", kind, got, want)
+		}
+	}
+}
+
+// A ring reaches Android as a data-only, high-priority message (no title, no
+// body, no sound: the app shows its own ringing screen), an iPhone keeps the
+// visible push; the end of a ring goes to Android only; a missed call is
+// visible everywhere and names the call.
+func TestExpoPushSenderShapesCallPushesPerPlatform(t *testing.T) {
+	var got []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = nil
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = io.WriteString(w, `{"data":[{"status":"ok","id":"t1"}]}`)
+	}))
+	defer srv.Close()
+	s := ExpoPushSender{URL: srv.URL}
+	android := db.PushSubscription{Endpoint: "ExponentPushToken[a]", UserAgent: pgtype.Text{String: "expo/android; call-ui", Valid: true}}
+	iphone := db.PushSubscription{Endpoint: "ExponentPushToken[i]", UserAgent: pgtype.Text{String: "expo/ios", Valid: true}}
+	// An Android build from before the native call UI (it registers without call_ui): data-only would ring nothing.
+	legacy := db.PushSubscription{Endpoint: "ExponentPushToken[l]", UserAgent: pgtype.Text{String: "expo/android", Valid: true}}
+	invite := PushMessage{
+		Title: "Minh đang gọi", URL: "https://app/o/w/chat?room=r&call=c", Tag: "chat_call:r", TTL: 60, Channel: ChannelCalls,
+		Call: CallPush{Type: CallPushInvite, CallID: "c", RoomID: "r", WorkspaceID: "w", CallerName: "Minh", RoomName: "", CallKind: "dm", Video: true, ExpiresAt: 1700000060000},
+	}
+
+	if err := s.Send(context.Background(), android, invite); err != nil {
+		t.Fatal(err)
+	}
+	m := got[0]
+	data, _ := m["data"].(map[string]any)
+	wantData := map[string]any{
+		"type": "call_invite", "call_id": "c", "room_id": "r", "workspace_id": "w", "caller_name": "Minh", "room_name": "",
+		"call_kind": "dm", "video": "1", "expires_at": "1700000060000", "url": invite.URL, "tag": invite.Tag,
+	}
+	if len(data) != len(wantData) {
+		t.Fatalf("android ring data = %v, want %v", data, wantData)
+	}
+	for k, v := range wantData {
+		if data[k] != v {
+			t.Fatalf("android ring data[%s] = %v, want %v (%v)", k, data[k], v, data)
+		}
+	}
+	for _, key := range []string{"title", "body", "sound", "channelId"} {
+		if _, ok := m[key]; ok {
+			t.Fatalf("android ring carries %q, want a data-only message: %v", key, m)
+		}
+	}
+	if m["priority"] != "high" || m["ttl"] != float64(60) {
+		t.Fatalf("android ring priority/ttl = %v/%v", m["priority"], m["ttl"])
+	}
+
+	if err := s.Send(context.Background(), iphone, invite); err != nil {
+		t.Fatal(err)
+	}
+	if got[0]["title"] != "Minh đang gọi" || got[0]["sound"] != "default" || got[0]["channelId"] != ChannelCalls {
+		t.Fatalf("iphone ring = %v, want today's visible push", got[0])
+	}
+	if d, _ := got[0]["data"].(map[string]any); d["url"] != invite.URL || d["call_id"] != "c" {
+		t.Fatalf("iphone ring data = %v", d)
+	}
+	if err := s.Send(context.Background(), legacy, invite); err != nil {
+		t.Fatal(err)
+	}
+	if got[0]["title"] != "Minh đang gọi" || got[0]["sound"] != "default" || got[0]["channelId"] != ChannelCalls {
+		t.Fatalf("ring to an Android build without the call UI = %v, want the visible push it can show", got[0])
+	}
+
+	end := PushMessage{TTL: 60, Call: CallPush{Type: CallPushEnd, CallID: "c", RoomID: "r", WorkspaceID: "w"}}
+	if err := s.Send(context.Background(), android, end); err != nil {
+		t.Fatal(err)
+	}
+	d, _ := got[0]["data"].(map[string]any)
+	if d["type"] != "call_end" || d["call_id"] != "c" || d["room_id"] != "r" || d["workspace_id"] != "w" || len(d) != 4 || got[0]["title"] != nil {
+		t.Fatalf("android end = %v", got[0])
+	}
+	got = nil
+	for _, sub := range []db.PushSubscription{iphone, legacy} {
+		if err := s.Send(context.Background(), sub, end); !errors.Is(err, ErrPushSkipped) || got != nil {
+			t.Fatalf("end to %s = %v (sent %v), want skipped without a request", sub.UserAgent.String, err, got)
+		}
+	}
+
+	missed := PushMessage{Title: "Cuộc gọi nhỡ từ Minh", URL: "https://app/o/w/chat?room=r&message=m", Tag: "chat_room:r:dm", Channel: ChannelMissedCalls, Call: CallPush{Type: CallPushMissed, CallID: "c", RoomID: "r", WorkspaceID: "w"}}
+	for _, sub := range []db.PushSubscription{android, iphone, legacy} {
+		if err := s.Send(context.Background(), sub, missed); err != nil {
+			t.Fatal(err)
+		}
+		d, _ := got[0]["data"].(map[string]any)
+		if got[0]["title"] != missed.Title || got[0]["channelId"] != ChannelMissedCalls || d["type"] != "call_missed" || d["call_id"] != "c" || d["url"] != missed.URL {
+			t.Fatalf("missed call to %s = %v", sub.UserAgent.String, got[0])
+		}
+	}
+}
+
+// A chat message push carries the chat_message category (Reply, Mark as read)
+// and the ids those actions act on; a thread reply names its thread. A push
+// about anything else, a call or a missed call has neither.
+func TestExpoPushSenderGivesChatPushesTheirActions(t *testing.T) {
+	var got []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = nil
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = io.WriteString(w, `{"data":[{"status":"ok","id":"t1"}]}`)
+	}))
+	defer srv.Close()
+	s := ExpoPushSender{URL: srv.URL}
+	phone := db.PushSubscription{Endpoint: "ExponentPushToken[a]", UserAgent: pgtype.Text{String: "expo/android; call-ui", Valid: true}}
+
+	dm := PushMessage{Title: "Minh", Body: "chào", URL: "https://app/o/w/chat?room=r&message=m", Tag: "chat_room:r:dm", Channel: ChannelMessages, Chat: ChatPush{WorkspaceID: "w", RoomID: "r", MessageID: "m"}}
+	if err := s.Send(context.Background(), phone, dm); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := got[0]["data"].(map[string]any)
+	want := map[string]any{"url": dm.URL, "tag": dm.Tag, "workspace_id": "w", "room_id": "r", "message_id": "m"}
+	if got[0]["categoryId"] != ChatMessageCategory || len(data) != len(want) {
+		t.Fatalf("dm push = %v, want category %q and data %v", got[0], ChatMessageCategory, want)
+	}
+	for k, v := range want {
+		if data[k] != v {
+			t.Fatalf("dm data[%s] = %v, want %v", k, data[k], v)
+		}
+	}
+
+	thread := dm
+	thread.Chat.ThreadRootID = "root"
+	if err := s.Send(context.Background(), phone, thread); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := got[0]["data"].(map[string]any); d["thread_root_id"] != "root" {
+		t.Fatalf("thread reply data = %v, want its thread", d)
+	}
+
+	for name, msg := range map[string]PushMessage{
+		"task":   {Title: "t", URL: "https://app/x", Tag: "task:1"},
+		"missed": {Title: "Cuộc gọi nhỡ", URL: dm.URL, Tag: dm.Tag, Chat: dm.Chat, Call: CallPush{Type: CallPushMissed, CallID: "c", RoomID: "r", WorkspaceID: "w"}},
+	} {
+		if err := s.Send(context.Background(), phone, msg); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := got[0]["categoryId"]; ok {
+			t.Fatalf("%s push carries a category: %v", name, got[0])
+		}
+		if d, _ := got[0]["data"].(map[string]any); d["message_id"] != nil {
+			t.Fatalf("%s push carries chat ids: %v", name, d)
+		}
+	}
+}
+
+func TestMissedCallTitleNamesTheCaller(t *testing.T) {
+	for _, c := range []struct {
+		locale string
+		video  bool
+		want   string
+	}{
+		{"vi", false, "Cuộc gọi nhỡ từ Minh"},
+		{"vi", true, "Cuộc gọi video nhỡ từ Minh"},
+		{"en", false, "Missed call from Minh"},
+		{"fr", true, "Missed video call from Minh"},
+	} {
+		if got := MissedCallTitle(c.locale, c.video, "Minh"); got != c.want {
+			t.Errorf("MissedCallTitle(%s, %v) = %q, want %q", c.locale, c.video, got, c.want)
+		}
+	}
+}
+
+// The OS a subscription registered from, read from the user agent the mobile
+// app records (expoUserAgent); a browser's agent is no platform.
+func TestExpoPlatformReadsTheMobileUserAgent(t *testing.T) {
+	for agent, want := range map[string]string{
+		"expo/ios":                        "ios",
+		"expo/android":                    "android",
+		"expo/android; call-ui":           "android",
+		"Mozilla/5.0 (X11; Linux x86_64)": "",
+		"":                                "",
+	} {
+		sub := db.PushSubscription{UserAgent: pgtype.Text{String: agent, Valid: agent != ""}}
+		if got := expoPlatform(sub); got != want {
+			t.Fatalf("expoPlatform(%q) = %q, want %q", agent, got, want)
+		}
+	}
+	if got := expoPlatform(db.PushSubscription{UserAgent: pgtype.Text{String: expoUserAgent("ios", true)}}); got != "" {
+		t.Fatalf("an invalid (NULL) agent is no platform, got %q", got)
+	}
+}
+
+// An iPhone's icon shows the unread count the server sends with each chat
+// push (audit badge-and-clear-on-read: a killed iPhone's badge stayed wrong
+// until the app ran), and mentions and missed calls break through Focus as
+// time-sensitive. Android draws its own badge from the tray and has no
+// interruption levels: it gets neither field. A plain message stays "active".
+func TestExpoPushSenderSetsTheIPhoneBadgeAndUrgency(t *testing.T) {
+	var got []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = nil
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = io.WriteString(w, `{"data":[{"status":"ok","id":"t1"}]}`)
+	}))
+	defer srv.Close()
+	s := ExpoPushSender{URL: srv.URL}
+	iphone := db.PushSubscription{Endpoint: "ExponentPushToken[i]", UserAgent: pgtype.Text{String: "expo/ios", Valid: true}}
+	android := db.PushSubscription{Endpoint: "ExponentPushToken[a]", UserAgent: pgtype.Text{String: "expo/android; call-ui", Valid: true}}
+	seven, zero := 7, 0
+	chat := ChatPush{WorkspaceID: "w", RoomID: "r", MessageID: "m"}
+
+	send := func(sub db.PushSubscription, msg PushMessage) map[string]any {
+		t.Helper()
+		if err := s.Send(context.Background(), sub, msg); err != nil {
+			t.Fatal(err)
+		}
+		return got[0]
+	}
+
+	dm := send(iphone, PushMessage{Title: "Minh", Body: "chào", Channel: ChannelMessages, Chat: chat, Badge: &seven})
+	if dm["badge"] != float64(7) {
+		t.Fatalf("iPhone dm badge = %v, want 7", dm["badge"])
+	}
+	if _, ok := dm["interruptionLevel"]; ok {
+		t.Fatalf("a plain message must stay active: %v", dm)
+	}
+	if cleared := send(iphone, PushMessage{Title: "x", Channel: ChannelMessages, Chat: chat, Badge: &zero}); cleared["badge"] != float64(0) {
+		t.Fatalf("a zero badge must be sent, it clears the icon: %v", cleared)
+	}
+	if none := send(iphone, PushMessage{Title: "task", Channel: ChannelGeneral}); none["badge"] != nil {
+		t.Fatalf("no count known: the icon is left as it is, got %v", none["badge"])
+	}
+	for name, msg := range map[string]PushMessage{
+		"mention": {Title: "m", Channel: ChannelMentions, Chat: chat, Badge: &seven},
+		"missed":  {Title: "Cuộc gọi nhỡ", Channel: ChannelMissedCalls, Call: CallPush{Type: CallPushMissed, CallID: "c", RoomID: "r"}},
+		"ring":    {Title: "A đang gọi", Channel: ChannelCalls, Call: CallPush{Type: CallPushInvite, CallID: "c", RoomID: "r"}},
+	} {
+		if m := send(iphone, msg); m["interruptionLevel"] != "time-sensitive" {
+			t.Fatalf("%s on an iPhone = %v, want time-sensitive", name, m)
+		}
+	}
+	if m := send(android, PushMessage{Title: "m", Channel: ChannelMentions, Chat: chat, Badge: &seven}); m["badge"] != nil || m["interruptionLevel"] != nil {
+		t.Fatalf("Android gets neither badge nor interruption level: %v", m)
+	}
+}
+
+// A room read on some device reaches the person's Android phones with the call
+// UI as a data-only, normal-priority push naming the room and the icon's count:
+// their background task takes the room's notifications out of the tray. It
+// shows nothing, so it never spends a high-priority message; an iPhone (whose
+// count rides on every push) and an older Android build get nothing at all.
+func TestExpoPushSenderSendsRoomReadToTheCallUIBuildsOnly(t *testing.T) {
+	var got []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = nil
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = io.WriteString(w, `{"data":[{"status":"ok","id":"t1"}]}`)
+	}))
+	defer srv.Close()
+	s := ExpoPushSender{URL: srv.URL}
+	android := db.PushSubscription{Endpoint: "ExponentPushToken[a]", UserAgent: pgtype.Text{String: "expo/android; call-ui", Valid: true}}
+	legacy := db.PushSubscription{Endpoint: "ExponentPushToken[l]", UserAgent: pgtype.Text{String: "expo/android", Valid: true}}
+	iphone := db.PushSubscription{Endpoint: "ExponentPushToken[i]", UserAgent: pgtype.Text{String: "expo/ios", Valid: true}}
+	three := 3
+	read := PushMessage{TTL: 86400, Cleared: RoomCleared{WorkspaceID: "w", RoomID: "r"}, Badge: &three}
+
+	if err := s.Send(context.Background(), android, read); err != nil {
+		t.Fatal(err)
+	}
+	m := got[0]
+	data, _ := m["data"].(map[string]any)
+	if len(data) != 4 || data["type"] != RoomReadPush || data["room_id"] != "r" || data["workspace_id"] != "w" || data["badge"] != "3" {
+		t.Fatalf("room read data = %v", data)
+	}
+	for _, key := range []string{"title", "body", "sound", "channelId", "badge"} {
+		if _, ok := m[key]; ok {
+			t.Fatalf("room read carries %q, want a data-only message: %v", key, m)
+		}
+	}
+	if m["priority"] != "normal" || m["ttl"] != float64(86400) {
+		t.Fatalf("room read priority/ttl = %v/%v, want normal/86400", m["priority"], m["ttl"])
+	}
+	if err := s.Send(context.Background(), android, PushMessage{Cleared: RoomCleared{RoomID: "r"}}); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := got[0]["data"].(map[string]any); len(data) != 2 {
+		t.Fatalf("no workspace and no count known: only the type and the room, got %v", data)
+	}
+	got = nil
+	for _, sub := range []db.PushSubscription{legacy, iphone} {
+		if err := s.Send(context.Background(), sub, read); !errors.Is(err, ErrPushSkipped) || got != nil {
+			t.Fatalf("room read to %s = %v (sent %v), want skipped without a request", sub.UserAgent.String, err, got)
 		}
 	}
 }

@@ -724,6 +724,74 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionUserAIConsentGranted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.auth.SetAIConsent(f.ctx, f.member.ID, "2026-10-anthropic"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionUserAIConsentWithdrawn: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.auth.SetAIConsent(f.ctx, f.member.ID, "2026-10-anthropic"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.auth.SetAIConsent(f.ctx, f.member.ID, ""); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionUserPushPreviewsChanged: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.auth.SetPushPreviews(f.ctx, f.member.ID, false); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOrganizationPushPreviewPolicyChanged: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.orgs.SetPushPreviewPolicy(f.ctx, f.owner.ID, f.orgID, true); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOrganizationMobileSecurityPolicyChanged: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			on := true
+			if _, err := f.orgs.SetMobileSecurityPolicy(f.ctx, f.owner.ID, f.orgID, MobileSecurityPolicyChange{RequireAppLock: &on}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatReportCreated: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			w := f.workspace
+			if _, err := f.chat.ReportChat(f.ctx, f.owner.ID, w.ID, ReportChatInput{UserID: f.member.ID, Reason: "spam"}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatReportResolved: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			w := f.workspace
+			report, err := f.chat.ReportChat(f.ctx, f.owner.ID, w.ID, ReportChatInput{UserID: f.member.ID, Reason: "harassment"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.admin.ResolveChatReport(f.ctx, CLIActor, report.ID, "asked the owner to remove the messages"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatMessageRemoved: func(t *testing.T, f *auditFixture) {
+			dm := f.newDM(t)
+			w := f.build(t)
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, dm.ID, SendChatMessageInput{Body: "objectionable"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			report, err := f.chat.ReportChat(f.ctx, f.member.ID, w.ID, ReportChatInput{MessageID: msg.ID, Reason: "harassment"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.admin.SetReportedContentRemover(f.chat)
+			if _, err := f.admin.RemoveReportedMessage(f.ctx, CLIActor, report.ID, "taken down after reviewing the report"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatRoomCreated: func(t *testing.T, f *auditFixture) { f.newDM(t) },
 		audit.ActionChatRoomMemberAdded: func(t *testing.T, f *auditFixture) {
 			// A group needs three organization members; inviting the third is
@@ -2190,6 +2258,9 @@ func auditActions() []string {
 		audit.ActionAuthMFAEnabled,
 		audit.ActionAuthMFADisabled,
 		audit.ActionUserDeleted,
+		audit.ActionUserAIConsentGranted,
+		audit.ActionUserAIConsentWithdrawn,
+		audit.ActionUserPushPreviewsChanged,
 		audit.ActionChatRoomCreated,
 		audit.ActionChatRoomMemberAdded,
 		audit.ActionChatRoomMemberRemoved,
@@ -2209,6 +2280,9 @@ func auditActions() []string {
 		audit.ActionChatVoiceCallLogged,
 		audit.ActionChatVoiceTranscribed,
 		audit.ActionChatMessageForwarded,
+		audit.ActionChatReportCreated,
+		audit.ActionChatReportResolved,
+		audit.ActionChatMessageRemoved,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,
@@ -2310,6 +2384,8 @@ func auditActions() []string {
 		audit.ActionMeetingTranscriptionFailed,
 		audit.ActionOrganizationMcpPolicyChanged,
 		audit.ActionOrganizationMcpWritePolicyChanged,
+		audit.ActionOrganizationPushPreviewPolicyChanged,
+		audit.ActionOrganizationMobileSecurityPolicyChanged,
 		audit.ActionOrganizationAskModelsChanged,
 	}
 }

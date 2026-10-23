@@ -14,7 +14,7 @@ import {
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { cn } from "@uniwork/ui/lib/utils";
-import { foldedIncludes } from "../../chat/chat-search-fold";
+import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 import { recordingOffset } from "../meeting-recording-offset";
 import { MeetingFeedLoadOlder } from "../meeting-feed-load-older";
 import type { TranscriptReader } from "./use-transcript-reader";

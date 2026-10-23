@@ -370,6 +370,10 @@ func TestChatPushCarriesBodyAndSkipsDeleted(t *testing.T) {
 	if want := "http://app.test/notif-org/notif-ws/chat?room=" + dm.ID + "&message=" + first.ID; spy.sent[0].URL != want {
 		t.Fatalf("URL = %q, want %q", spy.sent[0].URL, want)
 	}
+	// The notification's Reply and Mark as read act on this message's room.
+	if c := spy.sent[0].Chat; c.WorkspaceID != f.wsID || c.RoomID != dm.ID || c.MessageID != first.ID || c.ThreadRootID != "" {
+		t.Fatalf("chat ids = %+v", c)
+	}
 
 	// Read it so the next DM opens a fresh row, then delete that message before the push runs.
 	f.readAll(t, f.member.ID)
@@ -405,8 +409,18 @@ type fakePresence struct {
 	err error
 }
 
-func (p fakePresence) LastPresenceBeat(context.Context, string) (time.Time, bool, error) {
+func (p fakePresence) LastPresenceBeat(context.Context, string, string) (time.Time, bool, error) {
 	return p.at, p.ok, p.err
+}
+
+// workspacePresence beat (visibly) in one workspace only.
+type workspacePresence struct {
+	workspaceID string
+	at          time.Time
+}
+
+func (p workspacePresence) LastPresenceBeat(_ context.Context, _, workspaceID string) (time.Time, bool, error) {
+	return p.at, workspaceID == p.workspaceID, nil
 }
 
 type countingMetrics struct{ suppressed, sent map[string]int }
@@ -417,8 +431,10 @@ func (m *countingMetrics) IncPushSent(r string)          { m.sent[r]++ }
 func (m *countingMetrics) IncDigestSent()                {}
 func (m *countingMetrics) IncPushSuppressed(k string)    { m.suppressed[k]++ }
 
-// Spec N2 §3.5: a recipient with a presence beat inside two minutes is at a
-// keyboard already; the push is dropped and counted, the row marked pushed.
+// Spec N2 §3.5: a recipient with a presence beat in the push's workspace
+// inside pushActiveWindow (45s) is reading it already; the push is dropped and
+// counted, the row marked pushed. A beat older than the window, as soon as one
+// minute (it was two), no longer holds a push back.
 func TestChatPushIsSuppressedWhileTheRecipientIsActive(t *testing.T) {
 	f := newFixture(t)
 	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
@@ -462,11 +478,18 @@ func TestChatPushIsSuppressedWhileTheRecipientIsActive(t *testing.T) {
 	if n, err := f.q.GetNotification(f.ctx, p["notification_id"]); err != nil || !n.PushedAt.Valid {
 		t.Fatalf("suppressed row not marked pushed: %+v err=%v", n, err)
 	}
-	if spy, m, _ := run(fakePresence{at: now.Add(-5 * time.Minute), ok: true}); len(spy.sent) != 1 || len(m.suppressed) != 0 {
-		t.Fatal("active 5 minutes ago must still be pushed")
+	if spy, m, _ := run(fakePresence{at: now.Add(-time.Minute), ok: true}); len(spy.sent) != 1 || len(m.suppressed) != 0 {
+		t.Fatal("active a minute ago must be pushed: the phone was put away")
 	}
 	if spy, _, _ := run(fakePresence{ok: false}); len(spy.sent) != 1 {
 		t.Fatal("never online must be pushed")
+	}
+	// Reading another workspace is not reading this one: the beat is asked for the push's workspace.
+	if spy, m, _ := run(workspacePresence{workspaceID: "another-workspace", at: now.Add(-10 * time.Second)}); len(spy.sent) != 1 || len(m.suppressed) != 0 {
+		t.Fatal("a beat in another workspace must not hold the push back")
+	}
+	if spy, m, _ := run(workspacePresence{workspaceID: f.wsID, at: now.Add(-10 * time.Second)}); len(spy.sent) != 0 || m.suppressed[KindChatDM] != 1 {
+		t.Fatal("a beat in the push's own workspace holds it back")
 	}
 	if spy, _, _ := run(fakePresence{err: errors.New("redis down")}); len(spy.sent) != 1 {
 		t.Fatal("presence error must fail open")
@@ -512,11 +535,68 @@ func TestChatPushIsSuppressedWhileTheRecipientIsActive(t *testing.T) {
 	}
 }
 
+// A DM belongs to the organization and shows in every workspace of it, but
+// its notification carries one workspace only (the anchor). Someone reading
+// it from another workspace of theirs is reading it: their beat there holds
+// the push back. A beat in a workspace they do not belong to, or that belongs
+// to another organization, does not.
+func TestDMPushIsSuppressedForABeatInAnotherWorkspaceOfTheOrganization(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	other, err := f.ws.CreateInOrg(f.ctx, f.owner.ID, f.orgID, "Notif WS B", "notif-ws-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsB := other.Workspace.ID
+	if err := f.q.AddWorkspaceMember(f.ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsB, OrganizationID: f.orgID, UserID: f.member.ID, Role: "member"}); err != nil {
+		t.Fatal(err)
+	}
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
+	now := time.Now()
+	run := func(p PresenceChecker) (*spySender, *countingMetrics) {
+		f.readAll(t, f.member.ID)
+		if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "x"}); err != nil {
+			t.Fatal(err)
+		}
+		f.handleLast(t, "chat.dm.received")
+		ev := f.lastEvent(t, TopicPush)
+		var payload map[string]string
+		if err := json.Unmarshal([]byte(ev.Payload), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if n, err := f.q.GetNotification(f.ctx, payload["notification_id"]); err != nil || n.WorkspaceID.String != f.wsID {
+			t.Fatalf("the DM's notification is stamped with its anchor: %+v err=%v", n, err)
+		}
+		spy, m := &spySender{}, &countingMetrics{suppressed: map[string]int{}, sent: map[string]int{}}
+		pc := NewPushConsumer(f.q, spy, "http://app.test")
+		pc.SetMetrics(m)
+		pc.now = func() time.Time { return now }
+		pc.SetPresence(p)
+		if err := pc.Handle(f.ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+		return spy, m
+	}
+	if spy, m := run(workspacePresence{workspaceID: wsB, at: now.Add(-10 * time.Second)}); len(spy.sent) != 0 || m.suppressed[KindChatDM] != 1 {
+		t.Fatalf("reading the DM from workspace B: sent=%d suppressed=%v", len(spy.sent), m.suppressed)
+	}
+	if spy, m := run(workspacePresence{workspaceID: wsB, at: now.Add(-time.Minute)}); len(spy.sent) != 1 || len(m.suppressed) != 0 {
+		t.Fatal("a stale beat in workspace B must not hold the push back")
+	}
+	if spy, _ := run(workspacePresence{workspaceID: "a-workspace-of-another-organization", at: now.Add(-10 * time.Second)}); len(spy.sent) != 1 {
+		t.Fatal("a beat outside the DM's organization must not hold the push back")
+	}
+}
+
 // blockingPresence stands in for a stalled Redis: it answers only when its
 // context is done.
 type blockingPresence struct{}
 
-func (blockingPresence) LastPresenceBeat(ctx context.Context, _ string) (time.Time, bool, error) {
+func (blockingPresence) LastPresenceBeat(ctx context.Context, _, _ string) (time.Time, bool, error) {
 	<-ctx.Done()
 	return time.Time{}, false, ctx.Err()
 }

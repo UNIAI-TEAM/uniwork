@@ -18,7 +18,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
-import { identityTint } from "../people/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { LeaveConversationSection } from "./leave-conversation-section";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {

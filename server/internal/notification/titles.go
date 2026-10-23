@@ -236,3 +236,22 @@ func PushTitle(locale, kind string, params map[string]string) string {
 	}
 	return Title(locale, kind, params)
 }
+
+// missedCallTitles name a DM call nobody answered. The row is a chat_dm about
+// the call's log message, which has no text to preview, so the push says
+// what it is instead of "X đã nhắn tin cho bạn" over an empty body. Not a
+// kind: the inbox keeps showing the chat_dm sentence.
+var missedCallTitles = map[string]map[bool]string{
+	"vi": {false: "Cuộc gọi nhỡ từ {{actor}}", true: "Cuộc gọi video nhỡ từ {{actor}}"},
+	"en": {false: "Missed call from {{actor}}", true: "Missed video call from {{actor}}"},
+}
+
+// MissedCallTitle is the push title of an unanswered DM call, in locale (en
+// when unknown).
+func MissedCallTitle(locale string, video bool, actor string) string {
+	loc := missedCallTitles[locale]
+	if loc == nil {
+		loc = missedCallTitles["en"]
+	}
+	return strings.ReplaceAll(loc[video], "{{actor}}", actor)
+}

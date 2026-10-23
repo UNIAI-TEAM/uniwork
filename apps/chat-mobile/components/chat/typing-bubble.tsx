@@ -2,26 +2,13 @@
 // dots that pulse in turn (still, at a steady 60 %, when the person asked for
 // less motion), the typist's avatar beside it in a group. The names stay in the
 // accessibility label, as the old text line read them out.
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AccessibilityInfo, Animated, Easing, View } from "react-native";
+import { useEffect, useRef, type ReactNode } from "react";
+import { Animated, Easing, View } from "react-native";
+import { useAnnounce, useReduceMotion } from "@/components/ui/a11y";
 import { bubbleCorners, CHAT_CONVERSATION_ROW_INSET } from "@/lib/conversation-display";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
-
-function useReduceMotion() {
-  const [reduced, setReduced] = useState(true);
-  useEffect(() => {
-    let live = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((value) => live && setReduced(value));
-    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduced);
-    return () => {
-      live = false;
-      sub.remove();
-    };
-  }, []);
-  return reduced;
-}
 
 function Dot({ delay, reduced, color }: { delay: number; reduced: boolean; color: string }) {
   const opacity = useRef(new Animated.Value(0.25)).current;
@@ -47,8 +34,15 @@ function Dot({ delay, reduced, color }: { delay: number; reduced: boolean; color
 export function TypingBubble({ label, avatar }: { label: string; avatar?: ReactNode }) {
   const reduced = useReduceMotion();
   const { colorScheme } = useColorScheme();
+  // TalkBack reads the live region; VoiceOver hears who started typing.
+  useAnnounce(label);
   return (
-    <View className={cn("flex-row items-end gap-1.5 pt-2", CHAT_CONVERSATION_ROW_INSET)} accessible accessibilityLabel={label} accessibilityLiveRegion="polite">
+    <View
+      className={cn("flex-row items-end gap-1.5 pt-2", CHAT_CONVERSATION_ROW_INSET)}
+      accessible
+      accessibilityLabel={label}
+      accessibilityLiveRegion="polite"
+    >
       {avatar}
       <View className="h-9 flex-row items-center gap-1 bg-chat-bubble-other px-3.5" style={bubbleCorners(false, true, true)}>
         {[0, 150, 300].map((delay) => (

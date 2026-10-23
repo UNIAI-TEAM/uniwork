@@ -1,6 +1,8 @@
 // Fixture test for the ADR 0011 import boundary in eslint.config.mjs: a
 // forbidden import is red, an allowlisted one is green, and types/* is green
-// only as `import type`.
+// only as `import type`. The fixture sits in lib/, so it also holds lib/'s
+// purity: no React, platform, native or Sentry module and nothing from the
+// layers above, as values.
 import path from "node:path";
 import { ESLint } from "eslint";
 import { describe, expect, it } from "vitest";
@@ -41,6 +43,15 @@ describe("ADR 0011 import boundary", { timeout: 60_000 }, () => {
     ['import { User } from "@uniwork/core/types/user";', /import type/],
     ['export const m = import("@uniwork/core/chat");', /dynamic import/],
     ['import { x } from "../node_modules/@uniwork/core/chat/hooks";', /never by relative path/],
+    ['import { useEffect } from "react";', /lib\/ is pure/],
+    ['import { Platform } from "react-native";', /lib\/ is pure/],
+    ['import * as SecureStore from "expo-secure-store";', /lib\/ is pure/],
+    ['import { DarkTheme } from "expo-router";', /lib\/ is pure/],
+    ['import * as Sentry from "@sentry/react-native";', /lib\/ is pure/],
+    ['import { colorScheme } from "nativewind";', /lib\/ is pure/],
+    ['import { api } from "@/data/api";', /below data/],
+    ['import { bestEffort } from "../data/report";', /below data/],
+    ['import { Text } from "@/components/ui/text";', /below data/],
   ])("%s is red", async (code, message) => {
     const messages = await boundaryMessages(code);
     expect(messages).toHaveLength(1);
@@ -51,7 +62,12 @@ describe("ADR 0011 import boundary", { timeout: 60_000 }, () => {
     'import { parseWithFallback } from "@uniwork/core/api/schema";',
     'import { canManageRoom } from "@uniwork/core/chat/room-permissions-utils";',
     'import type { User } from "@uniwork/core/types/user";',
+    // A types module on the allowlist is a pure schema: its values come in too.
+    'import { ChatCatchUpResponseSchema } from "@uniwork/core/types/ai";',
     'import { clsx } from "clsx";',
+    'import { z } from "zod";',
+    'import type { ViewStyle } from "react-native";',
+    'import type { ChatApi } from "@/data/chat-api";',
   ])("%s is green", async (code) => {
     expect(await boundaryMessages(code)).toEqual([]);
   });

@@ -50,6 +50,8 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0036](0036-thu-muc-khong-bao-gio-duoc-chia-se.md) | Thư mục không bao giờ được chia sẻ (không visibility workspace, không share, không link); chỉ tài liệu được chia sẻ; con của thư mục bắt đầu riêng tư; người nhận không thấy thư mục của chủ (`parent_id` bị che, gốc danh sách/cây); dọn dữ liệu cũ bằng `uniwork-admin folders-unshare` — **superseded by 0037** |
 | [0037](0037-thu-muc-ngoai-my-folder-hien-cho-ca-workspace.md) | Thư mục ngoài My Folder hiện cho cả workspace (`workspace`/`view`, đặt theo vị trí, không share, không link); tài liệu bắt đầu riêng tư, không kế thừa; tạo bên trong: mọi thành viên sửa được, đổi tên/di chuyển/bỏ: người tạo + admin; bỏ thư mục đẩy tài liệu người thao tác không quản lý về gốc workspace (audit `folder_trashed`); vào My Folder 422 `folder_into_my_folder`; tạo trùng tên " (n)"; dữ liệu cũ vào My Folder bằng `uniwork-admin folders-into-my-folder`; thay 0036 |
 | [0038](0038-agent-hop-goi-stt-truc-tiep-llm-qua-gateway.md) | Agent thư ký AI (`apps/meeting-agent`) gọi nhà cung cấp STT trực tiếp; mọi lời gọi LLM vẫn qua `ai.Gateway`; agent chỉ gọi `/meetings/{id}/agent/*` bằng token `uwma_` theo cuộc họp, không ghi bảng nghiệp vụ |
+| [0042](0042-console-admin-go-tin-bi-bao-cao-qua-mot-cua.md) | Console `/admin` thay đổi content đúng một cách: gỡ một tin đã bị báo cáo qua `ReportedContentRemover.RemoveReportedMessageQ` (nối với `ChatService` ở `main.go`), cùng giao dịch với `admin_actions`, audit và đóng báo cáo; console vẫn không đọc content; việc gỡ thứ hai cần ADR mới; bổ sung cho luật F-11 |
+| [0043](0043-cong-chat-luong-mobile-chan-o-moi-muc.md) | Cổng chất lượng của `apps/chat-mobile` (sàn coverage vitest 100%, sàn jest-expo, lint) chặn ở mọi `GATE_LEVEL`; không loại file để qua sàn; bổ sung cho 0014 |
 
 ## Bản nháp
 
@@ -68,6 +70,24 @@ không được governance test đếm. Khi chấp nhận: chuyển ra thư mụ
 2026-10-14) được chấp nhận thành [0034](0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md)
 ngày 2026-10-15 (người dùng trả lời Q-K1 = (a): khóa cá nhân đã lưu trên UniWork; khóa dùng chung
 do quản trị tổ chức đặt là hướng mở rộng). Giữ số 0034.
+
+[0043](0043-cong-chat-luong-mobile-chan-o-moi-muc.md) (cổng chất lượng mobile, UNI-2053) được chấp nhận
+ngày 2026-10-21 với số 0037, đổi thành 0043 khi merge develop vì 0037 đã là thư mục workspace (UNI-2055);
+0038–0041 vẫn giữ cho các bản nháp bên dưới.
+
+`drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md` (UNI-2053 S4, 2026-10-21, `proposed`):
+cuộc gọi native trên Android (CallStyle, full-screen intent, foreground service, push data-only và
+`chat.voice.ring_closed`) đã xây cùng bản nháp; iOS PushKit + CallKit là kế hoạch chờ tài khoản Apple.
+Xem lại quyết định "không CallKit" của spec M3.
+
+`drafts/0040-cong-mobile-la-check-bat-buoc-va-hop-dong-server.md` (UNI-2053, 2026-10-22, `proposed`): job `gate` của
+`mobile-verify.yml` là check bắt buộc duy nhất của mobile (`scripts/branch-protection.json`, owner áp bằng
+`scripts/branch-protection.mjs --apply`), và PR đổi `docs/events/CATALOGUE.md` hay `dto/sdo/**` chạy test mobile — thu
+hẹp §6 của 0011.
+
+`drafts/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md` (UNI-2053, 2026-10-22, `proposed`): Apple 4.8 — Sign in
+with Apple trên trang đăng nhập web qua server trước lần nộp App Store đầu tiên; ẩn Google trên iPhone chỉ là phương án
+dự phòng. Chờ tài khoản Apple Developer.
 
 [0025](0025-mot-process-cho-api-va-worker.md) chưa có guard test (test chạy hai bản của mỗi
 job, land cùng việc làm worker an toàn đa replica); đến lúc đó 0025 không thêm luật vào `CLAUDE.md`.

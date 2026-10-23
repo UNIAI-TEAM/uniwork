@@ -302,6 +302,18 @@ func main() {
 	// Presence lives in Redis when there is one, so every replica sees the same
 	// online set and a transition is announced once; nil keeps it in process.
 	chatSvc.SetPresenceStore(rdb)
+	// Call sessions are journaled in Redis when there is one, so a restart or a
+	// deploy keeps the calls ringing and under way (chat_voice_journal.go).
+	chatSvc.SetVoiceCallJournal(rdb)
+	if rdb != nil {
+		restoreCtx, cancelRestore := context.WithTimeout(ctx, 5*time.Second)
+		if n, err := chatSvc.RestoreVoiceCalls(restoreCtx); err != nil {
+			log.Warn("chat: voice calls not restored from the journal", "restored", n, "err", err)
+		} else if n > 0 {
+			log.Info("chat: voice calls restored from the journal", "restored", n)
+		}
+		cancelRestore()
+	}
 	taskSvc.Chat = chatSvc
 	meetingSvc.Chat = chatSvc
 	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)
@@ -537,10 +549,24 @@ func main() {
 		webSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
 		log.Info("web push enabled", "subject", cfg.VAPIDSubject)
 	}
-	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken}, webSender)
+	// Expo receipts (the delivery outcome behind an accepted ticket): a gone
+	// phone's subscription is revoked, every result is counted. Read by a
+	// worker that stops with runCancel and is awaited below.
+	if cfg.UnauthenticatedMobilePush() {
+		// Not a boot error (cmd/migrate and the nightly perf jobs load the same config); loud, so a rollout
+		// without the Secret is seen before the Expo project turns enhanced push security on.
+		log.Error("EXPO_ACCESS_TOKEN is not set in production: mobile pushes are sent unauthenticated and Expo refuses them once enhanced push security is on (docs/runbooks/unichat-mobile-release.md)")
+	}
+	pushReceipts := notification.NewExpoReceipts(cfg.ExpoAccessToken, q.RevokePushSubscription, log)
+	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken, Receipts: pushReceipts}, webSender)
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
 	pushConsumer.SetPresence(chatSvc)
+	pushConsumer.SetBadges(chatSvc)
 	pushConsumer.SetCallRinging(chatSvc)
+	// The UniChat mobile calls kill switch stops the incoming-call push too,
+	// not just the ring inside the app (UNI-2053).
+	pushConsumer.SetMobileCalls(featureflags.ForPerson(flags, "unichat_mobile_calls"))
+	pushConsumer.SetMobileCallsIOS(featureflags.ForPerson(flags, "unichat_mobile_calls_ios"))
 	digest := notification.NewDigestScheduler(q, wsSvc, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
 	// The inbox list marks a document row's resource_access_lost /
@@ -574,6 +600,7 @@ func main() {
 		service.SetAuditCounter(reg.Outbox)
 		notifConsumer.SetMetrics(reg.Notifications)
 		pushConsumer.SetMetrics(reg.Notifications)
+		pushReceipts.SetMetrics(reg.Notifications)
 		digest.SetMetrics(reg.Notifications)
 		graphMarker.SetMetrics(reg.Graph)
 		graphWorker.SetMetrics(reg.Graph)
@@ -604,6 +631,8 @@ func main() {
 	// runCancel and is awaited below.
 	chatRemindersDone := make(chan struct{})
 	go func() { chatSvc.NewChatReminderWorker().Run(runCtx); close(chatRemindersDone) }()
+	pushReceiptsDone := make(chan struct{})
+	go func() { pushReceipts.Run(runCtx); close(pushReceiptsDone) }()
 	// Run returns only once every lane has stopped, so awaiting dispatcherDone
 	// at shutdown awaits all of them.
 	dispatcherDone := make(chan struct{})
@@ -670,6 +699,8 @@ func main() {
 	// users.platform_role rather than membership.
 	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
 	adminSvc.SetSystemSources(readiness, realtime.M.ActiveConnections.Load, featureflag.ProviderNames(flags))
+	// The console's takedown of a reported message acts through the chat service, never reading the message.
+	adminSvc.SetReportedContentRemover(chatSvc)
 	var emailHubBox *secretbox.Box
 	if key, err := secretbox.LoadKey("EMAIL_HUB_CREDENTIAL_KEY"); err == nil {
 		if box, err := secretbox.New(key); err == nil {
@@ -815,6 +846,7 @@ func main() {
 		MembershipCache: membershipCache,
 		HTTPMetrics:     httpMetrics,
 		WebVitals:       webVitals(reg),
+		MobileEvents:    mobileEvents(reg),
 		Readiness:       readiness,
 		Admin:           adminSvc,
 		DemoRequests:    service.NewDemoRequestService(pool, q),
@@ -917,6 +949,11 @@ func main() {
 		log.Warn("chat: reminder worker did not stop in time")
 	}
 	select {
+	case <-pushReceiptsDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("notifications: expo receipt worker did not stop in time")
+	}
+	select {
 	case <-fileGCDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("files: gc worker did not stop in time")
@@ -1000,6 +1037,14 @@ func webVitals(reg *metrics.Registry) *metrics.WebVitals {
 		return nil
 	}
 	return reg.WebVitals
+}
+
+// mobileEvents keeps a nil registry from becoming a non-nil metric.
+func mobileEvents(reg *metrics.Registry) *metrics.MobileEvents {
+	if reg == nil {
+		return nil
+	}
+	return reg.MobileEvents
 }
 
 // uniworkAIKillSwitchFlag is the registry key (internal/featureflags) whose

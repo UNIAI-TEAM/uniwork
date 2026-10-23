@@ -7,7 +7,7 @@ import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
-import { identityTint } from "../people/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { EmailHubListAiSummary } from "./email-hub-ai-insight";
 import { emailHubLocale, formatEmailFullDate, formatEmailListDate, senderDisplayName } from "./email-hub-format";
 import { EmailSenderAvatar } from "./email-hub-view-parts";

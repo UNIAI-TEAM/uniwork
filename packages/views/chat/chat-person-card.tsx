@@ -17,8 +17,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@uniwork/ui/components/ui/dialog";
-import { identityTint } from "../people/identity-tint";
-import { initialsOf } from "./chat-initials";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { PersonSharedSection } from "./chat-person-shared-panel";
 
 type ChatPersonCall = (userId: string, options?: { withCamera?: boolean }) => void;

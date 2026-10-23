@@ -7,7 +7,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-utils";
 import { isChatMediaUrlFresh } from "@uniwork/core/chat";
-import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { senderNameClass, senderQuoteClass } from "./sender-colors";
 import { formatChatFileSize } from "./chat-file-size";
 

@@ -42,7 +42,7 @@ import { ChatCreatePostDialog } from "./chat-create-post-dialog";
 import { ChatCreatePollDialog } from "./chat-create-poll-dialog";
 import { ChatCreateReminderDialog } from "./chat-create-reminder-dialog";
 import { CHAT_PILL_SM_CLASS } from "./chat-dialog-look";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { stripInlineMarkdown } from "./chat-info-panel-utils";
 import { chatPersonFaceClass } from "./chat-person-card";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";

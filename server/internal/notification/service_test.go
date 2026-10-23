@@ -93,15 +93,15 @@ func TestServicePreferencesAndPush(t *testing.T) {
 	}
 	if !svc.PushConfig().Enabled {
 		// Push is off on this service: subscribing is a not_found.
-		if err := svc.SubscribePush(f.ctx, f.member.ID, "", "https://p/x", "p", "a", "ua", ""); !errors.Is(err, service.ErrNotFound) {
+		if err := svc.SubscribePush(f.ctx, f.member.ID, "", "https://p/x", "p", "a", "ua", "", false); !errors.Is(err, service.ErrNotFound) {
 			t.Fatalf("subscribe with push off = %v", err)
 		}
 	}
 	on := NewService(f.q, PushConfig{Enabled: true, PublicKey: "BOr"})
-	if err := on.SubscribePush(f.ctx, f.member.ID, "", "http://insecure", "p", "a", "", ""); err == nil {
+	if err := on.SubscribePush(f.ctx, f.member.ID, "", "http://insecure", "p", "a", "", "", false); err == nil {
 		t.Fatal("insecure endpoint accepted")
 	}
-	if err := on.SubscribePush(f.ctx, f.member.ID, "", "https://p/x", "p", "a", "ua", ""); err != nil {
+	if err := on.SubscribePush(f.ctx, f.member.ID, "", "https://p/x", "p", "a", "ua", "", false); err != nil {
 		t.Fatal(err)
 	}
 	if subs, _ := f.q.ListActivePushSubscriptions(f.ctx, f.member.ID); len(subs) != 1 {
@@ -224,17 +224,22 @@ func TestServiceRegistersExpoTokensWithoutVAPID(t *testing.T) {
 	f := newFixture(t)
 	off := NewService(f.q, PushConfig{})
 	on := NewService(f.q, PushConfig{Enabled: true})
-	if err := off.SubscribePush(f.ctx, f.member.ID, "device-family-1", "ExponentPushToken[abc-123]", "", "", "okhttp", "android"); err != nil {
+	if err := off.SubscribePush(f.ctx, f.member.ID, "device-family-1", "ExponentPushToken[abc-123]", "", "", "okhttp", "android", true); err != nil {
 		t.Fatal(err)
 	}
-	if err := off.SubscribePush(f.ctx, f.member.ID, "", "ExpoPushToken[def]", "", "", "", "ios"); err != nil {
+	// An iPhone has no call UI of its own yet: the mark is Android's only.
+	if err := off.SubscribePush(f.ctx, f.member.ID, "", "ExpoPushToken[def]", "", "", "", "ios", true); err != nil {
+		t.Fatal(err)
+	}
+	// An Android build from before the call UI says nothing and keeps the visible call push.
+	if err := off.SubscribePush(f.ctx, f.member.ID, "", "ExpoPushToken[old]", "", "", "", "android", false); err != nil {
 		t.Fatal(err)
 	}
 	subs, err := f.q.ListActivePushSubscriptions(f.ctx, f.member.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(subs) != 2 {
+	if len(subs) != 3 {
 		t.Fatalf("subs = %+v", subs)
 	}
 	agents := map[string]bool{}
@@ -248,26 +253,26 @@ func TestServiceRegistersExpoTokensWithoutVAPID(t *testing.T) {
 		}
 		agents[s.UserAgent.String] = true
 	}
-	if !agents["expo/android"] || !agents["expo/ios"] {
+	if !agents["expo/android; call-ui"] || !agents["expo/ios"] || !agents["expo/android"] {
 		t.Fatalf("user agents = %v", agents)
 	}
 	var ve service.ValidationError
 	for _, svc := range []*Service{off, on} {
 		for _, c := range []struct{ ep, platform string }{{"ExponentPushToken[abc]", ""}, {"ExponentPushToken[abc]", "web"}, {"ExponentPushToken[]", "ios"}} {
-			if err := svc.SubscribePush(f.ctx, f.member.ID, "", c.ep, "", "", "", c.platform); !errors.As(err, &ve) {
+			if err := svc.SubscribePush(f.ctx, f.member.ID, "", c.ep, "", "", "", c.platform, false); !errors.As(err, &ve) {
 				t.Errorf("%q/%q → %v, want ValidationError", c.ep, c.platform, err)
 			}
 		}
 	}
 	for _, ep := range []string{"notatoken", "http://insecure"} {
-		if err := on.SubscribePush(f.ctx, f.member.ID, "", ep, "", "", "", "ios"); !errors.As(err, &ve) {
+		if err := on.SubscribePush(f.ctx, f.member.ID, "", ep, "", "", "", "ios", false); !errors.As(err, &ve) {
 			t.Errorf("VAPID on: %q → %v, want ValidationError", ep, err)
 		}
-		if err := off.SubscribePush(f.ctx, f.member.ID, "", ep, "", "", "", "ios"); !errors.Is(err, service.ErrNotFound) {
+		if err := off.SubscribePush(f.ctx, f.member.ID, "", ep, "", "", "", "ios", false); !errors.Is(err, service.ErrNotFound) {
 			t.Errorf("VAPID off: %q → %v, want not found", ep, err)
 		}
 	}
-	if err := off.SubscribePush(f.ctx, f.member.ID, "", "https://p/x", "p", "a", "ua", ""); !errors.Is(err, service.ErrNotFound) {
+	if err := off.SubscribePush(f.ctx, f.member.ID, "", "https://p/x", "p", "a", "ua", "", false); !errors.Is(err, service.ErrNotFound) {
 		t.Fatalf("web push with VAPID off = %v, want not found", err)
 	}
 }

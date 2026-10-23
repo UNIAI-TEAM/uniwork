@@ -17,7 +17,8 @@ tags:
     clearState: true
 - runFlow: ../subflows/sign-in.yaml
 # By link, so the flow needs the workspace's slugs and not its display name.
-- openLink: uniworkchat://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat')}
+- runScript: ../scripts/app-scheme.js
+- openLink: ${output.scheme}://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat')}
 - extendedWaitUntil:
     visible:
       id: room-row-${MAESTRO_ROOM_ID}
@@ -38,7 +39,8 @@ tags:
     visible: .*${output.stamp}.*
     timeout: 15000
 # Give the send time to reach the server: the list shows it as the room's last message.
-- tapOn: "Back|Quay lại"
+# With unread elsewhere the back button reads "Back, 1 unread message" (chat-header.tsx › backBadge).
+- tapOn: "(Back|Quay lại)(, .+)?"
 - extendedWaitUntil:
     visible:
       id: room-row-${MAESTRO_ROOM_ID}

@@ -1,9 +1,28 @@
-import { ApiError } from "../api/http";
+// When a chat send is worth repeating, shared by the web and the phone
+// (apps/chat-mobile, ADR 0011: on its core allowlist, so it imports no
+// transport). Each host throws its own ApiError (api/http.ts here,
+// data/api.ts there); both are an Error with a numeric `status` and an
+// optional `retryAfterSeconds`, and that structural slice is all the policy
+// reads. Status 0 is the phone's own timeout or an unreachable server; the
+// web's transport never answers it.
 
 export const CHAT_SEND_MAX_ATTEMPTS = 3;
 export const CHAT_SEND_RETRY_DELAYS_MS = [400, 1_200] as const;
 /** A Retry-After longer than this is handed back: the sender should not watch a spinner. */
 const CHAT_SEND_MAX_RETRY_AFTER_MS = 5_000;
+
+/** The slice of an ApiError the policy reads. */
+interface StatusError {
+  status: number;
+  retryAfterSeconds?: number;
+}
+
+/** An Error that carries an HTTP status: either host's ApiError, without importing a transport. */
+function statusErrorOf(err: unknown): StatusError | null {
+  if (!(err instanceof Error) || !("status" in err) || typeof err.status !== "number") return null;
+  const retryAfter = "retryAfterSeconds" in err ? err.retryAfterSeconds : undefined;
+  return typeof retryAfter === "number" ? { status: err.status, retryAfterSeconds: retryAfter } : { status: err.status };
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -13,10 +32,11 @@ function sleep(ms: number): Promise<void> {
 
 /** True when repeating the same client_msg_id send may succeed later. */
 export function isRetriableChatSendError(err: unknown): boolean {
+  // fetch rejects with a TypeError when there is no network at all.
   if (err instanceof TypeError) return true;
-  if (!(err instanceof ApiError)) return false;
-  if (err.status === 408 || err.status === 429) return true;
-  return err.status >= 500;
+  const status = statusErrorOf(err)?.status;
+  if (status === undefined) return false;
+  return status === 0 || status === 408 || status === 429 || status >= 500;
 }
 
 /**
@@ -24,7 +44,8 @@ export function isRetriableChatSendError(err: unknown): boolean {
  * 404 room gone, 410 deleted, 422 invalid). 401 is the session, not the message.
  */
 export function isPermanentChatSendRefusal(err: unknown): boolean {
-  return err instanceof ApiError && err.status >= 400 && err.status < 500 && err.status !== 401 && !isRetriableChatSendError(err);
+  const status = statusErrorOf(err)?.status;
+  return status !== undefined && status >= 400 && status < 500 && status !== 401 && !isRetriableChatSendError(err);
 }
 
 /**
@@ -39,12 +60,11 @@ export function isChatSendNetworkError(err: unknown): boolean {
 
 /** The server refused for rate, not reachability: say so, never "saved for when online". */
 export function isChatSendRateLimited(err: unknown): boolean {
-  return err instanceof ApiError && err.status === 429;
+  return statusErrorOf(err)?.status === 429;
 }
 
 function retryAfterMs(err: unknown): number {
-  if (!(err instanceof ApiError) || err.retryAfterSeconds === undefined) return 0;
-  return err.retryAfterSeconds * 1_000;
+  return (statusErrorOf(err)?.retryAfterSeconds ?? 0) * 1_000;
 }
 
 export async function runWithChatSendRetry<T>(

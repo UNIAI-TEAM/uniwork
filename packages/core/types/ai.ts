@@ -157,7 +157,8 @@ export const ChatCatchUpResponseSchema = z.object({
   highlights: z.array(z.string()).optional().default([]),
   /** Highlights with their source message; empty from a server that predates it. A malformed list never blanks the brief. */
   highlight_items: z.array(ChatCatchUpHighlightSchema).optional().default([]).catch([]),
-  action_items: z.array(ChatCatchUpActionItemSchema).optional().default([]),
+  /** A malformed list never blanks the brief either. */
+  action_items: z.array(ChatCatchUpActionItemSchema).optional().default([]).catch([]),
   message_count: z.number().optional().default(0),
   mode: z.string().optional().default("unread"),
   since: z.string().optional().default(""),

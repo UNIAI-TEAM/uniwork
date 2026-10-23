@@ -150,6 +150,13 @@ type ResolveInput struct {
 	// file without that derivative signs the original. Resolved.File stays
 	// the requested file; only the URL names the derivative.
 	Variant Variant
+	// SigningWindow, when set, signs each presigned URL as of the start of
+	// the current window of that length (now truncated to it): every read of
+	// a file in one window gets the very same URL, so a client's image cache
+	// and a response that did not change stay the same, at the cost of a URL
+	// that lives up to one window less than MaxResolveURLTTL. Zero signs as of
+	// now. Proxy mode ignores it.
+	SigningWindow time.Duration
 }
 
 // Resolved is one entry of a batch resolve. Err is per id: a file that is out

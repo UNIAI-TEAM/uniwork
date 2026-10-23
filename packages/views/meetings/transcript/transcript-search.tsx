@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { foldVi } from "../../chat/chat-search-fold";
+import { foldVi } from "@uniwork/core/chat/search-fold";
 
 /**
  * Every place `query` occurs in `text`, accent-insensitively ("hung" marks

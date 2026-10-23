@@ -16,11 +16,15 @@ import (
 
 // DeleteAccountInput is the re-authentication for erasure (spec F-01 §2 I9):
 // the password when the account has one, else a TOTP code when MFA is on,
-// else the typed email address.
+// else the typed email address. CloseOrganization is the slug of the
+// organization the account owns alone, typed again: that organization is
+// closed (archived, as OrganizationMemberService.Close does) in the same
+// transaction as the erasure.
 type DeleteAccountInput struct {
 	Password          string
 	Code              string
 	EmailConfirmation string
+	CloseOrganization string
 }
 
 const deletedDisplayName = "Người dùng đã xóa"
@@ -57,8 +61,9 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err != nil {
 		return err
 	}
-	if owned > 0 {
-		return errOwnerMustTransfer()
+	closeSlug := strings.TrimSpace(in.CloseOrganization)
+	if owned > 0 && closeSlug == "" {
+		return s.ownerMustTransfer(ctx, s.q, userID)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -66,6 +71,19 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.q.WithTx(tx)
+	var closedMailboxes []db.DisconnectEmailHubAccountsForUserRow
+	if owned > 0 {
+		if closedMailboxes, err = closeSoleOrganization(ctx, qtx, userID, closeSlug); err != nil {
+			return err
+		}
+		// Anything still owned (a second organization from before ADR 0032,
+		// or one that gained a member meanwhile) keeps the old answer.
+		if still, err := qtx.CountOwnedOrganizationsForUser(ctx, userID); err != nil {
+			return err
+		} else if still > 0 {
+			return s.ownerMustTransfer(ctx, qtx, userID)
+		}
+	}
 	if s.files != nil {
 		// FS-C1 §5.4: the release locks the files row before this transaction
 		// locks the user row, so avatar_file_id is read non-locking, released,
@@ -174,6 +192,58 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 		return err
 	}
 	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
-	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.emailHub, mailboxes)
+	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.emailHub, append(closedMailboxes, mailboxes...))
 	return nil
+}
+
+// closeSoleOrganization closes the organization whose slug the owner typed,
+// under the account's membership lock (ADR 0032), with closeOrganizationQ's
+// checks: the caller owns it, it is active, nobody else is an active member,
+// the slug matches. Its organization.closed row says the account deletion
+// closed it. A slug naming no organization the account owns is a mismatch.
+func closeSoleOrganization(ctx context.Context, q *db.Queries, userID, slug string) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
+	if err := lockMembership(ctx, q, userID); err != nil {
+		return nil, err
+	}
+	orgs, err := activeOrganizations(ctx, q, userID)
+	if err != nil {
+		return nil, err
+	}
+	for _, o := range orgs {
+		if o.Role == OrgRoleOwner && o.Slug == slug {
+			return closeOrganizationQ(ctx, q, userID, o.ID, slug, map[string]any{"reason": "account_deleted"})
+		}
+	}
+	return nil, errCloseConfirmMismatch()
+}
+
+// ownerMustTransfer is owner_must_transfer naming the first organization the
+// account owns (errOwnerMustTransferFor).
+func (s *AuthService) ownerMustTransfer(ctx context.Context, q *db.Queries, userID string) error {
+	orgs, err := activeOrganizations(ctx, q, userID)
+	if err != nil {
+		return err
+	}
+	for _, o := range orgs {
+		if o.Role == OrgRoleOwner {
+			return errOwnerMustTransferFor(o)
+		}
+	}
+	return errOwnerMustTransfer()
+}
+
+// errOwnerMustTransferFor names the organization the account owns, so the
+// client can offer the way out that fits it (Apple 5.1.1(v): deletion
+// completes in the app): can_close when the owner is its only active member
+// and it is active, so closing it and erasing the account is one request
+// (DeleteAccountInput.CloseOrganization); otherwise ownership goes to
+// another member first. The name and slug are the caller's own organization.
+func errOwnerMustTransferFor(org db.ListActiveOrganizationsForUserRow) error {
+	e := errOwnerMustTransfer().(CodedError)
+	e.Fields = map[string]any{
+		"organization_name": org.Name,
+		"organization_slug": org.Slug,
+		"can_close":         org.Status == OrganizationActive && org.OtherActiveMembers == 0,
+	}
+	return e
 }

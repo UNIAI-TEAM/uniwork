@@ -10,12 +10,8 @@ import { lookupChatUserCached } from "./user-lookup";
 import { useAuthStore } from "../auth/store";
 import { documentKeys } from "../documents/keys";
 import { chatKeys } from "./chat-keys";
-import {
-  applyChatMessageResponse,
-  insertCreatedRoomMessage,
-  patchChatMessageDeleted,
-  patchRoomSidebarFromMessage,
-} from "./realtime-cache";
+import { patchRoomSidebarFromMessage } from "./chat-cache-records";
+import { applyChatMessageResponse, insertCreatedRoomMessage, patchChatMessageDeleted } from "./realtime-cache";
 
 export function useSendChatRoomMessage(workspaceId: string) {
   const qc = useQueryClient();

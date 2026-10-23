@@ -35,7 +35,7 @@ import {
   CHAT_SHEET_CLASS,
 } from "./chat-dialog-look";
 import { toastChatError } from "./chat-error-message";
-import { foldedIncludes } from "./chat-search-fold";
+import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 
 /**
  * One directory: channels you could join and those you are in, each once, by

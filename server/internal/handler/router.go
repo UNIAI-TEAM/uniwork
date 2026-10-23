@@ -139,6 +139,8 @@ type Deps struct {
 	Readiness *service.Readiness
 	// WebVitals is nil unless METRICS_ADDR is set; /rum then only answers 204.
 	WebVitals *metrics.WebVitals
+	// MobileEvents is nil unless METRICS_ADDR is set; /mobile/events then only answers 204.
+	MobileEvents *metrics.MobileEvents
 	// Admin is the platform console (F-11); nil leaves /api/v1/admin unmounted.
 	Admin *service.AdminService
 	// Version and Commit are the build stamps main.go carries into /admin/system.
@@ -245,9 +247,13 @@ func New(d Deps) http.Handler {
 		Config:                     h.config,
 		OfficeDesktopDownload:      h.officeDesktopDownload,
 		RUM:                        h.rum,
+		MobileEvents:               h.mobileEvents,
 		CreateDemoRequest:          h.createDemoRequest,
 		AdminListDemoRequests:      h.adminListDemoRequests,
 		AdminUpdateDemoRequest:     h.adminUpdateDemoRequest,
+		AdminListChatReports:       h.adminListChatReports,
+		AdminResolveChatReport:     h.adminResolveChatReport,
+		AdminRemoveReportedMessage: h.adminRemoveReportedMessage,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,
 		AdminGetOrganization:       h.adminGetOrganization,
@@ -320,6 +326,9 @@ func New(d Deps) http.Handler {
 		RevokeSession:       h.revokeSession,
 		RevokeOtherSessions: h.revokeOtherSessions,
 		DeleteAccount:       h.deleteAccount,
+		SetAIConsent:        h.setAIConsent,
+		WithdrawAIConsent:   h.withdrawAIConsent,
+		SetPushPreviews:     h.setPushPreviews,
 		PatchOnboarding:     h.patchOnboarding,
 		CompleteOnboarding:  h.completeOnboarding,
 		MyInvitations:       h.myInvitations,
@@ -329,6 +338,11 @@ func New(d Deps) http.Handler {
 		GetOrganization:    h.getOrganization,
 		ListOrgWorkspaces:  h.listOrgWorkspaces,
 		CreateOrgWorkspace: h.createOrgWorkspace,
+
+		OrgPushPreviewPolicy:       h.orgPushPreviewPolicy,
+		SetOrgPushPreviewPolicy:    h.setOrgPushPreviewPolicy,
+		OrgMobileSecurityPolicy:    h.orgMobileSecurityPolicy,
+		SetOrgMobileSecurityPolicy: h.setOrgMobileSecurityPolicy,
 
 		ListOrgMembers:      h.listOrgMembers,
 		GetOrgMembershipMe:  h.getOrgMembershipMe,
@@ -680,6 +694,7 @@ func New(d Deps) http.Handler {
 		LookupChatUser:                   h.lookupChatUser,
 		GetChatBlockStatus:               h.getChatBlockStatus,
 		BlockChatUser:                    h.blockChatUser,
+		ReportChat:                       h.reportChat,
 		UnblockChatUser:                  h.unblockChatUser,
 		ListChatNicknames:                h.listChatNicknames,
 		SetChatNickname:                  h.setChatNickname,
@@ -691,6 +706,7 @@ func New(d Deps) http.Handler {
 		MintChatVoiceToken:               h.mintChatVoiceToken,
 		ListPendingChatVoiceInvites:      h.listPendingChatVoiceInvites,
 		ListChatCallLogs:                 h.listChatCallLogs,
+		GetChatSync:                      h.getChatSync,
 		GetWorkspaceChatRoom:             h.getWorkspaceChatRoom,
 		EnsureWorkspaceChatRoom:          h.ensureWorkspaceChatRoom,
 		ListChatRooms:                    h.listChatRooms,
@@ -761,6 +777,7 @@ func New(d Deps) http.Handler {
 		SignalChatVoiceInvite:            h.signalChatVoiceInvite,
 		SignalChatVoiceAccept:            h.signalChatVoiceAccept,
 		SignalChatVoiceHangup:            h.signalChatVoiceHangup,
+		SignalChatVoiceDecline:           h.signalChatVoiceDecline,
 		StartChatVoiceRecording:          h.startChatVoiceRecording,
 		StopChatVoiceRecording:           h.stopChatVoiceRecording,
 		GetActiveChatVoiceRecording:      h.getActiveChatVoiceRecording,

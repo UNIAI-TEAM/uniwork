@@ -614,9 +614,14 @@ func (s *AskUNIService) chatContext(ctx context.Context, tc ai.ToolContext, quer
 		if err != nil {
 			return nil, err
 		}
+		optOuts, err := loadAIOptOuts(ctx, s.q, chatSenderIDs(msgs))
+		if err != nil {
+			return nil, err
+		}
 		var b strings.Builder
 		for _, m := range msgs {
-			if score(m.Body, ts) > 0 {
+			// A member who declined AI processing never reaches the model (Apple 5.1.2(i)).
+			if score(m.Body, ts) > 0 && !optOuts.excludes(m.SenderID) {
 				fmt.Fprintf(&b, "- %s (%s): %s\n", m.SenderDisplayName, m.CreatedAt.Format("2006-01-02 15:04"), m.Body)
 			}
 		}

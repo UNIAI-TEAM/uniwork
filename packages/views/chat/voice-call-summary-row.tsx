@@ -9,7 +9,7 @@ import { ChatCard } from "./chat-card";
 import { CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_HOVER } from "./chat-message-row";
 import { formatMessageTime } from "./chat-message-time";
 import { CreateTaskFromMessageDialog } from "./create-task-from-message-dialog";
-import { formatVoiceCallDuration } from "./voice-call-duration";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 
 type VoiceCallSummaryPayload = NonNullable<ChatMessage["voiceCallSummary"]>;
 type ActionItem = VoiceCallSummaryPayload["action_items"][number];

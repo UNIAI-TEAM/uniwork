@@ -10,7 +10,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../toast-api-error";
 import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, chatBubbleShape } from "../chat/chat-message-row";
 import { formatMessageDay, formatMessageTime, messageDayKey } from "../chat/chat-message-time";
-import { CHAT_WALL } from "../chat/chat-wall";
+import { CHAT_WALL_DOT_CLASS } from "@uniwork/core/chat/chat-wallpaper-resolve";
 import { senderNameClass } from "../chat/sender-colors";
 import { groupChatMessages, type MeetingChatGroup, type MeetingChatItem } from "./meeting-chat";
 import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
@@ -137,7 +137,7 @@ function MeetingRoomChatView({
       <ol
         ref={listRef}
         // The chat bubbles are white for others: they need the chat wall behind them.
-        className={cn("min-h-0 w-full flex-1 space-y-4 overflow-y-auto overscroll-contain rounded-xl p-2", CHAT_WALL)}
+        className={cn("min-h-0 w-full flex-1 space-y-4 overflow-y-auto overscroll-contain rounded-xl p-2", CHAT_WALL_DOT_CLASS)}
         onScroll={(e) => {
           const el = e.currentTarget;
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD;

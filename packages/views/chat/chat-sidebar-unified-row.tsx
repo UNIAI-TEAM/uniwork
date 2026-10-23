@@ -9,8 +9,8 @@ import { selectIsUserOnline, usePresenceStore } from "@uniwork/core/chat/presenc
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { tintSolidClass, type Tint } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
-import { identityTint } from "../people/identity-tint";
-import { initialsOf, roomInitialsOf } from "./chat-initials";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
+import { initialsOf, roomInitialsOf } from "@uniwork/core/chat/initials";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import { ChatRoomPhoto } from "./chat-room-mark";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";

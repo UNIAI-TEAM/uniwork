@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { isAuthCallbackUrl, validateCallback } from "./callback";
+import { isAuthCallbackUrl } from "@/lib/auth-callback-url";
+import { validateCallback } from "./callback";
 import { LOGIN_ATTEMPT_TTL_MS, LoginAttemptStore } from "./pkce";
 
 vi.mock("expo-crypto", async () => (await import("./expo-crypto-mock")).expoCryptoMock());

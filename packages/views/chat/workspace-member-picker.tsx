@@ -26,7 +26,7 @@ import {
 } from "./workspace-member-picker-utils";
 import { memberAvatarUrl } from "./chat-member-avatar";
 import { CHAT_FIELD_CLASS, CHAT_PILL_SM_CLASS, CHAT_SECTION_LABEL_CLASS } from "./chat-dialog-look";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { chatPersonFaceClass } from "./chat-person-card";
 
 /** A person's face in the pickers: two letters on their colour, and the presence dot. */
