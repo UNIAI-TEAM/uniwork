@@ -472,3 +472,18 @@ describe("MeetingRoomCopilotTab transcript and notes", () => {
     expect(await screen.findByRole("tablist", { name: "Các mục của UNI" })).toBeInTheDocument();
   });
 });
+
+describe("MeetingRoomCopilotTab live items (UNI-1995 #21)", () => {
+  it("badges the Việc section with what the scribe wrote, and says when the viewer opens it", async () => {
+    const onSectionChange = vi.fn();
+    render(
+      wrapWithNav(
+        <MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk actionsUnseen={3} onSectionChange={onSectionChange} />,
+      ),
+    );
+    const actions = await screen.findByRole("tab", { name: /^Việc cần làm\W+3 việc UNI mới ghi$/ });
+    expect(onSectionChange).toHaveBeenLastCalledWith("insights");
+    fireEvent.click(actions);
+    expect(onSectionChange).toHaveBeenLastCalledWith("actions");
+  });
+});

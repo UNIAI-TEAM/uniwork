@@ -8,7 +8,7 @@ import type { Meeting } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingMotionsList } from "./meeting-motions-list";
 import { MeetingRoomChatTab } from "./meeting-room-chat-tab";
-import { MeetingRoomCopilotTab } from "./meeting-room-copilot-tab";
+import { MeetingRoomCopilotTab, type CopilotSection } from "./meeting-room-copilot-tab";
 import { MeetingRoomFilesTab } from "./meeting-room-files-tab";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
 import { MeetingUnderlineTabBadge, MeetingUnderlineTabs } from "./meeting-underline-tabs";
@@ -73,6 +73,8 @@ export function MeetingRoomSidebar({
   lateMinutes = null,
   onDismissCatchUp,
   scribeOn = false,
+  liveItemsUnseen = 0,
+  onCopilotSectionChange,
 }: {
   meetingId?: string;
   meeting?: Meeting;
@@ -91,6 +93,9 @@ export function MeetingRoomSidebar({
   onDismissCatchUp?: () => void;
   /** The AI scribe is in the room. */
   scribeOn?: boolean;
+  /** Live items the scribe wrote that this viewer has not had on screen. */
+  liveItemsUnseen?: number;
+  onCopilotSectionChange?: (section: CopilotSection) => void;
 }) {
   const { t } = useTranslation();
   const baseId = useId();
@@ -136,6 +141,8 @@ export function MeetingRoomSidebar({
             lateMinutes={guestMode ? null : lateMinutes}
             onDismissCatchUp={onDismissCatchUp}
             scribeOn={scribeOn}
+            actionsUnseen={liveItemsUnseen}
+            onSectionChange={onCopilotSectionChange}
           />
         ) : (
           <p className="text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
@@ -195,6 +202,10 @@ export function MeetingRoomSidebar({
               ) : id === "chat" && chatUnread > 0 ? (
                 <MeetingUnderlineTabBadge srLabel={t("meetings.chatUnread", { count: chatUnread })}>
                   {chatUnread > 9 ? "9+" : chatUnread}
+                </MeetingUnderlineTabBadge>
+              ) : id === "copilot" && liveItemsUnseen > 0 ? (
+                <MeetingUnderlineTabBadge srLabel={t("meetings.liveItemsUnseen", { count: liveItemsUnseen })}>
+                  {liveItemsUnseen > 9 ? "9+" : liveItemsUnseen}
                 </MeetingUnderlineTabBadge>
               ) : id === "motions" && motionsTab.pending ? (
                 // At most one item is open at a time, so the count is always one.

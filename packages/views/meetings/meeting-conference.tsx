@@ -21,6 +21,8 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
 import { copilotPanelShown } from "./conference-layout";
 import { catchUpLateMinutes, firstJoinedAt } from "./meeting-copilot/meeting-catch-up-card";
+import { LiveItemsAnnouncer, useUnseenLiveItems } from "./meeting-copilot/live-items-unseen";
+import type { CopilotSection } from "./meeting-room-copilot-tab";
 import {
   captionsErrorKey,
   captionsSupported,
@@ -200,6 +202,10 @@ function ConferenceStage({
   if (copilotActive && lateMinutes !== null && !catchUpSeen) setCatchUpSeen(true);
   const copilotBadge = lateMinutes !== null && !catchUpSeen;
   const chatVisible = sidebarTab === "chat" && panelShown;
+  // The live items the scribe writes are seen once the UNI panel's Việc section is on screen.
+  const [copilotSection, setCopilotSection] = useState<CopilotSection>("insights");
+  const liveItemsSeeing = copilotActive && copilotSection === "actions";
+  const liveItems = useUnseenLiveItems(guestMode ? undefined : resolvedMeetingId || undefined, liveItemsSeeing);
   const chatUnread = useMeetingChatUnread(resolvedMeetingId || undefined, chatVisible);
 
   const sheetClose = useMemo(
@@ -229,6 +235,8 @@ function ConferenceStage({
       className="h-full w-full"
       tabsEnd={tabsEnd}
       scribeOn={scribeInRoom}
+      liveItemsUnseen={liveItems.count}
+      onCopilotSectionChange={setCopilotSection}
     />
   );
 
@@ -264,9 +272,10 @@ function ConferenceStage({
         onToggleCopilot={toggleCopilot}
         copilotActive={copilotActive}
         copilotBadge={copilotBadge}
+        copilotLiveItems={liveItems.count}
       />
     ),
-    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, captionsOn, toggleCaptions, toggleCopilot, copilotActive, copilotBadge],
+    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, captionsOn, toggleCaptions, toggleCopilot, copilotActive, copilotBadge, liveItems.count],
   );
 
   return (
@@ -384,6 +393,7 @@ function ConferenceStage({
       <ScreenShareAnnouncer />
       <ScribeAnnouncer meeting={meeting} />
       <ChatMessageAnnouncer latest={chatUnread.latest} visible={chatVisible} />
+      <LiveItemsAnnouncer count={liveItems.count} latest={liveItems.latest} seeing={liveItemsSeeing} />
     </div>
   );
 }
