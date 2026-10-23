@@ -89,7 +89,14 @@ describe("the release build's Android manifest", () => {
     // expo-task-manager's job service runs the data-only call push in the
     // background; the headless task service tells the server about Decline. UniChatMessagingService is the app's
     // FCM service (a call push rings natively, everything else goes on to expo-notifications'), not a foreground one.
+    // WorkManager's services (scripts/android-manifest.mjs › MAVEN_MANIFESTS) run the outbox's drain job
+    // (modules/unichat-background); its SystemForegroundService has no type and never starts (no job asks for the
+    // foreground), and the permissions WorkManager declares are all in the list above already.
     expect(manifest.services).toEqual([
+      { name: "androidx.room.MultiInstanceInvalidationService", foregroundServiceType: "" },
+      { name: "androidx.work.impl.background.systemalarm.SystemAlarmService", foregroundServiceType: "" },
+      { name: "androidx.work.impl.background.systemjob.SystemJobService", foregroundServiceType: "" },
+      { name: "androidx.work.impl.foreground.SystemForegroundService", foregroundServiceType: "" },
       { name: "com.google.android.gms.metadata.ModuleDependencies", foregroundServiceType: "" },
       { name: "expo.modules.notifications.service.ExpoFirebaseMessagingService", foregroundServiceType: "" },
       { name: "expo.modules.taskManager.TaskJobService", foregroundServiceType: "" },
@@ -121,6 +128,35 @@ describe("the release build's Android manifest", () => {
       "android.permission.FOREGROUND_SERVICE_MICROPHONE",
       "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
     ]);
+  });
+});
+
+// A Maven library's manifest is merged by Gradle but out of the script's reach: MAVEN_MANIFESTS holds the linked
+// ones by version, read from each runtime dependency a linked build.gradle names.
+describe("Maven libraries' manifests", () => {
+  type ManifestScript = { MAVEN_MANIFESTS: Record<string, unknown>; mavenLibraries: (gradle: string, file?: string) => string[] };
+  const script = () => import("./scripts/android-manifest.mjs") as Promise<ManifestScript>;
+
+  it("reads runtime dependencies only, a -ktx artifact as its base, and stops on a version it has no entry for", async () => {
+    const { mavenLibraries } = await script();
+    const gradle = (line: string) => `dependencies {\n  ${line}\n  testImplementation 'androidx.work:work-testing:9.9.9'\n}\n`;
+    expect(mavenLibraries(gradle("implementation 'androidx.work:work-runtime-ktx:2.9.1'"))).toEqual(["androidx.work:work-runtime:2.9.1"]);
+    expect(mavenLibraries(gradle('api("androidx.work:work-runtime:2.9.1")'))).toEqual(["androidx.work:work-runtime:2.9.1"]);
+    expect(mavenLibraries(gradle("compileOnly 'androidx.work:work-runtime:3.0.0'"))).toEqual([]);
+    expect(mavenLibraries(gradle("implementation 'androidx.core:core:1.17.0'"))).toEqual([]);
+    expect(() => mavenLibraries(gradle("implementation 'androidx.work:work-runtime-ktx:2.10.0'"), "x/build.gradle")).toThrow(
+      "x/build.gradle links androidx.work:work-runtime:2.10.0",
+    );
+  });
+
+  it("the outbox module and expo-background-task link the one WorkManager the table knows", async () => {
+    const { MAVEN_MANIFESTS, mavenLibraries } = await script();
+    const background = createRequire(path.join(__dirname, "package.json")).resolve("expo-background-task/package.json");
+    for (const file of [path.join(__dirname, "modules/unichat-background/android/build.gradle"), path.join(path.dirname(background), "android/build.gradle")]) {
+      const linked = mavenLibraries(fs.readFileSync(file, "utf8"), file);
+      expect(linked).toEqual(["androidx.work:work-runtime:2.9.1"]);
+      expect(MAVEN_MANIFESTS).toHaveProperty([linked[0]!]);
+    }
   });
 });
 

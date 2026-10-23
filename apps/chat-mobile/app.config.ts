@@ -26,6 +26,9 @@ const APP_LINK_HOST = "app.uniworkos.com";
 export const ANDROID_KEEP_RULES = [
   "-keep class com.margelo.nitro.** { *; }",
   "-keep class expo.modules.unichatcalls.** { *; }",
+  // The outbox's drain job (modules/unichat-background): WorkManager finds the worker by its class name, kept in its
+  // database across app updates.
+  "-keep class expo.modules.unichatbackground.** { *; }",
   "-keep class livekit.org.jni_zero.** { *; }",
 ].join("\n");
 
@@ -400,6 +403,10 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       ["expo-local-authentication", { faceIDPermission: USAGE_VI.NSFaceIDUsageDescription }],
       // Calls (M3): LiveKit's native setup, then WebRTC's permissions.
       "@livekit/react-native-expo-plugin",
+      // The outbox's scheduled drain on iOS (data/outbox-drain/background-send.ts): the BGTask identifier
+      // expo-background-task registers at launch, and the `processing` background mode it runs under (review note:
+      // "sends messages the user wrote offline once the network is back"; plugins/with-unichat-calls keeps it).
+      "expo-background-task",
       [
         "@config-plugins/react-native-webrtc",
         { cameraPermission: USAGE_VI.NSCameraUsageDescription, microphonePermission: USAGE_VI.NSMicrophoneUsageDescription },

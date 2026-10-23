@@ -78,6 +78,10 @@ export const REQUIRED_DEX_CLASSES = [
   // the first stop of every FCM message.
   { descriptor: "Lexpo/modules/unichatcalls/UniChatCallsModule;", keep: "-keep class expo.modules.unichatcalls.** { *; }", by: "ANDROID_KEEP_RULES" },
   { descriptor: "Lexpo/modules/unichatcalls/UniChatMessagingService;", keep: "-keep class expo.modules.unichatcalls.** { *; }", by: "ANDROID_KEEP_RULES" },
+  // The outbox's background module, named by modules/unichat-background/expo-module.config.json, and its WorkManager
+  // worker, which WorkManager builds from the class name it stored with the job (across app updates too).
+  { descriptor: "Lexpo/modules/unichatbackground/UniChatBackgroundModule;", keep: "-keep class expo.modules.unichatbackground.** { *; }", by: "ANDROID_KEEP_RULES" },
+  { descriptor: "Lexpo/modules/unichatbackground/OutboxDrainWorker;", keep: "-keep class expo.modules.unichatbackground.** { *; }", by: "ANDROID_KEEP_RULES" },
 ];
 
 /**

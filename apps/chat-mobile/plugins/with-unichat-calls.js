@@ -81,6 +81,7 @@ const AUTOSTART_PACKAGES = [
  * iOS: no `fetch` (expo-task-manager adds it; UniChat does no background fetch), and no `audio` unless the build has
  * calls (app.config.ts › iosCallsBuilt): a library plugin that adds it for its own feature (expo-audio's background
  * playback) must not leave the binary declaring a mode the reviewer cannot exercise. An emptied list is removed.
+ * `processing` stays: expo-background-task's, for the outbox's scheduled drain (data/outbox-drain/).
  * @type {import("expo/config-plugins").ConfigPlugin<{ iosCalls?: boolean } | void>}
  */
 const withUniChatCalls = (config, options) => {
