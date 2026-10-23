@@ -133,23 +133,28 @@ export function useActionItemConversion({
         onError: (err) => {
           // A duplicate names the clashing items, so the clerk unticks them;
           // one item whose work is already an open task can track that task.
-          const text = summaryErrorText(err, t, "tasks", { items });
-          const target = duplicateLinkTarget(err);
-          if (target) {
-            toast.error(text, { action: { label: t("meetings.actionItemsSection.linkToOpenTask"), onClick: () => linkToTask(target) } });
-          } else {
-            toast.error(text);
-          }
+          if (!offerLink(err)) toast.error(summaryErrorText(err, t, "tasks", { items }));
           if (STALE_SELECTION.has(errorCode(err) ?? "")) setPicked(NONE);
         },
       },
     );
   }
 
+  /** Says a single-item duplicate with the offer to link it; false for any other refusal. */
+  function offerLink(err: unknown): boolean {
+    const target = duplicateLinkTarget(err);
+    if (!target) return false;
+    toast.error(summaryErrorText(err, t, "tasks", { items }), {
+      action: { label: t("meetings.actionItemsSection.linkToOpenTask"), onClick: () => linkToTask(target) },
+    });
+    return true;
+  }
+
   function linkToTask(target: { itemId: string; taskId: string }) {
     link.mutate(target, {
       onSuccess: () => {
         toggle(target.itemId, false);
+        if (editingId === target.itemId) closeComposer();
         toast.success(t("meetings.actionItemsSection.linkedStatus"), {
           action:
             wsPaths && nav ? { label: t("meetings.summaryAi.viewTasks", { count: 1 }), onClick: () => nav.push(wsPaths.task(target.taskId)) } : undefined,
@@ -184,6 +189,8 @@ export function useActionItemConversion({
         result = await convert.mutateAsync({ items: [convertActionItemInput(id, body)], locale });
       } catch (err) {
         if (STALE_SELECTION.has(errorCode(err) ?? "")) closeComposer();
+        // Said here with the link offer; resolving keeps the composer and its edits open.
+        if (offerLink(err)) return;
         throw err;
       }
       closeComposer();
