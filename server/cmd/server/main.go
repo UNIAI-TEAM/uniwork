@@ -678,6 +678,29 @@ func main() {
 			log.Info("google sign-in enabled", "redirect_url", cfg.GoogleRedirectURL())
 		}
 	}
+	// Sign in with Apple on the phone (ADR 0041): on with the bundle ids its
+	// identity tokens may name. The key that signs Apple client secrets is
+	// what lets a sign-in keep a refresh token and account deletion revoke
+	// it, which Apple requires; without it sign-in still works and the
+	// missing revoke is logged here.
+	var appleAuth *service.AppleAuthService
+	if cfg.AppleSignInEnabled() {
+		var appleClient service.AppleTokenClient
+		if cfg.AppleRevokeConfigured() {
+			c, err := auth.NewAppleClient(cfg.AppleSignInTeamID, cfg.AppleSignInKeyID, cfg.AppleSignInPrivateKey, auth.AppleIssuer)
+			if err != nil {
+				log.Error("sign in with apple: token revoke disabled", "err", err)
+			} else {
+				appleClient = c
+			}
+		} else {
+			log.Warn("sign in with apple: APPLE_SIWA_TEAM_ID, APPLE_SIWA_KEY_ID or APPLE_SIWA_PRIVATE_KEY unset; account deletion cannot revoke Apple tokens")
+		}
+		verifier := auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, cfg.AppleSignInAudiences, nil)
+		appleAuth = service.NewAppleAuthService(pool, q, desktopAuthSvc, verifier, appleClient)
+		authSvc.SetApple(appleAuth)
+		log.Info("sign in with apple enabled", "audiences", strings.Join(cfg.AppleSignInAudiences, ","))
+	}
 	// Platform console (F-11): reads metadata across tenants, guarded by
 	// users.platform_role rather than membership.
 	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
@@ -778,6 +801,7 @@ func main() {
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
 		DesktopAuth:         desktopAuthSvc,
+		AppleAuth:           appleAuth,
 		Verification:        verification,
 		PasswordReset:       passwordReset,
 		GoogleAuth:          service.NewGoogleAuthService(q, authSvc),
