@@ -6,8 +6,9 @@
 // hand over the same response: each (notification, action) runs once, and the
 // launch response is cleared once handled so a JavaScript reload does not
 // replay it. A reply the app lock refused (typed into a notification shown
-// before the lock was on) opens its room as a tap does, behind the lock.
-// Pure: the platform's calls are passed in.
+// before the lock was on) opens its room as a tap does, behind the lock, when
+// the app is in front (app/_layout.tsx decides). Pure: the platform's calls
+// are passed in.
 import type { NotificationResponse } from "expo-notifications";
 import { chatNotificationAction, type ChatNotificationAction } from "./chat-notification";
 
@@ -22,7 +23,7 @@ export type TappedResponse = Pick<NotificationResponse, "actionIdentifier"> & {
 export interface NotificationResponseDeps {
   /** A web link of a push (app/_layout.tsx › openUrl with navigate). */
   openUrl: (url: string) => void;
-  /** Runs Reply or Mark as read; resolves true when it was refused for the app lock, and the room opens instead. */
+  /** Runs Reply or Mark as read; resolves true when the app lock refused it in an app in front: the room opens instead. */
   runChatAction: (action: ChatNotificationAction) => Promise<boolean>;
   trackPushOpen: (data: unknown) => void;
   /** Notifications.clearLastNotificationResponse */

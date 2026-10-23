@@ -22,7 +22,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -139,11 +139,14 @@ function AuthInitializer({ children }: { children: ReactNode }) {
     });
     const urlSub = Linking.addEventListener("url", ({ url }) => openUrl(url));
     // The server's push payload carries the web URL of the message in `data.url`; Reply or Mark as read on a chat
-    // notification acts where it was tapped and opens nothing, unless the app lock refused the reply: then the room
-    // opens behind the lock (lib/notification-response.ts).
+    // notification acts where it was tapped and opens nothing, unless the app lock refused the reply in an app the
+    // person is looking at: then the room opens behind the lock (lib/notification-response.ts). iOS brought the app
+    // forward for the action; Android's Reply does not, yet a live app hidden in the background hears it too, and a
+    // room opened there would be read, and its notifications cleared, for nobody.
     const handleResponse = createNotificationResponseHandler({
       openUrl: (url) => openUrl(url, true),
-      runChatAction: async (action) => (await runChatNotificationAction(action)) === "locked",
+      runChatAction: async (action) =>
+        (await runChatNotificationAction(action)) === "locked" && (Platform.OS !== "android" || AppState.currentState === "active"),
       trackPushOpen,
       clearLast: () => Notifications.clearLastNotificationResponse(),
     });

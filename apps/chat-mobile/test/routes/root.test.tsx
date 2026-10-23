@@ -9,7 +9,7 @@ import { configureRuntime } from "@uniwork/core/runtime-config";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
-import { Text } from "react-native";
+import { AppState, Platform, Text } from "react-native";
 import RootLayout, { ErrorBoundary } from "@/app/_layout";
 import AuthLayout from "@/app/(auth)/_layout";
 import Index from "@/app/index";
@@ -184,6 +184,41 @@ describe("the root layout", () => {
     expect(runChatNotificationAction).toHaveBeenCalledWith(expect.objectContaining({ action: "reply", text: "hi" }));
     expect(await screen.findByTestId("chat")).toBeOnTheScreen();
     expect(routes.pathname()).toBe("/acme/hq/chat");
+  });
+
+  it("on Android, opens a refused reply's room only in an app in front: a hidden one would read the room for nobody", async () => {
+    // Android's Reply does not bring the app forward, yet a live app's listener hears it too
+    // (ExpoHandlingDelegate.handleNotificationResponse): opening the room there would mark it read and clear its
+    // notifications behind the person's back.
+    const os = Platform.OS;
+    const state = Object.getOwnPropertyDescriptor(AppState, "currentState");
+    Platform.OS = "android";
+    Object.defineProperty(AppState, "currentState", { value: "background", configurable: true, writable: true });
+    try {
+      jest.mocked(runChatNotificationAction).mockResolvedValue("locked");
+      useAuthStore.setState({ user: user as never });
+      let tap: (response: Notifications.NotificationResponse) => void = () => undefined;
+      jest.mocked(Notifications.addNotificationResponseReceivedListener).mockImplementation((cb) => {
+        tap = cb;
+        return { remove: jest.fn() } as never;
+      });
+      const routes = await renderRoutes(ROUTES, "/");
+      expect(await screen.findByTestId("picker")).toBeOnTheScreen();
+      const data = { url: `${APP_URL}/acme/hq/chat?room=r1`, workspace_id: "w1", room_id: "r1", message_id: "m1" };
+      const reply = (id: string) => ({ actionIdentifier: "reply", userText: "hi", notification: { request: { identifier: id, content: { data } } } });
+      await act(async () => tap(reply("n-hidden") as unknown as Notifications.NotificationResponse));
+      expect(runChatNotificationAction).toHaveBeenCalledWith(expect.objectContaining({ action: "reply", text: "hi" }));
+      expect(screen.queryByTestId("chat")).toBeNull();
+      expect(routes.pathname()).toBe("/select-workspace");
+      // The same refusal with the app in front (Reply from a heads-up notification over it) opens the room.
+      Object.defineProperty(AppState, "currentState", { value: "active", configurable: true, writable: true });
+      await act(async () => tap(reply("n-front") as unknown as Notifications.NotificationResponse));
+      expect(await screen.findByTestId("chat")).toBeOnTheScreen();
+    } finally {
+      jest.mocked(runChatNotificationAction).mockResolvedValue("read");
+      Platform.OS = os;
+      if (state) Object.defineProperty(AppState, "currentState", state);
+    }
   });
 
   it("signs out once when several requests answer 401 together, and lands on sign-in", async () => {
