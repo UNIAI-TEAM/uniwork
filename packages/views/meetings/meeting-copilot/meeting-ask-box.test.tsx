@@ -99,4 +99,33 @@ describe("MeetingAskBox", () => {
     const asks = requestMock.mock.calls.filter(([p]) => String(p).endsWith("/ai/ask"));
     expect((asks.at(-1)?.[1] as { body: { conversation_id?: string } }).body.conversation_id).toBeUndefined();
   });
+
+  it("says through one status region that UNI is working, then reads the answer once it lands", async () => {
+    let answerNow: (value: unknown) => void = () => {};
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: unknown) =>
+      String(path).endsWith("/ai/ask") ? new Promise((resolve) => (answerNow = resolve)) : base(path, init),
+    );
+    render(wrapWithNav(<MeetingAskBox workspaceId="w1" meetingId="m1" canShare={false} />));
+    const box = await screen.findByRole("textbox", { name: "Câu hỏi cho UNI về cuộc họp này" });
+    // Mounted before the first question, so the screen reader is already listening to it.
+    const region = screen.getByTestId("meeting-ask-live");
+    expect(region).toHaveAttribute("role", "status");
+    expect(region).toHaveTextContent("");
+    fireEvent.change(box, { target: { value: "Đã chốt gì?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    await waitFor(() => expect(region).toHaveTextContent("UNI đang tra lời thoại…"));
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+
+    answerNow(answer);
+    await waitFor(() => expect(screen.getByTestId("meeting-ask-live")).toBe(region));
+    await waitFor(() => expect(region).toHaveTextContent("UNI trả lời: Demo vào thứ Sáu."));
+  });
+
+  it("does not read an earlier answer again when the box mounts with it", async () => {
+    useAiPanelStore.setState({ conversationByMeeting: { m1: "c1" } });
+    render(wrapWithNav(<MeetingAskBox workspaceId="w1" meetingId="m1" canShare={false} />));
+    expect(await screen.findByText("Demo vào thứ Sáu [S1].")).toBeInTheDocument();
+    expect(screen.getByTestId("meeting-ask-live")).toHaveTextContent("");
+  });
 });

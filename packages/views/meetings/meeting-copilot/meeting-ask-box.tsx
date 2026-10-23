@@ -11,7 +11,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { AskUniMessageTurn, resolveErrorKey } from "../../ai/ask-uni-legacy-panel";
+import { AskUniMessageTurn, noticeText, resolveErrorKey } from "../../ai/ask-uni-legacy-panel";
 import { toastApiError } from "../../toast-api-error";
 
 /** "[S2]" points at a source only the asker's panel can open; in chat it is noise. */
@@ -47,6 +47,7 @@ export function MeetingAskBox({
   heading?: boolean;
 }) {
   const { t, i18n } = useTranslation();
+  const { t: tAi } = useTranslation(undefined, { keyPrefix: "ai" });
   const { data: caps } = useAiCapabilities(workspaceId);
   const ask = useAskUni(workspaceId);
   const share = useAppendMeetingChat(meetingId);
@@ -67,6 +68,18 @@ export function MeetingAskBox({
     : (lastExchange(history) ?? (ask.data ? { question: asked, answer: ask.data.message } : null));
   const answer = exchange?.answer;
   const shownQuestion = ask.isPending ? asked : (exchange?.question ?? "");
+  // One region, mounted before the first question, says only what just changed: an
+  // answer read back from history on a remount is not news.
+  const answered = ask.data?.message;
+  // Shared means this answer: a newer one asked in ⌘J has not been.
+  const shared = !!answer?.content && share.isSuccess && share.variables === forChat(answer.content);
+  const liveText = ask.isPending
+    ? t("meetings.askUniWorking")
+    : shared
+      ? t("meetings.askUniShared")
+      : answered
+      ? tAi("answer_announcement", { answer: forChat(answered.content) || noticeText(tAi, answered.notice) })
+      : "";
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const q = question.trim();
@@ -101,10 +114,13 @@ export function MeetingAskBox({
         </ul>
       ) : null}
       {ask.isPending ? (
-        <p role="status" className="flex items-center gap-2 text-label text-muted-foreground">
+        <p aria-hidden className="flex items-center gap-2 text-label text-muted-foreground">
           <Spinner /> {t("meetings.askUniWorking")}
         </p>
       ) : null}
+      <p role="status" className="sr-only" data-testid="meeting-ask-live">
+        {liveText}
+      </p>
       {ask.isError ? (
         <p role="alert" className="text-label text-destructive">
           {t(`ai.errors.${resolveErrorKey(ask.error)}`)}
@@ -123,10 +139,9 @@ export function MeetingAskBox({
               </Button>
             ) : null}
             {canShare && answer.content ? (
-              // Shared means this answer: a newer one asked in ⌘J has not been.
-              share.isSuccess && share.variables === forChat(answer.content) ? (
-                // The one success signal, where the button was.
-                <p role="status" className="flex items-center gap-1 text-caption text-muted-foreground">
+              shared ? (
+                // The one success signal, where the button was; the status region says it.
+                <p className="flex items-center gap-1 text-caption text-muted-foreground">
                   <Check aria-hidden className="size-4 shrink-0" />
                   {t("meetings.askUniShared")}
                 </p>
