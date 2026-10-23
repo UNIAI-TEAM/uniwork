@@ -2,8 +2,10 @@ package attachtext
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"runtime"
 	"runtime/debug"
 	"runtime/metrics"
@@ -99,8 +101,10 @@ func TestReadPDFStaysWithinItsHeapBound(t *testing.T) {
 		if !errors.Is(err, ErrUnreadable) {
 			t.Errorf("%s: err = %v, want ErrUnreadable", name, err)
 		}
-		if grew > maxReadHeap {
-			t.Errorf("%s: the heap grew %d MiB, want at most %d", name, grew>>20, maxReadHeap>>20)
+		// The guard samples every millisecond and collects before it stops a
+		// parse, so the heap may run a little past its limit first.
+		if bound := pdfHeapLimit(len(data)) + 16<<20; grew > bound {
+			t.Errorf("%s: the heap grew %d MiB, want at most %d", name, grew>>20, bound>>20)
 		}
 	}
 	// A long real document still opens.
@@ -127,4 +131,81 @@ func TestExtractPlainStaysWithinItsHeapBound(t *testing.T) {
 			t.Errorf("%s: the heap grew %d MiB, want at most %d", name, grew>>20, maxReadHeap>>20)
 		}
 	}
+}
+
+// scannedPDF is pages pages, each one image of imageBytes: the shape of a
+// scanned document, whose bytes are almost all stream data pdfcpu keeps.
+func scannedPDF(pages, imageBytes int) []byte {
+	p := newPDFBuilder()
+	kids := make([]string, pages)
+	for i := range kids {
+		kids[i] = fmt.Sprintf("%d 0 R", 3+i)
+	}
+	p.obj(1, "<< /Type /Catalog /Pages 2 0 R >>")
+	p.obj(2, fmt.Sprintf("<< /Type /Pages /Kids [%s] /Count %d >>", strings.Join(kids, " "), pages))
+	draw := "q 200 0 0 200 0 0 cm /Im0 Do Q"
+	rng := rand.New(rand.NewPCG(1, 2))
+	image := make([]byte, imageBytes)
+	for i := range image {
+		image[i] = byte(rng.Uint32())
+	}
+	for i := range pages {
+		page, content, img := 3+i, 3+pages+i, 3+2*pages+i
+		p.obj(page, fmt.Sprintf("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents %d 0 R /Resources << /XObject << /Im0 %d 0 R >> >> >>", content, img))
+		p.obj(content, fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(draw), draw))
+		p.obj(img, fmt.Sprintf("<< /Type /XObject /Subtype /Image /Width 1000 /Height 1000 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length %d >>\nstream\n%s\nendstream", imageBytes, image))
+	}
+	return p.finish(3 + 3*pages)
+}
+
+// A scanned document near the 20 MB cap opens, and is cut to the pages kept.
+// pdfcpu holds its streams, so the room a parse gets grows with the file: it
+// must cover what the file needs plus another file turn's model call (about
+// 27 MB of JSON), which runs alongside and counts in the same heap.
+func TestReadPDFOpensAScannedFileNearTheCap(t *testing.T) {
+	data := scannedPDF(16, 1_300_000)
+	if len(data) > 20<<20 {
+		t.Fatalf("fixture is %d bytes, over the 20 MiB cap", len(data))
+	}
+	var pages int
+	var out []byte
+	var err error
+	grew := peakHeap(t, func() { pages, out, err = ReadPDF(data, 15) })
+	t.Logf("%.1f MiB scanned PDF: heap grew %.1f MiB", float64(len(data))/(1<<20), float64(grew)/(1<<20))
+	if room := pdfHeapLimit(len(data)); room < grew+32<<20 {
+		t.Errorf("a parse of this file may grow %d MiB; it needs %d plus 32 for another turn", room>>20, grew>>20)
+	}
+	if err != nil || pages != 16 {
+		t.Fatalf("ReadPDF = %d pages, %v, want 16 and no error", pages, err)
+	}
+	if n := pagesOf(t, out); n != 15 {
+		t.Fatalf("kept %d pages, want 15", n)
+	}
+}
+
+var garbageSink []byte
+
+// The guard measures from the live heap: garbage still standing when a parse
+// starts is not room the parse may fill.
+func TestPDFHeapGuardIgnoresGarbageAtTheStart(t *testing.T) {
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	runtime.GC()
+	for range 64 {
+		garbageSink = make([]byte, 1<<20)
+	}
+	garbageSink = nil // 64 MiB the runtime has not collected
+	const limit = 16 << 20
+	ctx, stop := pdfHeapGuard(context.Background(), limit)
+	var live [][]byte
+	for ctx.Err() == nil && len(live) < 256 {
+		live = append(live, make([]byte, 1<<20))
+		time.Sleep(200 * time.Microsecond)
+	}
+	if err := stop(); !errors.Is(err, errPDFHeap) {
+		t.Fatalf("stop() = %v, want errPDFHeap", err)
+	}
+	if n := len(live); n > limit>>20+8 {
+		t.Fatalf("the guard let %d MiB grow live past a %d MiB limit", n, limit>>20)
+	}
+	runtime.KeepAlive(live)
 }

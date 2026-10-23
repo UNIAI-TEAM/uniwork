@@ -13,7 +13,8 @@ import (
 // askFileTurns bounds the turns that run with files at once, in the process.
 // The backend is one pod of 512 MiB (ADR 0025), and a turn with files keeps
 // up to 20 MB of them in every model call it makes, about 27 MB more as the
-// call's JSON; reading them (one at a time, fileReads) may add 48 MiB more.
+// call's JSON; reading them (one at a time, fileReads) may add about 108 MiB
+// more for a 20 MB PDF (attachtext's heap guard).
 const askFileTurns = 2
 
 // turnFilePlan is what a turn gives the model from its files (UNI-2119): those

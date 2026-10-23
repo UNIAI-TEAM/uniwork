@@ -201,7 +201,7 @@ func TestPDFClaimingTooManyObjectsIsUnreadable(t *testing.T) {
 }
 
 func TestPDFWorkTurnsAParserPanicIntoUnreadable(t *testing.T) {
-	_, err := pdfWork(func(context.Context, *model.Configuration) (int, error) {
+	_, err := pdfWork(0, func(context.Context, *model.Configuration) (int, error) {
 		panic("index out of range")
 	})
 	if !errors.Is(err, ErrUnreadable) {
@@ -210,7 +210,7 @@ func TestPDFWorkTurnsAParserPanicIntoUnreadable(t *testing.T) {
 }
 
 func TestPDFWorkRunsUnderADeadlineOffline(t *testing.T) {
-	_, err := pdfWork(func(ctx context.Context, conf *model.Configuration) (int, error) {
+	_, err := pdfWork(0, func(ctx context.Context, conf *model.Configuration) (int, error) {
 		if _, ok := ctx.Deadline(); !ok {
 			t.Error("the pdfcpu context has no deadline")
 		}

@@ -34,10 +34,11 @@ const (
 	// maxPDFDecodeBytes bounds one decoded stream; the parse decodes only
 	// object and cross-reference streams, which stay far below it.
 	maxPDFDecodeBytes = 16 << 20
-	// maxPDFHeapGrowth is what one parse may add to the heap. pdfcpu keeps
-	// every object of a file in memory, and its limits count objects and bytes,
-	// not what they cost parsed: an 18 MB file of tiny "<</a 1>>" dictionaries
-	// takes over 800 MiB. pdfHeapGuard enforces it.
+	// maxPDFHeapGrowth is what one parse may add to the heap besides the room
+	// its file's own bytes take (pdfHeapLimit). pdfcpu keeps every object of a
+	// file in memory, and its limits count objects and bytes, not what they
+	// cost parsed: an 18 MB file of tiny "<</a 1>>" dictionaries takes over
+	// 800 MiB. pdfHeapGuard enforces it.
 	maxPDFHeapGrowth = 48 << 20
 	// pdfTimeout bounds the CPU one call may spend on a hostile file.
 	pdfTimeout = 30 * time.Second
@@ -46,7 +47,7 @@ const (
 var (
 	// errNoPages: a PDF whose page tree is empty is valid but has nothing to read.
 	errNoPages = errors.New("PDF has no pages")
-	errPDFHeap = errors.New("PDF needs more than 48 MiB of memory to open")
+	errPDFHeap = errors.New("PDF needs too much memory to open")
 )
 
 // ReadPDF opens a PDF once and returns its page count and the PDF to send the
@@ -64,7 +65,7 @@ func ReadPDF(data []byte, keep int) (pages int, out []byte, err error) {
 		pages int
 		out   []byte
 	}
-	r, err := pdfWork(func(ctx context.Context, conf *model.Configuration) (result, error) {
+	r, err := pdfWork(len(data), func(ctx context.Context, conf *model.Configuration) (result, error) {
 		src, err := api.ReadAndValidate(ctx, bytes.NewReader(data), conf)
 		if err != nil {
 			return result{}, err
@@ -92,12 +93,20 @@ func ReadPDF(data []byte, keep int) (pages int, out []byte, err error) {
 	return r.pages, r.out, err
 }
 
-// pdfWork runs one pdfcpu job on an untrusted file: with a configuration that
-// reads and writes nothing on disk, goes nowhere online and logs nothing
-// (pdfcpu's loggers are off until someone sets them), under a deadline, tight
-// resource limits and pdfHeapGuard, and with every failure, a parser panic
-// included, turned into ErrUnreadable.
-func pdfWork[T any](job func(context.Context, *model.Configuration) (T, error)) (out T, err error) {
+// pdfHeapLimit is what a parse of a size-byte file may add to the heap. pdfcpu
+// holds a copy of every stream and a cut file writes them again, so a scanned
+// document needs about two and a half times its size; the rest is the
+// allowance for parsed objects. A 20 MB file gets about 108 MiB.
+func pdfHeapLimit(size int) uint64 {
+	return maxPDFHeapGrowth + 3*uint64(size)
+}
+
+// pdfWork runs one pdfcpu job on an untrusted file of size bytes: with a
+// configuration that reads and writes nothing on disk, goes nowhere online and
+// logs nothing (pdfcpu's loggers are off until someone sets them), under a
+// deadline, tight resource limits and pdfHeapGuard, and with every failure, a
+// parser panic included, turned into ErrUnreadable.
+func pdfWork[T any](size int, job func(context.Context, *model.Configuration) (T, error)) (out T, err error) {
 	defer func() {
 		if p := recover(); p != nil {
 			var zero T
@@ -118,7 +127,7 @@ func pdfWork[T any](job func(context.Context, *model.Configuration) (T, error)) 
 	conf.Limits.MaxObjectStreamFirst = maxPDFObjectStreamFirst
 	timed, cancel := context.WithTimeout(context.Background(), pdfTimeout)
 	defer cancel()
-	ctx, stop := pdfHeapGuard(timed, maxPDFHeapGrowth)
+	ctx, stop := pdfHeapGuard(timed, pdfHeapLimit(size))
 	out, err = job(ctx, conf)
 	if cause := stop(); cause != nil {
 		err = cause
@@ -130,18 +139,21 @@ func pdfWork[T any](job func(context.Context, *model.Configuration) (T, error)) 
 	return out, nil
 }
 
-// pdfHeapGuard returns a context that is cancelled once the heap grows more
-// than limit past where it stood: pdfcpu checks its context between objects
-// and dictionary entries, so the parse stops soon after. The heap is the
-// process's, so others' garbage counts too; before giving up the guard
-// collects it and looks again, and only live growth past limit stops the
-// parse. Callers run one parse at a time (the Ask UNI planner holds a slot for
-// it), which keeps that growth the parse's own. stop ends the guard and
-// returns errPDFHeap if it stopped the parse.
+// pdfHeapGuard returns a context that is cancelled once the live heap grows
+// more than limit past where it stood: pdfcpu checks its context between
+// objects and dictionary entries, so the parse stops soon after. The heap is
+// the process's, so the guard starts from a collected heap (garbage standing
+// then is no room for the parse) and, before giving up, collects again and
+// looks once more: only live growth past limit stops the parse. Live work
+// elsewhere counts against it; callers run one parse at a time (the Ask UNI
+// planner holds a slot for it), and limit leaves room for another turn's
+// model call. stop ends the guard and returns errPDFHeap if it stopped the
+// parse.
 func pdfHeapGuard(parent context.Context, limit uint64) (ctx context.Context, stop func() error) {
 	ctx, cancel := context.WithCancelCause(parent)
 	sample := []metrics.Sample{{Name: "/memory/classes/heap/objects:bytes"}}
 	heap := func() uint64 { metrics.Read(sample); return sample[0].Value.Uint64() }
+	runtime.GC()
 	base := heap()
 	done, finished := make(chan struct{}), make(chan struct{})
 	go func() {
