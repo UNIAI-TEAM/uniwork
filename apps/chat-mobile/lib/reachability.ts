@@ -9,6 +9,16 @@
 // API answers, not that some other site does. Under /api on purpose: the
 // production edge sends only /api (and the MCP paths) to the server, and a bare
 // /healthz on the public host reaches the web app, which never answers it.
+//
+// Any answer of our server proves the network reaches it, not only the
+// liveness one: a server older than the build answers /api/v1/healthz with
+// chi's `404 text/plain`, and an edge may answer a JSON 401. Reading those as
+// "unreachable" made every iPhone of TestFlight build 4 offline for good
+// (production did not serve the route yet): TanStack paused every query, sends
+// waited, and the workspace picker said "no workspace" for a request it never
+// sent. What is not our server: a page (a captive portal's login, whatever its
+// status), a redirect, a 5xx (a portal's 511, a gateway with nothing behind
+// it), and a 200 that is not the liveness answer.
 
 /** The slice of NetInfo's state this reads. */
 interface NetSnapshot {
@@ -26,15 +36,21 @@ export function isKnownOffline(state: NetSnapshot): boolean {
   return state.isConnected === false || state.isInternetReachable === false;
 }
 
-/** The answer NetInfo reads: only the status and the body. */
+/** The answer NetInfo reads: the status, the content type and the body. */
 interface ProbeResponse {
   status: number;
+  headers: { get(name: string): string | null };
   json(): Promise<unknown>;
 }
 
-/** The liveness probe answered as our server does (200 `{"status":"ok"}`); a captive portal's 200 login page is not it. */
+/**
+ * Our server answered the probe: 200 `{"status":"ok"}`, or any answer but a 200 that is neither a page, a redirect
+ * nor a 5xx (an older server's 404, a JSON refusal). A captive portal's page, a redirect and a 5xx are not it.
+ */
 async function isHealthzAnswer(response: ProbeResponse): Promise<boolean> {
-  if (response.status !== 200) return false;
+  const page = /text\/html/i.test(response.headers.get("Content-Type") ?? "");
+  if (page || response.status >= 500 || (response.status >= 300 && response.status < 400)) return false;
+  if (response.status !== 200) return true;
   const body = await response.json().then(
     (value) => value,
     () => null,

@@ -1,10 +1,13 @@
 // What every JavaScript runtime of the app does before its first request:
 // crash reporting first (nothing starts without a DSN), the server URLs every
 // data/* module reads per call, the build's identity on every request, and the
-// fetch that refuses a redirect for every request that carries a credential.
+// fetch that refuses a redirect for every request that carries a credential,
+// and where a response the app could not read is reported (core's
+// parseWithFallback is silent until a host gives it a logger).
 // The app's root layout runs it at load; a headless task (an Android call
 // push or a Decline while UniChat is closed, data/calls/call-wiring.ts) runs
 // it too, since no screen loads there. Idempotent.
+import { setSchemaLogger } from "@uniwork/core/api/schema";
 import { configureRuntime } from "@uniwork/core/runtime-config";
 import Constants from "expo-constants";
 import { clientHeaders } from "@/lib/build-info";
@@ -15,6 +18,7 @@ import { buildInfo } from "./build-info";
 import { enablePerfMarks } from "./logger";
 import { writePerfMarks } from "./perf/marks-file";
 import { setBuildLacks } from "./remote-config";
+import { schemaDriftLogger } from "./report";
 import { initSentry } from "./sentry";
 
 let booted = false;
@@ -29,6 +33,8 @@ export function bootRuntime(): void {
   configureRuntime(runtimeFromExtra(extra));
   // Before any screen or headless task reads a switch: what this binary cannot do stays off.
   setBuildLacks(lackingFlags(buildInfo().os, extra));
+  // Before the first response: a fallback parseWithFallback takes reaches crash reporting by endpoint and paths.
+  setSchemaLogger(schemaDriftLogger);
   api.setClientIdentity(clientHeaders(buildInfo()));
   // Before the first request: the bearer never follows a redirect (data/auth/strict-fetch.ts).
   api.setCredentialFetch(strictFetch);

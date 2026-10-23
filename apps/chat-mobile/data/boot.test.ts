@@ -7,9 +7,12 @@ const calls = vi.hoisted(() => ({
   setCredentialFetch: vi.fn(),
   enablePerfMarks: vi.fn(),
   setBuildLacks: vi.fn(),
+  setSchemaLogger: vi.fn(),
 }));
 vi.mock("expo-constants", () => ({ default: { expoConfig: { extra: { APP_ENV: "staging", apiUrl: "https://api.test", appUrl: "https://app.test", sentryDsn: "https://k@sentry.test/1" } } } }));
 vi.mock("@uniwork/core/runtime-config", () => ({ configureRuntime: calls.configureRuntime }));
+vi.mock("@uniwork/core/api/schema", () => ({ setSchemaLogger: calls.setSchemaLogger }));
+vi.mock("./report", () => ({ schemaDriftLogger: "drift logger" }));
 vi.mock("./sentry", () => ({ initSentry: calls.initSentry }));
 vi.mock("./api", () => ({ api: { setClientIdentity: calls.setClientIdentity, setCredentialFetch: calls.setCredentialFetch } }));
 vi.mock("./auth/strict-fetch", () => ({ strictFetch: "strict fetch" }));
@@ -38,5 +41,9 @@ describe("bootRuntime", () => {
     expect(calls.enablePerfMarks).toHaveBeenCalledWith(false, "file sink");
     // An Android build lacks nothing; an iPhone build without calls keeps them off (lib/runtime-extra.ts › lackingFlags).
     expect(calls.setBuildLacks).toHaveBeenCalledWith([]);
+    // A response parseWithFallback could not read reaches crash reporting by endpoint and paths (data/report.ts),
+    // not core's silent no-op: a drifted list used to read as an empty one with nobody told.
+    expect(calls.setSchemaLogger).toHaveBeenCalledWith("drift logger");
+    expect(calls.setSchemaLogger.mock.invocationCallOrder[0]).toBeLessThan(calls.setCredentialFetch.mock.invocationCallOrder[0] ?? 0);
   });
 });

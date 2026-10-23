@@ -2,7 +2,7 @@
 // app/_layout.tsx gives every screen. test/jest-setup.ts mocks expo-router for the component layer,
 // so a route test calls jest.unmock("expo-router") itself. jest.config.js runs test/routes/ — never a
 // test under app/, which expo-router would take for a route.
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, type DefaultOptions } from "@tanstack/react-query";
 import { act } from "@testing-library/react-native";
 import { renderRouter, type MockContextConfig } from "expo-router/testing-library";
 import type { ReactNode } from "react";
@@ -15,9 +15,12 @@ export interface RenderedRoutes {
   pathname: () => string;
 }
 
-/** Mounts the routes at `initialUrl`. Awaited: RNTL 14 renders asynchronously. */
-export async function renderRoutes(routes: MockContextConfig, initialUrl: string): Promise<RenderedRoutes> {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
+/**
+ * Mounts the routes at `initialUrl`. Awaited: RNTL 14 renders asynchronously. `queries` overrides the query
+ * defaults (no retry): a test of a retry the app makes passes the app's own.
+ */
+export async function renderRoutes(routes: MockContextConfig, initialUrl: string, queries: DefaultOptions["queries"] = {}): Promise<RenderedRoutes> {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity, ...queries }, mutations: { gcTime: Infinity } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>
       <I18nextProvider i18n={i18n}>{children}</I18nextProvider>

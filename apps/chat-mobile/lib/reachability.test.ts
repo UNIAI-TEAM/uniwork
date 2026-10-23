@@ -2,7 +2,11 @@
 import { describe, expect, it } from "vitest";
 import { isKnownOffline, isOnlineState, reachabilityConfig } from "./reachability";
 
-const answer = (status: number, body: unknown) => ({ status, json: () => (body instanceof Error ? Promise.reject(body) : Promise.resolve(body)) });
+const answer = (status: number, body: unknown, contentType: string | null = "application/json") => ({
+  status,
+  headers: { get: (name: string) => (name.toLowerCase() === "content-type" ? contentType : null) },
+  json: () => (body instanceof Error ? Promise.reject(body) : Promise.resolve(body)),
+});
 
 describe("online", () => {
   it("needs a link and no failed probe; unknown reachability counts as reachable", () => {
@@ -40,5 +44,30 @@ describe("the probe", () => {
     expect(await config.reachabilityTest(answer(200, null))).toBe(false);
     expect(await config.reachabilityTest(answer(200, "ok"))).toBe(false);
     expect(await config.reachabilityTest(answer(200, {}))).toBe(false);
+  });
+});
+
+// TestFlight build 4 (iOS): production did not serve /api/v1/healthz yet, so chi answered every probe with
+// `404 text/plain`. NetInfo called the internet unreachable for good, TanStack paused every query, and the
+// workspace picker said "you are in no workspace" for a request it never sent. Our server answering anything
+// but a page proves the network reaches it; only a page (a portal's login), a redirect or a fault does not.
+describe("the probe against a server that answers it otherwise", () => {
+  const test = reachabilityConfig("https://uniworkos.com").reachabilityTest;
+
+  it("counts any answer of our server as reachable: an older server's 404, a JSON refusal", async () => {
+    expect(await test(answer(404, new Error("not json"), "text/plain; charset=utf-8"))).toBe(true);
+    expect(await test(answer(401, { error: { code: "unauthorized" } }))).toBe(true);
+    expect(await test(answer(404, { error: { code: "not_found" } }, null))).toBe(true);
+    expect(await test(answer(200, { status: "ok" }))).toBe(true);
+  });
+
+  it("still counts a portal's page, a redirect and a server fault as unreachable", async () => {
+    expect(await test(answer(200, new Error("not json"), "text/html; charset=utf-8"))).toBe(false);
+    expect(await test(answer(404, new Error("not json"), "TEXT/HTML"))).toBe(false);
+    expect(await test(answer(302, null, "text/html"))).toBe(false);
+    expect(await test(answer(307, null, null))).toBe(false);
+    expect(await test(answer(503, null, "text/plain"))).toBe(false);
+    expect(await test(answer(511, null, null))).toBe(false);
+    expect(await test(answer(200, { status: "down" }))).toBe(false);
   });
 });

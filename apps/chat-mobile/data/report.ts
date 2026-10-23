@@ -5,6 +5,7 @@
 // Sentry behave the same. Every string is redacted (lib/redact.ts) before it
 // reaches the sink, whatever the SDK's own beforeSend does after.
 import { redactData, redactText } from "@/lib/redact";
+import { issuePaths, SchemaMismatchError } from "@/lib/schema-mismatch";
 
 export type ReportLevel = "debug" | "info" | "warning" | "error" | "fatal";
 
@@ -19,6 +20,8 @@ export interface ReportContext {
   handledCodes?: readonly string[];
   /** One issue per what this names, not per stack (an ApiError's endpoint grouping wins). */
   fingerprint?: string[];
+  /** The level, over the one the error's class gives (a fallback the screen lived with is a warning). */
+  level?: ReportLevel;
 }
 
 interface CaptureContext {
@@ -109,17 +112,58 @@ export function reportError(error: unknown, context: ReportContext): void {
   if (api) tags.http_status = String(api.status);
   if (api?.code) tags.error_code = api.code;
   if (api?.endpoint) tags.endpoint = api.endpoint;
+  // An answer the app could not read: by endpoint, with where it differed (paths and codes, never the body).
+  const mismatch = error instanceof SchemaMismatchError ? error : undefined;
+  if (mismatch) tags.endpoint = mismatch.endpoint;
   sink.captureException(error instanceof Error ? error : new Error(String(redactText(String(error)))), {
     tags,
-    extra: redactData(context.extra),
-    level: kind === "contract" && !context.force ? "warning" : "error",
+    // One line: redactData flattens arrays.
+    extra: redactData(mismatch ? { ...context.extra, issues: mismatch.issues.map((i) => `${i.path} ${i.code}`).join(", ") } : context.extra),
+    level: context.level ?? (kind === "contract" && !context.force ? "warning" : "error"),
     ...(api?.endpoint
       ? { fingerprint: ["api-error", api.endpoint, String(api.status), api.code ?? ""] }
-      : context.fingerprint
-        ? { fingerprint: context.fingerprint }
-        : {}),
+      : mismatch
+        ? { fingerprint: ["schema-mismatch", mismatch.endpoint] }
+        : context.fingerprint
+          ? { fingerprint: context.fingerprint }
+          : {}),
   });
 }
+
+/** The logger @uniwork/core/api/schema calls (its `Logger`, structurally: core's logger module is not on the allowlist). */
+interface SchemaLogger {
+  debug(message: string, ...data: unknown[]): void;
+  info(message: string, ...data: unknown[]): void;
+  warn(message: string, ...data: unknown[]): void;
+  error(message: string, ...data: unknown[]): void;
+}
+
+const driftReported = new Set<string>();
+
+/**
+ * What parseWithFallback fell back on (data/boot.ts installs it with setSchemaLogger): a response the app could not
+ * read, reported at warning level by endpoint and paths, once per endpoint per run (a breadcrumb after that). The
+ * line's `received` (the whole body) and the issues' messages are dropped: they quote tenant data. Core only warns;
+ * the other levels report alike, should it ever use them.
+ */
+function reportSchemaDrift(_message: string, data?: unknown): void {
+  const endpointField: unknown = data !== null && typeof data === "object" ? Reflect.get(data, "endpoint") : undefined;
+  const endpoint = typeof endpointField === "string" ? endpointField : "unknown";
+  if (driftReported.has(endpoint)) {
+    breadcrumb("schema", "response fell back", "warning", { endpoint });
+    return;
+  }
+  driftReported.add(endpoint);
+  const issues: unknown = data !== null && typeof data === "object" ? Reflect.get(data, "issues") : undefined;
+  reportError(new SchemaMismatchError(endpoint, issuePaths(issues)), { source: "schema", level: "warning" });
+}
+
+export const schemaDriftLogger: SchemaLogger = {
+  debug: reportSchemaDrift,
+  info: reportSchemaDrift,
+  warn: reportSchemaDrift,
+  error: reportSchemaDrift,
+};
 
 /**
  * The catch handler of a call whose failure the caller lives with — the one

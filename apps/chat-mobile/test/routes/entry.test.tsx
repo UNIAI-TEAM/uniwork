@@ -1,6 +1,7 @@
 // The app's entry and auth gates as the router runs them (app/index.tsx, app/(auth)/login.tsx,
 // app/(app)/_layout.tsx, app/(app)/select-workspace.tsx): who lands where, and what picking a
 // workspace opens. The workspace's own screens are stand-ins here; they have their own tests.
+import { onlineManager } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, screen } from "@testing-library/react-native";
 import { EMPTY_UNREAD_SUMMARY } from "@uniwork/core/api/endpoints/chat-schemas";
 import type { Workspace } from "@uniwork/core/types/workspace";
@@ -12,10 +13,11 @@ import SelectWorkspace from "@/app/(app)/select-workspace";
 import AuthLayout from "@/app/(auth)/_layout";
 import Login from "@/app/(auth)/login";
 import Index from "@/app/index";
-import { api } from "@/data/api";
+import { ApiError, api } from "@/data/api";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
+import { SchemaMismatchError } from "@/lib/schema-mismatch";
 import { DISPLAY_MAX_FONT_SCALE } from "@/lib/type-scale";
 import { renderRoutes } from "@/test/route-render";
 import { viText } from "@/test/render";
@@ -56,6 +58,7 @@ afterEach(async () => {
   await cleanup();
   useAuthStore.setState({ user: null, isLoading: true });
   useWorkspaceStore.setState({ current: null });
+  onlineManager.setOnline(true);
   jest.useRealTimers();
   jest.restoreAllMocks();
 });
@@ -117,6 +120,43 @@ describe("the entry gate", () => {
     await renderRoutes(ROUTES, "/select-workspace");
     const retry = await screen.findByRole("button", { name: viText("common.retry") });
     await act(async () => fireEvent.press(retry));
+    expect(await screen.findByRole("button", { name: /Không gian main/ })).toBeTruthy();
+  });
+
+  // TestFlight build 4 (iOS): NetInfo's probe hit a route production did not serve yet, called a working network
+  // offline for good, and the picker said "Bạn chưa ở workspace nào" for a request it never sent.
+  it("lists the workspaces even while the reachability probe calls the network offline", async () => {
+    onlineManager.setOnline(false);
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    await renderRoutes(ROUTES, "/select-workspace");
+    expect(await screen.findByRole("button", { name: /Không gian sales/ })).toBeTruthy();
+    expect(screen.getAllByText("Acme").length).toBeGreaterThan(0);
+    expect(screen.queryByText(viText("mobile.account.no_workspace"))).toBeNull();
+  });
+
+  it("waits for the network, never says 'no workspace', while no answer has come; Retry asks again now", async () => {
+    onlineManager.setOnline(false);
+    // Failed once the router is mounted: renderRouter's fake timers would hold the retry's delay for good.
+    let fail: (error: unknown) => void = () => undefined;
+    jest.mocked(api.listWorkspaces).mockImplementationOnce(() => new Promise((_resolve, reject) => (fail = reject)));
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    // The app's own retry (data/query-client.ts): the second attempt waits for an online the probe never gives.
+    await renderRoutes(ROUTES, "/select-workspace", { retry: 1, retryDelay: 0 });
+    await act(async () => fail(new ApiError("Network request failed", 0)));
+    expect(await screen.findByText(viText("chat.mobile.offline_banner"))).toBeTruthy();
+    expect(screen.queryByText(viText("mobile.account.no_workspace"))).toBeNull();
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: viText("common.retry") })));
+    expect(await screen.findByRole("button", { name: /Không gian main/ })).toBeTruthy();
+    expect(api.listWorkspaces).toHaveBeenCalledTimes(2);
+  });
+
+  it("says a list it could not read is an error, not an empty one", async () => {
+    jest.mocked(api.listWorkspaces).mockRejectedValueOnce(new SchemaMismatchError("GET /api/v1/workspaces", [{ path: "workspaces", code: "invalid_type" }]));
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    await renderRoutes(ROUTES, "/select-workspace");
+    expect(await screen.findByText(viText("common.error"))).toBeTruthy();
+    expect(screen.queryByText(viText("mobile.account.no_workspace"))).toBeNull();
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: viText("common.retry") })));
     expect(await screen.findByRole("button", { name: /Không gian main/ })).toBeTruthy();
   });
 

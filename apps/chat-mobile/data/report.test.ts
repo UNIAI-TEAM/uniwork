@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { REDACTED } from "@/lib/redact";
-import { bestEffort, breadcrumb, classifyError, installReportSink, isReporting, RefusedError, reportError, setReportTag, setReportUser, type ReportSink } from "./report";
+import { SchemaMismatchError } from "@/lib/schema-mismatch";
+import { bestEffort, breadcrumb, classifyError, installReportSink, isReporting, RefusedError, reportError, schemaDriftLogger, setReportTag, setReportUser, type ReportSink } from "./report";
 
 const apiError = (status: number, extra: { body?: unknown; endpoint?: string } = {}) => Object.assign(new Error(`HTTP ${status}`), { name: "ApiError", status, ...extra });
 const coded = (status: number, code: unknown) => apiError(status, { body: { error: { code } }, endpoint: "POST /api/v1/me/delete" });
@@ -140,5 +141,54 @@ describe("bestEffort", () => {
       { error: "Error" },
       { error: "string" },
     ]);
+  });
+});
+
+// A response the app could not read is drift between the build and the server: crash reporting hears of it by
+// endpoint and paths, never with the body (workspace names, messages and people are tenant data).
+describe("schema drift", () => {
+  it("reports a SchemaMismatchError as an error, tagged and grouped by its endpoint, without the body", () => {
+    const sink = fakeSink();
+    installReportSink(sink);
+    const error = new SchemaMismatchError("GET /api/v1/workspaces", [{ path: "workspaces", code: "invalid_type" }]);
+    expect(classifyError(error)).toBe("bug");
+    reportError(error, { source: "query", tags: { query: "workspaces" } });
+    expect(sink.captureException).toHaveBeenCalledWith(error, {
+      tags: { source: "query", query: "workspaces", endpoint: "GET /api/v1/workspaces" },
+      extra: { issues: "workspaces invalid_type" },
+      level: "error",
+      fingerprint: ["schema-mismatch", "GET /api/v1/workspaces"],
+    });
+  });
+
+  it("reports what parseWithFallback fell back on at warning level, dropping the received body", () => {
+    const sink = fakeSink();
+    installReportSink(sink);
+    schemaDriftLogger.warn("API response failed schema validation: GET /api/v1/me", {
+      endpoint: "GET /api/v1/me",
+      issues: [{ path: ["user", "id"], code: "invalid_type", message: "Expected string, received number" }],
+      received: { user: { id: 7, email: "an@example.com" } },
+    });
+    const [error, context] = sink.captureException.mock.calls[0] ?? [];
+    expect(error).toBeInstanceOf(SchemaMismatchError);
+    expect(context).toEqual({
+      tags: { source: "schema", endpoint: "GET /api/v1/me" },
+      extra: { issues: "user.id invalid_type" },
+      level: "warning",
+      fingerprint: ["schema-mismatch", "GET /api/v1/me"],
+    });
+    expect(JSON.stringify(sink.captureException.mock.calls)).not.toContain("an@example.com");
+  });
+
+  it("reports each endpoint once per run, then leaves breadcrumbs; a line without an endpoint is \"unknown\"", () => {
+    const sink = fakeSink();
+    installReportSink(sink);
+    schemaDriftLogger.debug("x");
+    schemaDriftLogger.info("x", null);
+    schemaDriftLogger.error("x", { endpoint: 7 });
+    schemaDriftLogger.warn("y", { endpoint: "GET /api/v1/rooms", issues: [] });
+    schemaDriftLogger.warn("y", { endpoint: "GET /api/v1/rooms", issues: [] });
+    expect(sink.captureException.mock.calls.map(([, context]) => context.tags.endpoint)).toEqual(["unknown", "GET /api/v1/rooms"]);
+    expect(sink.addBreadcrumb.mock.calls.map(([crumb]) => crumb.data)).toEqual([{ endpoint: "unknown" }, { endpoint: "unknown" }, { endpoint: "GET /api/v1/rooms" }]);
   });
 });

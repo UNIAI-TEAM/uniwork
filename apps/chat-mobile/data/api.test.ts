@@ -9,6 +9,7 @@ const sessionMock = vi.hoisted(() => ({
 }));
 vi.mock("./auth/flow", () => ({ session: sessionMock }));
 
+import { SchemaMismatchError } from "@/lib/schema-mismatch";
 import { ApiError, api, createApiClient } from "./api";
 import { classifyError, installReportSink, reportError } from "./report";
 
@@ -88,13 +89,43 @@ describe("api client", () => {
     expect(header(init, "Content-Type")).toBe("application/json");
   });
 
-  it("omits the bearer when signed out and degrades a drifted body to the fallback", async () => {
+  it("omits the bearer when signed out and degrades a drifted /me to the fallback", async () => {
     sessionMock.getAccessToken.mockResolvedValue(null);
     fetchMock.mockResolvedValueOnce(json(200, { user: { id: 7 } }));
     expect(await api.getMe()).toBeNull();
     expect(header(calls()[0]?.init, "Authorization")).toBeNull();
-    fetchMock.mockResolvedValueOnce(json(200, { workspaces: "nope" }));
-    expect(await api.listWorkspaces()).toEqual([]);
+  });
+
+  // A drifted workspace list is not "you are in no workspace": that copy tells a person to ask an admin for
+  // something they already have. It fails, so the picker says so and offers Retry, and crash reporting hears of it.
+  it("rejects a drifted workspace list with a SchemaMismatchError that names the endpoint and paths, never the body", async () => {
+    for (const body of [{ workspaces: null }, {}, { workspaces: "nope" }, { workspaces: [{ id: 7, name: "Phòng Bí Mật" }] }]) {
+      fetchMock.mockResolvedValueOnce(json(200, body));
+      const error = await api.listWorkspaces().catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(SchemaMismatchError);
+      expect(error).toMatchObject({ name: "SchemaMismatchError", endpoint: "GET /api/v1/workspaces" });
+      expect(JSON.stringify({ ...(error as SchemaMismatchError), message: (error as Error).message })).not.toContain("Phòng Bí Mật");
+    }
+    fetchMock.mockResolvedValueOnce(json(200, { workspaces: [{ id: 7, name: "Phòng Bí Mật" }] }));
+    expect(await api.listWorkspaces().catch((e: unknown) => e)).toMatchObject({ issues: [{ path: "workspaces.0.id", code: "invalid_type" }] });
+  });
+
+  it("reads the four workspaces the Go SDO sends (sdo.WorkspaceDTO: ten strings)", async () => {
+    const row = (id: string, name: string) => ({
+      id,
+      slug: id,
+      name,
+      organization_id: "o1",
+      organization_slug: "unicom",
+      organization_name: "UNICOM TECHNOLOGY",
+      description: "",
+      icon_emoji: "",
+      icon_url: "",
+      task_prefix: "TASK",
+    });
+    fetchMock.mockResolvedValueOnce(json(200, { workspaces: [row("w1", "UNICOM"), row("w2", "UNIAI Team"), row("w3", "Unicom BoD"), row("w4", "PSD")] }));
+    const list = await api.listWorkspaces();
+    expect(list.map((w) => w.name)).toEqual(["UNICOM", "UNIAI Team", "Unicom BoD", "PSD"]);
   });
 
   it("lists workspaces, and a caller abort mid-flight aborts the request with the caller's reason", async () => {

@@ -9,6 +9,7 @@ import type { User } from "@uniwork/core/types/user";
 import type { Workspace } from "@uniwork/core/types/workspace";
 import type { ZodType } from "zod";
 import { endpointShape } from "@/lib/redact";
+import { issuePaths, SchemaMismatchError } from "@/lib/schema-mismatch";
 import { session } from "./auth/flow";
 import type { FetchLike } from "./auth/transport";
 import { MeResponseSchema, WorkspacesResponseSchema } from "./schemas";
@@ -174,6 +175,18 @@ export function createApiClient(deps: ApiClientDeps) {
     return parseWithFallback(raw, schema, fallback, { endpoint: opts.endpoint });
   }
 
+  /**
+   * For an answer no fallback stands in for: a drifted body rejects with a SchemaMismatchError (endpoint and paths,
+   * never the body) that the screen shows as an error with Retry and crash reporting hears of (data/report.ts). A
+   * drifted workspace list read as `[]` told a person "you are in no workspace" and nobody else anything.
+   */
+  async function fetchStrict<T>(path: string, schema: ZodType<T>, opts: Opts & { endpoint: string }): Promise<T> {
+    const raw = await request(path, { signal: opts.signal });
+    const parsed = schema.safeParse(raw);
+    if (!parsed.success) throw new SchemaMismatchError(opts.endpoint, issuePaths(parsed.error.issues));
+    return parsed.data;
+  }
+
   return {
     request,
     setOnUnauthorized(cb: () => void) {
@@ -193,13 +206,9 @@ export function createApiClient(deps: ApiClientDeps) {
       });
       return parsed?.user ?? null;
     },
+    /** Strict (fetchStrict): `[]` here means "you are in no workspace", so a drifted answer must not read as one. */
     async listWorkspaces(opts?: Opts): Promise<Workspace[]> {
-      const parsed = await fetchValidated<{ workspaces: Workspace[] }>(
-        "/api/v1/workspaces",
-        WorkspacesResponseSchema,
-        { workspaces: [] },
-        { ...opts, endpoint: "GET /api/v1/workspaces" },
-      );
+      const parsed = await fetchStrict("/api/v1/workspaces", WorkspacesResponseSchema, { ...opts, endpoint: "GET /api/v1/workspaces" });
       return parsed.workspaces;
     },
     async subscribePush(body: PushSubscription): Promise<void> {

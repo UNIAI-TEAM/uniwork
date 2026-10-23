@@ -12,7 +12,11 @@
   `meta` của mutation) thì không báo; 4xx khác (400, 409, 413, 415, 422…) là lệch hợp đồng với server, báo mức
   `warning`; 5xx và lỗi khác là bug, mức `error`. `ApiError` mang `endpoint` (`lib/redact.ts › endpointShape`: method +
   route, id thành `{id}`), báo cáo có tag `endpoint`/`http_status`/`error_code` và fingerprint theo endpoint + status +
-  mã, nên mỗi route lệch là một issue riêng. Không nuốt lỗi im lặng: lint (`no-restricted-syntax`, fixture
+  mã, nên mỗi route lệch là một issue riêng. Câu trả lời 2xx app không đọc được: `data/boot.ts` cài
+  `schemaDriftLogger` (`setSchemaLogger` của core) nên mỗi lần `parseWithFallback` lùi về fallback được báo mức
+  `warning` một lần mỗi endpoint mỗi lần chạy (`SchemaMismatchError`, `lib/schema-mismatch.ts`: endpoint, path và mã
+  zod, không bao giờ body); `listWorkspaces` không có fallback (`fetchStrict` của `data/api.ts`: `[]` nghĩa là "chưa
+  ở workspace nào") nên lệch là lỗi mức `error`, màn chọn workspace hiện lỗi + Thử lại. Không nuốt lỗi im lặng: lint (`no-restricted-syntax`, fixture
   `lib/lint-quality.test.ts`) cấm `.catch(() => undefined | null | {} | [])`; dùng `.catch(bestEffort(scope, what,
   "report" | "breadcrumb"))` — luôn để breadcrumb, `"report"` còn qua `reportError` (lời gọi server, lỗi là sự cố),
   `"breadcrumb"` cho lời gọi native chỉ mang tính trang trí (rung, splash, share) — hoặc `settled()` của

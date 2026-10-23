@@ -3,6 +3,8 @@
 // above it (canvas MobSelectWorkspace). Settings sits under the list in every
 // state, an empty one included: the account's own Settings (accountRoutes)
 // keeps the legal pages and account deletion reachable without a workspace.
+// "No workspace" only once the server answered with none: a list not answered
+// yet waits for the network, with Retry (components/workspace/use-workspace-list.ts).
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import type { Workspace } from "@uniwork/core/types/workspace";
@@ -13,10 +15,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { CardPressable } from "@/components/ui/card";
 import { Text } from "@/components/ui/text";
+import { useWorkspaceList } from "@/components/workspace/use-workspace-list";
 import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { unreadSummaryOptions } from "@/data/queries/chat";
 import { useAuthStore } from "@/data/auth/store";
-import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { accountRoutes } from "@/lib/chat-routes";
 import { THEME } from "@/lib/theme";
@@ -30,7 +32,7 @@ export default function SelectWorkspace() {
   const { colorScheme } = useColorScheme();
   const logout = useAuthStore((s) => s.logout);
   const setCurrent = useWorkspaceStore((s) => s.setCurrent);
-  const { data, isLoading, error, refetch } = useQuery(workspaceListOptions());
+  const { data, view, retry } = useWorkspaceList();
   const summary = useQuery(unreadSummaryOptions());
 
   const onSelect = async (ws: Workspace) => {
@@ -57,22 +59,24 @@ export default function SelectWorkspace() {
             </View>
           ) : null}
         </View>
-        {isLoading ? (
+        {view === "loading" ? (
           <View className="py-8 items-center">
             <ActivityIndicator accessibilityLabel={t("common.loading")} />
           </View>
-        ) : error ? (
+        ) : view === "waiting" || view === "error" ? (
           <View className="gap-3">
-            <Text className="text-callout text-destructive">{t("common.error")}</Text>
-            <Button variant="outline" onPress={() => void refetch()}>
+            <Text className={view === "error" ? "text-callout text-destructive" : "text-callout text-muted-foreground"}>
+              {t(view === "error" ? "common.error" : "chat.mobile.offline_banner")}
+            </Text>
+            <Button variant="outline" onPress={() => void retry()}>
               <Text>{t("common.retry")}</Text>
             </Button>
           </View>
-        ) : !data || data.length === 0 ? (
+        ) : view === "empty" ? (
           <Text className="text-callout leading-[22px] text-muted-foreground">{t("mobile.account.no_workspace")}</Text>
         ) : (
           <View className="gap-3">
-            {data.map((ws) => {
+            {(data ?? []).map((ws) => {
               const counts = unreadOfWorkspace(summary.data, ws.id);
               const badge = badgeText(counts.unread);
               return (

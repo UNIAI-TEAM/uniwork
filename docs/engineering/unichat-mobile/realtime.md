@@ -37,6 +37,12 @@ Ba tầng socket, decoder frame, luật socket, ân hạn nền, khôi phục ph
   đợi giữ), cho cạnh offline → online (flush, `forceReconnect`) và cho banner. `data/query-client.ts` gọi
   `NetInfo.configure` trước mọi listener: iOS thăm dò `GET <apiUrl>/api/v1/healthz` (200 `{"status":"ok"}`; trang đăng nhập
   của portal không qua; dưới `/api` vì edge production chỉ đưa `/api` tới server, `/healthz` trần rơi vào web), 60 s một lần khi tới được, 5 s khi không; Android dùng `NET_CAPABILITY_VALIDATED` của OS.
+  Câu trả lời nào khác của server mình cũng tính là tới được (404 `text/plain` của chi khi server cũ chưa có route,
+  401 JSON); chỉ trang HTML (portal, mọi status), 3xx, 5xx và 200 không phải `{"status":"ok"}` là không. TestFlight
+  build 4 (iOS) thăm dò route mà production chưa có: mọi iPhone offline vĩnh viễn, query dừng, màn chọn workspace nói
+  "Bạn chưa ở workspace nào" cho một request chưa từng gửi. Vì thế danh sách workspace chạy `networkMode:
+  "offlineFirst"` (hỏi một lần dù `onlineManager` nói gì) và `select-workspace` chỉ nói "chưa ở workspace nào" khi
+  server đã trả rỗng (`lib/list-view.ts`; đang dừng thì "Đang chờ mạng…" + Thử lại).
 - Frame chat là ephemeral và không có số thứ tự, nên frame mất (socket rớt, hay relay làm rơi khi socket còn sống)
   được tìm lại bằng nhật ký thay đổi của server (`data/chat-sync/sync.ts`, `GET …/chat/sync`; chi tiết ở
   `offline-first.md` › Nhật ký thay đổi): `chat-realtime.ts › reconnect` và kiểm tra sống sau 60 s

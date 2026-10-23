@@ -598,6 +598,11 @@ từng mục khi đã nộp:
 **Kiểm tra trên máy trước bản store (offline và realtime, UNI-2053 S3).** Test node và jest giữ logic; chỉ máy thật
 (bản `preview` hoặc `internal`) xác nhận phần native — MMKV mã hoá, splash, thư mục outbox, socket giữ khi gọi:
 
+- [ ] Server production đã phục vụ route iOS thăm dò (`lib/reachability.ts`):
+  `curl -i https://uniworkos.com/api/v1/healthz` trả `200` `application/json` `{"status":"ok"}`. TestFlight build 4
+  ra trước khi route lên production; app nay coi 404 của server cũ là tới được, nhưng vẫn kiểm trước mỗi bản iOS.
+- [ ] Đăng nhập mới trên iPhone qua Wi-Fi và 4G: màn chọn workspace hiện đủ workspace như web, không có banner
+  "Đang chờ mạng…" ở tab Chat.
 - [ ] Đã đăng nhập, bật chế độ máy bay, kill app, mở lại: splash rồi thẳng vào danh sách chat với dữ liệu cũ, banner
   "Đang chờ mạng…", không về màn đăng nhập. Server trả 5xx (staging tắt API) cũng vậy.
 - [ ] Offline: gửi chữ, một ảnh, một tin thoại, một nhắc hẹn; thả một biểu cảm, bình chọn; kill app; mở lại vẫn thấy
