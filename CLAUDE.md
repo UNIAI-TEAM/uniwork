@@ -383,8 +383,13 @@ Every command that changes business state writes an `audit_events` row and its
   with `transport = 'apns_voip'`, and only `server/internal/notification/push_apns.go`
   sends to it — a ring still within its window or its end, never a chat,
   missed-call or tray push, since iOS stops waking an app whose VoIP push does
-  not ring CallKit. `TestAPNsVoIPSenderSkipsWhatCallKitDoesNotRing` and
-  `TestChatPushNeverReachesAPushKitToken` hold it.
+  not ring CallKit. An end goes once, only to the tokens that ring reached
+  while it is in its window, never to the device session that answered or
+  declined, and never retries the row: iOS shows a call for every VoIP push.
+  `TestAPNsVoIPSenderSkipsWhatCallKitDoesNotRing`,
+  `TestChatPushNeverReachesAPushKitToken`,
+  `TestCallRingClosedEndsTheCallKitRing` and
+  `TestCallRingClosedSendsNoVoIPEndWhereNoRingIs` hold it.
 
 ## Platform Admin and Observability
 

@@ -268,29 +268,42 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   (`APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`; dùng lại 50 phút, `ExpiredProviderToken` thì ký lại và thử một
   lần nữa), header `apns-push-type: voip`, `apns-topic: <bundle id>.voip` (`APNS_VOIP_TOPIC` ghi đè), `apns-priority:
   10`, `apns-expiration` = lúc hết đổ chuông (lời mời) hoặc bây giờ + 60 giây (kết thúc). 410 `Unregistered` và 400
-  `BadDeviceToken` thu hồi token; mọi lỗi khác (429, 5xx, `DeviceTokenNotForTopic`, khoá bị từ chối) để outbox thử lại.
+  `BadDeviceToken` thu hồi token, và 400 `DeviceTokenNotForTopic` cũng vậy khi topic là của chính token (có
+  `APNS_VOIP_TOPIC` thì đó là lỗi cấu hình server, token giữ nguyên); mọi 4xx khác trừ 429 (topic bị cấm, payload quá lớn,
+  khoá bị từ chối) là `ErrPushRefused`: gửi lại cũng bị từ chối, nên chỉ đếm và log; chỉ 429, 5xx và lỗi mạng là lỗi
+  tạm. Không lỗi VoIP nào làm outbox thử lại hàng: thử lại sẽ reo hay kết thúc lại mọi máy khác.
   Metric `uniwork_push_apns_voip_total{result, reason}` (reason là mã của Apple, không có token); log không có token
   hay tên. Thiếu cả ba biến thì VoIP tắt; thiếu một phần hay khoá hỏng thì server log lỗi lúc khởi động và VoIP tắt.
   **Payload** (không có `aps`): `{"uniwork": {"kind": "invite" | "end", "call_id", "room_id", "workspace_id",
-  "org_slug", "ws_slug", "caller_name", "video": true | false, "expires_at": "<RFC3339 UTC>"}}`; push `end` không có
-  `caller_name`. Tên người gọi theo cùng luật với push gọi Android: lời mời luôn mang nó (kể cả khi ẩn xem trước), vì nó
+  "org_slug", "ws_slug", "caller_name", "video": true | false, "expires_at": "<RFC3339 UTC>", "reason"}}`; push `end`
+  không có `caller_name` và có `reason`: `answered` (người đó nghe ở máy khác), `declined` (từ chối ở máy khác) hay
+  `ended` (cuộc gọi kết thúc, hoặc nhóm gọi xong mà họ không vào); lời mời không có `reason`. Tên người gọi theo cùng luật với push gọi Android: lời mời luôn mang nó (kể cả khi ẩn xem trước), vì nó
   chỉ sống trong cửa sổ đổ chuông. **Định tuyến** (`push_consumer.go › sendVoIP`): `unichat_mobile_calls_ios` bật và
   người đó có token PushKit → lời mời đi VoIP trước, token Expo `expo/ios` cùng `session_id` với một token PushKit đã
   nhận thì bỏ qua (không có banner "X đang gọi" chồng lên CallKit); iPhone khác (bản cũ, phiên khác), server không có
-  khoá hay token chết thì vẫn nhận push hiển thị như trước; công tắc tắt thì không iPhone nào reo. `chat.voice.ring_closed`
-  (nghe ở máy khác, từ chối, kết thúc) gửi `end` tới mọi token PushKit của người đó khi công tắc bật — kể cả iPhone đã
-  nghe hay đã từ chối. Push tin, cuộc gọi nhỡ và `room_read` không bao giờ tới token PushKit. Outbox có thể gửi lại cùng
+  khoá hay token chết thì vẫn nhận push hiển thị như trước; công tắc tắt thì không iPhone nào reo. Token PushKit nào nhận
+  lời mời thì được ghi lên hàng notification đổ chuông (`notifications.voip_subscription_ids`). `chat.voice.ring_closed`
+  (nghe ở máy khác, từ chối, kết thúc; payload mang `reason` và `session_id` của phiên thiết bị đã nghe hay từ chối)
+  gửi `end` khi công tắc bật (`push_consumer.go › endCallKitRings`) chỉ tới các token đã ghi đó, một lần (danh sách
+  được lấy đi cùng lúc đọc, nên outbox thử lại hay `ring_closed` của lúc cuộc gọi kết thúc không gửi lần hai), chỉ khi
+  hàng đổ chuông còn trong cửa sổ 60 giây, và không bao giờ tới token của chính phiên đã nghe hay đã từ chối: iOS bắt
+  app báo một cuộc gọi cho mỗi VoIP push, nên `end` ở nơi không còn reo là một cuộc gọi hiện lên rồi tắt, còn ở máy
+  vừa nghe thì là gác máy. Lời mời bị bỏ trước khi gửi (đã nghe ở máy khác) không ghi token nào nên không có `end`;
+  `end` gửi lỗi không làm hàng thử lại, iPhone reo hết cửa sổ rồi tự dừng. Push tin, cuộc gọi nhỡ và `room_read` không bao giờ tới token PushKit. Outbox có thể gửi lại cùng
   một lời mời (thử lại sau lỗi), nên app coi `call_id` trùng là một cuộc gọi. **App** (nửa Swift của
   `modules/unichat-calls`): mỗi VoIP push gọi `CXProvider.reportNewIncomingCall` đồng bộ trong callback PushKit — iOS
   13+ giết app và rồi thôi giao VoIP push nếu không báo; `end`, lời mời đã quá `expires_at` hay `call_id` đã kết thúc thì
-  báo rồi kết thúc ngay (`reportCall(with:endedAt:reason:)`), còn `end` của cuộc gọi đang diễn ra trên chính máy đó thì
-  không gác máy. UUID của CallKit là `call_id` khi nó là UUID, nếu không thì suy ra tất định từ nó (server cho tới 64
+  báo rồi kết thúc ngay (`reportCall(with:endedAt:reason:)`, lý do theo `reason`: `answered` → `.answeredElsewhere`,
+  `declined` → `.declinedElsewhere`, `ended` hay thiếu → `.remoteEnded`; lời mời quá hạn → `.unanswered`), còn `end`
+  của cuộc gọi đã nghe hay đang diễn ra trên chính máy đó thì không gác máy (server không gửi nó, app vẫn phải giữ luật
+  này). UUID của CallKit là `call_id` khi nó là UUID, nếu không thì suy ra tất định từ nó (server cho tới 64
   ký tự). Nghe → mở `uniworkchat://open?url=/<org>/<ws>/chat?room=<room>&call=<call_id>` và phát sự kiện JS để màn cuộc
   gọi nối LiveKit; Từ chối → `POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/decline` với
   `{"call_id"}`, đúng API Android dùng. JS thấy cả hai nền tảng qua giao diện trung lập `NativeCallSession` (đến, đã
   nghe, đã từ chối, đã kết thúc; tắt tiếng/giữ máy tuỳ chọn). Test server: `push_apns_test.go` (APNs giả HTTP/2 TLS:
   header, topic, push type, expiration, JWT và cache, payload, 410, tắt khi thiếu khoá), `chat_call_voip_test.go`
-  (định tuyến, thu hồi, kết thúc, push tin không tới PushKit), `service_voip_test.go`, `TestNotificationEndpoints`.
+  (định tuyến, thu hồi, kết thúc chỉ tới máy đã reo và không tới máy đã nghe/từ chối, push tin không tới PushKit),
+  `TestVoiceSignalNamesTheDeviceThatClosedTheRing`, `service_voip_test.go`, `TestNotificationEndpoints`.
   **Việc của chủ sở hữu** trước khi bật công tắc: tạo khoá APNs (Apple Developer › Keys, bật Apple Push Notifications
   service, môi trường Sandbox & Production, tải `AuthKey_<KeyID>.p8` một lần), bật Push Notifications cho App ID
   `com.uniworkos.chat` và `com.uniworkos.chat.staging`, tạo Secret `uniwork-apns` (khoá `APNS_KEY_ID`, `APNS_TEAM_ID` =

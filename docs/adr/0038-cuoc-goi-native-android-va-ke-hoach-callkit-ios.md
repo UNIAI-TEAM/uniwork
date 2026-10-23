@@ -66,7 +66,8 @@ iOS nhận VoIP push qua PushKit và báo ngay cho CallKit.
      build: development là `sandbox`, TestFlight và App Store là `production`. Server lưu như mọi subscription
      (cột `transport`, `apns_environment`, `apns_bundle_id` của `push_subscriptions`, gắn phiên thiết bị qua
      `session_id`; bảng là thông tin đăng nhập theo người, ngoài tenant), gỡ bằng `DELETE` cùng route với endpoint là
-     token, và thu hồi khi APNs trả 410 `Unregistered` hoặc 400 `BadDeviceToken`.
+     token, và thu hồi khi APNs trả 410 `Unregistered`, 400 `BadDeviceToken` hoặc 400 `DeviceTokenNotForTopic` (với
+     topic của chính token). Mọi 4xx khác trừ 429 là từ chối hẳn: đếm và log, không gửi lại.
    - **Gửi.** HTTP/2 tới `api.push.apple.com` (production) hoặc `api.sandbox.push.apple.com` (sandbox), xác thực bằng
      token: JWT ES256 ký bằng khoá `.p8` (`APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` dạng PEM), claim `iss` =
      Team ID và `iat`, dùng lại 50 phút. Header `apns-push-type: voip`, `apns-topic: <bundle id>.voip` (hoặc
@@ -74,18 +75,25 @@ iOS nhận VoIP push qua PushKit và báo ngay cho CallKit.
      (kết thúc). Thiếu khoá thì VoIP tắt và iPhone giữ đường hiện tại. Chỉ thư viện chuẩn của Go, không thêm phụ
      thuộc.
    - **Payload**, không có `aps`: `{"uniwork": {"kind": "invite" | "end", "call_id", "room_id", "workspace_id",
-     "org_slug", "ws_slug", "caller_name", "video": true | false, "expires_at": "<RFC3339>"}}`. `caller_name` theo
+     "org_slug", "ws_slug", "caller_name", "video": true | false, "expires_at": "<RFC3339>", "reason"}}`. `caller_name` theo
      cùng luật riêng tư với push gọi Android (`push_consumer.go`: lời mời giữ tên người gọi kể cả khi ẩn xem trước,
-     vì nghe máy cần nó và nó chỉ sống trong cửa sổ đổ chuông); push kết thúc không mang tên. `end` được gửi khi
-     cuộc gọi kết thúc, được nghe ở máy khác hay bị từ chối (cùng hàng outbox `chat.voice.ring_closed` của Android),
-     để màn CallKit gỡ xuống — kể cả tới chính iPhone đã nghe hoặc đã từ chối.
+     vì nghe máy cần nó và nó chỉ sống trong cửa sổ đổ chuông); push kết thúc không mang tên mà mang `reason`, một tập
+     đóng: `answered` (nghe ở máy khác), `declined` (từ chối ở máy khác), `ended` (cuộc gọi kết thúc). `end` được gửi
+     khi cuộc gọi kết thúc, được nghe ở máy khác hay bị từ chối (cùng hàng outbox `chat.voice.ring_closed` của Android,
+     mang `reason` và `session_id` của phiên thiết bị đã nghe hay từ chối), để màn CallKit gỡ xuống, và chỉ ở nơi còn
+     màn đó: tới các token PushKit đã nhận lời mời của chính cuộc gọi ấy (ghi trên hàng notification đổ chuông), một
+     lần, khi đổ chuông còn trong cửa sổ, và không bao giờ tới phiên đã nghe hay đã từ chối. Vì iOS bắt báo một cuộc
+     gọi cho mỗi VoIP push, một `end` gửi thừa là một cuộc gọi ma hiện lên rồi tắt, còn `end` tới máy vừa nghe thì gác
+     máy. Lỗi gửi `end` không làm outbox thử lại hàng.
    - **Định tuyến.** Khi `unichat_mobile_calls_ios` bật cho người đó và họ có subscription `apns_voip`, lời mời đi
      bằng VoIP push và token Expo đăng ký từ cùng phiên thiết bị không nhận push "X đang gọi"; iPhone không có token
      PushKit (bản cũ, phiên khác), server không có khoá, hay token chết/lỗi thì giữ push hiển thị như hôm nay. Công
      tắc tắt thì không iPhone nào reo. Push tin chat, cuộc gọi nhỡ và mọi push khác không bao giờ tới token PushKit.
    - **App iPhone.** Mỗi VoIP push phải gọi `CXProvider.reportNewIncomingCall` đồng bộ trong callback PushKit (iOS
      13+ giết app và rồi thôi đánh thức app không báo); `end` hay lời mời đã quá `expires_at` thì báo một cuộc gọi rồi
-     kết thúc ngay với lý do đúng (`remoteEnded`, `answeredElsewhere`, `declinedElsewhere`, `unanswered`). Nghe mở
+     kết thúc ngay với lý do theo `reason` (`answered` → `answeredElsewhere`, `declined` → `declinedElsewhere`, `ended`
+     hay thiếu → `remoteEnded`; lời mời quá hạn → `unanswered`) — trừ `end` của cuộc gọi đã nghe hay đang diễn ra trên
+     chính máy đó: cuộc gọi ấy không bị gác (server không gửi `end` như vậy, app vẫn giữ luật này). Nghe mở
      `uniworkchat://open?url=/<org>/<ws>/chat?room=<room>&call=<call_id>` và phát sự kiện JavaScript để màn cuộc
      gọi nối LiveKit; Từ chối gửi `POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/decline`
      (`{"call_id"}`), đúng API của Android. Phía JavaScript có giao diện trung lập `NativeCallSession` (đến, đã nghe,
@@ -137,8 +145,9 @@ Mất / phải trả:
   metric riêng `uniwork_push_apns_voip_total{result, reason}`. Token PushKit của bản development chỉ sống trên
   sandbox: một bản build khai sai môi trường nhận `BadDeviceToken` và bị thu hồi token, rồi đăng ký lại ở lần mở app
   sau. Một push VoIP mà app không báo CallKit là lỗi chết người với app (iOS ngừng giao VoIP), nên sender chỉ gửi lời
-  mời còn hạn và push kết thúc, không gì khác (`TestAPNsVoIPSenderSkipsWhatCallKitDoesNotRing`,
-  `TestChatPushNeverReachesAPushKitToken`).
+  mời còn hạn và push kết thúc, không gì khác, và push kết thúc chỉ tới iPhone còn đang reo cuộc gọi đó
+  (`TestAPNsVoIPSenderSkipsWhatCallKitDoesNotRing`, `TestChatPushNeverReachesAPushKitToken`,
+  `TestCallRingClosedEndsTheCallKitRing`, `TestCallRingClosedSendsNoVoIPEndWhereNoRingIs`).
 - Dịch vụ FCM native (`UniChatMessagingService`) thấy mọi push trước nhưng chỉ đổ chuông; thông báo tin chat vẫn do
   expo-notifications dựng, phẳng, không MessagingStyle hay gom theo phòng (hoãn 2026-10-22). Đường làm và hợp đồng
   phải giữ (tag = `group_key`, id 0, request marshal trong extra, intent phản hồi và nút Trả lời/Đánh dấu đã đọc của
