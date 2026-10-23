@@ -224,6 +224,17 @@ describe("the entry gate", () => {
     expect(routes.pathname()).toBe("/licenses");
   });
 
+  // ADR 0041: an account made with Apple's Hide My Email has Apple's forwarding address, and an invitation to the
+  // person's work email names another account; the empty list says so instead of "ask an admin".
+  it("tells a Hide My Email account why an invitation to its work email does not reach it", async () => {
+    jest.mocked(api.listWorkspaces).mockResolvedValue([]);
+    const relay = "q7x@privaterelay.appleid.com";
+    useAuthStore.setState({ user: { ...user, email: relay } as never, isLoading: false });
+    await renderRoutes(ROUTES, "/select-workspace");
+    expect(await screen.findByText(viText("mobile.account.no_workspace_relay", { email: relay }))).toBeTruthy();
+    expect(screen.queryByText(viText("mobile.account.no_workspace"))).toBeNull();
+  });
+
   it("signs out from the account's own Settings", async () => {
     jest.mocked(api.listWorkspaces).mockResolvedValue([]);
     const original = useAuthStore.getState().logout;

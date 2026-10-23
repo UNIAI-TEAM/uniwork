@@ -3,6 +3,7 @@
 // above it (canvas MobSelectWorkspace). Settings sits under the list in every
 // state, an empty one included: the account's own Settings (accountRoutes)
 // keeps the legal pages and account deletion reachable without a workspace.
+// A Hide My Email account (ADR 0041) hears why an invitation to its work email misses it (lib/apple-relay.ts).
 // "No workspace" only once the server answered with none: a list not answered
 // yet waits for the network, with Retry (components/workspace/use-workspace-list.ts).
 import { Ionicons } from "@expo/vector-icons";
@@ -20,6 +21,7 @@ import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { unreadSummaryOptions } from "@/data/queries/chat";
 import { useAuthStore } from "@/data/auth/store";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
+import { isAppleRelayAddress } from "@/lib/apple-relay";
 import { accountRoutes } from "@/lib/chat-routes";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
@@ -31,6 +33,7 @@ export default function SelectWorkspace() {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const logout = useAuthStore((s) => s.logout);
+  const email = useAuthStore((s) => s.user?.email ?? "");
   const setCurrent = useWorkspaceStore((s) => s.setCurrent);
   const { data, view, retry } = useWorkspaceList();
   const summary = useQuery(unreadSummaryOptions());
@@ -73,7 +76,9 @@ export default function SelectWorkspace() {
             </Button>
           </View>
         ) : view === "empty" ? (
-          <Text className="text-callout leading-[22px] text-muted-foreground">{t("mobile.account.no_workspace")}</Text>
+          <Text selectable className="text-callout leading-[22px] text-muted-foreground">
+            {isAppleRelayAddress(email) ? t("mobile.account.no_workspace_relay", { email }) : t("mobile.account.no_workspace")}
+          </Text>
         ) : (
           <View className="gap-3">
             {(data ?? []).map((ws) => {

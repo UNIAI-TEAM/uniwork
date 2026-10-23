@@ -1655,6 +1655,7 @@
       "deleting": "Deleting…",
       "deleted": "Your account has been deleted.",
       "no_workspace": "You're not in any workspace yet. Ask an admin of your organization to add you to one, or open UniWork on the web.",
+      "no_workspace_relay": "You signed in with Apple's Hide My Email, so this account's address is {{email}}. An invitation sent to your work email can't reach this account: sign out, then sign in through the browser with the email your organization invited.",
       "signed_in_as": "Signed in as {{email}}",
       "erased_name": "Deleted user"
     },

@@ -41,6 +41,9 @@ export const COMPLIANCE_ONLY = {
       deleting: "Đang xóa…",
       deleted: "Đã xóa tài khoản của bạn.",
       no_workspace: "Bạn chưa ở workspace nào. Nhờ quản trị viên tổ chức thêm bạn vào một workspace, hoặc mở UniWork trên web.",
+      // ADR 0041: a Hide My Email account has Apple's forwarding address, so an invitation to the work email misses it.
+      no_workspace_relay:
+        "Bạn đăng nhập bằng Ẩn địa chỉ email của Apple, nên tài khoản này dùng địa chỉ {{email}}. Lời mời gửi tới email công việc của bạn không vào được tài khoản này: hãy đăng xuất rồi đăng nhập qua trình duyệt bằng email mà tổ chức đã mời.",
       signed_in_as: "Đang đăng nhập bằng {{email}}",
       erased_name: "Người dùng đã xóa",
     },
@@ -155,6 +158,8 @@ export const COMPLIANCE_ONLY = {
       deleting: "Deleting…",
       deleted: "Your account has been deleted.",
       no_workspace: "You're not in any workspace yet. Ask an admin of your organization to add you to one, or open UniWork on the web.",
+      no_workspace_relay:
+        "You signed in with Apple's Hide My Email, so this account's address is {{email}}. An invitation sent to your work email can't reach this account: sign out, then sign in through the browser with the email your organization invited.",
       signed_in_as: "Signed in as {{email}}",
       erased_name: "Deleted user",
     },
