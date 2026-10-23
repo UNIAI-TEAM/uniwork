@@ -39,6 +39,7 @@ import { authConfig, session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { bootRuntime } from "@/data/boot";
 import { perfMark } from "@/data/logger";
+import { startNativeCallSession } from "@/data/calls/call-session";
 import { startNativeCalls } from "@/data/calls/call-wiring";
 import { startAppServices, trackFirstScreen, trackPushOpen } from "@/data/app-startup";
 import { nativeCalls } from "@/data/calls/native-calls";
@@ -69,6 +70,10 @@ void loadLocalePreference();
 void loadPrivacySettings();
 // The call's foreground service follows the call engine; Decline / Hang up taps that waited run now.
 startNativeCalls();
+// The system's call UI (CallKit on iPhone, docs/adr/0038): its Answer, Decline and End, those from the launch a VoIP
+// push made included, and the engine's own answer and end told back to it. An answer opens the call's room as a
+// notification tap would (kept until sign-in on a cold start).
+startNativeCallSession((url) => openUrl(url, true));
 // The encrypted store the outbox and the cached rooms live in, before the session is restored.
 installDeviceStore(openNativeDeviceStore);
 installAccountCache({ queryClient, persister: createDevicePersister(openDeviceStore) });

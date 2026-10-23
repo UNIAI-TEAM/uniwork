@@ -7,7 +7,8 @@
 // A voice call starts on the earpiece, a video call on the speaker
 // (lib/audio-outputs.ts); once connected, the call's foreground service is
 // started again so it carries the microphone LiveKit now holds. The phone's own
-// call answered meanwhile holds this one (use-cellular-hold.ts). A dropped media
+// call answered meanwhile holds this one (use-cellular-hold.ts), and CallKit's mute
+// button mutes it on iPhone (use-system-mute.ts). A dropped media
 // link says "Reconnecting…" until LiveKit has it back, and a weak one (ours or
 // theirs) is a badge (use-call-link.ts).
 import { Ionicons } from "@expo/vector-icons";
@@ -37,6 +38,7 @@ import { CALL, CallButton, CallerHero, SHADOW } from "./call-surface";
 import { toggleCamera } from "./toggle-camera";
 import { useCallLink, type CallLink } from "./use-call-link";
 import { useCellularHold } from "./use-cellular-hold";
+import { useSystemMute } from "./use-system-mute";
 
 // WebRTC globals for LiveKit, once, when the call UI first loads (call-overlay.tsx loads this
 // module when a call shows), not at app start: a launch that never calls never pays for them.
@@ -265,6 +267,7 @@ export function CallRoom({
   const room = useMemo(() => new Room({ adaptiveStream: true, dynacast: true }), []);
   const [connected, setConnected] = useState(false);
   const held = useCellularHold(room, connected);
+  useSystemMute(room, connected);
   const link = useCallLink(room);
 
   useEffect(() => {
