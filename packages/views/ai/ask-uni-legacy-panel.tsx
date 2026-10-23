@@ -101,7 +101,8 @@ function citationLabel(t: Translate, c: AiCitation): string {
 
 function Citations({ citations }: { citations: AiCitation[] }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
-  const linkable = citations.filter((c) => c.href);
+  // One citation per quote: a source the answer cites four times is listed once.
+  const linkable = citations.filter((c, i) => c.href && citations.findIndex((o) => o.source_id === c.source_id) === i);
   if (linkable.length === 0) return null;
   return (
     <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={t("sources")}>
