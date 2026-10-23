@@ -13,7 +13,7 @@ const script = path.join(import.meta.dirname, "maestro-retry.sh");
  * `logcat: true` points MAESTRO_LOGCAT at a file in the run's directory and returns what was written there.
  * Fake `pkill`, `pgrep` (nothing left running) and `xcrun` record their calls in `sequence`, between the maestro runs.
  */
-function run(failures, env = {}, { logcat = false } = {}) {
+function run(failures, env = {}, { logcat = false, adb = null } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "maestro-retry-"));
   try {
     const count = path.join(dir, "count");
@@ -29,7 +29,9 @@ function run(failures, env = {}, { logcat = false } = {}) {
     }
     fs.writeFileSync(
       path.join(dir, "adb"),
-      `#!/bin/sh\necho "adb $*" >> "${path.join(dir, "adb-calls")}"\necho "adb $* | E ReactNativeJS: TypeError: boom"\n`,
+      adb
+        ? `#!/bin/sh\necho "adb $*" >> "${path.join(dir, "adb-calls")}"\n${adb(dir)}\n`
+        : `#!/bin/sh\necho "adb $*" >> "${path.join(dir, "adb-calls")}"\necho "adb $* | E ReactNativeJS: TypeError: boom"\n`,
       { mode: 0o755 },
     );
     const summary = path.join(dir, "summary");
@@ -134,4 +136,29 @@ test("the PR gate's offline flow also leaves the emulator online for the flow af
   const text = fs.readFileSync(path.join(flows, "offline-send-relaunch.yaml"), "utf8");
   const header = text.split(/^---$/m)[0];
   assert.match(header, /^onFlowComplete:\n {2}- setAirplaneMode: disabled$/m);
+});
+
+// An emulator whose adbd dropped (\`device offline\`) stayed offline for the retry ten seconds later, so both attempts failed
+// on a dead transport (UNI-2142, #437). With MAESTRO_ADB_RECOVER set, an attempt first reconnects an emulator adb does
+// not call "device" and waits for it to finish booting; a healthy one costs one get-state.
+test("MAESTRO_ADB_RECOVER reconnects an offline emulator before an attempt, and leaves a healthy one alone", () => {
+  // get-state answers "offline" until reconnect has run, then "device"; the boot is complete.
+  const offlineUntilReconnect = (dir) =>
+    [
+      `case "$1" in`,
+      `  get-state) [ -f "${dir}/reconnected" ] && echo device || echo offline ;;`,
+      `  reconnect) touch "${dir}/reconnected" ;;`,
+      `  shell) echo 1 ;;`,
+      `esac`,
+    ].join("\n");
+  const recovered = run(0, { MAESTRO_ADB_RECOVER: "1" }, { adb: offlineUntilReconnect });
+  assert.equal(recovered.status, 0);
+  assert.deepEqual(recovered.adb, ["adb get-state", "adb reconnect offline", "adb get-state", "adb shell getprop sys.boot_completed"]);
+  assert.match(recovered.out, /::warning::adb reports the emulator offline before attempt 1; reconnecting/);
+
+  const healthy = run(1, { MAESTRO_ADB_RECOVER: "1" }, { adb: () => `[ "$1" = get-state ] && echo device` });
+  assert.equal(healthy.status, 0);
+  assert.deepEqual(healthy.adb, ["adb get-state", "adb get-state"], "one get-state per attempt, nothing more");
+
+  assert.deepEqual(run(1).adb, [], "without MAESTRO_ADB_RECOVER nothing calls adb");
 });

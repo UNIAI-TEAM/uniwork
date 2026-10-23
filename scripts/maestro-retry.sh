@@ -30,6 +30,13 @@
 # out it gives up without stopping the xcodebuild, so a retry launched a second
 # runner for the same bundle beside the first one still coming up, and both
 # lost. The leftover xcodebuild and the half-started runner are stopped first.
+#
+# With MAESTRO_ADB_RECOVER set (an Android run), every attempt first asks adb
+# for the emulator's state, and when it is not "device" (adbd dropped: the
+# emulator answers "device offline") runs `adb reconnect offline` and waits up
+# to two minutes for it to come back booted. Without it, an emulator that went
+# offline during the step stayed offline for the retry, and both attempts
+# failed on the transport, not on the app.
 set -u
 
 ios_driver="dev.mobile.maestro-driver-iosUITests.xctrunner"
@@ -46,11 +53,31 @@ clear_ios_driver() {
   xcrun simctl bootstatus "$MAESTRO_IOS_UDID" -b > /dev/null || echo "::warning::simulator $MAESTRO_IOS_UDID did not report booted before attempt $attempt"
 }
 
+# Brings back an emulator adb no longer calls "device" before an attempt (MAESTRO_ADB_RECOVER).
+recover_android() {
+  local state
+  state="$(adb get-state 2> /dev/null | tr -d '\r')"
+  [ "$state" = "device" ] && return 0
+  echo "::warning::adb reports the emulator ${state:-gone} before attempt $attempt; reconnecting"
+  adb reconnect offline > /dev/null 2>&1 || true
+  for _ in $(seq 1 60); do
+    if [ "$(adb get-state 2> /dev/null | tr -d '\r')" = "device" ] \
+      && [ "$(adb shell getprop sys.boot_completed 2> /dev/null | tr -d '\r')" = "1" ]; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "::warning::the emulator was not back two minutes after adb reconnect, before attempt $attempt"
+}
+
 attempts="${MAESTRO_ATTEMPTS:-2}"
 attempt=1
 while :; do
   if [ "$attempt" -gt 1 ] && [ -n "${MAESTRO_IOS_UDID:-}" ]; then
     clear_ios_driver
+  fi
+  if [ -n "${MAESTRO_ADB_RECOVER:-}" ]; then
+    recover_android
   fi
   for port in ${MAESTRO_ADB_REVERSE:-}; do
     adb reverse "tcp:$port" "tcp:$port" > /dev/null || echo "::warning::adb reverse tcp:$port failed before attempt $attempt"

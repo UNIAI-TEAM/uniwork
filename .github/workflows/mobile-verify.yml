@@ -440,6 +440,10 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Cold start on an emulator
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          # An emulator whose adbd dropped ("device offline") is reconnected before each Maestro attempt
+          # (scripts/maestro-retry.sh); it stayed offline for the retry otherwise (UNI-2142).
+          MAESTRO_ADB_RECOVER: "1"
         with:
           api-level: 35
           target: google_apis
@@ -627,6 +631,8 @@ jobs:
           # The web (3000) and API (8080) on the runner, mapped again before every attempt (scripts/maestro-retry.sh):
           # a failed attempt can restart adbd, and the retry then met localhost refused in the sign-in Custom Tab.
           MAESTRO_ADB_REVERSE: "3000 8080"
+          # And reconnected first if adbd dropped, as in android-smoke.
+          MAESTRO_ADB_RECOVER: "1"
         with:
           api-level: 35
           # google_apis carries Chrome, which hosts the sign-in Custom Tab.
