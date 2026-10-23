@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { deleteAskAttachment, uploadAskAttachment } from "../api/endpoints/ai-attachments";
+import { useQuery } from "@tanstack/react-query";
+import { deleteAskAttachment, downloadAskAttachment, uploadAskAttachment } from "../api/endpoints/ai-attachments";
 import { errorCode } from "../api/http";
 import type { AiAttachment, AskUploadedFile } from "../types/ai";
+import { aiKeys } from "./hooks";
 
 // The server's limits (5 files of 20 << 20, an image of 7.5 MB); the server checks them again, this only spares the
 // round trip. An image is capped lower because the model takes one of at most 10 MB once base64-encoded.
@@ -216,4 +218,18 @@ export function useAskAttachments(wsId: string) {
   const blocked = files.some((x) => x.status === "error");
 
   return { files, add, remove, retry, clear, fail, ids, busy, blocked };
+}
+
+/**
+ * A stored attachment's bytes, for drawing its picture: fetched once `enabled` (the chip has scrolled into view) and
+ * kept, since a stored file never changes. A failed read is not retried; the chip keeps its icon.
+ */
+export function useAskAttachmentContent(wsId: string, attachmentId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: aiKeys.attachmentContent(wsId, attachmentId),
+    queryFn: () => downloadAskAttachment(wsId, attachmentId),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  });
 }

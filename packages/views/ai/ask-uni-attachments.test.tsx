@@ -368,6 +368,23 @@ describe("attaching files to an Ask UNI question", () => {
     });
   });
 
+  it("shows an image's own picture in its chip, made from the file, and lets it go with the chip", async () => {
+    const createObjectURL = vi.fn(() => "blob:anh");
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    await mounted();
+    const image = f("anh.png", "image/png");
+    pick(image, f("bao-cao.pdf"));
+    act(() => uploads[0]!.resolve({ kind: "image" }));
+    act(() => uploads[1]!.resolve());
+    await waitFor(() => expect(document.querySelector('[data-slot="ask-uni-attachment"] img')).toHaveAttribute("src", "blob:anh"));
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(createObjectURL).toHaveBeenCalledWith(image);
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ anh.png" }));
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:anh");
+    expect(document.querySelector('[data-slot="ask-uni-attachment"] img')).toBeNull();
+  });
+
   it("dropping files on the dock attaches them", async () => {
     const panel = await mounted();
     expect(screen.queryByText("Thả để gắn vào câu hỏi")).toBeNull();

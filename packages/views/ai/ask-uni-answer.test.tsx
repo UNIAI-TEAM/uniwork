@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { downloadAskAttachment } from "@uniwork/core/api/endpoints/ai-attachments";
@@ -264,7 +264,10 @@ describe("AskUniMessageTurn", () => {
     const png = { id: "att2", name: "anh.png", mime: "image/png", size: 4096, kind: "image" };
 
     it("shows them under the question and saves one under its own name on click", async () => {
-      vi.mocked(downloadAskAttachment).mockResolvedValue(new Blob(["x"], { type: "application/pdf" }));
+      const pdfBlob = new Blob(["x"], { type: "application/pdf" });
+      vi.mocked(downloadAskAttachment).mockImplementation((_ws, id) =>
+        Promise.resolve(id === "att1" ? pdfBlob : new Blob(["p"], { type: "image/png" })),
+      );
       const anchors: HTMLAnchorElement[] = [];
       const realCreate = document.createElement.bind(document);
       const createSpy = vi.spyOn(document, "createElement").mockImplementation(((tag: string) => {
@@ -283,10 +286,59 @@ describe("AskUniMessageTurn", () => {
       try {
         await waitFor(() => expect(anchors.at(-1)?.download).toBe("bao-cao.pdf"));
         expect(downloadAskAttachment).toHaveBeenCalledWith("ws1", "att1");
-        expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(URL.createObjectURL).mock.calls.filter(([b]) => b === pdfBlob)).toHaveLength(1);
         expect(toast.error).not.toHaveBeenCalled();
       } finally {
         createSpy.mockRestore();
+      }
+    });
+
+    it("loads a stored picture once, however many bubbles draw it, and shows it in its chip", async () => {
+      const picture = new Blob(["p"], { type: "image/png" });
+      vi.mocked(downloadAskAttachment).mockResolvedValue(picture);
+      URL.createObjectURL = vi.fn(() => "blob:anh");
+      URL.revokeObjectURL = vi.fn();
+      render(
+        wrapWithNav(
+          <>
+            <AskUniMessageTurn message={msg({ id: "u1", role: "user", content: "Q", attachments: [pdf, png] })} conversationId="c1" wsId="ws1" />
+            <AskUniMessageTurn message={msg({ id: "u2", role: "user", content: "Q2", attachments: [png] })} conversationId="c1" wsId="ws1" />
+          </>,
+        ),
+      );
+      await waitFor(() => expect(document.querySelectorAll('[data-slot="ask-uni-attachment"] img')).toHaveLength(2));
+      expect(downloadAskAttachment).toHaveBeenCalledTimes(1);
+      expect(downloadAskAttachment).toHaveBeenCalledWith("ws1", "att2");
+      expect(URL.createObjectURL).toHaveBeenCalledWith(picture);
+    });
+
+    it("waits for a stored picture to scroll into view, and keeps the image icon when it cannot be loaded", async () => {
+      vi.mocked(downloadAskAttachment).mockRejectedValue(new ApiError("not found", "not_found", 404));
+      let reveal: (() => void) | undefined;
+      const Real = globalThis.IntersectionObserver;
+      globalThis.IntersectionObserver = class {
+        constructor(private cb: IntersectionObserverCallback) {}
+        observe(target: Element) {
+          reveal = () => this.cb([{ isIntersecting: true, target } as IntersectionObserverEntry], this as never);
+        }
+        unobserve() {}
+        disconnect() {}
+        takeRecords() {
+          return [];
+        }
+      } as never;
+      try {
+        mount(msg({ id: "u1", role: "user", content: "Q", attachments: [png] }), { wsId: "ws1" });
+        await act(async () => {});
+        expect(downloadAskAttachment).not.toHaveBeenCalled();
+        act(() => reveal!());
+        await waitFor(() => expect(downloadAskAttachment).toHaveBeenCalledWith("ws1", "att2"));
+        await act(async () => {});
+        expect(document.querySelector('[data-slot="ask-uni-attachment"] img')).toBeNull();
+        expect(document.querySelector('[data-slot="ask-uni-attachment"] .lucide-image')).not.toBeNull();
+        expect(toast.error).not.toHaveBeenCalled();
+      } finally {
+        globalThis.IntersectionObserver = Real;
       }
     });
 

@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { useAskAttachmentContent } from "@uniwork/core/ai/attachments";
 import { downloadAskAttachment } from "@uniwork/core/api/endpoints/ai-attachments";
 import type { AiAttachment, AiFileNote } from "@uniwork/core/types";
-import { AskUniAttachmentChip } from "./ask-uni-attachment-chip";
+import { AskUniAttachmentChip, useObjectUrl } from "./ask-uni-attachment-chip";
 
 /** Hand a fetched file to the browser to save. */
 function saveFile(blob: Blob, filename: string) {
@@ -19,8 +20,39 @@ function saveFile(blob: Blob, filename: string) {
 }
 
 /**
+ * A stored image's chip, with its picture: the bytes are fetched once the chip scrolls into view (where
+ * IntersectionObserver is missing, at once) and come from the query cache after that. Until then, or when they cannot
+ * be read, the chip keeps the image icon.
+ */
+function StoredImageChip({ wsId, file, onOpen }: { wsId: string; file: AiAttachment; onOpen: () => void }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || seen) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setSeen(true);
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) setSeen(true);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [seen]);
+  const { data } = useAskAttachmentContent(wsId, file.id, seen);
+  const preview = useObjectUrl(data);
+  return (
+    <span ref={ref} className="inline-flex max-w-full">
+      <AskUniAttachmentChip name={file.name} size={file.size} mime={file.mime} status="ready" onOpen={onOpen} preview={preview} />
+    </span>
+  );
+}
+
+/**
  * The files a question carried, as a row of chips under its bubble. With `wsId` a chip downloads its file under the
- * file's own name; without it (a live or optimistic question, whose ids are still upload ids) the chips are plain labels.
+ * file's own name, and an image shows its picture; without it (a live or optimistic question, whose ids are still
+ * upload ids) the chips are plain labels.
  */
 export function AskUniQuestionFiles({ files, wsId }: { files: AiAttachment[]; wsId?: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.attachments" });
@@ -38,13 +70,17 @@ export function AskUniQuestionFiles({ files, wsId }: { files: AiAttachment[]; ws
     <ul className="flex max-w-[94%] flex-wrap justify-end gap-1.5">
       {files.map((file) => (
         <li key={file.id} className="max-w-full">
-          <AskUniAttachmentChip
-            name={file.name}
-            size={file.size}
-            mime={file.mime}
-            status="ready"
-            onOpen={wsId ? () => open(file) : undefined}
-          />
+          {wsId && file.mime.startsWith("image/") ? (
+            <StoredImageChip wsId={wsId} file={file} onOpen={() => open(file)} />
+          ) : (
+            <AskUniAttachmentChip
+              name={file.name}
+              size={file.size}
+              mime={file.mime}
+              status="ready"
+              onOpen={wsId ? () => open(file) : undefined}
+            />
+          )}
         </li>
       ))}
     </ul>

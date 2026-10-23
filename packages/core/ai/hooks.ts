@@ -13,6 +13,7 @@ export const aiKeys = {
   conversations: (wsId: string, q?: string) =>
     (q ? ["ai", "conversations", wsId, q] : ["ai", "conversations", wsId]) as readonly string[],
   messages: (conversationId: string) => ["ai", "messages", conversationId] as const,
+  attachmentContent: (wsId: string, attachmentId: string) => ["ai", "attachment-content", wsId, attachmentId] as const,
   askModels: (orgId: string) => ["ai", "ask-models", orgId] as const,
   usages: () => ["ai", "usage"] as const,
   usage: (wsId: string, from?: string, to?: string) => ["ai", "usage", "workspace", wsId, from ?? "", to ?? ""] as const,

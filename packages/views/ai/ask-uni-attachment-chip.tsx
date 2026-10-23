@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Image as ImageIcon, RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -8,6 +9,24 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { formatBytes } from "../documents/doclist/format";
 import { DocumentTypeIcon, fileExtension } from "../documents/document-type-icon";
 import type { AskUniAttachments } from "./use-ask-uni-attachments";
+
+/** A blob: URL for `blob` while the caller shows it, revoked when the blob changes or the caller unmounts. */
+export function useObjectUrl(blob: Blob | undefined): string | undefined {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    if (!blob) {
+      setUrl(undefined);
+      return;
+    }
+    const next = URL.createObjectURL(blob);
+    setUrl(next);
+    return () => {
+      URL.revokeObjectURL(next);
+      setUrl(undefined);
+    };
+  }, [blob]);
+  return url;
+}
 
 const RADIUS = 8;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
@@ -34,10 +53,11 @@ function Ring({ progress }: { progress: number }) {
 }
 
 /**
- * One file of an Ask UNI question: its type icon, a name that truncates, its
- * size, a ring while it uploads and a red frame with the reason and a retry
- * when it failed. Without `onRemove` and `onRetry` it is a plain label;
- * `onOpen` makes the name and size one button (a stored attachment downloads).
+ * One file of an Ask UNI question: its type icon (an image's own picture once
+ * `preview` has it), a name that truncates, its size, a ring while it uploads
+ * and a red frame with the reason and a retry when it failed. Without
+ * `onRemove` and `onRetry` it is a plain label; `onOpen` makes the name and
+ * size one button (a stored attachment downloads).
  */
 export function AskUniAttachmentChip({
   name,
@@ -49,6 +69,7 @@ export function AskUniAttachmentChip({
   onRemove,
   onRetry,
   onOpen,
+  preview,
 }: {
   name: string;
   size: number;
@@ -61,6 +82,8 @@ export function AskUniAttachmentChip({
   onRemove?: () => void;
   onRetry?: () => void;
   onOpen?: () => void;
+  /** A URL of the image itself, drawn in place of the image icon; the name beside it says what it is. */
+  preview?: string;
 }) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "ai.attachments" });
   const percent = Math.round(Math.min(Math.max(progress, 0), 1) * 100);
@@ -80,6 +103,8 @@ export function AskUniAttachmentChip({
         {percent > 0 ? <Ring progress={percent / 100} /> : <Spinner />}
       </span>
     );
+  } else if (mime.startsWith("image/") && preview) {
+    lead = <img src={preview} alt="" className="size-8 shrink-0 rounded-md bg-background object-cover" />;
   } else if (mime.startsWith("image/")) {
     lead = <ImageIcon aria-hidden className="size-5 shrink-0 text-muted-foreground" />;
   } else {
@@ -159,7 +184,8 @@ export function AskUniAttachmentRow({ attachments }: { attachments: AskUniAttach
         <ul className="flex flex-wrap gap-1.5">
           {files.map((x) => (
             <li key={x.key} className="max-w-full">
-              <AskUniAttachmentChip
+              <StagedChip
+                file={x.file}
                 name={x.file.name}
                 size={x.file.size}
                 mime={x.file.type}
@@ -181,4 +207,10 @@ export function AskUniAttachmentRow({ attachments }: { attachments: AskUniAttach
       ))}
     </div>
   );
+}
+
+/** A staged file's chip: an image shows its own picture, made from the file on this device. */
+function StagedChip({ file, ...chip }: { file: File } & Parameters<typeof AskUniAttachmentChip>[0]) {
+  const preview = useObjectUrl(chip.mime.startsWith("image/") ? file : undefined);
+  return <AskUniAttachmentChip {...chip} preview={preview} />;
 }
