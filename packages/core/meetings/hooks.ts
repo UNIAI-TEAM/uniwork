@@ -48,6 +48,10 @@ export const meetingKeys = {
   activity: (meetingId: string) => ["meeting-activity", meetingId] as const,
   capabilities: (wsId: string) => ["meeting-capabilities", wsId] as const,
   transcript: (meetingId: string) => ["meeting-transcript", meetingId] as const,
+  /** Forward reads of an ended meeting's transcript (UNI-1995 #9): the pages, and the whole of it. */
+  transcriptRead: (meetingId: string) => ["meeting-transcript-read", meetingId] as const,
+  transcriptPages: (meetingId: string, around: string) => ["meeting-transcript-read", meetingId, "pages", around] as const,
+  transcriptFull: (meetingId: string) => ["meeting-transcript-read", meetingId, "full"] as const,
   chat: (meetingId: string) => ["meeting-chat", meetingId] as const,
   summary: (meetingId: string) => ["meeting-summary", meetingId] as const,
   evidence: (meetingId: string, refs: string) => ["meeting-evidence", meetingId, refs] as const,

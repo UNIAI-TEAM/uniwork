@@ -1,6 +1,6 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getMeetingSettings, setMeetingAutoSummary } from "../api/endpoints/meeting-settings";
+import { getMeetingSettings, setMeetingAutoSummary, setMeetingTranscriptRetention } from "../api/endpoints/meeting-settings";
 
 /** Organization-scoped, beside the meeting keys (UNI-2026). */
 const meetingSettingsKey = (orgId: string) => ["meeting-settings", orgId] as const;
@@ -21,6 +21,19 @@ export function useSetMeetingAutoSummary(orgId: string) {
   return useMutation({
     mutationFn: async (enabled: boolean) => {
       const settings = await setMeetingAutoSummary(orgId, enabled);
+      if (!settings) throw new Error("meeting_settings_invalid");
+      return settings;
+    },
+    onSuccess: (settings) => qc.setQueryData(meetingSettingsKey(orgId), settings),
+  });
+}
+
+/** How long the organization keeps transcripts and uploaded audio (UNI-1995 #5); null keeps them. */
+export function useSetMeetingTranscriptRetention(orgId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (days: number | null) => {
+      const settings = await setMeetingTranscriptRetention(orgId, days);
       if (!settings) throw new Error("meeting_settings_invalid");
       return settings;
     },

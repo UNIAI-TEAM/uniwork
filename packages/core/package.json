@@ -62,6 +62,7 @@
     "./meetings/settings": "./meetings/settings-hooks.ts",
     "./meetings/speaker-labels": "./meetings/speaker-label-hooks.ts",
     "./meetings/transcriptions": "./meetings/transcription-hooks.ts",
+    "./meetings/transcript": "./meetings/transcript-hooks.ts",
     "./documents": "./documents/hooks.ts",
     "./documents/schema": "./documents/schema.ts",
     "./documents/hooks": "./documents/hooks.ts",

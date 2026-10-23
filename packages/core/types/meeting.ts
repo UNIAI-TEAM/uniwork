@@ -173,6 +173,10 @@ export const TranscriptSegmentSchema = z.object({
   transcription_id: z.string().optional(),
   start_ms: z.number().optional(),
   end_ms: z.number().optional(),
+  /** vi | en when the source says (UNI-1995 #9: the captions' srcLang). */
+  language: z.string().optional(),
+  /** Set once a clerk corrected the line (UNI-1995 #5); the first wording stays on the server. */
+  edited_at: z.string().optional(),
 });
 export type MeetingTranscriptSegment = z.infer<typeof TranscriptSegmentSchema>;
 
@@ -235,6 +239,8 @@ export const MeetingSummarySchema = z.object({
   created_at: z.string().nullish(),
   /** The transcript was longer than the summary's input budget. */
   partial: z.boolean().optional(),
+  /** The transcript was corrected, cut or replaced after this summary was made (UNI-1995 #5). */
+  transcript_changed_at: z.string().nullish(),
 });
 export type MeetingSummary = z.infer<typeof MeetingSummarySchema>;
 
@@ -245,6 +251,8 @@ export const MeetingSettingsSchema = z.object({
   updated_by: z.string().nullish(),
   updated_by_kind: z.string().nullish(),
   updated_at: z.string().nullish(),
+  /** Days transcripts and uploaded audio are kept; null keeps them (UNI-1995 #5). */
+  transcript_retention_days: z.number().nullish().catch(null),
 });
 export type MeetingSettings = z.infer<typeof MeetingSettingsSchema>;
 

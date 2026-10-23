@@ -28,6 +28,7 @@ import { workspaceKeys } from "../workspaces/keys";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 import { documentFrameKeys } from "./document-events";
 import { followThroughFrameKeys, meetingTaskFrameKeys } from "./meeting-follow-through-events";
+import { transcriptFrameKeys } from "./meeting-transcript-events";
 import { changesOwnMembership, ownMembershipKeys, reloadSessionUser } from "./own-membership";
 import {
   createInvalidateScheduler,
@@ -125,7 +126,7 @@ function keysFor(
     return keys;
   }
 
-  const followThrough = followThroughFrameKeys(type, payload);
+  const followThrough = followThroughFrameKeys(type, payload) ?? transcriptFrameKeys(type, payload);
   if (followThrough) {
     followThrough.forEach(push);
     return keys;
@@ -335,22 +336,6 @@ function keysFor(
     }
     case "transcript.appended": {
       if (payload.meeting_id) push(meetingKeys.transcript(payload.meeting_id));
-      break;
-    }
-    // A speaker label appeared or was assigned, or an uploaded recording was
-    // queued, transcribed or failed (UNI-2001): the labels, the names and
-    // lines of the transcript, and the recordings' status.
-    case "speaker_label.updated":
-    case "transcription.requested":
-    case "transcription.completed":
-    case "transcription.failed": {
-      if (payload.meeting_id) {
-        push(meetingKeys.speakerLabels(payload.meeting_id));
-        push(meetingKeys.transcript(payload.meeting_id));
-        push(meetingKeys.transcriptions(payload.meeting_id));
-        // Completion also writes the meeting's TRANSCRIPTION_COMPLETED timeline row.
-        if (type === "transcription.completed") push(meetingKeys.activity(payload.meeting_id));
-      }
       break;
     }
     case "chat.message": {
