@@ -339,6 +339,15 @@ export function flushAllQueuedSends(qc: QueryClient, senderId: string, deps: Cha
   return Promise.all([...workspaceIds].map((workspaceId) => flushQueuedSends(qc, workspaceId, senderId, deps))).then(() => undefined);
 }
 
+/**
+ * Resolves once no line is delivering: a message already on the wire is "sending", which a flush of the queued ones
+ * passes over, and the background drain (data/outbox-drain/) keeps the app awake until it ends. A line that starts
+ * meanwhile is waited for too. A line never rejects (deliverOnce answers every failure with a status).
+ */
+export async function sendsSettled(): Promise<void> {
+  while (lines.size > 0) await Promise.all([...lines.values()]);
+}
+
 /** The person gave up on a send that did not go. */
 export function discardPendingSend(clientMsgId: string, deps: Pick<ChatSendDeps, "files">): void {
   useChatSendStore.getState().remove(clientMsgId);

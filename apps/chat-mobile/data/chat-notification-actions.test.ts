@@ -34,6 +34,9 @@ vi.mock("./storage/device-store", () => ({ deviceStoreInstalled: () => deps.inst
 vi.mock("./storage/native-device-store", () => ({ openNativeDeviceStore: "native-opener" }));
 vi.mock("./stores/chat-send-store", () => ({ hydrateChatSendStore: deps.hydrateChatSendStore, useChatSendStore: { persist: { hasHydrated: () => deps.hydrated } } }));
 vi.mock("./stores/pending-ops-store", () => ({ hydratePendingOpsStore: deps.hydratePendingOpsStore, usePendingOpsStore: { persist: { hasHydrated: () => deps.hydrated } } }));
+const offScreen = vi.hoisted(() => ({ appState: "background", keepSendingOffScreen: vi.fn(async () => undefined) }));
+vi.mock("react-native", () => ({ AppState: { get currentState() { return offScreen.appState; } } }));
+vi.mock("./outbox-drain/background-send", () => ({ keepSendingOffScreen: offScreen.keepSendingOffScreen }));
 
 import { chatNotificationAction, type ChatNotificationAction } from "@/lib/chat-notification";
 import {
@@ -63,6 +66,7 @@ function fakeEnv(userId: string | null = "me"): ChatActionEnv & { [K in keyof Ch
     send: vi.fn(async () => undefined),
     markRead: vi.fn(async () => undefined),
     dismiss: vi.fn(async () => undefined),
+    offScreen: vi.fn((_userId: string) => undefined),
   };
 }
 
@@ -72,6 +76,7 @@ beforeEach(() => {
   deps.hydrated = true;
   deps.session.status.mockReturnValue("signed-in");
   deps.readLastUser.mockResolvedValue({ id: "me" });
+  offScreen.appState = "background";
 });
 
 describe("the chat message category", () => {
@@ -109,6 +114,9 @@ describe("handleChatNotificationAction", () => {
     expect(env.dismiss).toHaveBeenCalledWith(action.notificationId);
     expect(await handleChatNotificationAction(action, env)).toBe("duplicate");
     expect(env.send).toHaveBeenCalledTimes(1);
+    // What the reply and the read left owed keeps going with the app off screen (an offline reply waits for the network).
+    expect(env.offScreen).toHaveBeenCalledTimes(1);
+    expect(env.offScreen).toHaveBeenCalledWith("me");
   });
 
   it("reads the room for Mark as read, sending nothing", async () => {
@@ -138,6 +146,7 @@ describe("handleChatNotificationAction", () => {
     const env = fakeEnv(null);
     expect(await handleChatNotificationAction(reply(), env)).toBe("signed-out");
     expect(env.send).not.toHaveBeenCalled();
+    expect(env.offScreen).not.toHaveBeenCalled();
   });
 });
 
@@ -172,6 +181,18 @@ describe("runChatNotificationAction and the app's env", () => {
     deps.session.status.mockReturnValue("signed-in");
     deps.readLastUser.mockResolvedValueOnce(null);
     expect(await appChatActionEnv.signedInUser()).toBeNull();
+  });
+
+  it("keeps what is owed going when the action ran with the app off screen, and leaves it to the screens in front", async () => {
+    appChatActionEnv.offScreen("me");
+    expect(offScreen.keepSendingOffScreen).toHaveBeenCalledWith("me");
+    offScreen.appState = "active";
+    appChatActionEnv.offScreen("me");
+    expect(offScreen.keepSendingOffScreen).toHaveBeenCalledTimes(1);
+    offScreen.appState = "background";
+    offScreen.keepSendingOffScreen.mockRejectedValueOnce(new Error("no job"));
+    expect(() => appChatActionEnv.offScreen("me")).not.toThrow();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
   it("never throws into a listener or a task, and a notification that will not come down is only untidy", async () => {

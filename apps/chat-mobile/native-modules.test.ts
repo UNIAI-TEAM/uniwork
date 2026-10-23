@@ -31,6 +31,7 @@ const ignored = (file: string): boolean => {
 interface ModuleConfig {
   platforms: string[];
   android?: { modules?: string[] };
+  apple?: { modules?: string[] };
 }
 
 const localModules = readdirSync(modulesRoot, { withFileTypes: true })
@@ -94,19 +95,28 @@ const kotlinCommentFaults = (source: string): string[] => {
 };
 
 describe("the app's local Expo modules", () => {
-  it("has at least the calls module", () => {
-    expect(localModules.map((module) => module.name)).toContain("unichat-calls");
+  it("has at least the calls module and the background-send module", () => {
+    expect(localModules.map((module) => module.name)).toEqual(expect.arrayContaining(["unichat-calls", "unichat-background"]));
   });
 
   it.each(localModules)("$name: git holds the native project of every platform it declares", ({ dir, config }) => {
     const files = tracked(dir);
     for (const platform of config.platforms) {
-      if (platform !== "android") throw new Error(`no guard for platform ${platform}: add one here`);
-      expect(files).toContain("android/build.gradle");
-      expect(files).toContain("android/src/main/AndroidManifest.xml");
-      for (const classifier of config.android?.modules ?? []) expect(files).toContain(classFile(classifier));
-      // Nothing under the native folder may be ignored: a new file there would be left behind.
-      expect(ignored(path.join(dir, "android/src/main/java/Probe.kt"))).toBe(false);
+      if (platform === "android") {
+        expect(files).toContain("android/build.gradle");
+        expect(files).toContain("android/src/main/AndroidManifest.xml");
+        for (const classifier of config.android?.modules ?? []) expect(files).toContain(classFile(classifier));
+        // Nothing under the native folder may be ignored: a new file there would be left behind.
+        expect(ignored(path.join(dir, "android/src/main/java/Probe.kt"))).toBe(false);
+      } else if (platform === "apple") {
+        // CocoaPods links a local module through its podspec (autolinking finds it under ios/); without one the
+        // module is skipped as silently as an Android module without build.gradle.
+        expect(files.filter((file) => /^ios\/[^/]+\.podspec$/.test(file))).toHaveLength(1);
+        for (const name of config.apple?.modules ?? []) expect(files).toContain(`ios/${name}.swift`);
+        expect(ignored(path.join(dir, "ios/Probe.swift"))).toBe(false);
+      } else {
+        throw new Error(`no guard for platform ${platform}: add one here`);
+      }
     }
   });
 
@@ -139,6 +149,21 @@ describe("the app's local Expo modules", () => {
     for (const file of sources) {
       expect({ file, faults: kotlinCommentFaults(readFileSync(path.join(dir, file), "utf8")) }).toEqual({ file, faults: [] });
     }
+  });
+
+  it("autolinking registers the background-send module on both platforms", { timeout: 60_000 }, () => {
+    const resolve = (platform: string) =>
+      JSON.parse(
+        execFileSync("npx", ["expo-modules-autolinking", "resolve", "-p", platform, "--json"], {
+          cwd: appRoot,
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "ignore"],
+        }),
+      ) as { modules: { packageName: string; projects?: { modules: { classifier: string }[] }[]; pods?: { podName: string }[]; modules?: unknown }[] };
+    const android = resolve("android").modules.find((module) => module.packageName === "unichat-background");
+    expect(android?.projects?.[0]?.modules.map((module) => module.classifier)).toEqual(["expo.modules.unichatbackground.UniChatBackgroundModule"]);
+    const apple = resolve("apple").modules.find((module) => module.packageName === "unichat-background");
+    expect(apple?.pods?.map((pod) => pod.podName)).toEqual(["UniChatBackground"]);
   });
 
   it("autolinking registers the calls module and its lock-screen Package", { timeout: 60_000 }, () => {

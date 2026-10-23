@@ -102,6 +102,8 @@ describe("app.config per UNICHAT_ENV", () => {
           },
         ],
         "@livekit/react-native-expo-plugin",
+        // The outbox's scheduled drain on iOS: its BGTask identifier and the processing mode.
+        "expo-background-task",
         // org, project and token stay in the build env: they must not move the fingerprint
         ["@sentry/react-native/expo", { url: "https://sentry.io/" }],
       ]),
@@ -575,8 +577,10 @@ describe("calls on iPhone are a build capability", () => {
   });
 
   // The Info.plist expo prebuild writes, after every plugin (expo-audio, expo-task-manager and expo-notifications
-  // each add a mode for features UniChat keeps off): nothing in the release build.
-  it("leaves the release Info.plist without any background mode", { timeout: 120_000 }, () => {
+  // each add a mode for features UniChat keeps off): only `processing`, for the outbox's scheduled drain
+  // (expo-background-task's BGProcessingTask, data/outbox-drain/background-send.ts), with the one task identifier it
+  // registers at launch (an identifier missing here makes iOS refuse the registration and stop the app).
+  it("leaves the release Info.plist with the outbox's processing mode only", { timeout: 120_000 }, () => {
     const out = execFileSync(process.execPath, [createRequire(__filename).resolve("expo/bin/cli"), "config", "--type", "introspect", "--json"], {
       cwd: __dirname,
       encoding: "utf8",
@@ -585,7 +589,8 @@ describe("calls on iPhone are a build capability", () => {
       env: { ...process.env, UNICHAT_ENV: "production", UNICHAT_API_URL: "https://api.example.invalid", UNICHAT_APP_URL: "https://app.example.invalid", UNICHAT_IOS_CALLS: "", EAS_BUILD: "", EXPO_NO_TELEMETRY: "1", EXPO_OFFLINE: "1" },
     });
     const plist = (JSON.parse(out) as { ios: { infoPlist: Record<string, unknown> } }).ios.infoPlist;
-    expect(plist.UIBackgroundModes).toBeUndefined();
+    expect(plist.UIBackgroundModes).toEqual(["processing"]);
+    expect(plist.BGTaskSchedulerPermittedIdentifiers).toEqual(["com.expo.modules.backgroundtask.processing"]);
   });
 });
 
@@ -593,11 +598,12 @@ describe("calls on iPhone are a build capability", () => {
 // R8 is on for every release build: a class native code finds by name and no library rule keeps is gone from the
 // dex, and the app dies at launch (0.3.0 (11) lost WebRTC's livekit.org.jni_zero.JniInit this way).
 describe("R8 keep rules", () => {
-  it("keep what native code finds by name: Nitro, the calls module and WebRTC's relocated jni_zero", () => {
+  it("keep what native code finds by name: Nitro, the app's modules and WebRTC's relocated jni_zero", () => {
     expect(ANDROID_KEEP_RULES.split("\n")).toEqual(
       expect.arrayContaining([
         "-keep class com.margelo.nitro.** { *; }",
         "-keep class expo.modules.unichatcalls.** { *; }",
+        "-keep class expo.modules.unichatbackground.** { *; }",
         "-keep class livekit.org.jni_zero.** { *; }",
       ]),
     );

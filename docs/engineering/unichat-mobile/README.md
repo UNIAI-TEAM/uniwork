@@ -12,7 +12,7 @@ mỗi file dưới đây là một phần, sửa hành vi phần nào thì sửa
 | [config-security.md](config-security.md) | `app.config.ts`, biến build, bundle id, ký OTA, sao lưu Android, ghim TLS |
 | [lib-and-theme.md](lib-and-theme.md) | Tầng thuần `lib/`, theme và token, tương phản, font |
 | [realtime.md](realtime.md) | Ba tầng socket, decoder frame, luật socket, ân hạn nền, khôi phục phiên |
-| [offline-first.md](offline-first.md) | Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, reconnect |
+| [offline-first.md](offline-first.md) | Mở lạnh, kho trên máy, outbox, gửi tiếp ở nền, lượt chờ, nháp, cache đĩa, reconnect |
 | [observability.md](observability.md) | Báo lỗi, Sentry, log, cấu hình từ xa và công tắc, thống kê, toast, đăng xuất |
 | [store-compliance.md](store-compliance.md) | Xoá tài khoản, pháp lý, giấy phép, đồng ý AI, báo cáo và chặn, FGS, hồ sơ store |
 | [device-privacy.md](device-privacy.md) | Ẩn nội dung thông báo, khoá app, chặn chụp màn hình |

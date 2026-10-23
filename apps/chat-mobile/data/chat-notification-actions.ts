@@ -8,18 +8,24 @@
 // now or when the network is back, client_msg_id-deduplicated by the
 // server) and reads the room, as WhatsApp does; Mark as read queues the read
 // (data/pending-ops.ts). Either takes the notification down. An action heard
-// twice (the listener and the task of one runtime) runs once.
+// twice (the listener and the task of one runtime) runs once. With UniChat off
+// screen, what the action left owed (a reply written offline, a read that did
+// not reach the server) keeps going as on leaving the app
+// (outbox-drain/background-send.ts: Android's job sends it when the network
+// comes back).
 //
 // iOS hands JavaScript no response for an app it did not launch when the
 // action stays in the background, so there the actions open the app (no reply
 // is ever lost); Android runs them without opening it.
 import * as Notifications from "expo-notifications";
+import { AppState } from "react-native";
 import { CHAT_MESSAGE_CATEGORY, MARK_READ_ACTION, REPLY_ACTION, type ChatNotificationAction } from "@/lib/chat-notification";
 import { session } from "./auth/flow";
 import { readLastUser } from "./auth/last-user";
 import { bootRuntime } from "./boot";
 import { chatSendDeps, sendChatMessage, type ChatSendInput } from "./chat-send";
 import { createLogger } from "./logger";
+import { keepSendingOffScreen } from "./outbox-drain/background-send";
 import { markRoomRead } from "./pending-ops";
 import { bestEffort } from "./report";
 import { queryClient } from "./query-client";
@@ -61,6 +67,8 @@ export interface ChatActionEnv {
   send: (input: ChatSendInput) => Promise<void>;
   markRead: (workspaceId: string, roomId: string, userId: string) => Promise<void>;
   dismiss: (notificationId: string) => Promise<void>;
+  /** After the action: what it left owed keeps going if UniChat is off screen. */
+  offScreen: (userId: string) => void;
 }
 
 export type ChatActionOutcome = "replied" | "read" | "signed-out" | "duplicate";
@@ -78,6 +86,7 @@ export async function handleChatNotificationAction(action: ChatNotificationActio
   }
   // Answering a message reads it, as WhatsApp's reply does.
   await env.markRead(workspaceId, roomId, userId);
+  env.offScreen(userId);
   if (action.notificationId) await env.dismiss(action.notificationId);
   return action.action === REPLY_ACTION ? "replied" : "read";
 }
@@ -99,6 +108,10 @@ export const appChatActionEnv: ChatActionEnv = {
   // The reply is already in the outbox: a notification that will not come down is only untidy.
   dismiss: (notificationId) =>
     Notifications.dismissNotificationAsync(notificationId).catch(bestEffort("push", "notification not dismissed", "breadcrumb")),
+  offScreen(userId) {
+    if (AppState.currentState === "active") return;
+    void keepSendingOffScreen(userId).catch(bestEffort("outbox", "outbox not kept going off screen", "breadcrumb"));
+  },
 };
 
 /** Runs one action and logs how it went; never throws into a listener or a task. */

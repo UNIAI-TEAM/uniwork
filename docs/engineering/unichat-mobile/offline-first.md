@@ -52,10 +52,43 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   khoản, không của màn đang mở: `data/owed.ts › flushOwed` đẩy tin chờ và lượt chờ của **mọi** workspace của người
   đó, khi phiên sẵn sàng, NetInfo online, mỗi lần về foreground và lúc rời foreground (tin viết ngay trước khi chuyển
   app đi trong lúc JS còn chạy) (`data/use-account-sync.ts`, gắn ở
-  `app/(app)/_layout.tsx` — cả màn chọn workspace) và khi socket reconnect (`use-chat-realtime.ts`). Không gì xả
-  outbox khi app ở nền lâu: iOS cần module riêng cho `beginBackgroundTask`, còn task định kỳ của OS
-  (`expo-background-task`) chạy ≥ 15 phút một lần và thêm manifest của WorkManager mà `scripts/android-manifest.mjs`
-  không thấy (chỉ đọc gói được link, không đọc thư viện Maven) — hoãn tới khi kiểm được bằng bản build EAS. **Bản offline
+  `app/(app)/_layout.tsx` — cả màn chọn workspace) và khi socket reconnect (`use-chat-realtime.ts`). **Gửi tiếp ở
+  nền** (UNI-2141, `data/outbox-drain/`, module native `modules/unichat-background`): rời foreground mà người đó còn nợ
+  (`owed.ts › owesServer`: tin `queued`/`sending` của họ, hay một lượt chờ; tin `failed` chờ người, không chờ mạng) thì
+  outbox đi tiếp khi app đã khuất, như các app nhắn tin lớn. iOS: xin hệ thống thêm thời gian (`beginBackgroundTask`,
+  khoảng 30 s; drain trả lại sau `GRACE_BUDGET_MS` = 25 s hay sớm hơn), xả bằng `owed.ts › deliverOwed` (flush rồi chờ
+  tới khi không còn tin nào trên dây, `chat-send.ts › sendsSettled`; còn nợ sau một vòng — mạng chập chờn lúc rời app,
+  server trả 5xx — thì `drain.ts` xả lại sau 2 s, 5 s, 15 s, độ trễ đầu của chính hàng, chừng nào ngân sách còn chỗ,
+  vì hẹn giờ thử lại của hàng sẽ nổ trong app đã bị treo; job Android và task theo lịch cũng vậy), và giữ một task
+  theo lịch (`expo-background-task`: `BGProcessingTask` cần mạng, sớm nhất 15 phút) trong khi còn nợ, bỏ khi hết nợ
+  (`outbox-drain/scheduled-drain.ts`:
+  một lần chạy của task không bao giờ tự bỏ đăng ký — `expo-task-manager` chỉ báo xong `BGProcessingTask` qua đăng ký
+  đó, bỏ giữa chừng thì task treo tới khi iOS cho hết hạn và lần sau iOS lên lịch app ít hơn; lần chạy thấy hết nợ chỉ
+  ghi lại, task bị bỏ khi app về foreground hay lần rời foreground sau) — **best effort**: iOS quyết khi nào
+  chạy (thường lúc máy rảnh, có Wi-Fi hay đang sạc; app ít dùng có thể không bao giờ), vuốt tắt app là hết, và app
+  iPhone đã bị treo không chạy gì khác, nên tin viết offline trên iPhone chủ yếu đi khi mở lại app. Android: một job
+  WorkManager (`OutboxDrain.kt`, tên duy nhất `unichat-outbox-drain`, lên lịch lại thì thay job cũ) cần mạng
+  (`NetworkType.CONNECTED`): có mạng thì chạy ngay (expedited từ Android 12, hết hạn mức thì chạy như job thường; dưới 12
+  là job thường — expedited ở đó là foreground service có thông báo riêng, và tiến trình ở nền không bị đóng băng), không
+  có thì chạy lúc mạng có lại, kể cả sau khi khởi động lại máy. Job chạy task JavaScript `UniChatOutboxDrain` trong
+  runtime đang chạy hay một runtime headless (`HeadlessDrainRunner.kt`: như `HeadlessJsTaskService` mà không cần Service,
+  vì app ở nền không được khởi Service); task khởi runtime, mở kho mã hoá, đọc lại công tắc server đã giữ, khôi phục
+  phiên, đọc hàng đợi và hỏi lại NetInfo (`outbox-drain/task-env.ts`) rồi xả trong `DRAIN_BUDGET_MS` (120 s; phía native
+  chờ 150 s) và trả lời job (`drainFinished(token, owed)`, token là id của lần chạy): còn nợ (mạng rớt, server bận, hết
+  hạn, lỗi, hay task kết thúc mà không trả lời) thì job quay lại theo backoff mũ từ 30 s, tối đa `MAX_ATTEMPTS` = 8 lần
+  (khoảng một giờ; thời gian không có mạng không tính), hết nợ, đã đăng xuất hay công tắc tắt thì xong. Về foreground
+  thì job đang chờ bị huỷ (màn hình gửi). Reply / Đánh dấu đã đọc trên thông báo khi app khuất cũng giao phần còn nợ cho
+  đường này (`chat-notification-actions.ts › offScreen`): trả lời viết lúc offline đi khi mạng có lại. Không gửi trùng:
+  lần xả nền và lần flush của màn hình chạy trong cùng một runtime nên dùng chung hàng (`lines`/`flushes` của
+  `chat-send.ts`, `pending-ops.ts`: lời gọi thứ hai chờ lần đang chạy), và server khử trùng theo `client_msg_id` khi hai
+  lần POST cùng tới (câu trả lời mất, tiến trình chết giữa chừng). Công tắc `unichat_mobile_background_send` (và
+  `unichat_mobile_outbox_flush`) tắt cả đường nền: không xin thời gian, huỷ job, bỏ task theo lịch; job đang chờ chạy
+  thì thấy công tắc tắt và xong ngay. Khai báo: manifest của WorkManager (bốn service không chạy foreground, quyền đều
+  đã có) nằm ở `scripts/android-manifest.mjs › MAVEN_MANIFESTS` theo phiên bản `build.gradle` khai (phiên bản lạ làm
+  script dừng, `android-manifest.test.ts`); iOS khai `UIBackgroundModes: processing` và định danh
+  `com.expo.modules.backgroundtask.processing` (`app.config.test.ts`). Kotlin có test JVM
+  (`modules/unichat-background/android/src/test`, `mobile-verify › android-release`); hành vi trên máy thật (đóng băng
+  tiến trình, hạn mức expedited, task theo lịch của iOS) chỉ kiểm được bằng bản build. **Bản offline
   luôn mới** (`data/timeline-refresh.ts`, cùng hook): frame của phòng không ai xem chỉ đánh dấu stale (UNI-1078), nên lúc
   app rời foreground (còn mạng) các phòng trong 24 phòng gần nhất có timeline đứng sau — bị đánh dấu stale, cũ hơn
   preview của danh sách, hay chưa tải mà còn chưa đọc — được đọc trang mới nhất một lần (cắt về trang đầu trước: một

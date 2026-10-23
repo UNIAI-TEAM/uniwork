@@ -13,6 +13,11 @@
 // `maxSdkVersion` with the highest cap (Play reviews it only on devices up to
 // that level); one declaration without a cap makes it uncapped, as Gradle's
 // merger keeps the uncapped element.
+// A Maven library that a linked project (or one of the app's own modules/*)
+// depends on brings a manifest too, which Gradle merges and this script cannot
+// read without the AAR: the ones UniChat links are written in MAVEN_MANIFESTS,
+// copied from the AAR of the version the build.gradle names, and a version not
+// written there stops the script (update the entry from the new AAR first).
 // android-manifest.test.ts holds the result; the CI release build
 // (mobile-verify.yml › android-release) is what proves it on a device build.
 //   node apps/chat-mobile/scripts/android-manifest.mjs   # prints the JSON
@@ -94,6 +99,52 @@ function readLibrary(dir) {
 
 const MESSAGING_EVENT = "com.google.firebase.MESSAGING_EVENT";
 
+/**
+ * Manifest entries of Maven libraries, by `group:artifact:version` (a `-ktx` artifact is its base one): the
+ * permissions and services of `unzip -p <artifact>.aar AndroidManifest.xml`, with those of the libraries it brings
+ * that declare any. Receivers and providers are not reported (Play asks about neither).
+ */
+export const MAVEN_MANIFESTS = {
+  // WorkManager (modules/unichat-background's outbox drain job; expo-background-task names the same version), with
+  // the Room that keeps its jobs. SystemForegroundService has no foregroundServiceType: UniChat never asks a job to
+  // run in the foreground, so it never starts (and needs no FOREGROUND_SERVICE_* permission for Play to review).
+  "androidx.work:work-runtime:2.9.1": {
+    permissions: [
+      "android.permission.WAKE_LOCK",
+      "android.permission.ACCESS_NETWORK_STATE",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
+      "android.permission.FOREGROUND_SERVICE",
+    ],
+    services: [
+      "androidx.work.impl.background.systemalarm.SystemAlarmService",
+      "androidx.work.impl.background.systemjob.SystemJobService",
+      "androidx.work.impl.foreground.SystemForegroundService",
+      "androidx.room.MultiInstanceInvalidationService",
+    ],
+  },
+};
+
+const watchedArtifacts = new Set(Object.keys(MAVEN_MANIFESTS).map((key) => key.split(":").slice(0, 2).join(":")));
+
+/** The MAVEN_MANIFESTS keys a build.gradle's runtime dependencies (implementation, api) name; throws on an unknown version. */
+export function mavenLibraries(gradle, file = "build.gradle") {
+  const found = [];
+  for (const m of gradle.matchAll(/^\s*(?:implementation|api)\s*\(?\s*["']([\w.-]+):([\w.-]+):([\w.-]+)["']/gm)) {
+    const artifact = `${m[1]}:${m[2].replace(/-ktx$/, "")}`;
+    if (!watchedArtifacts.has(artifact)) continue;
+    const key = `${artifact}:${m[3]}`;
+    if (!(key in MAVEN_MANIFESTS)) throw new Error(`${file} links ${key}: add its manifest entries to MAVEN_MANIFESTS (scripts/android-manifest.mjs)`);
+    found.push(key);
+  }
+  return found;
+}
+
+/** The build.gradle of a linked library, or of one of the app's own modules. */
+function gradleOf(dir) {
+  const file = ["build.gradle", "build.gradle.kts"].map((f) => path.join(dir, "android", f)).find((f) => fs.existsSync(f));
+  return file ? { file, text: fs.readFileSync(file, "utf8") } : null;
+}
+
 /** The priority of an app-manifest service's FCM intent filter, or null when it has none. */
 function messagingPriority(service) {
   const filter = (service["intent-filter"] ?? []).find((f) => (f.action ?? []).some((a) => a.$?.["android:name"] === MESSAGING_EVENT));
@@ -130,14 +181,31 @@ export function androidManifestReport() {
   const pkg = JSON.parse(fs.readFileSync(path.join(appRoot, "package.json"), "utf8"));
   const expoDir = locate("expo", [appRoot]);
   const libraries = new Set([...(config._internal.autolinkedModules ?? []), ...Object.keys(pkg.dependencies ?? {})]);
+  const maven = new Set();
+  const linkMaven = (dir) => {
+    const gradle = gradleOf(dir);
+    if (gradle) for (const key of mavenLibraries(gradle.text, gradle.file)) maven.add(key);
+  };
   for (const name of [...libraries].sort()) {
     if (name.startsWith("expo-dev-") || name.startsWith("@uniwork/")) continue;
     const dir = locate(name, [appRoot, expoDir].filter(Boolean));
     const library = dir && readLibrary(dir);
     if (!library) continue;
+    linkMaven(dir);
     for (const permission of library.permissions) declare(permission.name, permission.maxSdkVersion);
     for (const service of library.services) if (!services.has(service.name)) services.set(service.name, service.type);
     for (const service of library.messaging) if (!messaging.has(service.name)) messaging.set(service.name, service.priority);
+  }
+  // The app's own modules (modules/*) declare their entries through config plugins, which the introspected manifest
+  // already holds; what they link from Maven is read here.
+  const localModules = path.join(appRoot, "modules");
+  for (const entry of fs.existsSync(localModules) ? fs.readdirSync(localModules, { withFileTypes: true }) : []) {
+    if (entry.isDirectory()) linkMaven(path.join(localModules, entry.name));
+  }
+  for (const key of [...maven].sort()) {
+    const library = MAVEN_MANIFESTS[key];
+    for (const name of library.permissions) declare(name, "");
+    for (const name of library.services) if (!services.has(name)) services.set(name, "");
   }
   for (const name of removed.permissions) permissions.delete(name);
   for (const name of removed.services) {

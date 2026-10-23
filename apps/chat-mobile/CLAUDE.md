@@ -75,7 +75,7 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
 | `app.config.ts`, biến build, ký OTA, ghim TLS | `docs/engineering/unichat-mobile/config-security.md` |
 | `lib/`, theme, token, tương phản | `docs/engineering/unichat-mobile/lib-and-theme.md` |
 | Socket, frame, ân hạn nền, khôi phục phiên | `docs/engineering/unichat-mobile/realtime.md` |
-| Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa | `docs/engineering/unichat-mobile/offline-first.md` |
+| Mở lạnh, kho trên máy, outbox, gửi tiếp ở nền, lượt chờ, nháp, cache đĩa | `docs/engineering/unichat-mobile/offline-first.md` |
 | Báo lỗi, Sentry, log, cấu hình từ xa, thống kê | `docs/engineering/unichat-mobile/observability.md` |
 | Xoá tài khoản, pháp lý, đồng ý AI, báo cáo, hồ sơ store | `docs/engineering/unichat-mobile/store-compliance.md` |
 | Ẩn thông báo, khoá app, chặn chụp màn hình | `docs/engineering/unichat-mobile/device-privacy.md` |

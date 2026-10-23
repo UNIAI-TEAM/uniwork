@@ -22,8 +22,9 @@ name: Mobile Verify
 #                   apps/chat-mobile/bundle-budget.json
 #   android-release `expo prebuild` + `./gradlew :app:assembleRelease` on the
 #                   production config: proves the native project still builds;
-#                   the same Gradle run tests the calls module's Kotlin on
-#                   Robolectric (`:unichat-calls:testReleaseUnitTest`), then
+#                   the same Gradle run tests the local modules' Kotlin on
+#                   Robolectric (`:unichat-calls:testReleaseUnitTest`,
+#                   `:unichat-background:testReleaseUnitTest`), then
 #                   the APK gets a static security scan
 #                   (scripts/mobile-apk-scan.mjs: no credential in any file,
 #                   not debuggable, no backup or cleartext, no component other
@@ -351,15 +352,16 @@ jobs:
       - name: Prebuild the native project
         working-directory: apps/chat-mobile
         run: pnpm exec expo prebuild -p android --no-install --clean
-      - name: Assemble the release APK and run the calls module's JVM tests
+      - name: Assemble the release APK and run the local modules' JVM tests
         working-directory: apps/chat-mobile/android
         # One ABI, the emulator's: what can break is shared by all four, and it
         # halves the build. The nightly builds every ABI (android-production).
-        # The calls module's Robolectric tests (modules/unichat-calls/android/src/test)
-        # share the release compilation; Robolectric runs SDK 34 on this JDK 17.
+        # The local modules' Robolectric tests (modules/unichat-calls/android/src/test,
+        # modules/unichat-background/android/src/test: the outbox drain job on WorkManager's
+        # test runtime) share the release compilation; Robolectric runs SDK 34 on this JDK 17.
         # :unichat-calls:assembleDebugAndroidTest builds the module's instrumented test APK
         # (src/androidTest), which android-smoke runs on its emulator.
-        run: ./gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest :unichat-calls:assembleDebugAndroidTest --no-daemon -PreactNativeArchitectures=x86_64 "-Dorg.gradle.jvmargs=$GRADLE_DAEMON_JVMARGS"
+        run: ./gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest :unichat-background:testReleaseUnitTest :unichat-calls:assembleDebugAndroidTest --no-daemon -PreactNativeArchitectures=x86_64 "-Dorg.gradle.jvmargs=$GRADLE_DAEMON_JVMARGS"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -367,6 +369,8 @@ jobs:
           path: |
             apps/chat-mobile/modules/unichat-calls/android/build/reports/tests/**
             apps/chat-mobile/android/**/unichat-calls/reports/tests/**
+            apps/chat-mobile/modules/unichat-background/android/build/reports/tests/**
+            apps/chat-mobile/android/**/unichat-background/reports/tests/**
           if-no-files-found: ignore
           retention-days: 7
       - name: APK size
