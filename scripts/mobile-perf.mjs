@@ -8,7 +8,8 @@
 //       Launches the app once untimed (to its mark, then force-stop), fixes
 //       its compile state (`cmd package compile -f -m speed-profile`), then
 //       cold-starts it `runs` times (force-stop, wait for the device's CPU to
-//       settle, `am start -W`) and records the median of three times:
+//       settle, `am start -W`; one Android does not report COLD fails the
+//       run) and records the median of three times:
 //       Android's own time to the activity's first frame (TotalTime: the app
 //       holds that frame until it lifts the splash, right before its
 //       first-screen mark, so it is the first screen plus ~150 ms, not the
@@ -122,6 +123,12 @@ export function parseLoadavg(text) {
 export function parseAmStart(text) {
   const total = /TotalTime:\s*(\d+)/.exec(text);
   return total ? Number(total[1]) : null;
+}
+
+/** `am start -W` output: how Android started the activity (COLD, WARM, HOT); null where it does not say. */
+export function parseLaunchState(text) {
+  const state = /LaunchState:\s*(\w+)/.exec(text);
+  return state ? state[1] : null;
 }
 
 /** One `logcat -v epoch` line: its time in ms, tag and message; null for anything else. */
@@ -352,7 +359,15 @@ async function waitForMark(device, pkg, mark, which) {
 
 /** Waits, one window at a time, until the CPU was at most QUIET_BUSY_PERCENT busy or QUIET_WAIT_MS passed; says how it ended. */
 async function settle(device) {
-  const stat = () => parseProcStat(device.adb("shell", "cat", "/proc/stat"));
+  // A file the shell may not read is a context number gone, not a failed run: null, and the wait runs to its cap.
+  const read = (file) => {
+    try {
+      return device.adb("shell", "cat", file);
+    } catch {
+      return "";
+    }
+  };
+  const stat = () => parseProcStat(read("/proc/stat"));
   let before = stat();
   let busy = null;
   let waited = 0;
@@ -363,7 +378,7 @@ async function settle(device) {
     busy = busyPercent(before, after);
     before = after;
   } while ((busy === null || busy > QUIET_BUSY_PERCENT) && waited < QUIET_WAIT_MS);
-  return { cpuBusyPercent: busy, settleMs: waited, loadavg1: parseLoadavg(device.adb("shell", "cat", "/proc/loadavg")) };
+  return { cpuBusyPercent: busy, settleMs: waited, loadavg1: parseLoadavg(read("/proc/loadavg")) };
 }
 
 /** The control app's cold start on a settled device; null when it did not start (a context number, never a failure). */
@@ -402,7 +417,11 @@ export async function measureStartup(pkg, mark, runs, device = DEVICE) {
     device.adb("shell", "am", "force-stop", pkg);
     const quiet = await settle(device);
     device.adb("logcat", "-c");
-    const ttid = parseAmStart(device.adb("shell", "am", "start", "-W", "-n", activity));
+    const started = device.adb("shell", "am", "start", "-W", "-n", activity);
+    // force-stop left no process, so anything but COLD means the launch did not do what it is counted as.
+    const state = parseLaunchState(started);
+    if (state !== null && state !== "COLD") throw new Error(`mobile-perf: launch ${run + 1} of ${pkg} was ${state}, not COLD, after am force-stop: not a cold start`);
+    const ttid = parseAmStart(started);
     const ms = await waitForMark(device, pkg, mark, `launch ${run + 1}`);
     const toBoot = launchToMark(startLog(device), pkg, "js-boot");
     device.adb("shell", "am", "force-stop", pkg);

@@ -121,7 +121,7 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   `GATE_LEVEL`). `android-smoke` mỗi PR chạm binary: kích thước APK x86_64, rồi một lần mở không tính giờ (tới mốc,
   rồi `am force-stop`), `cmd package compile -f -m speed-profile` để mọi lần đo cùng một trạng thái biên dịch, rồi 10
   lần mở lạnh (`am force-stop` → chờ CPU máy lắng: từng cửa sổ 1 s của `/proc/stat` tới khi bận ≤ 25 %, tối đa 10 s →
-  `am start -W`), trung vị của `TotalTime` (Android tới khung đầu của activity — app giữ khung đó tới khi nhấc splash,
+  `am start -W`; lần nào Android không báo `LaunchState: COLD` thì lệnh đỏ, không lẫn lần mở ấm vào trung vị), trung vị của `TotalTime` (Android tới khung đầu của activity — app giữ khung đó tới khi nhấc splash,
   ngay trước mốc `first-screen`, nên nó là màn đầu cộng ~150 ms, không phải splash) và của thời gian từ lúc khởi chạy
   tới mốc `first-screen` (màn đầu vẽ xong dưới splash vừa nhấc). Cạnh đó, không chặn: CPU bận bao nhiêu trước mỗi lần
   (`cpuBusyPercent`, `settleMs`, `loadavg1`) và một app đối chứng mở lạnh sau mỗi lần (`controlTtidMs`, Settings) để

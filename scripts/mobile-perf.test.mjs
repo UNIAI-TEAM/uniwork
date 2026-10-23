@@ -24,6 +24,7 @@ import {
   parseEpochLine,
   parseGfxinfo,
   parseLaunchPid,
+  parseLaunchState,
   parseLoadavg,
   parseMark,
   parseMeminfo,
@@ -271,7 +272,7 @@ test("reads the device's CPU between two /proc/stat reads, and its 1-minute load
  * An emulator as `adb` sees it: each `cat /proc/stat` advances 100 jiffies, busy by the next share of `busy` (the last
  * repeats); each launch of the app logs its START line and both marks, its TotalTime counting up from 1900.
  */
-function fakeDevice({ busy = [10] } = {}) {
+function fakeDevice({ busy = [10], launchState = "COLD", unreadable = [] } = {}) {
   const calls = [];
   let jiffies = { busy: 0, idle: 0 };
   let reads = 0;
@@ -280,6 +281,7 @@ function fakeDevice({ busy = [10] } = {}) {
   const adb = (...args) => {
     const cmd = args.join(" ");
     calls.push(cmd);
+    if (unreadable.some((file) => cmd === `shell cat ${file}`)) throw new Error(`cat: ${cmd.slice(10)}: Permission denied`);
     if (cmd.startsWith("shell cmd package resolve-activity")) return "priority=0 preferredOrder=0\ncom.uniworkos.chat/.MainActivity\n";
     if (cmd === "shell cat /proc/stat") {
       const share = busy[Math.min(reads, busy.length - 1)];
@@ -296,7 +298,8 @@ function fakeDevice({ busy = [10] } = {}) {
         `${t}.900 4321 4400 I ReactNativeJS: UniChatPerf mark=js-boot at=${t * 1000 + 600 + launches}`,
         `${t}.950 4321 4400 I ReactNativeJS: UniChatPerf mark=first-screen at=${t * 1000 + 1800 + launches}`,
       ].join("\n");
-      return `Status: ok\nLaunchState: COLD\nTotalTime: ${1900 + launches}\nComplete\n`;
+      // The warm-up is the first launch after Maestro's, a cold one; `launchState` is what every timed one reports.
+      return `Status: ok\nLaunchState: ${launches === 1 ? "COLD" : launchState}\nTotalTime: ${1900 + launches}\nComplete\n`;
     }
     if (cmd === `shell am start -W -n ${CONTROL_ACTIVITY}`) return "Status: ok\nTotalTime: 700\nComplete\n";
     if (cmd === "logcat -c") log = "";
@@ -343,6 +346,24 @@ test("a busy device delays the launch until it settles, and never for longer tha
   const busy = await measureStartup("com.uniworkos.chat", "first-screen", 1, fakeDevice({ busy: [95] }));
   assert.deepEqual(busy.samples.cpuBusyPercent, [95], "a device that never settles is still timed, and says how busy it was");
   assert.deepEqual(busy.samples.settleMs, [QUIET_WAIT_MS]);
+});
+
+// A timed launch that Android did not start from a dead process is not a cold start: the run fails rather than let a
+// warm one into the median.
+test("a timed launch Android reports as warm or hot fails the run instead of counting as cold", async () => {
+  assert.equal(parseLaunchState("Status: ok\nLaunchState: COLD\nTotalTime: 1900\n"), "COLD");
+  assert.equal(parseLaunchState("Status: ok\nTotalTime: 1900\n"), null, "older Android does not say");
+  await assert.rejects(measureStartup("com.uniworkos.chat", "first-screen", 2, fakeDevice({ launchState: "WARM" })), /launch 1 .*WARM/);
+  await assert.rejects(measureStartup("com.uniworkos.chat", "first-screen", 2, fakeDevice({ launchState: "HOT" })), /HOT/);
+});
+
+// The settling reads are context: a device whose /proc files the shell cannot read is still timed, after the cap.
+test("a device the shell cannot read /proc/stat or /proc/loadavg of is still timed, waiting the full cap", async () => {
+  const result = await measureStartup("com.uniworkos.chat", "first-screen", 2, fakeDevice({ unreadable: ["/proc/stat", "/proc/loadavg"] }));
+  assert.deepEqual(result.samples.coldStartTtidMs, [1902, 1903]);
+  assert.deepEqual(result.samples.cpuBusyPercent, [null, null]);
+  assert.deepEqual(result.samples.settleMs, [QUIET_WAIT_MS, QUIET_WAIT_MS]);
+  assert.deepEqual(result.samples.loadavg1, [null, null]);
 });
 
 test("the summary shows each start metric's spread over the runs and the control's, beside the medians", () => {
