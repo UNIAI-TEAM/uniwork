@@ -74,6 +74,7 @@ const (
 	summaryReasonParse         = "parse"
 	summaryReasonEmpty         = "empty"
 	summaryReasonStore         = "store"
+	summaryReasonIncomplete    = "incomplete"
 )
 
 // The refusals Summarize answers with. The message is fixed and never quotes
@@ -339,6 +340,31 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, actor A
 		return db.MeetingSummary{}, err
 	}
 	return row, nil
+}
+
+// summaryRegression says why next is a thinner record than the stored prev,
+// "" when it is not. The model sometimes answers a long meeting with topics
+// whose points are missing, or with every list empty; storing that would
+// replace a better record people may have read. Fewer action items are fine
+// when the meeting holds items people handled (handled): those are left out
+// of the prompt on purpose, so a stored record of items only may be followed
+// by one with no list at all.
+func summaryRegression(prev db.MeetingSummary, next ai.MeetingSummary, handled bool) string {
+	for _, t := range next.Topics {
+		if len(t.Points) == 0 {
+			return "a topic without points"
+		}
+	}
+	if len(DecodeSummaryDecisions(prev.Decisions))+len(DecodeSummaryDecisions(prev.OpenQuestions)) > 0 &&
+		len(next.Decisions)+len(next.ActionItems)+len(next.OpenQuestions) == 0 {
+		return "no decisions, action items or open questions"
+	}
+	var prevItems []json.RawMessage
+	_ = json.Unmarshal([]byte(prev.ActionItems), &prevItems)
+	if len(prevItems) > 0 && len(next.ActionItems) == 0 && !handled {
+		return "no action items"
+	}
+	return ""
 }
 
 // summaryNoteLines renders the meeting's notes for the prompt as

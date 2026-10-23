@@ -425,3 +425,51 @@ func TestSummaryRunDeadlineFitsEveryCall(t *testing.T) {
 		}
 	}
 }
+
+// Demo bug (UNI-1995 #12): a run that answered a thinner record (topics with
+// no points, or no decisions, items or open questions where the stored record
+// had them) replaced the better stored summary. It is now refused as
+// incomplete and the stored summary stays; a record with fewer items because
+// people handled them since is still stored.
+func TestSummarizeKeepsTheBetterStoredRecord(t *testing.T) {
+	const good = `{"tldr":"Chốt ship thứ Sáu.","topics":[{"title":"Phát hành","start_label":"S1","points":[{"text":"Ship thứ Sáu","evidence":["S1"]}]}],"decisions":[{"text":"Ship thứ Sáu","evidence":["S1"]}],"action_items":[{"title":"Gửi bản build","owner":"An","due":"thứ Sáu","description":"","priority":"","evidence":["S1"],"draft":""}],"open_questions":[]}`
+	reply := good
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: reply, Model: "fake", OutputTokens: 40}
+	}}
+	s, ua, m, met := summaryFixture(t, fake, ai.Options{})
+	ctx := context.Background()
+	first, err := s.Summarize(ctx, ua.ID, m.ID, "vi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, thin := range []struct{ name, text string }{
+		{"topics without points", `{"tldr":"Chốt ship.","topics":[{"title":"Phát hành","start_label":"S1","points":[]}],"decisions":[{"text":"Ship thứ Sáu","evidence":["S1"]}],"action_items":[{"title":"Gửi bản build","owner":"An","due":"","description":"","priority":"","evidence":["S1"],"draft":""}],"open_questions":[]}`},
+		{"no decisions, items or questions", `{"tldr":"Chốt ship.","topics":[{"title":"Phát hành","start_label":"S1","points":[{"text":"Ship","evidence":["S1"]}]}],"decisions":[],"action_items":[],"open_questions":[]}`},
+		{"items lost while nothing was handled", `{"tldr":"Chốt ship.","topics":[],"decisions":[{"text":"Ship thứ Sáu","evidence":["S1"]}],"action_items":[],"open_questions":[]}`},
+	} {
+		reply = thin.text
+		met.reasons = nil
+		if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); !codedIs(err, "ai_failed") {
+			t.Fatalf("%s: err = %v, want ai_failed", thin.name, err)
+		}
+		if latest, err := s.q.GetLatestMeetingSummary(ctx, m.ID); err != nil || latest.ID != first.ID {
+			t.Fatalf("%s: latest summary = %s (%v), want the stored %s", thin.name, latest.ID, err, first.ID)
+		}
+		if len(met.reasons) != 1 || met.reasons[0] != summaryReasonIncomplete {
+			t.Fatalf("%s: reasons = %v", thin.name, met.reasons)
+		}
+	}
+	// Once the item is handled, a record without items is the right answer.
+	var itemID string
+	if err := s.pool.QueryRow(ctx, `SELECT id FROM meeting_action_items WHERE meeting_id = $1`, m.ID).Scan(&itemID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DismissActionItem(ctx, ua.ID, m.ID, itemID, "đã xong"); err != nil {
+		t.Fatal(err)
+	}
+	reply = `{"tldr":"Chốt ship.","topics":[],"decisions":[{"text":"Ship thứ Sáu","evidence":["S1"]}],"action_items":[],"open_questions":[]}`
+	if next, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); err != nil || next.ID == first.ID {
+		t.Fatalf("a record without the handled item was refused: %v", err)
+	}
+}

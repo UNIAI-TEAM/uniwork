@@ -487,6 +487,15 @@ func (s *MeetingService) summarize(ctx context.Context, m db.Meeting, actor Acto
 	// way the gateway still settles its usage row.
 	storeCtx, cancelStore := context.WithTimeout(context.WithoutCancel(ctx), summaryStoreTimeout)
 	defer cancelStore()
+	// A thinner answer than the stored record is a failed run, not a newer
+	// record: the stored summary stays and the run reports the failure.
+	if prev, err := s.q.GetLatestMeetingSummary(storeCtx, meetingID); err == nil {
+		if why := summaryRegression(prev, res, len(existing)+len(drafts) > 0); why != "" {
+			return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonIncomplete, err: errors.New(why)})
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonStore, err: err})
+	}
 	row, err := s.storeSummary(storeCtx, m, actor, res, resp, labels, partial)
 	if err != nil {
 		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonStore, err: err})
