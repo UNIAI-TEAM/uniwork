@@ -1151,7 +1151,6 @@ type GetChatRoomWallpaperForUpdateRow struct {
 	WallpaperFileID pgtype.Text `json:"wallpaper_file_id"`
 }
 
-// tenant: by-id
 func (q *Queries) GetChatRoomWallpaperForUpdate(ctx context.Context, arg GetChatRoomWallpaperForUpdateParams) (GetChatRoomWallpaperForUpdateRow, error) {
 	row := q.db.QueryRow(ctx, getChatRoomWallpaperForUpdate, arg.ID, arg.OrganizationID)
 	var i GetChatRoomWallpaperForUpdateRow
@@ -2791,7 +2790,7 @@ func (q *Queries) LockChatRoom(ctx context.Context, id string) error {
 
 const markChatThreadRead = `-- name: MarkChatThreadRead :exec
 UPDATE chat_thread_followers
-SET last_read_at = $3, updated_at = now()
+SET last_read_at = GREATEST(last_read_at, $3::timestamptz), updated_at = now()
 WHERE thread_root_id = $1 AND user_id = $2
 `
 
@@ -3099,7 +3098,6 @@ type SetChatRoomWallpaperParams struct {
 	OrganizationID  string      `json:"organization_id"`
 }
 
-// tenant: by-id
 func (q *Queries) SetChatRoomWallpaper(ctx context.Context, arg SetChatRoomWallpaperParams) error {
 	_, err := q.db.Exec(ctx, setChatRoomWallpaper,
 		arg.WallpaperPreset,
@@ -3572,7 +3570,7 @@ ON CONFLICT (thread_root_id, user_id) DO UPDATE SET
     WHEN EXCLUDED.reason = 'replied' THEN EXCLUDED.reason
     ELSE EXCLUDED.reason
   END,
-  last_read_at = COALESCE(EXCLUDED.last_read_at, chat_thread_followers.last_read_at)
+  last_read_at = GREATEST(chat_thread_followers.last_read_at, EXCLUDED.last_read_at)
 `
 
 type UpsertChatThreadFollowerParams struct {
