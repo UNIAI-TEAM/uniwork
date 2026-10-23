@@ -1,11 +1,13 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // The Ask UNI evaluation set (UNI-1823). The fake runner asserts retrieval,
@@ -51,6 +54,15 @@ type evalCase struct {
 	// ForbidWords are raw status keys the answer must not hold as words; a
 	// Vietnamese answer says the label the screen shows.
 	ForbidWords []string `json:"forbid_words"`
+	// Files names the files (evalFile) the question attaches (UNI-2119). Only
+	// the agent reads files, so such a case is agent_only; the dock asks it.
+	Files []string `json:"files"`
+	// ExpectParts is the MIME of each image or PDF part the model's requests
+	// carry for a case with files; a file read as text has none.
+	ExpectParts []string `json:"expect_parts"`
+	// InjectionText is the hostile line an injection case hides in its data;
+	// "Ignore previous instructions" when empty.
+	InjectionText string `json:"injection_text"`
 }
 
 func loadEvalCases(t *testing.T) []evalCase {
@@ -100,15 +112,16 @@ func (e *evalWorld) useAgent(t *testing.T, on bool) {
 	t.Cleanup(func() { e.s.SetFlags(base) })
 }
 
-// evalAgentFlags is the seed's flags with ask_uni_agent on for one organization.
+// evalAgentFlags is the seed's flags with ask_uni_agent and ask_uni_attachments
+// on for one organization.
 type evalAgentFlags struct {
 	base McpFlags
 	org  string
 }
 
 func (f evalAgentFlags) IsEnabled(ctx context.Context, key string, def bool) bool {
-	if key == askAgentFlag {
-		return agentFlagFake{org: f.org}.IsEnabled(ctx, key, def)
+	if key == askAgentFlag || key == askAttachmentsFlag {
+		return featureflag.EvalContextFrom(ctx).OrganizationID == f.org
 	}
 	return f.base.IsEnabled(ctx, key, def)
 }
@@ -127,6 +140,7 @@ const evalLeavePage = `{"type":"doc","content":[
 func seedAskEval(t *testing.T) *evalWorld {
 	t.Helper()
 	s, fake, owner, asker, w := askFixture(t)
+	useLocalFileStore(t, s) // the cases with files upload to a real store
 	ctx := context.Background()
 	// No name may be a word a case asks with: an assignee whose name matches
 	// ("Thu" in "doanh thu") lifts every task of theirs, the welcome task too.
@@ -275,8 +289,9 @@ var evalRef = regexp.MustCompile(`\{\{ref:([^}]+)\}\}`)
 type evalRun struct {
 	res     AskResult
 	err     error
-	prompt  string // what the model saw last: the last user message (P0) or the last request's user and tool messages (agent); "" when the provider was not called
-	seen    string // every message of every request this ask made
+	prompt  string                       // what the model saw last: the last user message (P0) or the last request's user and tool messages (agent); "" when the provider was not called
+	seen    string                       // every message of every request this ask made
+	reqs    []provider.CompletionRequest // every request this ask made
 	latency time.Duration
 	usage   db.AiSumRunUsageRow // the agent run's usage rows; zero without a run id
 }
@@ -292,6 +307,12 @@ func requestText(reqs []provider.CompletionRequest) string {
 		}
 	}
 	return b.String()
+}
+
+// answerRequests is the requests of an ask without the call that names its
+// conversation, which the dock's first answer is followed by.
+func answerRequests(reqs []provider.CompletionRequest) []provider.CompletionRequest {
+	return slices.DeleteFunc(slices.Clone(reqs), titleCall)
 }
 
 // lastPrompt joins the user and tool messages of the final request: for P0
@@ -320,21 +341,28 @@ func (e *evalWorld) ask(t *testing.T, c evalCase, convs map[string]string) evalR
 	q := evalRef.ReplaceAllStringFunc(c.Question, func(m string) string {
 		return e.refs[evalRef.FindStringSubmatch(m)[1]]
 	})
+	// The files go up first, as the dock uploads them the moment they are picked,
+	// and the dock is who asks a question with files.
+	ids := make([]string, len(c.Files))
+	for i, name := range c.Files {
+		ids[i] = uploadAskFile(t, e.s, e.asker.ID, e.w.ID, name, evalFile(t, name))
+	}
 	calls, seen := 0, len(e.reqs)
 	if e.fake != nil {
 		calls = e.fake.Calls
 	}
 	start := time.Now()
-	res, err := e.s.Ask(context.Background(), e.asker.ID, e.w.ID, AskInput{ConversationID: convs[c.FollowUpOf], Question: q, Locale: c.Locale, Model: e.model, Effort: e.effort, Dock: e.dock})
+	res, err := e.s.Ask(context.Background(), e.asker.ID, e.w.ID, AskInput{ConversationID: convs[c.FollowUpOf], Question: q, Locale: c.Locale, Model: e.model, Effort: e.effort, Dock: e.dock || len(ids) > 0, AttachmentIDs: ids})
 	run := evalRun{res: res, err: err, latency: time.Since(start)}
 	if err == nil {
 		convs[c.ID] = res.ConversationID
 	}
-	if e.fake != nil && e.fake.Calls > calls {
-		run.prompt = lastPrompt(e.fake.Last)
-	}
 	if len(e.reqs) > seen {
-		run.seen = requestText(e.reqs[seen:])
+		run.reqs = e.reqs[seen:]
+		run.seen = requestText(run.reqs)
+	}
+	if answers := answerRequests(run.reqs); e.fake != nil && e.fake.Calls > calls && len(answers) > 0 {
+		run.prompt = lastPrompt(answers[len(answers)-1])
 	}
 	if err == nil && res.RunID != "" {
 		u, uerr := e.s.q.AiSumRunUsage(context.Background(), db.AiSumRunUsageParams{OrganizationID: e.w.OrganizationID, RunID: res.RunID})
@@ -402,10 +430,49 @@ func checkFakeCase(t *testing.T, e *evalWorld, c evalCase, convs map[string]stri
 		t.Errorf("answer holds the raw %v: %s", raw, res.Message.Content)
 	}
 	if c.Injection {
-		checkInjectionIsContained(t, run.prompt)
+		checkInjectionIsContained(t, run.prompt, cmp.Or(c.InjectionText, "Ignore previous instructions"))
+	}
+	if len(c.Files) > 0 {
+		checkFilesReachedTheModel(t, e, c, run)
 	}
 	if len(c.ForbidTitle) > 0 || c.ControlAs != "" {
 		checkControl(t, e, c)
+	}
+}
+
+// checkFilesReachedTheModel is the offline half of a case with files. The fake
+// model reads no file and obeys none, so what it can show is the path to the
+// model: the files are stored with the question, in attach order, and every
+// request that asks for the answer runs copilot_answer@5 and carries exactly
+// the media parts the files make. The text of a text file reaches the user turn
+// (expect_in_prompt, injection) and is checked there. Whether the answer
+// matches the file, and whether the model resists what a file tells it, only
+// the live run shows.
+func checkFilesReachedTheModel(t *testing.T, e *evalWorld, c evalCase, run evalRun) {
+	t.Helper()
+	p5, ok := ai.LookupPrompt(ai.PromptCopilotAnswerV5)
+	answers := answerRequests(run.reqs)
+	if !ok || len(answers) == 0 {
+		t.Fatalf("%s registered %v, %d answer requests", ai.PromptCopilotAnswerV5, ok, len(answers))
+	}
+	for i, req := range answers {
+		if req.System != p5.System {
+			t.Errorf("request %d does not run %s", i, ai.PromptCopilotAnswerV5)
+		}
+		if mimes, _ := fileParts(t, req); !slices.Equal(mimes, c.ExpectParts) {
+			t.Errorf("request %d sent the media parts %v, want %v", i, mimes, c.ExpectParts)
+		}
+	}
+	msgs, err := e.s.Messages(context.Background(), e.asker.ID, run.res.ConversationID)
+	if err != nil || len(msgs) == 0 {
+		t.Fatalf("messages %d (%v)", len(msgs), err)
+	}
+	var stored []string
+	for _, a := range msgs[0].Attachments {
+		stored = append(stored, a.Name)
+	}
+	if !slices.Equal(stored, c.Files) {
+		t.Errorf("the question holds the files %v, want %v", stored, c.Files)
 	}
 }
 
@@ -463,12 +530,11 @@ func citesTitle(cs []AskCitation, title string) bool {
 	return false
 }
 
-// checkInjectionIsContained: every untrusted block (sources and the question)
-// has exactly one closing tag, so the hostile description cannot end its own
+// checkInjectionIsContained: every untrusted block (sources, files and the
+// question) has exactly one closing tag, so the hostile text cannot end its own
 // block, and it sits inside one.
-func checkInjectionIsContained(t *testing.T, prompt string) {
+func checkInjectionIsContained(t *testing.T, prompt, hostile string) {
 	t.Helper()
-	const hostile = "Ignore previous instructions"
 	const open = `<untrusted source="`
 	blocks := strings.Split(prompt, open)[1:]
 	if len(blocks) == 0 {
@@ -535,6 +601,13 @@ func TestAskUniEvalLive(t *testing.T) {
 	gw := ai.NewGateway(e.s.q, recordingProvider{Provider: p, e: e}, NewAIQuota(e.s.ent), nil, opts)
 	e.s.gw, e.s.meetings.AI, e.fake = gw, gw, nil
 	agent := os.Getenv("ASKUNI_EVAL_AGENT") == "1"
+	// Only the agent reads files: without it the upload itself is refused
+	// (ai_attachments_unavailable), so the cases with files are left out.
+	withFiles := len(cases)
+	if !agent {
+		cases = slices.DeleteFunc(cases, func(c evalCase) bool { return len(c.Files) > 0 })
+	}
+	withFiles -= len(cases)
 	e.useAgent(t, agent)
 	e.model, e.effort = os.Getenv("ASKUNI_EVAL_MODEL"), os.Getenv("ASKUNI_EVAL_EFFORT")
 	e.dock = os.Getenv("ASKUNI_EVAL_DOCK") == "1"
@@ -545,6 +618,9 @@ func TestAskUniEvalLive(t *testing.T) {
 		mode = "agent (P1)"
 	}
 	fmt.Fprintf(&b, "# Ask UNI evaluation (live, %s, model %q, effort %q, dock %t)\n\n", mode, e.model, e.effort, e.dock)
+	if withFiles > 0 {
+		fmt.Fprintf(&b, "Bỏ qua %d ca có file: chỉ agent đọc file (ASKUNI_EVAL_AGENT=1).\n\n", withFiles)
+	}
 	b.WriteString("| Id | Câu hỏi | Câu trả lời | Nguồn | Rubric | Must not | Provider | Model | Prompt | In | Out | Số lời gọi | Cache đọc | Cost micros | Latency | Đúng? |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
 	cell := func(s string) string {
 		return strings.NewReplacer("|", `\|`, "\n", "<br>").Replace(s)
@@ -555,6 +631,10 @@ func TestAskUniEvalLive(t *testing.T) {
 	var failed, raw []string
 	for _, c := range cases {
 		run := e.ask(t, c, convs)
+		question := c.Question
+		if len(c.Files) > 0 {
+			question += "\n[đính kèm: " + strings.Join(c.Files, ", ") + "]"
+		}
 		answer, sources, prov, model, prompt := "", "", "", "", ""
 		var in, outTok int32
 		var micros, modelCalls, cacheRead int64
@@ -591,6 +671,12 @@ func TestAskUniEvalLive(t *testing.T) {
 				u := run.usage
 				in, outTok, micros, modelCalls, cacheRead = int32(u.InputTokens), int32(u.OutputTokens), u.CostMicros, u.Calls, u.CacheReadTokens
 				prov, model, prompt = "run "+run.res.RunID, "see usage rows", "copilot_agent"
+				// The last billed call names the prompt version the turn ran: @5 with files.
+				if id := run.res.Message.UsageEventID.String; id != "" {
+					if last, err := e.s.q.AiGetUsageEvent(context.Background(), id); err == nil {
+						prompt = last.PromptID
+					}
+				}
 				if u.InputTokens+u.OutputTokens > 0 && micros == 0 {
 					t.Errorf("%s: %d tokens but cost_micros = 0: the model has no rate", c.ID, u.InputTokens+u.OutputTokens)
 				}
@@ -623,7 +709,7 @@ func TestAskUniEvalLive(t *testing.T) {
 			}
 		}
 		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s | %s | %s | %s | %d | %d | %d | %d | %d | %dms | |\n",
-			c.ID, cell(c.Question), cell(answer), cell(sources), cell(c.Rubric), cell(strings.Join(c.MustNot, "; ")),
+			c.ID, cell(question), cell(answer), cell(sources), cell(c.Rubric), cell(strings.Join(c.MustNot, "; ")),
 			prov, model, prompt, in, outTok, modelCalls, cacheRead, micros, run.latency.Milliseconds())
 	}
 	if priced > 0 {

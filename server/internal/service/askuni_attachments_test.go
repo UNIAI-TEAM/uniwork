@@ -37,6 +37,22 @@ func (f *attachFlags) IsEnabled(ctx context.Context, key string, def bool) bool 
 	return def
 }
 
+// useLocalFileStore gives s a real FileService over a local store that goes
+// away with the test.
+func useLocalFileStore(t *testing.T, s *AskUNIService) {
+	t.Helper()
+	stores, err := storage.BuildStores(context.Background(),
+		storage.Config{Backend: storage.BackendLocal, Local: &storage.LocalConfig{Root: t.TempDir()}}, storage.NewDefaultRegistry())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fs, err := NewFileService(FileServiceOptions{Pool: s.pool, Store: stores[storage.BackendLocal], SpoolDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SetFiles(fs)
+}
+
 // attachFixture is askFixture with a real FileService over a local store,
 // the agent wired as the other agent tests wire it (read tools and the fake
 // provider's model), the second user a plain member of the workspace, and
@@ -54,16 +70,7 @@ func attachAgentFixture(t *testing.T) (*AskUNIService, *provider.Fake, *attachFl
 	s, fake, ua, ub, w := askFixture(t)
 	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, s.q, w.ID, ub.ID)
-	stores, err := storage.BuildStores(context.Background(),
-		storage.Config{Backend: storage.BackendLocal, Local: &storage.LocalConfig{Root: t.TempDir()}}, storage.NewDefaultRegistry())
-	if err != nil {
-		t.Fatal(err)
-	}
-	fs, err := NewFileService(FileServiceOptions{Pool: s.pool, Store: stores[storage.BackendLocal], SpoolDir: t.TempDir()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.SetFiles(fs)
+	useLocalFileStore(t, s)
 	s.SetReadTools(NewMcpToolService(s.q, s, NewHomeService(s.q, s.ws), s.ws, "https://app.example.test"))
 	flags := &attachFlags{org: w.OrganizationID, user: ua.ID, attachments: true, agent: true}
 	s.SetFlags(flags)
