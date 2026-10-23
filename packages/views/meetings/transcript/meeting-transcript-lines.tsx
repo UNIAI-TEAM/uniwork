@@ -14,12 +14,11 @@ import {
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { cn } from "@uniwork/ui/lib/utils";
-import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 import { recordingOffset } from "../meeting-recording-offset";
 import { MeetingFeedLoadOlder } from "../meeting-feed-load-older";
 import type { TranscriptReader } from "./use-transcript-reader";
 import type { TranscriptChange } from "./transcript-change-dialog";
-import { highlightTranscript } from "./transcript-search";
+import { highlightTranscript, transcriptLineMatches } from "./transcript-search";
 
 const ALL_SPEAKERS = "__all";
 
@@ -56,7 +55,7 @@ export function MeetingTranscriptLines({
   const speakers = useMemo(() => [...new Set(rows.map(speakerOf))].sort((a, b) => a.localeCompare(b)), [rows, speakerOf]);
   const filtering = query.trim() !== "" || speaker !== ALL_SPEAKERS;
   const shown = useMemo(
-    () => rows.filter((s) => (speaker === ALL_SPEAKERS || speakerOf(s) === speaker) && foldedIncludes(s.text, query)),
+    () => rows.filter((s) => (speaker === ALL_SPEAKERS || speakerOf(s) === speaker) && transcriptLineMatches(s.text, query)),
     [rows, speaker, speakerOf, query],
   );
   const partial = reader.hasOlder || reader.hasNewer;

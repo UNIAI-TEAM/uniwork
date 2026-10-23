@@ -176,10 +176,31 @@ describe("MeetingTranscriptPanel", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "Tìm trong lời thoại" }), { target: { value: "ngan sach" } });
     const list = screen.getByTestId("meeting-transcript");
     expect(within(list).queryByText("Lịch demo thứ Sáu")).not.toBeInTheDocument();
-    expect([...list.querySelectorAll("mark")].map((m) => m.textContent)).toEqual(["ngân sách", "Ngan sach"]);
+    expect([...list.querySelectorAll("mark")].map((m) => m.textContent)).toEqual(["ngân", "sách", "Ngan", "sach"]);
     expect(screen.getByText("2 câu khớp")).toBeInTheDocument();
     // Two people spoke: the speaker filter is offered.
     expect(screen.getByRole("combobox", { name: "Người nói" })).toBeInTheDocument();
+  });
+
+  it("counts exactly the lines it marks, word by word (UNI-1995 #14)", async () => {
+    respond({
+      "/transcript": {
+        segments: [
+          { id: "t1", meeting_id: "m1", text: "Gửi báo giá thứ Hai", spoken_at: "2026-09-22T02:10:00Z", speaker_name: "Lan" },
+          { id: "t2", meeting_id: "m1", text: "Giá chốt rồi, báo sau", spoken_at: "2026-09-22T02:11:00Z", speaker_name: "Lan" },
+          { id: "t3", meeting_id: "m1", text: "Báo cáo tuần", spoken_at: "2026-09-22T02:12:00Z", speaker_name: "Lan" },
+        ],
+      },
+    });
+    render(wrapWithNav(<MeetingTranscriptPanel workspaceId="w1" meeting={meeting} canClerk={false} />));
+    fireEvent.click(await screen.findByRole("button", { name: "Xem lời thoại (3 câu)" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Tìm trong lời thoại" }), { target: { value: "bao gia" } });
+    const list = screen.getByTestId("meeting-transcript");
+    const lines = [...list.querySelectorAll("li[data-segment-id]")];
+    expect(lines.length).toBe(2);
+    expect(lines.every((line) => line.querySelector("mark"))).toBe(true);
+    expect([...list.querySelectorAll("mark")].map((m) => m.textContent)).toEqual(["báo", "giá", "Giá", "báo"]);
+    expect(screen.getByText("2 câu khớp")).toBeInTheDocument();
   });
 
   it("plays the recording from a line's time (UNI-1995 #14)", async () => {
