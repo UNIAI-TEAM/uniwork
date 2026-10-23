@@ -10608,6 +10608,8 @@
           "missing_part_url": "Thiếu địa chỉ tải lên cho một phần của tệp lớn. Thử lại các tệp lỗi.",
           "untrusted_target": "Địa chỉ tải lên không hợp lệ nên đã bị chặn. Hãy tải lại thư mục; nếu vẫn lỗi, báo quản trị viên.",
           "untrusted_target_files": "Địa chỉ tải lên không hợp lệ nên đã bị chặn. Hãy tải lại tệp; nếu vẫn lỗi, báo quản trị viên.",
+          "file_unreadable": "Trình duyệt không đọc được tệp này trên máy: đường dẫn quá dài, hoặc tệp đã bị dời hay đổi tên. Chép thư mục vào chỗ có đường dẫn ngắn hơn rồi tải lại thư mục.",
+          "file_unreadable_files": "Trình duyệt không đọc được tệp này trên máy: đường dẫn quá dài, hoặc tệp đã bị dời hay đổi tên. Chép tệp vào chỗ có đường dẫn ngắn hơn rồi tải lại tệp.",
           "aborted": "Lượt tải tệp này đã bị dừng. Thử lại các tệp lỗi.",
           "folder_upload_file_settled": "Máy chủ chưa xác nhận được tệp này. Thử lại các tệp lỗi.",
           "folder_upload_target_signed": "Không kết nối được kho lưu trữ. Thử lại các tệp lỗi.",

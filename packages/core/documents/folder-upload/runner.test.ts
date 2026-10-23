@@ -222,6 +222,28 @@ describe("runFolderUpload upload", () => {
     expect(report.done).toBe(2);
   });
 
+  it("a file the browser cannot read fails as file_unreadable at once: no PUT retry, not re-run by retryFailed", async () => {
+    // fetch rejects with the same TypeError when the browser cannot open the
+    // picked file (a Windows path past MAX_PATH, a file moved since): here
+    // reading any byte of f001 fails, as Chromium's ERR_FILE_NOT_FOUND does.
+    class UnreadableBlob extends Blob {
+      override slice(): Blob {
+        return { arrayBuffer: () => Promise.reject(new DOMException("not found", "NotFoundError")) } as unknown as Blob;
+      }
+    }
+    const entries = files(3);
+    const { transport, handle } = setup(
+      entries,
+      { putFailures: { "f001.pdf": ["network", "network", "network"] } },
+      { file: (index) => (index === 1 ? new UnreadableBlob(["x"]) : new Blob(["x"])) },
+    );
+    const report = await settle(handle.done);
+    expect(report.done).toBe(2);
+    expect(report.failed).toEqual([{ path: "R/f001.pdf", filename: "f001.pdf", code: "file_unreadable", retryable: false }]);
+    expect(report.canRetry).toBe(false);
+    expect(transport.calls.filter((c) => c.method === "put" && c.fileKey === "f-0002")).toHaveLength(1);
+  });
+
   it("fails a file after two retries, and retryFailed re-runs only that file", async () => {
     const { transport, handle } = setup(files(3), { putFailures: { "f001.pdf": ["network", "network", "network"] } });
     const report = await settle(handle.done);
