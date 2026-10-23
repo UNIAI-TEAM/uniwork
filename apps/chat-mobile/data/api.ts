@@ -65,9 +65,18 @@ interface Opts {
 /**
  * the Expo push token goes in `endpoint`; `platform` is required for it, and
  * `call_ui` says an Android build draws its own incoming call, `chat_quiet` that it has the quiet chat channel
- * and replaces a room's notification with each push (server SDI)
+ * and replaces a room's notification with each push (server SDI). An iPhone's PushKit token is a subscription of its
+ * own (docs/adr/0038): `transport: "apns_voip"`, the token in hex in `endpoint`, the APNs host it belongs to and the
+ * app it was issued for (the push's topic is "<bundle id>.voip").
  */
-export type PushSubscription = PushSubscriptionBody & { platform: string; call_ui?: boolean; chat_quiet?: boolean };
+export type PushSubscription = PushSubscriptionBody & {
+  platform: string;
+  call_ui?: boolean;
+  chat_quiet?: boolean;
+  transport?: "apns_voip";
+  apns_environment?: string;
+  apns_bundle_id?: string;
+};
 
 const createRequestId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
