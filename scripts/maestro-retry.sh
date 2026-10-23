@@ -31,8 +31,9 @@
 # runner for the same bundle beside the first one still coming up, and both
 # lost. The leftover xcodebuild and the half-started runner are stopped first.
 #
-# With MAESTRO_ADB_RECOVER set (an Android run), a run whose own maestro.log shows it lost the emulator's adb
-# transport ("device offline", DeviceUnreachableException) restarts the adb server, waits up to MAESTRO_ADB_WAIT
+# With MAESTRO_ADB_RECOVER set (an Android run), a run whose own maestro.log shows it failed because it lost the
+# emulator's adb transport ("device offline", DeviceUnreachableException as the error of the command that failed, not
+# a capture after an app failure) restarts the adb server, waits up to MAESTRO_ADB_WAIT
 # seconds (120) for the emulator to be back and booted, settles MAESTRO_ADB_SETTLE seconds (5) and runs again
 # without spending an attempt, up to MAESTRO_ADB_DROPS (2) times per call; past that a drop counts as an ordinary
 # failed attempt. It is a `adb transport dropped` warning and a summary line, never a silent pass. UNI-2142: the
@@ -70,15 +71,31 @@ sessions() {
   ls -1 "$tests_dir" 2> /dev/null | LC_ALL=C sort
 }
 
-# Prints "dropped" when one of the sessions named on stdin shows the run lost the emulator's adb transport.
+# The error that failed the flow in the maestro.log at $1: the first failed command's, or, when the run failed before
+# any command (Maestro starting its driver), the exception after "Failed to run flow".
+failure_of() {
+  awk '
+    /\[Command execution\] CommandFailed:/ { print; found = 1; exit }
+    after_flow { if (fallback == "") fallback = $0; after_flow = 0 }
+    /Failed to run flow/ { after_flow = 1 }
+    END { if (!found && fallback != "") print fallback }
+  ' "$1" 2> /dev/null
+}
+
+# Prints "dropped" when one of the sessions named on stdin failed because it lost the emulator's adb transport. Only
+# the error that failed the flow counts: Maestro also logs the transport's error when it drops while a step that failed
+# for the app's own reason (an assertion, an app that crashed at launch) is being captured, and that run spends an app
+# attempt like any other.
 lost_transport() {
-  local session
+  local session file
   while IFS= read -r session; do
     [ -n "$session" ] || continue
-    if grep -rqE --include=maestro.log "$transport_lost" "$tests_dir/$session" 2> /dev/null; then
-      echo dropped
-      return 0
-    fi
+    while IFS= read -r file; do
+      if failure_of "$file" | grep -qE "$transport_lost"; then
+        echo dropped
+        return 0
+      fi
+    done < <(find "$tests_dir/$session" -type f -name maestro.log 2> /dev/null)
   done
 }
 
