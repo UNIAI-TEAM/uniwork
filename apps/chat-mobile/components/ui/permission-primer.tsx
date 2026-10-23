@@ -31,7 +31,9 @@ export function PermissionPrimerHost() {
   const { t } = useTranslation();
   const request = usePrimerStore((s) => s.request);
   const [closing, setClosing] = useState(false);
-  useEffect(() => setClosing(false), [request]);
+  useEffect(() => {
+    setClosing(false);
+  }, [request]);
   const { choose, onDismiss } = useAfterDismiss(() => setClosing(true));
   if (!request) return null;
   const settings = request.step === "settings";

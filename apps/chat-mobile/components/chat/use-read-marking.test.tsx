@@ -22,7 +22,9 @@ const router = jest.requireMock<Record<string, unknown>>("expo-router");
 router.useIsFocused = () => focused;
 function useFakeFocusEffect(effect: () => void | (() => void)) {
   const now = focused;
-  useEffect(() => (now ? effect() : undefined), [effect, now]);
+  useEffect(() => {
+    return now ? effect() : undefined;
+  }, [effect, now]);
 }
 router.useFocusEffect = useFakeFocusEffect;
 

@@ -37,7 +37,9 @@ export function useCallRealtime(wsId: string) {
 
   // A hangup this phone sent has its log written by the time the server answers; another's arrives as
   // chat.voice.hangup (data/realtime/chat-realtime.ts). Either way the calls tab refetches.
-  useEffect(() => onHangupSettled((callWsId) => void qc.invalidateQueries({ queryKey: chatKeys.callLogs(callWsId) })), [qc]);
+  useEffect(() => {
+    return onHangupSettled((callWsId) => void qc.invalidateQueries({ queryKey: chatKeys.callLogs(callWsId) }));
+  }, [qc]);
 
   // Runs after the attach above (effects run in order), and again when the switch comes back on.
   useEffect(() => {

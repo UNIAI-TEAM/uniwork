@@ -72,6 +72,15 @@ const restrictedSyntax = [
     selector: "JSXOpeningElement[name.name='ActivityIndicator']:not(:has(JSXAttribute[name.name='accessibilityLabel']))",
     message: "Label the spinner: accessibilityLabel={t(\"common.loading\")}, or what is loading.",
   },
+  {
+    // An effect written `() => call()` hands React whatever the call returns as its cleanup, and React calls it on
+    // unmount: a persisted zustand store's set returns its write's Promise, so leaving a room threw "destroy is not
+    // a function" into the workspace's error screen (CI's Android flow, 2026-10-23). TypeScript cannot see it: an
+    // effect's type returns `void`, which takes anything.
+    selector:
+      "CallExpression:matches([callee.name=/^use(Layout|Insertion)?Effect$/], [callee.property.name=/^use(Layout|Insertion)?Effect$/]) > ArrowFunctionExpression:not([body.type=/^(BlockStatement|ArrowFunctionExpression|FunctionExpression)$/])",
+    message: "Give the effect a block body; return a cleanup function explicitly (`return unsubscribe;`) if it has one.",
+  },
 ];
 
 // Production code only (a test drives the toast store with any string it likes).

@@ -13,7 +13,9 @@ import { bestEffort } from "@/data/report";
 /** Whether the phone's own call has the line now; false where nothing watches it (iOS, before Android 12). */
 function useCallHeld(): boolean {
   const [held, setHeld] = useState(() => nativeCalls.isCallHeld());
-  useEffect(() => nativeCalls.onCallHeld(setHeld), []);
+  useEffect(() => {
+    return nativeCalls.onCallHeld(setHeld);
+  }, []);
   return held;
 }
 

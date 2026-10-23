@@ -3,8 +3,8 @@
 // console call outside data/logger.ts, no react-native Modal outside
 // components/ui/call-aware-modal.tsx, and no endpoint or command called from
 // a screen or a component (the mutation layer, data/mutations/command.ts), and
-// no failure swallowed by a `.catch(() => undefined)` (data/report.ts › bestEffort), and no
-// spinner without a label. A
+// no failure swallowed by a `.catch(() => undefined)` (data/report.ts › bestEffort), no
+// spinner without a label, and no effect whose body is an expression (its value becomes the cleanup). A
 // rule that silently drops out of the config turns its case green here.
 import path from "node:path";
 import { ESLint } from "eslint";
@@ -65,6 +65,11 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
       "no-restricted-syntax",
     ],
     [
+      "an effect that hands React a call's value as its cleanup (a persisted store's set returns a Promise)",
+      'import { useEffect } from "react";\nexport function useKeep(save: () => Promise<void>) {\n  useEffect(() => save(), [save]);\n}',
+      "no-restricted-syntax",
+    ],
+    [
       "a sliding CallAwareModal (a sheet is a draggable BottomSheet)",
       'import { CallAwareModal } from "@/components/ui/call-aware-modal";\nexport const A = () => <CallAwareModal visible animationType="slide" />;',
       "no-restricted-syntax",
@@ -113,6 +118,13 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
   it("a labelled spinner is green", async () => {
     const code = 'import { ActivityIndicator } from "react-native";\nexport const A = () => { const { t } = useTranslation(); return <ActivityIndicator accessibilityLabel={t("common.loading")} />; };';
     expect(await ruleIds(head + code)).toEqual([]);
+  });
+
+  it("an effect with a block body, or one returning its cleanup function, is green", async () => {
+    const code =
+      'import { useEffect, useLayoutEffect } from "react";\nexport function useKeep(save: () => Promise<void>, subscribe: () => () => void, stop: () => void) {\n' +
+      "  useEffect(() => {\n    void save();\n  }, [save]);\n  useEffect(() => {\n    return subscribe();\n  }, [subscribe]);\n  useLayoutEffect(() => () => stop(), [stop]);\n}";
+    expect(await ruleIds(code)).toEqual([]);
   });
 
   it("a failure handled, reported or only waited on is green", async () => {

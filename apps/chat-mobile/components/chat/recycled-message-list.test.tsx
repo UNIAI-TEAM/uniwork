@@ -39,7 +39,9 @@ jest.mock("@shopify/flash-list", () => {
       mockFlash.props = props as unknown as Record<string, unknown>;
       useImperativeHandle(ref, () => ({ scrollToIndex: mockFlash.scrollToIndex, scrollToEnd: mockFlash.scrollToEnd }));
       const { onLoad } = props;
-      useEffect(() => onLoad(), [onLoad]);
+      useEffect(() => {
+        onLoad();
+      }, [onLoad]);
       return (
         <ScrollView testID={props.testID} onScroll={props.onScroll}>
           {props.ListHeaderComponent}

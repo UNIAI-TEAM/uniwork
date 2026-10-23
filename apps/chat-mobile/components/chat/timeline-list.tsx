@@ -25,7 +25,9 @@ const FILL = StyleSheet.create({ fill: { flex: 1 } }).fill;
 export function TimelineList(props: MessageListProps) {
   const flag = useMobileFlag("unichat_mobile_timeline_recycled");
   const [recycled] = useState(flag);
-  useEffect(() => setReportTag("timeline_list", recycled ? "recycled" : "inverted"), [recycled]);
+  useEffect(() => {
+    setReportTag("timeline_list", recycled ? "recycled" : "inverted");
+  }, [recycled]);
   const list = recycled ? <RecycledMessageList {...props} /> : <MessageList {...props} />;
   if (Platform.OS !== "android") return list;
   return (

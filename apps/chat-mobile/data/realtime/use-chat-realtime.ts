@@ -107,13 +107,11 @@ export function useChatRealtime(wsId: string) {
   );
 
   // A sign-out drops the queued sends: they are the signed-in person's.
-  useEffect(
-    () =>
-      useAuthStore.subscribe((state) => {
-        if (!state.user) useChatSendStore.getState().clear();
-      }),
-    [],
-  );
+  useEffect(() => {
+    return useAuthStore.subscribe((state) => {
+      if (!state.user) useChatSendStore.getState().clear();
+    });
+  }, []);
 
   useEffect(() => {
     void useChatPinsStore.getState().load(wsId);
