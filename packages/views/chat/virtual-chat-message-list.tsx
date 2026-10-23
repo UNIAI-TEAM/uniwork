@@ -2,7 +2,6 @@
 
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
-  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -12,6 +11,19 @@ import {
 } from "react";
 
 const DEFAULT_ESTIMATE_PX = 88;
+
+/** Rough row height from grouping flags — wrong estimates leave visible gaps while spamming. */
+export function virtualChatRowEstimatePx(layout?: {
+  lastOfRun: boolean;
+  compactTop: boolean;
+  opensDay?: boolean;
+}): number {
+  if (!layout) return DEFAULT_ESTIMATE_PX;
+  let px = layout.compactTop ? 40 : 56;
+  if (!layout.lastOfRun) px -= 10;
+  if (layout.opensDay) px += 36;
+  return Math.max(32, px);
+}
 
 /** Restores scrollTop after inline → virtual swap (virtual mount resets the scroller to ~0). */
 export function applyVirtualScrollRestore(scrollEl: HTMLDivElement, scrollTop: number): void {
@@ -36,26 +48,18 @@ export function preserveScrollAfterPrepend(
   scrollEl.scrollTop = Math.max(0, scrollTopBefore + delta);
 }
 
-/** Virtual remeasure and images settle over a few frames — one rAF is not enough. */
+/** One correction after prepend; optional second pass after layout settles. */
 export function preserveScrollAfterPrependOverFrames(
   scrollEl: HTMLDivElement,
   scrollHeightBefore: number,
   scrollTopBefore: number,
   programmaticScrollRef: RefObject<boolean>,
-  onEachFrame?: () => void,
 ): void {
   programmaticScrollRef.current = true;
-  const apply = () => {
-    preserveScrollAfterPrepend(scrollEl, scrollHeightBefore, scrollTopBefore);
-    onEachFrame?.();
-  };
-  apply();
+  preserveScrollAfterPrepend(scrollEl, scrollHeightBefore, scrollTopBefore);
   requestAnimationFrame(() => {
-    apply();
-    requestAnimationFrame(() => {
-      apply();
-      programmaticScrollRef.current = false;
-    });
+    preserveScrollAfterPrepend(scrollEl, scrollHeightBefore, scrollTopBefore);
+    programmaticScrollRef.current = false;
   });
 }
 
@@ -79,7 +83,6 @@ function usePreserveScrollOnPrepend(
   scrollRef: RefObject<HTMLDivElement | null>,
   stickToBottomRef: RefObject<boolean>,
   programmaticScrollRef: RefObject<boolean>,
-  onPrependLayout?: (scrollEl: HTMLDivElement) => void,
 ): void {
   const snapRef = useRef<TimelineLayoutSnap>({ length: 0, firstId: "", scrollHeight: 0, scrollTop: 0 });
 
@@ -88,28 +91,26 @@ function usePreserveScrollOnPrepend(
     if (!el || messages.length === 0) return;
     const snap = snapRef.current;
     if (timelinePrepended(messages, snap, stickToBottomRef)) {
-      onPrependLayout?.(el);
-      preserveScrollAfterPrependOverFrames(el, snap.scrollHeight, snap.scrollTop, programmaticScrollRef, () => {
-        onPrependLayout?.(el);
-      });
+      preserveScrollAfterPrependOverFrames(el, snap.scrollHeight, snap.scrollTop, programmaticScrollRef);
     }
     snap.length = messages.length;
     snap.firstId = messages[0]?.id ?? "";
     snap.scrollHeight = el.scrollHeight;
     snap.scrollTop = el.scrollTop;
-  }, [messages.length, messages[0]?.id, onPrependLayout, programmaticScrollRef, scrollRef, stickToBottomRef]);
+  }, [messages.length, messages[0]?.id, programmaticScrollRef, scrollRef, stickToBottomRef]);
 }
 
 interface ChatMessageListProps {
   messages: { id: string }[];
-  /** Set in onScroll right before unpinned layout; consumed once when virtual mounts. */
-  pendingVirtualScrollRestoreRef?: RefObject<number | null>;
+  /** Top edge sentinel for silent older prefetch (IntersectionObserver). */
+  olderPrefetchSentinelRef?: RefObject<HTMLDivElement | null>;
   /**
    * Stable ids alone are not enough: grouping flips lastOfRun on the previous
    * row when a new bubble arrives, which changes height — the virtualizer must
    * remeasure, not reuse the old slot size (otherwise rows overlap).
    */
   getItemKey?: (index: number) => string | number;
+  getEstimateSize?: (index: number) => number;
   /** Pinned at the newest end: plain list layout (Telegram-smooth rapid sends). */
   useInlineLayout?: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -275,6 +276,7 @@ function InlineChatMessageList({
   scrollRef,
   stickToBottomRef,
   programmaticScrollRef,
+  olderPrefetchSentinelRef,
   highlightMessageId,
   onHighlightShown,
   header,
@@ -302,6 +304,7 @@ function InlineChatMessageList({
 
   return (
     <div ref={contentRef} className="w-full max-w-full">
+      <div ref={olderPrefetchSentinelRef} className="pointer-events-none h-px w-full shrink-0" aria-hidden />
       {header}
       <div className="relative w-full max-w-full pb-2">
         {messages.map((_, index) => (
@@ -312,13 +315,27 @@ function InlineChatMessageList({
   );
 }
 
+function pinVirtualToLatest(
+  virtualizer: { scrollToIndex: (index: number, opts?: { align?: "start" | "center" | "end" | "auto" }) => void },
+  messageCount: number,
+  programmaticScrollRef: RefObject<boolean>,
+): void {
+  if (messageCount === 0) return;
+  programmaticScrollRef.current = true;
+  virtualizer.scrollToIndex(messageCount - 1, { align: "end" });
+  requestAnimationFrame(() => {
+    programmaticScrollRef.current = false;
+  });
+}
+
 function VirtualizedChatMessageList({
   messages,
   getItemKey,
+  getEstimateSize,
   scrollRef,
   stickToBottomRef,
   programmaticScrollRef,
-  pendingVirtualScrollRestoreRef,
+  olderPrefetchSentinelRef,
   highlightMessageId,
   onHighlightShown,
   header,
@@ -331,56 +348,32 @@ function VirtualizedChatMessageList({
     [messages, resolveItemKey],
   );
 
+  const estimateSize = getEstimateSize ?? (() => DEFAULT_ESTIMATE_PX);
+
   const virtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => DEFAULT_ESTIMATE_PX,
+    estimateSize,
     getItemKey: resolveItemKey,
-    overscan: 12,
+    overscan: 24,
     useFlushSync: false,
   });
 
   const lastMessageId = messages[messages.length - 1]?.id;
-  const remeasure = useCallback(
-    (scrollEl: HTMLDivElement) => {
-      remeasureVirtualRows(scrollEl, virtualizer);
-    },
-    [virtualizer],
-  );
 
-  usePreserveScrollOnPrepend(messages, scrollRef, stickToBottomRef, programmaticScrollRef, remeasure);
+  usePreserveScrollOnPrepend(messages, scrollRef, stickToBottomRef, programmaticScrollRef);
 
   useLayoutEffect(() => {
+    if (programmaticScrollRef.current || highlightMessageId || messages.length === 0) return;
+    if (!stickToBottomRef.current) return;
     const el = scrollRef.current;
-    if (!el || messages.length === 0) return;
-    // Prepend preserve (and pin-to-bottom) own scrollTop for a few frames.
-    if (programmaticScrollRef.current) return;
-    const pending = pendingVirtualScrollRestoreRef?.current;
-    if (pending != null) {
-      pendingVirtualScrollRestoreRef.current = null;
-      applyVirtualScrollRestore(el, pending);
-      remeasureVirtualRows(el, virtualizer);
-      requestAnimationFrame(() => {
-        if (!scrollRef.current) return;
-        applyVirtualScrollRestore(scrollRef.current, pending);
-        remeasureVirtualRows(scrollRef.current, virtualizer);
-      });
-      return;
-    }
-    remeasureVirtualRows(el, virtualizer);
-    if (highlightMessageId || !stickToBottomRef.current) return;
-    pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef);
-    requestAnimationFrame(() => {
-      if (!scrollRef.current || !stickToBottomRef.current) return;
-      remeasureVirtualRows(scrollRef.current, virtualizer);
-      pinChatScrollToBottom(scrollRef.current, stickToBottomRef, programmaticScrollRef);
-    });
+    if (el) remeasureVirtualRows(el, virtualizer);
+    pinVirtualToLatest(virtualizer, messages.length, programmaticScrollRef);
   }, [
     highlightMessageId,
     lastMessageId,
     measureGeneration,
     messages.length,
-    pendingVirtualScrollRestoreRef,
     programmaticScrollRef,
     scrollRef,
     stickToBottomRef,
@@ -424,6 +417,7 @@ function VirtualizedChatMessageList({
 
   return (
     <div ref={contentRef} className="w-full max-w-full">
+      <div ref={olderPrefetchSentinelRef} className="pointer-events-none h-px w-full shrink-0" aria-hidden />
       {header}
       <div
         className="relative w-full max-w-full pb-2"
@@ -445,7 +439,7 @@ function VirtualizedChatMessageList({
   );
 }
 
-/** Renders chat rows; uses a plain list at the newest end, virtualizes when reading history. */
+/** Renders chat rows in a single virtualized timeline (stable scroll, no layout swap). */
 export function VirtualChatMessageList({
   messages,
   useInlineLayout = false,

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { virtualChatRowMeasureKey } from "./virtual-chat-message-list";
+import { virtualChatRowEstimatePx, virtualChatRowMeasureKey } from "./virtual-chat-message-list";
+
+describe("virtualChatRowEstimatePx", () => {
+  it("uses a smaller estimate for compact mid-run bubbles", () => {
+    const midRun = { lastOfRun: false, compactTop: true };
+    const endRun = { lastOfRun: true, compactTop: true };
+    expect(virtualChatRowEstimatePx(midRun)).toBeLessThan(virtualChatRowEstimatePx(endRun));
+  });
+});
 
 describe("virtualChatRowMeasureKey", () => {
   it("changes when lastOfRun flips so the virtualizer remeasures height", () => {
