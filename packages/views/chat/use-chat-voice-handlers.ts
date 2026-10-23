@@ -5,7 +5,6 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { VoiceCallKind } from "./voice-call-overlay";
-import { acceptVoiceCallWithFallback } from "./voice-call-accept";
 
 /**
  * The chat header's call buttons. Device warm-up and every failure (a
@@ -19,8 +18,6 @@ export function useChatVoiceHandlers({
   activeGroup,
   activeChannel = null,
   startCall,
-  acceptCall,
-  declineCall,
 }: {
   targetKind: "workspace" | "dm" | "group" | "channel";
   activeRoomId: string | null;
@@ -33,8 +30,6 @@ export function useChatVoiceHandlers({
     callKind: VoiceCallKind,
     options?: { withCamera?: boolean },
   ) => Promise<boolean>;
-  acceptCall: () => Promise<boolean>;
-  declineCall: () => void | Promise<void>;
 }) {
   const handleStartCall = useCallback(
     async (withCamera: boolean) => {
@@ -68,10 +63,5 @@ export function useChatVoiceHandlers({
     await handleStartCall(true);
   }, [handleStartCall]);
 
-  const handleAcceptVoiceCall = useCallback(
-    () => acceptVoiceCallWithFallback(acceptCall, declineCall),
-    [acceptCall, declineCall],
-  );
-
-  return { handleStartVoiceCall, handleStartVideoCall, handleAcceptVoiceCall };
+  return { handleStartVoiceCall, handleStartVideoCall };
 }

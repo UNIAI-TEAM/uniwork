@@ -135,6 +135,8 @@ const historicalCommitExceptions = new Map([
   ["4b7e81b2a54c53b5a0760d09eb884004f26a0cea", "(ci): fix ci dev"],
   ["874a6e438e7e1de93cf5b334faede1e907604255", "(ci): fix ci dev"],
   ["3adf1f657e3d0388ed5c1b44050c70d621e05bfc", "(ci): change branch build develop"],
+  ["ff4fd69124d6e429f644ef92a16d31a3d44ab944", "(ci): fix ci and add nginx config"],
+  ["6025d564c988e683b41c3b50dead39cfe7b5a25f", "(deploy): change env"],
 ]);
 
 function rejectedCommitSubjects(commits, types) {
@@ -151,7 +153,7 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   // rule, it is a trap for the next person who writes a correct message.
   //
   // e88a055 landed on develop via PR #62; c416bc6, e6eaf72d5, d95c9fe14,
-  // 78e441abd, 9c94b49eb, 30b6eb6b6, 4b7e81b2a, 874a6e438 and 3adf1f657 were
+  // 78e441abd, 9c94b49eb, 30b6eb6b6, 4b7e81b2a, 874a6e438, 3adf1f657, ff4fd6912 and 6025d564c were
   // pushed straight to develop without a conventional prefix. Shared history cannot
   // be rewritten; pin both SHA and subject so a new commit cannot reuse an
   // exempt subject to escape this check.

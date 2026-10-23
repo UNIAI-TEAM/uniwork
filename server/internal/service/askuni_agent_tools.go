@@ -258,10 +258,10 @@ func (s *AskUNIService) agentSearch(ctx context.Context, tc ai.ToolContext, raw 
 }
 
 // taskLabels is what a task's text names by: the workspace's task prefix,
-// member names and project titles.
+// member names, project titles and status labels.
 type taskLabels struct {
-	prefix          string
-	names, projects map[string]string
+	prefix                    string
+	names, projects, statuses map[string]string
 }
 
 func (s *AskUNIService) taskLabels(ctx context.Context, tc ai.ToolContext, tasks []McpTask) (taskLabels, error) {
@@ -269,7 +269,7 @@ func (s *AskUNIService) taskLabels(ctx context.Context, tc ai.ToolContext, tasks
 	if err != nil {
 		return taskLabels{}, err
 	}
-	l := taskLabels{prefix: w.TaskPrefix, names: s.memberNames(ctx, tc), projects: map[string]string{}}
+	l := taskLabels{prefix: w.TaskPrefix, names: s.memberNames(ctx, tc), projects: map[string]string{}, statuses: s.taskStatusLabels(ctx, tc)}
 	if !slices.ContainsFunc(tasks, func(t McpTask) bool { return t.ProjectID != "" }) {
 		return l, nil
 	}
@@ -291,7 +291,7 @@ func (s *AskUNIService) taskItem(l taskLabels, t McpTask, text string) agentItem
 		project = orNone(l.projects[t.ProjectID]) + " (" + t.ProjectID + ")"
 	}
 	fields := fmt.Sprintf("Ref: %s\nStatus: %s\nPriority: %s\nDue: %s\nAssignee: %s\nProject: %s",
-		l.ref(t), t.Status, orNone(t.Priority), orNone(t.DueDate), nameOf(l.names, t.AssigneeID), project)
+		l.ref(t), statusLine(l.statuses, t.Status), orNone(t.Priority), orNone(t.DueDate), nameOf(l.names, t.AssigneeID), project)
 	h := s.href(t.URL)
 	return agentItem{Kind: "task", ID: t.ID, Key: h, Title: t.Title, Href: h, Text: withText(fields, text), Body: text}
 }
@@ -353,7 +353,7 @@ func (s *AskUNIService) agentGetTask(ctx context.Context, tc ai.ToolContext, raw
 }
 
 func (s *AskUNIService) meetingItem(names map[string]string, m McpMeeting, extra, text string) agentItem {
-	fields := fmt.Sprintf("ID: %s\nStatus: %s\nStarts: %s\nEnds: %s\nHost: %s%s", m.ID, m.Status, orNone(m.StartsAt), orNone(m.EndsAt), nameOf(names, m.HostUserID), extra)
+	fields := fmt.Sprintf("ID: %s\nStatus: %s\nStarts: %s\nEnds: %s\nHost: %s%s", m.ID, statusLine(viMeetingStatus, m.Status), orNone(m.StartsAt), orNone(m.EndsAt), nameOf(names, m.HostUserID), extra)
 	h := s.href(m.URL)
 	return agentItem{Kind: "meeting", ID: m.ID, Key: h, Title: m.Title, Href: h, Text: withText(fields, text), Body: text}
 }
@@ -428,7 +428,7 @@ func (s *AskUNIService) agentGetMeeting(ctx context.Context, tc ai.ToolContext, 
 
 func (s *AskUNIService) projectItem(names map[string]string, p McpProject, text string) agentItem {
 	fields := fmt.Sprintf("ID: %s\nStatus: %s\nPriority: %s\nDue: %s\nLead: %s\nTask count: %d (%d done)",
-		p.ID, p.Status, orNone(p.Priority), orNone(p.DueDate), nameOf(names, p.LeadID), p.TaskCount, p.DoneCount)
+		p.ID, statusLine(viProjectStatus, p.Status), orNone(p.Priority), orNone(p.DueDate), nameOf(names, p.LeadID), p.TaskCount, p.DoneCount)
 	h := s.href(p.URL)
 	return agentItem{Kind: "project", ID: p.ID, Key: h, Title: p.Title, Href: h, Text: withText(fields, text), Body: text}
 }
