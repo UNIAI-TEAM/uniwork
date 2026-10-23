@@ -409,3 +409,19 @@ func TestSplitSummaryTranscript(t *testing.T) {
 		t.Fatalf("10 budgets in 4 parts: %d chunks, cut %v", len(chunks), cut)
 	}
 }
+
+// The run's own deadline (its lease minus a minute) covers the calls a long
+// meeting makes one after another at the summary's per-call timeout: the map
+// step's rounds and the combining call. At the smallest budget it used to be
+// 5 minutes for up to three 3-minute calls.
+func TestSummaryRunDeadlineFitsEveryCall(t *testing.T) {
+	s := &MeetingService{AI: ai.NewGateway(nil, &provider.Fake{}, nil, nil, ai.Options{Timeout: time.Minute})}
+	call := s.AI.CallTimeoutFor(ai.CapMeetingSummarization)
+	rounds := (summaryMaxParts+summaryPartConcurrency-1)/summaryPartConcurrency + 1
+	for _, runes := range []int{0, 240000} {
+		s.rt.SummaryMaxRunes = runes
+		if b := s.summaryBudget(); b.lease-time.Minute < time.Duration(rounds)*call {
+			t.Errorf("max runes %d: run deadline %s for %d calls of %s", runes, b.lease-time.Minute, rounds, call)
+		}
+	}
+}

@@ -550,14 +550,19 @@ type summaryBudgetPlan struct {
 // longer prompt takes the model longer. The lease is doubled: a long
 // transcript is read in parts (in parallel) and then combined, two model
 // calls back to back.
+// It is never shorter than the calls a long meeting makes one after another
+// (the map step's rounds, then the combining call) at the summary's per-call
+// timeout, plus a minute for the reads and the minute the run gives back.
 // shortcut: the lease follows the configured cap, not this meeting's actual
 // length; size it from the rows read if long leases ever block re-runs.
 func (s *MeetingService) summaryBudget() summaryBudgetPlan {
 	runes := max(s.rt.SummaryMaxRunes, summaryTranscriptRunes)
+	rounds := (summaryMaxParts+summaryPartConcurrency-1)/summaryPartConcurrency + 1
+	calls := time.Duration(rounds)*s.AI.CallTimeoutFor(ai.CapMeetingSummarization) + 2*time.Minute
 	return summaryBudgetPlan{
 		runes: runes,
 		rows:  max(summaryTranscriptRows, runes/20),
-		lease: 2 * (summaryRunLease + time.Duration(runes/100000)*time.Minute),
+		lease: max(2*(summaryRunLease+time.Duration(runes/100000)*time.Minute), calls),
 	}
 }
 
