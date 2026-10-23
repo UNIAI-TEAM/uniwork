@@ -97,18 +97,23 @@ func TestCarriedOverItems(t *testing.T) {
 	exec(`UPDATE meetings SET status = 'SCHEDULED', actual_start_at = NULL, starts_at = $2, ends_at = $2::timestamptz + interval '1 hour' WHERE id = $1`,
 		current.ID, now.Add(24*time.Hour))
 
-	got, err := s.CarriedOverItems(ctx, ub.ID, current.ID)
+	list, err := s.CarriedOverItems(ctx, ub.ID, current.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
+	got := list.Items
 	if len(got) != 0 {
 		t.Fatalf("a meeting without a project carries nothing over, got %+v", got)
 	}
 
 	exec(`UPDATE meetings SET project_id = $2 WHERE id = $1`, current.ID, project)
-	got, err = s.CarriedOverItems(ctx, ub.ID, current.ID)
+	list, err = s.CarriedOverItems(ctx, ub.ID, current.ID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	got = list.Items
+	if list.Total != len(got) {
+		t.Fatalf("total = %d, want %d", list.Total, len(got))
 	}
 	var titles []string
 	for _, it := range got {
@@ -134,11 +139,11 @@ func TestCarriedOverItems(t *testing.T) {
 	// Once the meeting itself has started, its actual start is the cut: the
 	// earlier meeting still counts, the one "after" it now does too.
 	exec(`UPDATE meetings SET status = 'IN_PROGRESS', actual_start_at = $2 WHERE id = $1`, current.ID, now.Add(3*24*time.Hour))
-	got, err = s.CarriedOverItems(ctx, ub.ID, current.ID)
+	list, err = s.CarriedOverItems(ctx, ub.ID, current.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 4 {
+	if got = list.Items; len(got) != 4 {
 		t.Fatalf("after the actual start, want the later meeting's item too: %+v", got)
 	}
 

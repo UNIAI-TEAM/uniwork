@@ -100,13 +100,24 @@ const CarriedOverResponse = z.object({
       return parsed.success ? [parsed.data] : [];
     }),
   ),
+  /** Every carried-over task, past the page too; an older server sends none. */
+  total: z.number().nullish().catch(null),
 });
 
-/** Open tasks from the earlier ended meetings of the same project (spec meeting follow-through §6.5). */
-export async function getMeetingCarriedOverItems(meetingId: string): Promise<MeetingCarriedOverItem[]> {
+export interface MeetingCarriedOver {
+  items: MeetingCarriedOverItem[];
+  /** At least items.length: the rest is the "+N more" beyond the page. */
+  total: number;
+}
+
+/**
+ * Open tasks from the earlier ended meetings of the same project or series,
+ * over the last 90 days (spec meeting follow-through §6.5, follow-4).
+ */
+export async function getMeetingCarriedOverItems(meetingId: string): Promise<MeetingCarriedOver> {
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}/carried-over-items`);
-  const parsed = parseWithFallback(raw, CarriedOverResponse, { items: [] }, { endpoint: "getMeetingCarriedOverItems" });
-  return parsed.items;
+  const parsed = parseWithFallback(raw, CarriedOverResponse, { items: [], total: 0 }, { endpoint: "getMeetingCarriedOverItems" });
+  return { items: parsed.items, total: Math.max(parsed.total ?? 0, parsed.items.length) };
 }
 
 const AddResponse = z.object({ item: ActionItemSchema });

@@ -3168,6 +3168,11 @@
     "linkMetaUsesLimit": "{{used}}/{{max}} lượt",
     "requestToJoin": "Xin vào phòng",
     "newDescription": "Chọn giờ, mời người tham dự và đặt quyền xin vào phòng.",
+    "followUp": {
+      "action": "Lên lịch cuộc họp tiếp theo",
+      "title": "Lên lịch cuộc họp tiếp theo",
+      "description": "Đã điền sẵn từ cuộc họp này. Việc chưa xong sẽ được mang sang cuộc họp mới."
+    },
     "createSubmit": "Tạo cuộc họp",
     "creating": "Đang tạo…",
     "saving": "Đang lưu…",
@@ -4048,8 +4053,10 @@
     },
     "carriedOver": {
       "title": "Việc còn tồn từ các cuộc họp trước",
-      "description_one": "{{count}} việc chưa xong, giao ở các cuộc họp đã kết thúc của cùng dự án.",
-      "description_other": "{{count}} việc chưa xong, giao ở các cuộc họp đã kết thúc của cùng dự án.",
+      "description_one": "{{count}} việc chưa xong, giao trong 90 ngày qua ở các cuộc họp cùng dự án hoặc cùng chuỗi.",
+      "description_other": "{{count}} việc chưa xong, giao trong 90 ngày qua ở các cuộc họp cùng dự án hoặc cùng chuỗi.",
+      "more_one": "Còn {{count}} việc nữa chưa hiện ở đây.",
+      "more_other": "Còn {{count}} việc nữa chưa hiện ở đây.",
       "compactToggle_one": "Việc còn tồn ({{count}})",
       "compactToggle_other": "Việc còn tồn ({{count}})",
       "fromMeeting": "Từ cuộc họp {{title}}",

@@ -11,6 +11,7 @@ export type {
   MeetingActionItem,
   MeetingActionItemCounts,
   MeetingActionItems,
+  MeetingCarriedOver,
   MeetingCarriedOverItem,
 } from "../api/endpoints/meeting-action-items";
 
@@ -24,7 +25,7 @@ export function useMeetingActionItems(meetingId: string) {
   });
 }
 
-/** Open tasks from the earlier ended meetings of the same project (spec §6.5); empty without a project. */
+/** Open tasks from the earlier ended meetings of the same project or series (spec §6.5, follow-4); empty without either. */
 export function useMeetingCarriedOverItems(meetingId: string) {
   return useQuery({
     queryKey: meetingKeys.carriedOver(meetingId),

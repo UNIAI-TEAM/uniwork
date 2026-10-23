@@ -2,11 +2,11 @@
 INSERT INTO meetings (
   id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_by_kind,
   status, meeting_type, host_user_id, timezone, allow_join_request, version, updated_by, project_id, preferred_provider_key,
-  organization_id
+  organization_id, series_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, $16,
   $9, $10, $11, $12, $13, 1, $8, $14, $15,
-  $17
+  $17, sqlc.narg(series_id)
 )
 RETURNING *;
 

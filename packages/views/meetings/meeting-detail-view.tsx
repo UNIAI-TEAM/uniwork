@@ -31,7 +31,7 @@ import { ConfirmDialog } from "../common/form-dialog";
 import { Notice } from "../common/notice";
 import { PanelCard } from "../common/panel-card";
 import { toastApiError } from "../toast-api-error";
-import { AppLink } from "../navigation";
+import { AppLink, useOptionalNavigation } from "../navigation";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
 import { useWorkspace } from "../layout/workspace-context";
@@ -46,6 +46,7 @@ import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
 import { MeetingMotionsSection } from "./meeting-motions-section";
 import { MeetingNotesSection } from "./meeting-notes-section";
 import { MeetingDetailPageSkeleton } from "./meeting-page-skeletons";
+import { ScheduleFollowUpButton } from "./schedule-follow-up-button";
 import { MeetingActionItemsSection } from "./meeting-action-items/meeting-action-items-section";
 import { MeetingCarriedOverSection } from "./meeting-action-items/carried-over-section";
 import { MeetingMinutesSection } from "./meeting-minutes-section";
@@ -117,7 +118,9 @@ export function MeetingDetailView({
     ready: Boolean(meeting) && (meeting?.status === "IN_PROGRESS" || meeting?.status === "ENDED"),
   });
 
-  const meetingsHref = paths.workspace(workspace.organization_slug, workspace.slug).meetings();
+  const wsPaths = paths.workspace(workspace.organization_slug, workspace.slug);
+  const meetingsHref = wsPaths.meetings();
+  const nav = useOptionalNavigation();
   const activeParticipants = (participants ?? []).filter((p) => p.status === "ACTIVE");
   const myParticipant = activeParticipants.find((p) => p.user_id === user.id);
   const myInvite = (invitations ?? []).find((inv) => inv.participant_id === myParticipant?.id);
@@ -270,6 +273,16 @@ export function MeetingDetailView({
             onEnd={() => setConfirm("end")}
             onCancel={() => setConfirm("cancel")}
             nextStep={nextStep}
+            followUpAction={
+              canHost.allowed && meeting.status === "ENDED" ? (
+                <ScheduleFollowUpButton
+                  workspaceId={workspaceId}
+                  meeting={meeting}
+                  participants={activeParticipants}
+                  onCreated={(id) => nav?.push(wsPaths.meeting(id))}
+                />
+              ) : undefined
+            }
           />
 
           {/* The aside scrolls with the page: a sticky column taller than the

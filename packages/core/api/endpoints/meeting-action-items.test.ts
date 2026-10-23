@@ -128,18 +128,23 @@ describe("meeting action item endpoints", () => {
       meeting: { id: "m0", title: "Giao ban tuần trước", started_at: "2026-10-13T02:00:00Z" },
       task: converted.task,
     };
-    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [carried] }));
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [carried], total: 4 }));
     const got = await getMeetingCarriedOverItems("m1");
     expect(sent().url).toBe("http://api.test/api/v1/meetings/m1/carried-over-items");
-    expect(got).toEqual([carried]);
+    expect(got).toEqual({ items: [carried], total: 4 });
   });
 
   it("getMeetingCarriedOverItems drops an entry it cannot read and degrades to empty", async () => {
     const ok = { action_item_id: "a2", meeting: { id: "m0", title: "Họp" }, task: { id: "t1" } };
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: [{ action_item_id: "a3", meeting: null, task: { id: "t2" } }, ok] }));
-    expect((await getMeetingCarriedOverItems("m1")).map((i) => i.action_item_id)).toEqual(["a2"]);
+    const got = await getMeetingCarriedOverItems("m1");
+    expect(got.items.map((i) => i.action_item_id)).toEqual(["a2"]);
+    // No total (an older server) or a broken one reads as the page itself.
+    expect(got.total).toBe(1);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [ok], total: "lots" }));
+    expect((await getMeetingCarriedOverItems("m1")).total).toBe(1);
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: "nope" }));
-    expect(await getMeetingCarriedOverItems("m1")).toEqual([]);
+    expect(await getMeetingCarriedOverItems("m1")).toEqual({ items: [], total: 0 });
   });
 
   it("convertMeetingActionItems sends the body as given and answers null, never zero tasks, on drift", async () => {

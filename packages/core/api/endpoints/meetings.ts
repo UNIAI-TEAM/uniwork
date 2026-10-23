@@ -59,6 +59,8 @@ export interface CreateMeetingBody {
   attendee_user_ids?: string[];
   /** Optional project; "" on update clears it (C-11 §9.1 V2). */
   project_id?: string;
+  /** The meeting this one is the next of: the new meeting joins its series (follow-4). */
+  previous_meeting_id?: string;
 }
 
 export interface UpdateMeetingBody {

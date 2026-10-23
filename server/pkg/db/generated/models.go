@@ -1598,6 +1598,7 @@ type Meeting struct {
 	MinutesFinalizedVersionID pgtype.Text        `json:"minutes_finalized_version_id"`
 	DialInPin                 pgtype.Text        `json:"dial_in_pin"`
 	SipDispatchRuleID         pgtype.Text        `json:"sip_dispatch_rule_id"`
+	SeriesID                  pgtype.Text        `json:"series_id"`
 }
 
 type MeetingAccessGrant struct {

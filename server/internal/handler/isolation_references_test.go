@@ -244,6 +244,9 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/meetings", what: "project", body: map[string]any{
 		"title": isoUnique("ref"), "timezone": "Asia/Ho_Chi_Minh", "starts_at": isoAt(72 * time.Hour), "ends_at": isoAt(73 * time.Hour),
 		"project_id": isoRef("project")}, covers: []string{"CreateMeetingSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/meetings", what: "previous meeting", body: map[string]any{
+		"title": isoUnique("ref"), "timezone": "Asia/Ho_Chi_Minh", "starts_at": isoAt(96 * time.Hour), "ends_at": isoAt(97 * time.Hour),
+		"previous_meeting_id": isoRef("meeting")}, covers: []string{"CreateMeetingSDI.previous_meeting_id"}},
 	{method: "PATCH", pattern: "/api/v1/meetings/{meetingID}", what: "project", body: map[string]any{"project_id": isoRef("project")}, covers: []string{"PatchMeetingSDI.project_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/invitations", what: "invitee", body: map[string]any{"user_id": isoRef("peer")},
 		noControl: "B's peer is already an attendee", covers: []string{"InviteParticipantSDI.user_id"}},

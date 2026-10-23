@@ -370,6 +370,7 @@ type MeetingCarriedOverItemDTO struct {
 // MeetingCarriedOverItemsSDO answers GET /api/v1/meetings/{meetingID}/carried-over-items.
 type MeetingCarriedOverItemsSDO struct {
 	Items []MeetingCarriedOverItemDTO `json:"items"`
+	Total int                         `json:"total" description:"Tổng số việc mang sang, kể cả phần ngoài trang (tối đa 100 mục mỗi trang)" example:"3"`
 }
 
 // MeetingActionItemSDO answers POST /api/v1/meetings/{meetingID}/action-items.

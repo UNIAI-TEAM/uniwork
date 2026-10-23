@@ -93,7 +93,7 @@ func (h *handlers) createMeeting(w http.ResponseWriter, r *http.Request) {
 		service.CreateMeetingInput{
 			Title: in.Title, Description: in.Description, StartsAt: in.StartsAt, EndsAt: in.EndsAt,
 			Timezone: in.Timezone, AllowJoinRequest: in.AllowJoinRequest, ProjectID: in.ProjectID,
-			AttendeeUserIDs: in.AttendeeUserIDs,
+			AttendeeUserIDs: in.AttendeeUserIDs, FollowUpOf: in.PreviousMeetingID,
 		})
 	if err != nil {
 		h.mapServiceError(w, err)

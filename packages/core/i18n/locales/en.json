@@ -3169,6 +3169,11 @@
     "linkMetaUsesLimit": "{{used}}/{{max}} uses",
     "requestToJoin": "Request to join",
     "newDescription": "Pick a time, invite attendees and decide who may ask to join.",
+    "followUp": {
+      "action": "Schedule the next meeting",
+      "title": "Schedule the next meeting",
+      "description": "Filled in from this meeting. Open tasks carry over to the new one."
+    },
     "createSubmit": "Create meeting",
     "creating": "Creating…",
     "saving": "Saving…",
@@ -4049,8 +4054,10 @@
     },
     "carriedOver": {
       "title": "Carried over from earlier meetings",
-      "description_one": "{{count}} open task assigned in ended meetings of the same project.",
-      "description_other": "{{count}} open tasks assigned in ended meetings of the same project.",
+      "description_one": "{{count}} open task assigned in the last 90 days in meetings of the same project or series.",
+      "description_other": "{{count}} open tasks assigned in the last 90 days in meetings of the same project or series.",
+      "more_one": "{{count}} more task not shown here.",
+      "more_other": "{{count}} more tasks not shown here.",
       "compactToggle_one": "Carried over ({{count}})",
       "compactToggle_other": "Carried over ({{count}})",
       "fromMeeting": "From the meeting {{title}}",

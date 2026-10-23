@@ -83,9 +83,10 @@ function CarriedOverGroups({
 
 /**
  * "Carried over from earlier meetings" (spec meeting follow-through D8,
- * §9.2 item 2, §9.3): the open tasks the earlier ended meetings of the same
- * project handed out, grouped by the meeting that did. Nothing renders until
- * there is something to carry — a meeting without a project never has any —
+ * §9.2 item 2, §9.3, follow-4): the open tasks the earlier ended meetings of
+ * the same project or series handed out over the last 90 days, grouped by the
+ * meeting that did, and how many more lie beyond the page. Nothing renders
+ * until there is something to carry — a meeting with neither never has any —
  * so a meeting with none never flashes a skeleton; a failed load says so with
  * a retry instead of vanishing. `compact` is the in-room Copilot's folded group.
  */
@@ -101,7 +102,9 @@ export function MeetingCarriedOverSection({
   const { t } = useTranslation();
   const query = useMeetingCarriedOverItems(meetingId);
   const [open, setOpen] = useState(false);
-  const items = query.data ?? [];
+  const items = query.data?.items ?? [];
+  const total = query.data?.total ?? items.length;
+  const more = total - items.length;
   if (query.isError && !query.data) {
     const error = (
       <MeetingSectionError message={t("meetings.carriedOver.loadFailed")} onRetry={() => void query.refetch()} />
@@ -121,7 +124,7 @@ export function MeetingCarriedOverSection({
         <CollapsibleTrigger
           render={
             <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
-              {t("meetings.carriedOver.compactToggle", { count: items.length })}
+              {t("meetings.carriedOver.compactToggle", { count: total })}
               <ChevronDown aria-hidden className={cn("transition-transform duration-standard", open && "rotate-180")} />
             </Button>
           }
@@ -129,6 +132,7 @@ export function MeetingCarriedOverSection({
         <CollapsibleContent>
           <div className="mt-2">
             <CarriedOverGroups workspaceId={workspaceId} items={items} variant="compact" />
+            {more > 0 ? <p className="mt-2 text-caption text-muted-foreground">{t("meetings.carriedOver.more", { count: more })}</p> : null}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -141,9 +145,10 @@ export function MeetingCarriedOverSection({
       icon={MODULE_ICONS.tasks}
       iconTone={moduleTone("tasks")}
       title={t("meetings.carriedOver.title")}
-      description={t("meetings.carriedOver.description", { count: items.length })}
+      description={t("meetings.carriedOver.description", { count: total })}
     >
       <CarriedOverGroups workspaceId={workspaceId} items={items} variant="panel" />
+      {more > 0 ? <p className="mt-3 text-caption text-muted-foreground">{t("meetings.carriedOver.more", { count: more })}</p> : null}
     </PanelCard>
   );
 }
