@@ -74,6 +74,8 @@ type McpTaskComment struct {
 	CreatedAt string `json:"created_at"`
 	Body      string `json:"body"`
 	ReplyTo   string `json:"reply_to,omitempty"`
+	// authorID never leaves the server (Ask UNI's taint rules read it).
+	authorID string
 }
 
 // McpMemberList and McpTaskList are what the list tools return: the rows,
@@ -160,7 +162,7 @@ func (s *McpToolService) commentsOf(ctx context.Context, p McpPrincipal, taskID 
 	for _, c := range rows {
 		out = append(out, McpTaskComment{
 			ID: c.ID, Author: c.DisplayName, CreatedAt: c.CreatedAt.Time.UTC().Format(time.RFC3339),
-			Body: capRunes(c.Body, mcpMaxHitRunes, mcpHitCut), ReplyTo: c.ParentCommentID.String,
+			Body: capRunes(c.Body, mcpMaxHitRunes, mcpHitCut), ReplyTo: c.ParentCommentID.String, authorID: c.AuthorID,
 		})
 	}
 	return out, truncated, nil

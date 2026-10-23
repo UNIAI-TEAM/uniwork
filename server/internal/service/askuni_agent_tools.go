@@ -29,7 +29,14 @@ import (
 // error item has Kind "error", no Key, and Text "error: <code>". Body is the
 // object's own words within Text, without the field lines: what a citation quotes.
 // ID is the one object the item is (a task, a person...); empty for a note or error.
-type agentItem struct{ Kind, Key, Title, Href, Text, Body, ID string }
+// Mine and Foreign serve the taint rules (R8) and never reach the model: Mine says
+// everything the item shows is the asker's own or only a label; Foreign says the
+// item carries words somebody else wrote that the object's audit trail cannot
+// show (a comment, an AI summary).
+type agentItem struct {
+	Kind, Key, Title, Href, Text, Body, ID string
+	Mine, Foreign                          bool
+}
 
 // agentTool is a read tool the agent loop runs itself: Handle stays nil.
 type agentTool struct {
@@ -246,13 +253,15 @@ func (s *AskUNIService) agentSearch(ctx context.Context, tc ai.ToolContext, raw 
 	if err := agentArgs(raw, &a); err != nil {
 		return nil, err
 	}
-	found, err := s.searchWorkspace(ctx, tc, a.Query)
+	found, chatMine, err := s.searchWorkspaceMine(ctx, tc, a.Query)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]agentItem, 0, len(found))
 	for _, src := range found {
-		out = append(out, sourceItem(src))
+		it := sourceItem(src)
+		it.Mine = it.Kind == "chat" && chatMine[src.Href]
+		out = append(out, it)
 	}
 	return out, nil
 }
@@ -337,6 +346,7 @@ func (s *AskUNIService) agentGetTask(ctx context.Context, tc ai.ToolContext, raw
 		return nil, err
 	}
 	var b strings.Builder
+	foreign := false
 	if t.Description != nil {
 		b.WriteString(*t.Description)
 	}
@@ -346,10 +356,13 @@ func (s *AskUNIService) agentGetTask(ctx context.Context, tc ai.ToolContext, raw
 		}
 		b.WriteString("Comments:")
 		for _, c := range t.Comments {
+			foreign = foreign || c.authorID != tc.ActorID
 			fmt.Fprintf(&b, "\n- %s (%s): %s", c.Author, c.CreatedAt[:len("2006-01-02")], oneLine(c.Body))
 		}
 	}
-	return []agentItem{s.taskItem(l, t, b.String())}, nil
+	it := s.taskItem(l, t, b.String())
+	it.Foreign = foreign
+	return []agentItem{it}, nil
 }
 
 func (s *AskUNIService) meetingItem(names map[string]string, m McpMeeting, extra, text string) agentItem {
@@ -423,7 +436,9 @@ func (s *AskUNIService) agentGetMeeting(ctx context.Context, tc ai.ToolContext, 
 	if m.Excerpt != "" {
 		text = withText(text, "Summary:\n"+m.Excerpt)
 	}
-	return []agentItem{s.meetingItem(s.memberNames(ctx, tc), m, "\nAttendees: "+orNone(strings.Join(who, ", ")), strings.TrimPrefix(text, "\n"))}, nil
+	it := s.meetingItem(s.memberNames(ctx, tc), m, "\nAttendees: "+orNone(strings.Join(who, ", ")), strings.TrimPrefix(text, "\n"))
+	it.Foreign = m.Excerpt != "" // the AI summary
+	return []agentItem{it}, nil
 }
 
 func (s *AskUNIService) projectItem(names map[string]string, p McpProject, text string) agentItem {
@@ -536,7 +551,7 @@ func (s *AskUNIService) agentListChatRooms(ctx context.Context, tc ai.ToolContex
 			last = r.LastMessageAt.UTC().Format(time.RFC3339)
 		}
 		h := base + "/chat?room=" + r.ID
-		out = append(out, agentItem{Kind: "chat", ID: r.ID, Key: h, Title: roomTitle(r), Href: h, Text: "ID: " + r.ID + "\nType: " + r.Kind + "\nLast activity: " + last})
+		out = append(out, agentItem{Kind: "chat", ID: r.ID, Key: h, Title: roomTitle(r), Href: h, Text: "ID: " + r.ID + "\nType: " + r.Kind + "\nLast activity: " + last, Mine: true}) // a label, no messages
 	}
 	return out, nil
 }
@@ -566,6 +581,7 @@ func (s *AskUNIService) agentReadChatRoom(ctx context.Context, tc ai.ToolContext
 	}
 	ts := searchTerms(a.Query)
 	var b strings.Builder
+	mine := true // every message shown is the asker's (R8)
 	for _, m := range msgs {
 		if a.Query != "" && score(m.Body, ts) == 0 {
 			continue
@@ -574,6 +590,7 @@ func (s *AskUNIService) agentReadChatRoom(ctx context.Context, tc ai.ToolContext
 		if optOuts.excludes(m.SenderID) {
 			continue
 		}
+		mine = mine && m.SenderID == tc.ActorID
 		body := oneLine(m.Body)
 		if body == "" {
 			body = "[" + m.Kind + "]"
@@ -599,7 +616,7 @@ func (s *AskUNIService) agentReadChatRoom(ctx context.Context, tc ai.ToolContext
 	}
 	h := base + "/chat?room=" + a.RoomID
 	text := strings.TrimSuffix(b.String(), "\n")
-	return []agentItem{{Kind: "chat", ID: a.RoomID, Key: h, Title: title, Href: h, Text: text, Body: text}}, nil
+	return []agentItem{{Kind: "chat", ID: a.RoomID, Key: h, Title: title, Href: h, Text: text, Body: text, Mine: mine}}, nil
 }
 
 func (s *AskUNIService) agentListMembers(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {

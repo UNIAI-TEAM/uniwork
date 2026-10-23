@@ -354,6 +354,10 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 		}
 	}
 	pack, truncated := ai.BuildContext(sources)
+	if len(pack) > 0 { // P0 does not tell who wrote what, so any source taints (R8)
+		p0 := askTaint{conv: convTainted(conv)}
+		s.taintNow(ctx, w.OrganizationID, conv.ID, &p0)
+	}
 	emit.emit(AskEvent{Name: "run", Run: &AskRunEvent{ConversationID: conv.ID}})
 
 	answer := ai.Answer{Citations: []ai.Citation{}}

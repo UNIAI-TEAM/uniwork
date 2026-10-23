@@ -326,16 +326,23 @@ func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, 
 }
 
 func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, error) {
+	found, _, err := s.searchWorkspaceMine(ctx, tc, query)
+	return found, err
+}
+
+// searchWorkspaceMine is searchWorkspace plus, by href, the chat hits whose
+// messages are all the asker's own (R8).
+func (s *AskUNIService) searchWorkspaceMine(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, map[string]bool, error) {
 	items, err := s.searchWorkItems(ctx, tc, query)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if items, err = s.addIdentifierHits(ctx, tc, query, items); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	chat, err := s.chatContext(ctx, tc, query)
+	chat, chatMine, err := s.chatSources(ctx, tc, query)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, c := range chat {
 		items = append(items, scored{src: c, score: 1, when: s.now()})
@@ -344,13 +351,13 @@ func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, 
 	if asksMembers(query) {
 		members, err := s.memberContext(ctx, tc, query)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, m := range members {
 			items = append(items, scored{src: m, score: 1})
 		}
 	}
-	return topSources(items, ai.MaxSources), nil
+	return topSources(items, ai.MaxSources), chatMine, nil
 }
 
 // documentsOn mirrors McpToolService.documentsOn: DocumentService wired and the
@@ -502,50 +509,72 @@ func taskSource(base string, t taskRow, names, statuses map[string]string) ai.So
 }
 
 func (s *AskUNIService) taskContext(ctx context.Context, tc ai.ToolContext, taskID string) ([]ai.Source, error) {
-	t, err := s.tasks.Get(ctx, tc.ActorID, taskID)
+	src, _, err := s.taskSourceWithComments(ctx, tc, taskID)
 	if err != nil {
 		return nil, err
 	}
+	return []ai.Source{src}, nil
+}
+
+// taskSourceWithComments is taskContext's source; foreign says a comment in it
+// was written by someone other than the asker (R8).
+func (s *AskUNIService) taskSourceWithComments(ctx context.Context, tc ai.ToolContext, taskID string) (src ai.Source, foreign bool, err error) {
+	t, err := s.tasks.Get(ctx, tc.ActorID, taskID)
+	if err != nil {
+		return ai.Source{}, false, err
+	}
 	if t.WorkspaceID != tc.WorkspaceID {
-		return nil, ErrNotFound
+		return ai.Source{}, false, ErrNotFound
 	}
 	base, err := s.base(ctx, tc.WorkspaceID)
 	if err != nil {
-		return nil, err
+		return ai.Source{}, false, err
 	}
-	src := taskSource(base, t, s.memberNames(ctx, tc), s.taskStatusLabels(ctx, tc))
+	src = taskSource(base, t, s.memberNames(ctx, tc), s.taskStatusLabels(ctx, tc))
 	comments, err := s.tasks.Comments(ctx, tc.ActorID, taskID)
 	if err != nil {
-		return nil, err
+		return ai.Source{}, false, err
 	}
 	if len(comments) > 0 {
 		var b strings.Builder
 		b.WriteString(src.Excerpt + "\nBình luận:")
 		for _, c := range comments {
+			foreign = foreign || c.AuthorID != tc.ActorID
 			fmt.Fprintf(&b, "\n- %s: %s", c.DisplayName, c.Body)
 		}
 		src.Excerpt = b.String()
 	}
-	return []ai.Source{src}, nil
+	return src, foreign, nil
 }
 
 func (s *AskUNIService) meetingContext(ctx context.Context, tc ai.ToolContext, meetingID string) ([]ai.Source, error) {
-	m, err := s.meetings.Get(ctx, tc.ActorID, meetingID)
+	src, _, err := s.meetingSourceWithSummary(ctx, tc, meetingID)
 	if err != nil {
 		return nil, err
 	}
+	return []ai.Source{src}, nil
+}
+
+// meetingSourceWithSummary is meetingContext's source; summarised says it
+// carries an AI summary (R8).
+func (s *AskUNIService) meetingSourceWithSummary(ctx context.Context, tc ai.ToolContext, meetingID string) (src ai.Source, summarised bool, err error) {
+	m, err := s.meetings.Get(ctx, tc.ActorID, meetingID)
+	if err != nil {
+		return ai.Source{}, false, err
+	}
 	if m.WorkspaceID != tc.WorkspaceID {
-		return nil, ErrNotFound
+		return ai.Source{}, false, ErrNotFound
 	}
 	base, err := s.base(ctx, tc.WorkspaceID)
 	if err != nil {
-		return nil, err
+		return ai.Source{}, false, err
 	}
 	excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", statusLabel(viMeetingStatus, m.Status), m.StartsAt.Time.Format(time.RFC3339), m.Description)
 	if sum, err := s.meetings.Summary(ctx, tc.ActorID, meetingID); err == nil && sum != nil {
 		excerpt += "\nTóm tắt: " + sum.Summary + "\nQuyết định: " + sum.Decisions + "\nViệc cần làm: " + sum.ActionItems
+		summarised = true
 	}
-	return []ai.Source{{Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt}}, nil
+	return ai.Source{Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt}, summarised, nil
 }
 
 // memberContext lists names and roles only. Email and phone never enter a
@@ -569,15 +598,23 @@ func (s *AskUNIService) memberContext(ctx context.Context, tc ai.ToolContext, _ 
 // chatContext: rooms the asker is a member of, newest 20 messages each, one
 // source per room that has a keyword hit.
 func (s *AskUNIService) chatContext(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, error) {
+	out, _, err := s.chatSources(ctx, tc, query)
+	return out, err
+}
+
+// chatSources is chatContext plus, by href, the rooms whose messages shown are
+// all the asker's own (R8).
+func (s *AskUNIService) chatSources(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, map[string]bool, error) {
 	rooms, err := s.chat.ListChatRooms(ctx, tc.ActorID, tc.WorkspaceID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	base, err := s.base(ctx, tc.WorkspaceID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ts := terms(query)
+	mine := map[string]bool{}
 	var out []ai.Source
 	for i, room := range rooms {
 		if i == 5 {
@@ -585,16 +622,18 @@ func (s *AskUNIService) chatContext(ctx context.Context, tc ai.ToolContext, quer
 		}
 		msgs, err := s.chat.ListRoomMessages(ctx, tc.ActorID, tc.WorkspaceID, room.ID, ListChatMessagesInput{Limit: 20, SkipMarkRead: true})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		optOuts, err := loadAIOptOuts(ctx, s.q, chatSenderIDs(msgs))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		var b strings.Builder
+		allMine := true
 		for _, m := range msgs {
 			// A member who declined AI processing never reaches the model (Apple 5.1.2(i)).
 			if score(m.Body, ts) > 0 && !optOuts.excludes(m.SenderID) {
+				allMine = allMine && m.SenderID == tc.ActorID
 				fmt.Fprintf(&b, "- %s (%s): %s\n", m.SenderDisplayName, m.CreatedAt.Format("2006-01-02 15:04"), m.Body)
 			}
 		}
@@ -605,7 +644,9 @@ func (s *AskUNIService) chatContext(ctx context.Context, tc ai.ToolContext, quer
 		if title == "" {
 			title = room.PeerDisplayName
 		}
-		out = append(out, ai.Source{Kind: "chat", Title: "Chat: " + title, Href: base + "/chat?room=" + room.ID, Excerpt: b.String()})
+		href := base + "/chat?room=" + room.ID
+		mine[href] = allMine
+		out = append(out, ai.Source{Kind: "chat", Title: "Chat: " + title, Href: href, Excerpt: b.String()})
 	}
-	return out, nil
+	return out, mine, nil
 }

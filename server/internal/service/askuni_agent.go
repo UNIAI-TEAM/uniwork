@@ -295,6 +295,8 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	question := base.Question
 	res := AskResult{ConversationID: conv.ID, RunID: util.NewID()}
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
+	// What the turn read that the asker did not write (R8); Task 10 reads it.
+	taint := askTaint{conv: convTainted(conv)}
 	started := s.now()
 	// ranFor is the run's own time, taken before the title call that follows it.
 	var ranFor time.Duration
@@ -398,6 +400,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		defer release()
 	}
 	withFiles := len(plan.Files) > 0
+	if withFiles || len(base.Files) > 0 { // a file is never the asker's own words (R8)
+		s.taintNow(runCtx, w.OrganizationID, conv.ID, &taint)
+	}
 	base.FileNotes = plan.Notes
 	stored, err := s.q.AiListConversationCitations(runCtx, db.AiListConversationCitationsParams{OrganizationID: w.OrganizationID, ConversationID: conv.ID})
 	if err != nil {
@@ -417,6 +422,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	// are numbered and rendered for the prompt's focus block, capped like a
 	// tool result (ruling P11).
 	firstNew := book.next
+	s.taintFrom(runCtx, tc, conv.ID, &taint, ctxItems)
 	focus, _ := book.render(ctxItems, askAgentToolResultMax)
 
 	// The first call's organization budget is counted here, before run, so a
@@ -599,7 +605,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		room := min(askAgentToolResultMax, max(0, (askAgentInputBudget-spentInput)*3))
 		for i, c := range resp.ToolCalls {
 			before := book.next
-			content, step, err := s.agentToolCall(runCtx, tools, tc, c, book, i, room)
+			content, step, items, err := s.agentToolCall(runCtx, tools, tc, c, book, i, room)
 			if err != nil {
 				if n := askStopNotice(ctx, runCtx, err); n != "" {
 					return stop(n, err)
@@ -609,6 +615,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			// The step follows its tool, which supplies the counts; the client
 			// clears the text of the call that asked for it.
 			step.Round = rounds
+			s.taintFrom(runCtx, tc, conv.ID, &taint, items)
 			draft.step(step)
 			steps = append(steps, AskStep{Tool: step.Tool, Label: step.Label, Counts: step.Counts})
 			if cs := book.since(before); len(cs) > 0 {
@@ -693,8 +700,9 @@ func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskRe
 // askAgentMaxCallsPerRound it is refused unrun, a tool the agent lacks is
 // answered unrun, and any other call runs and is rendered within limit bytes.
 // The step reports it, counting the sources it found by kind (errors and
-// notes carry no Key). A Go error is the server's and ends the run.
-func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc ai.ToolContext, c provider.ToolCall, b *sourceBook, i, limit int) (string, AskStepEvent, error) {
+// notes carry no Key). It returns the items the tool found, for the taint rules.
+// A Go error is the server's and ends the run.
+func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc ai.ToolContext, c provider.ToolCall, b *sourceBook, i, limit int) (string, AskStepEvent, []agentItem, error) {
 	started := s.now()
 	j := slices.IndexFunc(tools, func(t agentTool) bool { return t.Name == c.Name })
 	name := "unknown" // the model's own name would be an unbounded metric label
@@ -704,12 +712,12 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 	content, status := "error: too_many_calls", "error"
 	step := AskStepEvent{Phase: "tool", Tool: name, Counts: map[string]int{}}
 	var err error
+	var items []agentItem
 	switch {
 	case i >= askAgentMaxCallsPerRound:
 	case j < 0:
 		content = "error: unknown_tool"
 	default:
-		var items []agentItem
 		if items, err = tools[j].run(ctx, tc, c.Input); err == nil {
 			content, status = b.toolResult(items, limit)
 			step.Label = stepLabel(name, c.Input, items)
@@ -729,7 +737,7 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 	if s.agentMetrics != nil {
 		s.agentMetrics.ObserveAskTool(name, status, s.now().Sub(started).Seconds())
 	}
-	return content, step, err
+	return content, step, items, err
 }
 
 // stepLabelMax is the longest step label, in runes.
