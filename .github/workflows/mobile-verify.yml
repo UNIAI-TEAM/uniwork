@@ -453,7 +453,11 @@ jobs:
           # still shows its copy and reaches its button, and every control on it is named and 48 dp a side.
           # Then (review P2) the calls module's instrumented test: an incoming call posted through
           # CallNotifications reaches System UI's shade as a call with Answer and Decline.
+          # hide_error_dialogs: a busy, freshly booted emulator's own apps raise "Pixel Launcher isn't responding" over
+          # the app, and Maestro then cannot see the sign-in button drawn under it (UNI-2142). The setting hides those
+          # system dialogs only; a UniChat crash still fails the flow, since its screen never shows.
           script: |
+            adb shell settings put global hide_error_dialogs 1
             adb install "${{ runner.temp }}/apk/app-release.apk"
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
             mkdir -p "${{ runner.temp }}/perf"
@@ -629,7 +633,9 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
+          # hide_error_dialogs: as in android-smoke, a system ANR dialog must not cover the app under test.
           script: |
+            adb shell settings put global hide_error_dialogs 1
             adb reverse tcp:3000 tcp:3000
             adb reverse tcp:8080 tcp:8080
             adb install apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
