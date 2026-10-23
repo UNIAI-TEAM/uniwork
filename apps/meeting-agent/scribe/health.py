@@ -12,31 +12,40 @@ from collections.abc import Awaitable, Callable
 log = logging.getLogger("scribe.health")
 
 SCRIBE_STATE_ATTR = "uw.scribe_state"
-# One failed session is a blip the backoff absorbs; this long with failures
-# and no transcript from any track is an outage (owner decision, N = 20 s).
+# One failed session is a blip the backoff absorbs; failures that keep coming
+# for this long with no transcript from any track are an outage (owner
+# decision, N = 20 s).
 DEGRADED_AFTER_S = 20.0
+# Retries come at most RETRY_MAX_S (transcriber, 30 s) apart while anyone
+# speaks; this long without one means nothing is failing any more (a quiet
+# room), so the meeting reads ok again and a later failure starts afresh.
+STALE_AFTER_S = 45.0
 
 
 class SttHealth:
     """Shared by every track of the meeting: any transcript is proof STT works,
-    so one healthy track keeps the meeting ok."""
+    so one healthy track keeps the meeting ok. Degraded needs failures at both
+    ends of the 20 s: one failure followed by silence proves nothing."""
 
     def __init__(self, *, after_s: float = DEGRADED_AFTER_S, clock: Callable[[], float] = time.monotonic) -> None:
         self._after = after_s
         self._clock = clock
         self._failing_since: float | None = None
+        self._last_failed = 0.0
 
     def failed(self) -> None:
-        if self._failing_since is None:
-            self._failing_since = self._clock()
+        now = self._clock()
+        if self._failing_since is None or now - self._last_failed > STALE_AFTER_S:
+            self._failing_since = now
+        self._last_failed = now
 
     def ok(self) -> None:
         self._failing_since = None
 
     def state(self) -> str:
-        if self._failing_since is not None and self._clock() - self._failing_since >= self._after:
-            return "degraded"
-        return "ok"
+        if self._failing_since is None or self._clock() - self._last_failed > STALE_AFTER_S:
+            return "ok"
+        return "degraded" if self._last_failed - self._failing_since >= self._after else "ok"
 
 
 class StatePublisher:

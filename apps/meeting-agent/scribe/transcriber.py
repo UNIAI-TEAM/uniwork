@@ -178,7 +178,7 @@ class TrackTranscriber:
     def on_vad_start(self, preroll: list[rtc.AudioFrame]) -> None:
         self._speaking = True
         if self._session is None and not (self._preroll is not None and self._backing_off()):
-            self._preroll = AudioBuffer(preroll)
+            self._preroll = AudioBuffer([] if self._degraded() else preroll)
         # In a backoff the buffer already holds what the preroll repeats.
 
     def on_vad_end(self, speech_s: float) -> None:
@@ -223,11 +223,12 @@ class TrackTranscriber:
                 await self._drop()
             if self._session is None and self._preroll is not None:
                 if self._backing_off():
-                    self._preroll.add(frame)  # replayed into the next session
+                    if not self._degraded():
+                        self._preroll.add(frame)  # replayed into the next session
                     return
                 self._open(self._preroll.take())
                 self._preroll = None
-            if self._session is None:
+            if self._session is None or self._failed:
                 return
             if self._idle_due():
                 await self._close("idle")
@@ -238,7 +239,8 @@ class TrackTranscriber:
                 log.warning("stt push failed track=%s err=%s", self._sid, type(e).__name__)
                 self._fail("push")
                 return
-            self._unfinal.add(frame)
+            if not self._degraded():
+                self._unfinal.add(frame)
 
     async def tick(self) -> None:
         """Called once a second: a muted track sends no frames, and its session
@@ -252,6 +254,12 @@ class TrackTranscriber:
     async def close(self) -> None:
         async with self._lock:
             await self._close("track ended")
+
+    def _degraded(self) -> bool:
+        """While the meeting is degraded the room writes device captions into
+        the transcript, so audio heard then is never kept for a replay: it
+        would be stored twice. Audio kept before the fallback still replays."""
+        return self._health is not None and self._health.state() == "degraded"
 
     def _backing_off(self) -> bool:
         return self._clock() < self._retry_at
@@ -271,11 +279,15 @@ class TrackTranscriber:
         self.sessions += 1
         metrics.STT_SESSIONS.inc()
         s = self._stt.stream()
-        for f in preroll:
-            s.push_frame(f)
         self._unfinal = AudioBuffer(preroll)
         self._failed = False
         self._session, self._drain = s, asyncio.create_task(self._read(s))
+        try:
+            for f in preroll:
+                s.push_frame(f)
+        except Exception as e:  # noqa: BLE001 - the next push drops it and the preroll replays
+            log.warning("stt push failed track=%s err=%s", self._sid, type(e).__name__)
+            self._fail("push")
         self._opened_at = self._clock()
         log.info("stt open track=%s session=%d", self._sid, self.sessions)
 

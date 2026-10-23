@@ -414,6 +414,11 @@ async def test_a_failed_push_counts_as_an_stt_error_and_marks_health():
     await t.push(frame(True))
     assert errors("push") == before + 1
     clock.t += 20
+    assert health.state() == "ok"  # one failure, then nothing: not proof of an outage
+    await t.push(frame(True))  # drops the dead session; the backoff starts
+    clock.t += 2
+    await t.push(frame(True))  # the retry fails too, 22 s after the first
+    assert errors("push") == before + 2
     assert health.state() == "degraded"
     await t.close()
 
@@ -441,4 +446,50 @@ async def test_a_transcript_marks_health_ok():
     )
     await speak(t, clock, 0.6)
     assert health.state() == "ok"
+    await t.close()
+
+
+async def test_speech_heard_while_degraded_is_not_replayed():
+    """Review: while the meeting is degraded every client writes its own device
+    captions into the transcript; replaying that audio into the next session
+    would store the same words twice. Audio buffered before the fallback is
+    still replayed."""
+    from scribe.health import SttHealth
+
+    clock = Clock()
+    stt_impl = FlakySTT()
+    health = SttHealth(clock=clock)
+    finals: list[Final] = []
+
+    async def publish(c: Caption) -> None:
+        pass
+
+    t = TrackTranscriber(
+        segment_prefix="AJ-TR",
+        identity="p",
+        stt_impl=stt_impl,
+        publish=publish,
+        on_final=finals.append,
+        clock=clock,
+        health=health,
+        rand=lambda: 1.0,
+    )
+    t.on_vad_start([frame(True)])
+    for _ in range(40):  # 0.4 s of speech go to the session the vendor drops
+        await t.push(frame(True))
+    await asyncio.sleep(0.05)
+    assert t.failures == 1
+    health.failed()
+    clock.t += 20
+    health.failed()  # other tracks kept failing: the room fell back to device captions
+    assert health.state() == "degraded"
+    for _ in range(150):  # 1.5 s heard while degraded, through the backoff and the reopening
+        await t.push(frame(True))
+        clock.t += 0.01
+    t.on_vad_end(1.9)
+    await asyncio.sleep(0.05)
+    assert stt_impl.streams == 2
+    # 0.41 s from before the fallback plus 0.5 s heard live after the reopening
+    # make one 0.5 s word; replaying the 1 s of the backoff would make three.
+    assert [f.text for f in finals] == ["từ1"]
     await t.close()
