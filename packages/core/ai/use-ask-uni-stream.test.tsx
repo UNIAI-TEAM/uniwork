@@ -26,6 +26,8 @@ const msg = (over: Record<string, unknown> = {}) => ({
   focus: null,
   mentions: [],
   model: "",
+  attachments: [],
+  file_notes: [],
   created_at: "t",
   ...over,
 });
@@ -166,6 +168,29 @@ describe("useAskUniStream", () => {
         JSON.stringify(aiKeys.usages()),
       ]),
     );
+  });
+
+  it("shows the files of the question on the running bubble and on the echoed question, and the server's notes on the answer", () => {
+    const { result, qc } = setup();
+    const display = { attachments: [{ id: "f1", name: "q3.pdf", mime: "application/pdf", size: 8, kind: "pdf" }] };
+    expect(result.current.state.attachments).toEqual([]);
+    act(() => result.current.ask({ question: "q", conversation_id: "c1", attachment_ids: ["f1"] }, display));
+    expect(askUniStream).toHaveBeenCalledWith("ws1", expect.objectContaining({ attachment_ids: ["f1"] }), expect.anything());
+    expect(result.current.state.attachments).toEqual(display.attachments);
+    const note = { name: "q3.pdf", unit: "page", read: 15, total: 80 };
+    emit({ type: "done", message: msg({ file_notes: [note] }), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
+    // The state keeps them for the finished turn until the next ask.
+    expect(result.current.state.attachments).toEqual(display.attachments);
+    const cached = qc.getQueryData<{ role: string; attachments: unknown[]; file_notes: unknown[] }[]>(aiKeys.messages("c1"));
+    expect(cached?.map((m) => [m.role, m.attachments, m.file_notes])).toEqual([
+      ["user", display.attachments, []],
+      ["assistant", [], [note]],
+    ]);
+    // A question without files shows none, and the next ask forgets the last turn's.
+    act(() => result.current.ask({ question: "next", conversation_id: "c1" }));
+    expect(result.current.state.attachments).toEqual([]);
+    emit({ type: "done", message: msg({ id: "m2" }), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
+    expect(qc.getQueryData<{ attachments: unknown[] }[]>(aiKeys.messages("c1"))?.at(-2)?.attachments).toEqual([]);
   });
 
   it("a done with notice stopped ends as stopped", () => {

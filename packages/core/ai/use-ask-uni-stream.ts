@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { askUniStream, type AskUniStreamEvent } from "../api/endpoints/ai-stream";
 import { errorCode } from "../api/http";
-import type { AiCitation, AiMessage, AiStep, AskUniInput } from "../types/ai";
+import type { AiAttachment, AiCitation, AiMessage, AiStep, AskUniInput } from "../types/ai";
 import { aiKeys } from "./hooks";
 import { useAiPanelStore } from "./store";
 
@@ -26,6 +26,8 @@ export interface AskStreamState {
   regenerateOf: string | null;
   /** The model key the turn asked for; "" for Auto. The stored answer's own `model` replaces it on done. */
   model: string;
+  /** The files the turn's question carries, for its bubble; the done frame carries the answer only. Empty for a question without files. */
+  attachments: AiAttachment[];
   citations: AiCitation[];
   message: AiMessage | null;
   errorCode: string | null;
@@ -41,6 +43,7 @@ const IDLE: AskStreamState = {
   followups: [],
   regenerateOf: null,
   model: "",
+  attachments: [],
   citations: [],
   message: null,
   errorCode: null,
@@ -90,14 +93,15 @@ export function useAskUniStream(wsId: string) {
   }, [conversationId, abort]);
 
   const ask = useCallback(
-    (input: AskUniInput) => {
+    (input: AskUniInput, display?: { attachments: AiAttachment[] }) => {
       abort();
       const mySeq = seq.current;
       const controller = new AbortController();
       ctrl.current = controller;
       turnConversation.current = input.conversation_id ?? null;
       const regenerateOf = input.regenerate_message_id ?? null;
-      setState({ ...IDLE, status: "streaming", question: input.question, conversationId: input.conversation_id ?? null, regenerateOf, model: input.model ?? "" });
+      const attachments = display?.attachments ?? [];
+      setState({ ...IDLE, status: "streaming", question: input.question, conversationId: input.conversation_id ?? null, regenerateOf, model: input.model ?? "", attachments });
       let finished = false;
       const current = () => seq.current === mySeq && !controller.signal.aborted;
 
@@ -149,6 +153,10 @@ export function useAskUniStream(wsId: string) {
                 focus: null,
                 mentions: [],
                 model: "",
+                // The done frame carries the answer only, so the caller's list is the only source of the question's files;
+                // their ids are upload file_ids until the refetch below swaps in the stored question and its attachment row ids.
+                attachments,
+                file_notes: [],
                 created_at: e.message.created_at,
               };
               qc.setQueryData<AiMessage[]>(aiKeys.messages(conversationId), (old) => [...(old ?? []), userEcho, e.message]);

@@ -69,6 +69,8 @@ export function useAskUni(wsId: string) {
         focus: null,
         mentions: [],
         model: "",
+        attachments: [],
+        file_notes: [],
         created_at: res.message.created_at,
       };
       qc.setQueryData<AiMessage[]>(aiKeys.messages(res.conversation_id), (old) => [...(old ?? []), userEcho, res.message]);
