@@ -52,7 +52,7 @@ const T0 = Date.UTC(2026, 9, 21, 2, 0);
 const at = (minute: number) => new Date(T0 + minute * 60_000).toISOString();
 const workspace = { id: "w1", slug: "hq", name: "HQ", organization_id: "o1", organization_slug: "acme", organization_name: "Acme" } as Workspace;
 
-const dm = {
+export const dm = {
   id: "r1",
   kind: "dm",
   name: "",

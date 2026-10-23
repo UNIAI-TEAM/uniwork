@@ -111,7 +111,12 @@ export function Conversation(props: Props) {
   // The composer's draft and the message it quotes outlive the screen (lib/drafts.ts).
   const composerDraftKey = draftKey(chat.userId, chat.wsId, roomId, threadRootId);
   const [reply, setReply] = useState<ComposerReply | null>(() => readDraft(composerDraftKey)?.reply ?? null);
-  useEffect(() => useDraftStore.getState().setReply(composerDraftKey, reply), [composerDraftKey, reply]);
+  // A block, not `() => setReply(…)`: once the drafts are read from the device, the persisted store's set returns
+  // its write's Promise, which React would take for the cleanup and call on leaving the room ("destroy is not a
+  // function"), throwing the whole workspace into its error screen.
+  useEffect(() => {
+    useDraftStore.getState().setReply(composerDraftKey, reply);
+  }, [composerDraftKey, reply]);
   const [edit, setEdit] = useState<ComposerEdit | null>(null);
   const openLink = useOpenLink();
   const { wsId, userId } = chat;

@@ -10,9 +10,10 @@ import { permissionGate } from "@/components/ui/permission-gate";
 import { callEngine } from "@/data/calls/call-store";
 import { remoteConfigOptions } from "@/data/remote-config";
 import { useActiveChatRoomStore } from "@/data/stores/chat-active-room-store";
+import { hydrateDraftStore } from "@/data/stores/draft-store";
 import { FakeWSClient } from "@/test/fake-ws-client";
 import { viText } from "@/test/render";
-import { installWorkspaceServer, mount, world } from "@/test/workspace-server";
+import { dm, installWorkspaceServer, message, mount, world } from "@/test/workspace-server";
 
 jest.unmock("expo-router");
 jest.mock("@/data/realtime/ws-client", () => ({ WSClient: jest.requireActual("@/test/fake-ws-client").FakeWSClient }));
@@ -215,5 +216,38 @@ describe("calling from a room", () => {
     expect(await screen.findByText("Ai xem bản nháp chưa?")).toBeOnTheScreen();
     expect(screen.queryByTestId("room-call-voice")).toBeNull();
     expect(screen.queryByTestId("room-call-video")).toBeNull();
+  });
+});
+
+describe("leaving a room", () => {
+  // CI's Android flow (maestro/flows/chat-read-send.yaml) sent a message and tapped back into the workspace's error
+  // screen: with the drafts read from the device, the persisted store's set returned its write's Promise to an effect,
+  // and React called that "cleanup" as the room unmounted ("destroy is not a function"). Every leave did it.
+  it("goes back to the list after a send once the drafts are read from the device", async () => {
+    await hydrateDraftStore();
+    let sent: ReturnType<typeof message> | null = null;
+    world.override = (url, method, _path, init) => {
+      if (method === "POST" && url === "/api/v1/workspaces/w1/chat/rooms/r1/messages") {
+        const { body } = JSON.parse(String(init?.body)) as { body: string };
+        sent = message("m9", "ME", body, 10);
+        return { message: sent };
+      }
+      if (method === "GET" && url === "/api/v1/workspaces/w1/chat/rooms" && sent) {
+        return { rooms: [{ ...dm, last_message_body: sent.body, last_message_sender_id: "ME", last_message_at: sent.created_at, unread_count: 0 }] };
+      }
+      return undefined;
+    };
+    const routes = await mount("/acme/hq/chat");
+    await fireEvent.press(await screen.findByText("Bình Trần"));
+    expect(await screen.findByText("Ai xem bản nháp chưa?")).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByTestId("composer-input"), "Gửi rồi quay lại");
+    await fireEvent.press(screen.getByTestId("composer-send"));
+    expect(await screen.findByText("Gửi rồi quay lại")).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getAllByRole("button", { name: new RegExp(`^${viText("common.back")}`) }).at(-1) as never);
+    await waitFor(() => expect(routes.pathname()).toBe("/acme/hq/chat"));
+    expect(screen.queryByText(viText("mobile.app.error_title"))).toBeNull();
+    expect(await screen.findByTestId("room-row-r1")).toBeOnTheScreen();
+    expect(screen.getByText("Gửi rồi quay lại")).toBeOnTheScreen();
   });
 });
