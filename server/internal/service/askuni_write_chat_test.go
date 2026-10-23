@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func askChatTC(x *mcpToolWorld) ai.ToolContext {
@@ -64,11 +66,85 @@ func TestAskWriteChatIsAlwaysLevelTwo(t *testing.T) {
 func TestAskWriteChatRoomMustBeTheAskers(t *testing.T) {
 	x, s, _, secret, _ := askChatWorld(t)
 	tc := askChatTC(x)
-	for _, room := range []string{secret, "no-such-room"} {
-		_, err := writeToolNamed(t, s, "send_chat_message").prepare(context.Background(), tc, json.RawMessage(fmt.Sprintf(`{"room_id":%q,"body":"x"}`, room)), nil)
-		if code, ok := agentError(err); !ok || code != "not_found" {
-			t.Errorf("room %s: err = %v", room, err)
+	ctx := context.Background()
+	uc, err := s.q.CreateUser(ctx, db.CreateUserParams{ID: util.NewID(), Email: "chat-other-c@example.com", DisplayName: "C", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addOrgMember(t, s.q, x.w.OrganizationID, uc.ID)
+	addWorkspaceMember(t, s.q, x.w.ID, uc.ID)
+	others, err := s.chat.ResolveDM(ctx, x.ub.ID, x.w.ID, uc.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2, err := x.tools.ws.CreateInOrg(ctx, x.ua.ID, x.w.OrganizationID, "Beta", "beta-chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	elsewhere, err := s.chat.CreateChannel(ctx, x.ua.ID, v2.Workspace.ID, CreateChannelInput{Name: "kenh-khac", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone, err := s.chat.CreateChannel(ctx, x.ua.ID, x.w.ID, CreateChannelInput{Name: "kenh-cu", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.chat.ArchiveChannel(ctx, x.ua.ID, x.w.ID, gone.ID); err != nil {
+		t.Fatal(err)
+	}
+	count := func() (n int) {
+		if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM chat_messages`).Scan(&n); err != nil {
+			t.Fatal(err)
 		}
+		return n
+	}
+	before := count()
+	for name, room := range map[string]string{
+		"a private channel": secret, "no such room": "no-such-room", "a dm of two others": others.ID,
+		"a room of another workspace": elsewhere.ID, "an archived room": gone.ID,
+	} {
+		_, err := writeToolNamed(t, s, "send_chat_message").prepare(ctx, tc, json.RawMessage(fmt.Sprintf(`{"room_id":%q,"body":"x"}`, room)), nil)
+		if code, ok := agentError(err); !ok || code != "not_found" {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+	if count() != before {
+		t.Error("a message was created")
+	}
+}
+
+// The body is trimmed once, so the card, the stored args and the sent message
+// agree; a body that names a member lists who is told.
+func TestAskWriteChatPreviewIsWhatIsSent(t *testing.T) {
+	x, s, dm, _, _ := askChatWorld(t)
+	tc := askChatTC(x)
+	body := fmt.Sprintf("Chào [@B](mention://member/%s)", x.ub.ID)
+	args := fmt.Sprintf(`{"room_id":%q,"body":%q}`, dm, "  \n"+body+"\n ")
+	row := askPrepare(t, s, tc, "send_chat_message", args)
+	if row.Preview.Body != body || !strings.Contains(string(row.Args), `"body":"`+strings.ReplaceAll(body, "\"", `\"`)+`"`) {
+		t.Errorf("body %q, args %s", row.Preview.Body, row.Args)
+	}
+	// A DM resolves no mentions; the list stays empty rather than guessing.
+	if n := row.Preview.Audience.Notifies; n == nil || len(n) != 0 {
+		t.Errorf("dm notifies = %+v", n)
+	}
+	group, err := s.chat.CreateChannel(context.Background(), x.ua.ID, x.w.ID, CreateChannelInput{Name: "kenh-chung", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.chat.JoinChannel(context.Background(), x.ub.ID, x.w.ID, group.ID); err != nil {
+		t.Fatal(err)
+	}
+	row = askPrepare(t, s, tc, "send_chat_message", fmt.Sprintf(`{"room_id":%q,"body":%q}`, group.ID, body))
+	if n := row.Preview.Audience.Notifies; len(n) != 1 || n[0].ID != x.ub.ID || row.Preview.Audience.NotifiesMore {
+		t.Errorf("channel notifies = %+v", n)
+	}
+	if _, err := s.chat.SendRoomMessage(context.Background(), x.ua.ID, x.w.ID, dm, SendChatMessageInput{Body: "  \n" + body + "\n "}); err != nil {
+		t.Fatal(err)
+	}
+	var sent string
+	if err := s.pool.QueryRow(context.Background(), `SELECT body FROM chat_messages WHERE room_id = $1 ORDER BY created_at DESC LIMIT 1`, dm).Scan(&sent); err != nil || sent != body {
+		t.Errorf("sent %q, %v", sent, err)
 	}
 }
 

@@ -55,7 +55,9 @@ func (s *AskUNIService) prepareSendChatMessage(ctx context.Context, tc ai.ToolCo
 	if err := decodeInto(args, &in); err != nil {
 		return askDraftRow{}, err
 	}
-	if n := utf8.RuneCountInString(strings.TrimSpace(in.Body)); n == 0 || n > maxChatMessageBodyLen {
+	// SendRoomMessage trims the body; so do the preview and the stored args.
+	in.Body = strings.TrimSpace(in.Body)
+	if n := utf8.RuneCountInString(in.Body); n == 0 || n > maxChatMessageBodyLen {
 		return askDraftRow{}, McpInvalidArgs{Msg: "body must be 1-" + strconv.Itoa(maxChatMessageBodyLen) + " characters"}
 	}
 	if strings.TrimSpace(in.RoomID) == "" {
@@ -64,9 +66,11 @@ func (s *AskUNIService) prepareSendChatMessage(ctx context.Context, tc ai.ToolCo
 	if _, ok := askRowRef(in.RoomID); ok {
 		return askDraftRow{}, McpInvalidArgs{Msg: "room_id must be the id of an existing room: no tool creates one"}
 	}
-	// The gate SendRoomMessage uses: any refusal reads as not found, so the
-	// answer never says whether the room exists.
-	if _, err := s.chat.authorizeRoom(ctx, tc.ActorID, tc.WorkspaceID, in.RoomID); err != nil {
+	// The gate SendRoomMessage uses. Every coded refusal (private channel, not a
+	// member, suspended or deactivated account) reads as not found on purpose, so
+	// the answer never says whether the room exists.
+	room, err := s.chat.authorizeRoom(ctx, tc.ActorID, tc.WorkspaceID, in.RoomID)
+	if err != nil {
 		var ce CodedError
 		if errors.Is(err, ErrForbidden) || errors.As(err, &ce) {
 			err = ErrNotFound
@@ -77,17 +81,26 @@ func (s *AskUNIService) prepareSendChatMessage(ctx context.Context, tc ai.ToolCo
 	if err != nil {
 		return askDraftRow{}, err
 	}
+	// The title is a label: a failed lookup leaves it empty, never fails the row.
 	title := ""
-	rooms, err := s.chat.ListChatRooms(ctx, tc.ActorID, tc.WorkspaceID)
+	if rooms, err := s.chat.ListChatRooms(ctx, tc.ActorID, tc.WorkspaceID); err == nil {
+		for _, r := range rooms {
+			if r.ID == in.RoomID {
+				title = roomTitle(r)
+			}
+		}
+	}
+	// Whoever sendMessage would notify, resolved by the same code; it also
+	// refuses an @all the asker may not send.
+	mentions, err := s.chat.resolveMentionRecipients(ctx, tc.ActorID, room, in.Body)
 	if err != nil {
 		return askDraftRow{}, err
 	}
-	for _, r := range rooms {
-		if r.ID == in.RoomID {
-			title = roomTitle(r)
-		}
+	clean, err := json.Marshal(map[string]string{"room_id": in.RoomID, "body": in.Body})
+	if err != nil {
+		return askDraftRow{}, err
 	}
-	stored, err := askStoredArgs(args, tc.WorkspaceID)
+	stored, err := askStoredArgs(clean, tc.WorkspaceID)
 	if err != nil {
 		return askDraftRow{}, err
 	}
@@ -95,7 +108,7 @@ func (s *AskUNIService) prepareSendChatMessage(ctx context.Context, tc ai.ToolCo
 		Tool: "send_chat_message", Args: stored, TargetKind: "room", TargetID: in.RoomID, Level: askLevel2,
 		Preview: AskProposalPreview{
 			Target: AskContextRef{Kind: "room", ID: in.RoomID, Title: title}, Fields: []AskProposalField{}, Body: in.Body, Refs: []int{},
-			Audience: AskAudience{Visibility: "room", RoomMembers: len(members), Notifies: []AskContextRef{}},
+			Audience: AskAudience{Visibility: "room", RoomMembers: len(members), Notifies: s.names(ctx, tc, nil).notified(mentionNotifiedIDs(mentions)...)},
 		},
 	}, nil
 }
