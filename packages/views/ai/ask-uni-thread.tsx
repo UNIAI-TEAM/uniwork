@@ -164,6 +164,7 @@ export function AskUniThread({
     citations: state.message?.citations ?? state.citations,
     notice: state.message?.notice ?? (state.status === "stopped" ? "stopped" : ""),
     model: state.message?.model ?? state.model,
+    file_notes: state.message?.file_notes ?? [],
   };
   // `[S#]` numbers carry across this conversation's answers (the server seeds the book from them), so this map resolves a
   // marker an answer does not cite itself; each answer's own citations still win. Only this conversation's stream adds to it.
@@ -210,7 +211,7 @@ export function AskUniThread({
         ))}
         {live ? (
           <>
-            <AskUniMessageTurn message={{ id: "live-question", role: "user", content: state.question, citations: [] }} />
+            <AskUniMessageTurn message={{ id: "live-question", role: "user", content: state.question, citations: [], attachments: state.attachments }} />
             {state.status === "error" ? (
               <StreamError code={state.errorCode} />
             ) : (

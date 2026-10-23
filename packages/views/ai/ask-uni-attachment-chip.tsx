@@ -110,7 +110,7 @@ export function AskUniAttachmentChip({
       )}
     >
       {onOpen ? (
-        <button type="button" className={bodyClass} onClick={onOpen}>
+        <button type="button" aria-label={t("download", { name })} className={bodyClass} onClick={onOpen}>
           {body}
         </button>
       ) : (
