@@ -74,6 +74,17 @@ func TestNewSMTP_EHLOName(t *testing.T) {
 		{"explicit name is trimmed", "  mail.example.com  ", "mail.example.com", true},
 		{"unset falls back to hostname", "", "", false},
 	}
+	t.Run("whitespace is not an EHLO domain", func(t *testing.T) {
+		// Gmail answers 501 5.5.4 and closes the socket. net/smtp then
+		// retries HELO on that dead connection and reports EOF, which is
+		// what the outbox logged for SMTP_EHLO_NAME=UniWork Development.
+		_, err := NewSMTP(SMTPConfig{
+			Host: "smtp.gmail.com", From: "noreply@example.com", EHLOName: "UniWork Development",
+		})
+		if err == nil {
+			t.Fatal("expected error for an EHLO name that contains a space")
+		}
+	})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s, err := NewSMTP(SMTPConfig{Host: "smtp.example.com", From: "noreply@example.com", EHLOName: tt.ehlo})

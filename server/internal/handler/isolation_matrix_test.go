@@ -804,6 +804,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{scheduledSendID}":
 		return tn.get(t, "scheduledSend")
 	case "{fileID}":
+		if under("/ai/attachments/") {
+			// An unclaimed Ask UNI upload of the tenant's owner: any other
+			// file is not the route's to cancel.
+			return tn.get(t, "aiUpload")
+		}
 		return tn.get(t, "file")
 	case "{sourceFileID}":
 		// The documents home's other sources (UNI-1305): the task
@@ -840,6 +845,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{attachmentID}":
 		if under("/email-hub/") {
 			return tn.get(t, "emailAttachment")
+		}
+		if under("/ai/attachments/") {
+			// The row a sent Ask UNI question holds its file by, not the
+			// upload's file id.
+			return tn.get(t, "aiAttachment")
 		}
 		return tn.get(t, "attachment")
 	case "{recordingID}":

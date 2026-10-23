@@ -25,6 +25,7 @@ require (
 	github.com/lmittmann/tint v1.2.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/oklog/ulid/v2 v2.1.2
+	github.com/pdfcpu/pdfcpu v0.16.3
 	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/extra/redisotel/v9 v9.22.0
 	github.com/redis/go-redis/v9 v9.22.0
@@ -37,11 +38,12 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
 	go.opentelemetry.io/otel/sdk v1.46.0
 	go.opentelemetry.io/otel/trace v1.46.0
-	golang.org/x/crypto v0.57.0
+	golang.org/x/crypto v0.58.0
+	golang.org/x/image v0.47.0
 	golang.org/x/net v0.60.0
 	golang.org/x/oauth2 v0.36.0
-	golang.org/x/sync v0.23.0
-	golang.org/x/text v0.42.0
+	golang.org/x/sync v0.24.0
+	golang.org/x/text v0.43.0
 	golang.org/x/time v0.15.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
@@ -76,6 +78,7 @@ require (
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/dennwc/iters v1.2.2 // indirect
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
@@ -101,6 +104,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
+	github.com/hhrutter/tiff v1.0.7 // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
@@ -114,6 +118,7 @@ require (
 	github.com/livekit/mediatransportutil v0.0.0-20250825135402-7bc31f107ade // indirect
 	github.com/livekit/psrpc v0.7.2 // indirect
 	github.com/magefile/mage v1.15.0 // indirect
+	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nats-io/nats.go v1.52.0 // indirect
 	github.com/nats-io/nkeys v0.4.16 // indirect
@@ -152,6 +157,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
+	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
@@ -167,8 +173,8 @@ require (
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b // indirect
 	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/tools v0.49.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/tools v0.51.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/grpc v1.83.1 // indirect

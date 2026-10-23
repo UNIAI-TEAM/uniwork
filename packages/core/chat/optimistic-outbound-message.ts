@@ -16,13 +16,26 @@ export type OutboundRoomMessageInput = {
   priority?: "important" | "urgent";
 };
 
+let optimisticCreatedAtSeq = 0;
+
+/** Strictly increasing timestamps so rapid sends stay ordered in the timeline. */
+export function optimisticCreatedAtIso(): string {
+  optimisticCreatedAtSeq += 1;
+  return new Date(Date.now() + optimisticCreatedAtSeq).toISOString();
+}
+
+export function stripPendingFromTimeline(data: RoomTimeline, clientMsgId: string): RoomTimeline {
+  const pendingId = pendingChatMessageId(clientMsgId);
+  return mapRoomTimeline(data, (page) => page.filter((row) => row.id !== pendingId));
+}
+
 export function buildOptimisticRoomMessageRecord(
   workspaceId: string,
   input: OutboundRoomMessageInput,
   sender: { id: string; display_name: string },
 ): ChatMessageRecord | null {
   if (!input.client_msg_id || !input.body) return null;
-  const createdAt = new Date().toISOString();
+  const createdAt = optimisticCreatedAtIso();
   return {
     id: pendingChatMessageId(input.client_msg_id),
     room_id: input.roomId,
@@ -66,11 +79,10 @@ export function removeOptimisticRoomMessage(
   roomId: string,
   clientMsgId: string,
 ): void {
-  const pendingId = pendingChatMessageId(clientMsgId);
   const key = chatKeys.roomMessages(wsId, roomId);
   const existing = qc.getQueryData<RoomTimeline>(key);
   if (existing === undefined) return;
-  const next = mapRoomTimeline(existing, (page) => page.filter((row) => row.id !== pendingId));
+  const next = stripPendingFromTimeline(existing, clientMsgId);
   if (next !== existing) qc.setQueryData(key, next);
 }
 
@@ -82,11 +94,10 @@ export function commitOptimisticRoomSend(
   clientMsgId: string,
   serverMessage: ChatMessageRecord,
 ): void {
-  const pendingId = pendingChatMessageId(clientMsgId);
   const key = chatKeys.roomMessages(wsId, roomId);
   const existing = qc.getQueryData<RoomTimeline>(key);
   if (existing === undefined) return;
-  const withoutPending = mapRoomTimeline(existing, (page) => page.filter((row) => row.id !== pendingId));
+  const withoutPending = stripPendingFromTimeline(existing, clientMsgId);
   const next = insertCreatedTimelineMessage(withoutPending, serverMessage);
   if (next) qc.setQueryData(key, next);
   else void qc.invalidateQueries({ queryKey: key });

@@ -11,6 +11,7 @@ import { isInAppHref } from "./ask-uni-links";
 import { dropEchoedNames } from "./ask-uni-text";
 import { AskUniEntityChip, AskUniSources, InLinkContext } from "./ask-uni-entity";
 import { AskUniContextChips } from "./ask-uni-context-chips";
+import { AskUniFileNotes, AskUniQuestionFiles } from "./ask-uni-files";
 import { AskUniMessageMeta } from "./ask-uni-meta";
 import { useAskModelLook } from "./ask-uni-provider";
 import { AskUniProgress } from "./ask-uni-steps";
@@ -20,7 +21,7 @@ const NOTICES = new Set(["no_sources", "empty_answer", "agent_failed", "refused"
 const PARTIAL = new Set(["stopped", "interrupted"]);
 const CITE_TOKEN = /\[S(\d+)\]/g;
 
-export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps" | "focus" | "mentions" | "model" | "created_at">>;
+export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps" | "focus" | "mentions" | "model" | "created_at" | "attachments" | "file_notes">>;
 
 // How an answer or a question shows a link that isInAppHref lets through.
 const inAppLink = ({ href, children }: { href: string; children: ReactNode }) => (
@@ -90,6 +91,8 @@ export function AskUniMessageTurn({
     [sources, message.citations],
   );
   const look = useAskModelLook(wsId, message.role === "assistant" ? (message.model ?? "") : "");
+  // The streaming bubble and the cache's echo of a question carry upload ids until the refetch swaps in the stored turn.
+  const settled = !message.id.startsWith("pending-") && message.id !== "live" && message.id !== "live-question";
   if (message.role === "user") {
     return (
       <li className="flex flex-col items-end gap-1">
@@ -102,6 +105,7 @@ export function AskUniMessageTurn({
         >
           {message.content}
         </SafeMarkdown>
+        <AskUniQuestionFiles files={message.attachments ?? []} wsId={settled ? wsId : undefined} />
         <AskUniContextChips refs={[...(message.focus ? [message.focus] : []), ...(message.mentions ?? [])]} />
       </li>
     );
@@ -109,7 +113,7 @@ export function AskUniMessageTurn({
   const notice = message.notice ?? "";
   const noticeKey = NOTICES.has(notice) ? notice : notice ? "unavailable" : "";
   const showNotice = noticeKey !== "" && (message.content === "" || PARTIAL.has(notice));
-  const stored = !streaming && !message.id.startsWith("pending-") && message.id !== "live";
+  const stored = !streaming && settled;
   return (
     <li className="flex flex-col items-start">
       <div className="w-full min-w-0">
@@ -121,6 +125,7 @@ export function AskUniMessageTurn({
         {showNotice ? (
           <p className={cn("text-caption text-muted-foreground", message.content ? "mt-2" : "")}>{t(`notice.${noticeKey}`)}</p>
         ) : null}
+        <AskUniFileNotes notes={message.file_notes ?? []} />
         <AskUniSources citations={message.citations} />
         {stored && conversationId ? (
           <AskUniActions

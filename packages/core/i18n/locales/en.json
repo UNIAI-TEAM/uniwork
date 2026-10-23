@@ -235,6 +235,40 @@
           "c0424076a5c7443babfeeb091d77e84d18446fc28": "Documents and UniNote: the UniNote editor has a formatting toolbar, a first-use tip and a shortcuts help panel; the \"/\" menu and Markdown shortcuts also work on lines after a line break. .txt files open in the editor in plain text mode. The first-save dialog lets you pick a folder, Office documents have a Print entry, and the share dialog is clearer and consistently says \"Private\". \"My Folder\" appears once in the folder tree, \"Shared by me\" lists only the topmost shared item, the comment box shows @Name when you mention someone, and discussion threads have a new design.",
           "c5f3b1fb9b72701e4053bd93ccc2f4e2cc053d750": "The Documents library gets several refinements: a share badge for people with comment access, long folder names are shortened, opening a document's link opens the folder that contains it, \"Share with workspace\" is separate from Folder, and the empty state fits better when files are inside folders."
         }
+      },
+      "v1_8_0": {
+        "title": "Faster document sharing, Chat wallpapers and quick reactions, and browser system notifications",
+        "summary": "The Documents list lets you share from each row, select several documents to share or download as a zip, sort and filter better, and comes with a new access report. Chat gets a shared wallpaper per room, quick reactions, CSV and Markdown file sharing, a smoother conversation when sending in a row or reading history, notices when someone votes, and polls you can pin or add options to. The browser can show system notifications for messages, meeting reminders and calls. Ask UNI uses the status labels shown on screen, a Privacy Policy page is available at /privacy, document comments let you view the version that holds the commented passage, and My Tasks loads every task column by column.",
+        "note": "Muting a room only silences ringing for group and channel calls; calls in direct chats still ring. Notices after the browser tab is closed are available only when the server has push notifications configured, and incoming calls are announced only while UniWork is open.",
+        "features": {
+          "c65f3f63676c33fb8ffa3973af36f699c95167a06": "When someone votes in a Chat poll, a small notice at the end of the conversation shows who joined which poll, with a View button that takes you to that poll; the original poll card stays where it is and updates its vote counts.",
+          "c12721dfeb1a1ec3d59d6255b2ae6bb92fdb15fa6": "A public Privacy Policy page at /privacy, in Vietnamese and English: the data collected, device permissions, AI, the providers that process data, retention, how to delete an account or organization, and your rights under Decree 13/2023. The footer links to the page together with the support email; the account deletion section has its own link at /privacy#delete-account, and the page's tables stack neatly on phones.",
+          "ce13f89971f752f4cd450ac462dc44dfdeddfde3b": "Documents: share and manage access straight from a row in the list; select several documents to share them at once or download them as one zip file (up to 100 documents); sort from the column headers, with names in Vietnamese order, and filter by editor and time; Recent shows the latest activity. The access report is redesigned with a summary, a by-person table, access revoking and export. .txt files always open and can be created with Plain text. Folders outside My Folder are visible to the whole workspace and members can create content inside them, while the documents in them stay private until shared. Document change notices are grouped per document, with the list opening from the notification bell and Home. In Chat, send an existing document as a link with Attach from Documents; access granted through Chat is revoked when the recipient leaves the room. UniNote keyboard shortcuts follow Word for the web, and Ctrl/Cmd+S saves right away.",
+          "c866159078a243ad74975a6cc520072a720e73321": "Chat wallpapers: pick a colour, a built-in pattern or your own image (under about 900 KB) for each conversation from the settings of a direct chat, group or channel. Everyone in the room sees the same wallpaper; in a direct chat both people can change it, while in groups and channels only room admins can.",
+          "c746cbd4249c4eb107c7fbf9afc44a378382b04d8": "Browser system notifications: UniWork invites you to turn on notifications to get new messages, meeting reminders and incoming calls outside the window while the app is open, with a test button in Settings › Notifications. Getting notices after the tab is closed requires the server to have push notifications configured and does not apply to incoming calls."
+        },
+        "improvements": {
+          "c831c0910ee27de6a508932005979a31836ebc7b0": "Document comments: when the commented passage is no longer in the current version, the comment says so and lets you open the version that still contains it read-only, then return to the current one. Marking a comment as resolved notifies its author and the document's owners. Opening a notice about a document you can no longer access shows \"no access\", and a deleted document shows \"deleted\"; opening an Office document from a comment that no longer exists still opens the document. In Chat, the share-as-document action and the document card on your own messages are easier to read.",
+          "c70c6965823b95e78087da436b7f1f37d2d6220a1": "Calls in Chat: muting a room silences ringing only for group and channel calls; calls in direct chats still ring. The room list shows the latest poll vote in the preview line.",
+          "c0f496005d5c93547c653dd036fbe607549ea163f": "Chat polls: a poll created with the pin option is pinned to the top of the room; when a poll allows adding options and has not expired, members can add new options themselves. The list of voters loads only when you open the voters dialog.",
+          "cd27f9296f7bf1434f4e6d55e221088886f3e8eec": "The Chat conversation and message composer now use the full window width instead of being held to a narrow centre column.",
+          "c4892d5b67cc9442004c304b002790e52ab95603f": "In Chat, hovering the heart action on a message shows a column of quick reactions so you can react with one click.",
+          "c9dc4cbdc366fe6b777ab57010b575160c9c6b1d4": "The UniOffice guide on the website adds a walkthrough for reviewing a DOCX document with AI and a troubleshooting section for files that will not open, save or use AI; the UniOffice page links straight to the guide.",
+          "c29525a88ddb8c9b912b044b0a8bcd3b7f613a7df": "Chat now lets you send CSV and Markdown files (.csv, .md) alongside images, PDFs, plain text, Word and Excel files.",
+          "c886caab063dd9967f8098c1a6a9121bcab357ea2": "Ask UNI now receives task, project and meeting statuses as the labels shown on screen (such as To do), so Vietnamese answers use those labels instead of raw codes like todo or planned; custom workspace statuses use the names you gave them.",
+          "cf9cdc3c6868c4a578845c50fa159696378144c29": "The Chat conversation is smoother: a message you send appears right away, and sending several in a row no longer makes the view jump; when you read history and load older messages, your reading position stays put; every message bubble, including incoming ones in a run of messages, shows its time."
+        },
+        "fixes": {
+          "c00442921bb805d62e2acd4ca821b9961afa5d2b8": "On the website, app icons and names in the mobile menu line up properly again.",
+          "c012ad1c97b8e1fe0bdb6476e3db9fda8e288eb7c": "Standalone photos in Chat no longer have a coloured frame around them; photos with a quote keep a thin border, and photo albums lose their extra padding.",
+          "c95903b75040d1eeb842587f70e0f88954ca44f9f": "Email Hub: starred Gmail messages sync more accurately, including on a full account refresh; messages you move to Trash or Spam from another email app show up in the right folder without waiting or opening those folders.",
+          "cd4ace5438fda5aaa1dd4d0a9e2b1f3cf05d4f23c": "After signing in, UniWork only sends you to a destination page inside UniWork; a destination containing spaces, control characters or a backslash takes you to the default page instead.",
+          "c97190ef880cb0becddefbac601fc868bfd3fe383": "UniChat for desktop on Windows now offers to turn on notifications and asks for permission, instead of showing only a red dot on the taskbar; if the test notice does not appear, turn on UniChat in Windows Settings › System › Notifications.",
+          "cf26deea1665f84bf6164e04ca55f138363170372": "The board and table in My Tasks now load tasks column by column like the workspace task page, instead of stopping at the first 50 tasks.",
+          "cbd62328c1ab8482fcaec239e846678bdd723c6db": "The sign-in sessions list in security settings shows one row per session instead of repeating the same session.",
+          "c59253aa471b10dfba393387e89f84323c95f6590": "On the website, the task demos on phones show a grouped list so task details fit the screen instead of being cut off sideways.",
+          "cff18730616d298ece7119b09d7576642209166ce": "Chat fixes: when someone replies to your thread, the thread shows as unread until you open it, and its read state no longer moves back; follow-up reminder notices are marked read when you complete or delete the reminder; @ suggestions show up to 20 people, and typing more letters narrows them; a task can be linked to only one thread; day labels in the room list follow the message's day correctly."
+        }
       }
     }
   },
@@ -6363,7 +6397,12 @@
     "history_error": "Could not load the conversation history",
     "history_retry": "Retry",
     "history_current": "Current",
-    "history_group": { "today": "Today", "yesterday": "Yesterday", "week": "Last 7 days", "older": "Older" },
+    "history_group": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "week": "Last 7 days",
+      "older": "Older"
+    },
     "rename_conversation": "Rename conversation",
     "delete_conversation": "Delete conversation",
     "sources": "Sources",
@@ -6497,6 +6536,12 @@
       "ai_provider_error": "The AI service isn't responding. Ask again in a few minutes.",
       "ai_provider_timeout": "UNI didn't answer in time. Ask again, or ask something shorter.",
       "ai_tool_not_allowed": "UNI couldn't answer this one. Ask it a different way.",
+      "ai_attachments_unavailable": "File attachments aren't available here. Send the question without files.",
+      "ai_attachments_invalid": "An attached file isn't valid or was removed. Attach it again and resend.",
+      "ai_attachments_too_large": "The attached files are too large. Each file can be up to 20 MB (an image up to 7.5 MB and 8000 × 8000 pixels), and 20 MB in total.",
+      "ai_attachment_unreadable": "UNI couldn't open an attached file (it's damaged or password-protected). Remove it or attach another copy.",
+      "media_unsupported": "UNI can't read this file type yet. Use an image, PDF, DOCX, XLSX, PPTX or a text file.",
+      "not_found": "That file can't be used any more. Attach it again and resend.",
       "default": "Your question wasn't sent. Check your connection, then ask again."
     },
     "close": "Close",
@@ -6545,6 +6590,32 @@
         "thread": "Chat thread",
         "message": "Message"
       }
+    },
+    "attachments": {
+      "upload": "Upload files",
+      "drop_hint": "or drag and drop",
+      "drop_overlay": "Drop to attach to your question",
+      "remove": "Remove {{name}}",
+      "retry": "Retry",
+      "uploading": "Uploading",
+      "failed": "Upload failed",
+      "too_large": "Files can be up to 20 MB; images up to 7.5 MB and 8000 × 8000 pixels",
+      "unreadable": "UNI couldn't open this file (damaged or password-protected)",
+      "too_many": "Up to 5 files per question",
+      "total_too_large": "Files add up to more than 20 MB",
+      "type_unsupported": "UNI can't read this file type yet",
+      "download": "Download {{name}}",
+      "download_failed": "Couldn't download {{name}}. Try again.",
+      "read_note_page": "UNI read pages 1–{{read}} of {{total}} in {{name}}",
+      "read_note_page_first": "UNI read page 1 of {{total}} in {{name}}",
+      "read_note_slide": "UNI read slides 1–{{read}} of {{total}} in {{name}}",
+      "read_note_slide_first": "UNI read slide 1 of {{total}} in {{name}}",
+      "read_note_row": "UNI read {{read}} of {{total}} rows in {{name}}",
+      "read_note_paragraph": "UNI read paragraphs 1–{{read}} of {{total}} in {{name}}",
+      "read_note_paragraph_first": "UNI read paragraph 1 of {{total}} in {{name}}",
+      "read_note_line": "UNI read lines 1–{{read}} of {{total}} in {{name}}",
+      "read_note_line_first": "UNI read line 1 of {{total}} in {{name}}",
+      "read_note_partial": "UNI read only the start of {{name}}"
     },
     "ask_about_task": "Ask UNI about this task",
     "ask_about_meeting": "Ask UNI about this meeting",

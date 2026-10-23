@@ -241,6 +241,13 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.EmailHub.AI = d.Meetings.AI
 	d.EmailHub.Tasks = d.Tasks
 	d.AskUNI.SetEmailHub(d.EmailHub)
+	// Ask UNI files (UNI-2119): the upload route is offered only where the turn
+	// runs the agent, so Ask UNI gets the file store, the flags (the loop below
+	// turns every one on) and the read tools, as main.go wires them. The asks
+	// below then take the agent path, as they do in production with the flag on.
+	d.AskUNI.SetFiles(fs)
+	d.AskUNI.SetFlags(d.FeatureFlags)
+	d.AskUNI.SetReadTools(d.McpTools)
 	d.CalendarConnections = service.NewCalendarConnectionService(pool, q, d.Workspaces, box, config.Config{
 		FrontendOrigin: "http://localhost:3000",
 	})
@@ -927,6 +934,24 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/ai/ask", tn.token, map[string]any{"question": m + " question"})
 	tn.ids["conversation"] = isoString(t, out, "conversation_id")
 	tn.ids["aiAnswer"] = out["message"].(map[string]any)["id"].(string)
+	// A file the owner uploaded for their next question and has not sent: the
+	// cancel route's own row, and the control that the route works at all.
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/ai/attachments", tn.token, isoMultipart{filename: "brief.pdf", contentType: "application/pdf", content: tinyPDF})
+	tn.ids["aiUpload"] = isoString(t, out, "file_id")
+	// One unsent file for each question route's own-rows control, which a
+	// question claims; and one a question carried, the row every tenant has in
+	// ai_attachments. They are valid PDFs: a sent question reads its files.
+	for _, key := range []string{"aiUploadAsk", "aiUploadStream", "aiUploadSent"} {
+		out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/ai/attachments", tn.token, isoMultipart{filename: key + ".pdf", contentType: "application/pdf", content: sizedAskPDF(0)})
+		tn.ids[key] = isoString(t, out, "file_id")
+	}
+	w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/ai/ask", tn.token, map[string]any{"question": m + " question about a file", "attachment_ids": []any{tn.ids["aiUploadSent"]}})
+	// The download route's own row: the id the question lists the file under.
+	var attachmentID string
+	if err := w.pool.QueryRow(context.Background(), `SELECT id FROM ai_attachments WHERE organization_id = $1 AND file_id = $2`, tn.orgID, tn.ids["aiUploadSent"]).Scan(&attachmentID); err != nil {
+		t.Fatalf("ai attachment row: %v", err)
+	}
+	tn.ids["aiAttachment"] = attachmentID
 	w.call(t, "PUT", "/api/v1/ai/conversations/"+tn.ids["conversation"]+"/messages/"+tn.ids["aiAnswer"]+"/feedback", tn.token, map[string]any{"rating": "up"}, http.StatusNoContent)
 }
 

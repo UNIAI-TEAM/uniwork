@@ -14,7 +14,7 @@ initI18n();
 
 // Long enough to be shown while it streams; a call's short lead-in is held back.
 const LONG = "Có 3 việc quá hạn. ".repeat(10);
-const IDLE: AskStreamState = { status: "idle", question: "", conversationId: null, draft: "", steps: [], sources: {}, followups: [], regenerateOf: null, model: "", citations: [], message: null, errorCode: null };
+const IDLE: AskStreamState = { status: "idle", question: "", conversationId: null, draft: "", steps: [], sources: {}, followups: [], regenerateOf: null, model: "", attachments: [], citations: [], message: null, errorCode: null };
 const history = [
   { id: "u1", role: "user", content: "Task nào quá hạn?", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "" },
   { id: "a1", role: "assistant", content: "Có 3 task quá hạn.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "" },
@@ -89,7 +89,7 @@ describe("AskUniThread", () => {
   });
 
   it("shows the finished turn once and keeps its steps line", async () => {
-    const answer = { id: "a2", role: "assistant", content: "Xong rồi.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "" };
+    const answer = { id: "a2", role: "assistant", content: "Xong rồi.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], created_at: "" };
     requestMock.mockImplementation((path: string) =>
       Promise.resolve(
         path === "/api/v1/ai/conversations/c1/messages"
@@ -132,7 +132,7 @@ describe("AskUniThread", () => {
   });
 
   it("shows the finished answer from the stream until the cache has it", async () => {
-    const answer = { id: "a2", role: "assistant", content: "Chưa có trong cache.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "" };
+    const answer = { id: "a2", role: "assistant", content: "Chưa có trong cache.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], created_at: "" };
     mount(stream({ status: "done", question: "Hỏi mới?", message: answer }));
     expect(await screen.findByText("Chưa có trong cache.")).toBeInTheDocument();
     expect(screen.getByText("Hỏi mới?")).toBeInTheDocument();
@@ -386,5 +386,51 @@ describe("AskUniThread follow-up focus", () => {
     expect(s.ask).toHaveBeenCalledWith({
       conversation_id: "c1", question: "A?", focus: { kind: "task", id: "t9" }, mentions: [], model: "opus", effort: "high", locale: "vi",
     });
+  });
+});
+
+describe("AskUniThread files", () => {
+  const pdf = { id: "file-1", name: "bao-cao.pdf", mime: "application/pdf", size: 2048, kind: "pdf" };
+
+  it("shows the attached files on the question while the answer streams, without a way to download them", async () => {
+    mount(stream({ status: "streaming", question: "Tóm tắt giúp", draft: "x", attachments: [pdf] }));
+    expect(await screen.findByText("Tóm tắt giúp")).toBeInTheDocument();
+    expect(screen.getByText("bao-cao.pdf")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tải bao-cao.pdf" })).toBeNull();
+  });
+
+  it("shows a stored question's files as downloads", async () => {
+    serve([msg({ id: "u9", role: "user", content: "Đọc file", attachments: [{ ...pdf, id: "att-9" }] }), msg({ id: "a9", content: "Xong." })]);
+    mount(stream());
+    expect(await screen.findByRole("button", { name: "Tải bao-cao.pdf" })).toBeInTheDocument();
+  });
+
+  it("writes what UNI read under a stored answer", async () => {
+    const note = { name: "bao-cao.pdf", unit: "page", read: 15, total: 80 };
+    serve([msg({ id: "u9", role: "user", content: "Đọc file" }), msg({ id: "a9", content: "Xong.", file_notes: [note] })]);
+    mount(stream());
+    expect(await screen.findByText("UNI đã đọc trang 1–15 trên 80 trang của bao-cao.pdf")).toBeInTheDocument();
+  });
+
+  it("writes it under the answer the stream just finished, before the cache has it", async () => {
+    const note = { name: "bao-cao.pdf", unit: "page", read: 15, total: 80 };
+    const answer = msg({ id: "a2", content: "Chưa có trong cache.", file_notes: [note] });
+    mount(stream({ status: "done", question: "Hỏi mới?", message: answer as never }));
+    expect(await screen.findByText("UNI đã đọc trang 1–15 trên 80 trang của bao-cao.pdf")).toBeInTheDocument();
+  });
+
+  it("words the attachment refusals instead of showing a code", async () => {
+    const m = mount(stream({ status: "error", question: "Hỏi?", errorCode: "media_unsupported" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("UNI chưa đọc được loại file này");
+    for (const [code, text] of [
+      ["ai_attachments_unavailable", "Chưa dùng được file đính kèm"],
+      ["ai_attachments_invalid", "File đính kèm không hợp lệ"],
+      ["ai_attachments_too_large", "File đính kèm quá lớn"],
+      ["ai_attachment_unreadable", "UNI không mở được một file đính kèm"],
+    ] as const) {
+      m.update(stream({ status: "error", question: "Hỏi?", errorCode: code }));
+      expect(screen.getByRole("alert")).toHaveTextContent(text);
+      expect(screen.getByRole("alert")).not.toHaveTextContent(code);
+    }
   });
 });

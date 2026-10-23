@@ -20,7 +20,8 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	var cites []service.AskCitation
 	_ = json.Unmarshal([]byte(m.Citations), &cites)
 	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: citationDTOs(cites), Notice: m.Notice.String, Model: m.Model, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
-	out.Steps, out.Followups, out.Mentions = []sdo.AiStepDTO{}, []string{}, []sdo.AiContextRefDTO{}
+	out.Steps, out.Followups, out.Mentions, out.Attachments = []sdo.AiStepDTO{}, []string{}, []sdo.AiContextRefDTO{}, []sdo.AiAttachmentDTO{}
+	out.FileNotes = decodeList[sdo.AiFileNoteDTO](m.FileNotes) // stored in the DTO's own shape
 	// A column that is NULL or does not decode reads as empty, never an error.
 	for _, st := range decodeList[service.AskStep](m.Steps) {
 		counts := st.Counts
@@ -72,7 +73,7 @@ func (h *handlers) aiCapabilities(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.AiCapabilitiesSDO{
 		Enabled: c.Enabled, AskUni: c.AskUni, MeetingSummary: c.MeetingSummary,
 		Quota:  sdo.AiQuotaDTO{UsedTokens: c.UsedTokens, LimitTokens: c.LimitTokens},
-		Models: models, AutoModel: c.AutoModel,
+		Models: models, AutoModel: c.AutoModel, Attachments: c.Attachments,
 	})
 }
 
@@ -114,7 +115,7 @@ func (h *handlers) setOrgAskModels(w http.ResponseWriter, r *http.Request) {
 
 // askInputFromSDI maps the body both ask routes share.
 func askInputFromSDI(in sdi.AskUniSDI) service.AskInput {
-	askIn := service.AskInput{ConversationID: in.ConversationID, Question: in.Question, Locale: in.Locale, Model: in.Model, Effort: in.Effort, Regenerate: in.RegenerateMessageID}
+	askIn := service.AskInput{ConversationID: in.ConversationID, Question: in.Question, Locale: in.Locale, Model: in.Model, Effort: in.Effort, Regenerate: in.RegenerateMessageID, AttachmentIDs: in.AttachmentIDs}
 	if in.Focus != nil {
 		askIn.Focus = &ai.Focus{Kind: in.Focus.Kind, ID: in.Focus.ID}
 	}
@@ -210,7 +211,11 @@ func (h *handlers) listAiMessages(w http.ResponseWriter, r *http.Request) {
 	}
 	out := sdo.AiMessageListSDO{Messages: make([]sdo.AiMessageDTO, 0, len(rows))}
 	for _, m := range rows {
-		out.Messages = append(out.Messages, toAiMessageDTO(m))
+		dto := toAiMessageDTO(m.AiMessage)
+		for _, a := range m.Attachments {
+			dto.Attachments = append(dto.Attachments, sdo.AiAttachmentDTO{ID: a.ID, Name: a.Name, MIME: a.MIME, Size: a.Size, Kind: a.Kind})
+		}
+		out.Messages = append(out.Messages, dto)
 	}
 	respondJSON(w, 200, out)
 }

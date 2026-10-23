@@ -232,6 +232,18 @@ var (
 	// exportMIMETypes is what AuditExport writes today: NDJSON or CSV, or a
 	// zip of them. The text types need the .ndjson / .csv filename.
 	exportMIMETypes = []string{"application/x-ndjson", "text/csv", "application/zip"}
+	// aiAttachmentMIMETypes is what an Ask UNI question may carry: pictures
+	// the model reads, and the documents the text extractor opens (PDF, DOCX,
+	// XLSX, PPTX, ODT, plain text, CSV, Markdown). The legacy DOC/XLS/PPT are
+	// left out on purpose: nothing extracts them.
+	aiAttachmentMIMETypes = []string{
+		"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		"application/vnd.oasis.opendocument.text",
+		"text/plain", "text/csv", "text/markdown",
+	}
 	// documentMIMETypes is what a Document version may hold. text/html is in
 	// C-01 §5.5's file-document allowlist and is one of the six Office format
 	// lanes (G2-06/G2-07a); the preview sandbox, not this allowlist, is what
@@ -425,6 +437,14 @@ func SpecsWithDocumentMaxBytes(documentMaxBytes int64) []PurposeSpec {
 			Prefix:  "documents/downloads",
 			Scope:   ScopeOrgWorkspace,
 			Policy:  Policy{MaxBytes: 1<<30 + 64<<20, MIMEAllowlist: []string{"application/zip"}, ReadMode: ReadProxy},
+		},
+		{
+			// A file attached to an Ask UNI question (UNI-2119): private to
+			// the asker's workspace, read back only through the proxy.
+			Purpose: AiAttachment,
+			Prefix:  "ai/attachments",
+			Scope:   ScopeOrgWorkspace,
+			Policy:  Policy{MaxBytes: 20 << 20, MIMEAllowlist: aiAttachmentMIMETypes, CanonicalTypes: plainTextCanonicalTypes, ReadMode: ReadProxy},
 		},
 	}
 }

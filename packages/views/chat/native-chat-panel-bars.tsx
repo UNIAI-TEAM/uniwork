@@ -129,10 +129,19 @@ export function ChatJumpToLatestButton({ onClick, newCount = 0 }: { onClick: () 
  * Asks for older history without scrolling to the top — for a keyboard, a
  * switch or a screen reader, where "scroll up to load" never fires.
  */
+/** Reserved height while older pages prefetch — no visible loading chrome (Telegram-style). */
+export function ChatLoadOlderHeaderSpacer({ busyLabel }: { busyLabel?: string }) {
+  return (
+    <div className="min-h-14 shrink-0 pb-2" aria-hidden={busyLabel ? undefined : true}>
+      {busyLabel ? <span className="sr-only">{busyLabel}</span> : null}
+    </div>
+  );
+}
+
 export function ChatLoadOlderButton({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="flex justify-center pb-2">
+    <div className="flex min-h-14 justify-center pb-2">
       {/* A chip on the chat wall, like the day separators. */}
       <Button
         type="button"
@@ -151,7 +160,7 @@ export function ChatLoadOlderButton({ onClick }: { onClick: () => void }) {
 /** Older history arrives in the message's own shape. */
 export function ChatOlderMessagesSkeleton({ label }: { label: string }) {
   return (
-    <div className="pb-3" role="status" aria-busy>
+    <div className="min-h-14 pb-2" role="status" aria-busy>
       <span className="sr-only">{label}</span>
       <div className="flex items-start gap-2">
         <Skeleton className="size-8.5 shrink-0 rounded-full" />
