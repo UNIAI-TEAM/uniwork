@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -49,8 +48,6 @@ type ChatService struct {
 	// resolves each message's block against it. nil until SetDocuments.
 	docs        *DocumentService
 	TenorAPIKey string
-	// featuredCache holds Tenor "featured" responses (UNI-1750); zero value is fine.
-	featuredCache sync.Map // key string -> tenorCacheEntry
 	// presenceTracker is installed by SetPresenceStore (chat_presence.go).
 	presenceTracker atomic.Pointer[presenceTracker]
 }
@@ -280,17 +277,6 @@ func demoteDefaultChatRoomAdmin(ctx context.Context, q *db.Queries, workspaceID,
 	return q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
 		RoomID: room.ID, UserID: userID, Role: "member",
 	})
-}
-
-func (s *ChatService) ensureRoomMember(ctx context.Context, room db.ChatRoom, workspaceID, userID, role string) error {
-	return s.ensureRoomMemberTx(ctx, s.q, room, workspaceID, userID, role)
-}
-
-// ensureRoomMemberTx adds the member inside the caller's transaction; it drops
-// the added flag for callers that have nothing to audit.
-func (s *ChatService) ensureRoomMemberTx(ctx context.Context, q *db.Queries, room db.ChatRoom, workspaceID, userID, role string) error {
-	_, err := s.addRoomMember(ctx, q, room, workspaceID, userID, role)
-	return err
 }
 
 // addRoomMember reports whether it added the row, so a caller inside a

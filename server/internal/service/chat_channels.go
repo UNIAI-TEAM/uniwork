@@ -490,7 +490,7 @@ func (s *ChatService) CreateChannelForProject(ctx context.Context, q *db.Queries
 	if err != nil {
 		return db.ChatRoom{}, err
 	}
-	if err := s.ensureRoomMemberTx(ctx, q, room, workspaceID, userID, "admin"); err != nil {
+	if _, err := s.addRoomMember(ctx, q, room, workspaceID, userID, "admin"); err != nil {
 		return db.ChatRoom{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
