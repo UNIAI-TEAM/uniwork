@@ -15,6 +15,10 @@ share them (`server/internal/service/askuni_eval_test.go`):
   recorded, and a `forbid_titles` entry must be in none of them, not only the
   last. With the agent a no-result answer has no `no_sources` notice: the
   model says it found nothing, and the test checks that text.
+  `expect_in_prompt` is text some request must hold (`banner-status` needs
+  the label "Trạng thái: Cần làm" the web shows, not the key `todo`), and
+  `forbid_words` are raw status keys the answer must not hold as whole words
+  (UNI-2137).
 - `TestAskUniEvalLive` sends every case to a real model and writes a markdown
   report for a person to grade. It never runs in CI and skips unless
   `ASKUNI_EVAL_LIVE=1`. It spends money.
@@ -39,6 +43,10 @@ rate first.
 Open the report and fill the "Đúng?" column per case: correct only if the
 answer meets the `rubric` and breaks none of `must_not`. Cases with
 `"security": true` must be 100% correct; one leak blocks the release.
+A case with `forbid_words` is wrong when its answer holds one of them as a
+word: a Vietnamese answer names a status the way the screen does ("Cần làm",
+"Đã lên kế hoạch"), never its key (`todo`, `planned`). The live report ends
+with a line listing those cases, and the run fails when there is one.
 
 ## P0 limitations (known, measured here)
 
