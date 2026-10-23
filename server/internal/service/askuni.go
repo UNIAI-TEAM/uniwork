@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -42,6 +43,8 @@ type AskUNIService struct {
 	// agent's run and tool surface, nil reporting nothing.
 	agentRuns    *uniworkConcurrency
 	agentMetrics AskAgentMetrics
+	// askMem holds askCount's hits when there is no Redis (askMemIncrement).
+	askMem sync.Map // key -> *askMemRateEntry
 	// life ends when Shutdown runs; every agent run is cancelled with it.
 	life     context.Context
 	shutdown context.CancelCauseFunc
@@ -158,11 +161,12 @@ return count
 
 // askCount counts one hit on key in its askRateWindow; ok is false when
 // Redis did not answer within the limiters' 100 ms, which callers read as
-// "not limited" (fail open, ruling P22). Without Redis nothing is counted.
+// "not limited" (fail open, ruling P22). Without Redis it counts in this
+// service's memory.
 func (s *AskUNIService) askCount(ctx context.Context, key string) (n int64, ok bool) {
 	if s.rdb == nil {
 		userID := strings.TrimPrefix(key, "uw:ai:ask:")
-		return askMemIncrement(userID, s.now(), askRateWindow), true
+		return s.askMemIncrement(userID, s.now(), askRateWindow), true
 	}
 	ctx, cancel := context.WithTimeout(ctx, uniworkLeaseTimeout)
 	defer cancel()
