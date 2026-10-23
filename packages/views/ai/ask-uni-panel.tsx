@@ -14,13 +14,17 @@ import { useEffectiveFocus } from "./ask-uni-page-context";
 import { AskUniThread } from "./ask-uni-thread";
 import { useAskUniAttachments } from "./use-ask-uni-attachments";
 
-/** Over the dock while files are dragged onto it; it never takes the drop itself. */
+/**
+ * Over the dock while files are dragged onto it; it never takes the drop itself. The text pairs `brand-subtle` with
+ * its own foreground: a provider's look re-points `--brand` but not `--brand-subtle` (tokens.css), so `text-brand`
+ * here would sit on the wrong tint.
+ */
 function DropOverlay() {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.attachments" });
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand bg-brand-subtle text-body-lg font-semibold text-brand"
+      className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand bg-brand-subtle text-body-lg font-semibold text-brand-subtle-foreground"
     >
       <Upload aria-hidden className="size-5" />
       {t("drop_overlay")}
@@ -42,6 +46,8 @@ export function AskUniPanel() {
   const canAttach = !!useAiCapabilities(workspace.id).data?.attachments;
   const attachments = useAskUniAttachments(workspace.id);
   const { isDragOver, dropZoneProps } = useFileDropZone({ onDrop: attachments.attach, enabled: canAttach });
+  // The hook prevents the default of every drag it sees, so with attaching off the dock gets none of its handlers.
+  const dropHandlers = canAttach ? dropZoneProps : undefined;
   // A new conversation with nothing in flight starts from suggestions for the open page.
   const empty = conversationId === null && stream.state.status === "idle";
   const askSuggestion = (question: string) =>
@@ -52,7 +58,7 @@ export function AskUniPanel() {
       className="relative flex h-full min-h-0 flex-col bg-background"
       data-slot="ask-uni-panel"
       data-ask-provider={look ?? undefined}
-      {...dropZoneProps}
+      {...dropHandlers}
     >
       <AskUniHeader />
       <div className="flex min-h-0 flex-1 flex-col" data-slot="ask-uni-body">

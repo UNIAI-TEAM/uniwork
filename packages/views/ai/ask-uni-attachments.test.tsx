@@ -12,7 +12,9 @@ import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, requestStreamMock, streamResponse, wrapWithNav } from "../test/api-mock";
 import { capabilities, composerRoutes, user, workspace } from "./ask-uni-fixtures";
 import { AskUniAttachmentChip } from "./ask-uni-attachment-chip";
+import { AskUniComposer } from "./ask-uni-composer";
 import { AskUniPanel } from "./ask-uni-panel";
+import { useAskUniAttachments } from "./use-ask-uni-attachments";
 
 vi.mock("@uniwork/core/api/endpoints/ai-attachments", async (orig) => ({
   ...(await orig<typeof import("@uniwork/core/api/endpoints/ai-attachments")>()),
@@ -80,6 +82,12 @@ function mount() {
       </WorkspaceProvider>,
     ),
   );
+}
+
+/** The composer with real staged files, so what it hands `onSend` can be read. */
+function Composer({ onSend }: { onSend: (...args: unknown[]) => void }) {
+  const attachments = useAskUniAttachments("ws1");
+  return <AskUniComposer onSend={onSend} onStop={vi.fn()} streaming={false} attachments={attachments} />;
 }
 
 /** The panel with the capabilities answered, so the attach entry points exist (or, when off, are known to stay away). */
@@ -152,10 +160,13 @@ describe("attaching files to an Ask UNI question", () => {
     await screen.findByRole("combobox", { name: /Tìm/ });
     expect(screen.queryByText("Tải file lên")).toBeNull();
     expect(fileInput()).toBeNull();
-    // No overlay for a dragged file, and a dropped one attaches nothing.
-    fireEvent.dragEnter(panel, { dataTransfer: { types: ["Files"], files: [] } });
+    // No overlay for a dragged file, a dropped one attaches nothing, and the dock leaves every drag event to the
+    // browser as before: none of them is default-prevented (a returned `true` means nobody called preventDefault).
+    const drag = { dataTransfer: { types: ["Files"], files: [f("a.pdf")] } };
+    expect(fireEvent.dragEnter(panel, drag)).toBe(true);
     expect(screen.queryByText("Thả để gắn vào câu hỏi")).toBeNull();
-    fireEvent.drop(panel, { dataTransfer: { types: ["Files"], files: [f("a.pdf")] } });
+    expect(fireEvent.dragOver(panel, drag)).toBe(true);
+    expect(fireEvent.drop(panel, drag)).toBe(true);
     paste({ files: [f("a.png", "image/png")] });
     expect(uploads).toHaveLength(0);
     expect(screen.queryByRole("list")).toBeNull();
@@ -223,6 +234,23 @@ describe("attaching files to an Ask UNI question", () => {
     await vi.waitFor(() => expect(askBody()).toMatchObject({ question: "Câu hỏi", attachment_ids: ["id-a.pdf"] }));
   });
 
+  it("keeps refusing a question that has files but no text", async () => {
+    await mounted();
+    pick(f("a.pdf"));
+    await act(async () => uploads[0]!.resolve());
+    expect(sendButton()).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(sendButton());
+    enter();
+    // A blank is no text either.
+    type("  ");
+    enter();
+    expect(requestStreamMock).not.toHaveBeenCalled();
+    // The file waits for its question.
+    expect(screen.getByText("a.pdf")).toBeInTheDocument();
+    type("Tóm tắt");
+    expect(sendButton()).not.toHaveAttribute("aria-disabled");
+  });
+
   it("names a known upload refusal and falls back to the general one for any other", async () => {
     await mounted();
     pick(f("a.pdf"), f("b.pdf"), f("c.pdf"), f("d.pdf"));
@@ -239,6 +267,39 @@ describe("attaching files to an Ask UNI question", () => {
     expect(text("d.pdf")).toContain("Tải lên không được");
   });
 
+  it("hands the stream the attached files for the question's bubble, in attach order", async () => {
+    const onSend = vi.fn();
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <Composer onSend={onSend} />
+        </WorkspaceProvider>,
+      ),
+    );
+    await screen.findByLabelText("Câu hỏi cho UNI");
+    pick(f("a.pdf"), f("b.png", "image/png", 4096));
+    await act(async () => {
+      uploads[1]!.resolve({ kind: "image" });
+      uploads[0]!.resolve();
+    });
+    type("So sánh hai file");
+    enter();
+    expect(onSend).toHaveBeenCalledTimes(1);
+    const [input, display] = onSend.mock.calls[0]!;
+    expect(input).toMatchObject({ question: "So sánh hai file", attachment_ids: ["id-a.pdf", "id-b.png"] });
+    expect(display).toEqual({
+      attachments: [
+        { id: "id-a.pdf", name: "a.pdf", mime: "application/pdf", size: 2048, kind: "pdf" },
+        { id: "id-b.png", name: "b.png", mime: "image/png", size: 4096, kind: "image" },
+      ],
+    });
+    // The next question has no files and says so.
+    type("Và nữa?");
+    enter();
+    expect(onSend.mock.calls[1]![0]).toMatchObject({ question: "Và nữa?", attachment_ids: undefined });
+    expect(onSend.mock.calls[1]![1]).toBeUndefined();
+  });
+
   it("dropping files on the dock attaches them", async () => {
     const panel = await mounted();
     expect(screen.queryByText("Thả để gắn vào câu hỏi")).toBeNull();
@@ -247,7 +308,12 @@ describe("attaching files to an Ask UNI question", () => {
     // The overlay covers the dock and never takes the drop itself.
     expect(panel).toContainElement(overlay);
     expect(overlay.closest("[class*='pointer-events-none']")).not.toBeNull();
-    fireEvent.drop(panel, { dataTransfer: { types: ["Files"], files: [f("a.pdf"), f("b.png", "image/png")] } });
+    // A provider's look re-points --brand but not --brand-subtle: the text takes the tint's own foreground (about 5:1; text-brand on it is 2.7:1 under Anthropic's look).
+    const overlayBox = overlay.closest("div")!;
+    expect(overlayBox).toHaveClass("bg-brand-subtle", "text-brand-subtle-foreground");
+    expect(overlayBox).not.toHaveClass("text-brand");
+    // The dock takes the drop: the browser must not also open the file.
+    expect(fireEvent.drop(panel, { dataTransfer: { types: ["Files"], files: [f("a.pdf"), f("b.png", "image/png")] } })).toBe(false);
     expect(screen.queryByText("Thả để gắn vào câu hỏi")).toBeNull();
     expect(await screen.findByText("a.pdf")).toBeInTheDocument();
     expect(screen.getByText("b.png")).toBeInTheDocument();
@@ -309,6 +375,14 @@ describe("AskUniAttachmentChip", () => {
     rerender(<AskUniAttachmentChip name="bao-cao.pdf" size={1024} mime="application/pdf" status="ready" />);
     expect(document.querySelector(".lucide-image")).toBeNull();
     expect(screen.getByText("1 KB")).toBeInTheDocument();
+  });
+
+  it("draws its ring in neutral strokes, which a provider's look does not re-point", () => {
+    render(<AskUniAttachmentChip name="a.pdf" size={10} mime="application/pdf" status="uploading" progress={0.4} />);
+    const circles = [...document.querySelectorAll("circle")];
+    expect(circles).toHaveLength(2);
+    for (const c of circles) expect(c.getAttribute("class")).toMatch(/stroke-muted-foreground/);
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "40");
   });
 
   it("is a plain label without handlers, and one button for name and size when it can open", () => {

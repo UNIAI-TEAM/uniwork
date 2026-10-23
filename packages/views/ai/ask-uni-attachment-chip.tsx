@@ -12,16 +12,19 @@ import type { AskUniAttachments } from "./use-ask-uni-attachments";
 const RADIUS = 8;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-/** An upload's progress as a ring that fills clockwise from the top. */
+/**
+ * An upload's progress as a ring that fills clockwise from the top. Neutral strokes: `--primary` and `--border` are
+ * re-pointed by a provider's look (tokens.css), and the Anthropic orange is under 3:1 on the chip's `bg-muted`.
+ */
 function Ring({ progress }: { progress: number }) {
   return (
     <svg viewBox="0 0 20 20" aria-hidden className="size-5 -rotate-90 fill-none stroke-2">
-      <circle cx="10" cy="10" r={RADIUS} className="stroke-border" />
+      <circle cx="10" cy="10" r={RADIUS} className="stroke-muted-foreground/25" />
       <circle
         cx="10"
         cy="10"
         r={RADIUS}
-        className="stroke-primary"
+        className="stroke-muted-foreground"
         strokeLinecap="round"
         strokeDasharray={CIRCUMFERENCE}
         strokeDashoffset={CIRCUMFERENCE * (1 - progress)}
