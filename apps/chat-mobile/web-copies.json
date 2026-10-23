@@ -1,6 +1,6 @@
 {
   "$comment": "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedCodeChars (the ratchet) or move target in a reviewed PR.",
-  "copiedCodeChars": 139120,
+  "copiedCodeChars": 139201,
   "target": {
     "copiedCodeChars": 54000,
     "by": "2027-02-28",
@@ -88,7 +88,7 @@
       "packages/views/chat/workspace-member-picker-utils.ts": "f44b3158f76bb37179310e23817411137c95c1e0a8f42fdf679b2af321e42e3c"
     },
     "apps/chat-mobile/lib/file-accept.ts": {
-      "packages/views/chat/chat-file-accept.ts": "36eade4e1d09ea6598d5b3d12f12818e3497905402d690f098ef64880cd6bf29"
+      "packages/views/chat/chat-file-accept.ts": "e0ad5975aa3c18ea921758b6b1cac8109654a8ebb9c85f53b463efaf119fd0f9"
     },
     "apps/chat-mobile/lib/legal-links.ts": {
       "apps/web/features/landing/privacy-content.ts": "3d03684b7e057a269caf0b590259a79578b43989d73052ba6ac54d00470cac4d",
@@ -114,7 +114,7 @@
     "apps/chat-mobile/lib/rooms-display.ts": {
       "packages/core/chat/room-preferences-store.ts": "982346eee63a31ef1f501805d97c7679e4edaffeddf38f4ba534b5e41fecea4c",
       "packages/views/chat/chat-room-moderation-utils.ts": "08179510c1875610028999767c6192dd6c40d17b2e9f24a0c598ce95a5181779",
-      "packages/views/chat/chat-sidebar-preview.ts": "6f585a581a937d22b8fc9714185e1c0afb782c837fa8500b23186296f5467589",
+      "packages/views/chat/chat-sidebar-preview.ts": "dcd2c8c7374940924008a5b41c80e8136f5b6c0024821bcfdc34157bbea5f1f9",
       "packages/views/chat/chat-sidebar-unified-row.tsx": "7b471da9a3fb5eb9609620fa09dfdc51ef3202a867926de76df726a842033061",
       "packages/views/chat/chat-sidebar-unified.ts": "b271ef83330d4ec0c03771e369319544bede91d0f1086586d451d1981c3c2942",
       "packages/views/chat/use-resolved-room-permissions.ts": "d61fc450e7306dd5adbac71608fd50dd5c47c368caf4def1acf6799b95aa5b32"
