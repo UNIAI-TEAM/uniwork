@@ -68,7 +68,8 @@ Xoá tài khoản, pháp lý, giấy phép, đồng ý AI, báo cáo và chặn,
   manifest bản release và của `android-permissions.json` có tên trong mục Quyền của listing và ngược lại;
   `maxSdkVersion` của từng quyền), `privacy-content.test.ts` của web
   (chính sách nói từng dòng của bảng Quyền riêng tư). Metadata cho store là code sinh từ listing:
-  `scripts/store-metadata.mjs` viết `store/apple/store.config.json` (EAS Metadata; iPhone bỏ dòng, từ khoá và ghi chú về
+  `scripts/store-metadata.mjs` viết `store/apple/store.config.json` (EAS Metadata; tên trên store là dòng "Tên trên
+  store" của listing, "UniWork Chat" như App Store Connect giữ app, và Play dùng cùng tên; iPhone bỏ dòng, từ khoá và ghi chú về
   gọi khi gọi còn tắt trên iPhone) và `store/play/<locale>/*.txt`, kiểm giới hạn ký tự của store;
   `store-listing.test.ts` chạy `--check`. Sửa chữ ở `listing.md` rồi chạy script, không sửa tệp sinh ra. Feature
   graphic của Play: `store/play/feature-graphic.png` từ `pnpm brand:build`. Apple 4.8 (Sign in with Apple) chờ tài khoản Apple:
