@@ -15,6 +15,9 @@ import (
 // the MCP connector's own write method as the asker, and each leaves the
 // inverse that puts things back.
 
+// errAskNoItem is a server fault: a write that committed returned no object to undo.
+var errAskNoItem = errors.New("ask uni: write returned no object")
+
 var errAskUndoUnavailable = CodedError{Code: "undo_unavailable", Status: 409, Msg: "the object changed after this was applied"}
 
 // askUndoGuard reads a refusal of the guard (the object is gone or someone
@@ -400,6 +403,9 @@ func (s *AskUNIService) prepareUpdateTask(ctx context.Context, tc ai.ToolContext
 		add("labels", "labels", have, after, nil)
 	}
 	fields = slices.DeleteFunc(fields, func(f AskProposalField) bool { return fieldsEqual(f.From, f.To) })
+	if len(fields) == 0 {
+		return askDraftRow{}, McpInvalidArgs{Msg: "nothing to change: every field already has the value asked for"}
+	}
 
 	row := askDraftRow{Tool: "update_task", Args: stored, TargetKind: "task", Level: askLevel2, Preview: AskProposalPreview{Fields: fields, Refs: refs}}
 	people := []string{}
@@ -499,7 +505,10 @@ func (s *AskUNIService) applyCreateTask(ctx context.Context, p McpPrincipal, row
 	if err != nil {
 		return AskProposalResult{}, nil, err
 	}
-	task, _ := res.Item.(McpTask)
+	task, ok := res.Item.(McpTask)
+	if !ok || task.ID == "" {
+		return AskProposalResult{}, nil, errAskNoItem
+	}
 	inv, err := askInverseOf("delete_task", map[string]any{"task_id": task.ID, "revision": res.Revision})
 	return AskProposalResult{ObjectID: task.ID, Href: task.URL, Revision: res.Revision, Changes: res.Changes, Note: res.Note}, inv, err
 }
@@ -516,7 +525,10 @@ func (s *AskUNIService) applyAddComment(ctx context.Context, p McpPrincipal, row
 	if err != nil {
 		return AskProposalResult{}, nil, err
 	}
-	c, _ := res.Item.(McpComment)
+	c, ok := res.Item.(McpComment)
+	if !ok || c.ID == "" {
+		return AskProposalResult{}, nil, errAskNoItem
+	}
 	inv, err := askInverseOf("delete_task_comment", map[string]any{"comment_id": c.ID})
 	return AskProposalResult{ObjectID: c.ID, Href: c.URL, Note: res.Note}, inv, err
 }
@@ -556,6 +568,8 @@ func (s *AskUNIService) applyUpdateTask(ctx context.Context, p McpPrincipal, row
 		case "title":
 			back["title"] = before.Title
 		case "description":
+			// "" clears it, which is how UpdateTask empties a description.
+			back["description"] = ""
 			if before.Description != nil {
 				back["description"] = *before.Description
 			}

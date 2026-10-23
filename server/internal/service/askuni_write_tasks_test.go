@@ -94,7 +94,7 @@ func TestAskWriteTaskPrepareReadsTheTarget(t *testing.T) {
 }
 
 func TestAskWriteTaskRowRefs(t *testing.T) {
-	x, s, tc := newAgentWorld(t)
+	_, s, tc := newAgentWorld(t)
 	ctx := context.Background()
 	created := askPrepare(t, s, tc, "create_task", `{"title":"Sau này"}`)
 	row := askPrepare(t, s, tc, "add_comment", `{"task_id":"{{row:1.id}}","body":"chào"}`, created)
@@ -115,7 +115,6 @@ func TestAskWriteTaskRowRefs(t *testing.T) {
 			t.Errorf("%s: err = %v, want McpInvalidArgs", args, err)
 		}
 	}
-	_ = x
 }
 
 func TestAskWriteCommentPreview(t *testing.T) {
@@ -193,6 +192,23 @@ func TestAskWriteTaskApplyAndUndo(t *testing.T) {
 	assertUndoUnavailable(t, undo(inv))
 	if got, _ = x.tools.GetTask(ctx, x.p, x.w.ID, x.taskID); got.Status != "in_progress" {
 		t.Fatalf("undo wrote: %s", got.Status)
+	}
+
+	// no description → set one → undo clears it again
+	bare := x.task(t, x.ua.ID, x.w.ID, "Không mô tả")
+	_, inv, err = run("update_task", fmt.Sprintf(`{"task_id":%q,"description":"mới có"}`, bare.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := undo(inv); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = x.tools.GetTask(ctx, x.p, x.w.ID, bare.ID); got.Description == nil || *got.Description != "" {
+		t.Fatalf("description not cleared: %v", got.Description)
+	}
+	// a no-op update never becomes a row
+	if _, err := writeToolNamed(t, s, "update_task").prepare(ctx, tc, json.RawMessage(fmt.Sprintf(`{"task_id":%q,"priority":"none"}`, bare.ID)), nil); !errors.As(err, new(McpInvalidArgs)) {
+		t.Fatalf("no-op err = %v", err)
 	}
 
 	// comment → delete comment
