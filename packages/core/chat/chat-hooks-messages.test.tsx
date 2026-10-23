@@ -69,6 +69,9 @@ describe("useSendChatRoomMessage", () => {
       email: "a@b.c",
       display_name: "An",
       onboarded_at: "2026-01-01T00:00:00Z",
+      email_verified_at: "2026-01-01T00:00:00Z",
+      onboarding_questionnaire: {},
+      locale: "vi",
     });
     vi.spyOn(chatApi, "sendChatRoomMessage").mockResolvedValue(
       row("m2", 2, { body: "hi", client_msg_id: "cmid-1" }),
