@@ -19,14 +19,20 @@ afterEach(() => {
   resetPendingChatMessagesForTests();
 });
 
+type ActionDeps = Parameters<typeof useChatPageActions>[0];
+type SendMutation = ActionDeps["sendRoomMessage"] & NonNullable<ActionDeps["sendThreadMessage"]>;
+
+/** A room or thread send whose mutate settles through the given mutateAsync, as TanStack's does. */
 function mockSendMutation(mutateAsync: ReturnType<typeof vi.fn>) {
+  const send = mutateAsync as unknown as (payload: unknown) => unknown;
   const mutate = vi.fn((payload: unknown, opts?: { onSuccess?: () => void; onError?: (err: unknown) => void }) => {
-    void Promise.resolve(mutateAsync(payload)).then(
+    void Promise.resolve(send(payload)).then(
       () => opts?.onSuccess?.(),
       (err: unknown) => opts?.onError?.(err),
     );
   });
-  return { mutateAsync, mutate };
+  // The hook calls only mutate and mutateAsync; the mocks stand in for the whole mutation result.
+  return { mutateAsync, mutate } as unknown as SendMutation & { mutateAsync: typeof mutateAsync; mutate: typeof mutate };
 }
 
 function buildDeps(overrides: Partial<Parameters<typeof useChatPageActions>[0]> = {}) {
