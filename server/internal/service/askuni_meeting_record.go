@@ -16,28 +16,13 @@ import (
 // meetingSearchExcerptRunes caps the summary a meeting search hit quotes.
 const meetingSearchExcerptRunes = 400
 
-// meetingRecordExcerpt is a meeting's latest summary (paragraph, topics,
-// decisions, open questions) and its action items as they stand: pending and
+// meetingRecordExcerpt is a meeting's action items as they stand, then its
+// latest summary (paragraph, topics, decisions, open questions). Items: pending and
 // converted only, a converted one as its task is now (status, assignee, due),
 // never a dismissed one nor the raw proposal stored with the summary (a
 // clerk dismisses or rewords what the model proposed; live and manual items
 // are not in it). "" when the meeting has neither.
 func (s *AskUNIService) meetingRecordExcerpt(ctx context.Context, tc ai.ToolContext, meetingID string, sum *db.MeetingSummary) (string, error) {
-	var b strings.Builder
-	if sum != nil {
-		b.WriteString("Tóm tắt: " + sum.Summary)
-		var topics []string
-		for _, t := range DecodeSummaryTopics(sum.Topics) {
-			topics = append(topics, t.Title)
-		}
-		if len(topics) > 0 {
-			b.WriteString("\nChủ đề: " + strings.Join(topics, "; "))
-		}
-		b.WriteString("\nQuyết định: " + summaryDecisionTexts(sum.Decisions))
-		if qs := DecodeSummaryDecisions(sum.OpenQuestions); len(qs) > 0 {
-			b.WriteString("\nCâu hỏi còn mở: " + summaryDecisionTexts(sum.OpenQuestions))
-		}
-	}
 	items, err := s.meetings.ActionItems(ctx, tc.ActorID, meetingID)
 	if err != nil {
 		return "", err
@@ -80,13 +65,27 @@ func (s *AskUNIService) meetingRecordExcerpt(ctx context.Context, tc ai.ToolCont
 			lines = append(lines, line)
 		}
 	}
+	// The items come first: the excerpt is cut at its tail, and the summary
+	// is what a cut can best spare (UNI-1995 #17).
+	var parts []string
 	if len(lines) > 0 {
-		if b.Len() > 0 {
-			b.WriteString("\n")
-		}
-		b.WriteString("Việc cần làm:\n" + strings.Join(lines, "\n"))
+		parts = append(parts, "Việc cần làm:\n"+strings.Join(lines, "\n"))
 	}
-	return b.String(), nil
+	if sum != nil {
+		parts = append(parts, "Tóm tắt: "+sum.Summary)
+		var topics []string
+		for _, t := range DecodeSummaryTopics(sum.Topics) {
+			topics = append(topics, t.Title)
+		}
+		if len(topics) > 0 {
+			parts = append(parts, "Chủ đề: "+strings.Join(topics, "; "))
+		}
+		parts = append(parts, "Quyết định: "+summaryDecisionTexts(sum.Decisions))
+		if qs := DecodeSummaryDecisions(sum.OpenQuestions); len(qs) > 0 {
+			parts = append(parts, "Câu hỏi còn mở: "+summaryDecisionTexts(sum.OpenQuestions))
+		}
+	}
+	return strings.Join(parts, "\n"), nil
 }
 
 // meetingSearchText is what a meeting said, for a search to score: its
