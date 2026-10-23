@@ -24,11 +24,13 @@ plan: `docs/superpowers/plans/2026-10-20-meeting-scribe-s1-base.md`; ADR 0038.
   đó; phiên đó đóng sau 300 s im thay vì 30 s để nhãn không vỡ qua mỗi lần ngắt). Nhãn mỗi đoạn: `<identity>:<job>-<track>-<số phiên>:<nhãn nhà cung cấp>`, `?` khi nhà
   cung cấp không gán được.
 - **Sức khoẻ STT (UNI-1995 #1):** `scribe/health.py` — mọi phiên của cuộc họp lỗi liên tục 20 s mà
-  không track nào ra lời thì agent đặt attribute của chính nó `uw.scribe_state=degraded` (về `ok` ở
-  lời đầu tiên); web đọc nó để hiện "tạm dừng, đang thử lại" và bật lại phụ đề trên máy. Đây là lý
+  không track nào ra lời (phải có lỗi ở cả hai đầu 20 s; một lỗi rồi phòng im không tính) thì agent
+  đặt attribute của chính nó `uw.scribe_state=degraded` (về `ok` ở lời đầu tiên, hoặc khi 45 s không
+  còn lỗi nào); web đọc nó để hiện "tạm dừng, đang thử lại" và bật lại phụ đề trên máy. Đây là lý
   do duy nhất worker có `can_update_metadata=True`: agent chỉ ghi attribute của mình.
 - **Lỗi STT không làm mất lời (#13):** âm thanh chưa có final (tối đa `BUFFER_MAX_S` = 30 s mỗi
-  track) và âm thanh nghe được trong lúc lùi lại được gửi vào phiên kế tiếp; lùi lại có jitter
+  track) và âm thanh nghe được trong lúc lùi lại được gửi vào phiên kế tiếp, trừ âm thanh nghe được
+  khi cuộc họp đang `degraded` (phòng đã tự ghi bằng phụ đề trên máy; phát lại sẽ ghi hai lần); lùi lại có jitter
   (0,5–1× của 1 s→30 s). `scribe_stt_errors_total{reason}`: `stream` | `push` | `session_limit`
   (1008/429 — giới hạn phiên mới mỗi phút); `scribe_stt_sessions_opened_total` đếm phiên mở.
 - **Micro hội trường:** `voice_focus="far-field"` và `max_speakers=10`; micro cá nhân `near-field`.
