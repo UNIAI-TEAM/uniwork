@@ -570,7 +570,7 @@
     "file_download": "Tải tệp",
     "file_drop_hint": "Thả tệp để gửi",
     "file_drop_detail": "Ảnh, PDF, Word, Excel hoặc văn bản · tối đa {{max}} mỗi tệp",
-    "file_type_unsupported": "Loại tệp không được hỗ trợ. Dùng ảnh, PDF hoặc văn bản thuần.",
+    "file_type_unsupported": "Loại tệp không được hỗ trợ. Dùng ảnh, PDF, văn bản thuần, CSV hoặc Markdown.",
     "voice_record_failed": "Không thể ghi âm. Kiểm tra quyền micro rồi thử lại.",
     "info_panel": {
       "title_group": "Thông tin nhóm",
