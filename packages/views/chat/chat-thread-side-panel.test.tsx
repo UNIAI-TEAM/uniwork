@@ -29,7 +29,9 @@ vi.mock("@uniwork/core/chat", async (orig) => ({
   useChatStickers: () => ({ data: [], isFetching: false }),
 }));
 
-vi.mock("./virtual-chat-message-list", () => ({
+vi.mock("./virtual-chat-message-list", async (importOriginal) => ({
+  // Keep the pure helpers (row keys, estimates) real; only the virtualizer and scroll hooks are stubbed.
+  ...(await importOriginal<typeof import("./virtual-chat-message-list")>()),
   updateStickToBottomFromScroll: () => true,
   useReaderScrollAt: () => ({ current: 0 }),
   VirtualChatMessageList: ({ messages, renderMessage }: { messages: unknown[]; renderMessage: (i: number) => unknown }) => (
