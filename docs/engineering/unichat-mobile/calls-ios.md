@@ -72,7 +72,12 @@ chi tiết phía server ở `calls.md` (mục "Cuộc gọi trên iPhone"). Đư
   transport: "apns_voip", apns_environment, apns_bundle_id }` — không cần EAS projectId hay quyền thông báo (CallKit reo
   không cần); lỗi chỉ ghi log, không chặn token Expo. Token PushKit đưa sau hay đổi (`watchPushTokenRotation`) đăng ký
   lại và gỡ cái cũ; tắt push trên máy (`setPushEnabled(false)`), đăng xuất (`unregisterPushToken`) gỡ nó cùng token
-  Expo; đăng xuất do server (`forgetPushToken`) chỉ quên. `data/api.test.ts` giữ thân request và câu trả lời trôi dạt.
+  Expo; đăng xuất do server (`forgetPushToken`) chỉ quên. Token VoIP đã đăng ký được giữ trong SecureStore
+  (`push_voip_token`) qua các lần mở và các bản cập nhật: bản có gọi gỡ token PushKit đã đổi lúc app đóng, còn bản
+  iPhone **không có gọi** (bản App Store sau bản TestFlight `UNICHAT_IOS_CALLS=1`) gỡ token bản trước để lại ở lần đăng
+  ký push đầu tiên (giữ lại để thử ở lần mở sau nếu gỡ lỗi). Không gỡ thì server vẫn reo phiên đó qua VoIP và bỏ push
+  "X đang gọi" của cùng phiên khi công tắc bật cho người đó, trong khi bản đó không có PushKit để reo.
+  `data/api.test.ts` giữ thân request và câu trả lời trôi dạt.
 - `data/calls/call-session.ts` (khởi ở `app/_layout.tsx`, trước mọi listener khác của module): nghe trước rồi lấy sự
   kiện cũ. `answered` → mở `uniworkchat://open?url=/<org>/<ws>/chat?room=<room>&call=<call_id>` như một lần chạm
   thông báo (chưa đăng nhập thì giữ tới sau đăng nhập); tab Chat (`components/chat/use-deep-link-target.ts`) thấy

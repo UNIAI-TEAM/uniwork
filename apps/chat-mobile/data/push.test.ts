@@ -18,7 +18,7 @@ function emitDeviceToken(data: unknown) {
 }
 vi.mock("expo-notifications", () => notifications);
 
-// the push preference's one SecureStore key, in memory
+// the push preference's SecureStore key and the VoIP token kept for a later build, in memory
 const store = vi.hoisted(() => ({ values: new Map<string, string>(), failRead: false }));
 vi.mock("expo-secure-store", () => ({
   getItemAsync: vi.fn(async (key: string) => {
@@ -27,6 +27,9 @@ vi.mock("expo-secure-store", () => ({
   }),
   setItemAsync: vi.fn(async (key: string, value: string) => {
     store.values.set(key, value);
+  }),
+  deleteItemAsync: vi.fn(async (key: string) => {
+    store.values.delete(key);
   }),
 }));
 
@@ -389,5 +392,83 @@ describe("the VoIP token (an iPhone with calls)", () => {
     forgetPushToken();
     await unregisterPushToken(api);
     expect(api.unsubscribePush).toHaveBeenCalledTimes(1);
+  });
+  // A TestFlight build with calls, then the App Store build without them as an update: the apns_voip subscription
+  // stays tied to the same session, the server rings it with VoIP (and so skips the Expo "đang gọi" alert of that
+  // session) while unichat_mobile_calls_ios is on for the person, and nothing on the phone has PushKit to ring.
+  it("is dropped by a later iPhone build without calls, which has no PushKit to name it", async () => {
+    const first = await load();
+    await first.registerPushToken({ api, projectId: undefined, platform: "ios", voip: fakeVoip().voip });
+    expect(store.values.get("push_voip_token")).toBe("ab12");
+
+    const update = await load();
+    await update.registerPushToken({ api, projectId: "p1", platform: "ios", voip: null });
+    expect(api.unsubscribePush.mock.calls).toEqual([[{ endpoint: "ab12" }]]);
+    expect(store.values.has("push_voip_token")).toBe(false);
+    await update.registerPushToken({ api, projectId: "p1", platform: "ios", voip: null });
+    expect(api.unsubscribePush).toHaveBeenCalledTimes(1);
+  });
+
+  it("is kept to drop at the next launch when the server cannot be told, and Android never looks", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    store.values.set("push_voip_token", "ab12");
+    const { registerPushToken } = await load();
+    await registerPushToken({ api, projectId: undefined, platform: "android" });
+    expect(api.unsubscribePush).not.toHaveBeenCalled();
+    api.unsubscribePush.mockRejectedValueOnce(new Error("offline"));
+    await registerPushToken({ api, projectId: undefined, platform: "ios" });
+    api.unsubscribePush.mockRejectedValueOnce("offline");
+    await registerPushToken({ api, projectId: undefined, platform: "ios" });
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(store.values.get("push_voip_token")).toBe("ab12");
+    await registerPushToken({ api, projectId: undefined, platform: "ios" });
+    expect(api.unsubscribePush).toHaveBeenLastCalledWith({ endpoint: "ab12" });
+    expect(store.values.has("push_voip_token")).toBe(false);
+  });
+
+  it("drops the token PushKit replaced while the app was closed", async () => {
+    store.values.set("push_voip_token", "ab12");
+    const { registerPushToken } = await load();
+    await registerPushToken({ api, projectId: undefined, platform: "ios", voip: fakeVoip("cd34").voip });
+    expect(api.subscribePush).toHaveBeenCalledWith({ ...VOIP, endpoint: "cd34" });
+    expect(api.unsubscribePush.mock.calls).toEqual([[{ endpoint: "ab12" }]]);
+    expect(store.values.get("push_voip_token")).toBe("cd34");
+  });
+
+  it("goes with push turned off or a sign-out in a build without calls, and is forgotten with the session", async () => {
+    store.values.set("push_voip_token", "ab12");
+    const off = await load();
+    await off.setPushEnabled(false, { api, projectId: undefined, platform: "ios", voip: null });
+    expect(api.unsubscribePush.mock.calls).toEqual([[{ endpoint: "ab12" }]]);
+    expect(store.values.has("push_voip_token")).toBe(false);
+
+    store.values.set("push_voip_token", "ab12");
+    const signOut = await load();
+    await signOut.unregisterPushToken(api);
+    expect(api.unsubscribePush).toHaveBeenCalledTimes(2);
+    expect(store.values.has("push_voip_token")).toBe(false);
+
+    store.values.set("push_voip_token", "ab12");
+    const ended = await load();
+    ended.forgetPushToken();
+    expect(store.values.has("push_voip_token")).toBe(false);
+  });
+
+  it("registers still when the keychain cannot keep the token", async () => {
+    const { registerPushToken } = await load();
+    const set = (await import("expo-secure-store")).setItemAsync as unknown as ReturnType<typeof vi.fn>;
+    set.mockRejectedValueOnce(new Error("keychain locked"));
+    await registerPushToken({ api, projectId: undefined, platform: "ios", voip: fakeVoip().voip });
+    expect(api.subscribePush).toHaveBeenCalledWith(VOIP);
+    expect(store.values.has("push_voip_token")).toBe(false);
+  });
+
+  it("reads as none when the keychain cannot be read", async () => {
+    const { registerPushToken } = await load();
+    store.values.set("push_voip_token", "ab12");
+    const get = (await import("expo-secure-store")).getItemAsync as unknown as ReturnType<typeof vi.fn>;
+    get.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error("keychain locked"));
+    await registerPushToken({ api, projectId: undefined, platform: "ios" });
+    expect(api.unsubscribePush).not.toHaveBeenCalled();
   });
 });

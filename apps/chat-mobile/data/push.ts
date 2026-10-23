@@ -10,7 +10,9 @@
 // An iPhone build with calls also registers PushKit's VoIP token, as a
 // subscription of its own (docs/adr/0038): no Expo project and no notification
 // permission needed (CallKit rings without either), the same switch, the same
-// sign-out.
+// sign-out. The token is kept across launches and updates too: an iPhone build
+// without calls (an App Store build after a TestFlight one with them) has no
+// PushKit to name it, and drops it with the kept copy.
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import type { ApiClient, PushSubscription } from "./api";
@@ -59,6 +61,33 @@ let lastDeviceToken: string | null = null;
 /** The VoIP token last registered, as `registeredToken` is the Expo one. */
 let registeredVoip: string | null = null;
 
+/**
+ * The VoIP token this phone last registered, in SecureStore across launches and app updates. While the server holds it,
+ * it rings this session through CallKit and skips the session's Expo "đang gọi" alert: a later build without calls,
+ * which has no PushKit to ring or to name the token, drops it from here. A build with calls drops the token PushKit
+ * replaced while the app was closed.
+ */
+const VOIP_TOKEN_KEY = "push_voip_token";
+
+/** Unreadable reads as none: nothing to drop. */
+async function keptVoip(): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(VOIP_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Best effort: a copy not written is a token left to APNs' 410; one not deleted is dropped again, a no-op. */
+async function keepVoip(token: string | null): Promise<void> {
+  try {
+    if (token) await SecureStore.setItemAsync(VOIP_TOKEN_KEY, token);
+    else await SecureStore.deleteItemAsync(VOIP_TOKEN_KEY);
+  } catch {
+    // kept as it was
+  }
+}
+
 /** The person's choice for this device: on until they turn it off; an unreadable store reads as on. */
 export async function isPushEnabled(): Promise<boolean> {
   try {
@@ -80,17 +109,35 @@ function voipSubscription(token: string, voip: VoipPushSource): PushSubscription
   };
 }
 
+/** An iPhone build without calls: the VoIP token a build with calls registered on this phone goes (kept on failure). */
+async function dropKeptVoip(api: PushApi): Promise<void> {
+  const kept = await keptVoip();
+  if (!kept) return;
+  try {
+    await api.unsubscribePush({ endpoint: kept });
+    await keepVoip(null);
+  } catch (err) {
+    log.warn("VoIP token of an earlier build not dropped", { error: err instanceof Error ? err.name : typeof err });
+  }
+}
+
 /**
  * Registers the VoIP token PushKit holds now (none yet: watchPushTokenRotation registers it when it comes), and drops
- * the one it replaces. Failures are logged, never thrown: the Expo token's registration goes on regardless.
+ * the one it replaces, this launch's or the last one's. An iPhone build without calls drops the one a build with calls
+ * left. Failures are logged, never thrown: the Expo token's registration goes on regardless.
  */
-async function registerVoip(api: PushApi, voip: VoipPushSource | null | undefined): Promise<void> {
-  const token = voip?.token();
-  if (!voip || !token) return;
+async function registerVoip(api: PushApi, voip: VoipPushSource | null | undefined, platform: string): Promise<void> {
+  if (!voip) {
+    if (platform === "ios") await dropKeptVoip(api);
+    return;
+  }
+  const token = voip.token();
+  if (!token) return;
   try {
     await api.subscribePush(voipSubscription(token, voip));
-    const previous = registeredVoip;
+    const previous = registeredVoip ?? (await keptVoip());
     registeredVoip = token;
+    await keepVoip(token);
     if (previous && previous !== token) await api.unsubscribePush({ endpoint: previous });
   } catch (err) {
     log.warn("VoIP registration failed", { error: err instanceof Error ? err.name : typeof err });
@@ -100,7 +147,7 @@ async function registerVoip(api: PushApi, voip: VoipPushSource | null | undefine
 /** Resolves to the registered Expo push token, or null when nothing was registered. */
 export async function registerPushToken({ api, projectId, platform, channels, callUI, ask, voip }: RegisterPushOptions): Promise<string | null> {
   if (!(await isPushEnabled())) return null;
-  await registerVoip(api, voip);
+  await registerVoip(api, voip, platform);
   if (!projectId) {
     if (!skipLogged) {
       skipLogged = true;
@@ -145,9 +192,10 @@ export async function setPushEnabled(enabled: boolean, options: RegisterPushOpti
   }
   if (token) await options.api.unsubscribePush({ endpoint: token });
   registeredToken = null;
-  const voipToken = registeredVoip ?? options.voip?.token();
+  const voipToken = registeredVoip ?? options.voip?.token() ?? (await keptVoip());
   if (voipToken) await options.api.unsubscribePush({ endpoint: voipToken });
   registeredVoip = null;
+  await keepVoip(null);
   await SecureStore.setItemAsync(PUSH_PREF_KEY, "off");
   return null;
 }
@@ -180,7 +228,7 @@ export function watchPushTokenRotation(options: RegisterPushOptions): () => void
 }
 
 async function registerVoipIfEnabled(options: RegisterPushOptions): Promise<void> {
-  if (await isPushEnabled()) await registerVoip(options.api, options.voip);
+  if (await isPushEnabled()) await registerVoip(options.api, options.voip, options.platform);
 }
 
 async function registerAgain(options: RegisterPushOptions, previous: string): Promise<void> {
@@ -194,10 +242,12 @@ async function registerAgain(options: RegisterPushOptions, previous: string): Pr
 
 /** Logout: drop the device's subscription while the session can still authorize the call. */
 export async function unregisterPushToken(api: PushApi): Promise<void> {
-  const tokens = [registeredToken, registeredVoip].filter((token): token is string => token !== null);
+  const voip = registeredVoip ?? (await keptVoip());
+  const tokens = [registeredToken, voip].filter((token): token is string => token !== null);
   registeredToken = null;
   registeredVoip = null;
   for (const token of tokens) await api.unsubscribePush({ endpoint: token });
+  await keepVoip(null);
 }
 
 /**
@@ -209,4 +259,5 @@ export async function unregisterPushToken(api: PushApi): Promise<void> {
 export function forgetPushToken(): void {
   registeredToken = null;
   registeredVoip = null;
+  void keepVoip(null);
 }

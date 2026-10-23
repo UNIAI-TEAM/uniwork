@@ -923,6 +923,8 @@ hai tài khoản cùng tổ chức, A gọi B; B là iPhone):
 - [ ] Cài đặt › Thông báo trong app › tắt push trên máy: hàng `apns_voip` của máy bị gỡ, A gọi thì iPhone không reo; bật
   lại thì hàng quay lại. Đăng xuất: hàng bị gỡ.
 - [ ] Bản cài từ Xcode (ký development) đăng ký `apns_environment = 'sandbox'` và reo qua APNs sandbox.
+- [ ] Bản TestFlight có gọi, rồi cập nhật lên một bản không có gọi (không `UNICHAT_IOS_CALLS`) giữ nguyên đăng nhập, mở
+  app một lần: hàng `apns_voip` của máy bị gỡ; A gọi thì máy nhận push "A đang gọi" như iPhone chưa có CallKit.
 - [ ] `unichat_mobile_calls_ios` tắt: iPhone không reo, không có nút gọi; cuộc gọi đang diễn ra không bị cắt.
 
 ## Triệu chứng
