@@ -24,7 +24,9 @@
 //                                    [--min-version 0.4.0]
 //
 // Runs daily and on every PR that touches the pins (.github/workflows/chat-mobile-tls-pins.yml). Prints GitHub
-// annotations and, under Actions, a table in the step summary; exits 1 on any error.
+// annotations and, under Actions, a table in the step summary; exits 1 on any error. The CA issuing each pinned host's
+// certificate in deploy/ is held to the pinned operators' ACME directories by certManagerProblems, which the
+// contract test (scripts/mobile-tls-pins.test.mjs) runs on every PR touching deploy/edge.
 import { execFileSync } from "node:child_process";
 import { X509Certificate, createHash } from "node:crypto";
 import fs from "node:fs";
@@ -40,6 +42,7 @@ const LEAF_WARN_DAYS = 14;
 /** Each store binary is built from a tag `chat-mobile-v<version>` (chat-mobile-release.yml). */
 export const TAG_PREFIX = "chat-mobile-v";
 const DEPLOY_ENV = "deploy/app/env/uniwork-be.env";
+const RUNBOOK_BEFORE = "runbook docs/runbooks/unichat-tls-pins.md › Khắc phục › Trước khi đổi";
 const HOSTNAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 
 /** The base64 SHA-256 of a certificate's SubjectPublicKeyInfo, from its DER bytes or its PEM text. */
@@ -260,6 +263,216 @@ export async function checkPins({ file, shipped = [], now = new Date(), warnDays
     else rows.push({ host: name, variants: [], level: "error", message, chain });
   }
   return { errors, warnings, rows, expiry, shipped: shipped.map((set) => set.tag) };
+}
+
+/** The ACME directories whose certificates chain to a pinned root, by the operator named in tls-pins.json › pins. */
+const ACME_DIRECTORIES = {
+  "https://acme-v02.api.letsencrypt.org/directory": "ISRG (Let's Encrypt)",
+  "https://dv.acme-v02.api.pki.goog/directory": "Google Trust Services",
+};
+
+// A YAML reader for the subset deploy manifests use (block maps and lists, flow lists and maps of scalars, comments,
+// several documents): enough to read cert-manager's kinds with Node alone, as the workflow installs nothing.
+function stripComment(line) {
+  let quote = "";
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (quote) {
+      if (char === quote) quote = "";
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === "#" && (i === 0 || /\s/.test(line[i - 1]))) {
+      return line.slice(0, i);
+    }
+  }
+  return line;
+}
+
+function splitFlow(body) {
+  const parts = [];
+  let depth = 0;
+  let quote = "";
+  let current = "";
+  for (const char of body) {
+    if (quote) quote = char === quote ? "" : quote;
+    else if (char === '"' || char === "'") quote = char;
+    else if (char === "[" || char === "{") depth++;
+    else if (char === "]" || char === "}") depth--;
+    if (char === "," && depth === 0 && !quote) {
+      parts.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  if (current.trim()) parts.push(current);
+  return parts.map((part) => part.trim());
+}
+
+const MAP_ENTRY = /^("[^"]*"|'[^']*'|[^\s"'{[][^:]*?):(?:\s+(.*))?$/;
+
+function scalar(text) {
+  const value = text.trim();
+  if (/^".*"$|^'.*'$/.test(value)) return value.slice(1, -1);
+  if (value.startsWith("[") && value.endsWith("]")) return splitFlow(value.slice(1, -1)).map(scalar);
+  if (value.startsWith("{") && value.endsWith("}")) {
+    return Object.fromEntries(
+      splitFlow(value.slice(1, -1)).map((entry) => {
+        const match = MAP_ENTRY.exec(entry);
+        if (!match) throw new Error(`not a flow mapping entry: ${entry}`);
+        return [scalar(match[1]), match[2] === undefined ? null : scalar(match[2])];
+      }),
+    );
+  }
+  return value;
+}
+
+const isItem = (text) => text === "-" || text.startsWith("- ");
+
+function parseNode(lines, i, indent) {
+  return isItem(lines[i].text) ? parseList(lines, i, indent) : parseMap(lines, i, indent);
+}
+
+function parseList(lines, i, indent) {
+  const list = [];
+  while (i < lines.length && lines[i].indent === indent && isItem(lines[i].text)) {
+    const rest = lines[i].text.slice(1).trimStart();
+    if (rest === "") {
+      i++;
+      if (i < lines.length && lines[i].indent > indent) {
+        let value;
+        [value, i] = parseNode(lines, i, lines[i].indent);
+        list.push(value);
+      } else list.push(null);
+    } else if (MAP_ENTRY.test(rest) && !/^[[{"']/.test(rest)) {
+      const childIndent = indent + (lines[i].text.length - rest.length);
+      lines[i] = { indent: childIndent, text: rest };
+      let value;
+      [value, i] = parseMap(lines, i, childIndent);
+      list.push(value);
+    } else {
+      list.push(scalar(rest));
+      i++;
+    }
+  }
+  return [list, i];
+}
+
+function parseMap(lines, i, indent) {
+  const map = {};
+  while (i < lines.length && lines[i].indent === indent && !isItem(lines[i].text)) {
+    const match = MAP_ENTRY.exec(lines[i].text);
+    if (!match) throw new Error(`not a mapping entry: ${lines[i].text}`);
+    const key = scalar(match[1]);
+    i++;
+    if (match[2] !== undefined && match[2] !== "") {
+      map[key] = scalar(match[2]);
+    } else if (i < lines.length && (lines[i].indent > indent || (lines[i].indent === indent && isItem(lines[i].text)))) {
+      [map[key], i] = parseNode(lines, i, lines[i].indent);
+    } else {
+      map[key] = null;
+    }
+  }
+  if (i < lines.length && lines[i].indent > indent) throw new Error(`unexpected indentation: ${lines[i].text}`);
+  return [map, i];
+}
+
+function parseYamlDocument(text) {
+  const lines = text
+    .split("\n")
+    .map((line) => stripComment(line).replace(/\s+$/, ""))
+    .filter((line) => line.trim() !== "")
+    .map((line) => ({ indent: line.length - line.trimStart().length, text: line.trim() }));
+  if (lines.length === 0) return null;
+  const [value, end] = parseNode(lines, 0, lines[0].indent);
+  if (end !== lines.length) throw new Error(`unexpected line: ${lines[end].text}`);
+  return value;
+}
+
+const CERT_MANAGER_KIND = /^kind:\s*(?:ClusterIssuer|Issuer|Certificate)\s*$|cert-manager\.io\/(?:cluster-)?issuer\b/m;
+
+/** The cert-manager issuers and certificates (and Ingresses that ask cert-manager for one) in a deploy tree. */
+export function readCertManagerManifests(dir) {
+  const docs = [];
+  const walk = (current) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.ya?ml$/.test(entry.name)) {
+        for (const text of fs.readFileSync(full, "utf8").split(/^---[ \t]*$/m)) {
+          if (!CERT_MANAGER_KIND.test(text)) continue;
+          let doc;
+          try {
+            doc = parseYamlDocument(text);
+          } catch (error) {
+            throw new Error(`${path.relative(ROOT, full)}: ${error.message}`);
+          }
+          if (doc && typeof doc === "object") docs.push({ ...doc, source: path.relative(ROOT, full) });
+        }
+      }
+    }
+  };
+  walk(dir);
+  return docs;
+}
+
+/** Does a certificate name (maybe a wildcard) cover this host? */
+const covers = (dnsName, host) => {
+  const name = String(dnsName).toLowerCase();
+  if (!name.startsWith("*.")) return name === host;
+  return host.endsWith(name.slice(1)) && !host.slice(0, -name.length + 1).includes(".");
+};
+
+/**
+ * Every certificate the deploy has cert-manager issue for a host the pins cover must come from an ACME issuer the repo
+ * defines whose directory belongs to an operator tls-pins.json pins: [] or one message per offending certificate.
+ */
+export function certManagerProblems({ docs, file }) {
+  const hosts = [...new Set(pinnedHosts(file).map(({ host }) => host))];
+  const operators = new Set((file.pins ?? []).map((pin) => pin.operator));
+  const issuers = new Map();
+  for (const doc of docs) {
+    if (doc.kind === "ClusterIssuer") issuers.set(`ClusterIssuer ${doc.metadata?.name}`, doc);
+    if (doc.kind === "Issuer") issuers.set(`Issuer ${doc.metadata?.namespace ?? "default"}/${doc.metadata?.name}`, doc);
+  }
+  const allowed = Object.entries(ACME_DIRECTORIES)
+    .filter(([, operator]) => operators.has(operator))
+    .map(([url, operator]) => `${url} (${operator})`)
+    .join(", ");
+  const issuerProblem = (key) => {
+    const issuer = issuers.get(key);
+    if (!issuer) return `${key} is not defined under deploy/, so the repo cannot tell which CA it uses`;
+    const acme = issuer.spec?.acme;
+    if (!acme) return `${key} (${issuer.source}) is not an ACME issuer (${Object.keys(issuer.spec ?? {}).join(", ") || "no spec"}): no binary pins its CA`;
+    const operator = ACME_DIRECTORIES[acme.server];
+    if (!operator || !operators.has(operator)) return `${key} (${issuer.source}) uses ${acme.server}, not the ACME directory of a pinned CA operator (${allowed || "none"})`;
+    return null;
+  };
+  const problems = [];
+  const check = (subject, source, names, key) => {
+    const pinned = hosts.filter((host) => names.some((name) => covers(name, host)));
+    if (pinned.length === 0) return;
+    const problem = issuerProblem(key);
+    if (problem) problems.push(`${subject} (${source}) is issued for ${pinned.join(", ")}, which every UniChat binary pins, but ${problem}: phones lose the server once it is applied (${RUNBOOK_BEFORE})`);
+  };
+  for (const doc of docs) {
+    const namespace = doc.metadata?.namespace ?? "default";
+    const subject = `${doc.kind} ${namespace}/${doc.metadata?.name}`;
+    if (doc.kind === "Certificate") {
+      const ref = doc.spec?.issuerRef ?? {};
+      const kind = ref.kind ?? "Issuer";
+      const names = [...(doc.spec?.dnsNames ?? []), ...(doc.spec?.commonName ? [doc.spec.commonName] : [])];
+      check(subject, doc.source, names, kind === "ClusterIssuer" ? `ClusterIssuer ${ref.name}` : `Issuer ${namespace}/${ref.name}`);
+    }
+    const annotations = doc.metadata?.annotations ?? {};
+    const cluster = annotations["cert-manager.io/cluster-issuer"];
+    const local = annotations["cert-manager.io/issuer"];
+    if (doc.kind !== "Certificate" && (cluster || local)) {
+      const names = (doc.spec?.tls ?? []).flatMap((entry) => entry?.hosts ?? []);
+      check(subject, doc.source, names, cluster ? `ClusterIssuer ${cluster}` : `Issuer ${namespace}/${local}`);
+    }
+  }
+  return problems;
 }
 
 function summary({ rows, expiry, shipped }) {

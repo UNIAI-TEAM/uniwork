@@ -16,7 +16,10 @@ name: UniChat mobile TLS pins
 # script reads the pin-set of each chat-mobile-v* tag at or above the server's
 # minimum supported version and is red when a host's chain matches none of
 # one of them, naming the oldest binary locked out; so the checkout carries
-# every tag (fetch-depth: 0).
+# every tag (fetch-depth: 0). The contract test also holds the issuer of every
+# certificate deploy/ has cert-manager issue for a pinned host to a pinned CA
+# operator's ACME directory: a PR pointing one elsewhere is red before it is
+# applied, which the live check cannot see.
 #
 # Reads no secret and no setting. A red scheduled run notifies whoever last
 # edited the schedule; the runbook asks the mobile owner to watch this
@@ -32,7 +35,8 @@ on:
       - apps/chat-mobile/plugins/with-tls-pins.js
       - scripts/mobile-tls-pins.mjs
       - deploy/app/env/uniwork-be.env
-      - deploy/edge/**
+      - deploy/**/*.yaml
+      - deploy/**/*.yml
       - .github/workflows/chat-mobile-tls-pins.yml
   workflow_dispatch:
 
@@ -61,8 +65,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       # Node built-ins only: no install. The contract first (each pin is its committed certificate's key, two CA
-      # operators, production pins every host deploy/app/env/uniwork-be.env names), then the live chains against HEAD's
-      # pin-set and every shipped one.
+      # operators, production pins every host deploy/app/env/uniwork-be.env names, cert-manager issues pinned hosts'
+      # certificates from a pinned operator's ACME directory), then the live chains against HEAD's pin-set and every
+      # shipped one.
       - name: The committed pins hold to their certificates and to the deployed hosts
         run: node --test scripts/mobile-tls-pins.test.mjs
       - name: Check every pinned host's live chain and the pin-set's expiry

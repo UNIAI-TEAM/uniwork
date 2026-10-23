@@ -6,7 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import tls from "node:tls";
-import { PINS_FILE, checkPins, chainVerdict, expiryStatus, fetchChain, minimumSupportedVersion, parseHostEntry, pinnedHosts, shippedPinSets, spkiPin } from "./mobile-tls-pins.mjs";
+import { PINS_FILE, certManagerProblems, checkPins, chainVerdict, expiryStatus, fetchChain, minimumSupportedVersion, parseHostEntry, pinnedHosts, readCertManagerManifests, shippedPinSets, spkiPin } from "./mobile-tls-pins.mjs";
 
 // The TLS pins every UniChat staging and production binary carries (apps/chat-mobile/tls-pins.json, runbook
 // docs/runbooks/unichat-tls-pins.md): the committed file is held to its certificates and to the servers the deploy
@@ -252,4 +252,97 @@ test("a chain no shipped binary's pins match is red even when HEAD's pins match 
 
   const fine = await checkPins({ file: head, shipped: shipped.slice(2), now: NOW, fetch, attempts: 1, sleep: async () => {} });
   assert.deepEqual(fine.errors, []);
+});
+
+// The one infrastructure change the repo sees before it happens: the issuer of a pinned host's certificate. A PR
+// that points it at a CA no binary pins is red here, before it is applied (runbook › Trước khi đổi).
+test("every certificate the deploy issues for a pinned host comes from the ACME directory of a pinned CA operator", () => {
+  const docs = readCertManagerManifests(path.join(root, "deploy"));
+  assert.ok(docs.some((doc) => doc.kind === "Certificate"), "the deploy's certificates are read");
+  assert.deepEqual(certManagerProblems({ docs, file: committed }), []);
+});
+
+test("refuses an unpinned ACME directory, a CA or self-signed issuer, and an issuer the repo does not define", () => {
+  const issuer = (name, spec, kind = "ClusterIssuer") => ({ source: "deploy/x.yaml", kind, metadata: { name }, spec });
+  const certificate = (dnsNames, issuerRef) => ({ source: "deploy/c.yaml", kind: "Certificate", metadata: { name: "c", namespace: "edge" }, spec: { dnsNames, issuerRef } });
+  const file = { pins: PINS.map((pin, i) => ({ ...pin, operator: i === 0 ? "ISRG (Let's Encrypt)" : "Google Trust Services" })), hosts: { production: ["api.example", "live.example:7880"] } };
+  const le = issuer("le", { acme: { server: "https://acme-v02.api.letsencrypt.org/directory" } });
+  const gts = issuer("gts", { acme: { server: "https://dv.acme-v02.api.pki.goog/directory" } }, "Issuer");
+  gts.metadata.namespace = "edge";
+  assert.deepEqual(certManagerProblems({ docs: [le, gts, certificate(["api.example"], { name: "le", kind: "ClusterIssuer" }), certificate(["api.example"], { name: "gts" })], file }), []);
+  assert.deepEqual(certManagerProblems({ docs: [issuer("self", { selfSigned: {} }), certificate(["other.example"], { name: "self", kind: "ClusterIssuer" })], file }), [], "a host no binary pins may use any issuer");
+
+  const cases = [
+    [issuer("zerossl", { acme: { server: "https://acme.zerossl.com/v2/DV90" } }), /acme\.zerossl\.com.*not the ACME directory of a pinned CA operator/],
+    [issuer("le-staging", { acme: { server: "https://acme-staging-v02.api.letsencrypt.org/directory" } }), /not the ACME directory of a pinned CA operator/],
+    [issuer("own", { ca: { secretName: "root" } }), /not an ACME issuer/],
+    [issuer("self", { selfSigned: {} }), /not an ACME issuer/],
+  ];
+  for (const [bad, message] of cases) {
+    const problems = certManagerProblems({ docs: [bad, certificate(["api.example", "x.example"], { name: bad.metadata.name, kind: "ClusterIssuer" })], file });
+    assert.equal(problems.length, 1, problems.join("\n"));
+    assert.match(problems[0], message);
+    assert.match(problems[0], /api\.example/);
+    assert.match(problems[0], /Trước khi đổi/);
+  }
+  const missing = certManagerProblems({ docs: [certificate(["live.example"], { name: "elsewhere", kind: "ClusterIssuer" })], file });
+  assert.match(missing[0], /ClusterIssuer elsewhere.*not defined/);
+  const wrongNamespace = certManagerProblems({ docs: [{ ...gts, metadata: { name: "gts", namespace: "other" } }, certificate(["api.example"], { name: "gts" })], file });
+  assert.match(wrongNamespace[0], /Issuer edge\/gts.*not defined/, "an Issuer is namespaced: kind defaults to Issuer");
+  const wildcard = certManagerProblems({ docs: [issuer("own", { ca: {} }), certificate(["*.example"], { name: "own", kind: "ClusterIssuer" })], file });
+  assert.equal(wildcard.length, 1, "a wildcard name covers the pinned host");
+  // An operator not among the pins: the GTS directory stops counting the day its roots leave tls-pins.json.
+  const isrgOnly = { ...file, pins: file.pins.filter((pin) => pin.operator.startsWith("ISRG")) };
+  assert.match(certManagerProblems({ docs: [gts, certificate(["api.example"], { name: "gts" })], file: isrgOnly })[0], /not the ACME directory of a pinned CA operator/);
+  // An Ingress annotation makes cert-manager issue a certificate for its TLS hosts.
+  const ingress = { source: "deploy/i.yaml", kind: "Ingress", metadata: { name: "i", namespace: "edge", annotations: { "cert-manager.io/cluster-issuer": "own" } }, spec: { tls: [{ hosts: ["api.example"] }] } };
+  assert.match(certManagerProblems({ docs: [issuer("own", { ca: {} }), ingress], file })[0], /Ingress edge\/i/);
+});
+
+test("reads the cert-manager manifests of a deploy tree, block and flow style, comments and several documents", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tls-pins-deploy-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, "edge"));
+  fs.writeFileSync(
+    path.join(dir, "edge", "certs.yaml"),
+    [
+      "# the issuer",
+      "apiVersion: cert-manager.io/v1",
+      "kind: ClusterIssuer",
+      "metadata:",
+      "  name: le # inline comment",
+      "spec:",
+      "  acme:",
+      '    server: "https://acme-v02.api.letsencrypt.org/directory"',
+      "    solvers:",
+      "      - http01:",
+      "          ingress:",
+      "            class: apisix",
+      "---",
+      "apiVersion: cert-manager.io/v1",
+      "kind: Certificate",
+      "metadata:",
+      "  name: c",
+      "  namespace: edge",
+      "spec:",
+      "  dnsNames: [api.example, 'b.example']",
+      "  issuerRef: { name: le, kind: ClusterIssuer }",
+      "---",
+      "kind: Service",
+      "metadata: { name: unrelated }",
+      "",
+    ].join("\n"),
+  );
+  fs.writeFileSync(path.join(dir, "edge", "other.yml"), "kind: ConfigMap\ndata:\n  x: y\n");
+  const docs = readCertManagerManifests(dir);
+  assert.deepEqual(
+    docs.map((doc) => [doc.kind, doc.metadata.name, doc.source.endsWith("certs.yaml")]),
+    [
+      ["ClusterIssuer", "le", true],
+      ["Certificate", "c", true],
+    ],
+  );
+  assert.equal(docs[0].spec.acme.server, "https://acme-v02.api.letsencrypt.org/directory");
+  assert.deepEqual(docs[1].spec.dnsNames, ["api.example", "b.example"]);
+  assert.deepEqual(docs[1].spec.issuerRef, { name: "le", kind: "ClusterIssuer" });
 });

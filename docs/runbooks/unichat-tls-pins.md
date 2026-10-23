@@ -69,6 +69,13 @@ chưa đi qua mục Khắc phục › Trước khi đổi.
 - Cảnh báo `could not read the minimum supported version`: không đọc được `GET /api/v1/config`; job vẫn kiểm pin của
   **mọi** tag (chặt hơn, không lỏng hơn). Cảnh báo `<host> (pinned by chat-mobile-v…): unreachable`: host chỉ bản cũ
   còn ghim không trả lời — không khoá ai thêm, nhưng các bản đó cũng không tới được host ấy.
+- Test `every certificate the deploy issues for a pinned host comes from the ACME directory of a pinned CA operator`
+  đỏ trên một PR: PR đổi `issuerRef` của Certificate (hay annotation `cert-manager.io/*issuer` của Ingress) phủ một
+  host đã ghim sang issuer không phải ACME của Let's Encrypt (`acme-v02.api.letsencrypt.org`) hay Google Trust Services
+  (`dv.acme-v02.api.pki.goog`) — ZeroSSL, Buypass, CA tự quản, selfSigned, ACME staging — hay sang issuer không có trong
+  `deploy/`. Đó là khoá máy **trước khi** xảy ra: làm theo Khắc phục › Trước khi đổi, không sửa test.
+- Job cảnh báo (vàng): `the pin-set expires in N days` (≤ `warnDays`, 60 ngày) hay `the leaf certificate expires in N
+  days` (gia hạn ACME kẹt).
 - Người dùng mobile báo app "mất kết nối" ngay sau một lần đổi chứng chỉ/hạ tầng, trong khi web vẫn chạy; tỷ lệ
   `ApiError` status 0 của một bản tăng vọt.
 - Máy build EAS đỏ với `tls-pins.json › expires is in the past` hay `<host> is not pinned: add it to tls-pins.json ›
@@ -113,7 +120,9 @@ chưa đi qua mục Khắc phục › Trước khi đổi.
   `apps/chat-mobile/certs/tls-pins/` và một mục vào `pins` (tính pin như Kiểm tra › 2; chỉ lấy PEM từ kho chính thức
   của CA); (2) phát bản store mang pin mới; (3) đặt `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION` bằng bản đó và chờ đa số máy
   lên bản ấy (Sentry › Releases, Play Console, App Store Connect); (4) mới đổi CA. Bỏ qua bước 3 là khoá mọi iPhone còn
-  bản cũ — job hằng ngày đỏ ngay khi đó, nêu bản cũ nhất bị khoá, nhưng lúc ấy máy đã bị khoá rồi. Chạy job tay ngay trước bước 4:
+  bản cũ — job hằng ngày đỏ ngay khi đó, nêu bản cũ nhất bị khoá, nhưng lúc ấy máy đã bị khoá rồi. Nếu CA mới cấp qua
+  ACME, PR đổi issuer trong `deploy/` cũng phải thêm thư mục ACME của nó vào `ACME_DIRECTORIES` trong
+  `scripts/mobile-tls-pins.mjs` (test issuer đỏ cho tới lúc đó) — chỉ làm sau bước 3. Chạy job tay ngay trước bước 4:
   với mức tối thiểu mới, các bản thấp hơn không còn được kiểm.
 - **Thêm host** (đổi `LIVEKIT_URL`, thêm API host): thêm vào `hosts.<biến thể>` cùng PR với thay đổi deploy (test đỏ
   khi `deploy/app/env/uniwork-be.env` nêu host chưa ghim), chuỗi của host mới phải có một khoá đã ghim. Bản cũ không ghim
