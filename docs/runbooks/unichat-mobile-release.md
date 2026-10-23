@@ -232,7 +232,9 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    (`EXPO_APPLE_TEAM_ID` trên EAS, `UNICHAT_IOS_TEAM_ID` ở `deploy/app/env/uniwork-fe.env`), app App Store Connect
    "UniWork Chat" (tên "UniChat" đã có người giữ) Apple ID `6825689656` → `submit.production.ios.ascAppId`. EAS giữ
    chứng chỉ phân phối, profile, khoá APNs (`.p8` tự tạo ở Keys để server dùng cho push VoIP sau này) và khoá
-   App Store Connect API.
+   App Store Connect API. Tên đó là tên trên cả hai store (`store/listing.md › Tên trên store`, sinh ra
+   `store/apple/store.config.json` và `store/play/*/title.txt`; `store-listing.test.ts` giữ): Play Console › Main store
+   listing › App name cũng là "UniWork Chat". Tên dưới biểu tượng trên máy vẫn là "UniChat".
 4. Google: Play Console, tạo app `com.uniworkos.chat.staging`. Bản AAB đầu tiên phải tải tay (API của Google không tạo
    được bản đầu): `eas build -p android --profile internal`, tải `.aab` lên Internal testing. Service account Google
    Cloud có quyền phát hành trên app → khoá JSON tải lên EAS (`eas credentials -p android`, mục khoá cho submit). Khoá

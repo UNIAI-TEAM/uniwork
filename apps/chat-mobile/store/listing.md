@@ -2,12 +2,16 @@
 
 Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-1838); `scripts/store-metadata.mjs` sinh từ
 đây `store/apple/store.config.json` (EAS Metadata, `eas metadata:push`) và `store/play/<ngôn ngữ>/*.txt` (main store
-listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự của từng store; `store-listing.test.ts` đỏ khi chúng cũ. Tên hiển thị "UniChat", định danh
-`com.uniworkos.chat` (bản `internal` dùng `com.uniworkos.chat.staging`, tên "UniChat (Staging)"). Lý do và luật: spec
+listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự của từng store; `store-listing.test.ts` đỏ khi chúng cũ. Tên trên cả hai store là "UniWork Chat":
+App Store Connect giữ app dưới tên đó vì "UniChat" đã có người giữ (`docs/evidence/unichat/release-accounts.md`), và
+`eas metadata:push` gửi tên khác là xin đổi sang một tên không được phép. Tên dưới biểu tượng trên máy vẫn là "UniChat",
+định danh `com.uniworkos.chat` (bản `internal` dùng `com.uniworkos.chat.staging`, tên "UniChat (Staging)"). Lý do và luật: spec
 `docs/superpowers/specs/2026-10-16-chat-native-apps-design.md` §3.1, §3.4, §11; quy trình nộp:
 `docs/runbooks/unichat-mobile-release.md`. Chữ ở đây là bản nháp; chủ sở hữu duyệt trước lần nộp production (Q1).
 
 ## Mô tả
+
+**Tên trên store (≤ 30 ký tự):** UniWork Chat
 
 **vi — phụ đề (≤ 30 ký tự):** Nhắn tin và gọi cho cả đội
 
