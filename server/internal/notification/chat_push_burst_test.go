@@ -1,11 +1,14 @@
 package notification
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // burstDM sends one DM from the owner to the member and returns its message
@@ -78,8 +81,13 @@ func TestEveryChatMessagePushesAndABurstAlertsOnce(t *testing.T) {
 	}
 	alerted := n.PhonePushedAt.Time
 
-	// Past the window the room alerts again, and that alert restarts it.
-	pc.now = func() time.Time { return alerted.Add(chatAlertWindow + time.Second) }
+	// Past the window the room alerts again, and that alert restarts it. The
+	// window runs on the database's clock, so the last alert is moved back.
+	if _, err := f.pool.Exec(f.ctx, `UPDATE notifications SET phone_pushed_at = phone_pushed_at - $2::interval WHERE id = $1`,
+		n.ID, (chatAlertWindow + time.Second).String()); err != nil {
+		t.Fatal(err)
+	}
+	alerted = alerted.Add(-chatAlertWindow - time.Second)
 	fourthID, fourth := burstDM(t, f, chat, dm, "bốn")
 	handle(fourth)
 	phone = sentTo("ExponentPushToken[android]")
@@ -139,5 +147,120 @@ func TestAPushRowWithoutAMessageKeepsTheOncePerRowRule(t *testing.T) {
 	}
 	if len(spy.sent) != 3 { // the Android phone, the iPhone and the browser, once
 		t.Fatalf("legacy push row sent %d pushes, want 3", len(spy.sent))
+	}
+}
+
+// raceSender is a spySender that runs during, once, in the middle of the
+// first send: another push of the same row handled by another lane worker
+// while this one is on the network.
+type raceSender struct {
+	spySender
+	during func()
+}
+
+func (s *raceSender) Send(ctx context.Context, sub db.PushSubscription, m PushMessage) error {
+	err := s.spySender.Send(ctx, sub, m)
+	if h := s.during; h != nil {
+		s.during = nil
+		h()
+	}
+	return err
+}
+
+// phonePushes are the pushes that went to the member's Android phone.
+func phonePushes(s *spySender) []PushMessage {
+	var out []PushMessage
+	for i, m := range s.sent {
+		if s.endpoints[i] == "ExponentPushToken[android]" && m.Cleared == (RoomCleared{}) {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// Two lane workers on two pushes of one room: the push that claimed the row
+// first decides. An older message reached while a newer one is on its way
+// sends nothing (it would replace the newer one in the tray), and a burst
+// still alerts once although both pushes read the row before either sent.
+func TestConcurrentPushesOfARoomClaimTheRowBeforeSending(t *testing.T) {
+	f, chat, dm := roomFixture(t)
+	spy := &raceSender{}
+	pc := NewPushConsumer(f.q, spy, "http://app.test")
+	handle := func(ev outbox.Row) {
+		t.Helper()
+		if err := pc.Handle(f.ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	firstID, first := burstDM(t, f, chat, dm, "một")
+	secondID, second := burstDM(t, f, chat, dm, "hai")
+	// The second message's push runs while the first one's is on the network.
+	spy.during = func() { handle(second) }
+	handle(first)
+	phone := phonePushes(&spy.spySender)
+	alerts := 0
+	for _, m := range phone {
+		if !m.Quiet {
+			alerts++
+		}
+	}
+	if alerts != 1 {
+		t.Fatalf("phone pushes = %+v, want one alert for the burst of %s and %s", phone, firstID, secondID)
+	}
+
+	_, third := burstDM(t, f, chat, dm, "ba")
+	fourthID, fourth := burstDM(t, f, chat, dm, "bốn")
+	before := len(phonePushes(&spy.spySender))
+	// The older message's push runs while the newer one's is on the network: it sends nothing.
+	spy.during = func() { handle(third) }
+	handle(fourth)
+	phone = phonePushes(&spy.spySender)[before:]
+	if len(phone) != 1 || phone[0].Chat.MessageID != fourthID {
+		t.Fatalf("phone pushes = %+v, want only the newer message %s", phone, fourthID)
+	}
+}
+
+// A push the lane fails to send gives its claim back, so the retry sends it,
+// and alerts, as the first try would have.
+func TestAFailedChatPushIsSentByItsRetry(t *testing.T) {
+	f, chat, dm := roomFixture(t)
+	spy := &spySender{err: errors.New("expo down")}
+	pc := NewPushConsumer(f.q, spy, "http://app.test")
+	msgID, ev := burstDM(t, f, chat, dm, "một")
+	if err := pc.Handle(f.ctx, ev); err == nil {
+		t.Fatal("a failed send acknowledged its row")
+	}
+	spy.err = nil
+	failed := len(spy.sent)
+	if err := pc.Handle(f.ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	phone := phonePushes(spy)
+	if len(spy.sent) == failed || phone[len(phone)-1].Chat.MessageID != msgID || phone[len(phone)-1].Quiet {
+		t.Fatalf("retry pushes = %+v, want an alerting push of %s", spy.sent[failed:], msgID)
+	}
+}
+
+// The order of a room's messages is the database's (created_at, then id), not
+// the ids alone: ids are minted on the API nodes' clocks, and a node a little
+// behind gives a later message a lower id. That message still pushes.
+func TestALaterMessageWithALowerIDStillPushes(t *testing.T) {
+	f, chat, dm := roomFixture(t)
+	spy := &spySender{}
+	pc := NewPushConsumer(f.q, spy, "http://app.test")
+	lowID, low := burstDM(t, f, chat, dm, "một")
+	_, high := burstDM(t, f, chat, dm, "hai")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE chat_messages SET created_at = now() + interval '1 second' WHERE id = $1`, lowID); err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range []outbox.Row{high, low} {
+		if err := pc.Handle(f.ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	phone := phonePushes(spy)
+	if len(phone) != 2 || phone[1].Chat.MessageID != lowID {
+		t.Fatalf("phone pushes = %+v, want the later message %s pushed last", phone, lowID)
 	}
 }

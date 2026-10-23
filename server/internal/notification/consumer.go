@@ -248,7 +248,7 @@ func (c *Consumer) write(ctx context.Context, eventID, correlationID string, d D
 	// exception (UNI-2141): every message pushes, as messengers do, naming its
 	// message so the push shows that message's words; the phone groups them
 	// under the row's tag and the push lane keeps a burst to one alert
-	// (PushConsumer.chatQuiet).
+	// (PushConsumer.claimChatPush).
 	chat := isChatPushKind(d.Kind)
 	if prefs.Push && (!merged || chat) {
 		payload := map[string]string{"notification_id": row.ID, "user_id": d.UserID}

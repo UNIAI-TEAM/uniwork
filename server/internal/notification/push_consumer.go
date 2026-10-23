@@ -189,8 +189,9 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		return err
 	}
 	// A chat push names its message (Consumer.write): each message of an open
-	// row pushes once, newest wins. A row without one was written before
-	// pushes went per message and keeps the once-per-row rule.
+	// row pushes once, newest wins, decided by claimChatPush right before the
+	// send. A row without one was written before pushes went per message and
+	// keeps the once-per-row rule.
 	messageID := ""
 	if isChatPushKind(n.Kind) {
 		messageID = p["message_id"]
@@ -198,8 +199,6 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	switch {
 	case n.ReadAt.Valid:
 		return nil // read on another device before the push went out
-	case messageID != "" && n.PushedMessageID.Valid && n.PushedMessageID.String >= messageID:
-		return nil // this message already went out, or a newer one of the row did
 	case messageID == "" && n.PushedAt.Valid:
 		return nil // already delivered
 	}
@@ -265,7 +264,6 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 			// Only an unanswered DM call notifies its log (ChatService.finalizeVoiceCall).
 			c.missedCall(&msg, user.Locale, params, n, chatMsg)
 		} else if messageID != "" {
-			msg.Quiet = c.chatQuiet(n)
 			if n.Count > 1 {
 				msg.Chat.Unread, msg.Chat.Summary = int(n.Count), chatUnreadSummary(user.Locale, int(n.Count))
 			}
@@ -313,6 +311,15 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		}
 	}
 	iPhonesRing := n.Kind == KindChatCallIncoming && (c.mobileCallsIOS == nil || c.mobileCallsIOS(ctx, n.UserID, n.OrganizationID))
+	var claim db.ClaimChatNotificationPushRow
+	if messageID != "" {
+		var claimed bool
+		claim, claimed, err = c.claimChatPush(ctx, n, chatMsg, subs, msg.Call.Type == CallPushMissed)
+		if err != nil || !claimed {
+			return err
+		}
+		msg.Quiet = !claim.Alerted
+	}
 	var failed error
 	phoneSent := false
 	for _, sub := range subs {
@@ -341,10 +348,13 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		}
 	}
 	if failed != nil {
+		if messageID != "" {
+			return errors.Join(failed, c.releaseChatPush(ctx, n, messageID, claim))
+		}
 		return failed
 	}
 	if messageID != "" {
-		return c.markChatPushed(ctx, n, chatMsg, subs, messageID, phoneSent, phoneSent && !msg.Quiet)
+		return c.afterChatPush(ctx, n, chatMsg, subs, phoneSent)
 	}
 	if !phoneSent {
 		return c.q.MarkNotificationPushed(ctx, n.ID)
@@ -352,27 +362,60 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	return c.markPhonePushed(ctx, n, chatMsg, subs)
 }
 
-// chatQuiet: a phone alerted for this row less than chatAlertWindow ago
-// (phone_pushed_at is the last alert, markChatPushed), so this message of the
-// same burst comes without a sound. A missed call is never quiet.
-func (c *PushConsumer) chatQuiet(n db.Notification) bool {
-	return n.PhonePushedAt.Valid && c.now().Sub(n.PhonePushedAt.Time) < chatAlertWindow
+// claimChatPush claims chatMsg's push of the chat row n before it is sent
+// (ClaimChatNotificationPush): false when the row was read or a message after
+// this one, in the room's order, was claimed meanwhile, so nothing goes out.
+// The claim says whether this push alerts: it does unless a phone alerted for
+// the row less than chatAlertWindow ago, and a missed call always does. Only
+// a push that reaches a phone moves the row's alert window.
+func (c *PushConsumer) claimChatPush(
+	ctx context.Context, n db.Notification, chatMsg db.ChatMessage, subs []db.PushSubscription, alwaysAlert bool,
+) (db.ClaimChatNotificationPushRow, bool, error) {
+	window := chatAlertWindow
+	if alwaysAlert {
+		window = 0
+	}
+	phone := false
+	for _, sub := range subs {
+		phone = phone || isExpoPushToken(sub.Endpoint)
+	}
+	claim, err := c.q.ClaimChatNotificationPush(ctx, db.ClaimChatNotificationPushParams{
+		ID: n.ID, MessageID: chatMsg.ID, MessageAt: chatMsg.CreatedAt, Phone: phone, AlertWindowSeconds: window.Seconds(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return claim, false, nil
+	}
+	if err != nil {
+		return claim, false, err
+	}
+	if !phone {
+		// No phone to alert or quiet: a browser replaces the room's notification by its tag.
+		claim.Alerted = true
+	}
+	return claim, true, nil
 }
 
-// markChatPushed records that messageID of a chat row went out, and when a
-// phone alerted for it, the start of the row's next alert window. A read that
-// closed the row while this push was on its way is answered as
-// markPhonePushed does: the room's notifications come out of the Android tray
-// again, since this one may have landed after the read's own room_read push.
-func (c *PushConsumer) markChatPushed(
-	ctx context.Context, n db.Notification, chatMsg db.ChatMessage, subs []db.PushSubscription, messageID string, phoneSent, alerted bool,
-) error {
-	read, err := c.q.MarkChatNotificationPushed(ctx, db.MarkChatNotificationPushedParams{ID: n.ID, MessageID: messageID, PhoneAlerted: alerted})
-	if err != nil {
-		return err
-	}
-	if !phoneSent || !read || (n.Kind != KindChatDM && n.Kind != KindChatMentioned) {
+// releaseChatPush gives back the claim of a push that failed, so the lane's
+// retry of the row sends it as this try would have.
+func (c *PushConsumer) releaseChatPush(ctx context.Context, n db.Notification, messageID string, claim db.ClaimChatNotificationPushRow) error {
+	return c.q.ReleaseChatNotificationPush(ctx, db.ReleaseChatNotificationPushParams{
+		ID: n.ID, MessageID: messageID,
+		PrevPushedAt: claim.PrevPushedAt, PrevMessageID: claim.PrevMessageID,
+		PrevMessageAt: claim.PrevMessageAt, PrevPhonePushedAt: claim.PrevPhonePushedAt,
+	})
+}
+
+// afterChatPush answers a read that closed the row while this push was on
+// its way, as markPhonePushed does: the room's notifications come out of the
+// Android tray again, since this one may have landed after the read's own
+// room_read push.
+func (c *PushConsumer) afterChatPush(ctx context.Context, n db.Notification, chatMsg db.ChatMessage, subs []db.PushSubscription, phoneSent bool) error {
+	if !phoneSent || (n.Kind != KindChatDM && n.Kind != KindChatMentioned) {
 		return nil // a thread reply is not closed by reading the room
+	}
+	read, err := c.q.IsNotificationRead(ctx, n.ID)
+	if err != nil || !read {
+		return err
 	}
 	return c.clearRoomTray(ctx, n, chatMsg, subs)
 }

@@ -135,16 +135,19 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   bị xoá; server chọn kênh theo kind (`push_expo.go › pushChannel`) — đổi âm thanh/độ ưu tiên của kênh thì phải đổi id.
   Mỗi tin chat (DM, nhắc tên, trả lời chủ đề) là một push (UNI-2141; trước đó chỉ tin đầu của một hàng thông báo
   còn mở): `Consumer.write` của server ghi `notification.push` cho mọi tin, kể cả khi hàng gộp, kèm `message_id`;
-  tắt thông báo phòng, tắt push theo loại, người gửi và đang đọc phòng (presence) vẫn chặn như cũ. Lane push gửi một
-  tin chỉ khi id (ULID) của nó lớn hơn `notifications.pushed_message_id`, nên push lặp hay push tới sau một tin mới hơn
-  của phòng không gửi gì. Gom theo phòng: iPhone nhận `threadId` (aps.thread-id) = `group_key` của hàng và xếp chồng
+  tắt thông báo phòng, tắt push theo loại, người gửi và đang đọc phòng (presence) vẫn chặn như cũ. Lane push (nhiều
+  worker, nhiều node) giành quyền gửi một tin bằng một câu lệnh dưới khoá của hàng trước khi gửi
+  (`ClaimChatNotificationPush`): chỉ được khi hàng chưa đọc và tin đứng sau tin đã giành gần nhất theo thứ tự của phòng
+  (`pushed_message_at` = `chat_messages.created_at` theo đồng hồ DB, rồi `pushed_message_id`; không so ULID vì id sinh
+  theo đồng hồ từng node). Nên push lặp, push của tin cũ hơn tin đã giành, hay hai worker chạy cùng lúc không gửi
+  trùng; gửi lỗi thì trả lại quyền (`ReleaseChatNotificationPush`) để lần thử lại gửi như lần đầu. Gom theo phòng: iPhone nhận `threadId` (aps.thread-id) = `group_key` của hàng và xếp chồng
   các push của phòng. Android: expo-notifications đặt tên thông báo theo `data["tag"]` ở cấp ngoài của tin FCM
   (`FirebaseMessagingDelegate.getNotificationIdentifier`), còn Expo gửi data của server thành một chuỗi JSON dưới
   `body`, nên `UniChatMessagingService` nhấc `tag` (= `group_key`) từ chuỗi đó lên trước khi chuyển cho
   expo-notifications (`PushTag.kt`, test `PushTagTest`) — mỗi push thay thông báo của phòng, và chỉ bản có bước nhấc
   này (cùng bản đăng ký `chat_quiet`) mới nhận tiêu đề thêm "· N tin nhắn mới"; bản cũ vẫn mỗi push một thông báo,
   tiêu đề trơn. Một đợt tin chỉ reo một lần mỗi `chatAlertWindow` (30 s, `push_consumer.go`): `phone_pushed_at`
-  là lần cuối điện thoại reo cho hàng; tin tới trong cửa sổ là tin im (`quiet` = `1` trong data): iPhone không
+  là lần cuối điện thoại reo cho hàng, đặt cùng lúc giành quyền và tính theo đồng hồ DB; tin tới trong cửa sổ là tin im (`quiet` = `1` trong data): iPhone không
   `sound`, mức `passive`; Android đi kênh `chat_quiet` (độ ưu tiên mặc định, không chuông, không rung — không để mức thấp, vì Android 10+
   dồn thông báo mức thấp vào mục "Im lặng" thu gọn và bỏ biểu tượng trên thanh trạng thái), chỉ tới bản đã
   đăng ký `chat_quiet: true` (`data/push.ts`, user agent `…; chat-quiet`) — bản cũ không có kênh đó sẽ hiện trên kênh

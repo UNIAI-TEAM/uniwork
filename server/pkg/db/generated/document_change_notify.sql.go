@@ -12,7 +12,7 @@ import (
 )
 
 const findFoldableDocumentChange = `-- name: FindFoldableDocumentChange :one
-SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id FROM notifications
+SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id, pushed_message_at FROM notifications
 WHERE user_id = $1
   AND organization_id = $2
   AND workspace_id IS NOT DISTINCT FROM $3::text
@@ -73,6 +73,7 @@ func (q *Queries) FindFoldableDocumentChange(ctx context.Context, arg FindFoldab
 		&i.UpdatedAt,
 		&i.PhonePushedAt,
 		&i.PushedMessageID,
+		&i.PushedMessageAt,
 	)
 	return i, err
 }
@@ -84,7 +85,7 @@ UPDATE notifications SET
   correlation_id = $3,
   updated_at = now()
 WHERE id = $4 AND user_id = $5
-RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id
+RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id, pushed_message_at
 `
 
 type FoldDocumentChangeParams struct {
@@ -130,6 +131,7 @@ func (q *Queries) FoldDocumentChange(ctx context.Context, arg FoldDocumentChange
 		&i.UpdatedAt,
 		&i.PhonePushedAt,
 		&i.PushedMessageID,
+		&i.PushedMessageAt,
 	)
 	return i, err
 }
@@ -193,7 +195,7 @@ INSERT INTO notifications (
   $6, $7, $8, $9,
   $10, $11, $12, $13
 )
-RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id
+RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id, pushed_message_at
 `
 
 type InsertNotificationParams struct {
@@ -255,6 +257,7 @@ func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotification
 		&i.UpdatedAt,
 		&i.PhonePushedAt,
 		&i.PushedMessageID,
+		&i.PushedMessageAt,
 	)
 	return i, err
 }

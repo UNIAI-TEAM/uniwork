@@ -722,7 +722,7 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   Chỉ máy thật xác nhận đường app đã kill: test chỉ giữ dạng payload task nền nhận (`content.dataString`, theo
   `NotificationSerializer` của expo-notifications 57); vòng xoay mãi trên ô trả lời mà tin không đi là task không đọc
   được payload — xem log `push` "chat notification action" trong logcat.
-- [ ] Mỗi tin một push (UNI-2141; app ở nền hay đã kill, server đã deploy migration `pushed_message_id`): người kia gửi
+- [ ] Mỗi tin một push (UNI-2141; app ở nền hay đã kill, server đã deploy migration `pushed_message_id`, `pushed_message_at`): người kia gửi
   liên tiếp 4 tin DM trong 10 giây — Android: một thông báo của phòng, chữ đổi theo tin mới nhất, tiêu đề thêm "· 4 tin
   nhắn mới", chỉ reo/rung ở tin đầu, và sau các tin im thông báo vẫn ở mục thường (không bị dồn vào "Im lặng") và còn
   biểu tượng trên thanh trạng thái (Cài đặt › Thông báo của UniChat có kênh "Tin nhắn liền sau"); iPhone: 4 thông báo

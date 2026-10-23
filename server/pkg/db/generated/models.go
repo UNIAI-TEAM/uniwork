@@ -1942,6 +1942,7 @@ type Notification struct {
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 	PhonePushedAt   pgtype.Timestamptz `json:"phone_pushed_at"`
 	PushedMessageID pgtype.Text        `json:"pushed_message_id"`
+	PushedMessageAt pgtype.Timestamptz `json:"pushed_message_at"`
 }
 
 type NotificationDelivery struct {
