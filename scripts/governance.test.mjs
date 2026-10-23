@@ -155,8 +155,7 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   //
   // e88a055 landed on develop via PR #62; c416bc6, e6eaf72d5, d95c9fe14,
   // 78e441abd, 9c94b49eb, 30b6eb6b6, 4b7e81b2a, 874a6e438, 3adf1f657, ff4fd6912,
-  // 6025d564c and 30167c4cd were pushed straight to develop without a
-  // conventional prefix.
+  // 6025d564c and 30167c4cd were pushed straight to develop without a conventional prefix.
   // Shared history cannot be rewritten; pin both SHA and subject so a new
   // commit cannot reuse an exempt subject to escape this check.
   const commits = execFileSync("git", ["log", "--format=%H%x00%s"], { cwd: root, encoding: "utf8" })
