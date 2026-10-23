@@ -7,20 +7,28 @@ import path from "node:path";
 import {
   METRICS,
   PROFILES,
+  CONTROL_ACTIVITY,
+  QUIET_BUSY_PERCENT,
+  QUIET_WAIT_MS,
   budgetOf,
+  busyPercent,
   check,
   iosStartupRun,
   launchMarks,
   launchToMark,
   logLineAt,
   logStartArg,
+  measureStartup,
   median,
   parseAmStart,
   parseEpochLine,
   parseGfxinfo,
   parseLaunchPid,
+  parseLoadavg,
   parseMark,
   parseMeminfo,
+  parseProcStat,
+  spread,
   summarize,
   table,
   tighten,
@@ -101,7 +109,8 @@ test("holds only what was measured against its ceiling", () => {
   const md = table(rows);
   assert.match(md, /\| cold start to the first screen \(ms\) \| 7000 \| 6000 \| \*\*over\*\* \|/);
   assert.match(md, /\| release APK, x86_64 \(MB\) \| 60\.5 \| – \| no ceiling \|/);
-  assert.match(md, /\| cold start to first frame, Android's TotalTime \(ms\) \| 1500 \| 3000 \| 50% left \|/);
+  // TotalTime is not the splash: expo-splash-screen holds the activity's first frame until the splash lifts.
+  assert.match(md, /\| cold start to Android's first frame, held until the splash lifts: TotalTime \(ms\) \| 1500 \| 3000 \| 50% left \|/);
 });
 
 test("a mark's line names it, with its own time when the build says it", () => {
@@ -244,3 +253,108 @@ test("perf-budget.json: provisional ceilings have a deadline, and none outlives 
   const today = new Date().toISOString().slice(0, 10);
   assert.ok(today <= budget.provisionalUntil, `still provisional after ${budget.provisionalUntil}: ${budget.provisional.join(", ")} — run tighten (runbook › Đo hiệu năng trên thiết bị)`);
 });
+
+test("reads the device's CPU between two /proc/stat reads, and its 1-minute load", () => {
+  const before = parseProcStat("cpu  100 10 40 800 50 0 0 0 0 0\ncpu0 50 5 20 400 25 0 0 0 0 0\nintr 1 2 3\n");
+  // Busy is user + nice + system + irq + softirq + steal; idle and iowait are not.
+  assert.deepEqual(before, { busy: 150, total: 1000 });
+  const after = parseProcStat("cpu  130 10 50 860 50 0 0 0 0 0\n");
+  assert.equal(busyPercent(before, after), 40);
+  assert.equal(busyPercent(before, before), null, "no time passed");
+  assert.equal(busyPercent(null, after), null);
+  assert.equal(parseProcStat("intr 1 2 3"), null);
+  assert.equal(parseLoadavg("1.52 2.04 2.50 3/412 4321\n"), 1.52);
+  assert.equal(parseLoadavg(""), null);
+});
+
+/**
+ * An emulator as `adb` sees it: each `cat /proc/stat` advances 100 jiffies, busy by the next share of `busy` (the last
+ * repeats); each launch of the app logs its START line and both marks, its TotalTime counting up from 1900.
+ */
+function fakeDevice({ busy = [10] } = {}) {
+  const calls = [];
+  let jiffies = { busy: 0, idle: 0 };
+  let reads = 0;
+  let launches = 0;
+  let log = "";
+  const adb = (...args) => {
+    const cmd = args.join(" ");
+    calls.push(cmd);
+    if (cmd.startsWith("shell cmd package resolve-activity")) return "priority=0 preferredOrder=0\ncom.uniworkos.chat/.MainActivity\n";
+    if (cmd === "shell cat /proc/stat") {
+      const share = busy[Math.min(reads, busy.length - 1)];
+      reads += 1;
+      jiffies = { busy: jiffies.busy + share, idle: jiffies.idle + 100 - share };
+      return `cpu  ${jiffies.busy} 0 0 ${jiffies.idle} 0 0 0 0 0 0\n`;
+    }
+    if (cmd === "shell cat /proc/loadavg") return "1.50 2.00 2.50 1/300 4321\n";
+    if (cmd === "shell am start -W -n com.uniworkos.chat/.MainActivity") {
+      launches += 1;
+      const t = 1729584000 + launches * 100;
+      log = [
+        `${t}.000  500  520 I ActivityTaskManager: START u0 {cmp=com.uniworkos.chat/.MainActivity} from uid 2000`,
+        `${t}.900 4321 4400 I ReactNativeJS: UniChatPerf mark=js-boot at=${t * 1000 + 600 + launches}`,
+        `${t}.950 4321 4400 I ReactNativeJS: UniChatPerf mark=first-screen at=${t * 1000 + 1800 + launches}`,
+      ].join("\n");
+      return `Status: ok\nLaunchState: COLD\nTotalTime: ${1900 + launches}\nComplete\n`;
+    }
+    if (cmd === `shell am start -W -n ${CONTROL_ACTIVITY}`) return "Status: ok\nTotalTime: 700\nComplete\n";
+    if (cmd === "logcat -c") log = "";
+    if (cmd.startsWith("logcat -d")) return log;
+    if (cmd.startsWith("shell cmd package compile")) return "Success\n";
+    return "";
+  };
+  return { adb, sleep: async () => {}, calls };
+}
+
+// The third flake of UNI-2142: TotalTime 3092 over 3000 on a commit that did not touch the app. Within one run a launch
+// varied by ~28 % (busy emulator just after boot), so each timed launch now starts on a settled device, from a fixed
+// compile state, after a launch that is not timed, beside a control app that shares the device's speed.
+test("a cold-start run warms up untimed, fixes the compile state, settles the CPU before each launch and times a control app", async () => {
+  const device = fakeDevice();
+  const result = await measureStartup("com.uniworkos.chat", "first-screen", 3, device);
+  const launches = device.calls.flatMap((c, i) => (c === "shell am start -W -n com.uniworkos.chat/.MainActivity" ? [i] : []));
+  const compile = device.calls.indexOf("shell cmd package compile -f -m speed-profile com.uniworkos.chat");
+  assert.equal(launches.length, 4, "one warm-up and three timed launches");
+  assert.ok(compile > launches[0] && compile < launches[1], "compiled after the warm-up, before the first timed launch");
+  // Only the timed launches count: the warm-up's TotalTime (1901) is in no sample.
+  assert.equal(result.runs, 3);
+  assert.deepEqual(result.samples.coldStartTtidMs, [1902, 1903, 1904]);
+  assert.deepEqual(result.samples.coldStartFirstScreenMs, [1802, 1803, 1804]);
+  assert.deepEqual(result.samples.coldStartJsBootMs, [602, 603, 604]);
+  // Each timed launch follows a CPU read after the last force-stop.
+  for (const at of launches.slice(1)) {
+    const stop = device.calls.lastIndexOf("shell am force-stop com.uniworkos.chat", at);
+    assert.ok(device.calls.slice(stop, at).includes("shell cat /proc/stat"), `the launch at call ${at} waited for a settled CPU`);
+  }
+  assert.deepEqual(result.samples.cpuBusyPercent, [10, 10, 10]);
+  assert.deepEqual(result.samples.loadavg1, [1.5, 1.5, 1.5]);
+  assert.deepEqual(result.samples.controlTtidMs, [700, 700, 700]);
+  assert.equal(result.coldStartTtidMs, 1903);
+  assert.deepEqual(result.setup, { warmUp: true, compile: "Success" });
+});
+
+test("a busy device delays the launch until it settles, and never for longer than the cap", async () => {
+  const settling = await measureStartup("com.uniworkos.chat", "first-screen", 1, fakeDevice({ busy: [10, 90, 80, 15] }));
+  // The first read is the baseline; 90 % then 80 % busy windows wait, the 15 % one lets the launch go.
+  assert.ok(QUIET_BUSY_PERCENT >= 15 && QUIET_BUSY_PERCENT < 80);
+  assert.deepEqual(settling.samples.cpuBusyPercent, [15]);
+  assert.deepEqual(settling.samples.settleMs, [3000]);
+  const busy = await measureStartup("com.uniworkos.chat", "first-screen", 1, fakeDevice({ busy: [95] }));
+  assert.deepEqual(busy.samples.cpuBusyPercent, [95], "a device that never settles is still timed, and says how busy it was");
+  assert.deepEqual(busy.samples.settleMs, [QUIET_WAIT_MS]);
+});
+
+test("the summary shows each start metric's spread over the runs and the control's, beside the medians", () => {
+  const result = summarize([
+    { coldStartTtidMs: 2100, coldStartFirstScreenMs: 1950, controlTtidMs: 700, cpuBusyPercent: 12 },
+    { coldStartTtidMs: 3300, coldStartFirstScreenMs: 3150, controlTtidMs: 1100, cpuBusyPercent: 30 },
+    { coldStartTtidMs: 2400, coldStartFirstScreenMs: 2250, controlTtidMs: 800, cpuBusyPercent: 18 },
+  ]);
+  const lines = spread({ apkMB: 60.1, ...result });
+  assert.ok(lines.includes("- cold start to Android's first frame, held until the splash lifts: TotalTime (ms): 2100–3300 over 3 runs (median 2400)"), lines.join("\n"));
+  assert.ok(lines.some((l) => l.startsWith("- control app (Settings) cold start, TotalTime (ms): 700–1100 over 3 runs")));
+  assert.ok(lines.some((l) => l.startsWith("- device CPU busy before each launch (%): 12–30 over 3 runs")));
+  assert.ok(!lines.some((l) => l.includes("APK")), "a number with no samples has no spread");
+});
+

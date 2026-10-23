@@ -46,7 +46,7 @@ nightly và chặng 2 GB của matrix (`apps/chat-mobile/perf-budget.json`, theo
 
 | Số | Trần / mục tiêu | Thực tế |
 | --- | --- | --- |
-| Mở lạnh tới màn đầu, emulator (trung vị 5 lần) | `perf-budget.json` | … ms |
+| Mở lạnh tới màn đầu, emulator (trung vị 10 lần) | `perf-budget.json` | … ms |
 | Mở lạnh tới inbox đã đăng nhập, emulator | `perf-budget.json` | … ms |
 | Mở lạnh tới màn đầu, emulator 2 GB / simulator iOS | `perf-budget.json` › `android-2gb` / `ios-simulator` | … ms / … ms |
 | Khung giật / khung p90 khi cuộn phòng 500+ tin, emulator | `perf-budget.json` | … % / … ms |

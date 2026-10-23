@@ -41,7 +41,7 @@ name: Mobile Verify
 #   android-smoke   installs that APK on an emulator and runs
 #                   apps/chat-mobile/maestro/flows/smoke-launch.yaml: the app
 #                   cold-starts to its sign-in screen and stays up; then times
-#                   five cold starts and weighs the APK against
+#                   ten cold starts and weighs the APK against
 #                   apps/chat-mobile/perf-budget.json (scripts/mobile-perf.mjs);
 #                   then runs the calls module's instrumented test APK
 #                   (modules/unichat-calls/android/src/androidTest).
@@ -445,8 +445,10 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          # Then on the device (audit P1 Perf): the APK's size, and five cold starts timed to Android's first
-          # frame and to the sign-in screen drawn under the lifted splash, each held to its ceiling. Last (audit
+          # Then on the device (audit P1 Perf): the APK's size, and ten cold starts timed to Android's first
+          # frame (held until the splash lifts) and to the sign-in screen drawn under it, each median held to its
+          # ceiling. Ten, after an untimed launch, a fixed compile state and a settled CPU before each (UNI-2142): on
+          # this freshly booted emulator one launch varied by ~28 %, and five gave the same commit 2056 and 2748. Last (audit
           # UX "no-device-a11y-verification"), at the largest font scale and in dark mode: the sign-in screen
           # still shows its copy and reaches its button, and every control on it is named and 48 dp a side.
           # Then (review P2) the calls module's instrumented test: an incoming call posted through
@@ -456,7 +458,7 @@ jobs:
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
             mkdir -p "${{ runner.temp }}/perf"
             node scripts/mobile-perf.mjs apk "${{ runner.temp }}/apk/app-release.apk" --out "${{ runner.temp }}/perf/apk.json"
-            node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 5 --out "${{ runner.temp }}/perf/startup.json"
+            node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 10 --out "${{ runner.temp }}/perf/startup.json"
             node scripts/mobile-perf.mjs check "${{ runner.temp }}/perf/apk.json" "${{ runner.temp }}/perf/startup.json"
             adb shell settings put system font_scale 2.0
             adb shell cmd uimode night yes

@@ -118,9 +118,15 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   Lab) và push FCM tới app bị kill dưới trình quản lý pin của OEM (checklist máy thật ở mục Cuộc gọi native trên
   Android). Đỏ: mở kết quả Test Lab (link trong log của bước) — video, logcat và ảnh từng máy.
 - **Đo hiệu năng trên thiết bị** (`scripts/mobile-perf.mjs`, trần ở `apps/chat-mobile/perf-budget.json`; chặn ở mọi
-  `GATE_LEVEL`). `android-smoke` mỗi PR chạm binary: kích thước APK x86_64, rồi 5 lần mở lạnh (`am force-stop` →
-  `am start -W`), trung vị của `TotalTime` (Android tới khung đầu — splash) và của thời gian từ lúc khởi chạy tới
-  mốc `first-screen` (màn đầu vẽ xong dưới splash vừa nhấc). Nightly Android (`chat-mobile-verify.yml`, tài khoản
+  `GATE_LEVEL`). `android-smoke` mỗi PR chạm binary: kích thước APK x86_64, rồi một lần mở không tính giờ (tới mốc,
+  rồi `am force-stop`), `cmd package compile -f -m speed-profile` để mọi lần đo cùng một trạng thái biên dịch, rồi 10
+  lần mở lạnh (`am force-stop` → chờ CPU máy lắng: từng cửa sổ 1 s của `/proc/stat` tới khi bận ≤ 25 %, tối đa 10 s →
+  `am start -W`), trung vị của `TotalTime` (Android tới khung đầu của activity — app giữ khung đó tới khi nhấc splash,
+  ngay trước mốc `first-screen`, nên nó là màn đầu cộng ~150 ms, không phải splash) và của thời gian từ lúc khởi chạy
+  tới mốc `first-screen` (màn đầu vẽ xong dưới splash vừa nhấc). Cạnh đó, không chặn: CPU bận bao nhiêu trước mỗi lần
+  (`cpuBusyPercent`, `settleMs`, `loadavg1`) và một app đối chứng mở lạnh sau mỗi lần (`controlTtidMs`, Settings) để
+  phân biệt app chậm với runner chậm; summary ghi khoảng min–max của từng số qua các lần. Lệnh `startup` làm vậy ở cả
+  nightly và chặng 2 GB. Nightly Android (`chat-mobile-verify.yml`, tài khoản
   staging): 5 lần mở lạnh tới mốc `inbox` (danh sách phòng đã vẽ, đã đăng nhập), rồi `perf-open-room.yaml` mở
   `MAESTRO_ROOM_ID`, reset `dumpsys gfxinfo`, `perf-scroll-room.yaml` cuộn lùi 20 lần rồi xuống lại; đo % khung giật,
   khung p90 và PSS; sau khi đã đếm khung, `perf-jump-quote.yaml` chạm trích dẫn của tin "Perf jump quote" và chờ tin
