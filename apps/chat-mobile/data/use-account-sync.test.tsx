@@ -18,6 +18,12 @@ jest.mock("./timeline-refresh", () => ({
   hydrateFromPush: (...args: unknown[]) => mockHydrate(...(args as [])),
 }));
 jest.mock("./auth/flow", () => ({ authConfig: { scheme: "uniworkchat" } }));
+const mockKeepSending = jest.fn(async () => undefined);
+const mockBackInFront = jest.fn();
+jest.mock("./outbox-drain/background-send", () => ({
+  keepSendingOffScreen: (...args: unknown[]) => mockKeepSending(...(args as [])),
+  backInFront: (...args: unknown[]) => mockBackInFront(...(args as [])),
+}));
 
 type PushListener = (event: unknown) => void;
 const mockPush: { received: PushListener[]; tapped: PushListener[]; removed: number } = { received: [], tapped: [], removed: 0 };
@@ -51,6 +57,8 @@ const push = (url: string) => ({ request: { content: { data: { url } } } });
 beforeEach(() => {
   configureRuntime({ appUrl: "https://app.test" });
   mockFlushOwed.mockClear();
+  mockKeepSending.mockReset().mockResolvedValue(undefined);
+  mockBackInFront.mockClear();
   mockRefreshStale.mockReset().mockResolvedValue(undefined);
   mockHydrate.mockReset().mockResolvedValue(undefined);
   mockNet.listeners = [];
@@ -106,6 +114,38 @@ it("flushes once ready, on the offline → online edge only, and on each return 
   expect(mockNet.unsubscribe).toHaveBeenCalledTimes(1);
   expect(remove).toHaveBeenCalledTimes(1);
   expect(mockPush.removed).toBe(2);
+});
+
+it("keeps sending off screen as the app leaves (after the flush that puts it on the wire), and stands down back in front", async () => {
+  let onAppState: ((state: string) => void) | undefined;
+  jest.spyOn(AppState, "addEventListener").mockImplementation((_type, listener) => {
+    onAppState = listener as (state: string) => void;
+    return { remove: jest.fn() };
+  });
+  const order: string[] = [];
+  mockFlushOwed.mockImplementation(async () => void order.push("flush"));
+  mockKeepSending.mockImplementation(async () => void order.push("keep"));
+  const breadcrumbs: string[] = [];
+  installReportSink({ captureException: jest.fn(), addBreadcrumb: (b) => void breadcrumbs.push(b.message), setUser: jest.fn(), setTag: jest.fn() });
+  try {
+    await renderHook(() => useAccountSync("u1"), { wrapper });
+    order.length = 0;
+    await act(async () => onAppState?.("inactive"));
+    expect(mockKeepSending).not.toHaveBeenCalled();
+    await act(async () => onAppState?.("background"));
+    expect(order).toEqual(["flush", "keep"]);
+    expect(mockKeepSending).toHaveBeenCalledWith("u1");
+    expect(mockBackInFront).not.toHaveBeenCalled();
+    await act(async () => onAppState?.("active"));
+    expect(mockBackInFront).toHaveBeenCalledTimes(1);
+    // The platform's own call failing (a job not scheduled, a task not registered) is reported, never thrown.
+    mockKeepSending.mockRejectedValueOnce(new Error("boom"));
+    await act(async () => onAppState?.("background"));
+    expect(breadcrumbs).toContain("outbox not kept going off screen");
+  } finally {
+    mockFlushOwed.mockImplementation(async () => undefined);
+    installReportSink(null);
+  }
 });
 
 it("reads the stale rooms as the app leaves the front, online only, and a failure is reported, not thrown", async () => {
