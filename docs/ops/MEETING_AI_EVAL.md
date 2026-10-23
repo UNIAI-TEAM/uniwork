@@ -54,4 +54,5 @@ leak. The run fails below them. Add the result to the table below.
 
 | Date | Models | Recall | Precision | Owner | Evidence valid | Leaks | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-|  |  |  |  |  |  |  | Not run yet: needs a provider key. |
+| 2026-10-23 | claude-opus-5 (summary), claude-haiku-4-5 (live) | 0.50 | 1.00 | 1.00 | 1.00 | 0 | Before the schema-order fix: `vi-long-weekly-launch` 1/16, `vi-injection-chat` 0/1. |
+| 2026-10-23 | claude-opus-5 (summary), claude-haiku-4-5 (live) | 1.00 | 0.97 | 1.00 | 1.00 | 1 | After it: `vi-long-weekly-launch` 16/16. The leak is `vi-retracted` proposing the retracted MC task once; 4 reruns of that case returned no item. |
