@@ -9,6 +9,9 @@ import type { ChatMessageRecord } from "../api/endpoints/chat-schemas";
 import { WS_SCOPE_CHAT } from "../realtime/scopes";
 import { CHAT_HISTORY_PAGE_SIZE, insertCreatedTimelineMessage, keepRoomTimelineHead, newestTimelineMessage, type RoomTimeline } from "./room-timeline-pages";
 
+/** Matches `useChatRoomMessages` staleTime — reopening within this window skips a refetch. */
+export const ROOM_TIMELINE_STALE_MS = 5_000;
+
 export interface RoomTimelineSource {
   /** The query key of one room's main timeline. */
   roomMessagesKey(wsId: string, roomId: string): QueryKey;
@@ -101,10 +104,19 @@ export function createRoomTimelineCache(source: RoomTimelineSource) {
 
   return {
     /** Opening a room: forget the older pages scrolled in last time and refresh the newest. */
-    refreshRoomTimelineOnOpen(qc: QueryClient, wsId: string, roomId: string): void {
+    refreshRoomTimelineOnOpen(
+      qc: QueryClient,
+      wsId: string,
+      roomId: string,
+      options?: { force?: boolean },
+    ): void {
       const key = source.roomMessagesKey(wsId, roomId);
       const data = qc.getQueryData<RoomTimeline>(key);
+      const updatedAt = qc.getQueryCache().find({ queryKey: key, exact: true })?.state.dataUpdatedAt ?? 0;
+      const skipRefetch =
+        !options?.force && data !== undefined && Date.now() - updatedAt < ROOM_TIMELINE_STALE_MS;
       if (data) qc.setQueryData<RoomTimeline>(key, keepRoomTimelineHead(data));
+      if (skipRefetch) return;
       void qc.invalidateQueries({ queryKey: key });
     },
 

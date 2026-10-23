@@ -106,7 +106,24 @@ describe("ChatMessageRow", () => {
     expect(screen.getByText("Đã xem")).toBeInTheDocument();
   });
 
-  it("shows delivery status for pending messages", () => {
+  it("shows time on every own bubble in a run, not only the last", () => {
+    render(
+      wrap(
+        <ChatMessageRow
+          message={message({ id: "mid" })}
+          senderLabel="Me"
+          isOwn
+          showReadReceipt={false}
+          compactTop
+          lastOfRun={false}
+        />,
+      ),
+    );
+
+    expect(screen.getByRole("img", { name: "Đã gửi" })).toBeInTheDocument();
+  });
+
+  it("shows time and sent receipt while a message is in flight", () => {
     render(
       wrap(
         <ChatMessageRow
@@ -118,7 +135,8 @@ describe("ChatMessageRow", () => {
       ),
     );
 
-    expect(screen.getByText("Đang gửi…")).toBeInTheDocument();
+    expect(screen.queryByText("Đang gửi…")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Đã gửi" })).toBeInTheDocument();
   });
 
   it("invokes reply and react handlers from action buttons", () => {

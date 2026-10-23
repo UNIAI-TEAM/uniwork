@@ -13,7 +13,7 @@ import { chatKeys } from "./chat-keys";
 import { createChatMessageCache, type ChatViewer } from "./chat-message-cache";
 
 /** A message created or deleted on the main timeline can change the info panel's media counts. */
-function invalidateRoomSharedSummary(qc: QueryClient, wsId: string, roomId: string): void {
+export function invalidateRoomSharedSummary(qc: QueryClient, wsId: string, roomId: string): void {
   const queryKey = chatKeys.roomSharedSummary(wsId, roomId);
   // Only a summary someone loaded can be stale; skipping the rest keeps message frames to their timeline patch.
   if (!qc.getQueryState(queryKey)) return;
