@@ -259,7 +259,8 @@ test("the production AAB is scanned for credentials, its manifest and its permis
             ...(entry.maxSdkVersion ? { "android:maxSdkVersion": String(entry.maxSdkVersion) } : {}),
           },
         })),
-        { tag: "application", attrs: { "android:allowBackup": "false" } },
+        // The TLS pin-set every release binary carries (scripts/mobile-apk-scan.mjs › unpinned).
+        { tag: "application", attrs: { "android:allowBackup": "false", "android:networkSecurityConfig": "" } },
       ],
     };
     const aab = (name, bundle) => {
@@ -805,6 +806,24 @@ test("every Maestro run in the mobile workflows goes through scripts/maestro-ret
     runs += [...wf.matchAll(/\$\{\{ github\.workspace \}\}\/scripts\/maestro-retry\.sh (?:test|--device)/g)].length;
   }
   assert.ok(runs >= 13, `found ${runs} wrapped runs`);
+});
+
+// Audit "Security & privacy", no-pinning-or-attestation: the pins no OTA can change are checked against the live
+// chains every day and on every PR that touches them or the hosts the deploy names (runbook unichat-tls-pins).
+test("the TLS pins are checked against the live chains daily and on every PR that touches them, reading no secret", () => {
+  const wf = read("chat-mobile-tls-pins.yml");
+  assert.match(wf, /^ {2}schedule:\n {4}- cron: "\d+ \d+ \* \* \*"$/m, "daily");
+  assert.match(wf, /^ {2}workflow_dispatch:$/m);
+  const paths = [...(wf.match(/^ {2}pull_request:\n {4}paths:\n((?: {6}- .+\n)+)/m)?.[1] ?? "").matchAll(/- (\S+)/g)].map((m) => m[1]);
+  for (const file of ["apps/chat-mobile/tls-pins.json", "apps/chat-mobile/certs/tls-pins/**", "apps/chat-mobile/plugins/with-tls-pins.js", "scripts/mobile-tls-pins.mjs", "deploy/app/env/uniwork-be.env", ".github/workflows/chat-mobile-tls-pins.yml"]) {
+    assert.ok(paths.includes(file), `a PR touching ${file} runs the check`);
+  }
+  assert.match(wf, /run: node --test scripts\/mobile-tls-pins\.test\.mjs\n/, "the contract on the committed pins");
+  assert.match(wf, /run: node scripts\/mobile-tls-pins\.mjs$/m, "the live check, failing the job on a missing pin");
+  assert.match(wf, /- uses: actions\/checkout@v4\n {8}with:\n {10}fetch-depth: 0\n/, "every chat-mobile-v* tag: the pin-sets of the binaries in the field are checked too");
+  assert.ok(paths.includes("deploy/**/*.yaml") && paths.includes("deploy/**/*.yml"), "a PR that changes a cert-manager issuer runs the issuer contract");
+  assert.doesNotMatch(wf, /secrets\.|vars\./, "a fork's PR can run it");
+  assert.doesNotMatch(wf, /continue-on-error/, "a missing pin is red");
 });
 
 // A contract test that no workflow runs holds nothing: every mobile one is in the checks job's step.

@@ -14,7 +14,8 @@
 //   manifest  (an APK through `aapt2 dump xmltree`; an AAB's
 //             base/manifest/AndroidManifest.xml, aapt2's protobuf XmlNode,
 //             through parseProtoXml): the application is not debuggable or
-//             testOnly, allows no backup and no cleartext, and no component
+//             testOnly, allows no backup and no cleartext, carries the TLS
+//             pin-set (a network security config), and no component
 //             is reachable from other apps (exported, or an intent filter
 //             without an `exported` attribute) without a permission guarding
 //             it, unless the baseline names it with a reason.
@@ -280,6 +281,9 @@ export function manifestFindings(tree) {
   if (attrs.testOnly === "true" || attrs.testOnly === "0xffffffff") flag("test-only", "<application android:testOnly=true>");
   if (attrs.allowBackup !== "false" && attrs.allowBackup !== "0x0") flag("allow-backup", `<application android:allowBackup=${attrs.allowBackup ?? "(default true)"}>`);
   if (attrs.usesCleartextTraffic === "true" || attrs.usesCleartextTraffic === "0xffffffff") flag("cleartext", "<application android:usesCleartextTraffic=true>");
+  // Every release binary pins its servers (apps/chat-mobile/tls-pins.json, plugins/with-tls-pins.js): the attribute
+  // is how the merged manifest points at that pin-set. Only its presence is read; an AAB's reference has no text.
+  if (!Object.hasOwn(attrs, "networkSecurityConfig")) flag("unpinned", "<application> has no android:networkSecurityConfig: the TLS pins did not reach the binary");
   for (const node of application.children) {
     if (!COMPONENTS.has(node.tag)) continue;
     const declared = node.attrs.exported;

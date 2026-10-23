@@ -30,6 +30,7 @@ export const WORKFLOWS = [
   "chat-mobile-release-health.yml",
   "chat-mobile-rollback.yml",
   "chat-mobile-device-farm.yml",
+  "chat-mobile-tls-pins.yml",
 ];
 
 /** Names a workflow reads but may run without, each with why. */

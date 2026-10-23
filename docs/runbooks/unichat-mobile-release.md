@@ -650,8 +650,10 @@ test JS), rồi mỗi bản store. Ghi kết quả (ảnh, lệnh, log) vào b�
   Tổ chức. Trên máy thành viên, mở lại app: Cài đặt hiện hai công tắc bật, bị khoá, kèm "Tổ chức của bạn yêu cầu…"; mở
   lạnh hỏi Face ID/vân tay/mã; chụp màn hình bị chặn, màn đa nhiệm trống. Máy không có khoá màn hình: màn khoá nói đặt
   khoá trong Cài đặt của máy. Owner tắt lại: lựa chọn của người dùng quay lại. Đăng xuất: mức tối thiểu được gỡ.
-- [ ] Ghim TLS (khi đã bật, Khắc phục 19): qua mitmproxy với CA người dùng tự cài, REST, socket `wss://` và cuộc gọi
-  LiveKit đều hỏng mà không lộ token; trên mạng thường mọi thứ chạy.
+- [ ] Ghim TLS (Khắc phục 19, runbook `unichat-tls-pins`): qua mitmproxy mà CA của nó được máy **tin** (Android: CA
+  trong kho hệ thống của máy ảo/máy test đã root; iOS: CA người dùng cài và bật Full Trust), REST, socket `wss://` và
+  cuộc gọi LiveKit đều hỏng mà không lộ token, trong khi một host không ghim (ảnh/tệp của tin nhắn trên S3, hay một
+  trang công khai trong trình duyệt của máy) vẫn tải được qua cùng proxy; trên mạng thường mọi thứ chạy.
 - [ ] iOS — Keychain sau gỡ cài: gỡ app, cài lại, mở: về màn đăng nhập (dấu cài đặt trong MMKV), thiết bị cũ biến mất
   khỏi danh sách thiết bị trên web (đã thu hồi).
 - [ ] iOS — bản sao lưu: sao lưu mã hoá bằng Finder, mở bằng công cụ đọc backup (iMazing hay `idevicebackup2` +
@@ -662,7 +664,7 @@ test JS), rồi mỗi bản store. Ghi kết quả (ảnh, lệnh, log) vào b�
   che (app switcher protection + lớp phủ của guard). Bật chặn chụp: chụp màn hình ra ảnh trống, quay màn hình ra đen.
 - [ ] iOS — đăng nhập: `ASWebAuthenticationSession` trả callback về app và đăng nhập xong; mở
   `uniworkchat://auth/callback?code=x&state=y` từ Safari khi không có lượt đăng nhập nào thì không đăng nhập được gì.
-- [ ] iOS — ghim TLS và socket: với pin bật, kiểm riêng socket `wss://` qua mitmproxy (chưa xác minh `NSPinnedDomains`
+- [ ] iOS — ghim TLS và socket: kiểm riêng socket `wss://` qua mitmproxy (chưa xác minh `NSPinnedDomains`
   phủ WebSocket SocketRocket/CFStream); nếu socket vẫn nối được qua proxy thì ghi là lỗ hổng đã biết và mở việc.
 - [ ] iOS — redirect: chưa xác minh URLSession có giữ `Authorization` khi theo 3xx sang host khác; app chặn 3xx cho
   mọi request JSON (`data/auth/strict-fetch.ts`), upload multipart vẫn theo fetch của React Native — bỏ qua dòng này nếu
@@ -1024,23 +1026,23 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
    giờ đổ chuông). Mất tiếng khi khoá máy: dịch vụ cuộc gọi không chạy (Sentry/breadcrumb của bản đó; quyền micro chưa
    cấp lúc bắt đầu thì dịch vụ chạy lại khi LiveKit nối). Lỗi trong Kotlin cần bản store; trong lúc chờ có thể tắt gọi
    (mục 12).
-19. **Ghim khoá TLS** (`apps/chat-mobile/plugins/with-tls-pins.js`, tắt mặc định; audit bảo mật
-   "no-pinning-or-attestation"). Bật: lấy SPKI SHA-256 của khoá CA trung gian đang ký chứng chỉ của API và web, và của
-   ít nhất một CA dự phòng (CA khác, hoặc khoá kế tiếp của cùng CA):
-   `openssl s_client -connect api.uniworkos.com:443 -showcerts </dev/null | awk '/BEGIN/{n++} n==2' | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64`
-   (`n==2` là chứng chỉ trung gian; dự phòng tính từ PEM của CA đó). Đặt trong môi trường EAS của bản build (`preview`
-   trước, `production` sau một tuần không lỗi): `UNICHAT_TLS_PINS=<pin1>,<pin2>`, `UNICHAT_TLS_PIN_EXPIRES=<ngày,
-   ~12 tháng sau>` và `UNICHAT_TLS_PIN_HOSTS=<host signalling LiveKit>` (host trong `LIVEKIT_URL` của server, bỏ
-   `wss://`; tính pin của nó như trên — nếu CA khác CA của API thì thêm pin của CA đó vào `UNICHAT_TLS_PINS`); config từ chối một pin, pin sai dạng, thiếu hay quá ngày hết hạn. Đây là thay đổi native (bản store
-   mới). Xoay vòng: thêm pin của CA mới vào bản store trước khi server đổi CA, bỏ pin cũ ở bản sau; gia hạn ngày hết hạn
-   mỗi bản store. Sự cố (server đổi sang CA không có trong pin): Android tự bỏ ghim sau ngày hết hạn, trước đó cần bản
-   store mới; iOS không có hết hạn — chỉ bật pin trên bản iOS khi đã có quy trình phát bản khẩn. OTA vẫn tới được vì
-   `u.expo.dev` không bị ghim, nhưng OTA không đổi được cấu hình native. Kiểm sau khi bật, trên Android và (khi có) iOS:
-   app vào được inbox và gọi được trên mạng thường; qua proxy chặn TLS (mitmproxy với CA người dùng tự cài, hoặc CA hệ
-   thống trên máy test đã root) thì cả request REST, socket `wss://` và cuộc gọi LiveKit đều hỏng, app báo mất kết nối,
-   không lộ token. Ghi kết quả vào bằng chứng của bản (iOS: kiểm riêng socket, vì chưa xác minh `NSPinnedDomains` có
-   phủ WebSocket SocketRocket hay không). Lỗi ghim không phân biệt được với mất mạng trong JS (đều là lỗi mạng), nên
-   không có sự kiện Sentry riêng: theo dõi tỉ lệ `ApiError` status 0 theo bản sau khi bật.
+19. **Ghim khoá TLS** (`apps/chat-mobile/tls-pins.json`, bật cho mọi bản staging và production; audit bảo mật
+   "no-pinning-or-attestation"). Runbook riêng: `docs/runbooks/unichat-tls-pins.md` — host và khoá đang ghim, vì sao
+   OTA không sửa được pin, đổi CA hay host đã ghim, gia hạn `expires`, sự cố app bị khoá. Job
+   `chat-mobile-tls-pins.yml` kiểm chuỗi thật mỗi ngày. Kiểm sau mỗi bản store, trên Android và (khi có) iOS: app vào
+   được inbox và gọi được trên mạng thường; qua proxy chặn TLS mà máy **tin** CA của proxy thì cả request REST, socket
+   `wss://` và cuộc gọi LiveKit đều hỏng, app báo mất kết nối, không lộ token. Android: CA người dùng tự cài **không**
+   chứng minh gì — từ Android 7 app (targetSdk ≥ 24) không tin CA người dùng, và network security config của app không
+   thêm `<trust-anchors>` nào, nên mọi kết nối qua proxy đó đều hỏng dù có pin hay không. Đặt CA của mitmproxy vào kho
+   hệ thống: máy ảo image Google APIs (không phải Google Play) `emulator -writable-system`, `adb root && adb remount`,
+   đẩy `<hash>.0` (`openssl x509 -inform PEM -subject_hash_old -in mitmproxy-ca-cert.pem`) vào
+   `/system/etc/security/cacerts/` rồi `adb reboot`; hay một máy test đã root. iOS: CA người dùng cài rồi bật Cài đặt ›
+   Cài đặt chung › Giới thiệu › Cài đặt tin cậy chứng nhận (Full Trust) là phép thử hợp lệ. Cùng thiết lập đó phải có
+   **đối chứng**: một host không ghim (ảnh/tệp của tin nhắn tải từ S3 qua URL ký sẵn, hay một trang công khai trong
+   trình duyệt của máy) vẫn tải được qua proxy — chứng tỏ máy tin proxy, nên host đã ghim hỏng là vì pin. Đối chứng
+   cũng hỏng thì phép thử không đo gì: sửa thiết lập, đừng ghi là đạt. Ghi kết quả vào bằng chứng của bản (iOS: kiểm riêng socket, vì chưa xác minh `NSPinnedDomains` có phủ
+   WebSocket SocketRocket hay không). Lỗi ghim không phân biệt được với mất mạng trong JS (đều là lỗi mạng), nên không
+   có sự kiện Sentry riêng: theo dõi tỉ lệ `ApiError` status 0 theo bản sau khi bật.
 
 ## Leo thang
 

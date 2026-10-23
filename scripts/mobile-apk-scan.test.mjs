@@ -50,6 +50,7 @@ const XMLTREE = `N: android=http://schemas.android.com/apk/res/android (line=1)
         A: http://schemas.android.com/apk/res/android:debuggable(0x0101000f)=true
         A: http://schemas.android.com/apk/res/android:allowBackup(0x01010280)=false
         A: http://schemas.android.com/apk/res/android:usesCleartextTraffic(0x010104ec)=false
+        A: http://schemas.android.com/apk/res/android:networkSecurityConfig(0x01010527)=@0x7f150004
           E: activity (line=4)
             A: http://schemas.android.com/apk/res/android:name(0x01010003)=".MainActivity" (Raw: ".MainActivity")
             A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true
@@ -82,7 +83,10 @@ function writeBundleManifest(dir, permissions) {
   const manifest = {
     tag: "manifest",
     attrs: { package: "com.uniworkos.chat" },
-    children: [...permissions.map((name) => ({ tag: "uses-permission", attrs: { "android:name": name } })), { tag: "application", attrs: { "android:allowBackup": "false" } }],
+    children: [
+      ...permissions.map((name) => ({ tag: "uses-permission", attrs: { "android:name": name } })),
+      { tag: "application", attrs: { "android:allowBackup": "false", "android:networkSecurityConfig": "" } },
+    ],
   };
   fs.writeFileSync(path.join(dir, "base", "manifest", "AndroidManifest.xml"), protoXml(manifest));
 }
@@ -142,7 +146,7 @@ test("reads aapt2's xmltree and flags a debuggable app and every component reach
   );
 });
 
-test("flags backup, cleartext and testOnly, and a dump without a manifest", () => {
+test("flags backup, cleartext, testOnly and an unpinned app, and a dump without a manifest", () => {
   const tree = parseXmlTree(`  E: manifest (line=1)
     A: package="a.b" (Raw: "a.b")
       E: application (line=2)
@@ -151,7 +155,7 @@ test("flags backup, cleartext and testOnly, and a dump without a manifest", () =
 `);
   assert.deepEqual(
     manifestFindings(tree).findings.map((f) => f.rule),
-    ["test-only", "allow-backup", "cleartext"],
+    ["test-only", "allow-backup", "cleartext", "unpinned"],
   );
   assert.deepEqual(manifestFindings(parseXmlTree("")).findings.map((f) => f.rule), ["no-manifest"]);
   assert.deepEqual(manifestFindings(parseXmlTree('  E: manifest (line=1)\n    A: package="a.b" (Raw: "a.b")\n')).findings, []);
@@ -170,7 +174,7 @@ const PROTO_MANIFEST = {
     { tag: "uses-permission", attrs: { "android:name": "com.uniworkos.chat.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" } },
     {
       tag: "application",
-      attrs: { "android:debuggable": "true", "android:allowBackup": "false", "android:usesCleartextTraffic": "false" },
+      attrs: { "android:debuggable": "true", "android:allowBackup": "false", "android:usesCleartextTraffic": "false", "android:networkSecurityConfig": "" },
       children: [
         { tag: "activity", attrs: { "android:name": ".MainActivity", "android:exported": "true" }, children: [{ tag: "intent-filter", children: [{ tag: "action", attrs: { "android:name": "android.intent.action.MAIN" } }] }] },
         { tag: "activity", attrs: { "android:name": "com.evil.Leaky", "android:exported": "true" } },
