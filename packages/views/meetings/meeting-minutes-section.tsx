@@ -1,12 +1,13 @@
 "use client";
 import { lazy, Suspense, useState } from "react";
-import { CircleAlert, ExternalLink, Eye, TriangleAlert } from "lucide-react";
+import { CircleAlert, ExternalLink, Eye, RefreshCw, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocument } from "@uniwork/core/documents/hooks";
 import {
   useCreateMeetingMinutes,
   useFinalizeMeetingMinutes,
   useMeetingMinutes,
+  useRefreshMeetingMinutes,
   useReopenMeetingMinutes,
   type MeetingMinutes,
 } from "@uniwork/core/meetings/minutes";
@@ -15,6 +16,7 @@ import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { toast } from "sonner";
+import { ConfirmDialog } from "../common/form-dialog";
 import { Notice } from "../common/notice";
 import { PanelCard } from "../common/panel-card";
 import { MODULE_ICONS } from "../layout/module-icons";
@@ -82,6 +84,9 @@ export function MeetingMinutesSection({
   const create = useCreateMeetingMinutes(meetingId);
   const finalize = useFinalizeMeetingMinutes(meetingId);
   const reopen = useReopenMeetingMinutes(meetingId);
+  const refresh = useRefreshMeetingMinutes(meetingId);
+  // Finalizing over pending items is asked first: the minutes would miss the tasks they become.
+  const [confirmPending, setConfirmPending] = useState(false);
   const { memberOf, loaded: membersLoaded } = useMemberIndex(workspaceId);
   const workspace = useOptionalWorkspace()?.workspace;
   const wsPaths = workspace ? paths.workspace(workspace.organization_slug, workspace.slug) : null;
@@ -89,7 +94,7 @@ export function MeetingMinutesSection({
   const [previewOpen, setPreviewOpen] = useState(false);
   const previewDoc = useDocument(workspaceId, previewOpen ? (minutes?.document_id ?? "") : "", { retry: false });
   const previewLoading = previewOpen && previewDoc.isPending;
-  const busy = create.isPending || finalize.isPending || reopen.isPending;
+  const busy = create.isPending || finalize.isPending || reopen.isPending || refresh.isPending;
   // A failed make/finalize/reopen is said under its buttons until the next try, not in a toast
   // that fades, and only while the minutes stay as they were (another clerk finalized first).
   const minutesState = minutes ? `${minutes.document_id}:${minutes.finalized}:${minutes.finalized_version ?? ""}` : "";
@@ -145,6 +150,15 @@ export function MeetingMinutesSection({
       ? formatMeetingDay(meetingDayKey(minutes.finalized_at), meetingLocale(i18n.language))
       : "";
     const canChange = canClerk && minutes.can_edit && Boolean(documentId);
+    const pending = minutes.finalized ? 0 : minutes.pending_items;
+    const doFinalize = () => {
+      setConfirmPending(false);
+      setActionError(null);
+      finalize.mutate(undefined, {
+        onSuccess: () => toast.success(t("meetings.minutes.finalizedToast")),
+        onError,
+      });
+    };
     body = (
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -163,6 +177,11 @@ export function MeetingMinutesSection({
         {minutes.finalized && minutes.edited_since_finalized ? (
           <Notice tone="warning" icon={TriangleAlert} layout="inline">
             {t("meetings.minutes.editedSince")}
+          </Notice>
+        ) : null}
+        {canChange && pending > 0 ? (
+          <Notice tone="warning" icon={TriangleAlert} layout="inline">
+            {t("meetings.minutes.pendingItems", { count: pending })}
           </Notice>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
@@ -184,15 +203,32 @@ export function MeetingMinutesSection({
               aria-disabled={busy || undefined}
               onClick={() => {
                 if (busy) return;
-                setActionError(null);
-                finalize.mutate(undefined, {
-                  onSuccess: () => toast.success(t("meetings.minutes.finalizedToast")),
-                  onError,
-                });
+                if (pending > 0) setConfirmPending(true);
+                else doFinalize();
               }}
             >
               {finalize.isPending ? <Spinner /> : null}
               {t(minutes.finalized ? "meetings.minutes.refinalize" : "meetings.minutes.finalize")}
+            </Button>
+          ) : null}
+          {/* Draft only: the facts sections (roll, votes, assigned tasks) as they now stand. */}
+          {canChange && !minutes.finalized ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              title={t("meetings.minutes.refreshHint")}
+              aria-disabled={busy || undefined}
+              onClick={() => {
+                if (busy) return;
+                setActionError(null);
+                refresh.mutate(undefined, {
+                  onSuccess: () => toast.success(t("meetings.minutes.refreshedToast")),
+                  onError,
+                });
+              }}
+            >
+              {refresh.isPending ? <Spinner /> : <RefreshCw aria-hidden />}
+              {t("meetings.minutes.refresh")}
             </Button>
           ) : null}
           {minutes.finalized && minutes.finalized_version ? (
@@ -246,6 +282,16 @@ export function MeetingMinutesSection({
             onClose={() => setPreviewOpen(false)}
           />
         ) : null}
+        <ConfirmDialog
+          open={confirmPending}
+          onOpenChange={setConfirmPending}
+          title={t("meetings.minutes.finalizePendingTitle")}
+          description={t("meetings.minutes.finalizePendingHint", { count: pending })}
+          confirmLabel={t("meetings.minutes.finalizePendingConfirm")}
+          destructive={false}
+          pending={finalize.isPending}
+          onConfirm={doFinalize}
+        />
       </div>
     );
   }

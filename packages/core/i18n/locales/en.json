@@ -4028,6 +4028,15 @@
       "refinalize": "Finalize again",
       "reopen": "Reopen",
       "editRequired": "You need edit access to the minutes UniNote to finalize or reopen it",
+      "pendingItems_one": "{{count}} action item is neither assigned nor dismissed. Minutes finalized now will not include it.",
+      "pendingItems_other": "{{count}} action items are neither assigned nor dismissed. Minutes finalized now will not include them.",
+      "finalizePendingTitle": "Finalize the minutes with items still pending?",
+      "finalizePendingHint_one": "{{count}} item is neither assigned nor dismissed. If you assign it later, refresh the facts and finalize again so the minutes include it.",
+      "finalizePendingHint_other": "{{count}} items are neither assigned nor dismissed. If you assign them later, refresh the facts and finalize again so the minutes include them.",
+      "finalizePendingConfirm": "Finalize anyway",
+      "refresh": "Refresh facts",
+      "refreshHint": "Reads the attendance, vote results and assigned tasks from the meeting again; the text you edited stays",
+      "refreshedToast": "Minutes facts refreshed",
       "loadFailed": "Couldn't load the minutes.",
       "noAccess": "You don't have access to the minutes UniNote.",
       "previewFailed": "Couldn't open the finalized version: the minutes UniNote may have been deleted, or you no longer have access. Reload the meeting page.",
@@ -4037,6 +4046,7 @@
       "errors": {
         "minutes_exist": "This meeting already has minutes. Open them to edit.",
         "minutes_missing": "The minutes UniNote can't be found. If it's in the trash, restore it and try again; otherwise make the minutes again.",
+        "minutes_finalized": "These minutes are finalized, so their facts can't be refreshed. Reopen them and try again.",
         "minutes_edit_required": "You need edit access to the minutes UniNote to finalize or reopen it.",
         "minutes_unavailable": "Minutes can't be made: UniNote isn't turned on for this UniWork installation. Tell an admin."
       }
