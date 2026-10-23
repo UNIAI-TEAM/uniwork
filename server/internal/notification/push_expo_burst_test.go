@@ -16,8 +16,9 @@ import (
 
 // A chat push groups under its room everywhere: an iPhone stacks the room's
 // pushes in one thread (thread-id), Android replaces the room's notification
-// (data.tag, which expo-notifications makes the notification's tag) and its
-// title says how many came. A quiet follow-up makes no sound: an iPhone gets
+// (data.tag, which the app's FCM service lifts to where expo-notifications
+// names the notification by it) and, on a build that does, its title says how
+// many came. A quiet follow-up makes no sound: an iPhone gets
 // no sound and the passive level, an Android build that created the quiet
 // channel gets it on that channel, and an older Android build, which would
 // show it on an alerting fallback channel, gets nothing.
@@ -82,8 +83,10 @@ func TestExpoPushSenderGroupsAChatBurstAndQuietsItsFollowUps(t *testing.T) {
 	if m, err := send(oldAndroid, quiet); !errors.Is(err, ErrPushSkipped) || m != nil {
 		t.Fatalf("old android quiet = %v (%v), want it skipped", m, err)
 	}
-	if m, _ := send(oldAndroid, loud); m["channelId"] != ChannelMessages {
-		t.Fatalf("old android loud = %v, want the messages channel", m)
+	// An older build has no native tag lift (UniChatMessagingService › PushTag), so its tray keeps a notification
+	// per push and a count in each title would stack "· 2", "· 3": it gets the plain title.
+	if m, _ := send(oldAndroid, loud); m["channelId"] != ChannelMessages || m["title"] != loud.Title {
+		t.Fatalf("old android loud = %v, want the messages channel and the plain title", m)
 	}
 
 	// Only a chat message is grouped and quieted: a task keeps its own shape.

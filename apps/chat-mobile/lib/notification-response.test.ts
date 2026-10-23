@@ -27,6 +27,18 @@ describe("notification responses", () => {
     expect(deps.openUrl).toHaveBeenCalledTimes(2);
   });
 
+  it("opens a later push of a room that Android showed under the same notification id", () => {
+    // Android names a room's notification by its tag (the server's group key), so each message's push replaces it
+    // under one id: the tap on the next message is a new tap, not the one already handled.
+    const { deps, handle } = setup();
+    handle(response("chat_room:r1:dm", CHAT));
+    const later = { ...CHAT, url: "https://app.test/o/w/chat?room=r1&message=m2", message_id: "m2" };
+    handle(response("chat_room:r1:dm", later));
+    expect(deps.openUrl).toHaveBeenNthCalledWith(2, later.url);
+    handle(response("chat_room:r1:dm", later));
+    expect(deps.openUrl).toHaveBeenCalledTimes(2);
+  });
+
   it("runs Reply or Mark as read where it was tapped and opens nothing", () => {
     const { deps, handle } = setup();
     handle(response("n1", CHAT, MARK_READ_ACTION));

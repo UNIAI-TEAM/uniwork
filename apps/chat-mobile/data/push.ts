@@ -1,7 +1,8 @@
 // Expo push registration. The Expo push token travels in `endpoint` with an
 // empty web-push key pair, and `platform` tells the server it is an Expo
 // token (server SDI); `call_ui` tells it an Android build rings calls
-// itself, and `chat_quiet` that it has the quiet chat channel. Without an
+// itself, and `chat_quiet` that it has the quiet chat channel and groups a
+// room's pushes under one notification. Without an
 // EAS projectId (no EAS account yet, spec §12 Q8) there is no token to
 // fetch, so registration is skipped and said once.
 // Settings can turn push off for this device: the choice lives in SecureStore
@@ -78,7 +79,9 @@ export async function registerPushToken({ api, projectId, platform, channels, ca
     platform,
     ...(platform === "android" && callUI ? { call_ui: true } : {}),
     // This build creates the chat_quiet channel (lib/notification-channels.ts), so the server may send a room's
-    // follow-up messages on it; an older build would show them on an alerting fallback channel.
+    // follow-up messages on it; an older build would show them on an alerting fallback channel. Its FCM service
+    // also lifts the push's tag (modules/unichat-calls › PushTag), so a room's pushes replace one notification and
+    // the server may put the room's count in the title.
     ...(platform === "android" ? { chat_quiet: true } : {}),
   });
   registeredToken = token;

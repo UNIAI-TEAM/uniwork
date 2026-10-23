@@ -65,7 +65,7 @@ interface Opts {
 /**
  * the Expo push token goes in `endpoint`; `platform` is required for it, and
  * `call_ui` says an Android build draws its own incoming call, `chat_quiet` that it has the quiet chat channel
- * (server SDI)
+ * and replaces a room's notification with each push (server SDI)
  */
 export type PushSubscription = PushSubscriptionBody & { platform: string; call_ui?: boolean; chat_quiet?: boolean };
 

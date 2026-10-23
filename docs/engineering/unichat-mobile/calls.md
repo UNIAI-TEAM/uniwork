@@ -138,14 +138,19 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   tắt thông báo phòng, tắt push theo loại, người gửi và đang đọc phòng (presence) vẫn chặn như cũ. Lane push gửi một
   tin chỉ khi id (ULID) của nó lớn hơn `notifications.pushed_message_id`, nên push lặp hay push tới sau một tin mới hơn
   của phòng không gửi gì. Gom theo phòng: iPhone nhận `threadId` (aps.thread-id) = `group_key` của hàng và xếp chồng
-  các push của phòng; Android giữ `data.tag` = `group_key` nên mỗi push thay thông báo của phòng, tiêu đề thêm
-  "· N tin nhắn mới". Một đợt tin chỉ reo một lần mỗi `chatAlertWindow` (30 s, `push_consumer.go`): `phone_pushed_at`
+  các push của phòng. Android: expo-notifications đặt tên thông báo theo `data["tag"]` ở cấp ngoài của tin FCM
+  (`FirebaseMessagingDelegate.getNotificationIdentifier`), còn Expo gửi data của server thành một chuỗi JSON dưới
+  `body`, nên `UniChatMessagingService` nhấc `tag` (= `group_key`) từ chuỗi đó lên trước khi chuyển cho
+  expo-notifications (`PushTag.kt`, test `PushTagTest`) — mỗi push thay thông báo của phòng, và chỉ bản có bước nhấc
+  này (cùng bản đăng ký `chat_quiet`) mới nhận tiêu đề thêm "· N tin nhắn mới"; bản cũ vẫn mỗi push một thông báo,
+  tiêu đề trơn. Một đợt tin chỉ reo một lần mỗi `chatAlertWindow` (30 s, `push_consumer.go`): `phone_pushed_at`
   là lần cuối điện thoại reo cho hàng; tin tới trong cửa sổ là tin im (`quiet` = `1` trong data): iPhone không
   `sound`, mức `passive`; Android đi kênh `chat_quiet` (độ ưu tiên thấp, không chuông, không rung), chỉ tới bản đã
   đăng ký `chat_quiet: true` (`data/push.ts`, user agent `…; chat-quiet`) — bản cũ không có kênh đó sẽ hiện trên kênh
   dự phòng có chuông, nên không nhận tin im; listener khi app mở cũng không phát tiếng cho tin im
   (`foregroundBehavior`). Đọc phòng đóng hàng, nên tin đầu sau khi đọc luôn reo. Khoá của hành động thông báo là
-  `<id thông báo>:<id tin>:<hành động>` (`lib/chat-notification.ts`): Android giữ một id cho mọi push của phòng.
+  `<id thông báo>:<id tin>:<hành động>` (`lib/chat-notification.ts`), và khoá chống chạm hai lần cũng có id tin
+  (`lib/notification-response.ts`): Android giữ một id cho mọi push của phòng.
   Thông báo tin chat (DM, nhắc tên, trả lời chủ đề) mang category `chat_message` và id workspace/phòng/tin/chủ đề
   (server `push_expo.go › ChatMessageCategory`, `chatData`); app đăng ký category đó lúc mở và khi đổi ngôn ngữ
   (`data/chat-notification-actions.ts`): **Trả lời** (ô nhập) gửi qua outbox như mọi lần gửi rồi đánh dấu phòng đã đọc,

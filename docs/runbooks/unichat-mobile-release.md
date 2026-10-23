@@ -727,8 +727,10 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   nhắn mới", chỉ reo/rung ở tin đầu (Cài đặt › Thông báo của UniChat có kênh "Tin nhắn liền sau"); iPhone: 4 thông báo
   xếp chồng dưới một mục của phòng, chỉ tin đầu có tiếng. Chờ hơn 30 giây rồi gửi tin nữa: reo lại. Đọc phòng trên web
   rồi gửi tin: reo ngay. Tắt thông báo phòng: không push nào. "Trả lời" ở thông báo tin thứ hai sau khi đã trả lời tin
-  đầu: tin vẫn đi (khoá hành động theo id tin). Bản Android cũ (chưa đăng ký `chat_quiet`): chỉ nhận tin reo, không
-  có kênh dự phòng "Miscellaneous" mới.
+  đầu: tin vẫn đi (khoá hành động theo id tin); chạm thông báo đó sau khi đã chạm thông báo của tin đầu: mở đúng tin
+  mới. Android cho thấy nhiều thông báo của cùng một phòng thay vì một là bước nhấc tag (`PushTag.kt`) không chạy —
+  xem logcat "push tag not lifted". Bản Android cũ (chưa đăng ký `chat_quiet`): chỉ nhận tin reo, mỗi tin một thông
+  báo, tiêu đề không có "· N tin nhắn mới", không có kênh dự phòng "Miscellaneous" mới.
 - [ ] Ngôn ngữ: iOS Cài đặt › UniChat › Ngôn ngữ và Android 13+ Cài đặt › Ứng dụng › UniChat › Ngôn ngữ chỉ liệt kê
   Tiếng Việt và English; đổi ngôn ngữ trong app rồi nhận một push: push nói đúng ngôn ngữ đó (`users.locale` đổi theo,
   xem bằng `GET /api/v1/me`). Tiếng Anh: "1 reply", "2 replies".

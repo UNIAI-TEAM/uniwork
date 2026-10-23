@@ -121,8 +121,10 @@ func pushChannel(kind string) string {
 // PushCaps is what an Android build says it can do when it registers
 // (notification.Service.SubscribePush): CallUI, it draws its own incoming
 // call (UniChat 0.3.0 and later, call_ui); ChatQuiet, it created the
-// chat_quiet channel (chat_quiet). An iPhone has neither: it keeps the
-// visible call push, and quiets a push by its sound field.
+// chat_quiet channel and names a pushed notification by data.tag, so a
+// room's pushes replace one notification (chat_quiet). An iPhone has
+// neither: it keeps the visible call push, and quiets a push by its sound
+// field.
 type PushCaps struct {
 	CallUI    bool
 	ChatQuiet bool
@@ -181,9 +183,10 @@ func expoPlatform(sub db.PushSubscription) string {
 // no task to turn one into a ring, so it keeps the visible push.
 func expoCallUI(sub db.PushSubscription) bool { return expoMark(sub, expoCallUIMark) }
 
-// expoChatQuiet reports an Android build that has the chat_quiet channel. An
-// older one gets no quiet follow-up at all: its room notification keeps the
-// last message that alerted until the next one alerts.
+// expoChatQuiet reports an Android build that has the chat_quiet channel and
+// whose FCM service lifts data.tag (UniChatMessagingService › PushTag), so a
+// room's pushes replace one notification. An older one gets no quiet
+// follow-up at all: its tray keeps the pushes that alerted, one each.
 func expoChatQuiet(sub db.PushSubscription) bool { return expoMark(sub, expoChatQuietMark) }
 
 // callData is the data a call push carries: ids, the names a ringing screen
@@ -269,9 +272,13 @@ func expoMessageFor(sub db.PushSubscription, msg PushMessage) (expoMessage, bool
 
 // chatBurstMessage groups a chat push with the room's others and quiets a
 // follow-up (PushMessage.Quiet). An iPhone stacks them under the room's
-// thread and plays nothing for a quiet one; Android replaces the room's
-// notification (data.tag) and says the room's count in the title, on the
-// quiet channel for a quiet one, or not at all for a build without it.
+// thread and plays nothing for a quiet one. Android names a notification by
+// data.tag only on a build whose FCM service lifts the tag to where
+// expo-notifications reads it (Expo sends the data as a JSON string; the same
+// build created chat_quiet, so expoChatQuiet says both): there each push
+// replaces the room's notification, its title says the room's count, and a
+// quiet one goes on the quiet channel. An older build keeps a notification
+// per push, so it gets the plain title and no quiet follow-up at all.
 func chatBurstMessage(sub db.PushSubscription, msg PushMessage, m expoMessage) (expoMessage, bool) {
 	switch expoPlatform(sub) {
 	case "ios":
@@ -281,13 +288,14 @@ func chatBurstMessage(sub db.PushSubscription, msg PushMessage, m expoMessage) (
 			m.InterruptionLevel = "passive"
 		}
 	case "android":
-		if msg.Chat.Summary != "" {
+		grouped := expoChatQuiet(sub)
+		if msg.Quiet && !grouped {
+			return expoMessage{}, false
+		}
+		if grouped && msg.Chat.Summary != "" {
 			m.Title += " · " + msg.Chat.Summary
 		}
 		if msg.Quiet {
-			if !expoChatQuiet(sub) {
-				return expoMessage{}, false
-			}
 			m.ChannelID = ChannelChatQuiet
 		}
 	}
