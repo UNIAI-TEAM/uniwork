@@ -62,7 +62,9 @@ chi tiết phía server ở `calls.md` (mục "Cuộc gọi trên iPhone"). Đư
   `takeAnswered` và `joinFromPush` — màn cuộc gọi nối LiveKit, trên máy khoá thì chạy nền sau màn của CallKit.
   `declined`/`ended` → `runCallActionTask({ action: "decline" })` như nút Từ chối của Android: engine giữ cuộc gọi thì
   gác máy, không thì `POST …/chat/rooms/{roomID}/voice/decline`. `audio` → `RTCAudioSession.audioSessionDidActivate`
-  / `audioSessionDidDeactivate` của `@livekit/react-native-webrtc` (LiveKit cần biết CallKit đã kích hoạt phiên).
+  / `audioSessionDidDeactivate` của `@livekit/react-native-webrtc` (LiveKit cần biết CallKit đã kích hoạt phiên), qua
+  `data/calls/webrtc-audio.ts`: gói WebRTC chỉ được nạp ở sự kiện `audio` đầu tiên, không lúc mở app (module này chạy
+  ở mọi lần mở, cả Android), như phần LiveKit còn lại nạp cùng màn cuộc gọi (`call-overlay.tsx`).
 - `data/calls/call-session-sync.ts`: engine → hệ thống. Cuộc gọi đến sang đang nối → `answered` (CallKit nghe theo,
   kích hoạt âm thanh); cuộc gọi đến hết sống → `declined`; cuộc gọi khác hết sống hay nhường cho cuộc gọi khác →
   `ended`. Cuộc gọi CallKit không biết (chỉ reo trong app qua socket) được bỏ qua ở Swift.

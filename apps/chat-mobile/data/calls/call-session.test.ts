@@ -5,8 +5,16 @@ import type { StoreApi } from "zustand/vanilla";
 import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import type { CallSessionEvent } from "@/lib/call-session-event";
 
-const rtc = vi.hoisted(() => ({ audioSessionDidActivate: vi.fn(), audioSessionDidDeactivate: vi.fn() }));
-vi.mock("@livekit/react-native-webrtc", () => ({ RTCAudioSession: rtc }));
+const rtc = vi.hoisted(() => ({ audioSessionDidActivate: vi.fn(), audioSessionDidDeactivate: vi.fn(), loaded: false }));
+// The WebRTC package itself: importing the session must not evaluate it (it starts WebRTC's native module, logger and
+// event listeners); only CallKit's first audio event loads it, through ./webrtc-audio.
+vi.mock("@livekit/react-native-webrtc", () => {
+  rtc.loaded = true;
+  return { RTCAudioSession: rtc };
+});
+vi.mock("./webrtc-audio", () => ({
+  webrtcAudio: { activate: () => rtc.audioSessionDidActivate(), deactivate: () => rtc.audioSessionDidDeactivate() },
+}));
 vi.mock("../auth/flow", () => ({ authConfig: { scheme: "uniworkchat" } }));
 const wiring = vi.hoisted(() => ({ runCallActionTask: vi.fn(async () => undefined) }));
 vi.mock("./call-wiring", () => wiring);
@@ -57,6 +65,10 @@ function env() {
     now: () => 1_000,
   };
 }
+
+it("loads no WebRTC at the app's start: the root layout imports this module", () => {
+  expect(rtc.loaded).toBe(false);
+});
 
 beforeEach(() => {
   vi.clearAllMocks();

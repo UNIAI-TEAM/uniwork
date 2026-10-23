@@ -7,11 +7,11 @@
 // - declined, ended: the Decline the Android notification's button runs (call-actions.ts): the engine hangs up a call
 //   it holds; otherwise the server hears the decline, so the caller stops ringing. An End on a call the app never
 //   joined is a decline too.
-// - audio: CallKit activated (or released) the call's audio session; WebRTC is told, as LiveKit asks of a CallKit app.
+// - audio: CallKit activated (or released) the call's audio session; WebRTC is told, as LiveKit asks of a CallKit app
+//   (webrtc-audio.ts, which loads WebRTC only then: this module runs at every app start).
 //
 // The engine's own answer, decline and end go the other way (call-session-sync.ts). Events from before the app
 // listened (a closed app launched by the push) are taken once the app does.
-import { RTCAudioSession } from "@livekit/react-native-webrtc";
 import { answeredCallLink, type CallSessionEvent, type SessionCall } from "@/lib/call-session-event";
 import { authConfig } from "../auth/flow";
 import { createLogger } from "../logger";
@@ -19,6 +19,7 @@ import { installCallSessionSync } from "./call-session-sync";
 import { callEngine } from "./call-store";
 import { runCallActionTask } from "./call-wiring";
 import { nativeCallSession, type NativeCallSession } from "./native-call-session";
+import { webrtcAudio } from "./webrtc-audio";
 
 const log = createLogger("calls");
 
@@ -77,7 +78,7 @@ export function startNativeCallSession(openUrl: (url: string) => void): () => vo
     scheme: authConfig.scheme,
     openUrl,
     runAction: runCallActionTask,
-    audio: { activate: () => RTCAudioSession.audioSessionDidActivate(), deactivate: () => RTCAudioSession.audioSessionDidDeactivate() },
+    audio: webrtcAudio,
     now: () => Date.now(),
   });
   return () => {
