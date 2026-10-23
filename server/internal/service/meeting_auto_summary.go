@@ -57,10 +57,7 @@ var errAutoSummaryAttempts = errors.New("meetings: auto summary gave up after re
 
 // autoSummaryEnabled reads the organization switch; no row is the default, on.
 func autoSummaryEnabled(ctx context.Context, q *db.Queries, orgID string) (bool, error) {
-	set, err := q.GetMeetingSettings(ctx, orgID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return true, nil
-	}
+	set, err := meetingSettings(ctx, q, orgID)
 	return set.AutoSummaryEnabled, err
 }
 
@@ -246,51 +243,87 @@ func (s *MeetingService) GetMeetingSettings(ctx context.Context, actor Actor, or
 	if err := s.requireOrgAdmin(ctx, actor, organizationID); err != nil {
 		return db.MeetingSetting{}, err
 	}
-	set, err := s.q.GetMeetingSettings(ctx, organizationID)
+	return meetingSettings(ctx, s.q, organizationID)
+}
+
+// meetingSettings is the organization's row, or the defaults when it has none.
+func meetingSettings(ctx context.Context, q *db.Queries, organizationID string) (db.MeetingSetting, error) {
+	set, err := q.GetMeetingSettings(ctx, organizationID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return db.MeetingSetting{OrganizationID: organizationID, AutoSummaryEnabled: true}, nil
+		return db.MeetingSetting{OrganizationID: organizationID, AutoSummaryEnabled: true, ScribePolicy: ScribePolicyOn}, nil
 	}
 	return set, err
 }
 
-// SetMeetingAutoSummary switches the summary the system makes when a meeting
-// ends (D16). It applies to meetings that end from now on; one already queued
-// checks the switch again before it runs. A missing value is refused only
-// after the caller is authorized, so an outsider learns nothing from a 400.
-func (s *MeetingService) SetMeetingAutoSummary(ctx context.Context, actor Actor, organizationID string, value *bool) (db.MeetingSetting, error) {
+// MeetingSettingsInput is a change to the organization's meeting settings;
+// a nil field keeps its value.
+type MeetingSettingsInput struct {
+	// AutoSummaryEnabled switches the summary the system makes when a meeting
+	// ends (D16). It applies to meetings that end from now on; one already
+	// queued checks the switch again before it runs.
+	AutoSummaryEnabled *bool
+	// ScribePolicy is on, opt_in or off (scribePolicy). off takes the scribe
+	// out of every meeting now; opt_in applies to meetings created from now on.
+	ScribePolicy *string
+}
+
+// SetMeetingSettings changes the organization's meeting settings, audited as
+// one meeting.settings_changed row carrying what changed. An empty change is
+// refused only after the caller is authorized, so an outsider learns nothing
+// from a 400.
+func (s *MeetingService) SetMeetingSettings(ctx context.Context, actor Actor, organizationID string, in MeetingSettingsInput) (db.MeetingSetting, error) {
 	if err := s.requireOrgAdmin(ctx, actor, organizationID); err != nil {
 		return db.MeetingSetting{}, err
 	}
-	if value == nil {
-		return db.MeetingSetting{}, Invalid("auto_summary_enabled is required")
+	if in.AutoSummaryEnabled == nil && in.ScribePolicy == nil {
+		return db.MeetingSetting{}, Invalid("auto_summary_enabled or scribe_policy is required")
 	}
-	enabled := *value
+	if in.ScribePolicy != nil && !validScribePolicy(*in.ScribePolicy) {
+		return db.MeetingSetting{}, Invalid("scribe_policy must be on, opt_in or off")
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.MeetingSetting{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
-	before, err := autoSummaryEnabled(ctx, q, organizationID)
+	before, err := meetingSettings(ctx, q, organizationID)
 	if err != nil {
 		return db.MeetingSetting{}, err
 	}
+	after := before
+	if in.AutoSummaryEnabled != nil {
+		after.AutoSummaryEnabled = *in.AutoSummaryEnabled
+	}
+	if in.ScribePolicy != nil {
+		after.ScribePolicy = *in.ScribePolicy
+	}
 	set, err := q.UpsertMeetingSettings(ctx, db.UpsertMeetingSettingsParams{
-		OrganizationID: organizationID, AutoSummaryEnabled: enabled, UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
+		OrganizationID: organizationID, AutoSummaryEnabled: after.AutoSummaryEnabled, ScribePolicy: after.ScribePolicy,
+		UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
 	})
 	if err != nil {
 		return db.MeetingSetting{}, err
 	}
-	if before != enabled {
+	from, to := map[string]any{}, map[string]any{}
+	if before.AutoSummaryEnabled != after.AutoSummaryEnabled {
+		from["auto_summary_enabled"], to["auto_summary_enabled"] = before.AutoSummaryEnabled, after.AutoSummaryEnabled
+	}
+	if before.ScribePolicy != after.ScribePolicy {
+		from["scribe_policy"], to["scribe_policy"] = before.ScribePolicy, after.ScribePolicy
+	}
+	if len(to) > 0 {
 		if err := auditRecorder.Record(ctx, q, audit.Entry{
 			OrganizationID: organizationID, Actor: actor,
 			Action:       audit.ActionMeetingSettingsChanged,
 			ResourceType: "organization", ResourceID: organizationID,
-			Changes: audit.Diff(map[string]any{"auto_summary_enabled": before}, map[string]any{"auto_summary_enabled": enabled}),
+			Changes: audit.Diff(from, to),
 		}); err != nil {
 			return db.MeetingSetting{}, err
 		}
 	}
+	// Policy off needs no inline close: the 15 s sweep reaches every open
+	// run, finds the meeting no longer wants it, and removes the agent.
 	return set, tx.Commit(ctx)
 }
 

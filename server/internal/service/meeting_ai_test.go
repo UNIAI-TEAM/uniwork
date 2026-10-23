@@ -73,8 +73,11 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	if err != nil || latest == nil || latest.ID != sum.ID {
 		t.Fatalf("%+v %v", latest, err)
 	}
-	// Non-host member cannot summarize; can read.
+	// A non-host participant cannot summarize; can read.
 	addMember(t, s, w.ID, ub.ID)
+	if _, err := s.Invite(ctx, ua.ID, m.ID, ub.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.Summarize(ctx, ub.ID, m.ID, "vi"); err == nil {
 		t.Fatal("member summarized")
 	}

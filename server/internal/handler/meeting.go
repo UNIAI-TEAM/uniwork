@@ -30,7 +30,7 @@ func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
 		RoomName: m.RoomName, CreatedBy: m.CreatedBy, CreatedAt: rfc3339(m.CreatedAt), Status: m.Status, MeetingType: m.MeetingType,
 		HostUserID: m.HostUserID, Timezone: m.Timezone, AllowJoinRequest: m.AllowJoinRequest,
 		ProjectID: m.ProjectID.String, ActualStartAt: rfc3339(m.ActualStartAt), ActualEndAt: rfc3339(m.ActualEndAt),
-		Version: m.Version, ScribeEnabled: !m.ScribeOffAt.Valid,
+		Version: m.Version, ScribeEnabled: !m.ScribeOffAt.Valid, AIContentShared: m.AiContentSharedAt.Valid,
 	}
 	if m.QuorumPercent.Valid {
 		v := m.QuorumPercent.Int16
@@ -123,6 +123,8 @@ func (h *handlers) getMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 	d := toMeetingDTO(m)
 	d.ScribeStatus = h.Meetings.ScribeStatus(r.Context(), m.ID)
+	readable := h.Meetings.CanReadAIContent(r.Context(), middleware.UserID(r.Context()), m)
+	d.AIContentReadable = &readable
 	respondJSON(w, 200, map[string]any{"meeting": d})
 }
 

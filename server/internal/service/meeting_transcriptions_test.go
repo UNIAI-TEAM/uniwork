@@ -46,7 +46,8 @@ func transcriptionFixture(t *testing.T) transcriptionEnv {
 	vendor := &provider.FakeFileTranscriber{}
 	s.AI = ai.NewGateway(s.q, nil, nil, nil, ai.Options{Cloud: ai.CloudTools{MeetingTranscriber: vendor}})
 	start := time.Now().Add(24 * time.Hour).Truncate(time.Second)
-	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "Họp chi bộ", StartsAt: start, EndsAt: start.Add(time.Hour)})
+	// The member is invited: an AI-content read is for the people of the meeting (UNI-1995 access).
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "Họp chi bộ", StartsAt: start, EndsAt: start.Add(time.Hour), AttendeeUserIDs: []string{ub.ID}})
 	if err != nil {
 		t.Fatal(err)
 	}

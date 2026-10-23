@@ -174,14 +174,19 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 		tags:        []string{"meetings"}, sdo: sdo.MeetingSettingsSDO{}, auth: true,
 	})
 	r.Put("/orgs/{orgID}/meetings/settings", h.SetMeetingSettings, apiOp{
-		summary:     "Switch the summary the system makes when a meeting ends",
-		description: "Bật/tắt tóm tắt tự tạo khi họp xong cho cả tổ chức. Chỉ owner/admin tổ chức; áp cho cuộc họp kết thúc từ nay, cuộc họp đang chờ tóm tắt cũng kiểm lại trước khi chạy. Tắt thì chủ trì nhận nhắc tóm tắt như cũ. Đổi giá trị ghi audit meeting.settings_changed.",
+		summary:     "Change the organization's meeting settings (auto summary, AI scribe policy)",
+		description: "Chỉ owner/admin tổ chức; gửi một hoặc cả hai trường, trường thiếu giữ nguyên. auto_summary_enabled: bật/tắt tóm tắt tự tạo khi họp xong, áp cho cuộc họp kết thúc từ nay (cuộc họp đang chờ tóm tắt cũng kiểm lại trước khi chạy; tắt thì chủ trì nhận nhắc như cũ). scribe_policy: on | opt_in | off; off gỡ thư ký khỏi mọi phòng đang họp trong vòng quét 15 giây, opt_in áp cho cuộc họp tạo từ nay. Đổi giá trị ghi audit meeting.settings_changed.",
 		tags:        []string{"meetings"}, sdi: sdi.SetMeetingSettingsSDI{}, sdo: sdo.MeetingSettingsSDO{}, auth: true,
 	})
 	r.Put("/meetings/{meetingID}/scribe", h.SetMeetingScribe, apiOp{
 		summary:     "Switch the AI scribe off or on for one meeting",
-		description: "Chủ trì hoặc quản trị workspace; cuộc họp SCHEDULED hoặc IN_PROGRESS. Mặc định bật; đang họp thì thư ký được gỡ khỏi phòng hoặc gọi vào ngay. Ghi audit meeting.scribe_toggled và phát scribe.updated.",
+		description: "Chủ trì hoặc quản trị workspace; cuộc họp SCHEDULED hoặc IN_PROGRESS. Mặc định bật (tổ chức đặt scribe_policy=opt_in thì cuộc họp mới tắt); đang họp thì thư ký được gỡ khỏi phòng hoặc gọi vào ngay. 409 scribe_off_by_policy: tổ chức đã tắt thư ký (scribe_policy=off), chỉ tắt được, không bật được. Ghi audit meeting.scribe_toggled và phát scribe.updated.",
 		tags:        []string{"meetings"}, sdi: sdi.SetMeetingScribeSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
+	})
+	r.Put("/meetings/{meetingID}/ai-sharing", h.SetMeetingAISharing, apiOp{
+		summary:     "Share a meeting's AI content with the workspace, or keep it to the meeting",
+		description: "Chủ tọa, thư ký hoặc quản trị workspace; mọi trạng thái. Nội dung AI (transcript, tóm tắt AI, dòng trích dẫn, tóm tắt cho người vào muộn, Ask UNI/MCP đọc transcript) mặc định chỉ dành cho chủ trì, thư ký, người được mời hoặc được nhận vào chưa bị gỡ và quản trị workspace; shared=true mở cho mọi thành viên workspace. Người khác đọc nội dung đó nhận 403 meeting_ai_restricted. Đổi giá trị ghi audit meeting.ai_sharing_changed và phát meeting.updated.",
+		tags:        []string{"meetings"}, sdi: sdi.SetMeetingAISharingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
 	})
 	r.Put("/meetings/{meetingID}/participants/{participantID}/shared-mic", h.SetParticipantSharedMic, apiOp{
 		summary:     "Mark or unmark a participant as the room's shared microphone (clerk)",

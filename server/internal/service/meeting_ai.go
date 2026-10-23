@@ -117,7 +117,7 @@ func (s *MeetingService) transcriptPage(ctx context.Context, userID, meetingID s
 	if err := q.validate(); err != nil {
 		return FeedPage[db.MeetingTranscriptSegment]{}, err
 	}
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+	if _, err := s.authorizeAIContent(ctx, userID, meetingID); err != nil {
 		return FeedPage[db.MeetingTranscriptSegment]{}, err
 	}
 	limit := q.limit()
@@ -160,7 +160,7 @@ func (s *MeetingService) transcriptPage(ctx context.Context, userID, meetingID s
 // ---- AI summary --------------------------------------------------------------
 
 func (s *MeetingService) Summary(ctx context.Context, userID, meetingID string) (*db.MeetingSummary, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+	if _, err := s.authorizeAIContent(ctx, userID, meetingID); err != nil {
 		return nil, err
 	}
 	sum, err := s.q.GetLatestMeetingSummary(ctx, meetingID)
@@ -186,6 +186,9 @@ func (s *MeetingService) SummaryAvailable(ctx context.Context, orgID string) boo
 // MeetingCapabilities is what the meeting screens of one workspace may offer.
 type MeetingCapabilities struct {
 	AISummary, Recording, Scribe, Transcription bool
+	// ScribePolicy is the organization's policy (on, opt_in, off): a new
+	// meeting's scribe starts on unless it is opt_in.
+	ScribePolicy string
 }
 
 // Capabilities answers GET /workspaces/{id}/meeting-capabilities. The route
@@ -199,9 +202,14 @@ func (s *MeetingService) Capabilities(ctx context.Context, userID, workspaceID s
 	if err != nil {
 		return MeetingCapabilities{}, err
 	}
+	policy, err := scribePolicy(ctx, s.q, mem.OrganizationID)
+	if err != nil {
+		return MeetingCapabilities{}, err
+	}
 	return MeetingCapabilities{
 		AISummary: s.SummaryAvailable(ctx, mem.OrganizationID), Recording: s.RecordingEnabled(ctx),
 		Scribe: s.ScribeAvailable(ctx, mem.OrganizationID), Transcription: s.TranscriptionAvailable(ctx, mem.OrganizationID),
+		ScribePolicy: policy,
 	}, nil
 }
 

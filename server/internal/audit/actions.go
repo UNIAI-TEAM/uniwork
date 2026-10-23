@@ -342,13 +342,19 @@ const (
 	ActionMeetingSummaryCreated = "meeting.summary_created"
 
 	// An organization owner/admin switched the summary the system makes when a
-	// meeting ends off or back on (MeetingService.SetMeetingAutoSummary,
-	// UNI-2026); changes carry auto_summary_enabled.
+	// meeting ends off or back on, or changed the AI scribe policy (MeetingService.SetMeetingSettings,
+	// UNI-2026, UNI-1995); changes carry auto_summary_enabled and/or scribe_policy.
 	ActionMeetingSettingsChanged = "meeting.settings_changed"
 
 	// A host or admin switched the AI scribe off or back on for one meeting
 	// (MeetingService.SetScribe, UNI-2023).
 	ActionMeetingScribeToggled = "meeting.scribe_toggled"
+
+	// The host or a clerk shared the meeting's AI content (transcript,
+	// summary, evidence, catch-up) with the whole workspace, or took it back
+	// to the people of the meeting (MeetingService.SetAIContentShared,
+	// UNI-1995 access); changes carry ai_content_shared.
+	ActionMeetingAISharingChanged = "meeting.ai_sharing_changed"
 
 	// A clerk marked a participant as the room's shared microphone, or
 	// lifted it (MeetingService.SetSharedMic, UNI-2024).

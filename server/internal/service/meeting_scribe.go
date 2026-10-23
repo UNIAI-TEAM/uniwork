@@ -85,7 +85,12 @@ func (s *MeetingService) orgFlagOn(ctx context.Context, orgID, key string) bool 
 // agent, the flag is on and the plan includes meeting.transcription. Minutes
 // left are checked per run, not here.
 func (s *MeetingService) ScribeAvailable(ctx context.Context, orgID string) bool {
-	return s.scribeConfigured() && s.scribeFlagOn(ctx, orgID) && s.ent.Can(ctx, orgID, FeatureMeetingTranscription) == nil
+	if !s.scribeConfigured() || !s.scribeFlagOn(ctx, orgID) || s.ent.Can(ctx, orgID, FeatureMeetingTranscription) != nil {
+		return false
+	}
+	// The organization's own policy off hides the scribe like the platform's flag; a failed read hides it too.
+	p, err := scribePolicy(ctx, s.q, orgID)
+	return err == nil && p != ScribePolicyOff
 }
 
 // ScribeStatus is the latest run's status, "" when the meeting never had one.
@@ -143,6 +148,13 @@ func (s *MeetingService) ensureScribeRun(ctx context.Context, meetingID string, 
 		return err
 	}
 	want := m.Status == MeetingInProgress && !m.ScribeOffAt.Valid && s.scribeConfigured() && s.scribeFlagOn(ctx, m.OrganizationID)
+	if want {
+		policy, err := scribePolicy(ctx, s.q, m.OrganizationID)
+		if err != nil {
+			return err
+		}
+		want = policy != ScribePolicyOff
+	}
 	now := time.Now()
 	if hasRun && scribeRunOpen(latest) {
 		emptied := !pres.Present && (!pres.LastLeftAt.Valid || now.Sub(pres.LastLeftAt.Time) >= scribeEmptyGrace)
@@ -360,7 +372,8 @@ func (s *MeetingService) sweepScribes(ctx context.Context) error {
 
 // SetScribe switches the scribe off or back on for one meeting (D14): host
 // or workspace admin, before or during the meeting. In progress, the agent is
-// removed or dispatched right away.
+// removed or dispatched right away. An organization whose scribe policy is
+// off refuses the switch on (409 scribe_off_by_policy); off always works.
 func (s *MeetingService) SetScribe(ctx context.Context, userID, meetingID string, enabled bool) (db.Meeting, error) {
 	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
 	if err != nil {
@@ -368,6 +381,13 @@ func (s *MeetingService) SetScribe(ctx context.Context, userID, meetingID string
 	}
 	if m.Status != MeetingScheduled && m.Status != MeetingInProgress {
 		return db.Meeting{}, errInvalidState()
+	}
+	if enabled {
+		if p, err := scribePolicy(ctx, s.q, m.OrganizationID); err != nil {
+			return db.Meeting{}, err
+		} else if p == ScribePolicyOff {
+			return db.Meeting{}, errScribeOffByPolicy()
+		}
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

@@ -182,11 +182,11 @@ type EvidenceSource struct {
 	At                     pgtype.Timestamptz
 }
 
-// EvidenceSources reads the cited lines of one meeting for any member, in the
-// order asked. A reference to a line of another meeting or tenant, or one
+// EvidenceSources reads the cited lines of one meeting for a reader of its AI
+// content (authorizeAIContent), in the order asked. A reference to a line of another meeting or tenant, or one
 // deleted since, is simply absent.
 func (s *MeetingService) EvidenceSources(ctx context.Context, userID, meetingID string, refs []EvidenceRef) ([]EvidenceSource, error) {
-	m, _, err := s.authorize(ctx, userID, meetingID)
+	m, err := s.authorizeAIContent(ctx, userID, meetingID)
 	if err != nil {
 		return nil, err
 	}

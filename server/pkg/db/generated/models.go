@@ -1598,6 +1598,8 @@ type Meeting struct {
 	MinutesFinalizedVersionID pgtype.Text        `json:"minutes_finalized_version_id"`
 	DialInPin                 pgtype.Text        `json:"dial_in_pin"`
 	SipDispatchRuleID         pgtype.Text        `json:"sip_dispatch_rule_id"`
+	AiContentSharedAt         pgtype.Timestamptz `json:"ai_content_shared_at"`
+	AiContentSharedBy         pgtype.Text        `json:"ai_content_shared_by"`
 }
 
 type MeetingAccessGrant struct {
@@ -1916,6 +1918,7 @@ type MeetingSetting struct {
 	UpdatedByKind      string             `json:"updated_by_kind"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	ScribePolicy       string             `json:"scribe_policy"`
 }
 
 type MeetingSpeakerLabel struct {

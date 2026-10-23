@@ -224,7 +224,7 @@ func (s *MeetingService) nameSpeakers(ctx context.Context, meetingID string, seg
 // SpeakerLabels lists the meeting's labels, assigned or not, for anyone who
 // may read its transcript.
 func (s *MeetingService) SpeakerLabels(ctx context.Context, userID, meetingID string) ([]db.ListMeetingSpeakerLabelsRow, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+	if _, err := s.authorizeAIContent(ctx, userID, meetingID); err != nil {
 		return nil, err
 	}
 	return s.q.ListMeetingSpeakerLabels(ctx, meetingID)

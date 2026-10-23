@@ -88,6 +88,7 @@ func (h *handlers) meetingCapabilities(w http.ResponseWriter, r *http.Request) {
 	}
 	respondJSON(w, 200, sdo.MeetingCapabilitiesSDO{
 		AISummary: caps.AISummary, Recording: caps.Recording, Scribe: caps.Scribe, Transcription: caps.Transcription,
+		ScribePolicy: caps.ScribePolicy,
 	})
 }
 

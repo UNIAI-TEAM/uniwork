@@ -65,7 +65,7 @@ func (q *Queries) DeleteMeetingAutoSummary(ctx context.Context, arg DeleteMeetin
 
 const getMeetingSettings = `-- name: GetMeetingSettings :one
 
-SELECT organization_id, auto_summary_enabled, updated_by, updated_by_kind, created_at, updated_at FROM meeting_settings WHERE organization_id = $1
+SELECT organization_id, auto_summary_enabled, updated_by, updated_by_kind, created_at, updated_at, scribe_policy FROM meeting_settings WHERE organization_id = $1
 `
 
 // The summary the system makes when a meeting ends (UNI-2026, spec
@@ -81,6 +81,7 @@ func (q *Queries) GetMeetingSettings(ctx context.Context, organizationID string)
 		&i.UpdatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ScribePolicy,
 	)
 	return i, err
 }
@@ -139,19 +140,21 @@ func (q *Queries) QueueMeetingAutoSummary(ctx context.Context, arg QueueMeetingA
 }
 
 const upsertMeetingSettings = `-- name: UpsertMeetingSettings :one
-INSERT INTO meeting_settings (organization_id, auto_summary_enabled, updated_by, updated_by_kind)
-VALUES ($1, $2, $3, $4)
+INSERT INTO meeting_settings (organization_id, auto_summary_enabled, scribe_policy, updated_by, updated_by_kind)
+VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (organization_id) DO UPDATE
 SET auto_summary_enabled = EXCLUDED.auto_summary_enabled,
+    scribe_policy = EXCLUDED.scribe_policy,
     updated_by = EXCLUDED.updated_by,
     updated_by_kind = EXCLUDED.updated_by_kind,
     updated_at = now()
-RETURNING organization_id, auto_summary_enabled, updated_by, updated_by_kind, created_at, updated_at
+RETURNING organization_id, auto_summary_enabled, updated_by, updated_by_kind, created_at, updated_at, scribe_policy
 `
 
 type UpsertMeetingSettingsParams struct {
 	OrganizationID     string `json:"organization_id"`
 	AutoSummaryEnabled bool   `json:"auto_summary_enabled"`
+	ScribePolicy       string `json:"scribe_policy"`
 	UpdatedBy          string `json:"updated_by"`
 	UpdatedByKind      string `json:"updated_by_kind"`
 }
@@ -160,6 +163,7 @@ func (q *Queries) UpsertMeetingSettings(ctx context.Context, arg UpsertMeetingSe
 	row := q.db.QueryRow(ctx, upsertMeetingSettings,
 		arg.OrganizationID,
 		arg.AutoSummaryEnabled,
+		arg.ScribePolicy,
 		arg.UpdatedBy,
 		arg.UpdatedByKind,
 	)
@@ -171,6 +175,7 @@ func (q *Queries) UpsertMeetingSettings(ctx context.Context, arg UpsertMeetingSe
 		&i.UpdatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ScribePolicy,
 	)
 	return i, err
 }

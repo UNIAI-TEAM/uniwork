@@ -64,11 +64,11 @@ type MeetingCatchUpResult struct {
 	Partial bool `json:"partial"`
 }
 
-// MeetingCatchUp answers POST /meetings/{meetingID}/catch-up for a workspace
-// member (D17: anyone else is refused by authorize, 403/404) while the
-// meeting runs.
+// MeetingCatchUp answers POST /meetings/{meetingID}/catch-up for a reader of
+// the meeting's AI content (authorizeAIContent: D17's workspace gate, then
+// the people of the meeting, UNI-1995 access) while the meeting runs.
 func (s *AskUNIService) MeetingCatchUp(ctx context.Context, userID, meetingID, locale string) (MeetingCatchUpResult, error) {
-	m, _, err := s.meetings.authorize(ctx, userID, meetingID)
+	m, err := s.meetings.authorizeAIContent(ctx, userID, meetingID)
 	if err != nil {
 		return MeetingCatchUpResult{}, err
 	}

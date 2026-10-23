@@ -143,7 +143,14 @@ type AgentFinishedSDI struct {
 type SetMeetingSettingsSDI struct {
 	// A pointer, so a body without the field is refused rather than read as
 	// false (which would switch auto summaries off for the organization).
-	AutoSummaryEnabled *bool `json:"auto_summary_enabled" description:"Bắt buộc; thiếu thì 400 invalid_request. false = không tự tạo tóm tắt khi họp xong (chủ trì nhận nhắc như cũ); true = tự tạo (mặc định)" example:"false"`
+	AutoSummaryEnabled *bool `json:"auto_summary_enabled,omitempty" description:"false = không tự tạo tóm tắt khi họp xong (chủ trì nhận nhắc như cũ); true = tự tạo (mặc định). Thiếu thì giữ nguyên; thiếu cả hai trường thì 400 invalid_request" example:"false"`
+	// ScribePolicy is on, opt_in or off; any other value is a 400.
+	ScribePolicy *string `json:"scribe_policy,omitempty" enum:"on,opt_in,off" description:"Chính sách thư ký AI của tổ chức: on (mặc định) | opt_in (cuộc họp tạo từ nay tắt thư ký, chủ trì tự bật) | off (không bao giờ gọi thư ký; PUT /meetings/{id}/scribe bật lại bị 409). Thiếu thì giữ nguyên" example:"opt_in"`
+}
+
+// SetMeetingAISharingSDI is PUT /api/v1/meetings/{meetingID}/ai-sharing.
+type SetMeetingAISharingSDI struct {
+	Shared bool `json:"shared" description:"true = chia sẻ nội dung AI của cuộc họp với cả workspace; false = chỉ người của cuộc họp (mặc định)" example:"true"`
 }
 
 type SetMeetingScribeSDI struct {

@@ -70,6 +70,21 @@ func TestMeetingCatchUpRefusesNonMembers(t *testing.T) {
 	}
 }
 
+// UNI-1995 access: a workspace member the host never invited or admitted
+// gets no brief either, and nothing is billed.
+func TestMeetingCatchUpRefusesMembersOutsideTheMeeting(t *testing.T) {
+	s, fake, ua, ub, w := askFixture(t)
+	addMember(t, s.meetings, w.ID, ub.ID)
+	m := liveCatchUpMeeting(t, s, ua.ID, w.ID)
+	catchUpSegment(t, s, m, "AGENT", "An", "Chốt lương quý IV", 20*time.Minute)
+	if _, err := s.MeetingCatchUp(context.Background(), ub.ID, m.ID, "vi"); !codedIs(err, "meeting_ai_restricted") {
+		t.Fatalf("uninvited member catch-up: %v, want meeting_ai_restricted", err)
+	}
+	if fake.Calls != 0 {
+		t.Fatalf("gateway called %d times for a refused caller", fake.Calls)
+	}
+}
+
 func TestMeetingCatchUpNeedsALiveMeeting(t *testing.T) {
 	s, _, ua, _, w := askFixture(t)
 	start := time.Now().Add(time.Hour)
@@ -104,6 +119,9 @@ func TestMeetingCatchUpCoalescesAndPointsAtSegments(t *testing.T) {
 	s, fake, ua, ub, w := askFixture(t)
 	addMember(t, s.meetings, w.ID, ub.ID)
 	m := liveCatchUpMeeting(t, s, ua.ID, w.ID)
+	if _, err := s.meetings.Invite(context.Background(), ua.ID, m.ID, ub.ID); err != nil {
+		t.Fatal(err)
+	}
 	first := catchUpSegment(t, s, m, "AGENT", "An", "Mở đầu: chốt lịch demo", 25*time.Minute)
 	catchUpSegment(t, s, m, "CAPTION", "Bình", "phụ đề trình duyệt không được dùng", 24*time.Minute)
 	if _, err := s.meetings.AddNote(context.Background(), ua.ID, m.ID, "Ghi chú: ngân sách quý IV"); err != nil {

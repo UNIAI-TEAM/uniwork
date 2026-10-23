@@ -105,6 +105,10 @@ sản phẩm đã chốt ngày 2026-10-20 (§13).
 | D14 | **Mặc định bật** cho tổ chức có quyền gói; phòng luôn hiện báo hiệu; chủ trì/admin tắt hoặc bật lại cho từng cuộc họp, kể cả giữa chừng. |
 | D15 | **Việc đề xuất trong lúc họp** nằm trong nhóm A (A4). |
 | D16 | **Tóm tắt tự tạo** khi họp xong, nếu có lời hoặc ghi chú (A5); tổ chức tắt được. |
+| D10a | (UNI-1995 access, 2026-10-23) Ngoại lệ duy nhất của D10: người gọi điện thoại không thấy chip, nên khi chủ trì nhận họ vào (`uw.dial_in=admitted`) agent phát **một lần** lời báo thư ký AI tiếng Việt (`apps/meeting-agent/assets/sip-notice-vi.wav`), track chỉ người gọi đó được subscribe. Agent vì thế có quyền publish nguồn microphone, chỉ cho track này. |
+| D14a | (UNI-1995 access) **Chính sách thư ký của tổ chức** `meeting_settings.scribe_policy`: `on` (mặc định, như D14) \| `opt_in` (cuộc họp tạo từ nay tắt thư ký; chủ trì bật trong form lên lịch, trang cuộc họp hoặc phòng) \| `off` (không bao giờ gọi agent; `PUT /scribe` bật lại trả 409 `scribe_off_by_policy`). Owner/admin tổ chức đổi, ghi audit `meeting.settings_changed`. |
+| D14b | (UNI-1995 access) **Báo trước khi vào:** prejoin, phòng chờ và trang mời của khách hiện một lần mỗi cuộc họp lời báo ai lưu bản ghi, ai đọc được, và âm thanh được xử lý ở ngoài Việt Nam; khách thấy chip thư ký chỉ đọc trong phòng. |
+| D17a | (UNI-1995 access) **Nội dung AI chỉ cho người của cuộc họp:** transcript, tóm tắt AI, dòng trích dẫn, tóm tắt phần đã lỡ, nhãn người nói, Ask UNI/MCP đọc transcript/tóm tắt — chỉ chủ trì, thư ký, người tham gia có dòng `ACTIVE` (được mời, được nhận vào, đã dự; bị gỡ thì mất), quản trị workspace (owner/admin tổ chức là admin ngầm). Người khác nhận 403 `meeting_ai_restricted`. Chủ trì/thư ký bật "chia sẻ nội dung AI với cả workspace" (`PUT /meetings/{id}/ai-sharing`, audit `meeting.ai_sharing_changed`, mặc định tắt). Thông tin cuộc họp (tiêu đề, giờ, chương trình, việc) giữ phạm vi workspace. |
 
 ## 2. Ngoài phạm vi
 

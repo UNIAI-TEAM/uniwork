@@ -164,6 +164,25 @@ func (h *handlers) setMeetingScribe(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.MeetingSDO{Meeting: d})
 }
 
+// setMeetingAISharing is PUT /meetings/{meetingID}/ai-sharing (UNI-1995 access).
+func (h *handlers) setMeetingAISharing(w http.ResponseWriter, r *http.Request) {
+	var in sdi.SetMeetingAISharingSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	userID := middleware.UserID(r.Context())
+	m, err := h.Meetings.SetAIContentShared(r.Context(), userID, chi.URLParam(r, "meetingID"), in.Shared)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	d := toMeetingDTO(m)
+	d.ScribeStatus = h.Meetings.ScribeStatus(r.Context(), m.ID)
+	readable := h.Meetings.CanReadAIContent(r.Context(), userID, m)
+	d.AIContentReadable = &readable
+	respondJSON(w, 200, sdo.MeetingSDO{Meeting: d})
+}
+
 func (h *handlers) setParticipantSharedMic(w http.ResponseWriter, r *http.Request) {
 	var in sdi.SetSharedMicSDI
 	if !decode(w, r, &in, maxJSONBody) {
@@ -233,7 +252,8 @@ func (h *handlers) setMeetingSettings(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	set, err := h.Meetings.SetMeetingAutoSummary(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "orgID"), in.AutoSummaryEnabled)
+	set, err := h.Meetings.SetMeetingSettings(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "orgID"),
+		service.MeetingSettingsInput{AutoSummaryEnabled: in.AutoSummaryEnabled, ScribePolicy: in.ScribePolicy})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -242,7 +262,7 @@ func (h *handlers) setMeetingSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func respondMeetingSettings(w http.ResponseWriter, set db.MeetingSetting) {
-	out := sdo.MeetingSettingsSDO{OrganizationID: set.OrganizationID, AutoSummaryEnabled: set.AutoSummaryEnabled}
+	out := sdo.MeetingSettingsSDO{OrganizationID: set.OrganizationID, AutoSummaryEnabled: set.AutoSummaryEnabled, ScribePolicy: set.ScribePolicy}
 	if set.UpdatedBy != "" {
 		out.UpdatedBy, out.UpdatedByKind = &set.UpdatedBy, &set.UpdatedByKind
 	}

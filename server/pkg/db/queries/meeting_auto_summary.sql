@@ -6,10 +6,11 @@
 SELECT * FROM meeting_settings WHERE organization_id = sqlc.arg(organization_id);
 
 -- name: UpsertMeetingSettings :one
-INSERT INTO meeting_settings (organization_id, auto_summary_enabled, updated_by, updated_by_kind)
-VALUES (sqlc.arg(organization_id), sqlc.arg(auto_summary_enabled), sqlc.arg(updated_by), sqlc.arg(updated_by_kind))
+INSERT INTO meeting_settings (organization_id, auto_summary_enabled, scribe_policy, updated_by, updated_by_kind)
+VALUES (sqlc.arg(organization_id), sqlc.arg(auto_summary_enabled), sqlc.arg(scribe_policy), sqlc.arg(updated_by), sqlc.arg(updated_by_kind))
 ON CONFLICT (organization_id) DO UPDATE
 SET auto_summary_enabled = EXCLUDED.auto_summary_enabled,
+    scribe_policy = EXCLUDED.scribe_policy,
     updated_by = EXCLUDED.updated_by,
     updated_by_kind = EXCLUDED.updated_by_kind,
     updated_at = now()
