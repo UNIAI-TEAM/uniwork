@@ -41,7 +41,7 @@ name: Mobile Verify
 #   android-smoke   installs that APK on an emulator and runs
 #                   apps/chat-mobile/maestro/flows/smoke-launch.yaml: the app
 #                   cold-starts to its sign-in screen and stays up; then times
-#                   five cold starts and weighs the APK against
+#                   ten cold starts and weighs the APK against
 #                   apps/chat-mobile/perf-budget.json (scripts/mobile-perf.mjs);
 #                   then runs the calls module's instrumented test APK
 #                   (modules/unichat-calls/android/src/androidTest).
@@ -440,23 +440,33 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Cold start on an emulator
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          # An emulator whose adbd dropped ("device offline") is reconnected before each Maestro attempt
+          # (scripts/maestro-retry.sh); it stayed offline for the retry otherwise (UNI-2142).
+          MAESTRO_ADB_RECOVER: "1"
         with:
           api-level: 35
           target: google_apis
           arch: x86_64
           disable-animations: true
-          # Then on the device (audit P1 Perf): the APK's size, and five cold starts timed to Android's first
-          # frame and to the sign-in screen drawn under the lifted splash, each held to its ceiling. Last (audit
+          # Then on the device (audit P1 Perf): the APK's size, and ten cold starts timed to Android's first
+          # frame (held until the splash lifts) and to the sign-in screen drawn under it, each median held to its
+          # ceiling. Ten, after an untimed launch, a fixed compile state and a settled CPU before each (UNI-2142): on
+          # this freshly booted emulator one launch varied by ~28 %, and five gave the same commit 2056 and 2748. Last (audit
           # UX "no-device-a11y-verification"), at the largest font scale and in dark mode: the sign-in screen
           # still shows its copy and reaches its button, and every control on it is named and 48 dp a side.
           # Then (review P2) the calls module's instrumented test: an incoming call posted through
           # CallNotifications reaches System UI's shade as a call with Answer and Decline.
+          # hide_error_dialogs: a busy, freshly booted emulator's own apps raise "Pixel Launcher isn't responding" over
+          # the app, and Maestro then cannot see the sign-in button drawn under it (UNI-2142). The setting hides those
+          # system dialogs only; a UniChat crash still fails the flow, since its screen never shows.
           script: |
+            adb shell settings put global hide_error_dialogs 1
             adb install "${{ runner.temp }}/apk/app-release.apk"
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
             mkdir -p "${{ runner.temp }}/perf"
             node scripts/mobile-perf.mjs apk "${{ runner.temp }}/apk/app-release.apk" --out "${{ runner.temp }}/perf/apk.json"
-            node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 5 --out "${{ runner.temp }}/perf/startup.json"
+            node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 10 --out "${{ runner.temp }}/perf/startup.json"
             node scripts/mobile-perf.mjs check "${{ runner.temp }}/perf/apk.json" "${{ runner.temp }}/perf/startup.json"
             adb shell settings put system font_scale 2.0
             adb shell cmd uimode night yes
@@ -621,13 +631,17 @@ jobs:
           # The web (3000) and API (8080) on the runner, mapped again before every attempt (scripts/maestro-retry.sh):
           # a failed attempt can restart adbd, and the retry then met localhost refused in the sign-in Custom Tab.
           MAESTRO_ADB_REVERSE: "3000 8080"
+          # And reconnected first if adbd dropped, as in android-smoke.
+          MAESTRO_ADB_RECOVER: "1"
         with:
           api-level: 35
           # google_apis carries Chrome, which hosts the sign-in Custom Tab.
           target: google_apis
           arch: x86_64
           disable-animations: true
+          # hide_error_dialogs: as in android-smoke, a system ANR dialog must not cover the app under test.
           script: |
+            adb shell settings put global hide_error_dialogs 1
             adb reverse tcp:3000 tcp:3000
             adb reverse tcp:8080 tcp:8080
             adb install apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
@@ -686,6 +700,10 @@ jobs:
       SENTRY_DISABLE_AUTO_UPLOAD: "true"
       # The startup marks the cold-start timing reads (data/perf/marks-file.ts); outside the fingerprint, never in a store build.
       UNICHAT_PERF_MARKS: "1"
+      # Maestro's XCTest driver gets 5 minutes to answer, not its default 2: its first launch on a freshly booted
+      # simulator took 161 s and 176 s in the runs that went red (October 2026). A driver that answers sooner is used
+      # at once; scripts/maestro-retry.sh › MAESTRO_IOS_UDID clears a timed-out one before the retry.
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -729,7 +747,7 @@ jobs:
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid" -b
           xcrun simctl install "$udid" build/Build/Products/Release-iphonesimulator/*.app
-          echo "UDID=$udid" >> "$GITHUB_ENV"
+          { echo "UDID=$udid"; echo "MAESTRO_IOS_UDID=$udid"; } >> "$GITHUB_ENV"
           { echo "### UniChat iOS simulator Release build"; echo; du -sh build/Build/Products/Release-iphonesimulator/*.app | awk '{printf "- `%s`: %s\n", $2, $1}'; } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Install Maestro ${{ env.MAESTRO_VERSION }}
         run: |

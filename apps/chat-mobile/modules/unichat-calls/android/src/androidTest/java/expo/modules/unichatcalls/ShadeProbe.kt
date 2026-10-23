@@ -2,6 +2,8 @@ package expo.modules.unichatcalls
 
 import android.app.NotificationManager
 import android.content.Context
+import android.os.SystemClock
+import android.service.notification.StatusBarNotification
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.UiDevice
@@ -16,13 +18,20 @@ import org.junit.Assert.fail
  * screen, System UI launches the ring's full-screen intent rather than showing a heads-up, and the shade the test opens is
  * then a different one.
  *
+ * [awaitActive] and [awaitNotActive] wait for the notification service rather than read it once. notify() returns before
+ * the service holds the record: enqueueNotificationInternal hands an EnqueueNotificationRunnable to system_server's main
+ * looper, and getActiveNotifications lists the record only once that runnable has run (a cancel is handed off the same way).
+ * On android-smoke's emulator, right after the test APKs are reinstalled and the configuration flipped, that looper is busy
+ * enough for one read to come back empty: about one run in five failed with "Array contains no element matching the
+ * predicate" while the ring itself was fine. AOSP's CTS (NotificationHelper.findPostedNotification) polls for the same reason.
+ *
  * [awaitInShade] fails with what the device held, not with the assertion alone. The first CI run of these tests failed with
  * "the caller shows in the shade" and no other output, after the ring had passed every check the app can make itself:
  * posted, a CATEGORY_CALL notification on the calls channel, its full-screen intent intact. NotificationManager's list
- * includes records still queued for posting, so those checks pass even if the system drops the ring before System UI draws
- * it. The failure message therefore carries the screen's state, the notification service's record of this package
- * (posted, queued or archived, and why), the related log lines and the texts System UI drew. That evidence tells a ring
- * the system dropped from one System UI could not draw and from a shade that was not open.
+ * includes records queued for posting once the service has taken them in, so those checks pass even if the system drops
+ * the ring before System UI draws it. The failure message therefore carries the screen's state, the notification
+ * service's record of this package (posted, queued or archived, and why), the related log lines and the texts System UI
+ * drew. That evidence tells a ring the system dropped from one System UI could not draw and from a shade that was not open.
  */
 internal class ShadeProbe(private val device: UiDevice, private val context: Context) {
   fun prepare() {
@@ -44,6 +53,25 @@ internal class ShadeProbe(private val device: UiDevice, private val context: Con
     fail("$message\n${diagnose()}")
   }
 
+  /** The records of this app's active notifications that [match], once there is at least one; fails after [timeoutMs]. */
+  fun awaitActive(timeoutMs: Long, message: String, match: (StatusBarNotification) -> Boolean): List<StatusBarNotification> {
+    val deadline = SystemClock.uptimeMillis() + timeoutMs
+    var found = listed().filter(match)
+    while (found.isEmpty() && SystemClock.uptimeMillis() < deadline) {
+      SystemClock.sleep(POLL_MS)
+      found = listed().filter(match)
+    }
+    if (found.isEmpty()) fail("$message\n${diagnose()}")
+    return found
+  }
+
+  /** Waits until none of this app's active notifications [match]; fails after [timeoutMs]. */
+  fun awaitNotActive(timeoutMs: Long, message: String, match: (StatusBarNotification) -> Boolean) {
+    val deadline = SystemClock.uptimeMillis() + timeoutMs
+    while (listed().any(match) && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(POLL_MS)
+    if (listed().any(match)) fail("$message\n${diagnose()}")
+  }
+
   fun assertShown(selector: BySelector, timeoutMs: Long, message: String) {
     if (!device.wait(Until.hasObject(selector), timeoutMs)) fail("$message\n${diagnose()}")
   }
@@ -51,6 +79,8 @@ internal class ShadeProbe(private val device: UiDevice, private val context: Con
   fun assertGone(selector: BySelector, timeoutMs: Long, message: String) {
     if (!device.wait(Until.gone(selector), timeoutMs)) fail("$message\n${diagnose()}")
   }
+
+  private fun listed(): List<StatusBarNotification> = context.getSystemService(NotificationManager::class.java).activeNotifications.toList()
 
   private fun shell(command: String): String = runCatching { device.executeShellCommand(command) }.getOrElse { "($command failed: $it)" }
 
@@ -94,9 +124,9 @@ internal class ShadeProbe(private val device: UiDevice, private val context: Con
   }
 
   private fun active(): String = buildString {
-    val listed = runCatching { context.getSystemService(NotificationManager::class.java).activeNotifications.toList() }.getOrDefault(emptyList())
-    listed.forEach { appendLine("id=${it.id} tag=${it.tag} category=${it.notification.category} channel=${it.notification.channelId}") }
-    if (listed.isEmpty()) appendLine("(no active notifications)")
+    val rows = runCatching { listed() }.getOrDefault(emptyList())
+    rows.forEach { appendLine("id=${it.id} tag=${it.tag} category=${it.notification.category} channel=${it.notification.channelId}") }
+    if (rows.isEmpty()) appendLine("(no active notifications)")
   }
 
   private fun log(): String = shell("logcat -d -b main,system,crash,events -v brief -t 6000").lines()
@@ -145,6 +175,8 @@ internal class ShadeProbe(private val device: UiDevice, private val context: Con
   }
 
   private companion object {
+    /** The interval AOSP's CTS polls the notification service at. */
+    const val POLL_MS = 100L
     const val SCREEN_CHARS = 1_500
     const val TEXT_CHARS = 3_000
     const val ACTIVE_CHARS = 800

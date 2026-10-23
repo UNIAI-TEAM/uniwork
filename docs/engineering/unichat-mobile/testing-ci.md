@@ -125,7 +125,8 @@ uiautomator: mọi điều khiển của app có tên và ≥ 48 dp; hitSlop kh�
 font_scale 2.0, dark và cửa sổ 360 × 640 dp (`wm size 720x1280`, `wm density 320`), iOS ở AX5 + dark: thanh cảm xúc
 còn trên màn, cuộn được tới "Xóa", và chạm vào lề nền cạnh cột thì menu đóng mà không chạy lệnh nào — chạm theo điểm, không
 theo tên "Đóng" của nền, vì Maestro chạm tâm phần tử và tâm nền nằm dưới menu: `lib/maestro-flows.test.ts`); rồi `scripts/mobile-perf.mjs` đo kích
-thước APK và 5 lần mở lạnh — tới khung đầu, tới mốc `js-boot` và tới mốc `first-screen` — theo `perf-budget.json`
+thước APK và 10 lần mở lạnh sau một lần mở không tính giờ, mỗi lần trên CPU đã lắng — tới khung đầu (app giữ nó tới khi
+nhấc splash), tới mốc `js-boot` và tới mốc `first-screen` — theo `perf-budget.json`
 (profile `android`); `ios-release` đo 5 lần mở lạnh trên simulator (profile `ios-simulator`), chặng 2 GB của nightly
 matrix theo profile `android-2gb`; nightly đo thêm mở lạnh tới `inbox` và khung/bộ nhớ khi cuộn phòng dài, runbook ›
 Đo hiệu năng trên thiết bị, gồm cách `tighten` đặt trần từ 5 run). Mốc là `perfMark(name)` của

@@ -136,6 +136,10 @@ jobs:
     if: ${{ inputs.platform != 'android' }}
     runs-on: macos-26
     timeout-minutes: 120
+    env:
+      # As chat-mobile-verify.yml › ios: the first launch of Maestro's XCTest driver on a freshly booted simulator can
+      # take longer than its default 2 minutes.
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@v4
         with:

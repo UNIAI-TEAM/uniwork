@@ -5,15 +5,24 @@
 // every GATE_LEVEL, like the bundle budget (mobile-bundle-budget.mjs).
 //
 //   node scripts/mobile-perf.mjs startup --package <id> --mark <name> [--runs 5] --out <file>
-//       Cold-starts the app `runs` times (force-stop, then `am start -W`) and
-//       records the median of three times: Android's own time to the first
-//       frame (TotalTime: the splash), the time from the launch to the
-//       bundle's first line ("js-boot": native start before it, the
-//       JavaScript graph and boot after it), and the time from the launch to
-//       the app's startup mark `name` in the device log ("first-screen": the
-//       first screen drawn under the lifted splash; "inbox": the chat list
-//       drawn for a signed-in account), each with every run's value under
-//       "samples". The marks are logged only by a build made with
+//       Launches the app once untimed (to its mark, then force-stop), fixes
+//       its compile state (`cmd package compile -f -m speed-profile`), then
+//       cold-starts it `runs` times (force-stop, wait for the device's CPU to
+//       settle, `am start -W`; one Android does not report COLD fails the
+//       run) and records the median of three times:
+//       Android's own time to the activity's first frame (TotalTime: the app
+//       holds that frame until it lifts the splash, right before its
+//       first-screen mark, so it is the first screen plus ~150 ms, not the
+//       splash), the time from the launch to the bundle's first line
+//       ("js-boot": native start before it, the JavaScript graph and boot
+//       after it), and the time from the launch to the app's startup mark
+//       `name` in the device log ("first-screen": the first screen drawn
+//       under the lifted splash; "inbox": the chat list drawn for a
+//       signed-in account), each with every run's value under "samples".
+//       Beside them, not gated: how busy the CPU was before each launch
+//       (cpuBusyPercent, settleMs, loadavg1) and a control app's cold start
+//       after it (controlTtidMs, Settings), to tell a slow app from a slow
+//       runner. The marks are logged only by a build made with
 //       UNICHAT_PERF_MARKS=1 (data/logger.ts › perfMark).
 //   node scripts/mobile-perf.mjs ios-startup --udid <sim> --bundle <id> --mark <name> [--runs 5] --out <file>
 //       The same on an iOS simulator (terminate, then `simctl launch`), timed
@@ -33,7 +42,8 @@
 //       Every measured number against its ceiling in the profile (android,
 //       the default: the API 35 emulator; android-2gb: the same with 2 GB of
 //       RAM, a low-end phone; ios-simulator); a number nobody measured is not
-//       checked. Exits 1 when one is over.
+//       checked. Exits 1 when one is over. The summary lists each metric's
+//       spread over the runs under the table.
 //   node scripts/mobile-perf.mjs tighten --profile <name> [--write] <file>...
 //       The rule perf-budget.json states, done by the script: from at least
 //       five runs' result files (the jobs upload them as `unichat-perf-*`
@@ -55,7 +65,7 @@ const BUDGET_FILE = path.join(root, "apps/chat-mobile/perf-budget.json");
 
 export const METRICS = [
   ["apkMB", "release APK, x86_64 (MB)"],
-  ["coldStartTtidMs", "cold start to first frame, Android's TotalTime (ms)"],
+  ["coldStartTtidMs", "cold start to Android's first frame, held until the splash lifts: TotalTime (ms)"],
   ["coldStartJsBootMs", "cold start to the bundle's first line (ms)"],
   ["coldStartFirstScreenMs", "cold start to the first screen (ms)"],
   ["coldStartInboxMs", "cold start to the inbox, signed in (ms)"],
@@ -64,16 +74,61 @@ export const METRICS = [
   ["memoryPssMB", "memory after the scroll, PSS (MB)"],
 ];
 
+/** Recorded beside the metrics to read a run's noise by; never gated. */
+const CONTEXT = [
+  ["controlTtidMs", "control app (Settings) cold start, TotalTime (ms)"],
+  ["cpuBusyPercent", "device CPU busy before each launch (%)"],
+];
+
 /** The profiles of perf-budget.json: where each set of ceilings was measured. */
 export const PROFILES = ["android", "android-2gb", "ios-simulator"];
 /** Runs a ceiling is set from, and the room left above the worst of them (the emulator is noisy). */
 export const TIGHTEN_MIN_RUNS = 5;
 export const TIGHTEN_MARGIN = 0.15;
 
+/**
+ * Before each timed launch the device settles: one-second windows of /proc/stat until one is at most this busy, or
+ * the cap. Just after boot the google_apis image's services keep the CPU busy, and one launch then varied by ~28 %.
+ */
+export const QUIET_BUSY_PERCENT = 25;
+export const QUIET_WINDOW_MS = 1000;
+export const QUIET_WAIT_MS = 10_000;
+/** A system app on every google_apis image: its cold start moves with the runner's speed, not with UniChat's code. */
+export const CONTROL_ACTIVITY = "com.android.settings/.Settings";
+
+/** The first `cpu` line of /proc/stat, summed over every core: busy jiffies (all but idle and iowait) and the total. */
+export function parseProcStat(text) {
+  const line = text.split("\n").find((l) => /^cpu\s/.test(l));
+  const fields = line?.trim().split(/\s+/).slice(1, 9).map(Number) ?? [];
+  if (fields.length < 5 || fields.some((n) => !Number.isFinite(n))) return null;
+  // user nice system idle iowait irq softirq steal; guest time is already inside user.
+  const total = fields.reduce((a, b) => a + b, 0);
+  return { busy: total - fields[3] - fields[4], total };
+}
+
+/** The share of CPU time spent busy between two /proc/stat reads, in percent to a tenth; null when none passed. */
+export function busyPercent(before, after) {
+  if (!before || !after) return null;
+  const total = after.total - before.total;
+  return total > 0 ? Math.round(((after.busy - before.busy) / total) * 1000) / 10 : null;
+}
+
+/** /proc/loadavg: the 1-minute load average. */
+export function parseLoadavg(text) {
+  const match = /^\s*([\d.]+)\s/.exec(text);
+  return match ? Number(match[1]) : null;
+}
+
 /** `am start -W` output: Android's time to the activity's first frame. */
 export function parseAmStart(text) {
   const total = /TotalTime:\s*(\d+)/.exec(text);
   return total ? Number(total[1]) : null;
+}
+
+/** `am start -W` output: how Android started the activity (COLD, WARM, HOT); null where it does not say. */
+export function parseLaunchState(text) {
+  const state = /LaunchState:\s*(\w+)/.exec(text);
+  return state ? state[1] : null;
 }
 
 /** One `logcat -v epoch` line: its time in ms, tag and message; null for anything else. */
@@ -251,6 +306,17 @@ export function budgetOf(file, profile) {
   return ceilings;
 }
 
+/** Each gated or context number's spread over the runs of a result file, one Markdown list line each. */
+export function spread(measured) {
+  const lines = [];
+  for (const [key, label] of [...METRICS, ...CONTEXT]) {
+    const values = (measured.samples?.[key] ?? []).filter((v) => typeof v === "number");
+    if (values.length < 2) continue;
+    lines.push(`- ${label}: ${Math.min(...values)}–${Math.max(...values)} over ${values.length} runs (median ${measured[key]})`);
+  }
+  return lines;
+}
+
 export function table(rows) {
   const lines = ["| | measured | ceiling | |", "| --- | ---: | ---: | --- |"];
   for (const r of rows) {
@@ -267,32 +333,101 @@ function adb(...args) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** The emulator the startup runs talk to; the tests pass their own. */
+const DEVICE = { adb, sleep };
+
 /** The launcher activity of `pkg`, as `cmd package resolve-activity` names it. */
-function launcherActivity(pkg) {
-  const out = adb("shell", "cmd", "package", "resolve-activity", "--brief", "-c", "android.intent.category.LAUNCHER", pkg);
+function launcherActivity(device, pkg) {
+  const out = device.adb("shell", "cmd", "package", "resolve-activity", "--brief", "-c", "android.intent.category.LAUNCHER", pkg);
   const component = out.trim().split("\n").at(-1);
   if (!component?.includes("/")) throw new Error(`mobile-perf: no launcher activity for ${pkg}`);
   return component;
 }
 
-async function measureStartup(pkg, mark, runs) {
-  const activity = launcherActivity(pkg);
+const startLog = (device) => device.adb("logcat", "-d", "-v", "epoch", "ActivityTaskManager:I", "ActivityManager:I", "ReactNativeJS:I", "*:S");
+
+/** Launch to `mark` of the launch just made, polled from the device log; throws after 60 s without it. */
+async function waitForMark(device, pkg, mark, which) {
+  let ms = null;
+  for (let waited = 0; ms === null && waited < 60_000; waited += 250) {
+    await device.sleep(250);
+    ms = launchToMark(startLog(device), pkg, mark);
+  }
+  if (ms === null) throw new Error(`mobile-perf: no "UniChatPerf mark=${mark}" within 60 s of ${which} (is the build made with UNICHAT_PERF_MARKS=1?)`);
+  return ms;
+}
+
+/** Waits, one window at a time, until the CPU was at most QUIET_BUSY_PERCENT busy or QUIET_WAIT_MS passed; says how it ended. */
+async function settle(device) {
+  // A file the shell may not read is a context number gone, not a failed run: null, and the wait runs to its cap.
+  const read = (file) => {
+    try {
+      return device.adb("shell", "cat", file);
+    } catch {
+      return "";
+    }
+  };
+  const stat = () => parseProcStat(read("/proc/stat"));
+  let before = stat();
+  let busy = null;
+  let waited = 0;
+  do {
+    await device.sleep(QUIET_WINDOW_MS);
+    waited += QUIET_WINDOW_MS;
+    const after = stat();
+    busy = busyPercent(before, after);
+    before = after;
+  } while ((busy === null || busy > QUIET_BUSY_PERCENT) && waited < QUIET_WAIT_MS);
+  return { cpuBusyPercent: busy, settleMs: waited, loadavg1: parseLoadavg(read("/proc/loadavg")) };
+}
+
+/** The control app's cold start on a settled device; null when it did not start (a context number, never a failure). */
+async function controlStart(device) {
+  const pkg = CONTROL_ACTIVITY.split("/")[0];
+  try {
+    device.adb("shell", "am", "force-stop", pkg);
+    await settle(device);
+    const ttid = parseAmStart(device.adb("shell", "am", "start", "-W", "-n", CONTROL_ACTIVITY));
+    device.adb("shell", "am", "force-stop", pkg);
+    return ttid;
+  } catch (error) {
+    console.warn(`mobile-perf: the control app did not start: ${error instanceof Error ? error.message : error}`);
+    return null;
+  }
+}
+
+export async function measureStartup(pkg, mark, runs, device = DEVICE) {
+  const activity = launcherActivity(device, pkg);
+  // Untimed: whatever the first launch after install does once (profile install, first-run work) is not a sample.
+  device.adb("shell", "am", "force-stop", pkg);
+  device.adb("logcat", "-c");
+  device.adb("shell", "am", "start", "-W", "-n", activity);
+  await waitForMark(device, pkg, mark, "the warm-up launch");
+  device.adb("shell", "am", "force-stop", pkg);
+  // One compile state for every timed launch, so background dexopt cannot change it between two of them.
+  let compile;
+  try {
+    compile = device.adb("shell", "cmd", "package", "compile", "-f", "-m", "speed-profile", pkg).trim().split("\n").at(-1) ?? "";
+  } catch (error) {
+    compile = `failed: ${error instanceof Error ? error.message : error}`;
+    console.warn(`mobile-perf: cmd package compile ${compile}`);
+  }
   const perRun = [];
   for (let run = 0; run < runs; run += 1) {
-    adb("shell", "am", "force-stop", pkg);
-    await sleep(1000);
-    adb("logcat", "-c");
-    const ttid = parseAmStart(adb("shell", "am", "start", "-W", "-n", activity));
-    let ms = null;
-    for (let waited = 0; ms === null && waited < 60_000; waited += 250) {
-      await sleep(250);
-      ms = launchToMark(adb("logcat", "-d", "-v", "epoch", "ActivityTaskManager:I", "ActivityManager:I", "ReactNativeJS:I", "*:S"), pkg, mark);
-    }
-    if (ms === null) throw new Error(`mobile-perf: no "UniChatPerf mark=${mark}" within 60 s of launch ${run + 1} (is the build made with UNICHAT_PERF_MARKS=1?)`);
-    const toBoot = launchToMark(adb("logcat", "-d", "-v", "epoch", "ActivityTaskManager:I", "ActivityManager:I", "ReactNativeJS:I", "*:S"), pkg, "js-boot");
-    perRun.push({ coldStartTtidMs: ttid, coldStartJsBootMs: toBoot, [markKey(mark)]: ms });
+    device.adb("shell", "am", "force-stop", pkg);
+    const quiet = await settle(device);
+    device.adb("logcat", "-c");
+    const started = device.adb("shell", "am", "start", "-W", "-n", activity);
+    // force-stop left no process, so anything but COLD means the launch did not do what it is counted as.
+    const state = parseLaunchState(started);
+    if (state !== null && state !== "COLD") throw new Error(`mobile-perf: launch ${run + 1} of ${pkg} was ${state}, not COLD, after am force-stop: not a cold start`);
+    const ttid = parseAmStart(started);
+    const ms = await waitForMark(device, pkg, mark, `launch ${run + 1}`);
+    const toBoot = launchToMark(startLog(device), pkg, "js-boot");
+    device.adb("shell", "am", "force-stop", pkg);
+    perRun.push({ coldStartTtidMs: ttid, coldStartJsBootMs: toBoot, [markKey(mark)]: ms, controlTtidMs: await controlStart(device), ...quiet });
   }
-  return summarize(perRun);
+  return { ...summarize(perRun), setup: { warmUp: true, compile } };
 }
 
 const markKey = (mark) => (mark === "inbox" ? "coldStartInboxMs" : "coldStartFirstScreenMs");
@@ -449,7 +584,8 @@ async function main(argv) {
     const measured = Object.assign({}, ...files.map((f) => JSON.parse(fs.readFileSync(f, "utf8"))));
     const { rows, over } = check(measured, budgetOf(file, profile));
     const provisional = (file.provisional ?? []).includes(profile) ? " (provisional ceilings: `tighten` after five runs)" : "";
-    const report = `### UniChat ${profile}${provisional}\n\n${table(rows)}\n`;
+    const spreads = spread(measured);
+    const report = `### UniChat ${profile}${provisional}\n\n${table(rows)}\n${spreads.length ? `\nOver the runs:\n\n${spreads.join("\n")}\n` : ""}`;
     console.log(report);
     if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, report);
     for (const r of over) console.log(`::error::${r.label} ${r.value} is over the ceiling ${r.ceiling} (apps/chat-mobile/perf-budget.json › ${profile})`);
