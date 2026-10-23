@@ -144,7 +144,7 @@ pipeline {
           "DEPLOY_DIR=${params.DEPLOY_DIR}",
         ]) {
           sshagent(credentials: ["${params.SSH_CREDENTIALS_ID}"]) {
-            sh '''
+            sh '''#!/bin/bash
               set -euo pipefail
               dest="${DEPLOY_USER}@${DEPLOY_HOST}"
               ssh -p "$DEPLOY_SSH_PORT" -o BatchMode=yes "$dest" "mkdir -p ${DEPLOY_DIR}/env"
@@ -161,7 +161,7 @@ pipeline {
               usernameVariable: 'REGISTRY_USER',
               passwordVariable: 'REGISTRY_PASS'
             )]) {
-              sh '''
+              sh '''#!/bin/bash
                 set -euo pipefail
                 dest="${DEPLOY_USER}@${DEPLOY_HOST}"
                 # Unquoted EOF expands REGISTRY_* and DEPLOY_DIR locally.

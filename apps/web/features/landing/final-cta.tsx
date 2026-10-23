@@ -7,6 +7,7 @@ import { Logo } from "@uniwork/ui/brand";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Tabs } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
 import { landingFont } from "../../platform/landing-font";
 import { ANCHORS, href } from "./anchors";
 import { ProductDemoShell } from "./product-demo-shell";
@@ -21,11 +22,12 @@ const posterAction = () => {};
 /** The closing illustration uses the same shell and board as the main demo. */
 function TaskPoster() {
   const { t } = useTranslation();
+  const mobile = useIsMobile();
   return <div className="product-demo product-demo-poster" role="img" aria-label={`${t("landing.lovable.allTasks")} — ${t("landing.lovable.sample")}`}>
     <div inert aria-hidden="true">
       <Tabs defaultValue="tasks" orientation="vertical" unstyled>
         <ProductDemoShell mode="tasks" onSelect={posterAction} onCreate={posterAction} watch={false} onWatch={posterAction}>
-          <ProductTaskScene step={6} />
+          <ProductTaskScene step={6} summary={mobile} />
         </ProductDemoShell>
       </Tabs>
     </div>
