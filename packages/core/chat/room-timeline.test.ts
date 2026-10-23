@@ -42,7 +42,7 @@ const timeline = (...pages: ChatMessageRecord[][]): RoomTimeline => ({
   pageParams: pages.map((_, index) => (index === 0 ? null : { cursor: `p${index}` })),
 });
 
-const ids = (data: RoomTimeline | null) => (data ? flattenRoomTimeline(data).map((m) => m.id) : null);
+const ids = (data: RoomTimeline | null | undefined) => (data ? flattenRoomTimeline(data).map((m) => m.id) : null);
 
 describe("room timeline", () => {
   it("flattens newest-first pages into one oldest-first list", () => {

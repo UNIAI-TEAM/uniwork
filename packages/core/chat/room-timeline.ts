@@ -16,7 +16,6 @@ export {
   insertCreatedTimelineMessage,
   keepRoomTimelineHead,
   mapRoomTimeline,
-  newerRoomPageParam,
   replaceTimelineMessage,
   roomTimelineHas,
 } from "./room-timeline-pages";
