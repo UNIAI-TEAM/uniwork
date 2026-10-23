@@ -133,9 +133,15 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   khi máy reo trước lần chạy JavaScript đầu, lấy tên từ `res/values*/strings.xml` của module — `values` tiếng Anh,
   `values-vi` tiếng Việt — mà `scripts/sync-i18n.mjs` sinh từ cùng chuỗi `mobile.notify.channel_*`), kênh cũ `chat`
   bị xoá; server chọn kênh theo kind (`push_expo.go › pushChannel`) — đổi âm thanh/độ ưu tiên của kênh thì phải đổi id.
-  Mỗi tin chat (DM, nhắc tên, trả lời chủ đề) là một push (UNI-2141; trước đó chỉ tin đầu của một hàng thông báo
-  còn mở): `Consumer.write` của server ghi `notification.push` cho mọi tin, kể cả khi hàng gộp, kèm `message_id`;
-  tắt thông báo phòng, tắt push theo loại, người gửi và đang đọc phòng (presence) vẫn chặn như cũ. Lane push (nhiều
+  Mỗi tin chat (DM, nhắc tên, trả lời thread, và tin thường trong nhóm/kênh/phòng workspace) là một push (UNI-2141;
+  trước đó chỉ tin đầu của một hàng thông báo còn mở, và tin nhóm/kênh không nhắc tên thì không báo gì):
+  `Consumer.write` của server ghi `notification.push` cho mọi tin, kể cả khi hàng gộp, kèm `message_id`; tắt thông báo
+  phòng, tắt push theo loại, người gửi và đang đọc phòng (presence) vẫn chặn như cũ. Tin thường trong phòng không phải DM
+  là loại `chat_message` (`chat.message.received`, `emitChatMessageNotifications`): mỗi thành viên khác mà tin không
+  nhắc tên một hàng, gom theo phòng (`chat_room:<id>:message`, đọc phòng thì đóng), chỉ khi phòng có tối đa
+  `chatSmallRoomMembers` (50) thành viên — phòng lớn hơn chỉ báo khi được nhắc tên, như @all; trả lời thread chỉ tới
+  người theo dõi thread. Push mặc định bật, email tổng hợp mặc định tắt; tắt push của "Tin nhắn trong nhóm và kênh" ở
+  Cài đặt › Thông báo là "chỉ khi được nhắc tên" cho mọi phòng (chưa có mức riêng từng phòng ngoài tắt thông báo phòng). Lane push (nhiều
   worker, nhiều node) giành quyền gửi một tin bằng một câu lệnh dưới khoá của hàng trước khi gửi
   (`ClaimChatNotificationPush`): chỉ được khi hàng chưa đọc và tin đứng sau tin đã giành gần nhất theo thứ tự của phòng
   (`pushed_message_at` = `chat_messages.created_at` theo đồng hồ DB, rồi `pushed_message_id`; không so ULID vì id sinh
@@ -155,7 +161,7 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   (`foregroundBehavior`). Đọc phòng đóng hàng, nên tin đầu sau khi đọc luôn reo. Khoá của hành động thông báo là
   `<id thông báo>:<id tin>:<hành động>` (`lib/chat-notification.ts`), và khoá chống chạm hai lần cũng có id tin
   (`lib/notification-response.ts`): Android giữ một id cho mọi push của phòng.
-  Thông báo tin chat (DM, nhắc tên, trả lời chủ đề) mang category `chat_message` và id workspace/phòng/tin/chủ đề
+  Thông báo tin chat (DM, nhắc tên, tin nhóm/kênh, trả lời thread) mang category `chat_message` và id workspace/phòng/tin/chủ đề
   (server `push_expo.go › ChatMessageCategory`, `chatData`); app đăng ký category đó lúc mở và khi đổi ngôn ngữ
   (`data/chat-notification-actions.ts`): **Trả lời** (ô nhập) gửi qua outbox như mọi lần gửi rồi đánh dấu phòng đã đọc,
   **Đánh dấu đã đọc** xếp lượt đọc; cả hai gỡ thông báo, không mở app trên Android (task nền thông báo —

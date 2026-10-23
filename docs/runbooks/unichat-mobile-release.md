@@ -727,7 +727,9 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   nhắn mới", chỉ reo/rung ở tin đầu, và sau các tin im thông báo vẫn ở mục thường (không bị dồn vào "Im lặng") và còn
   biểu tượng trên thanh trạng thái (Cài đặt › Thông báo của UniChat có kênh "Tin nhắn liền sau"); iPhone: 4 thông báo
   xếp chồng dưới một mục của phòng, chỉ tin đầu có tiếng. Chờ hơn 30 giây rồi gửi tin nữa: reo lại. Đọc phòng trên web
-  rồi gửi tin: reo ngay. Tắt thông báo phòng: không push nào. "Trả lời" ở thông báo tin thứ hai sau khi đã trả lời tin
+  rồi gửi tin: reo ngay. Tắt thông báo phòng: không push nào. Nhóm 3 người, một người gửi tin không nhắc ai: hai người
+  kia đều nhận push "X đã nhắn trong <nhóm>", gom và im như DM; tắt push "Tin nhắn trong nhóm và kênh" ở Cài đặt ›
+  Thông báo: tin thường không còn push, tin nhắc tên vẫn reo. "Trả lời" ở thông báo tin thứ hai sau khi đã trả lời tin
   đầu: tin vẫn đi (khoá hành động theo id tin); chạm thông báo đó sau khi đã chạm thông báo của tin đầu: mở đúng tin
   mới. Android cho thấy nhiều thông báo của cùng một phòng thay vì một là bước nhấc tag (`PushTag.kt`) không chạy —
   xem logcat "push tag not lifted". Bản Android cũ (chưa đăng ký `chat_quiet`): chỉ nhận tin reo, mỗi tin một thông

@@ -410,7 +410,7 @@ func (c *PushConsumer) releaseChatPush(ctx context.Context, n db.Notification, m
 // Android tray again, since this one may have landed after the read's own
 // room_read push.
 func (c *PushConsumer) afterChatPush(ctx context.Context, n db.Notification, chatMsg db.ChatMessage, subs []db.PushSubscription, phoneSent bool) error {
-	if !phoneSent || (n.Kind != KindChatDM && n.Kind != KindChatMentioned) {
+	if !phoneSent || !closedByRoomRead(n.Kind) {
 		return nil // a thread reply is not closed by reading the room
 	}
 	read, err := c.q.IsNotificationRead(ctx, n.ID)
@@ -429,10 +429,16 @@ func (c *PushConsumer) markPhonePushed(ctx context.Context, n db.Notification, c
 	if err != nil {
 		return err
 	}
-	if !read || (n.Kind != KindChatDM && n.Kind != KindChatMentioned) {
+	if !read || !closedByRoomRead(n.Kind) {
 		return nil // a thread reply or a call is not closed by reading the room
 	}
 	return c.clearRoomTray(ctx, n, chatMsg, subs)
+}
+
+// closedByRoomRead: the chat kinds a room read closes (ChatService
+// closeRoomNotifications); a thread reply and a call are not.
+func closedByRoomRead(kind string) bool {
+	return kind == KindChatDM || kind == KindChatMentioned || kind == KindChatMessage
 }
 
 // clearRoomTray sends the room_read push for chatMsg's room to the person's

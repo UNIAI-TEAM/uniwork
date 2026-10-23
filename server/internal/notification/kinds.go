@@ -55,8 +55,13 @@ const (
 	// Chat (H1): one row per room or thread while unread, so a burst of
 	// messages is one inbox notification; each message still pushes, grouped
 	// on the phone by the row's group key (UNI-2141).
-	KindChatMentioned     = "chat_mentioned"
-	KindChatDM            = "chat_dm"
+	KindChatMentioned = "chat_mentioned"
+	KindChatDM        = "chat_dm"
+	// A message in a group, channel or workspace room of at most
+	// chatSmallRoomMembers that does not name the person (UNI-2141): every
+	// message notifies, as a messenger's does. Its push switch off is
+	// "mentions only".
+	KindChatMessage       = "chat_message"
 	KindChatThreadReplied = "chat_thread_replied"
 	// A chat call ringing (UniChat M3): one row per room, closed when the
 	// person answers or the call ends; its push lives 60 seconds.
@@ -88,7 +93,7 @@ var Kinds = []string{
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,
 	KindDocumentEditRequested, KindDocumentEditRequestAnswered, KindDocumentEditTakenOver,
 	KindDocumentBreakGlass,
-	KindChatMentioned, KindChatDM, KindChatThreadReplied, KindChatCallIncoming,
+	KindChatMentioned, KindChatDM, KindChatMessage, KindChatThreadReplied, KindChatCallIncoming,
 	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
 	KindDocumentShared,
 	KindDocumentTrashedByOther,

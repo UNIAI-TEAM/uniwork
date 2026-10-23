@@ -12,7 +12,7 @@ import (
 
 // isChatPushKind reports the kinds whose push carries a message preview.
 func isChatPushKind(kind string) bool {
-	return kind == KindChatMentioned || kind == KindChatDM || kind == KindChatThreadReplied
+	return kind == KindChatMentioned || kind == KindChatDM || kind == KindChatMessage || kind == KindChatThreadReplied
 }
 
 var pushBodyLabels = map[string]map[string]string{
@@ -29,6 +29,7 @@ var pushBodyLabels = map[string]map[string]string{
 var hiddenPushTitles = map[string]map[string]string{
 	"vi": {
 		KindChatDM:            "Tin nhắn riêng mới",
+		KindChatMessage:       "Tin nhắn mới trong một cuộc trò chuyện",
 		KindChatMentioned:     "Bạn được nhắc đến trong một cuộc trò chuyện",
 		KindChatThreadReplied: "Có trả lời mới trong một thread",
 		ChannelMissedCalls:    "Cuộc gọi nhỡ",
@@ -36,6 +37,7 @@ var hiddenPushTitles = map[string]map[string]string{
 	},
 	"en": {
 		KindChatDM:            "New direct message",
+		KindChatMessage:       "New message in a conversation",
 		KindChatMentioned:     "You were mentioned in a conversation",
 		KindChatThreadReplied: "New reply in a thread",
 		ChannelMissedCalls:    "Missed call",

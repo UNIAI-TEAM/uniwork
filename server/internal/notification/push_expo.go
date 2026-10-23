@@ -112,7 +112,7 @@ func pushChannel(kind string) string {
 		return ChannelCalls
 	case KindChatMentioned, KindMentioned, KindDocumentMentioned, KindDocumentBodyMentioned, KindDocumentDiscussionMentioned:
 		return ChannelMentions
-	case KindChatDM, KindChatThreadReplied:
+	case KindChatDM, KindChatMessage, KindChatThreadReplied:
 		return ChannelMessages
 	default:
 		return ChannelGeneral

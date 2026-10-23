@@ -79,8 +79,17 @@ func emitChatMentionsAdded(
 // emitChatMessageNotifications writes, in the send transaction, the durable
 // rows the notification consumer turns into inbox items and Web Push: one per
 // mentioned member, one for a DM's peer, one per follower of a thread the
-// message replies to (H1). The ephemeral chat.mention.created frame stays for
-// the open chat page; these reach the person who is not on it.
+// message replies to (H1), and one per other member for a message in a group,
+// channel or workspace room (UNI-2141: every message notifies, as messengers
+// do). The ephemeral chat.mention.created frame stays for the open chat page;
+// these reach the person who is not on it.
+//
+// A room message reaches members the message does not name, and only in a
+// room of at most chatSmallRoomMembers: past it a room notifies its mentions
+// only, as @all does, since a row per member of a 1,000-person channel for
+// every line is spam. A thread reply is not a room message (its followers
+// hear it). The person's mute and the kind's push switch apply at delivery,
+// so turning chat_message's push off is "mentions only" everywhere.
 //
 // @all past chatSmallRoomMembers notifies only the members it also names: a
 // row per member of a 1,000-person room is spam, and the mention badge still
@@ -106,6 +115,17 @@ func emitChatMessageNotifications(
 	}
 	if peer, err := dmPeerUserID(room, senderID); err == nil {
 		add("chat.dm.received", peer)
+	} else if room.Kind != chatRoomKindDM && threadRootID == "" {
+		members, err := chatRoomMessageRecipients(ctx, q, room.ID)
+		if err != nil {
+			return err
+		}
+		for _, id := range members {
+			if !skip[id] {
+				skip[id] = true
+				add("chat.message.received", id)
+			}
+		}
 	}
 	if threadRootID != "" {
 		// Muted followers are already left out by the query.
@@ -133,11 +153,29 @@ func emitChatMessageNotifications(
 	return auditRecorder.Emit(ctx, q, Human(senderID), events...)
 }
 
+// chatRoomMessageRecipients is who a room message notifies before the sender
+// and the mentioned are taken out: every member, or nobody past
+// chatSmallRoomMembers. An invited member is listed and left out at delivery,
+// where the rule reads the active membership.
+func chatRoomMessageRecipients(ctx context.Context, q *db.Queries, roomID string) ([]string, error) {
+	ids, err := q.ListChatRoomMemberUserIDs(ctx, roomID)
+	if err != nil {
+		return nil, err
+	}
+	slices.Sort(ids)
+	ids = slices.DeleteFunc(slices.Compact(ids), func(id string) bool { return id == "" })
+	if len(ids) > chatSmallRoomMembers {
+		return nil, nil
+	}
+	return ids, nil
+}
+
 // The notification group keys of a chat: the consumer merges a room's (or a
 // thread's) unread messages into one row under them, and reading the chat
 // closes that row by the same keys.
 func ChatDMNotifyGroup(roomID string) string      { return "chat_room:" + roomID + ":dm" }
 func ChatMentionNotifyGroup(roomID string) string { return "chat_room:" + roomID + ":mention" }
+func ChatRoomNotifyGroup(roomID string) string    { return "chat_room:" + roomID + ":message" }
 func ChatThreadNotifyGroup(rootID string) string  { return "chat_thread:" + rootID + ":reply" }
 func ChatCallNotifyGroup(roomID string) string    { return "chat_call:" + roomID }
 

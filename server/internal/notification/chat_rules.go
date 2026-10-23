@@ -68,6 +68,8 @@ func chatMessageRule(kind string) rule {
 		switch kind {
 		case KindChatDM:
 			groupKey = service.ChatDMNotifyGroup(room.ID)
+		case KindChatMessage:
+			groupKey = service.ChatRoomNotifyGroup(room.ID)
 		case KindChatThreadReplied:
 			groupKey = service.ChatThreadNotifyGroup(p["thread_root_id"])
 		default:

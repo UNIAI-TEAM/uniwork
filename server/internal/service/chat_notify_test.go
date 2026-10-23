@@ -437,3 +437,76 @@ func TestRoomMuteIsPersonal(t *testing.T) {
 		t.Fatal("unmuting the group changed the wrong room")
 	}
 }
+
+// Every message of a group, a channel or the workspace room notifies each
+// other member, as a messenger does (UNI-2141): one chat.message.received row
+// per member in the send transaction. A member the message names hears it as
+// the mention instead, a thread reply reaches the thread's followers only, and
+// past chatSmallRoomMembers a room notifies only its mentions: a row per
+// member of a 1,000-person channel for every line is spam. A muted member is
+// left out at delivery (the rule reads the mute), as for a DM.
+func TestEveryGroupMessageNotifiesTheOtherMembers(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixtureFiles(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc := chatTestUser(t, q, w, "group-notify-c@example.com")
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "Sales", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "every-message", Visibility: chatVisibilityPrivate, MemberUserIDs: []string{ub.ID, uc.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	others := []string{ub.ID, uc.ID}
+	slices.Sort(others)
+	for _, roomID := range []string{group.ID, ch.ID} {
+		plain, err := s.SendRoomMessage(ctx, ua.ID, w.ID, roomID, SendChatMessageInput{Body: "chào cả nhà"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := chatNotifyRecipients(t, s, "chat.message.received", plain.ID)
+		slices.Sort(got)
+		if !slices.Equal(got, others) {
+			t.Fatalf("room %s: plain message notified %v, want every other member %v", roomID, got, others)
+		}
+		named, err := s.SendRoomMessage(ctx, ua.ID, w.ID, roomID, SendChatMessageInput{Body: "[@B](mention://member/" + ub.ID + ") xem nhé"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := chatNotifyRecipients(t, s, "chat.message.received", named.ID); !slices.Equal(got, []string{uc.ID}) {
+			t.Fatalf("room %s: a mention also notified %v as a plain message, want only the one it does not name", roomID, got)
+		}
+		reply, err := s.SendThreadReply(ctx, ub.ID, w.ID, roomID, plain.ID, SendChatMessageInput{Body: "ok"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := chatNotifyRecipients(t, s, "chat.message.received", reply.ID); len(got) != 0 {
+			t.Fatalf("room %s: a thread reply notified %v as a room message", roomID, got)
+		}
+	}
+	// A DM keeps its own row.
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	direct, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{Body: "riêng"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := chatNotifyRecipients(t, s, "chat.message.received", direct.ID); len(got) != 0 {
+		t.Fatalf("a DM also notified %v as a room message", got)
+	}
+
+	smallChatRoom(t, 2)
+	loud, err := s.SendRoomMessage(ctx, ua.ID, w.ID, group.ID, SendChatMessageInput{Body: "phòng lớn"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := chatNotifyRecipients(t, s, "chat.message.received", loud.ID); len(got) != 0 {
+		t.Fatalf("a room past the small-room bound notified %v for a plain message", got)
+	}
+}
