@@ -70,7 +70,7 @@ func TestMeetingExcerptQuotesTheRealActionItems(t *testing.T) {
 		for _, w := range []string{
 			"Tóm tắt: Đã chốt OKR quý", "Chủ đề: Ngân sách", `Quyết định: ["Giữ ngân sách"]`, `Câu hỏi còn mở: ["Ai duyệt?"]`,
 			"- Gửi biên bản · chưa giao · người được nêu: An · hạn được nêu: thứ Sáu",
-			"- Chốt hợp đồng · đã giao thành task · trạng thái: ", "· người nhận: " + x.ua.DisplayName + " · hạn: 2026-12-01",
+			"- Chốt hợp đồng · đã giao thành task · trạng thái: Cần làm · ", "· người nhận: " + x.ua.DisplayName + " · hạn: 2026-12-01",
 		} {
 			if !strings.Contains(excerpt, w) {
 				t.Errorf("%s excerpt lacks %q:\n%s", name, w, excerpt)

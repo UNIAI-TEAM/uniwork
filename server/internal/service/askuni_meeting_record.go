@@ -42,7 +42,7 @@ func (s *AskUNIService) meetingRecordExcerpt(ctx context.Context, tc ai.ToolCont
 	if err != nil {
 		return "", err
 	}
-	var names map[string]string
+	var names, statuses map[string]string
 	var lines []string
 	for _, it := range items.Items {
 		switch it.Status {
@@ -59,7 +59,10 @@ func (s *AskUNIService) meetingRecordExcerpt(ctx context.Context, tc ai.ToolCont
 			if it.Task == nil {
 				continue
 			}
-			line := "- " + it.Task.Title + " · đã giao thành task · trạng thái: " + it.Task.Status
+			if statuses == nil {
+				statuses = s.taskStatusLabels(ctx, tc)
+			}
+			line := "- " + it.Task.Title + " · đã giao thành task · trạng thái: " + statusLabel(statuses, it.Task.Status)
 			if it.Task.AssigneeID != nil {
 				if names == nil {
 					names = s.memberNames(ctx, tc)
