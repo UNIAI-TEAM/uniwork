@@ -18,9 +18,12 @@ import {
 //
 // Requires the server with AI_PROVIDER=fake: the fake answers a meeting
 // summary with one action item per "Việc: …" line of the notes. Without a
-// provider the summary command answers 503 and the spec skips itself.
+// provider the summary command answers 503 and the spec skips itself, except
+// in CI, whose e2e job sets AI_PROVIDER=fake: there a missing or different
+// provider fails, so the flow cannot be silently switched off again.
 const stamp = Date.now();
 const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const inCI = Boolean(process.env.CI);
 
 function headers(token: string): Record<string, string> {
   return { authorization: `Bearer ${token}`, "content-type": "application/json" };
@@ -63,6 +66,7 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
 
   const summarize = () => page.request.post(`${api}/api/v1/meetings/${first.id}/summary`, { headers: auth, data: { locale: "vi" } });
   const summarized = await summarize();
+  expect(summarized.status() === 503 && inCI, "CI runs AI_PROVIDER=fake: the summary must not answer 503").toBe(false);
   test.skip(summarized.status() === 503, "AI provider not configured on this server (AI_PROVIDER=fake)");
   await ok(summarized, "summarize");
   // Another provider on the server answers without the notes' items.
@@ -70,6 +74,7 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
     await page.request.get(`${api}/api/v1/meetings/${first.id}/action-items`, { headers: auth }),
     "list items after the summary",
   );
+  if (inCI) expect(firstItems.items.length, "CI runs AI_PROVIDER=fake: one item per note line").toBe(notes.length);
   test.skip(firstItems.items.length !== notes.length, "the server's AI provider is not the fake one (AI_PROVIDER=fake)");
 
   // Host: assign two items at once on the meeting's suggestions (the owner
