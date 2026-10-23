@@ -550,7 +550,24 @@ func main() {
 		log.Error("EXPO_ACCESS_TOKEN is not set in production: mobile pushes are sent unauthenticated and Expo refuses them once enhanced push security is on (docs/runbooks/unichat-mobile-release.md)")
 	}
 	pushReceipts := notification.NewExpoReceipts(cfg.ExpoAccessToken, q.RevokePushSubscription, log)
-	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken, Receipts: pushReceipts}, webSender)
+	// iPhone calls ring through CallKit: VoIP pushes straight to APNs (ADR
+	// 0038). No key, or a broken one, leaves VoIP off and iPhones on the Expo
+	// call push; a broken key is loud, never a boot error.
+	var voipSender notification.PushSender
+	apns, err := notification.NewAPNsVoIPSender(notification.APNsConfig{
+		KeyID: cfg.APNSKeyID, TeamID: cfg.APNSTeamID, PrivateKey: cfg.APNSPrivateKey, Topic: cfg.APNSVoIPTopic,
+	})
+	switch {
+	case err != nil:
+		log.Error("APNs VoIP push disabled: the key is incomplete or unreadable", "error", err)
+	case apns != nil:
+		if reg != nil {
+			apns.SetMetrics(reg.Notifications)
+		}
+		voipSender = apns
+		log.Info("APNs VoIP push enabled", "key_id", cfg.APNSKeyID)
+	}
+	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken, Receipts: pushReceipts}, webSender, voipSender)
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
 	pushConsumer.SetPresence(chatSvc)
 	pushConsumer.SetBadges(chatSvc)

@@ -5,7 +5,7 @@
 server, liên kết theo `apple_id`, không gộp email relay, thu hồi token khi xoá tài khoản), với nút Apple **native** trên
 màn đăng nhập của app thay vì nút trên trang web (mục "Quyết định" nói vì sao).
 **Liên quan:** [0011](0011-mobile-la-app-expo-doc-lap.md) (UniChat mobile đăng nhập qua trình duyệt hệ thống, PKCE),
-[drafts/0038](drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md) (phần iOS cũng chờ tài khoản Apple),
+[0038](0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md) (cuộc gọi native; phần iOS đi PushKit + CallKit),
 `docs/runbooks/unichat-mobile-release.md` › App Store Connect.
 
 ## Bối cảnh

@@ -267,7 +267,14 @@ func (s *ChatService) closeVoiceCallRingsTx(ctx context.Context, room db.ChatRoo
 		if err := qtx.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{UserID: id, GroupKeys: groups}); err != nil {
 			return err
 		}
-		events = append(events, ringClosedEvent(room, callID, id))
+		// The person who closed their own ring declined it (a DM's hangup by
+		// the callee, a group's decline), from the device this request came
+		// from; everyone else's ring ended with the call.
+		if id == actorID {
+			events = append(events, ringClosedEvent(room, callID, id, RingClosedDeclined, deviceSession(ctx)))
+		} else {
+			events = append(events, ringClosedEvent(room, callID, id, RingClosedEnded, ""))
+		}
 	}
 	if err := auditRecorder.Emit(ctx, qtx, Human(actorID), events...); err != nil {
 		return err
@@ -275,12 +282,43 @@ func (s *ChatService) closeVoiceCallRingsTx(ctx context.Context, room db.ChatRoo
 	return tx.Commit(ctx)
 }
 
-func ringClosedEvent(room db.ChatRoom, callID, userID string) audit.Event {
+// Why a ring stopped for a person, the closed set chat.voice.ring_closed
+// carries as reason: they answered it, they declined it, or the call ended
+// (hung up, or answered by someone else in a group) with them never in it.
+// An iPhone's CallKit shows it in the call history (ADR 0038 §4).
+const (
+	RingClosedAnswered = "answered"
+	RingClosedDeclined = "declined"
+	RingClosedEnded    = "ended"
+)
+
+// ringClosedEvent is the row that stops userID's phones ringing. sessionID is
+// the device session that answered or declined ("" when the ring closed for
+// another reason, or the request had none): the push lane does not tell that
+// device, which already knows and, on an iPhone, would report the call again.
+func ringClosedEvent(room db.ChatRoom, callID, userID, reason, sessionID string) audit.Event {
 	return audit.Event{
 		Topic: "chat.voice.ring_closed", Version: 1,
-		Payload:        map[string]string{"room_id": room.ID, "call_id": callID, "user_id": userID},
+		Payload: map[string]string{
+			"room_id": room.ID, "call_id": callID, "user_id": userID, "reason": reason, "session_id": sessionID,
+		},
 		OrganizationID: room.OrganizationID, WorkspaceID: roomAnchorWorkspaceID(room),
 	}
+}
+
+type deviceSessionKey struct{}
+
+// WithDeviceSession records on ctx the device session a request runs in (the
+// bearer token's sid, the session_id its push subscriptions carry). The voice
+// signal handlers set it, so the ring_closed row of a ring answered or
+// declined names the device that did it.
+func WithDeviceSession(ctx context.Context, sessionID string) context.Context {
+	return context.WithValue(ctx, deviceSessionKey{}, sessionID)
+}
+
+func deviceSession(ctx context.Context) string {
+	s, _ := ctx.Value(deviceSessionKey{}).(string)
+	return s
 }
 
 // closeAnsweredRing closes the ring row of someone who answered — always, so
@@ -307,7 +345,7 @@ func (s *ChatService) closeAnsweredRingTx(ctx context.Context, room db.ChatRoom,
 		return err
 	}
 	if closed > 0 || rungHere {
-		if err := auditRecorder.Emit(ctx, qtx, Human(userID), ringClosedEvent(room, callID, userID)); err != nil {
+		if err := auditRecorder.Emit(ctx, qtx, Human(userID), ringClosedEvent(room, callID, userID, RingClosedAnswered, deviceSession(ctx))); err != nil {
 			return err
 		}
 	}

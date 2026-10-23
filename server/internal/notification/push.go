@@ -79,8 +79,10 @@ type ChatPush struct {
 }
 
 // The kinds of CallPush. An invite and an end reach Android as data-only,
-// high-priority messages the app turns into its own call UI (docs/adr/drafts/0038); an
-// iPhone gets the invite as today's visible push and no end. A missed call is
+// high-priority messages the app turns into its own call UI (ADR 0038); an
+// iPhone with a PushKit token gets both as VoIP pushes for CallKit while
+// unichat_mobile_calls_ios is on (push_apns.go), and one without keeps the
+// visible invite and no end. A missed call is
 // a visible push everywhere that also names the call, so the app can clear a
 // ring the end push never cleared.
 const (
@@ -97,14 +99,21 @@ type CallPush struct {
 	CallID      string
 	RoomID      string
 	WorkspaceID string
-	CallerName  string
-	RoomName    string
+	// OrgSlug and WorkspaceSlug are set only on a push to an iPhone's PushKit
+	// token, whose app opens the call by its path (ADR 0038); Android reads the URL.
+	OrgSlug       string
+	WorkspaceSlug string
+	CallerName    string
+	RoomName      string
 	// CallKind is the room's kind: dm, group or channel.
 	CallKind string
 	Video    bool
 	// ExpiresAt is when the ring stops, in Unix milliseconds; the phone stops
 	// ringing then even when no end push reaches it.
 	ExpiresAt int64
+	// EndReason is why an end's ring stopped (service.RingClosed*), set only
+	// on the VoIP end to an iPhone, whose CallKit history shows it.
+	EndReason string
 }
 
 // pushTTL is the default lifetime of a push: a reminder delivered tomorrow is noise.

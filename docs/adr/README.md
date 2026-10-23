@@ -49,6 +49,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0035](0035-xem-truoc-lien-ket-server-tai-trang-va-anh.md) | Xem trước liên kết trong chat: server tải trang và ảnh lúc tin được gửi (lane chậm, qua bộ tải chặn SSRF `internal/linkpreview`: http/https cổng 80/443, mọi IP phải công khai, quay số IP đã kiểm, kiểm lại mỗi redirect, 5 s, HTML 1 MiB, ảnh 2 MiB), ảnh lưu trong kho UniWork, dùng chung một lần mỗi URL mỗi tổ chức; máy người xem không gọi trang ngoài |
 | [0036](0036-thu-muc-khong-bao-gio-duoc-chia-se.md) | Thư mục không bao giờ được chia sẻ (không visibility workspace, không share, không link); chỉ tài liệu được chia sẻ; con của thư mục bắt đầu riêng tư; người nhận không thấy thư mục của chủ (`parent_id` bị che, gốc danh sách/cây); dọn dữ liệu cũ bằng `uniwork-admin folders-unshare` — **superseded by 0037** |
 | [0037](0037-thu-muc-ngoai-my-folder-hien-cho-ca-workspace.md) | Thư mục ngoài My Folder hiện cho cả workspace (`workspace`/`view`, đặt theo vị trí, không share, không link); tài liệu bắt đầu riêng tư, không kế thừa; tạo bên trong: mọi thành viên sửa được, đổi tên/di chuyển/bỏ: người tạo + admin; bỏ thư mục đẩy tài liệu người thao tác không quản lý về gốc workspace (audit `folder_trashed`); vào My Folder 422 `folder_into_my_folder`; tạo trùng tên " (n)"; dữ liệu cũ vào My Folder bằng `uniwork-admin folders-into-my-folder`; thay 0036 |
+| [0038](0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md) | Cuộc gọi native: Android vẽ `CallStyle` + foreground service từ push data-only (`call_ui`) và `chat.voice.ring_closed`; iPhone đi PushKit + CallKit — token VoIP là subscription `apns_voip` riêng (môi trường APNs, bundle id), server gửi VoIP push thẳng tới APNs (HTTP/2, JWT ES256 từ khoá `.p8`, topic `<bundle id>.voip`) chỉ cho lời mời còn hạn và kết thúc, thay push "X đang gọi" của cùng phiên thiết bị khi `unichat_mobile_calls_ios` bật; app báo CallKit đồng bộ cho mọi VoIP push |
 | [0041](0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md) | Đăng nhập trên iPhone có Sign in with Apple (Apple 4.8): nút Apple native trên màn đăng nhập của app, server kiểm identity token theo JWKS của Apple (`iss`, `aud` là bundle id, `exp`, `nonce` SHA-256) và trả phiên native; liên kết theo `apple_id`, theo email chỉ khi không phải relay và tài khoản đã xác minh; tài khoản MFA về trình duyệt; xoá tài khoản thu hồi token Apple |
 | [0042](0042-console-admin-go-tin-bi-bao-cao-qua-mot-cua.md) | Console `/admin` thay đổi content đúng một cách: gỡ một tin đã bị báo cáo qua `ReportedContentRemover.RemoveReportedMessageQ` (nối với `ChatService` ở `main.go`), cùng giao dịch với `admin_actions`, audit và đóng báo cáo; console vẫn không đọc content; việc gỡ thứ hai cần ADR mới; bổ sung cho luật F-11 |
 | [0043](0043-cong-chat-luong-mobile-chan-o-moi-muc.md) | Cổng chất lượng của `apps/chat-mobile` (sàn coverage vitest 100%, sàn jest-expo, lint) chặn ở mọi `GATE_LEVEL`; không loại file để qua sàn; bổ sung cho 0014 |
@@ -75,10 +76,10 @@ do quản trị tổ chức đặt là hướng mở rộng). Giữ số 0034.
 ngày 2026-10-21 với số 0037, đổi thành 0043 khi merge develop vì 0037 đã là thư mục workspace (UNI-2055);
 0038–0041 vẫn giữ cho các bản nháp bên dưới.
 
-`drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md` (UNI-2053 S4, 2026-10-21, `proposed`):
-cuộc gọi native trên Android (CallStyle, full-screen intent, foreground service, push data-only và
-`chat.voice.ring_closed`) đã xây cùng bản nháp; iOS PushKit + CallKit là kế hoạch chờ tài khoản Apple.
-Xem lại quyết định "không CallKit" của spec M3.
+`drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md` (UNI-2053 S4, 2026-10-21) được chấp nhận thành
+[0038](0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md) ngày 2026-10-23 (UNI-2141), giữ số: phần iOS từ kế
+hoạch thành hợp đồng server ↔ app iPhone (đăng ký `apns_voip`, sender APNs VoIP, payload, định tuyến), thay quyết định
+"không CallKit" của spec M3.
 
 `drafts/0040-cong-mobile-la-check-bat-buoc-va-hop-dong-server.md` (UNI-2053, 2026-10-22, `proposed`): job `gate` của
 `mobile-verify.yml` là check bắt buộc duy nhất của mobile (`scripts/branch-protection.json`, owner áp bằng

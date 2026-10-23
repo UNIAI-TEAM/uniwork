@@ -184,7 +184,7 @@ var catalogue = []EventDef{
 	{Topic: "chat.voice.invite_received", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	// A call stopped ringing for one person (answered, declined, ended): the
 	// push lane tells their Android phones to take the ringing screen down.
-	{Topic: "chat.voice.ring_closed", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.voice.ring_closed", Version: 1, Payload: []string{"room_id", "call_id", "user_id", "session_id", "reason"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_linked", Version: 1, Payload: []string{"thread_root_id", "message_id", "task_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.reminder.due", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
