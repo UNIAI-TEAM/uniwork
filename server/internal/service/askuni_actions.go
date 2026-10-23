@@ -93,7 +93,7 @@ var askInverses = map[string]func(ctx context.Context, s *AskUNIService, p McpPr
 // askWriteTools is the write half of the agent's registry, in the order of R4.
 // Each family adds its tools here.
 func (s *AskUNIService) askWriteTools() []askWriteTool {
-	return slices.Concat(s.askTaskTools(), s.askProjectTools(), s.askMeetingTools(), s.askDocumentTools())
+	return slices.Concat(s.askTaskTools(), s.askProjectTools(), s.askMeetingTools(), s.askDocumentTools(), s.askChatTools())
 }
 
 // askToolSchema is the MCP schema of a tool as the agent sees it: no
