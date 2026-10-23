@@ -74,6 +74,11 @@ var (
 	ErrAttachmentsInvalid = &Error{Code: "ai_attachments_invalid", Status: 400, Msg: "tối đa 5 file khác nhau cho một câu hỏi, và không đính kèm khi trả lời lại"}
 	// ErrAttachmentsTooLarge is a question whose files add up to more than 20 MB.
 	ErrAttachmentsTooLarge = &Error{Code: "ai_attachments_too_large", Status: 422, Msg: "các file đính kèm của một câu hỏi tối đa 20 MB"}
+	// ErrAttachmentUnreadable is an attached file of an allowed type that cannot
+	// be read: damaged, password-protected or too large to open safely. The
+	// question is refused, so it is never stored without the file it asked about.
+	// A caller names the file by copying the error with its own Msg.
+	ErrAttachmentUnreadable = &Error{Code: "ai_attachment_unreadable", Status: 422, Msg: "không đọc được file đính kèm"}
 
 	// BYOK proxy (UNI-1008). Messages never carry the key or the vendor URL.
 	ErrProviderNotSupported = &Error{Code: "provider_not_supported", Status: 400, Msg: "nhà cung cấp này không dùng được qua proxy cho thao tác này"}
