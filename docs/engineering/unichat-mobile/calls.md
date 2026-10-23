@@ -129,10 +129,23 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   (`lib/notification-presentation.ts`: push của workspace đang mở thì im, khác thì banner). `data/boot.ts` là phần
   boot chung (Sentry, `configureRuntime`, header) mà task nền cũng gọi; `data/app-locale.ts` cho task nền nói đúng ngôn
   ngữ. Kênh Android (`lib/notification-channels.ts`, `data/notification-channels.ts`): `calls`, `call_ongoing` (native),
-  `missed_calls`, `mentions`, `messages`, `general`, dịch theo ngôn ngữ app lúc mở và khi đổi ngôn ngữ (hai kênh native,
+  `missed_calls`, `mentions`, `messages`, `general`, `chat_quiet`, dịch theo ngôn ngữ app lúc mở và khi đổi ngôn ngữ (hai kênh native,
   khi máy reo trước lần chạy JavaScript đầu, lấy tên từ `res/values*/strings.xml` của module — `values` tiếng Anh,
   `values-vi` tiếng Việt — mà `scripts/sync-i18n.mjs` sinh từ cùng chuỗi `mobile.notify.channel_*`), kênh cũ `chat`
   bị xoá; server chọn kênh theo kind (`push_expo.go › pushChannel`) — đổi âm thanh/độ ưu tiên của kênh thì phải đổi id.
+  Mỗi tin chat (DM, nhắc tên, trả lời chủ đề) là một push (UNI-2141; trước đó chỉ tin đầu của một hàng thông báo
+  còn mở): `Consumer.write` của server ghi `notification.push` cho mọi tin, kể cả khi hàng gộp, kèm `message_id`;
+  tắt thông báo phòng, tắt push theo loại, người gửi và đang đọc phòng (presence) vẫn chặn như cũ. Lane push gửi một
+  tin chỉ khi id (ULID) của nó lớn hơn `notifications.pushed_message_id`, nên push lặp hay push tới sau một tin mới hơn
+  của phòng không gửi gì. Gom theo phòng: iPhone nhận `threadId` (aps.thread-id) = `group_key` của hàng và xếp chồng
+  các push của phòng; Android giữ `data.tag` = `group_key` nên mỗi push thay thông báo của phòng, tiêu đề thêm
+  "· N tin nhắn mới". Một đợt tin chỉ reo một lần mỗi `chatAlertWindow` (30 s, `push_consumer.go`): `phone_pushed_at`
+  là lần cuối điện thoại reo cho hàng; tin tới trong cửa sổ là tin im (`quiet` = `1` trong data): iPhone không
+  `sound`, mức `passive`; Android đi kênh `chat_quiet` (độ ưu tiên thấp, không chuông, không rung), chỉ tới bản đã
+  đăng ký `chat_quiet: true` (`data/push.ts`, user agent `…; chat-quiet`) — bản cũ không có kênh đó sẽ hiện trên kênh
+  dự phòng có chuông, nên không nhận tin im; listener khi app mở cũng không phát tiếng cho tin im
+  (`foregroundBehavior`). Đọc phòng đóng hàng, nên tin đầu sau khi đọc luôn reo. Khoá của hành động thông báo là
+  `<id thông báo>:<id tin>:<hành động>` (`lib/chat-notification.ts`): Android giữ một id cho mọi push của phòng.
   Thông báo tin chat (DM, nhắc tên, trả lời chủ đề) mang category `chat_message` và id workspace/phòng/tin/chủ đề
   (server `push_expo.go › ChatMessageCategory`, `chatData`); app đăng ký category đó lúc mở và khi đổi ngôn ngữ
   (`data/chat-notification-actions.ts`): **Trả lời** (ô nhập) gửi qua outbox như mọi lần gửi rồi đánh dấu phòng đã đọc,
@@ -153,8 +166,8 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   category `chat_message` (Trả lời có RemoteInput) do expo dựng (`NotificationsService.createNotificationResponseIntent`)
   để `runChatNotificationAction` và `data.url` của lần chạm còn chạy; ẩn xem trước (`hiddenPushTitle`, thân rỗng) giữ
   phẳng. Còn thiếu ở server: data push chat chỉ có id, nên MessagingStyle không có tên người gửi và tên phòng tách
-  riêng (cần `sender_name`, `room_name`, loại phòng — chỉ khi không ẩn xem trước); và mỗi nhóm mở chỉ push một lần
-  (`pushed_at`), nên hội thoại chỉ có tin đầu tới khi phòng được đọc. Hoãn vì: không build/kiểm được Android ở máy làm
+  riêng (cần `sender_name`, `room_name`, loại phòng — chỉ khi không ẩn xem trước); mỗi tin giờ đã có push riêng
+  (UNI-2141), nên MessagingStyle chỉ cần nối các push cùng tag thay vì thay. Hoãn vì: không build/kiểm được Android ở máy làm
   việc này, và một lỗi ở bước bọc làm hỏng Trả lời/chạm trên mọi push chat; làm sau công tắc mobile mới (keys.go +
   `MOBILE_FLAG_DEFAULTS`), có test Robolectric giữ tag/id/extra/nút, và checklist máy thật Android 11+ (mục Hội thoại
   cần `setShortcutId` với shortcut động dài hạn).
