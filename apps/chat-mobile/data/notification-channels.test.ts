@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NOTIFICATION_CHANNELS } from "@/lib/notification-channels";
 
 const notifications = vi.hoisted(() => ({
-  AndroidImportance: { HIGH: 6, DEFAULT: 5 },
+  AndroidImportance: { HIGH: 6, DEFAULT: 5, LOW: 2 },
   AndroidNotificationVisibility: { PUBLIC: 1, PRIVATE: 2 },
   setNotificationChannelAsync: vi.fn(async (_id: string, _channel: unknown) => null),
   deleteNotificationChannelAsync: vi.fn(async () => undefined),
@@ -32,12 +32,17 @@ describe("notification channels", () => {
     const native = { ensureChannels: vi.fn() };
     await ensureNotificationChannels(t, { platform: "android", native });
     expect(native.ensureChannels).toHaveBeenCalledWith(callChannelNames(t));
-    expect(notifications.setNotificationChannelAsync.mock.calls.map(([id]) => id)).toEqual(["missed_calls", "mentions", "messages", "general"]);
+    expect(notifications.setNotificationChannelAsync.mock.calls.map(([id]) => id)).toEqual(["missed_calls", "mentions", "messages", "general", "chat_quiet"]);
     expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith("missed_calls", expect.objectContaining({ name: "«mobile.notify.channel_missed»", importance: 6, lockscreenVisibility: 1 }));
     expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith("messages", expect.objectContaining({ importance: 6, lockscreenVisibility: 2, sound: "default" }));
     expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith("general", expect.objectContaining({ importance: 5 }));
+    // A chat message that follows an alert of its room within the server's window replaces it without a sound.
+    expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
+      "chat_quiet",
+      expect.objectContaining({ name: "«mobile.notify.channel_quiet»", importance: 2, lockscreenVisibility: 2, sound: null, enableVibrate: false }),
+    );
     expect(notifications.deleteNotificationChannelAsync).toHaveBeenCalledWith("chat");
-    expect(NOTIFICATION_CHANNELS).toHaveLength(4);
+    expect(NOTIFICATION_CHANNELS).toHaveLength(5);
   });
 
   it("does nothing on iOS", async () => {

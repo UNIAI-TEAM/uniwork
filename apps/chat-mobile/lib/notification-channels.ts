@@ -7,7 +7,7 @@
 // follow it. A channel's sound and importance are fixed once created on a
 // phone: changing either needs a new id, and the old one goes in LEGACY.
 
-type ChannelImportance = "high" | "default";
+type ChannelImportance = "high" | "default" | "low";
 
 export interface ChannelSpec {
   id: string;
@@ -45,6 +45,16 @@ export const NOTIFICATION_CHANNELS: readonly ChannelSpec[] = [
     nameKey: "mobile.notify.channel_general",
     descriptionKey: "mobile.notify.channel_general_hint",
     importance: "default",
+    lockscreen: "private",
+  },
+  // Low importance makes no sound and no vibration: a chat message that follows one its room alerted for within
+  // the server's window (push_consumer.go › chatAlertWindow) replaces the room's notification on it quietly. The
+  // server sends it only to a build that says it has it (data/push.ts › chat_quiet).
+  {
+    id: "chat_quiet",
+    nameKey: "mobile.notify.channel_quiet",
+    descriptionKey: "mobile.notify.channel_quiet_hint",
+    importance: "low",
     lockscreen: "private",
   },
 ];

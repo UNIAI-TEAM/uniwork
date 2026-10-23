@@ -1686,6 +1686,8 @@
       "channel_messages_hint": "Tin nhắn trực tiếp và trả lời trong chủ đề bạn theo dõi.",
       "channel_general": "Thông báo khác",
       "channel_general_hint": "Công việc, tài liệu, nhắc hẹn và các cập nhật khác.",
+      "channel_quiet": "Tin nhắn liền sau",
+      "channel_quiet_hint": "Tin đến ngay sau một tin vừa báo trong cùng cuộc trò chuyện: hiện im lặng, không chuông, không rung.",
       "full_screen_calls": "Hiện cuộc gọi đến toàn màn hình",
       "full_screen_calls_hint": "Android đang chặn màn hình đổ chuông khi máy khóa, nên cuộc gọi chỉ hiện như một thông báo. Bật lại để không lỡ cuộc gọi.",
       "background_battery": "Cho UniChat chạy nền",
