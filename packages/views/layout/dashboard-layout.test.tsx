@@ -13,7 +13,7 @@ import { DashboardLayout } from "./dashboard-layout";
 initI18n();
 
 const user = { id: "u1", email: "a@b.c", display_name: "A" } as User;
-const workspace = { id: "ws_team", slug: "team", organization_slug: "acme", name: "Team" } as Workspace;
+const workspace = { id: "ws_team", slug: "team", organization_id: "org_acme", organization_slug: "acme", name: "Team" } as Workspace;
 
 // The shell's chrome needs live queries and a socket; this suite is only about
 // what the layout wires once the guard has resolved the workspace.
@@ -22,6 +22,14 @@ vi.mock("./dashboard-guard", () => ({
     children({ user, workspace }),
 }));
 vi.mock("@uniwork/core/realtime", () => ({ WSProvider: ({ children }: { children: ReactNode }) => children }));
+vi.mock("@uniwork/core/feature-flags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@uniwork/core/feature-flags")>()),
+  PublicConfigFlagsProvider: ({ organizationId, children }: { organizationId?: string; children: ReactNode }) => (
+    <div data-testid="flags-scope" data-organization={organizationId}>
+      {children}
+    </div>
+  ),
+}));
 vi.mock("../chat/chat-voice-call-host", () => ({ ChatVoiceCallHost: ({ children }: { children: ReactNode }) => children }));
 vi.mock("./workspace-realtime-sync", () => ({ WorkspaceRealtimeSync: () => null }));
 vi.mock("./workspace-chat-presence", () => ({ WorkspaceChatPresence: () => null }));
@@ -85,6 +93,18 @@ describe("DashboardLayout workspace storage scope", () => {
       state: { surfaces: Record<string, { state: { viewMode: string } }> };
     };
     expect(parsed.state.surfaces["workspace:tasks"]?.state.viewMode).toBe("table");
+  });
+});
+
+describe("DashboardLayout flags", () => {
+  it("evaluates public flags for the workspace's organization", () => {
+    render(
+      <DashboardLayout orgSlug="acme" wsSlug="team">
+        <p>workspace body</p>
+      </DashboardLayout>,
+    );
+    expect(screen.getByTestId("flags-scope")).toHaveAttribute("data-organization", "org_acme");
+    expect(screen.getByTestId("flags-scope")).toContainElement(screen.getByText("workspace body"));
   });
 });
 

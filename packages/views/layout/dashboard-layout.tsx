@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { PublicConfigFlagsProvider } from "@uniwork/core/feature-flags";
 import { setCurrentWorkspace } from "@uniwork/core/platform";
 import { WSProvider } from "@uniwork/core/realtime";
 import { SidebarInset, SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
@@ -59,32 +60,35 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
         setCurrentWorkspace(`${orgSlug}/${wsSlug}`, workspace.id);
         return (
           <WorkspaceProvider workspace={workspace} user={user}>
-            <WSProvider workspaceSlug={`${orgSlug}/${wsSlug}`}>
-              <ChatVoiceCallHost>
-                <WorkspaceRealtimeSync />
-                <EntitlementGateToastHost />
-                <WorkspaceChatPresence />
-                <WorkspaceChatAttention />
-                <SidebarProvider className="h-svh bg-app-shell" hasExternalTrigger>
-                  {/* First in the DOM so it is the first tab stop; visible only
-                      while focused. */}
-                  <a
-                    href={`#${MAIN_CONTENT_ID}`}
-                    className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-2 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-popover focus-visible:px-3 focus-visible:py-2 focus-visible:text-body focus-visible:text-popover-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {t("nav.skip_to_content")}
-                  </a>
-                  {chatOnly ? <WorkspaceRail /> : <AppSidebar />}
-                  <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="relative overflow-hidden outline-hidden">
-                    <BrowserNotificationsPrompt />
-                    <NavigationProgress />
-                    <WorkspaceChrome bare={chatOnly}>{children}</WorkspaceChrome>
-                    <WorkspaceChatToast />
-                    {extra}
-                  </SidebarInset>
-                </SidebarProvider>
-              </ChatVoiceCallHost>
-            </WSProvider>
+            {/* Organization-scoped flag overrides only reach the screens through this answer. */}
+            <PublicConfigFlagsProvider organizationId={workspace.organization_id}>
+              <WSProvider workspaceSlug={`${orgSlug}/${wsSlug}`}>
+                <ChatVoiceCallHost>
+                  <WorkspaceRealtimeSync />
+                  <EntitlementGateToastHost />
+                  <WorkspaceChatPresence />
+                  <WorkspaceChatAttention />
+                  <SidebarProvider className="h-svh bg-app-shell" hasExternalTrigger>
+                    {/* First in the DOM so it is the first tab stop; visible only
+                        while focused. */}
+                    <a
+                      href={`#${MAIN_CONTENT_ID}`}
+                      className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-2 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-popover focus-visible:px-3 focus-visible:py-2 focus-visible:text-body focus-visible:text-popover-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {t("nav.skip_to_content")}
+                    </a>
+                    {chatOnly ? <WorkspaceRail /> : <AppSidebar />}
+                    <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="relative overflow-hidden outline-hidden">
+                      <BrowserNotificationsPrompt />
+                      <NavigationProgress />
+                      <WorkspaceChrome bare={chatOnly}>{children}</WorkspaceChrome>
+                      <WorkspaceChatToast />
+                      {extra}
+                    </SidebarInset>
+                  </SidebarProvider>
+                </ChatVoiceCallHost>
+              </WSProvider>
+            </PublicConfigFlagsProvider>
           </WorkspaceProvider>
         );
       }}
