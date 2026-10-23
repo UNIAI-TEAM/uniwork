@@ -1,6 +1,6 @@
 # Runbook — AI Gateway và Ask UNI
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-09-06 · **Thành phần:** `ai.Gateway` trong tiến trình API (`server/internal/ai`) · **Liên quan:** ADR 0010, spec `2026-09-04-ai-platform-gateway-design.md`, UNI-428
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-23 · **Thành phần:** `ai.Gateway` trong tiến trình API (`server/internal/ai`) · **Liên quan:** ADR 0010, spec `2026-09-04-ai-platform-gateway-design.md`, UNI-428; file đính kèm của Hỏi UNI: spec `2026-10-22-ask-uni-attachments-design.md`, UNI-2119 (file đính kèm: mục "Hỏi UNI: file đính kèm")
 
 Mọi lượt gọi LLM (tóm tắt họp, Ask UNI) đi qua một gateway: policy chọn model
 theo capability → kiểm quota `ai.tokens` của tổ chức → ghi dòng
@@ -220,9 +220,61 @@ Dock mới của Hỏi UNI nhận câu trả lời qua SSE thay vì chờ cả l
 - **Tiêu đề**: `title` đến SAU `done`, chỉ ở câu trả lời đầu của hội thoại mới. Server gọi một lần capability `copilot_title` (tầng fast, tối đa 32 token, prompt `conversation_title@1`; đổi model bằng `AI_MODEL_COPILOT_TITLE` như các capability khác, phải nằm trong allowlist). Gọi hỏng, quá 10 giây, tiêu đề rỗng hoặc người dùng đã đổi tên trước đó: hội thoại giữ câu hỏi làm tiêu đề, không có sự kiện `title`, không phải lỗi (chỉ một dòng log warn theo id). Lời gọi này đi qua Gateway nên tính tiền và meter như mọi lời gọi khác. Người hỏi đóng panel ngay sau `done` không hủy lời gọi (hủy giữa chừng vẫn bị tính tiền): tiêu đề vẫn được lưu, chỉ sự kiện `title` không được gửi.
 - **Trả lời lại**: body có `regenerate_message_id` (chỉ route stream; `question` bị bỏ qua, dùng câu hỏi và ngữ cảnh đã lưu). Chỉ câu trả lời cuối của hội thoại trong dock được trả lời lại; id khác trả 400. Câu trả lời cũ được đánh dấu `superseded_at` (không xóa), câu mới thay tại chỗ. Hai lượt trả lời lại cùng lúc: lượt thua bị từ chối ở bước lưu và tính vào `uniwork_ai_ask_runs_total{outcome="rejected"}`. Lượt trả lời lại không ra được câu trả lời (model từ chối, lỗi sau một lời gọi đã tính tiền, định dạng hỏng sau lần thử lại, hoặc bị dừng trước khi có chữ) không lưu gì và không đánh dấu câu cũ: stream kết thúc bằng `error`, câu trả lời cũ vẫn hiện, các lời gọi đã chạy vẫn tính tiền. Dừng sau khi đã có chữ thì phần chữ đó thay câu cũ, như lượt thường.
 
+## Hỏi UNI: file đính kèm (UNI-2119)
+
+Người hỏi gắn tối đa 5 file vào một câu hỏi; UNI đọc chúng ở mọi vòng của lượt đó và của các lượt sau trong cùng cuộc trò chuyện. Chỉ chạy trên đường agent: đường P0 không đọc file. Spec: `docs/superpowers/specs/2026-10-22-ask-uni-attachments-design.md`. Cờ mặc định tắt. Eval thật cho `copilot_answer@5` chưa chạy (`ASKUNI_EVAL.md`), nên đừng bật cho người dùng thật trước khi chạy và được chủ sản phẩm duyệt.
+
+- **Route**: `POST /api/v1/workspaces/{workspaceID}/ai/attachments` (multipart, field `file`; trả `file_id`), `DELETE …/ai/attachments/{fileID}` (bỏ file chưa gắn), `GET …/ai/attachments/{attachmentID}/content` (tải về file một câu hỏi đã gắn). `attachment_ids` là trường của `POST …/ai/ask` và `…/ai/ask/stream`; `GET …/ai/capabilities` có trường `attachments`, là cái client dùng để hiện hay ẩn nút tải file. Cả ba route chỉ dành cho chính người hỏi: file của người khác, của workspace khác hay của tổ chức khác đều là 404.
+- **Cờ `ask_uni_attachments`** (`server/internal/featureflags/keys.go`, mặc định tắt, không Public, `review_at` 2027-03-31): bật ở `/admin/flags` bằng override theo tổ chức hoặc người dùng. Chỉ có tác dụng khi lượt hỏi chạy agent, tức `ask_uni_agent` bật, công cụ đọc đã nối và có model `copilot_agent` (`AI_PROVIDER=ollama` thì không). `capabilities.attachments` là `true` khi cả hai điều kiện đúng.
+- **Tắt tính năng**: đặt override `ask_uni_attachments=false` (hoặc `FF_ASK_UNI_ATTACHMENTS`). Client ẩn nút tải file ở lần đọc capabilities kế tiếp; server từ chối upload và `attachment_ids` bằng `ai_attachments_unavailable`; lượt đang chạy xong bình thường. Lượt hỏi tiếp không đọc lại file của câu trước nữa. Không mất dữ liệu: file đã gắn vẫn hiện trong lịch sử và vẫn tải về được (tải về chỉ cần là thành viên và là chủ file, không cần cờ), nên tắt cờ là rollback an toàn. Tắt `ask_uni_agent` cũng làm cờ này vô hiệu.
+
+| Giới hạn | Giá trị |
+| --- | --- |
+| Loại file (xét theo nội dung, không theo đuôi) | ảnh JPEG/PNG/GIF/WebP, PDF, DOCX, XLSX, PPTX, ODT, TXT, CSV, Markdown; DOC, XLS, PPT và loại khác bị từ chối |
+| Một file | 20 MB; ảnh tối đa 7,5 MB và 8000 × 8000 điểm ảnh (giới hạn một ảnh của Anthropic: 10 MB khi mã hóa base64), từ chối ngay lúc tải lên |
+| Một câu hỏi | tối đa 5 file, tổng 20 MB |
+| Một lượt (file của câu hiện tại cộng file của các câu còn trong lịch sử) | tối đa 5 file, tổng 20 MB; file gắn sau được ưu tiên; file cũ không vừa thì lượt đó bỏ qua nó |
+| Phần token dành cho file | 30.000 mỗi lượt, chia theo thứ tự gắn (`askFileTokenShare`); ước lượng PDF 2.000 token một trang, ảnh 4.800 token, chữ `ceil(số rune / 3)` |
+| Ngân sách đầu vào của lượt | 60.000 token như cũ; riêng lượt có file, token đọc từ cache chỉ tính 1/10 vì file gửi lại ở mọi vòng |
+| Lượt có file cùng lúc | 2 mỗi tiến trình, giữ suốt lượt; mở và đọc file thì 1 lúc một (xem dưới) |
+| Một lần mở PDF | tối đa 131.072 object, 4 MiB một object, 10.000 object một object stream, 16 MiB một stream giải nén; heap sống tăng quá 48 MiB cộng ba lần cỡ file (chừng 108 MiB với file 20 MB, vì pdfcpu giữ bản sao mọi stream) thì dừng và coi là `ai_attachment_unreadable`; mức nền đo sau một lần dọn rác. Một PDF chỉ mở một lần, PDF có mật khẩu chủ luôn được ghi lại không mã hóa trước khi gửi |
+| Một lần đọc file Office hay văn bản | giữ tối đa 4 MiB chữ (phần token chỉ dùng được chừng 90.000 ký tự); phần sau chỉ được đếm, không giữ, nên file lớn được đọc phần đầu chứ không bị từ chối. Mỗi sheet của Excel giữ các dòng đầu trong phần của nó. Giải nén tối đa 64 MiB (zip bomb thì từ chối), bảng chuỗi dùng chung, danh sách sheet và quan hệ tối đa 16 MiB, thư mục zip tối đa 1 MiB; một dòng văn bản đọc theo từng đoạn và cắt ở 1 MiB |
+
+File vượt phần token thì UNI đọc phần đầu (N trang đầu của PDF; với Excel, phần token chia đều cho các sheet và mỗi sheet giữ các dòng đầu, phần sheet nào dùng không hết chuyển cho sheet sau) và ghi lại trong `ai_messages.file_notes` của câu trả lời; client hiện dòng "UNI đã đọc … trên …" lấy từ đó và từ sự kiện `done`, không phụ thuộc model có tự nói hay không.
+
+| Mã lỗi | HTTP | Nghĩa | Việc cần làm |
+| --- | --- | --- | --- |
+| `ai_attachments_unavailable` | 403 | Cờ `ask_uni_attachments` tắt cho người này, hoặc lượt hỏi sẽ không chạy agent, hoặc server không có kho file | Bật cờ và `ask_uni_agent`, kiểm provider không phải `ollama`; không phải sự cố nếu cờ cố ý tắt |
+| `ai_attachments_invalid` | 400 | Quá 5 file, cùng một id hai lần, hoặc có `attachment_ids` trong lượt trả lời lại | Lỗi client; trả lời lại không nhận file mới, nó đọc lại file của câu gốc |
+| `ai_attachments_too_large` | 422 | File của một câu cộng lại quá 20 MB; hoặc, ở route tải lên, ảnh quá 7,5 MB hay quá 8000 × 8000 điểm ảnh (thông điệp nêu giới hạn, file bị từ chối không được giữ) | Lỗi người dùng; client cũng báo trước |
+| `ai_attachment_unreadable` | 422 | File đúng loại nhưng hỏng hoặc có mật khẩu (DOCX hỏng, PDF mã hóa), hay quá phức tạp để mở an toàn (PDF cần hơn 48 MiB cộng ba lần cỡ file, bảng chuỗi của Excel quá 16 MiB). Câu hỏi không được lưu và không có lời gọi model; thông điệp nêu tên file, client đánh dấu đúng thẻ file đó. Ở route tải lên: ảnh có phần đầu không đọc được | Người dùng gỡ hoặc thay file; metric `uniwork_ai_ask_runs_total{outcome="rejected"}` |
+| `media_unsupported` | 422 | Provider đang chạy không nhận loại file này (ví dụ PDF với OpenAI). Với route stream, đây là sự kiện `error` sau sự kiện đầu | Đổi sang provider đọc được (`anthropic`) hoặc tắt cờ; không lẳng lặng bỏ file |
+| 404 trơn, không có `code` riêng | 404 | Một id không phải file chưa gắn của chính người hỏi trong workspace này: của người khác, đã quá 24 giờ, đã hủy hoặc đã gắn vào câu khác. Mọi trường hợp cùng một câu trả lời để không lộ id có tồn tại | Không điều tra như lỗi; người dùng tải lại file |
+| `too_large` / `file_too_large` (413), `file_type_rejected` (415) | 413, 415 | Từ route tải lên: file quá 20 MB, hoặc loại không nhận | Lỗi người dùng |
+| lỗi 500 | 500 | Kho file không đọc được (mất kết nối kho). Cố ý không phải `ai_attachment_unreadable`, để người dùng không bị bảo file của họ hỏng khi kho đang sập | Xem kết nối tới kho file và log của `uniwork-be`; lượt không lưu gì, người dùng hỏi lại được |
+
+**Trần 2 lượt có file.** Backend chạy một pod 512 MiB, `GOMEMLIMIT=400MiB` (`deploy/app/uniwork/values.yaml`, `deploy/app/env/uniwork-be.env`), và chỉ một replica cho tới khi ADR 0025 §3 thỏa. Một lượt có file mang tới 20 MB file trong mọi lời gọi model của nó, thêm chừng 27 MB khi lời gọi dựng JSON (base64), suốt lượt. Nên mỗi tiến trình `uniwork-be` chỉ cho 2 lượt có file chạy cùng lúc (`askFileTurns` trong `askuni_turn_files.go`), giữ chỗ từ lúc đọc file tới khi lượt kết thúc, ở mọi đường ra (trả lời, dừng, lỗi, file không đọc được); việc đặt tên cuộc trò chuyện sau đó không giữ chỗ. Trong hai lượt đó, mở và đọc file thì một lúc một (`fileReads`), nên chỉ một PDF hay file Office được mở tại một thời điểm, tối đa thêm chừng 108 MiB với PDF 20 MB. Cộng lại: 2 lượt × chừng 47 MB cộng một lần mở, dưới `GOMEMLIMIT`. "Lượt có file" gồm cả câu hỏi tiếp theo không gắn file mới nhưng lịch sử còn file của câu trước. Lượt không file không bao giờ phải chờ. Đổi trần bằng sửa hằng số, không có biến môi trường.
+
+Khi hai chỗ đang bận, lượt có file chờ theo hạn của chính nó (120 giây); chưa có model nào được gọi và chưa có gì được lưu, hết hạn thì người dùng thấy lỗi quá thời gian và hỏi lại được. Dấu hiệu bão hòa: không có metric riêng cho hàng chờ, nên nhìn `uniwork_ai_ask_runs_total{outcome="timeout"}` tăng và bucket 120–150 giây của `uniwork_ai_ask_run_seconds` dày lên. Số dòng mới của `ai_attachments` chỉ cho biết bao nhiêu câu có file được gửi (lưu lượng), không cho biết lượt nào đang kẹt: câu bị chờ hết hạn không ghi dòng nào. Bộ nhớ pod tiến gần 400 MiB là dấu hiệu GC phải chạy liên tục. Không thêm replica để gỡ (một replica theo ADR 0025); cách xử lý là tắt cờ `ask_uni_attachments` cho tổ chức đang dồn tải trong lúc điều tra.
+
+**Vòng đời của file.** File sống theo cuộc trò chuyện. Tải lên mà chưa gửi thì file chỉ nằm trong kho dùng chung, chưa có dòng `ai_attachments`, và cửa sổ nhận của kho đóng sau 24 giờ (`files.ClaimTTL`); file quá hạn do collector của kho file dọn, mỗi ngày một lần (`RUNBOOK_FILE_GC.md`), nên vật lý có thể còn thêm tới một ngày. Không có worker riêng của Hỏi UNI. Gửi câu hỏi thì server nhận file và ghi dòng `ai_attachments` trong cùng giao dịch lưu câu hỏi; câu bị từ chối thì file vẫn là file chưa gắn. Bấm × trước khi gửi gọi `DELETE …/ai/attachments/{fileID}`. Xóa cuộc trò chuyện xóa các dòng `ai_attachments` và nhả file trong cùng giao dịch; object trong kho do cùng collector xóa ở lượt quét sau, không tức thì (`FILE_GC_MODE=dry_run` hoặc `off` hoãn việc xóa). Chữ rút ra từ file không bao giờ được lưu: mỗi lượt đọc lại từ file gốc trong kho, nên không tìm văn bản của file trong bảng nào. Bản xuất dữ liệu của tổ chức có `ai_attachments` chỉ với thông tin file (tên, loại, dung lượng, ngày, cuộc trò chuyện và tin nhắn), không có file gốc.
+
+**Prompt và chi phí.** Lượt có file chạy `copilot_answer@5`, kể cả câu hỏi tiếp theo không gắn file mới mà lịch sử còn file của câu trước (lượt đó đọc lại các file ấy); lượt không file nào giữ `@4` (dock) hoặc `@3` như trước, nên bật tính năng không đổi chi phí của cuộc trò chuyện không có file. Xem phần của file trong chi phí bằng `ai_usage_events.prompt_id`:
+
+```sql
+SELECT prompt_id, count(*) AS calls, sum(cost_micros) AS cost_micros
+FROM ai_usage_events
+WHERE capability = 'copilot_agent' AND created_at > now() - interval '7 days'
+GROUP BY prompt_id;
+```
+
+Spec ước một câu có file đắt thêm khoảng 0,01–0,03 USD với Sonnet 5.5 (file được tính đủ ở vòng đầu rồi 1/10 ở các vòng sau); đó là ước lượng, chưa đo bằng eval thật. Khi chi phí tăng bất thường, làm như mục "Hỏi UNI agent (P1)" và tắt `ask_uni_attachments` trước khi tắt `ask_uni_agent`.
+
+**Khi lùi migration.** Tắt cờ trước, rồi lùi theo thứ tự ngược: `9991792710000300_ai_messages_file_notes` bỏ cột `file_notes`; `9991792710000203_ai_attachments_file_idx`, `…202_ai_attachments_message_idx` và `…201_ai_attachments_conversation_idx` bỏ ba index của bảng (mỗi file một câu `DROP INDEX CONCURRENTLY`); `9991792710000200_ai_attachments` bỏ bảng `ai_attachments` (file đã gắn vẫn nằm trong kho, không còn dòng nào trỏ tới); `9991792710000100_file_purpose_ai_attachment` xóa các phiên tải lên mục đích `ai_attachment` trước khi thu hẹp CHECK.
+
 ## Không bao giờ
 
 - Không log prompt, nguồn hay câu trả lời. `ai_messages` là dữ liệu người dùng,
-  xóa được từ panel.
+  xóa được từ panel. Cũng không log tên hay nội dung file đính kèm.
 - Không gọi SDK provider ngoài `internal/ai/provider`; không cho `internal/ai`
   chạm bảng nghiệp vụ (`arch_test.go`).

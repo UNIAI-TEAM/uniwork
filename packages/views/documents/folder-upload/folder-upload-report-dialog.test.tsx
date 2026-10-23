@@ -22,7 +22,10 @@ describe("FolderUploadReportDialog", () => {
   it("lists each failed path with the sentence of its code, and the generic one for a code it does not know", () => {
     renderReport();
     expect(screen.getByText("\"Báo cáo\": 3 tệp bị lỗi. Các tệp còn lại đã được giữ nguyên.")).toBeInTheDocument();
-    expect(screen.getByText("Báo cáo/2026/a.docx")).toBeInTheDocument();
+    // The name leads and the folder sits under it, so a long root never hides which file failed.
+    expect(screen.getByText("a.docx")).toBeInTheDocument();
+    expect(screen.getByText("Báo cáo/2026")).toBeInTheDocument();
+    expect(screen.getByText("a.docx").closest("li")).toHaveAttribute("title", "Báo cáo/2026/a.docx");
     expect(screen.getByText("Đã hết dung lượng lưu trữ. Giải phóng dung lượng rồi tải lại thư mục.")).toBeInTheDocument();
     // Unknown codes the runner marked retryable point at the retry button.
     expect(screen.getAllByText("Không tải lên được tệp này. Thử lại các tệp lỗi.")).toHaveLength(2);

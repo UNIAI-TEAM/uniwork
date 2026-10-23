@@ -46,6 +46,8 @@ interface Props {
   maxMentions: number;
   onSubmit(question: AskUniQuestion): void;
   onChange?(question: AskUniQuestion): void;
+  /** Images pasted from the clipboard; without it a pasted picture adds nothing. */
+  onPasteFiles?(files: File[]): void;
 }
 
 type Open = SuggestionProps<unknown, AskUniMentionCard>;
@@ -153,7 +155,7 @@ function askUniMention(hooks: () => Hooks) {
  * The host positions the picker (it sits above the nearest positioned ancestor).
  */
 export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUniEditor(
-  { wsId, placeholder, disabled = false, maxMentions, onSubmit, onChange },
+  { wsId, placeholder, disabled = false, maxMentions, onSubmit, onChange, onPasteFiles },
   ref,
 ) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
@@ -164,8 +166,8 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
   const [query, setQuery] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string>();
   const [notice, setNotice] = useState("");
-  const latest = useRef({ placeholder, maxMentions, onSubmit });
-  latest.current = { placeholder, maxMentions, onSubmit };
+  const latest = useRef({ placeholder, maxMentions, onSubmit, onPasteFiles });
+  latest.current = { placeholder, maxMentions, onSubmit, onPasteFiles };
 
   const hooks = useRef<Hooks | null>(null);
   hooks.current = {
@@ -243,6 +245,12 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
       handlePaste(view, event) {
         const tr = view.state.tr;
         const text = (event.clipboardData?.getData("text/plain") ?? "").replace(/\r\n?/g, "\n");
+        // A copied picture attaches; one that comes with text (cells copied from a spreadsheet) is that text.
+        const images = text.trim() ? [] : Array.from(event.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/"));
+        if (images.length > 0 && latest.current.onPasteFiles) {
+          latest.current.onPasteFiles(images);
+          return true;
+        }
         // A code block holds its own line breaks.
         if (view.state.selection.$from.parent.type.spec.code) {
           view.dispatch(tr.insertText(text).scrollIntoView());

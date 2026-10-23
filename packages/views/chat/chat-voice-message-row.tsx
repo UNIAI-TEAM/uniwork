@@ -311,7 +311,14 @@ function ChatVoiceMessageRowImpl({
                 workspaceId={workspaceId}
                 messageId={message.id}
                 isOwn={isOwn}
-                meta={<ChatMessageMeta message={message} isOwn={false} showTime={lastOfRun} inline="end" />}
+                meta={
+                  <ChatMessageMeta
+                    message={message}
+                    isOwn={isOwn}
+                    showTime={showChatBubbleTime(isOwn, lastOfRun)}
+                    inline="end"
+                  />
+                }
               />
             ) : null}
             <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />

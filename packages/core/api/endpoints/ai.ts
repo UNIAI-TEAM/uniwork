@@ -29,6 +29,7 @@ const DISABLED: AiCapabilities = {
   quota: { used_tokens: 0, limit_tokens: null },
   models: [],
   auto_model: "",
+  attachments: false,
 };
 const EMPTY_USAGE: AiUsageSummary = { from: "", to: "", rows: [] };
 const EMPTY_CATCH_UP: ChatCatchUpResponse = {

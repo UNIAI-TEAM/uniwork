@@ -770,6 +770,7 @@ func main() {
 	askUNI.SetEmailHub(emailHubSvc)
 	askUNI.SetDocuments(documentSvc)
 	askUNI.SetFlags(flags)
+	askUNI.SetFiles(fileSvc)
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)

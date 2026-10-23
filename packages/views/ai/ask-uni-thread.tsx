@@ -138,12 +138,12 @@ export function AskUniThread({
   // The server reuses the stored question, page chip and mentions; the question is sent only because the request requires it.
   const regenerate = () => {
     if (lastQuestion && lastAssistant) {
-      ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question: lastQuestion, regenerate_message_id: lastAssistant.id });
+      void ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question: lastQuestion, regenerate_message_id: lastAssistant.id });
     }
   };
   // A follow-up is sent as the composer would send it: the open page or picked object as focus.
   const askFollowup = (question: string) =>
-    ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question, focus: focus ? { kind: focus.kind, id: focus.id } : undefined, mentions: [] });
+    void ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question, focus: focus ? { kind: focus.kind, id: focus.id } : undefined, mentions: [] });
   // The answer being regenerated keeps its place: the live cell replaces it while it streams.
   const regen = sameConversation && state.regenerateOf ? state.regenerateOf : null;
   const followups =
@@ -164,6 +164,7 @@ export function AskUniThread({
     citations: state.message?.citations ?? state.citations,
     notice: state.message?.notice ?? (state.status === "stopped" ? "stopped" : ""),
     model: state.message?.model ?? state.model,
+    file_notes: state.message?.file_notes ?? [],
   };
   // `[S#]` numbers carry across this conversation's answers (the server seeds the book from them), so this map resolves a
   // marker an answer does not cite itself; each answer's own citations still win. Only this conversation's stream adds to it.
@@ -210,7 +211,7 @@ export function AskUniThread({
         ))}
         {live ? (
           <>
-            <AskUniMessageTurn message={{ id: "live-question", role: "user", content: state.question, citations: [] }} />
+            <AskUniMessageTurn message={{ id: "live-question", role: "user", content: state.question, citations: [], attachments: state.attachments }} />
             {state.status === "error" ? (
               <StreamError code={state.errorCode} />
             ) : (

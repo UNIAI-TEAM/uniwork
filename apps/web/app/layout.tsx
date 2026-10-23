@@ -7,6 +7,7 @@ import "../platform/runtime-config";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { accentBootScript } from "@uniwork/ui/lib/accent";
 import { textSizeBootScript } from "@uniwork/ui/lib/text-size";
+import { themeBootScript } from "@uniwork/ui/lib/theme-boot";
 import { resolveRequestLocale, isMarketingRequest } from "../platform/locale-server";
 import { SITE_DESCRIPTION, SITE_NAME, shareMetadata } from "../platform/share-metadata";
 import { Providers } from "./providers";
@@ -88,6 +89,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang={locale} suppressHydrationWarning className={`${inter.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
       {/* Extensions may add body attributes before hydration; descendants retain normal checks. */}
       <body className="font-sans" suppressHydrationWarning>
+        {/* Light/dark before first paint (next-themes). Without it the page
+            flashes the default theme until the client bundle hydrates. */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
         {/* Applies the stored accent theme before first paint, the way
             next-themes applies `.dark`. Without it the app paints one
             frame of the default violet and then repaints. */}

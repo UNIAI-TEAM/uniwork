@@ -175,11 +175,8 @@ function newCorrelationId(): string {
   return `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
-async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
-  const headers: Record<string, string> = {
-    [CORRELATION_HEADER]: opts.correlationId ?? newCorrelationId(),
-    ...opts.headers,
-  };
+/** The caller's identity on a request: the bearer token, or the guest session when there is none. */
+function withAuth(headers: Record<string, string>): Record<string, string> {
   const token = getAccessToken();
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -187,6 +184,23 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
     const guest = getGuestSession();
     if (guest) headers[GUEST_SESSION_HEADER] = guest;
   }
+  return headers;
+}
+
+/**
+ * URL and headers exactly as `request` sends them, for the one transport that
+ * cannot be a fetch: an XHR upload, which is the only way to see upload
+ * progress. Content-Type is left to the caller's body.
+ */
+export function authedRequestHead(path: string, correlationId?: string): { url: string; headers: Record<string, string> } {
+  return { url: baseUrl() + path, headers: withAuth({ [CORRELATION_HEADER]: correlationId ?? newCorrelationId() }) };
+}
+
+async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
+  const headers = withAuth({
+    [CORRELATION_HEADER]: opts.correlationId ?? newCorrelationId(),
+    ...opts.headers,
+  });
 
   let body: BodyInit | undefined;
   if (opts.body instanceof FormData || opts.body instanceof Blob) {

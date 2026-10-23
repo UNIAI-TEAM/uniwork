@@ -26,6 +26,8 @@ export const AiCapabilitiesSchema = z.object({
   // A malformed list hides the picker; it never turns AI off.
   models: z.array(AiModelOptionSchema).optional().default([]).catch([]),
   auto_model: z.string().catch(""),
+  // A malformed flag hides the upload entry; it never turns AI off.
+  attachments: z.boolean().catch(false),
 });
 export type AiCapabilities = z.infer<typeof AiCapabilitiesSchema>;
 
@@ -50,6 +52,37 @@ export type AiStep = z.infer<typeof AiStepSchema>;
 export const AiContextRefSchema = z.object({ kind: z.string(), id: z.string(), title: z.string().catch("") });
 export type AiContextRef = z.infer<typeof AiContextRefSchema>;
 
+/** A file a question carried. `id` is the attachment row's id (the one that downloads), not the upload's file_id. */
+export const AiAttachmentSchema = z.object({
+  id: z.string(),
+  name: z.string().catch(""),
+  mime: z.string().catch(""),
+  size: z.number().catch(0),
+  // "image" | "pdf" | "text": how Ask UNI reads the file.
+  kind: z.string().catch(""),
+});
+export type AiAttachment = z.infer<typeof AiAttachmentSchema>;
+
+/** The answer's note that it read a file only in part. `read` 0 means only the start of the first unit. */
+export const AiFileNoteSchema = z.object({
+  name: z.string(),
+  // "page" | "slide" | "row" | "paragraph" | "line"; a unit the client does not know reads as a plain count.
+  unit: z.string().catch(""),
+  read: z.number().catch(0),
+  total: z.number().catch(0),
+});
+export type AiFileNote = z.infer<typeof AiFileNoteSchema>;
+
+/** What the upload route answers: a file stored for the next question, named by `file_id` in `attachment_ids`. */
+export const AskUploadedFileSchema = z.object({
+  file_id: z.string(),
+  name: z.string().catch(""),
+  mime: z.string().catch(""),
+  size: z.number().catch(0),
+  kind: z.string().catch(""),
+});
+export type AskUploadedFile = z.infer<typeof AskUploadedFileSchema>;
+
 export const AiMessageSchema = z.object({
   id: z.string(),
   role: z.string(),
@@ -64,6 +97,10 @@ export const AiMessageSchema = z.object({
   mentions: z.array(AiContextRefSchema).catch([]),
   // The model key the asker chose for an answer; "" for Auto and for answers stored before it was kept.
   model: z.string().catch(""),
+  // The files a question carried; the server fills them on the asker's message only. A malformed list never drops the turn.
+  attachments: z.array(AiAttachmentSchema).catch([]),
+  // On an answer: the files UNI read only in part. Same rule.
+  file_notes: z.array(AiFileNoteSchema).catch([]),
   created_at: z.string().optional().default(""),
 });
 export type AiMessage = Omit<z.infer<typeof AiMessageSchema>, "role"> & { role: "user" | "assistant" | (string & {}) };
@@ -126,6 +163,8 @@ export interface AskUniInput {
   effort?: string;
   /** Re-run this answer: the server uses the stored question and supersedes the old answer. */
   regenerate_message_id?: string;
+  /** Up to 5 `file_id`s from the upload route, in attach order; the server refuses them together with `regenerate_message_id`. */
+  attachment_ids?: string[];
 }
 
 export const AskModelsSchema = z.object({ models: z.array(z.string()) });
