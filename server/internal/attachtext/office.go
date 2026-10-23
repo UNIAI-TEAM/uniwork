@@ -13,22 +13,44 @@ import (
 	"strings"
 )
 
-// zipDoc is an opened Office/ODF package. It hands out whole entries and
-// counts every decompressed byte against one budget, so a zip bomb is stopped
-// whether it is one huge entry or many mid-sized ones.
+// zipDoc is an opened Office/ODF package. It streams entries and counts every
+// decompressed byte against one budget, so a zip bomb is stopped whether it is
+// one huge entry or many mid-sized ones.
 type zipDoc struct {
-	files map[string]*zip.File
-	left  int64  // decompressed bytes the package may still yield
-	keep  budget // bytes the parsed text may still keep alive
+	files  map[string]*zip.File
+	left   int64  // decompressed bytes the package may still yield
+	tables budget // bytes of the tables the file needs whole
+	keep   keeper // bytes of text the file may keep in Parts
+}
+
+// dirReader caps what zip.NewReader may read: the end record and the central
+// directory are all it reads, so past left bytes the directory is too large.
+// A left below zero lifts the cap, for reading the entries afterwards.
+type dirReader struct {
+	io.ReaderAt
+	left int64
+}
+
+func (d *dirReader) ReadAt(p []byte, off int64) (int, error) {
+	if d.left >= 0 {
+		if d.left -= int64(len(p)); d.left < 0 {
+			return 0, errBigDirectory
+		}
+	}
+	return d.ReaderAt.ReadAt(p, off)
 }
 
 func openZip(r io.ReaderAt, size int64) (*zipDoc, error) {
-	zr, err := zip.NewReader(r, size)
+	// The end record sits in the last 64 KiB; archive/zip reads it in 1 KiB steps.
+	dr := &dirReader{ReaderAt: r, left: maxZipDirectory + 70<<10}
+	zr, err := zip.NewReader(dr, size)
 	// ErrInsecurePath only warns about names we never extract to disk.
 	if err != nil && !errors.Is(err, zip.ErrInsecurePath) {
 		return nil, unreadable(err)
 	}
-	z := &zipDoc{files: make(map[string]*zip.File, len(zr.File)), left: maxReadBytes, keep: budget{maxRetained}}
+	dr.left = -1
+	z := &zipDoc{files: make(map[string]*zip.File, len(zr.File)), left: maxReadBytes,
+		tables: budget{maxTables}, keep: keeper{left: maxRetained}}
 	for _, f := range zr.File {
 		if _, dup := z.files[f.Name]; !dup {
 			z.files[f.Name] = f
@@ -39,36 +61,32 @@ func openZip(r io.ReaderAt, size int64) (*zipDoc, error) {
 
 func (z *zipDoc) has(name string) bool { _, ok := z.files[name]; return ok }
 
-// read returns the whole entry, or ErrUnreadable when it is absent, damaged or
-// would push the package past its decompression budget. The buffer is exactly
-// the declared size, which is checked against the budget first and against the
-// real data after: an entry that lies about its size is refused, and memory
-// never exceeds the budget (ReadAll would grow to twice the data).
-func (z *zipDoc) read(name string) ([]byte, error) {
+// walk streams the entry to walkXML, or returns ErrUnreadable when it is
+// absent, damaged or would push the package past its decompression budget. The
+// declared size is charged up front; archive/zip refuses an entry that yields
+// more or fewer bytes than it declares, so a lying header is caught too.
+func (z *zipDoc) walk(name string, skip []string, fn func(xml.Token) error) error {
 	f, ok := z.files[name]
 	if !ok {
-		return nil, unreadable(fmt.Errorf("missing %s", name))
+		return unreadable(fmt.Errorf("missing %s", name))
 	}
 	if f.UncompressedSize64 > uint64(z.left) {
-		return nil, unreadable(errOverLimit)
+		return unreadable(errOverLimit)
 	}
+	z.left -= int64(f.UncompressedSize64)
 	rc, err := f.Open()
 	if err != nil {
-		return nil, unreadable(err)
+		return unreadable(err)
 	}
 	defer rc.Close()
-	b := make([]byte, f.UncompressedSize64)
-	if _, err := io.ReadFull(rc, b); err != nil {
-		return nil, unreadable(err)
+	if err := walkXML(rc, skip, fn); err != nil {
+		return err
 	}
-	var extra [1]byte
-	if n, err := io.ReadFull(rc, extra[:]); n > 0 {
-		return nil, unreadable(errors.New("entry is larger than it declares"))
-	} else if err != io.EOF {
-		return nil, unreadable(err)
+	// A walk ends at the root's close; what follows must still check out.
+	if _, err := io.Copy(io.Discard, rc); err != nil {
+		return unreadable(err)
 	}
-	z.left -= int64(len(b))
-	return b, nil
+	return nil
 }
 
 func attr(se xml.StartElement, local string) string {
@@ -88,19 +106,17 @@ var altContentFallback = []string{"Fallback"}
 // table is one Part with its cells joined by " | ". A table nested in a cell is
 // flattened into that cell. Headers, footers, notes and comments are not read.
 func (z *zipDoc) docx() (Doc, error) {
-	data, err := z.read("word/document.xml")
-	if err != nil {
-		return Doc{}, err
-	}
 	var (
-		parts []Part
-		para  strings.Builder
-		cell  strings.Builder // paragraphs of the current cell, joined by a space
-		row   []string
-		inT   bool
-		depth int // table nesting; only the outermost table splits into rows and cells
+		doc        = Doc{Unit: "paragraph"}
+		para, cell partText // cell: the paragraphs of the current cell, joined by a space
+		row        []string
+		rowSize    int // bytes of the row's cells so far
+		rowSolid   bool
+		rowCut     bool
+		inT        bool
+		depth      int // table nesting; only the outermost table splits into rows and cells
 	)
-	err = walkXML(data, altContentFallback, func(tok xml.Token) error {
+	err := z.walk("word/document.xml", altContentFallback, func(tok xml.Token) error {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			switch t.Name.Local {
@@ -108,16 +124,16 @@ func (z *zipDoc) docx() (Doc, error) {
 				depth++
 			case "tr":
 				if depth == 1 {
-					row = nil
+					row, rowSize, rowSolid, rowCut = nil, 0, false, false
 				}
 			case "tc":
 				if depth == 1 {
-					cell.Reset()
+					cell.reset()
 				}
 			case "t":
 				inT = true
 			case "tab", "br", "cr":
-				para.WriteByte(' ')
+				para.add([]byte{' '}, z.keep.room())
 			}
 		case xml.EndElement:
 			switch t.Name.Local {
@@ -125,34 +141,37 @@ func (z *zipDoc) docx() (Doc, error) {
 				inT = false
 			case "p":
 				text := strings.TrimSpace(para.String())
-				para.Reset()
 				switch {
-				case text == "":
+				case !para.solid:
 				case depth > 0:
 					if cell.Len() > 0 {
-						cell.WriteByte(' ')
+						cell.add([]byte{' '}, z.keep.room()-rowSize)
 					}
-					cell.WriteString(text)
+					cell.add([]byte(text), z.keep.room()-rowSize)
+					cell.cut = cell.cut || para.cut
 				default:
-					return z.keep.add(&parts, Part{Text: text})
+					z.keep.unit(&doc, Part{Text: text}, para.cut)
 				}
+				para.reset()
 			case "tc":
 				if depth == 1 {
 					if len(row) >= maxColumns {
 						return unreadable(errTooWide)
 					}
 					row = append(row, cell.String())
+					rowSize += cell.Len() + len(" | ")
+					rowSolid, rowCut = rowSolid || cell.solid, rowCut || cell.cut
 				}
 			case "tr":
-				if depth == 1 && slices.ContainsFunc(row, func(c string) bool { return c != "" }) {
-					return z.keep.add(&parts, Part{Text: strings.Join(row, " | ")})
+				if depth == 1 && rowSolid {
+					z.keep.unit(&doc, Part{Text: strings.Join(row, " | ")}, rowCut)
 				}
 			case "tbl":
 				depth--
 			}
 		case xml.CharData:
 			if inT {
-				para.Write(t)
+				para.add(t, z.keep.room())
 			}
 		}
 		return nil
@@ -160,7 +179,7 @@ func (z *zipDoc) docx() (Doc, error) {
 	if err != nil {
 		return Doc{}, err
 	}
-	return Doc{Unit: "paragraph", Parts: parts}, nil
+	return doc, nil
 }
 
 var slideName = regexp.MustCompile(`^ppt/slides/slide(\d+)\.xml$`)
@@ -180,7 +199,7 @@ func (z *zipDoc) pptx() (Doc, error) {
 			if err != nil {
 				return Doc{}, unreadable(err)
 			}
-			if err := z.keep.spend(len(name) + 2*stringOverhead); err != nil {
+			if err := z.tables.spend(len(name) + 2*stringOverhead); err != nil {
 				return Doc{}, err
 			}
 			slides = append(slides, slide{n, name})
@@ -194,40 +213,36 @@ func (z *zipDoc) pptx() (Doc, error) {
 	})
 	doc := Doc{Unit: "slide"}
 	for _, s := range slides {
-		data, err := z.read(s.name)
-		if err != nil {
-			return Doc{}, err
-		}
 		var (
-			text strings.Builder // the slide's lines, one per a:p
-			para strings.Builder
-			inT  bool
+			text, para partText // text: the slide's lines, one per a:p
+			inT        bool
 		)
-		err = walkXML(data, altContentFallback, func(tok xml.Token) error {
+		err := z.walk(s.name, altContentFallback, func(tok xml.Token) error {
 			switch t := tok.(type) {
 			case xml.StartElement:
 				switch t.Name.Local {
 				case "t":
 					inT = true
 				case "br":
-					para.WriteByte(' ')
+					para.add([]byte{' '}, z.keep.room())
 				}
 			case xml.EndElement:
 				switch t.Name.Local {
 				case "t":
 					inT = false
 				case "p":
-					if line := strings.TrimSpace(para.String()); line != "" {
+					if para.solid {
 						if text.Len() > 0 {
-							text.WriteByte('\n')
+							text.add([]byte{'\n'}, z.keep.room())
 						}
-						text.WriteString(line)
+						text.add([]byte(strings.TrimSpace(para.String())), z.keep.room())
+						text.cut = text.cut || para.cut
 					}
-					para.Reset()
+					para.reset()
 				}
 			case xml.CharData:
 				if inT {
-					para.Write(t)
+					para.add(t, z.keep.room())
 				}
 			}
 			return nil
@@ -235,10 +250,8 @@ func (z *zipDoc) pptx() (Doc, error) {
 		if err != nil {
 			return Doc{}, err
 		}
-		if text.Len() > 0 {
-			if err := z.keep.add(&doc.Parts, Part{Label: "Slide " + strconv.Itoa(s.n), Text: text.String()}); err != nil {
-				return Doc{}, err
-			}
+		if text.solid {
+			z.keep.unit(&doc, Part{Label: "Slide " + strconv.Itoa(s.n), Text: text.String()}, text.cut)
 		}
 	}
 	return doc, nil
@@ -249,16 +262,12 @@ var odtSkip = []string{"annotation", "tracked-changes"}
 
 // odt reads content.xml: each non-empty text:p and text:h is a Part.
 func (z *zipDoc) odt() (Doc, error) {
-	data, err := z.read("content.xml")
-	if err != nil {
-		return Doc{}, err
-	}
 	var (
-		parts []Part
-		para  strings.Builder
+		doc   = Doc{Unit: "paragraph"}
+		para  partText
 		depth int // paragraphs nest when a text box sits inside one
 	)
-	err = walkXML(data, odtSkip, func(tok xml.Token) error {
+	err := z.walk("content.xml", odtSkip, func(tok xml.Token) error {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			switch t.Name.Local {
@@ -266,21 +275,20 @@ func (z *zipDoc) odt() (Doc, error) {
 				depth++
 			case "s", "tab", "line-break": // runs of spaces collapse to one: fine for a reader
 				if depth > 0 {
-					para.WriteByte(' ')
+					para.add([]byte{' '}, z.keep.room())
 				}
 			}
 		case xml.EndElement:
 			if t.Name.Local == "p" || t.Name.Local == "h" {
 				depth--
-				text := strings.TrimSpace(para.String())
-				para.Reset()
-				if text != "" {
-					return z.keep.add(&parts, Part{Text: text})
+				if para.solid {
+					z.keep.unit(&doc, Part{Text: strings.TrimSpace(para.String())}, para.cut)
 				}
+				para.reset()
 			}
 		case xml.CharData:
 			if depth > 0 {
-				para.Write(t)
+				para.add(t, z.keep.room())
 			}
 		}
 		return nil
@@ -288,5 +296,5 @@ func (z *zipDoc) odt() (Doc, error) {
 	if err != nil {
 		return Doc{}, err
 	}
-	return Doc{Unit: "paragraph", Parts: parts}, nil
+	return doc, nil
 }

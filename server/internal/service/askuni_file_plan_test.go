@@ -1,7 +1,9 @@
 package service
 
 import (
+	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +11,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/attachtext"
 )
@@ -149,7 +153,7 @@ func TestPlanAskFilesTrimsALongPDF(t *testing.T) {
 	if len(p.Parts) != 1 || p.Parts[0].MIME != "application/pdf" || len(p.Texts) != 0 {
 		t.Fatalf("plan = %+v, want one PDF part", p)
 	}
-	if n, err := attachtext.PDFPages(bytes.NewReader(p.Parts[0].Data)); err != nil || n != 15 {
+	if n, _, err := attachtext.ReadPDF(p.Parts[0].Data, 1000); err != nil || n != 15 {
 		t.Fatalf("the PDF sent has %d pages (%v), want 15", n, err)
 	}
 	want := askFileNote{Name: "bao-cao.pdf", Unit: "page", Read: 15, Total: 80}
@@ -253,11 +257,74 @@ func TestPlanAskFilesTrimsAPDFToAtLeastOnePage(t *testing.T) {
 		t.Fatalf("parts = %d, want 2", len(p.Parts))
 	}
 	for i, part := range p.Parts {
-		if n, err := attachtext.PDFPages(bytes.NewReader(part.Data)); err != nil || n != 1 {
+		if n, _, err := attachtext.ReadPDF(part.Data, 1000); err != nil || n != 1 {
 			t.Errorf("part %d has %d pages (%v), want 1", i, n, err)
 		}
 	}
 	if len(p.Notes) != 2 || p.Notes[1] != (askFileNote{Name: "b.pdf", Unit: "page", Read: 1, Total: 5}) {
 		t.Errorf("notes = %+v", p.Notes)
 	}
+}
+
+// A PDF with only an owner password opens without one; the model is sent it
+// rewritten without the encryption, though nothing had to be cut.
+func TestPlanAskFilesSendsAnOwnerPasswordPDFUnencrypted(t *testing.T) {
+	conf := model.NewStatelessConfiguration()
+	conf.OwnerPW = "chu-so-huu"
+	var enc bytes.Buffer
+	if err := api.Encrypt(context.Background(), bytes.NewReader(pdfOfPages(3)), &enc, conf); err != nil {
+		t.Fatal(err)
+	}
+	p := mustPlan(t, []askFileBytes{planPDFFile("han-che.pdf", enc.Bytes())}, askFileTokenShare)
+	if len(p.Parts) != 1 || len(p.Notes) != 0 {
+		t.Fatalf("plan = %d parts, notes %+v; want the whole PDF and no note", len(p.Parts), p.Notes)
+	}
+	if bytes.Contains(p.Parts[0].Data, []byte("/Encrypt")) {
+		t.Fatal("the PDF sent is still encrypted")
+	}
+	if n, _, err := attachtext.ReadPDF(p.Parts[0].Data, 1000); err != nil || n != 3 {
+		t.Fatalf("the PDF sent has %d pages (%v), want 3", n, err)
+	}
+}
+
+// A workbook's share is split across its sheets: the second sheet is read
+// though the first alone would fill the share, and the note counts the rows.
+func TestPlanAskFilesReadsTheFirstRowsOfEverySheet(t *testing.T) {
+	row := `<row><c t="inlineStr"><is><t>` + strings.Repeat("x", 300) + `</t></is></c></row>` // 100 tokens
+	sheet := func(rows string) string { return `<worksheet><sheetData>` + rows + `</sheetData></worksheet>` }
+	body := zipFiles(t, map[string]string{
+		"xl/workbook.xml":            `<workbook xmlns:r="x"><sheets><sheet name="Một" r:id="rId1"/><sheet name="Hai" r:id="rId2"/></sheets></workbook>`,
+		"xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Target="worksheets/sheet2.xml"/></Relationships>`,
+		"xl/worksheets/sheet1.xml":   sheet(strings.Repeat(row, 1000)),
+		"xl/worksheets/sheet2.xml":   sheet(`<row><c t="inlineStr"><is><t>dòng của sheet hai</t></is></c></row>`),
+	})
+	f := askFileBytes{AskAttachment: AskAttachment{Name: "so-lieu.xlsx", MIME: planXlsxMIME, Kind: "text"}, Body: body}
+	p := mustPlan(t, []askFileBytes{f}, askFileTokenShare)
+	if !strings.Contains(p.Texts[0].Text, "## Hai\ndòng của sheet hai") {
+		t.Fatalf("the second sheet was not read: %q", p.Texts[0].Text[max(0, len(p.Texts[0].Text)-200):])
+	}
+	if len(p.Notes) != 1 || p.Notes[0].Unit != "row" || p.Notes[0].Total != 1001 || p.Notes[0].Read < 100 {
+		t.Fatalf("notes = %+v, want about 150 of 1001 rows", p.Notes)
+	}
+}
+
+const planXlsxMIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+func zipFiles(t *testing.T, entries map[string]string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	for name, body := range entries {
+		f, err := w.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Write([]byte(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
 }

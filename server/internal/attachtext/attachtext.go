@@ -8,6 +8,7 @@ package attachtext
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -36,9 +37,10 @@ type Part struct {
 type Doc struct {
 	Unit  string
 	Parts []Part
-	// Omitted counts the Parts after the last one in Parts that were counted but
-	// not kept, because the file has more of them than memory allows (only a
-	// text file with a great many lines). They are never read, only reported.
+	// Omitted counts the Parts that were counted but not kept, because the file
+	// has more text than one read keeps alive (maxRetained). They are never
+	// read, only reported. In a workbook each sheet keeps its own first rows, so
+	// omitted rows of one sheet sit before the kept rows of the next.
 	Omitted int
 }
 
@@ -79,33 +81,39 @@ func Extract(mime string, r io.ReaderAt, size int64) (Doc, error) {
 // carries nothing a reader needs, and a file of newlines must not become
 // millions of Parts). Invalid UTF-8 becomes U+FFFD; a leading BOM is dropped.
 // A valid file is never refused for its line count: the first lines that fit
-// the retention budget are kept and the rest are only counted in Omitted.
+// the retention budget are kept and the rest are only counted in Omitted. A
+// line is read in pieces, never whole: past maxLine its rest is skipped.
 func plainDoc(r io.ReaderAt, size int64) (Doc, error) {
 	if size < 0 || size > maxReadBytes {
 		return Doc{}, unreadable(errOverLimit)
 	}
-	keep := budget{maxRetained}
-	br := bufio.NewReader(io.NewSectionReader(r, 0, size))
+	k := keeper{left: maxRetained}
+	br := bufio.NewReaderSize(io.NewSectionReader(r, 0, size), 64<<10)
 	d := Doc{Unit: "line"}
+	var line partText
 	for first := true; ; first = false {
-		line, err := br.ReadString('\n')
+		piece, err := br.ReadSlice('\n')
+		if first {
+			piece = bytes.TrimPrefix(piece, []byte("\uFEFF"))
+		}
+		// A line cut at maxLine keeps its opening; one cut at the budget is
+		// only counted.
+		limit := min(k.room(), maxLine)
+		line.add(piece, limit)
+		if err == bufio.ErrBufferFull {
+			continue
+		}
 		if err != nil && err != io.EOF {
 			return Doc{}, unreadable(err)
 		}
-		if first {
-			line = strings.TrimPrefix(line, "\uFEFF")
-		}
-		line = strings.TrimRight(line, "\r\n")
-		if strings.TrimSpace(line) != "" {
-			// Once one line does not fit, none after it is kept: Parts stay a prefix.
-			if d.Omitted > 0 {
-				d.Omitted++
-			} else if text := strings.ToValidUTF8(line, "\uFFFD"); keep.spend(len(text)+partOverhead) == nil {
-				d.Parts = append(d.Parts, Part{Text: text})
-			} else {
-				d.Omitted++
+		if line.solid {
+			text := strings.ToValidUTF8(strings.TrimRight(line.String(), "\r\n"), "\uFFFD")
+			if line.cut { // the cut may have split the last character
+				text = strings.TrimRight(text, "\uFFFD")
 			}
+			k.unit(&d, Part{Text: text}, line.cut && limit < maxLine)
 		}
+		line.reset()
 		if err == io.EOF {
 			return d, nil
 		}

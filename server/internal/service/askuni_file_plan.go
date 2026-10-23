@@ -88,16 +88,15 @@ func (p *askFilePlan) add(f askFileBytes, share int) (int, error) {
 	return p.addText(f, share)
 }
 
+// addPDF sends at least the first page, and as many as share allows; a PDF
+// that is encrypted (with an owner password only) is sent rewritten without it.
 func (p *askFilePlan) addPDF(f askFileBytes, share int) (int, error) {
-	pages, err := attachtext.PDFPages(bytes.NewReader(f.Body))
+	keep := max(1, share/askPDFPageTokens)
+	pages, body, err := attachtext.ReadPDF(f.Body, keep)
 	if err != nil {
 		return 0, err
 	}
-	keep, body := max(1, share/askPDFPageTokens), f.Body
 	if keep < pages {
-		if body, err = attachtext.TrimPDF(bytes.NewReader(body), keep); err != nil {
-			return 0, err
-		}
 		p.Notes = append(p.Notes, askFileNote{Name: f.Name, Unit: "page", Read: keep, Total: pages})
 	} else {
 		keep = pages

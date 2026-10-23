@@ -14,18 +14,16 @@ import (
 // non-empty row, cells joined by " | " with empty cells kept so columns line
 // up. Cell values are read as stored: numbers and dates are not formatted, so
 // a date written as an Excel serial stays a number (the cell's number format
-// lives in styles.xml, which is not read).
+// lives in styles.xml, which is not read). Each sheet keeps its first rows
+// within an equal share of the retention budget and counts the rest, so a
+// large first sheet cannot crowd out the ones after it.
 func (z *zipDoc) xlsx() (Doc, error) {
 	type sheetRef struct{ name, rid string }
 	var refs []sheetRef
-	wb, err := z.read("xl/workbook.xml")
-	if err != nil {
-		return Doc{}, err
-	}
-	err = walkXML(wb, nil, func(tok xml.Token) error {
+	err := z.walk("xl/workbook.xml", nil, func(tok xml.Token) error {
 		if se, ok := tok.(xml.StartElement); ok && se.Name.Local == "sheet" {
 			ref := sheetRef{attr(se, "name"), attr(se, "id")}
-			if err := z.keep.spend(len(ref.name) + len(ref.rid) + 2*stringOverhead); err != nil {
+			if err := z.tables.spend(len(ref.name) + len(ref.rid) + 2*stringOverhead); err != nil {
 				return err
 			}
 			refs = append(refs, ref)
@@ -39,15 +37,11 @@ func (z *zipDoc) xlsx() (Doc, error) {
 		return Doc{}, unreadable(errors.New("workbook has no sheets"))
 	}
 
-	relData, err := z.read("xl/_rels/workbook.xml.rels")
-	if err != nil {
-		return Doc{}, err
-	}
 	targets := map[string]string{}
-	err = walkXML(relData, nil, func(tok xml.Token) error {
+	err = z.walk("xl/_rels/workbook.xml.rels", nil, func(tok xml.Token) error {
 		if se, ok := tok.(xml.StartElement); ok && se.Name.Local == "Relationship" && attr(se, "TargetMode") != "External" {
 			id, t := attr(se, "Id"), attr(se, "Target")
-			if err := z.keep.spend(len(id) + len(t) + 4*stringOverhead); err != nil {
+			if err := z.tables.spend(len(id) + len(t) + 4*stringOverhead); err != nil {
 				return err
 			}
 			if strings.HasPrefix(t, "/") {
@@ -72,23 +66,16 @@ func (z *zipDoc) xlsx() (Doc, error) {
 		if !ok {
 			return Doc{}, unreadable(errors.New("sheet without a relationship"))
 		}
-		data, err := z.read(target)
-		if err != nil {
+		k := keeper{left: maxRetained / len(refs)}
+		var sheet Doc
+		k.heading(&sheet, ref.name)
+		if err := z.walk(target, nil, sheetRows(shared, &k, &sheet)); err != nil {
 			return Doc{}, err
 		}
-		rows, err := sheetRows(data, shared, &z.keep)
-		if err != nil {
-			return Doc{}, err
+		if len(sheet.Parts) > 1 { // the heading only goes with a row under it
+			doc.Parts = append(doc.Parts, sheet.Parts...)
 		}
-		if len(rows) == 0 {
-			continue
-		}
-		if err := z.keep.add(&doc.Parts, Part{Label: ref.name}); err != nil {
-			return Doc{}, err
-		}
-		for _, r := range rows {
-			doc.Parts = append(doc.Parts, Part{Text: r})
-		}
+		doc.Omitted += sheet.Omitted
 	}
 	return doc, nil
 }
@@ -96,28 +83,23 @@ func (z *zipDoc) xlsx() (Doc, error) {
 // sharedStrings returns xl/sharedStrings.xml's strings by index; the part is
 // optional (a workbook may hold only inline strings and numbers). Each string
 // has its whitespace collapsed here, once, so a cell that uses it costs nothing
-// per use, and is charged to the file's retained-bytes budget, empty ones
-// included.
+// per use, and is charged to the file's tables budget, empty ones included.
 func (z *zipDoc) sharedStrings() ([]string, error) {
 	const name = "xl/sharedStrings.xml"
 	if !z.has(name) {
 		return nil, nil
 	}
-	data, err := z.read(name)
-	if err != nil {
-		return nil, err
-	}
 	var (
 		out        []string
-		cur        strings.Builder
+		cur        partText
 		inT, inRPh bool // rPh is a phonetic guide (furigana), not part of the text
 	)
-	err = walkXML(data, nil, func(tok xml.Token) error {
+	err := z.walk(name, nil, func(tok xml.Token) error {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			switch t.Name.Local {
 			case "si":
-				cur.Reset()
+				cur.reset()
 			case "t":
 				inT = true
 			case "rPh":
@@ -130,15 +112,18 @@ func (z *zipDoc) sharedStrings() ([]string, error) {
 			case "rPh":
 				inRPh = false
 			case "si":
+				if cur.cut {
+					return unreadable(errTablesTooBig)
+				}
 				s := collapseSpace(cur.String())
-				if err := z.keep.spend(len(s) + stringOverhead); err != nil {
+				if err := z.tables.spend(len(s) + stringOverhead); err != nil {
 					return err
 				}
 				out = append(out, s)
 			}
 		case xml.CharData:
 			if inT && !inRPh {
-				cur.Write(t)
+				cur.add(t, z.tables.left+1)
 			}
 		}
 		return nil
@@ -146,33 +131,37 @@ func (z *zipDoc) sharedStrings() ([]string, error) {
 	return out, err
 }
 
-// sheetRows returns one string per row that has any text. A row may hold at
-// most maxColumns cells and no more text than the file's budget has left: a
-// shared string used by many cells would otherwise grow far past the size of
-// the sheet. The work per cell is bounded by the cell's own bytes: shared
-// strings arrive already collapsed, and empty cells are not placed, so a row
-// whose only cell sits in column XFD costs a few steps, not 16384.
-func sheetRows(data []byte, shared []string, keep *budget) ([]string, error) {
+// sheetRows reads one sheet into d through k: one Part per row that has any
+// text. A row may hold at most maxColumns cells. Once a row passes what k has
+// left, it is no longer built, only counted: a shared string used by many
+// cells would otherwise grow far past the size of the sheet. The work per
+// cell is bounded by the cell's own bytes: shared strings arrive already
+// collapsed, and empty cells are not placed, so a row whose only cell sits in
+// column XFD costs a few steps, not 16384.
+func sheetRows(shared []string, k *keeper, d *Doc) func(xml.Token) error {
 	var (
-		rows     []string
 		cells    []string
-		val      strings.Builder
+		val      partText
 		typ      string
 		next     int // column of the next cell when its reference is missing
 		rowBytes int
+		solid    bool // the row has text, kept or not
+		cut      bool // the row passed what k has left
 		inC      bool
 		inV, inT bool
 		inRPh    bool
 	)
-	err := walkXML(data, nil, func(tok xml.Token) error {
+	// A value is never cut short of a shared-string index or a number.
+	const minValue = 64
+	return func(tok xml.Token) error {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			switch t.Name.Local {
 			case "row":
-				cells, next, rowBytes = cells[:0], 0, 0
+				cells, next, rowBytes, solid, cut = cells[:0], 0, 0, false, false
 			case "c":
 				inC, typ = true, attr(t, "t")
-				val.Reset()
+				val.reset()
 				if col := colIndex(attr(t, "r")); col >= 0 {
 					next = col
 				}
@@ -193,47 +182,54 @@ func sheetRows(data []byte, shared []string, keep *budget) ([]string, error) {
 				inRPh = false
 			case "c":
 				inC = false
+				if next >= maxColumns {
+					return unreadable(errTooWide)
+				}
+				col := next
+				next++
+				if val.cut && typ != "s" {
+					solid, cut = solid || val.solid, true
+					return nil
+				}
 				v, err := cellValue(typ, strings.TrimSpace(val.String()), shared)
 				if err != nil {
 					return err
 				}
-				if next >= maxColumns {
-					return unreadable(errTooWide)
-				}
 				if typ != "s" { // shared strings were collapsed once, in sharedStrings
 					v = collapseSpace(v)
 				}
-				if rowBytes += len(v) + stringOverhead; rowBytes > keep.left {
-					return unreadable(errTooMuchText)
+				solid = solid || v != ""
+				if rowBytes += len(v) + stringOverhead; cut || rowBytes > k.room() {
+					cut = true
+					return nil
 				}
 				if v != "" {
-					for len(cells) <= next {
+					for len(cells) <= col {
 						cells = append(cells, "")
 					}
-					cells[next] = v
+					cells[col] = v
 				}
-				next++
 			case "row":
+				if !solid {
+					return nil
+				}
+				if cut {
+					k.unit(d, Part{}, true)
+					return nil
+				}
 				n := len(cells)
 				for n > 0 && cells[n-1] == "" {
 					n--
 				}
-				if n > 0 {
-					row := strings.Join(cells[:n], " | ")
-					if err := keep.spend(len(row) + partOverhead); err != nil {
-						return err
-					}
-					rows = append(rows, row)
-				}
+				k.unit(d, Part{Text: strings.Join(cells[:n], " | ")}, false)
 			}
 		case xml.CharData:
 			if (inV || inT) && !inRPh {
-				val.Write(t)
+				val.add(t, max(k.room()-rowBytes, minValue))
 			}
 		}
 		return nil
-	})
-	return rows, err
+	}
 }
 
 // cellValue turns a cell's stored text into what a reader sees: a shared string

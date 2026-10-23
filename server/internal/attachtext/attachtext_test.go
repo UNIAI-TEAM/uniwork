@@ -8,6 +8,7 @@ import (
 	"hash/crc32"
 	"io"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -290,17 +291,26 @@ func TestFitReadsAllWhenItFits(t *testing.T) {
 	}
 }
 
-func TestFitHeadingsAreFreeAndDanglingOnesAreDropped(t *testing.T) {
+// Each sheet gets its share of the budget and keeps its first rows, so a large
+// first sheet does not crowd out the next; what one sheet leaves goes to the
+// ones after it, and a heading whose rows do not fit is dropped.
+func TestFitSplitsItsShareAcrossSheets(t *testing.T) {
+	row := strings.Repeat("a", 30) // 10 tokens
 	d := Doc{Unit: "row", Parts: []Part{
-		{Label: "Một"}, {Text: "a1"}, {Text: "a2"},
-		{Label: "Hai"}, {Text: strings.Repeat("b", 3000)},
+		{Label: "Một"}, {Text: row}, {Text: row}, {Text: row}, {Text: row}, {Text: row}, {Text: row},
+		{Label: "Hai"}, {Text: "b1"}, {Text: "b2"},
+		{Label: "Ba"}, {Text: strings.Repeat("c", 3000)},
 	}}
-	text, read, total := Fit(d, 50)
-	if read != 2 || total != 3 {
-		t.Fatalf("read, total = %d, %d, want 2, 3", read, total)
+	text, read, total := Fit(d, 69) // 23 a sheet: two rows of Một, both of Hai, none of Ba
+	if read != 4 || total != 9 {
+		t.Fatalf("read, total = %d, %d, want 4, 9", read, total)
 	}
-	if text != "## Một\na1\na2" {
+	if text != "## Một\n"+row+"\n"+row+"\n## Hai\nb1\nb2" {
 		t.Errorf("text = %q", text)
+	}
+	// A prefix of the workbook would have spent the whole share on Một.
+	if strings.Count(text, row) == 6 {
+		t.Error("the first sheet took the whole share")
 	}
 	d = Doc{Unit: "slide", Parts: []Part{{Label: "Slide 1", Text: "Tiêu đề"}}}
 	if text, _, _ := Fit(d, 50); text != "Slide 1\nTiêu đề" {
@@ -400,14 +410,17 @@ func TestExtractXlsxCutsOffASharedStringRepeatedIntoAHugeRow(t *testing.T) {
 
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	wantRefused(t, mimeXLSX, data, "limit")
+	d := mustExtract(t, mimeXLSX, data)
 	runtime.ReadMemStats(&after)
-	// The row is refused when it passes the budget, not after it is built.
+	// The row stops being built when it passes the budget; it is counted, not kept.
+	if len(d.Parts) != 0 || d.Omitted != 1 {
+		t.Errorf("parts %+v, omitted %d, want the row counted and nothing kept", d.Parts, d.Omitted)
+	}
 	if got := after.TotalAlloc - before.TotalAlloc; got > 100<<20 {
-		t.Errorf("allocated %d MiB before refusing the row", got>>20)
+		t.Errorf("allocated %d MiB building a row that cannot be kept", got>>20)
 	}
 	// One use of the same string is an ordinary cell.
-	d := mustExtract(t, mimeXLSX, sheetOf(t, `<row>`+cell+`</row>`, files))
+	d = mustExtract(t, mimeXLSX, sheetOf(t, `<row>`+cell+`</row>`, files))
 	if len(d.Parts) != 2 || len(d.Parts[1].Text) != 100<<10 {
 		t.Fatalf("one use: %+v", d.Parts)
 	}
@@ -418,13 +431,27 @@ func TestExtractPlainDropsBlankLinesInsteadOfKeepingThem(t *testing.T) {
 	if len(blank.Parts) != 0 {
 		t.Fatalf("%d parts from a file of newlines", len(blank.Parts))
 	}
-	// A real CSV of 100k rows still reads whole.
+	// A real CSV of 100k rows counts its 100k lines and keeps the first ones.
 	var csv strings.Builder
 	for i := 0; i < 100_000; i++ {
 		csv.WriteString("2026-10-22,Khách hàng số 12345,1250000,đã thanh toán\n\n")
 	}
-	if d := mustExtract(t, "text/csv", []byte(csv.String())); len(d.Parts) != 100_000 {
-		t.Fatalf("%d parts, want 100000", len(d.Parts))
+	d := mustExtract(t, "text/csv", []byte(csv.String()))
+	if len(d.Parts) == 0 || len(d.Parts)+d.Omitted != 100_000 || slices.ContainsFunc(d.Parts, func(p Part) bool { return p.Text == "" }) {
+		t.Fatalf("kept %d, omitted %d, want 100000 lines and no blank one kept", len(d.Parts), d.Omitted)
+	}
+}
+
+// One line is read in pieces: past maxLine the rest of it is skipped, and its
+// opening is kept, so a file of one long line is still read.
+func TestExtractPlainCutsAnOverlongLine(t *testing.T) {
+	long := strings.Repeat("ắ", maxLine) // 3 bytes a character: three times maxLine
+	d := mustExtract(t, "text/plain", []byte("đầu\n"+long+"\ncuối\n"))
+	if len(d.Parts) != 3 || d.Omitted != 0 || d.Parts[2].Text != "cuối" {
+		t.Fatalf("parts %d, omitted %d, want three lines kept", len(d.Parts), d.Omitted)
+	}
+	if got := d.Parts[1].Text; len(got) > maxLine || !strings.HasPrefix(long, got) {
+		t.Fatalf("the long line kept %d bytes, want at most maxLine of its opening", len(got))
 	}
 }
 
@@ -467,14 +494,17 @@ func TestExtractXlsxCollapsesWhiteSpaceInCells(t *testing.T) {
 }
 
 // Work per cell is bounded by the cell's own bytes. Without it these two files
-// take several seconds each (a shared string of white space was rescanned for
-// every cell that used it; a cell in column XFD made its row build 16384 slots).
+// take half a minute and a quarter of one (a shared string of white space was
+// rescanned for every cell that used it; a cell in column XFD made its row
+// build 16384 slots); with it, well under a second, a few under -race. The
+// bound sits far from both, so a slow machine does not trip it and the slow
+// path cannot pass.
 func TestExtractXlsxDoesNotRepeatWorkPerCell(t *testing.T) {
 	// 4 MiB of white space in runs of 1 MiB, each under the text-run limit.
 	spaces := map[string]string{"xl/sharedStrings.xml": `<sst><si>` + strings.Repeat(`<r><t>`+strings.Repeat(" ", 1<<20)+`</t></r>`, 4) + `</si></sst>`}
 	cases := map[string][]byte{
-		"white-space shared string": sheetOf(t, strings.Repeat(`<row><c t="s"><v>0</v></c></row>`, 2000), spaces),
-		"empty cell in column XFD":  sheetOf(t, strings.Repeat(`<row><c r="XFD1"/></row>`, 100_000), nil),
+		"white-space shared string": sheetOf(t, strings.Repeat(`<row><c t="s"><v>0</v></c></row>`, 6000), spaces),
+		"empty cell in column XFD":  sheetOf(t, strings.Repeat(`<row><c r="XFD1"/></row>`, 400_000), nil),
 	}
 	for name, data := range cases {
 		start := time.Now()
@@ -482,10 +512,52 @@ func TestExtractXlsxDoesNotRepeatWorkPerCell(t *testing.T) {
 		if err != nil || len(d.Parts) != 0 {
 			t.Errorf("%s: %d parts, err %v", name, len(d.Parts), err)
 		}
-		if took := time.Since(start); took > 1500*time.Millisecond {
+		if took := time.Since(start); took > 10*time.Second {
 			t.Errorf("%s took %v", name, took)
 		}
 	}
+}
+
+// Past the retention budget a document is read in part, not refused: the first
+// paragraphs are kept and every one is counted.
+func TestExtractDocxCountsWhatItCannotKeep(t *testing.T) {
+	para := `<w:p><w:r><w:t>` + strings.Repeat("đoạn văn ", 500) + `</w:t></w:r></w:p>` // 5.5 KB
+	d := mustExtract(t, mimeDOCX, docxOf(t, strings.Repeat(para, 2000)))                // 11 MB of text
+	if d.Omitted == 0 || len(d.Parts)+d.Omitted != 2000 {
+		t.Fatalf("kept %d, omitted %d, want 2000 paragraphs with some omitted", len(d.Parts), d.Omitted)
+	}
+	if _, read, total := Fit(d, 30_000); read == 0 || total != 2000 {
+		t.Fatalf("Fit read %d of %d, want some of 2000", read, total)
+	}
+}
+
+// Each sheet keeps its first rows in its own share of the budget, so a huge
+// first sheet leaves room for the second.
+func TestExtractXlsxKeepsTheFirstRowsOfEverySheet(t *testing.T) {
+	big := strings.Repeat(`<row><c t="inlineStr"><is><t>`+strings.Repeat("x", 1000)+`</t></is></c></row>`, 10_000) // 10 MB
+	files := map[string]string{
+		"xl/workbook.xml":            `<workbook xmlns:r="x"><sheets><sheet name="Lớn" r:id="rId1"/><sheet name="Nhỏ" r:id="rId2"/></sheets></workbook>`,
+		"xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Target="worksheets/sheet2.xml"/></Relationships>`,
+		"xl/worksheets/sheet1.xml":   `<worksheet><sheetData>` + big + `</sheetData></worksheet>`,
+		"xl/worksheets/sheet2.xml":   `<worksheet><sheetData><row><c t="inlineStr"><is><t>cuối</t></is></c></row></sheetData></worksheet>`,
+	}
+	d := mustExtract(t, mimeXLSX, xlsxOf(t, files))
+	if d.Omitted == 0 || d.Parts[0].Label != "Lớn" || d.Parts[len(d.Parts)-2].Label != "Nhỏ" || d.Parts[len(d.Parts)-1].Text != "cuối" {
+		t.Fatalf("omitted %d, parts %d, want the big sheet cut and the small one whole", d.Omitted, len(d.Parts))
+	}
+	if kept := len(d.Parts) - 3; kept+d.Omitted != 10_000 {
+		t.Fatalf("big sheet kept %d, omitted %d, want 10000 rows", kept, d.Omitted)
+	}
+}
+
+// A zip whose directory lists far more entries than a real Office file is
+// refused before archive/zip builds an entry for each.
+func TestExtractRefusesAHugeZipDirectory(t *testing.T) {
+	entries := map[string]string{"word/document.xml": `<w:document ` + wNS + `><w:body/></w:document>`}
+	for i := 0; i < 30_000; i++ {
+		entries["media/"+strconv.Itoa(i)] = ""
+	}
+	wantRefused(t, mimeDOCX, zipOf(t, entries), "directory")
 }
 
 func TestExtractXlsxRefusesAHugeSheetList(t *testing.T) {
