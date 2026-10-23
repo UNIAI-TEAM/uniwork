@@ -91,9 +91,10 @@ async function dropPushSubscription(): Promise<void> {
 /**
  * The one /me on the wire (the machine has login(), the session's emit, the boot and its revalidation share it).
  * A 401 ends the session only when the session already ended it (a server verdict on refresh); a 401 the api layer
- * let through while the server is unreachable, a network blip or a 5xx keep it for the next attempt.
+ * let through while the server is unreachable, a network blip or a 5xx keep it for the next attempt. The answer
+ * carries `sessionsEnded` back, so the machine drops one sent under a session that has ended since.
  */
-async function loadMe(): Promise<AuthEvent> {
+async function loadMe(sessionsEnded: number): Promise<AuthEvent> {
   const epoch = currentSessionEpoch();
   let user: User | null = null;
   try {
@@ -102,7 +103,7 @@ async function loadMe(): Promise<AuthEvent> {
   } catch (error: unknown) {
     if (error instanceof ApiError && error.status === 401 && session.status() === "signed-out") await session.logout();
   }
-  return { type: "meAnswered", user, sessionEnded: session.status() === "signed-out" };
+  return { type: "meAnswered", user, sessionEnded: session.status() === "signed-out", sessionsEnded };
 }
 
 /**
@@ -155,9 +156,9 @@ async function readStored(): Promise<AuthEvent> {
   return { type: "storedPersonRead", hasCredential, lastUser, sessionEnded: hasCredential && session.status() === "signed-out" };
 }
 
-async function restoreCache(user: User, purposes: readonly CacheFor[]): Promise<AuthEvent> {
+async function restoreCache(user: User, purposes: readonly CacheFor[], sessionsEnded: number): Promise<AuthEvent> {
   await restoreAccountCache(user.id);
-  return { type: "cacheRestored", user, for: purposes, sessionEnded: session.status() === "signed-out" };
+  return { type: "cacheRestored", user, for: purposes, sessionEnded: session.status() === "signed-out", sessionsEnded };
 }
 
 async function signIn(): Promise<AuthEvent> {
@@ -173,9 +174,9 @@ function perform(effect: AuthEffect): AuthEvent | undefined | Promise<AuthEvent 
     case "readStored":
       return readStored();
     case "restoreCache":
-      return restoreCache(effect.user, effect.for);
+      return restoreCache(effect.user, effect.for, effect.sessionsEnded);
     case "loadMe":
-      return loadMe();
+      return loadMe(effect.sessionsEnded);
     case "sessionLogin":
       return signIn();
     case "reportUser":
@@ -245,7 +246,7 @@ async function runEffects(effects: readonly AuthEffect[]): Promise<void> {
   for (const effect of effects) {
     if (effect.type === "loadMe" && effect.detached) {
       // The revalidation behind the inbox: nobody waits on it.
-      void loadMe()
+      void loadMe(effect.sessionsEnded)
         .then((answer) => dispatch(answer).settled)
         .catch(bestEffort("auth", "revalidation not applied", "report"));
       continue;

@@ -34,7 +34,15 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   phát lúc restore, phán quyết) và giữ bất biến: offline không rơi về màn đăng nhập khi còn phiên và người đã lưu;
   phán quyết luôn đăng xuất; không ai được vào khi store đã biết phiên kết thúc; chỉ đăng xuất (của người dùng, của
   server, hay mở lạnh không credential) hoặc xoá tài khoản mới xoá outbox. Hai lỗ mô hình tìm ra đã đóng: `/me` của
-  lần đăng nhập trả lời sau phán quyết, hay sau `logout()`, không còn cho người vào.
+  lần đăng nhập trả lời sau phán quyết, hay sau `logout()`, không còn cho người vào. Mỗi `/me` và mỗi lần khôi phục
+  cache mang `sessionsEnded` (số phiên đã kết thúc lúc nó bắt đầu): phiên kết thúc (phán quyết, `logout`, xoá tài
+  khoản) bỏ `/me` đang chạy và lần nhận người dùng, nên lần đăng nhập sau hỏi `/me` mới và câu trả lời muộn của phiên
+  cũ bị bỏ qua. Bộ nhớ chỉ giữ phòng của người đang trong: lần khôi phục mà người của nó không được vào kéo theo xoá
+  sạch (`wipeAccount`), và lần khôi phục của lần đăng nhập chờ lần xoá đang chạy xong (`awaitingWipe`), vì
+  `clearAccountCache` chỉ dọn bộ nhớ khi xoá xong và lần khôi phục ghi những gì bộ nhớ đang giữ vào bản của người mới.
+  Mô hình duyệt thêm mọi thứ tự của một lần đăng nhập (sau khi người cũ, đang revalidate, đăng xuất; phiên mới phát
+  token; phán quyết) và giữ: ai vào cũng là người của phiên đang sống, bản cache của một người không nhận phòng của
+  người khác.
   `restoreAccountCache` gộp hai lần gọi cho cùng người và chỉ lần gọi cuối
   được ghi đĩa (một lần dừng — đăng xuất, cài lại — làm lần khôi phục đang chạy không hydrate, không ghi).
   Splash (`expo-splash-screen`, plugin trong `app.config.ts`) giữ tới khi `isLoading` tắt, tối đa 8 s
