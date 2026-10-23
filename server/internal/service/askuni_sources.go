@@ -24,8 +24,9 @@ import (
 // The Ask UNI tool registry (spec F-09 §3.4) and the permission-aware source
 // reader behind it (§3.5). Every handler runs as the asker: it calls the
 // same service methods a screen would, so RequireMember decides what comes
-// back and there is no system-privilege read path. Phase F registers read
-// tools only — TestAskUniToolsAreReadOnly pins MutationCount() == 0.
+// back and there is no system-privilege read path. This registry is read-only
+// (TestAskAgentToolsAreReadOnly pins MutationCount() == 0); the write tools
+// that only propose live in askuni_actions.go.
 
 const (
 	askToolSearch  = "search_workspace"
