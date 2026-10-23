@@ -49,12 +49,15 @@ RETURNING *;
 -- name: ScribeRunHealth :one
 -- tenant: system
 -- Fleet-wide, for the sweep's gauge (benchmark #1): ACTIVE runs that started
--- before since and have people in the room, and of those the ones no
--- transcript line reached after since (idx_meeting_transcript_meeting_created).
--- A device-caption line counts: the transcript still flows.
+-- before since and have people in the room now, and of those the ones that
+-- transcribed and then no transcript line reached after since
+-- (idx_meeting_transcript_meeting_created). A run that never transcribed is a
+-- quiet room (screen share, everyone muted), not an outage; an outage from
+-- the first word is MeetingScribeSttErrors' to catch. A device-caption line
+-- counts: the transcript still flows.
 SELECT
   count(*)::int AS active,
-  (count(*) FILTER (WHERE NOT EXISTS (
+  (count(*) FILTER (WHERE r.segments > 0 AND NOT EXISTS (
     SELECT 1 FROM meeting_transcript_segments s
     WHERE s.meeting_id = r.meeting_id AND s.created_at > sqlc.arg('since')::timestamptz)))::int AS silent
 FROM meeting_scribe_runs r

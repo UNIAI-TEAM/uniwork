@@ -4,7 +4,8 @@
 
 ## Triệu chứng
 
-- Alert `MeetingScribeRunsSilent`: ít nhất 2 lần chạy thư ký đang `ACTIVE`, phòng có người, mà 3 phút không có dòng transcript nào, và đó là ít nhất một nửa số lần chạy như vậy, kéo dài 10 phút.
+- Alert `MeetingScribeRunsSilent`: ít nhất 2 lần chạy thư ký đang `ACTIVE`, phòng đang có người, đã ghi được lời thoại rồi bỗng 3 phút không có dòng transcript nào, và đó là ít nhất một nửa số lần chạy đang `ACTIVE` có người, kéo dài 10 phút.
+- Lần chạy chưa ghi được dòng nào (`segments = 0`: trình chiếu, mọi người tắt mic) không tính là im lặng; lỗi STT ngay từ đầu do `MeetingScribeSttErrors` bắt.
 - Gauge `uniwork_meeting_scribe_runs{state="active|silent"}` do vòng quét 15 giây của BE đặt (mọi replica đặt cùng số toàn hệ thống; alert đọc `max`).
 - Đây là kiểm tra phía server, không dựa vào metric của agent: nó bắt được cả lỗi STT, token agent bị từ chối (404 ở `/agent/segments`) và đường gửi đoạn bị chặn.
 
@@ -20,7 +21,7 @@
    ```sql
    SELECT r.id, r.meeting_id, r.started_at, r.segments, r.updated_at
    FROM meeting_scribe_runs r
-   WHERE r.status = 'ACTIVE' AND r.started_at < now() - interval '3 minutes'
+   WHERE r.status = 'ACTIVE' AND r.started_at < now() - interval '3 minutes' AND r.segments > 0
      AND NOT EXISTS (SELECT 1 FROM meeting_transcript_segments s
                      WHERE s.meeting_id = r.meeting_id AND s.created_at > now() - interval '3 minutes')
    ORDER BY r.started_at LIMIT 20;

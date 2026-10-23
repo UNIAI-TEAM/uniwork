@@ -149,7 +149,7 @@ groups:
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingScribeSttErrors.md
 
       # The server's own check, independent of the agent's metrics: ACTIVE runs
-      # with people in the room and no transcript line for 3 minutes.
+      # with people in the room that transcribed, then no line for 3 minutes.
       - alert: MeetingScribeRunsSilent
         expr: |
           max(uniwork_meeting_scribe_runs{state="silent"}) >= 2
@@ -159,7 +159,7 @@ groups:
           severity: "3"
         annotations:
           summary: "Nhiều cuộc họp có thư ký AI mà không có lời thoại nào"
-          description: "{{ $value }} lần chạy thư ký AI đang ACTIVE, phòng có người, nhưng 3 phút không có dòng transcript nào: STT, token agent hoặc đường gửi đoạn có thể đang hỏng."
+          description: "{{ $value }} lần chạy thư ký AI đang ACTIVE, phòng có người, đã ghi được lời thoại rồi 3 phút không có dòng transcript nào: STT, token agent hoặc đường gửi đoạn có thể đang hỏng."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingScribeRunsSilent.md
 
       - alert: RealtimeSlowEvictions

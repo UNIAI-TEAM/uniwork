@@ -399,10 +399,10 @@ func (s *MeetingService) sweepScribes(ctx context.Context) error {
 // registry implements; a test double without it records nothing.
 type scribeRunGauge interface{ SetScribeRuns(active, silent int) }
 
-// reportScribeRunHealth sets uniwork_meeting_scribe_runs: ACTIVE runs that
-// have had people in the room for scribeSilentAfter, and those of them no
-// transcript line reached in that time. Every replica sets the same
-// fleet-wide numbers; the alert reads their max.
+// reportScribeRunHealth sets uniwork_meeting_scribe_runs: ACTIVE runs older
+// than scribeSilentAfter with people in the room now, and those of them that
+// transcribed before but no transcript line reached in that time. Every
+// replica sets the same fleet-wide numbers; the alert reads their max.
 func (s *MeetingService) reportScribeRunHealth(ctx context.Context) error {
 	g, ok := s.metrics.(scribeRunGauge)
 	if !ok {

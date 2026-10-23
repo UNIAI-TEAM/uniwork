@@ -170,8 +170,9 @@ func (m *scribeRunMetrics) SetScribeRuns(active, silent int) {
 }
 
 // Benchmark #1: the sweep reports ACTIVE runs with people in the room, and
-// those no segment reached for three minutes. One STT outage shows as many
-// silent runs at once.
+// those that transcribed and then no segment reached for three minutes. One
+// STT outage shows as many silent runs at once; a room where nobody has
+// spoken yet (a screen share, everyone muted) is quiet, not silent.
 func TestSweepReportsSilentScribeRuns(t *testing.T) {
 	s, fake, ua, m := scribeFixture(t)
 	ctx := context.Background()
@@ -192,10 +193,15 @@ func TestSweepReportsSilentScribeRuns(t *testing.T) {
 	}
 	check("just started", 0, 0)
 	ageRun(t, s, run.ID, "started_at", scribeSilentAfter+time.Minute)
-	check("three minutes without a line", 1, 1)
+	check("nobody has spoken yet", 1, 0)
 	c := claimsOf(t, s, fake)
 	if _, _, err := s.AppendAgentSegments(ctx, c, []AgentSegmentInput{agentSeg("s-1", hostIdentity(t, s, m, ua.ID), time.Now(), 1000)}); err != nil {
 		t.Fatal(err)
 	}
 	check("a line arrived", 1, 0)
+	if _, err := s.pool.Exec(ctx, `UPDATE meeting_transcript_segments SET created_at = now() - make_interval(secs => $2) WHERE meeting_id = $1`,
+		m.ID, (scribeSilentAfter + time.Minute).Seconds()); err != nil {
+		t.Fatal(err)
+	}
+	check("transcribed, then three minutes without a line", 1, 1)
 }
