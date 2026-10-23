@@ -7,6 +7,7 @@ import { QueryClient, QueryObserver, type QueryKey } from "@tanstack/react-query
 import { describe, expect, it, vi } from "vitest";
 import type { ChatMessageRecord, ChatRoomRecord } from "../api/endpoints/chat-schemas";
 import { createChatMessageCache, type ChatMessageCacheHost, type ChatViewer } from "./chat-message-cache";
+import { pendingChatMessageId } from "./pending-message-id";
 import { flattenRoomTimeline, type RoomTimeline } from "./room-timeline-pages";
 
 const keys: ChatMessageCacheHost["keys"] = {
@@ -73,6 +74,28 @@ describe("createChatMessageCache", () => {
 
     cache.insertCreatedRoomMessage(qc, "ws1", "room1", message("m3", "2026-01-01T10:02:00Z"));
     expect(timelineIds(qc, timeline)).toEqual(["m2", "m3"]);
+  });
+
+  it("replaces a pending row when the WS echo arrives before onSuccess", async () => {
+    const getMessage = vi.fn().mockResolvedValue(
+      message("m2", "2026-01-01T10:01:00Z", { client_msg_id: "cmid-1" }),
+    );
+    const cache = createChatMessageCache({ keys, getMessage });
+    const qc = new QueryClient();
+    const timeline = keys.roomMessages("ws1", "room1");
+    shown(qc, timeline, {
+      pages: [[message("m1", "2026-01-01T10:00:00Z"), message(pendingChatMessageId("cmid-1"), "2026-01-01T10:00:30Z", { client_msg_id: "cmid-1" })]],
+      pageParams: [null],
+    });
+
+    await cache.fetchAndPatchChatMessage(
+      qc,
+      "ws1",
+      { userId: "u1", activeRoomId: "room1" },
+      { roomId: "room1", messageId: "m2", created: true },
+    );
+
+    expect(timelineIds(qc, timeline)).toEqual(["m1", "m2"]);
   });
 
   it("calls each hook a host binds, with what happened", async () => {

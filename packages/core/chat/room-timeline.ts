@@ -4,7 +4,21 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { listChatRoomMessages } from "../api/endpoints/chat";
 import { chatKeys } from "./chat-keys";
-import { createRoomTimelineCache, markStaleUnlessObserved } from "./room-timeline-cache";
+import { createRoomTimelineCache, markStaleUnlessObserved, ROOM_TIMELINE_STALE_MS } from "./room-timeline-cache";
+
+export { ROOM_TIMELINE_STALE_MS };
+export type { RoomMessagesPageParam, RoomTimeline } from "./room-timeline-pages";
+export {
+  CHAT_HISTORY_PAGE_SIZE,
+  CHAT_MESSAGE_CACHE_MAX,
+  compareMessages,
+  flattenRoomTimeline,
+  insertCreatedTimelineMessage,
+  keepRoomTimelineHead,
+  mapRoomTimeline,
+  replaceTimelineMessage,
+  roomTimelineHas,
+} from "./room-timeline-pages";
 
 const cache = createRoomTimelineCache({
   roomMessagesKey: chatKeys.roomMessages,
@@ -29,6 +43,8 @@ export function refreshLoadedRoomTimelines(qc: QueryClient, wsId: string): void 
   for (const [queryKey, data] of qc.getQueriesData({ queryKey: chatKeys.roomMessagesRoot(wsId) })) {
     const roomId = queryKey[3];
     if (data === undefined || typeof roomId !== "string" || !roomId) continue;
-    if (markStaleUnlessObserved(qc, chatKeys.roomMessages(wsId, roomId))) refreshRoomTimelineOnOpen(qc, wsId, roomId);
+    if (markStaleUnlessObserved(qc, chatKeys.roomMessages(wsId, roomId))) {
+      refreshRoomTimelineOnOpen(qc, wsId, roomId, { force: true });
+    }
   }
 }

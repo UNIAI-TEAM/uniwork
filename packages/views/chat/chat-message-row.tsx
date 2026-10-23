@@ -11,7 +11,13 @@ import { ChatFailedSendBar } from "./chat-failed-send-bar";
 import { isChatMediaMessageBody } from "./chat-expression-utils";
 import { ChatMessageActionsFrame, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatForwardedLabel } from "./chat-forwarded-label";
-import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
+import {
+  ChatMessageA11yLabel,
+  ChatMessageMeta,
+  ChatReactionChips,
+  chatMessageLabelId,
+  showChatBubbleTime,
+} from "./chat-message-parts";
 import { formatMessageDateTime, formatMessageTime } from "./chat-message-time";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { ChatThreadRepliers } from "./chat-thread-repliers";
@@ -179,6 +185,8 @@ type ChatMessageRowProps = {
   /** The next message starts a new run (other sender or a pause): print the time and the avatar here. */
   lastOfRun?: boolean;
   highlighted?: boolean;
+  /** Outgoing bubble just appended: slight rise-in (Telegram-style). */
+  sendEnterAnimation?: boolean;
   nameContext?: ChatNameContextEntry[];
 };
 
@@ -211,6 +219,7 @@ function ChatMessageRowImpl({
   senderAvatarUrl,
   lastOfRun = true,
   highlighted = false,
+  sendEnterAnimation = false,
   nameContext = EMPTY_NAME_CONTEXT,
 }: ChatMessageRowProps) {
   const { i18n } = useTranslation();
@@ -235,11 +244,12 @@ function ChatMessageRowImpl({
   const taskCard = hasTasks && taskLinks.some((link) => link.relation === "created_from");
   // The card of its first link sits under the text, the time under the card (canvas).
   const preview = useChatLinkPreviewFor(message.id);
+  const showTime = showChatBubbleTime(isOwn, lastOfRun);
   const meta = (
     <ChatMessageMeta
       message={message}
       isOwn={isOwn}
-      showTime={lastOfRun}
+      showTime={showTime}
       showReadReceipt={showReadReceipt}
       onWall={bare}
       inline={bare ? undefined : "float"}
@@ -257,6 +267,7 @@ function ChatMessageRowImpl({
         "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
         CHAT_ROW_WASH,
         compactTop ? "mt-0.5" : "mt-3",
+        sendEnterAnimation && "animate-chat-bubble-send-in",
         isOwn ? "justify-end" : "justify-start gap-2",
         // The thread open beside the timeline, or a jump's target: the row's wash in the brand (canvas).
         highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25",
@@ -352,7 +363,7 @@ function ChatMessageRowImpl({
               />
               {preview ? <ChatLinkPreviewCard preview={preview} isOwn={isOwn} /> : null}
               {preview && !taskCard ? (
-                <ChatMessageMeta message={message} isOwn={isOwn} showTime={lastOfRun} showReadReceipt={showReadReceipt} />
+                <ChatMessageMeta message={message} isOwn={isOwn} showTime={showTime} showReadReceipt={showReadReceipt} />
               ) : null}
             </div>
 
@@ -367,7 +378,7 @@ function ChatMessageRowImpl({
                   <ChatMessageMeta
                     message={message}
                     isOwn={false}
-                    showTime={lastOfRun}
+                    showTime={showChatBubbleTime(false, lastOfRun)}
                     showReadReceipt={showReadReceipt}
                     inline="end"
                   />

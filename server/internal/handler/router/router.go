@@ -165,6 +165,8 @@ func New(d Deps, h Routes) http.Handler {
 			"Content-Disposition", "X-Report-Rows", "X-Report-Skipped", "X-Report-Generated-At",
 		},
 		AllowCredentials: true,
+		// Cache preflight so presence/typing beats do not log OPTIONS every 15s.
+		MaxAge: 3600,
 	}))
 	// Inside CORS, so a shed request still carries the headers the browser
 	// needs to read its 503 and Retry-After, and preflights never count.

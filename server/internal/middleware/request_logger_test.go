@@ -109,6 +109,38 @@ func TestRequestLogger_HealthEndpointIsSkipped(t *testing.T) {
 	}
 }
 
+func TestRequestLogger_SkipsRoutineChatSignals(t *testing.T) {
+	path := "/api/v1/workspaces/w1/chat/presence"
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		status int
+		skip   bool
+	}{
+		{"options preflight", http.MethodOptions, path, http.StatusOK, true},
+		{"presence beat ok", http.MethodPost, path, http.StatusOK, true},
+		{"presence rate limit", http.MethodPost, path, http.StatusTooManyRequests, false},
+		{"typing ok", http.MethodPost, "/api/v1/workspaces/w1/chat/rooms/r1/typing", http.StatusOK, true},
+		{"other post ok", http.MethodPost, "/api/v1/tasks", http.StatusOK, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			logs := withCapturedLogs(t)
+			handler := RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+			}))
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			handler.ServeHTTP(httptest.NewRecorder(), req)
+			if tc.skip && logs.Len() != 0 {
+				t.Fatalf("expected skip, got:\n%s", logs.String())
+			}
+			if !tc.skip && logs.Len() == 0 {
+				t.Fatal("expected log line")
+			}
+		})
+	}
+}
+
 func TestRequestLogger_BodyStillReachesClient(t *testing.T) {
 	// The body capture is implemented via Tee, which must mirror writes
 	// rather than swallow them. Regress-protect: assert the response writer

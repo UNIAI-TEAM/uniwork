@@ -96,6 +96,13 @@ func NewSMTP(cfg SMTPConfig) (*SMTPSender, error) {
 			ehloName = hostname
 		}
 	}
+	// EHLO's argument is one domain token (RFC 5321). A display name such as
+	// "UniWork Development" is legal in MAIL_FROM but Gmail answers
+	// 501 5.5.4 and closes the socket. net/smtp then retries HELO on the
+	// dead connection and the outbox only sees EOF, before AUTH.
+	if strings.ContainsAny(ehloName, " \t") {
+		return nil, fmt.Errorf("mail: SMTP EHLO name %q must be a single domain token", ehloName)
+	}
 
 	return &SMTPSender{
 		host:        host,

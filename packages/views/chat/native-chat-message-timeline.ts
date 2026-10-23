@@ -8,7 +8,9 @@ import { toChatMessage } from "./native-chat-message-mapping";
 /** Main room timeline (every loaded page): optimistic sends minus first-class thread replies. */
 export function buildMainTimelineMessages(input: {
   anchorMessages: ChatMessage[] | null;
-  latestRows: ChatMessageRecord[];
+  latestRows?: ChatMessageRecord[];
+  /** Pre-mapped server rows so pending/outbox merges do not remap the whole timeline. */
+  serverMessages?: ChatMessage[];
   pendingEntries: PendingChatMessage[];
   outboxEntries: ChatSendOutboxEntry[];
   currentUserId: string;
@@ -17,13 +19,14 @@ export function buildMainTimelineMessages(input: {
   const {
     anchorMessages,
     latestRows,
+    serverMessages,
     pendingEntries,
     outboxEntries,
     currentUserId,
     threadsEnabled,
   } = input;
   if (anchorMessages) return anchorMessages;
-  const latest = latestRows.map(toChatMessage);
+  const latest = serverMessages ?? latestRows!.map(toChatMessage);
   const mainPending = pendingEntries.filter((entry) => !entry.thread_root_id);
   const mergedLatest = mergeOptimisticChatMessages(
     latest,

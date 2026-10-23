@@ -109,6 +109,14 @@ describe("reduced motion transitions", () => {
   });
 });
 
+describe("chat bubble send-in", () => {
+  it("uses motion tokens for the outgoing enter animation", () => {
+    const rule = styles.match(/\.animate-chat-bubble-send-in\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(rule).toMatch(/var\(--duration-fast\)/);
+    expect(rule).toMatch(/var\(--ease-out-quart\)/);
+  });
+});
+
 describe("in-card fade", () => {
   // The step/screen fade replays on every step change; it reads the motion
   // tokens (standard 200ms, the quartic ease-out) instead of a 0.4s literal,
