@@ -6,7 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import tls from "node:tls";
-import { PINS_FILE, checkPins, chainVerdict, expiryStatus, fetchChain, parseHostEntry, pinnedHosts, spkiPin } from "./mobile-tls-pins.mjs";
+import { PINS_FILE, checkPins, chainVerdict, expiryStatus, fetchChain, minimumSupportedVersion, parseHostEntry, pinnedHosts, shippedPinSets, spkiPin } from "./mobile-tls-pins.mjs";
 
 // The TLS pins every UniChat staging and production binary carries (apps/chat-mobile/tls-pins.json, runbook
 // docs/runbooks/unichat-tls-pins.md): the committed file is held to its certificates and to the servers the deploy
@@ -157,4 +157,99 @@ test("reads the chain a TLS server serves, with each certificate's SPKI pin, and
   assert.equal(chainVerdict(chain, [{ sha256: spkiPin(read("ca.pem")), ca: "Test Root" }], new Date()).level, "ok");
   assert.equal(chainVerdict(chain, [{ sha256: spkiPin(read("leaf.pem")), ca: "leaf" }], new Date()).level, "error");
   await assert.rejects(fetchChain("localhost", port, { connectHost: "127.0.0.1" }), /self.signed|unable to (get|verify)/i);
+});
+
+// A binary keeps its pins (iOS for good, Android until its own `expires`), so HEAD's pin-set is not the only one
+// that has to match: every store binary still served carries the pin-set of its chat-mobile-v* tag.
+test("lists the pin-sets binaries already carry: each chat-mobile-v* tag at or above the minimum that has tls-pins.json, oldest first", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tls-pins-git-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const git = (args) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", "-c", "core.hooksPath=/dev/null", ...args], { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const commit = (message, pins) => {
+    if (pins) {
+      fs.mkdirSync(path.join(dir, path.dirname(PINS_FILE)), { recursive: true });
+      fs.writeFileSync(path.join(dir, PINS_FILE), JSON.stringify({ expires: "2027-10-31", pins, hosts: { production: ["api.example"] } }));
+    }
+    fs.writeFileSync(path.join(dir, "log"), message);
+    git(["add", "-A"]);
+    git(["commit", "-q", "-m", message]);
+  };
+  git(["init", "-q"]);
+  commit("before pinning");
+  git(["tag", "chat-mobile-v0.1.0"]);
+  commit("pins A", [{ sha256: "A" }]);
+  git(["tag", "chat-mobile-v0.2.0"]);
+  git(["tag", "chat-mobile-v0.10.0"]);
+  commit("pins A B", [{ sha256: "A" }, { sha256: "B" }]);
+  git(["tag", "chat-mobile-v0.9.1"]);
+  git(["tag", "chat-mobile-vnext"]);
+  git(["tag", "chat-desktop-v9.9.9"]);
+
+  const all = shippedPinSets({ git, minimum: "" });
+  assert.deepEqual(
+    all.map((set) => [set.tag, set.file.pins.map((pin) => pin.sha256).join("")]),
+    [
+      ["chat-mobile-v0.2.0", "A"],
+      ["chat-mobile-v0.9.1", "AB"],
+      ["chat-mobile-v0.10.0", "A"],
+    ],
+    "versions compare as numbers; a tag from before pinning ships no pins and a tag that is no version ships no binary",
+  );
+  assert.deepEqual(
+    shippedPinSets({ git, minimum: "0.9.1" }).map((set) => set.tag),
+    ["chat-mobile-v0.9.1", "chat-mobile-v0.10.0"],
+    "a binary below UNICHAT_MOBILE_MIN_SUPPORTED_VERSION is already told to update",
+  );
+});
+
+test("reads the minimum supported version from the server's public config, and checks every tag when it cannot", async () => {
+  const answer = (body, ok = true) => async (url) => {
+    assert.equal(url, "https://api.example/api/v1/config");
+    return { ok, status: ok ? 200 : 503, json: async () => body };
+  };
+  assert.deepEqual(await minimumSupportedVersion({ api: "https://api.example", fetch: answer({ min_supported_mobile_version: " 0.4.2 " }) }), { minimum: "0.4.2" });
+  assert.deepEqual(await minimumSupportedVersion({ api: "https://api.example/", fetch: answer({ min_supported_mobile_version: "" }) }), { minimum: "" });
+  for (const fetch of [answer({}, false), answer({ min_supported_mobile_version: 3 }), answer({ min_supported_mobile_version: "0.4" }), async () => Promise.reject(new Error("ECONNRESET"))]) {
+    const result = await minimumSupportedVersion({ api: "https://api.example", fetch });
+    assert.equal(result.minimum, "", "an unknown minimum checks every shipped pin-set: too strict, never too lax");
+    assert.match(result.warning, /minimum supported version/);
+  }
+});
+
+test("a chain no shipped binary's pins match is red even when HEAD's pins match it, naming the oldest binary locked out", async () => {
+  const PIN_NEW = "NEWCAPIN";
+  const head = { expires: "2027-10-31", warnDays: 60, pins: [...PINS, { sha256: PIN_NEW, ca: "New Root", operator: "Three" }], hosts: { production: ["api.example", "live.example:7880"] } };
+  const shippedSet = (tag, version, expires, pins, hosts = { production: ["api.example", "live.example:7880"] }) => ({ tag, version, file: { expires, pins, hosts } });
+  const shipped = [
+    shippedSet("chat-mobile-v0.3.0", [0, 3, 0], "2026-09-30", PINS, { production: ["api.example", "old.example"] }),
+    shippedSet("chat-mobile-v0.4.0", [0, 4, 0], "2027-06-30", PINS),
+    shippedSet("chat-mobile-v0.5.0", [0, 5, 0], "2027-10-31", head.pins),
+  ];
+  const calls = [];
+  const fetch = async (host, port) => {
+    calls.push(`${host}:${port}`);
+    if (host === "api.example") return [leaf(), { depth: 1, subject: "CN=New Root", pin: PIN_NEW }];
+    if (host === "live.example") return [leaf(), { depth: 1, subject: "CN=Root A", pin: PIN_ROOT }];
+    throw new Error("getaddrinfo ENOTFOUND");
+  };
+  const result = await checkPins({ file: head, shipped, now: NOW, fetch, attempts: 1, sleep: async () => {} });
+  assert.deepEqual(calls, ["api.example:443", "live.example:7880", "old.example:443"], "each host is dialled once, whatever number of pin-sets name it");
+  assert.equal(result.errors.length, 1, result.errors.join("\n"));
+  assert.match(result.errors[0], /^api\.example:443: /);
+  assert.match(result.errors[0], /oldest locked out: chat-mobile-v0\.3\.0 \(iPhones\)/, "past its expiry Android no longer enforces v0.3.0's pins; iOS still does");
+  assert.match(result.errors[0], /chat-mobile-v0\.4\.0 \(iPhones; Android until 2027-06-30\)/);
+  assert.doesNotMatch(result.errors[0], /v0\.5\.0/, "v0.5.0 pins the new root");
+  assert.match(result.errors[0], /UNICHAT_MOBILE_MIN_SUPPORTED_VERSION/);
+  assert.deepEqual(result.warnings, ["old.example:443 (pinned by chat-mobile-v0.3.0): unreachable after 1 attempts: getaddrinfo ENOTFOUND"], "a host only old binaries name is not HEAD's to keep up");
+  assert.deepEqual(
+    result.rows.map((row) => [row.host, row.level]),
+    [
+      ["api.example:443", "error"],
+      ["live.example:7880", "ok"],
+    ],
+  );
+  assert.deepEqual(result.shipped, ["chat-mobile-v0.3.0", "chat-mobile-v0.4.0", "chat-mobile-v0.5.0"]);
+
+  const fine = await checkPins({ file: head, shipped: shipped.slice(2), now: NOW, fetch, attempts: 1, sleep: async () => {} });
+  assert.deepEqual(fine.errors, []);
 });

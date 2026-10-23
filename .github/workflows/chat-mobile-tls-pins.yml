@@ -11,6 +11,13 @@ name: UniChat mobile TLS pins
 # days from running out. scripts/mobile-tls-pins.mjs does the work. Runbook:
 # docs/runbooks/unichat-tls-pins.md.
 #
+# HEAD's pins are not the only ones: every store binary still served keeps the
+# pin-set it was built with (iOS for good, Android until its own expiry). The
+# script reads the pin-set of each chat-mobile-v* tag at or above the server's
+# minimum supported version and is red when a host's chain matches none of
+# one of them, naming the oldest binary locked out; so the checkout carries
+# every tag (fetch-depth: 0).
+#
 # Reads no secret and no setting. A red scheduled run notifies whoever last
 # edited the schedule; the runbook asks the mobile owner to watch this
 # workflow (Actions › UniChat mobile TLS pins › "…" › enable notifications).
@@ -45,14 +52,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # Every chat-mobile-v* tag: each is a binary whose pin-set the live check holds too.
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
       # Node built-ins only: no install. The contract first (each pin is its committed certificate's key, two CA
-      # operators, production pins every host deploy/app/env/uniwork-be.env names), then the live chains.
+      # operators, production pins every host deploy/app/env/uniwork-be.env names), then the live chains against HEAD's
+      # pin-set and every shipped one.
       - name: The committed pins hold to their certificates and to the deployed hosts
         run: node --test scripts/mobile-tls-pins.test.mjs
       - name: Check every pinned host's live chain and the pin-set's expiry

@@ -11,10 +11,21 @@
 // reached after a few attempts, and once the pin-set has expired; it warns `warnDays` before that, and when a
 // leaf is days from expiry (its renewal is stuck).
 //
+//
+// HEAD's pin-set is not the only one that must match: every store binary still served keeps the pin-set it was built
+// with, so a chain that only HEAD's pins match (a new CA added and the server moved before phones updated) locks
+// those phones out. Each `chat-mobile-v*` tag at or above the server's minimum supported version
+// (UNICHAT_MOBILE_MIN_SUPPORTED_VERSION, read from the public GET /api/v1/config of the API the deploy names) is a
+// binary in the field; its tls-pins.json, read from git, is checked against the same chains. Every one counts, past
+// its own `expires` too: iOS never stops enforcing. The red message names the oldest binary locked out. A shallow
+// checkout cannot see the tags, so the script refuses one.
+//
 //   node scripts/mobile-tls-pins.mjs [--file apps/chat-mobile/tls-pins.json] [--warn-days 60] [--now 2027-01-01]
+//                                    [--min-version 0.4.0]
 //
 // Runs daily and on every PR that touches the pins (.github/workflows/chat-mobile-tls-pins.yml). Prints GitHub
 // annotations and, under Actions, a table in the step summary; exits 1 on any error.
+import { execFileSync } from "node:child_process";
 import { X509Certificate, createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -26,6 +37,9 @@ export const PINS_FILE = "apps/chat-mobile/tls-pins.json";
 const DAY = 24 * 60 * 60 * 1000;
 /** A leaf this close to expiry means the ACME renewal is stuck (cert-manager renews 30 days ahead). */
 const LEAF_WARN_DAYS = 14;
+/** Each store binary is built from a tag `chat-mobile-v<version>` (chat-mobile-release.yml). */
+export const TAG_PREFIX = "chat-mobile-v";
+const DEPLOY_ENV = "deploy/app/env/uniwork-be.env";
 const HOSTNAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 
 /** The base64 SHA-256 of a certificate's SubjectPublicKeyInfo, from its DER bytes or its PEM text. */
@@ -111,31 +125,107 @@ export function fetchChain(host, port, { timeoutMs = 10_000, ca, connectHost } =
   });
 }
 
-/** Every pinned host and the pin-set's expiry: { errors, warnings, rows }. */
-export async function checkPins({ file, now = new Date(), warnDays = file.warnDays ?? 60, fetch = fetchChain, attempts = 3, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
+/** MAJOR.MINOR.PATCH (a tag may add a suffix) as numbers; null when the text is no version. */
+function parseVersion(text, { suffix = false } = {}) {
+  const match = (suffix ? /^(\d+)\.(\d+)\.(\d+)(?:[-+.][0-9A-Za-z.-]*)?$/ : /^(\d+)\.(\d+)\.(\d+)$/).exec(String(text ?? "").trim());
+  return match ? match.slice(1, 4).map(Number) : null;
+}
+
+function compareVersions(a, b) {
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] - b[i];
+  return 0;
+}
+
+/**
+ * The pin-sets of the binaries in the field, oldest first: [{ tag, version, file }] for each `chat-mobile-v*` tag at
+ * or above `minimum` ("" for none) whose tree has tls-pins.json. A tag from before pinning built an unpinned binary,
+ * and a tag that names no version built none (the release refuses it). `git(args)` returns git's stdout.
+ */
+export function shippedPinSets({ git, minimum = "" }) {
+  const floor = parseVersion(minimum);
+  const sets = [];
+  for (const tag of git(["tag", "--list", `${TAG_PREFIX}*`]).split("\n").map((line) => line.trim()).filter(Boolean)) {
+    const version = parseVersion(tag.slice(TAG_PREFIX.length), { suffix: true });
+    if (!version || (floor && compareVersions(version, floor) < 0)) continue;
+    if (git(["ls-tree", "--name-only", tag, "--", PINS_FILE]).trim() === "") continue;
+    let file;
+    try {
+      file = JSON.parse(git(["show", `${tag}:${PINS_FILE}`]));
+    } catch (error) {
+      throw new Error(`${tag}: ${PINS_FILE} does not parse: ${error.message}`);
+    }
+    sets.push({ tag, version, file });
+  }
+  return sets.sort((a, b) => compareVersions(a.version, b.version) || a.tag.localeCompare(b.tag));
+}
+
+/**
+ * UNICHAT_MOBILE_MIN_SUPPORTED_VERSION as the server serves it (`min_supported_mobile_version` of the public
+ * GET /api/v1/config): { minimum } — "" when none is set — or, when it cannot be read, { minimum: "", warning }: an
+ * unknown minimum checks every shipped pin-set, too strict rather than too lax.
+ */
+export async function minimumSupportedVersion({ api, fetch = globalThis.fetch, timeoutMs = 10_000 }) {
+  const url = `${String(api).replace(/\/+$/, "")}/api/v1/config`;
+  let reason;
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (response.ok) {
+      const value = (await response.json())?.min_supported_mobile_version;
+      if (typeof value === "string" && (value.trim() === "" || parseVersion(value))) return { minimum: value.trim() };
+      reason = `min_supported_mobile_version is ${JSON.stringify(value)}`;
+    } else {
+      reason = `HTTP ${response.status}`;
+    }
+  } catch (error) {
+    reason = error?.message ?? String(error);
+  }
+  return { minimum: "", warning: `could not read the minimum supported version from ${url} (${reason}): checking the pin-set of every ${TAG_PREFIX}* tag` };
+}
+
+/** Which phones with this binary enforce its pins on `now`: iPhones always, Android until the pin-set's expiry. */
+function enforcedOn(set, now) {
+  const expires = String(set.file.expires ?? "");
+  const android = /^\d{4}-\d{2}-\d{2}$/.test(expires) && Date.parse(`${expires}T00:00:00Z`) > now.getTime();
+  return android ? `iPhones; Android until ${expires}` : "iPhones";
+}
+
+/**
+ * Every pinned host against HEAD's pin-set and against each pin-set in the field (`shipped`, oldest first, from
+ * shippedPinSets), and HEAD's expiry: { errors, warnings, rows, expiry, shipped }. Each host is dialled once.
+ */
+export async function checkPins({ file, shipped = [], now = new Date(), warnDays = file.warnDays ?? 60, fetch = fetchChain, attempts = 3, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
   const errors = [];
   const warnings = [];
   const rows = [];
   const expiry = expiryStatus(file.expires, now, warnDays);
   if (expiry.level === "error") errors.push(expiry.message);
   if (expiry.level === "warn") warnings.push(expiry.message);
-  for (const { host, port, variants } of pinnedHosts(file)) {
+  const chains = new Map();
+  const chainOf = async (host, port) => {
+    const name = `${host}:${port}`;
+    if (!chains.has(name)) {
+      let chain;
+      let failure;
+      for (let attempt = 1; attempt <= attempts && !chain; attempt++) {
+        try {
+          chain = await fetch(host, port);
+        } catch (error) {
+          failure = error;
+          if (attempt < attempts) await sleep(2000 * attempt);
+        }
+      }
+      chains.set(name, chain ? { chain } : { failure: `unreachable after ${attempts} attempts: ${failure?.message ?? failure}` });
+    }
+    return chains.get(name);
+  };
+  const headHosts = pinnedHosts(file);
+  for (const { host, port, variants } of headHosts) {
     const name = `${host}:${port}`;
     const label = `${name} (${variants.join(", ")})`;
-    let chain;
-    let failure;
-    for (let attempt = 1; attempt <= attempts && !chain; attempt++) {
-      try {
-        chain = await fetch(host, port);
-      } catch (error) {
-        failure = error;
-        if (attempt < attempts) await sleep(2000 * attempt);
-      }
-    }
+    const { chain, failure } = await chainOf(host, port);
     if (!chain) {
-      const message = `${label}: unreachable after ${attempts} attempts: ${failure?.message ?? failure}`;
-      errors.push(message);
-      rows.push({ host: name, variants, level: "error", message, chain: [] });
+      errors.push(`${label}: ${failure}`);
+      rows.push({ host: name, variants, level: "error", message: failure, chain: [] });
       continue;
     }
     const verdict = chainVerdict(chain, file.pins ?? [], now);
@@ -143,12 +233,38 @@ export async function checkPins({ file, now = new Date(), warnDays = file.warnDa
     if (verdict.level === "warn") warnings.push(`${label}: ${verdict.message}`);
     rows.push({ host: name, variants, level: verdict.level, message: verdict.message, chain });
   }
-  return { errors, warnings, rows, expiry };
+
+  // The binaries already on phones: each keeps the pins it was built with.
+  const lockedOut = new Map();
+  const unreachable = new Map();
+  for (const set of shipped) {
+    for (const { host, port } of pinnedHosts(set.file)) {
+      const name = `${host}:${port}`;
+      const { chain } = await chainOf(host, port);
+      if (!chain) {
+        if (!headHosts.some((row) => `${row.host}:${row.port}` === name)) unreachable.set(name, [...(unreachable.get(name) ?? []), set.tag]);
+        continue;
+      }
+      if (chainVerdict(chain, set.file.pins ?? [], now).level === "error") lockedOut.set(name, [...(lockedOut.get(name) ?? []), set]);
+    }
+  }
+  for (const [name, tags] of unreachable) warnings.push(`${name} (pinned by ${tags.join(", ")}): ${chains.get(name).failure}`);
+  for (const [name, sets] of lockedOut) {
+    const { chain } = chains.get(name);
+    const cas = chain.filter((cert) => cert.depth > 0).map((cert) => cert.subject).join(" ← ") || "no CA certificate";
+    const [oldest, ...rest] = sets.map((set) => `${set.tag} (${enforcedOn(set, now)})`);
+    const message = `binaries already on phones pin no key in its chain (${cas}): oldest locked out: ${oldest}${rest.length ? `, then ${rest.join(", ")}` : ""}. Go back to a pinned CA now, or raise UNICHAT_MOBILE_MIN_SUPPORTED_VERSION above them and wait for phones to update before moving (runbook docs/runbooks/unichat-tls-pins.md › Khắc phục)`;
+    errors.push(`${name}: ${message}`);
+    const row = rows.find((candidate) => candidate.host === name);
+    if (row) Object.assign(row, { level: "error", message: row.level === "error" ? `${row.message}; ${message}` : message });
+    else rows.push({ host: name, variants: [], level: "error", message, chain });
+  }
+  return { errors, warnings, rows, expiry, shipped: shipped.map((set) => set.tag) };
 }
 
-function summary({ rows, expiry }) {
+function summary({ rows, expiry, shipped }) {
   const mark = { ok: "ok", warn: "warning", error: "**FAILED**" };
-  const lines = ["### UniChat TLS pins", "", `Pin-set: ${expiry.message}.`, "", "| Host | Variants | Result | Chain (leaf first) |", "| --- | --- | --- | --- |"];
+  const lines = ["### UniChat TLS pins", "", `Pin-set: ${expiry.message}.`, "", `Pin-sets in the field: ${shipped.join(", ") || "none"}.`, "", "| Host | Variants | Result | Chain (leaf first) |", "| --- | --- | --- | --- |"];
   for (const row of rows) lines.push(`| \`${row.host}\` | ${row.variants.join(", ")} | ${mark[row.level]}: ${row.message} | ${row.chain.map((cert) => cert.subject).join(" ← ")} |`);
   return `${lines.join("\n")}\n`;
 }
@@ -161,9 +277,24 @@ async function main(argv) {
   const file = JSON.parse(fs.readFileSync(path.resolve(ROOT, arg("--file") ?? PINS_FILE), "utf8"));
   const warnDays = arg("--warn-days") === undefined ? undefined : Number(arg("--warn-days"));
   const now = arg("--now") ? new Date(arg("--now")) : new Date();
-  const result = await checkPins({ file, now, ...(warnDays === undefined ? {} : { warnDays }) });
+  const git = (args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  if (git(["rev-parse", "--is-shallow-repository"]).trim() === "true") {
+    throw new Error(`a shallow checkout cannot see every ${TAG_PREFIX}* tag: check out with fetch-depth: 0`);
+  }
+  let found;
+  if (arg("--min-version") !== undefined) {
+    if (arg("--min-version") !== "" && !parseVersion(arg("--min-version"))) throw new Error(`--min-version is not MAJOR.MINOR.PATCH: ${arg("--min-version")}`);
+    found = { minimum: arg("--min-version") };
+  } else {
+    const api = fs.readFileSync(path.join(ROOT, DEPLOY_ENV), "utf8").match(/^API_PUBLIC_URL=(\S+)$/m)?.[1];
+    found = api ? await minimumSupportedVersion({ api }) : { minimum: "", warning: `${DEPLOY_ENV} names no API_PUBLIC_URL: checking the pin-set of every ${TAG_PREFIX}* tag` };
+  }
+  const shipped = shippedPinSets({ git, minimum: found.minimum });
+  const result = await checkPins({ file, shipped, now, ...(warnDays === undefined ? {} : { warnDays }) });
+  if (found.warning) result.warnings.unshift(found.warning);
   for (const row of result.rows) console.log(`${row.level.padEnd(5)} ${row.host} [${row.variants.join(", ")}] ${row.message}`);
   console.log(result.expiry.message);
+  console.log(`pin-sets in the field (minimum supported version ${found.minimum || "none"}): ${result.shipped.join(", ") || "none"}`);
   for (const warning of result.warnings) console.log(`::warning::${warning}`);
   for (const error of result.errors) console.log(`::error::${error}`);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary(result));

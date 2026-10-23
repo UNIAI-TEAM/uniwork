@@ -57,10 +57,18 @@ chưa đi qua mục Khắc phục › Trước khi đổi.
   workflow này):
   - `no pinned key in the chain`: một host đã ghim đang phục vụ chuỗi không có khoá nào trong pin. **Máy thật đang bị
     khoá** nếu host đó là của production.
+  - `binaries already on phones pin no key in its chain … oldest locked out: chat-mobile-v<x> (iPhones; Android until
+    <ngày>)`: pin ở HEAD khớp, nhưng pin của một bản **đã phát** thì không. Job đọc `tls-pins.json` của mọi tag
+    `chat-mobile-v*` từ mức tối thiểu server đang phục vụ (`min_supported_mobile_version` của `GET /api/v1/config`) trở
+    lên — bản thấp hơn đã bị bắt cập nhật — và đòi chuỗi của từng host khớp ít nhất một pin của **mỗi** bản: iPhone ghim
+    mãi, Android tới `expires` của bản đó. Máy mang các bản được nêu **đang bị khoá**.
   - `unreachable after 3 attempts`: không nối được (host sập, DNS, tường lửa chặn runner của GitHub).
   - `the pin-set expired`: đã qua `expires`: bản Android cũ thôi ghim, máy build EAS từ chối bản mới.
-- Job cảnh báo (vàng): `the pin-set expires in N days` (≤ `warnDays`, 60 ngày) hay `the leaf certificate expires in N
-  days` (gia hạn ACME kẹt).
+  - `a shallow checkout cannot see every chat-mobile-v* tag`: workflow mất `fetch-depth: 0`; job không kiểm được bản đã
+    phát nên đỏ thay vì xanh giả.
+- Cảnh báo `could not read the minimum supported version`: không đọc được `GET /api/v1/config`; job vẫn kiểm pin của
+  **mọi** tag (chặt hơn, không lỏng hơn). Cảnh báo `<host> (pinned by chat-mobile-v…): unreachable`: host chỉ bản cũ
+  còn ghim không trả lời — không khoá ai thêm, nhưng các bản đó cũng không tới được host ấy.
 - Người dùng mobile báo app "mất kết nối" ngay sau một lần đổi chứng chỉ/hạ tầng, trong khi web vẫn chạy; tỷ lệ
   `ApiError` status 0 của một bản tăng vọt.
 - Máy build EAS đỏ với `tls-pins.json › expires is in the past` hay `<host> is not pinned: add it to tls-pins.json ›
@@ -89,8 +97,9 @@ chưa đi qua mục Khắc phục › Trước khi đổi.
    `letsencrypt-http01`, `deploy/edge/certificate.yaml`, `deploy/edge/clusterissuer.yaml`). Host LiveKit
    (`livekit.vn247.info`) dùng chứng chỉ wildcard `*.vn247.info` của máy chủ LiveKit: hỏi người giữ máy đó nó được cấp
    ở đâu.
-4. Có phải chỉ một số máy: một bản cũ có `tls-pins.json` khác? `git log -p apps/chat-mobile/tls-pins.json` cho biết bản
-   nào mang pin nào (tag `chat-mobile-v*`).
+4. Có phải chỉ một số máy: một bản cũ có `tls-pins.json` khác? Dòng `pin-sets in the field` của job liệt kê các tag nó
+   đã kiểm; `git show chat-mobile-v<x>:apps/chat-mobile/tls-pins.json` cho biết bản đó mang pin nào. Thử với một mức tối
+   thiểu khác: `node scripts/mobile-tls-pins.mjs --min-version 0.5.0`.
 
 ## Khắc phục
 
@@ -104,7 +113,8 @@ chưa đi qua mục Khắc phục › Trước khi đổi.
   `apps/chat-mobile/certs/tls-pins/` và một mục vào `pins` (tính pin như Kiểm tra › 2; chỉ lấy PEM từ kho chính thức
   của CA); (2) phát bản store mang pin mới; (3) đặt `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION` bằng bản đó và chờ đa số máy
   lên bản ấy (Sentry › Releases, Play Console, App Store Connect); (4) mới đổi CA. Bỏ qua bước 3 là khoá mọi iPhone còn
-  bản cũ.
+  bản cũ — job hằng ngày đỏ ngay khi đó, nêu bản cũ nhất bị khoá, nhưng lúc ấy máy đã bị khoá rồi. Chạy job tay ngay trước bước 4:
+  với mức tối thiểu mới, các bản thấp hơn không còn được kiểm.
 - **Thêm host** (đổi `LIVEKIT_URL`, thêm API host): thêm vào `hosts.<biến thể>` cùng PR với thay đổi deploy (test đỏ
   khi `deploy/app/env/uniwork-be.env` nêu host chưa ghim), chuỗi của host mới phải có một khoá đã ghim. Bản cũ không ghim
   host mới — không khoá ai, chỉ chưa được bảo vệ.

@@ -44,7 +44,8 @@
   `NSPinnedDomains` không hạn). `app.config.ts › tlsPinning` từ chối tệp sai dạng ở mọi nơi đọc config, và trên máy
   build EAS từ chối thêm ngày đã qua hay host của `UNICHAT_API_URL`/`UNICHAT_APP_URL` không có trong tệp; không bao
   giờ cho dev. `scripts/mobile-tls-pins.mjs` (workflow `chat-mobile-tls-pins.yml`, hằng ngày và mỗi PR chạm pin) nối
-  tới từng host và đỏ khi chuỗi không có khoá nào đã ghim; `scripts/mobile-apk-scan.mjs` đỏ khi APK/AAB release không
+  tới từng host và đỏ khi chuỗi không có khoá nào đã ghim — của HEAD hay của bất kỳ bản đã phát nào (tag
+  `chat-mobile-v*` từ mức tối thiểu server phục vụ trở lên); `scripts/mobile-apk-scan.mjs` đỏ khi APK/AAB release không
   mang network security config. Đổi pin, xoay vòng, sự cố: runbook `docs/runbooks/unichat-tls-pins.md`. Baseline
   OWASP MASVS L1 và cái giữ từng kiểm soát: `docs/engineering/unichat-mobile-masvs.md` — đổi một kiểm soát thì sửa dòng
   của nó cùng PR.

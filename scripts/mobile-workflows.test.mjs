@@ -820,6 +820,7 @@ test("the TLS pins are checked against the live chains daily and on every PR tha
   }
   assert.match(wf, /run: node --test scripts\/mobile-tls-pins\.test\.mjs\n/, "the contract on the committed pins");
   assert.match(wf, /run: node scripts\/mobile-tls-pins\.mjs$/m, "the live check, failing the job on a missing pin");
+  assert.match(wf, /- uses: actions\/checkout@v4\n {8}with:\n {10}fetch-depth: 0\n/, "every chat-mobile-v* tag: the pin-sets of the binaries in the field are checked too");
   assert.doesNotMatch(wf, /secrets\.|vars\./, "a fork's PR can run it");
   assert.doesNotMatch(wf, /continue-on-error/, "a missing pin is red");
 });
