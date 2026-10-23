@@ -90,6 +90,12 @@ func TestTranscriptReadsForwardAndAround(t *testing.T) {
 	if got := texts(older); !sameTexts(got, lines(15, 19)) {
 		t.Fatalf("before the around page = %v", got)
 	}
+	// A refetch starts from the before= page and must find its way forward
+	// again, or the reader's list shrinks to that one page.
+	forward, err := e.s.Transcript(ctx, e.member.ID, e.m.ID, FeedQuery{From: older.NewerCursor, Limit: 5})
+	if err != nil || !sameTexts(texts(forward), lines(20, 24)) {
+		t.Fatalf("forward from the before page = %v %v (cursor %q)", texts(forward), err, older.NewerCursor)
+	}
 	// An id the reader cannot see reads the first page: nothing is revealed.
 	unknown, err := e.s.Transcript(ctx, e.member.ID, e.m.ID, FeedQuery{Around: util.NewID(), Limit: 3})
 	if err != nil || !sameTexts(texts(unknown), lines(0, 2)) {
@@ -97,6 +103,17 @@ func TestTranscriptReadsForwardAndAround(t *testing.T) {
 	}
 	if _, err := e.s.Transcript(ctx, e.member.ID, e.m.ID, FeedQuery{Around: ids[1], From: first.NewerCursor}); err == nil {
 		t.Fatal("around and from together were accepted")
+	}
+	// The lines before the around page are gone by the time it refetches.
+	if _, err := e.s.pool.Exec(ctx, `DELETE FROM meeting_transcript_segments WHERE meeting_id = $1 AND spoken_at < $2`, e.m.ID, e.m.ActualStartAt.Time.Add(20*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	gone, err := e.s.Transcript(ctx, e.member.ID, e.m.ID, FeedQuery{Before: around.OlderCursor, Limit: 5})
+	if err != nil || len(gone.Items) != 0 {
+		t.Fatalf("emptied before page = %v %v", texts(gone), err)
+	}
+	if forward, err = e.s.Transcript(ctx, e.member.ID, e.m.ID, FeedQuery{From: gone.NewerCursor, Limit: 5}); err != nil || !sameTexts(texts(forward), lines(20, 24)) {
+		t.Fatalf("forward from an emptied before page = %v %v (cursor %q)", texts(forward), err, gone.NewerCursor)
 	}
 }
 

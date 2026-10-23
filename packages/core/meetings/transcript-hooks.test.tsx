@@ -61,6 +61,28 @@ describe("transcript hooks (UNI-1995 #9)", () => {
     expect(urls()[1]).toBe("http://api.test/api/v1/meetings/m1/transcript?before=1.c&limit=200");
   });
 
+  it("keeps every loaded line when a list opened around a line refetches", async () => {
+    // The server's before= page carries the cursor forward (UNI-1995 #14):
+    // a refetch starts from that first page and must come back to the rest.
+    const pages: Record<string, unknown> = {
+      "around=d": { segments: [seg("c"), seg("d")], older_cursor: "1.c" },
+      "before=1.c": { segments: [seg("a"), seg("b")], newer_cursor: "1.b" },
+      "from=1.b": { segments: [seg("c"), seg("d")] },
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const key = Object.keys(pages).find((k) => String(input).includes(`?${k}&`));
+      return json(key ? pages[key] : { segments: [] });
+    });
+    const qc = newClient();
+    const { result } = renderHook(() => useTranscriptFromStart("m1", "d"), { wrapper: wrapperFor(qc) });
+    await waitFor(() => expect(result.current.rows.map((r) => r.id)).toEqual(["c", "d"]));
+    await act(() => result.current.fetchPreviousPage());
+    await waitFor(() => expect(result.current.rows.map((r) => r.id)).toEqual(["a", "b", "c", "d"]));
+    await act(() => qc.invalidateQueries({ queryKey: meetingKeys.transcriptRead("m1") }));
+    await waitFor(() => expect(urls()).toContain("http://api.test/api/v1/meetings/m1/transcript?from=1.b&limit=200"));
+    expect(result.current.rows.map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
+  });
+
   it("reads the whole transcript for the captions, page after page", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(json({ segments: [seg("a")], newer_cursor: "1.a" }))
@@ -75,7 +97,11 @@ describe("transcript hooks (UNI-1995 #9)", () => {
     const qc = newClient();
     const spy = vi.spyOn(qc, "invalidateQueries");
     const { result } = renderHook(() => useDeleteTranscript("m1"), { wrapper: wrapperFor(qc) });
-    await act(() => result.current.mutateAsync({ all: true }));
+    let deleted: number | null = null;
+    await act(async () => {
+      deleted = await result.current.mutateAsync({ all: true });
+    });
+    expect(deleted).toBe(2);
     const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
     for (const k of [meetingKeys.transcript("m1"), meetingKeys.transcriptRead("m1"), meetingKeys.summary("m1")]) {
       expect(keys).toContain(JSON.stringify(k));
