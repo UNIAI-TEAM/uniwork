@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -310,4 +311,198 @@ func TestPrivacyDeletionGivesUpOnTheLastAttempt(t *testing.T) {
 	if _, err := svc.RequestDeletion(f.ctx, f.ownerA.ID, f.orgA, org.Slug); err != nil {
 		t.Fatalf("owner could not ask again: %v", err)
 	}
+}
+
+func newAdminDeletion(t *testing.T) (*auditServiceFixture, *PrivacyExportService, *AdminService, db.Organization) {
+	t.Helper()
+	f := newAuditServiceFixture(t)
+	privacy := NewPrivacyExportService(f.svc.pool, f.q, f.svc.orgs)
+	admin := NewAdminService(f.svc.pool, f.q, nil, nil)
+	admin.SetPrivacyExports(privacy)
+	org, err := f.q.GetOrganizationByID(f.ctx, f.orgA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f, privacy, admin, org
+}
+
+func TestAdminOrganizationDeletionNeedsPrivacy(t *testing.T) {
+	f, _, _, org := newAdminDeletion(t)
+	bare := NewAdminService(f.svc.pool, f.q, nil, nil)
+	_, err := bare.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, org.Slug, "lý do đủ mười ký tự")
+	if !codedIs(err, "privacy_unavailable") {
+		t.Fatalf("unwired: %v", err)
+	}
+}
+
+func TestPrivacyDeletionQueueHookRollsBack(t *testing.T) {
+	f, privacy, _, org := newAdminDeletion(t)
+	_, err := privacy.queueDeletion(f.ctx, f.adminA.ID, f.orgA, org.Slug, nil, func(context.Context, *db.Queries, db.DataSubjectRequest, time.Time) error {
+		return errors.New("admin_actions")
+	})
+	if err == nil || !strings.Contains(err.Error(), "admin_actions") {
+		t.Fatalf("hook: %v", err)
+	}
+	var scheduled *time.Time
+	if err := f.svc.pool.QueryRow(f.ctx, `SELECT deletion_scheduled_at FROM organizations WHERE id = $1`, f.orgA).Scan(&scheduled); err != nil {
+		t.Fatal(err)
+	}
+	if scheduled != nil {
+		t.Fatalf("schedule survived a failed hook: %v", scheduled)
+	}
+}
+
+func TestAdminOrganizationDeletion(t *testing.T) {
+	const reason = "khách yêu cầu xóa tổ chức này"
+
+	t.Run("schedules the shared dossier", func(t *testing.T) {
+		f, privacy, admin, org := newAdminDeletion(t)
+		at, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, "  "+org.Slug+"  ", reason)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if delta := at.Sub(time.Now().UTC().Add(privacyDeletionDelay)); delta < -time.Minute || delta > time.Minute {
+			t.Fatalf("erase at %s is not about five days out", at)
+		}
+		rows, err := privacy.Exports(f.ctx, f.ownerA.ID, f.orgA)
+		if err != nil || len(rows) != 1 || rows[0].Kind != "delete" || rows[0].RequestedBy != f.adminA.ID {
+			t.Fatalf("owner dossier: %+v %v", rows, err)
+		}
+		var actions int
+		var gotReason string
+		if err := f.svc.pool.QueryRow(f.ctx, `SELECT count(*), max(reason) FROM admin_actions WHERE target_id = $1 AND action = 'organization.deletion_scheduled'`, f.orgA).Scan(&actions, &gotReason); err != nil {
+			t.Fatal(err)
+		}
+		if actions != 1 || gotReason != reason {
+			t.Fatalf("admin_actions = %d %q", actions, gotReason)
+		}
+		var meta string
+		if err := f.svc.pool.QueryRow(f.ctx, `SELECT metadata::text FROM audit_events WHERE organization_id = $1 AND action = 'privacy.deletion_requested' AND actor_id = $2`, f.orgA, f.adminA.ID).Scan(&meta); err != nil {
+			t.Fatal(err)
+		}
+		compact := strings.ReplaceAll(meta, " ", "")
+		if !strings.Contains(compact, `"platform_admin":true`) || !strings.Contains(meta, reason) {
+			t.Fatalf("audit metadata: %s", meta)
+		}
+		if _, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, org.Slug, reason); !codedIs(err, "privacy_export_in_flight") {
+			t.Fatalf("second deletion: %v", err)
+		}
+		var topic string
+		if err := f.svc.pool.QueryRow(f.ctx, `SELECT topic FROM outbox_events WHERE topic = 'privacy.deletion_requested' AND payload LIKE $1`, "%"+f.orgA+"%").Scan(&topic); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("owner request has no platform metadata", func(t *testing.T) {
+		f, privacy, _, org := newAdminDeletion(t)
+		if _, err := privacy.RequestDeletion(f.ctx, f.ownerA.ID, f.orgA, org.Slug); err != nil {
+			t.Fatal(err)
+		}
+		var meta string
+		if err := f.svc.pool.QueryRow(f.ctx, `SELECT COALESCE(metadata::text, '') FROM audit_events WHERE organization_id = $1 AND action = 'privacy.deletion_requested' AND actor_id = $2`, f.orgA, f.ownerA.ID).Scan(&meta); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(meta, "platform_admin") {
+			t.Fatalf("owner metadata: %s", meta)
+		}
+	})
+
+	t.Run("rejects a short reason, a bad slug, and a second request", func(t *testing.T) {
+		f, privacy, admin, org := newAdminDeletion(t)
+		if _, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, org.Slug, "ngắn"); !errors.Is(err, ErrReasonTooShort) {
+			t.Fatalf("short: %v", err)
+		}
+		if _, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, "missing", org.Slug, reason); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("missing: %v", err)
+		}
+		if _, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, "sai-slug", reason); !codedIs(err, "privacy_delete_confirm") {
+			t.Fatalf("slug: %v", err)
+		}
+		if _, err := privacy.RequestExport(f.ctx, f.ownerA.ID, f.orgA); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, org.Slug, reason); !codedIs(err, "privacy_export_in_flight") {
+			t.Fatalf("export: %v", err)
+		}
+	})
+
+	t.Run("rejects an erased organization before the slug", func(t *testing.T) {
+		f, _, admin, _ := newAdminDeletion(t)
+		if _, err := f.svc.pool.Exec(f.ctx, `UPDATE organizations SET status = 'archived', suspended_reason = 'organization_deleted', slug = 'd-' || lower(id) WHERE id = $1`, f.orgA); err != nil {
+			t.Fatal(err)
+		}
+		org, err := f.q.GetOrganizationByID(f.ctx, f.orgA)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, org.Slug, reason); !codedIs(err, "organization_already_deleted") {
+			t.Fatalf("erased slug: %v", err)
+		}
+	})
+
+	t.Run("allows suspended and closed organizations", func(t *testing.T) {
+		for _, status := range []struct{ sql string }{
+			{`UPDATE organizations SET status = 'suspended', suspended_reason = 'pilot' WHERE id = $1`},
+			{`UPDATE organizations SET status = 'archived', suspended_reason = 'organization_closed' WHERE id = $1`},
+		} {
+			f, _, admin, org := newAdminDeletion(t)
+			if _, err := f.svc.pool.Exec(f.ctx, status.sql, f.orgA); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, org.Slug, reason); err != nil {
+				t.Fatalf("%s: %v", status.sql, err)
+			}
+		}
+	})
+
+	t.Run("cancel before start and refuse after start", func(t *testing.T) {
+		f, privacy, admin, org := newAdminDeletion(t)
+		if _, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, org.Slug, reason); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := privacy.CancelDeletion(f.ctx, f.ownerA.ID, f.orgA); err != nil {
+			t.Fatal(err)
+		}
+		var ownerCancels int
+		if err := f.svc.pool.QueryRow(f.ctx, `SELECT count(*) FROM admin_actions WHERE target_id = $1 AND action = 'organization.deletion_cancelled'`, f.orgA).Scan(&ownerCancels); err != nil || ownerCancels != 0 {
+			t.Fatalf("owner cancel wrote admin_actions: %d %v", ownerCancels, err)
+		}
+		if _, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, org.Slug, reason); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.svc.pool.Exec(f.ctx, `UPDATE data_subject_requests SET started_at = now() WHERE organization_id = $1 AND kind = 'delete' AND cancelled_at IS NULL`, f.orgA); err != nil {
+			t.Fatal(err)
+		}
+		if err := admin.CancelOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, reason); !codedIs(err, "privacy_delete_started") {
+			t.Fatalf("started: %v", err)
+		}
+		var scheduled *time.Time
+		if err := f.svc.pool.QueryRow(f.ctx, `SELECT deletion_scheduled_at FROM organizations WHERE id = $1`, f.orgA).Scan(&scheduled); err != nil || scheduled == nil {
+			t.Fatalf("schedule cleared while the job had started: %v %v", scheduled, err)
+		}
+	})
+
+	t.Run("admin cancel clears the schedule", func(t *testing.T) {
+		f, _, admin, org := newAdminDeletion(t)
+		if _, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, org.Slug, reason); err != nil {
+			t.Fatal(err)
+		}
+		if err := admin.CancelOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, "ngắn"); !errors.Is(err, ErrReasonTooShort) {
+			t.Fatalf("short cancel: %v", err)
+		}
+		if err := admin.CancelOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, reason); err != nil {
+			t.Fatal(err)
+		}
+		var scheduled *time.Time
+		var actions int
+		if err := f.svc.pool.QueryRow(f.ctx, `SELECT deletion_scheduled_at FROM organizations WHERE id = $1`, f.orgA).Scan(&scheduled); err != nil || scheduled != nil {
+			t.Fatalf("schedule: %v %v", scheduled, err)
+		}
+		if err := f.svc.pool.QueryRow(f.ctx, `SELECT count(*) FROM admin_actions WHERE target_id = $1 AND action = 'organization.deletion_cancelled'`, f.orgA).Scan(&actions); err != nil || actions != 1 {
+			t.Fatalf("cancel actions: %d %v", actions, err)
+		}
+		if err := admin.CancelOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, reason); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("second cancel: %v", err)
+		}
+	})
 }

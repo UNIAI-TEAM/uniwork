@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -45,6 +46,7 @@ type AdminService struct {
 	flagChain  []string
 	// remover takes a reported message down (RemoveReportedMessage); nil until start-up wires it.
 	remover ReportedContentRemover
+	privacy *PrivacyExportService
 }
 
 func NewAdminService(pool *pgxpool.Pool, q *db.Queries, billing *BillingService, ent *EntitlementService) *AdminService {
@@ -538,6 +540,57 @@ type ReportedContentRemover interface {
 // SetReportedContentRemover wires the takedown (cmd/server/main.go).
 func (s *AdminService) SetReportedContentRemover(r ReportedContentRemover) {
 	s.remover = r
+}
+
+func (s *AdminService) SetPrivacyExports(p *PrivacyExportService) { s.privacy = p }
+
+func (s *AdminService) ScheduleOrganizationDeletion(ctx context.Context, adminID, orgID, confirmSlug, reason string) (time.Time, error) {
+	if err := checkReason(reason); err != nil {
+		return time.Time{}, err
+	}
+	if s.privacy == nil {
+		return time.Time{}, coded(http.StatusServiceUnavailable, "privacy_unavailable", "xuất dữ liệu chưa khả dụng")
+	}
+	ctx, traceID := ensureTrace(ctx)
+	trimmed := strings.TrimSpace(reason)
+	row, err := s.privacy.queueDeletion(ctx, adminID, orgID, confirmSlug, map[string]any{
+		"platform_admin": true,
+		"reason":         trimmed,
+	}, func(ctx context.Context, q *db.Queries, _ db.DataSubjectRequest, eraseAt time.Time) error {
+		return s.recordAdmin(ctx, q, traceID, adminID, "organization.deletion_scheduled", "organization", orgID,
+			map[string]any{"deletion_scheduled_at": nil},
+			map[string]any{"deletion_scheduled_at": eraseAt.Format(time.RFC3339)},
+			trimmed)
+	})
+	if err != nil {
+		return time.Time{}, err
+	}
+	return row.EraseAt.Time, nil
+}
+
+func (s *AdminService) CancelOrganizationDeletion(ctx context.Context, adminID, orgID, reason string) error {
+	if err := checkReason(reason); err != nil {
+		return err
+	}
+	if s.privacy == nil {
+		return coded(http.StatusServiceUnavailable, "privacy_unavailable", "xuất dữ liệu chưa khả dụng")
+	}
+	ctx, traceID := ensureTrace(ctx)
+	trimmed := strings.TrimSpace(reason)
+	_, err := s.privacy.cancelDeletion(ctx, adminID, orgID, map[string]any{
+		"platform_admin": true,
+		"reason":         trimmed,
+	}, func(ctx context.Context, q *db.Queries, row db.DataSubjectRequest) error {
+		var before any
+		if row.EraseAt.Valid {
+			before = row.EraseAt.Time.UTC().Format(time.RFC3339)
+		}
+		return s.recordAdmin(ctx, q, traceID, adminID, "organization.deletion_cancelled", "organization", orgID,
+			map[string]any{"deletion_scheduled_at": before},
+			map[string]any{"deletion_scheduled_at": nil},
+			trimmed)
+	})
+	return err
 }
 
 // errTakedownUnavailable: a process started without the chat side (the CLI).
