@@ -1910,12 +1910,13 @@ type MeetingScribeRun struct {
 }
 
 type MeetingSetting struct {
-	OrganizationID     string             `json:"organization_id"`
-	AutoSummaryEnabled bool               `json:"auto_summary_enabled"`
-	UpdatedBy          string             `json:"updated_by"`
-	UpdatedByKind      string             `json:"updated_by_kind"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	OrganizationID          string             `json:"organization_id"`
+	AutoSummaryEnabled      bool               `json:"auto_summary_enabled"`
+	UpdatedBy               string             `json:"updated_by"`
+	UpdatedByKind           string             `json:"updated_by_kind"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+	TranscriptRetentionDays pgtype.Int4        `json:"transcript_retention_days"`
 }
 
 type MeetingSpeakerLabel struct {
@@ -1933,18 +1934,19 @@ type MeetingSpeakerLabel struct {
 }
 
 type MeetingSummary struct {
-	ID             string             `json:"id"`
-	MeetingID      string             `json:"meeting_id"`
-	Summary        string             `json:"summary"`
-	Decisions      string             `json:"decisions"`
-	ActionItems    string             `json:"action_items"`
-	Model          string             `json:"model"`
-	CreatedBy      string             `json:"created_by"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UsageEventID   pgtype.Text        `json:"usage_event_id"`
-	OrganizationID string             `json:"organization_id"`
-	Partial        bool               `json:"partial"`
-	CreatedByKind  string             `json:"created_by_kind"`
+	ID                  string             `json:"id"`
+	MeetingID           string             `json:"meeting_id"`
+	Summary             string             `json:"summary"`
+	Decisions           string             `json:"decisions"`
+	ActionItems         string             `json:"action_items"`
+	Model               string             `json:"model"`
+	CreatedBy           string             `json:"created_by"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UsageEventID        pgtype.Text        `json:"usage_event_id"`
+	OrganizationID      string             `json:"organization_id"`
+	Partial             bool               `json:"partial"`
+	CreatedByKind       string             `json:"created_by_kind"`
+	TranscriptChangedAt pgtype.Timestamptz `json:"transcript_changed_at"`
 }
 
 type MeetingSummaryRun struct {
@@ -1984,6 +1986,9 @@ type MeetingTranscriptSegment struct {
 	SpeakerLabel    string             `json:"speaker_label"`
 	ClientSegmentID pgtype.Text        `json:"client_segment_id"`
 	Language        string             `json:"language"`
+	OriginalText    pgtype.Text        `json:"original_text"`
+	EditedAt        pgtype.Timestamptz `json:"edited_at"`
+	EditedBy        pgtype.Text        `json:"edited_by"`
 }
 
 type MeetingTranscription struct {

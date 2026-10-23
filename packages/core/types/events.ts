@@ -192,6 +192,7 @@ export const WS_EVENT_TYPES = [
   "transcription.requested",
   "transcription.completed",
   "transcription.failed",
+  "transcript.changed",
   "transcript.appended",
   "user.offline",
   "user.presence",

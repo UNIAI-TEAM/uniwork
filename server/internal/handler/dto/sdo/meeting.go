@@ -201,6 +201,13 @@ type TranscriptSegmentDTO struct {
 	TranscriptionID string `json:"transcription_id,omitempty" description:"Lần ghi lời sinh ra dòng này (source TRANSCRIPTION)" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
 	StartMs         *int32 `json:"start_ms,omitempty" description:"Mốc bắt đầu (ms) trong tệp với TRANSCRIPTION, tính từ giờ bắt đầu thực tế với AGENT" example:"61500"`
 	EndMs           *int32 `json:"end_ms,omitempty" description:"Mốc kết thúc (ms), cùng gốc với start_ms" example:"64200"`
+	Language        string `json:"language,omitempty" description:"Ngôn ngữ của dòng (vi, en) khi nguồn cho biết" example:"vi"`
+	EditedAt        string `json:"edited_at,omitempty" description:"RFC3339: lần thư ký sửa gần nhất; vắng khi chưa sửa. Nguyên văn không trả về" example:"2026-10-21T05:00:00Z"`
+}
+
+// TranscriptDeletedSDO answers DELETE /meetings/{meetingID}/transcript.
+type TranscriptDeletedSDO struct {
+	Deleted int64 `json:"deleted" description:"Số dòng đã xoá" example:"42"`
 }
 
 type TranscriptSegmentSDO struct {
@@ -264,6 +271,9 @@ type MeetingSummaryDTO struct {
 	CreatedByKind string `json:"created_by_kind" enum:"human,agent,system" description:"system = tóm tắt tự tạo khi họp xong" example:"system"`
 	CreatedAt     string `json:"created_at"`
 	Partial       bool   `json:"partial" description:"Tóm tắt dựa trên một phần cuộc họp: transcript dài hơn ngân sách đầu vào"`
+	// UNI-1995 #5: the transcript was corrected, cut or replaced after this
+	// summary was made; a clerk may regenerate it.
+	TranscriptChangedAt *string `json:"transcript_changed_at,omitempty" description:"RFC3339: lời thoại đã được sửa, xoá hoặc thay sau khi tóm tắt này được tạo; vắng khi chưa" example:"2026-10-21T05:00:00Z"`
 }
 
 // MeetingSettingsSDO is the organization's meeting settings (UNI-2026).
@@ -273,6 +283,8 @@ type MeetingSettingsSDO struct {
 	UpdatedBy          *string `json:"updated_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	UpdatedByKind      *string `json:"updated_by_kind,omitempty" description:"human, agent hoặc system" example:"human"`
 	UpdatedAt          *string `json:"updated_at,omitempty" example:"2026-10-21T09:00:00Z"`
+	// UNI-1995 #5.
+	TranscriptRetentionDays *int32 `json:"transcript_retention_days" description:"Số ngày giữ lời thoại và file ghi âm tải lên; null = giữ mãi" example:"90"`
 }
 
 // MeetingCatchUpPointDTO is one key point of a late joiner's brief and the

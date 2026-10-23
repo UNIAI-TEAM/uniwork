@@ -165,8 +165,25 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 		sdo: sdo.MeetingCapabilitiesSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/transcript", h.ListTranscript, apiOp{
-		summary: "List transcript segments (newest page first; ?before= older, ?after= delta)", tags: []string{"meetings"},
-		sdi: sdi.MeetingFeedSDI{}, sdo: sdo.TranscriptListSDO{}, auth: true,
+		summary: "List transcript segments (newest page first; ?before= older, ?after= delta; ?order=asc, ?from=, ?around= read forward)", tags: []string{"meetings"},
+		sdi: sdi.TranscriptFeedSDI{}, sdo: sdo.TranscriptListSDO{}, auth: true,
+	})
+	r.Patch("/meetings/{meetingID}/transcript/{segmentID}", h.EditTranscriptSegment, apiOp{
+		summary: "Correct one transcript line (clerk)",
+		description: "Chủ tọa, thư ký hoặc quản trị workspace (403 not_meeting_clerk). Thay nội dung một dòng; nguyên văn đầu tiên được giữ trong máy chủ, dòng hiện \"đã sửa\" (edited_at). " +
+			"Dòng không thuộc cuộc họp -> 404. Tóm tắt hiện có được đánh dấu transcript_changed_at. Ghi audit meeting.transcript_segment_edited (không chép nội dung), phát transcript.changed.",
+		tags: []string{"meetings"}, sdi: sdi.EditTranscriptSegmentSDI{}, sdo: sdo.TranscriptSegmentSDO{}, auth: true,
+	})
+	r.Delete("/meetings/{meetingID}/transcript/{segmentID}", h.DeleteTranscriptSegment, apiOp{
+		summary:     "Delete one transcript line (clerk)",
+		description: "Chủ tọa, thư ký hoặc quản trị workspace. Dòng không thuộc cuộc họp -> 404. Tóm tắt hiện có được đánh dấu transcript_changed_at. Ghi audit meeting.transcript_segment_deleted, phát transcript.changed.",
+		tags:        []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Delete("/meetings/{meetingID}/transcript", h.DeleteTranscript, apiOp{
+		summary: "Delete a stretch of the transcript, or all of it (clerk)",
+		description: "Chủ tọa, thư ký hoặc quản trị workspace. Có from và to (RFC3339) thì xoá mọi dòng nói trong [from, to), mọi nguồn (meeting.transcript_range_deleted); không có thì xoá toàn bộ lời thoại (meeting.transcript_deleted). " +
+			"File ghi âm tải lên giữ nguyên tới khi xoá lần ghi lời. Tóm tắt, biên bản, việc giữ nguyên; tóm tắt được đánh dấu transcript_changed_at. Phát transcript.changed.",
+		tags: []string{"meetings"}, sdi: sdi.DeleteTranscriptSDI{}, sdo: sdo.TranscriptDeletedSDO{}, auth: true,
 	})
 	r.Get("/orgs/{orgID}/meetings/settings", h.GetMeetingSettings, apiOp{
 		summary:     "Read the organization meeting settings",
@@ -216,6 +233,17 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 		description: "Chủ tọa, thư ký hoặc quản trị workspace; cuộc họp ENDED. consent phải true (422 recording_consent_required). Nhận tệp đã tải vào cuộc họp; tệp đang có lần ghi lời -> 409 transcription_in_progress. " +
 			"Ước số phút từ dung lượng và kiểm trước với phần còn lại của meeting.transcription (trừ các lần đang chờ): không đủ -> 402 quota_exceeded, không nhận việc. Ghi lời chạy nền; xong hoặc lỗi hẳn thì báo người yêu cầu. Ghi audit meeting.transcription_requested, phát transcription.requested.",
 		tags: []string{"meetings"}, sdi: sdi.RequestTranscriptionSDI{}, sdo: sdo.MeetingTranscriptionSDO{}, status: 201, auth: true,
+	})
+	r.Delete("/meetings/{meetingID}/transcriptions/{transcriptionID}", h.DeleteMeetingTranscription, apiOp{
+		summary: "Delete an uploaded transcription with its recording (clerk)",
+		description: "Chủ tọa, thư ký hoặc quản trị workspace. Chỉ lần ghi lời COMPLETE hoặc FAILED (đang chờ hay đang chạy -> 409 invalid_meeting_state). Xoá các dòng của nó và nhả file ghi âm cho bộ thu gom xoá. " +
+			"Ghi audit meeting.transcription_deleted, phát transcript.changed.",
+		tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Put("/orgs/{orgID}/meetings/transcript-retention", h.SetTranscriptRetention, apiOp{
+		summary:     "Set how long the organization keeps meeting transcripts and uploaded audio",
+		description: "Chỉ owner/admin tổ chức. transcript_retention_days là 30, 90, 180, 365 hoặc null (giữ mãi, mặc định); khác -> 400. Mỗi giờ hệ thống xoá lời thoại và file ghi âm tải lên cũ hơn số ngày đó; tóm tắt, biên bản, việc và task giữ nguyên. Đổi giá trị ghi audit meeting.settings_changed.",
+		tags:        []string{"meetings"}, sdi: sdi.SetTranscriptRetentionSDI{}, sdo: sdo.MeetingSettingsSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/transcriptions", h.ListMeetingTranscriptions, apiOp{
 		summary:     "List a meeting's transcriptions",

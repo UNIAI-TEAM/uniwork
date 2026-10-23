@@ -565,7 +565,7 @@ func (s *MeetingService) failTranscription(ctx context.Context, t db.MeetingTran
 }
 
 // completeTranscription lands a finished job in one transaction (§7.4): the
-// segments on the meeting's clock, one unassigned speaker label per vendor
+// segments on the meeting's clock in place of the live lines, one unassigned speaker label per vendor
 // label (scribe spec §6.3, "upload:<id>:<label>"), COMPLETE with the billed
 // seconds, the minutes on meeting.transcription, the timeline line, the
 // audit row and transcription.completed. committed: this call landed it.
@@ -620,6 +620,20 @@ func (s *MeetingService) completeTranscription(ctx context.Context, t db.Meeting
 			return false, err
 		}
 	}
+	// The upload is the high-accuracy re-pass (UNI-1995 #11): it replaces the
+	// scribe's lines and the captions, so the meeting keeps one transcript.
+	// An upload that heard nothing replaces nothing.
+	var replaced int64
+	if len(res.Segments) > 0 {
+		if replaced, err = q.DeleteMeetingLiveTranscript(ctx, t.MeetingID); err != nil {
+			return false, err
+		}
+		if replaced > 0 {
+			if err := q.MarkMeetingSummariesTranscriptChanged(ctx, t.MeetingID); err != nil {
+				return false, err
+			}
+		}
+	}
 	if !res.Silent {
 		if err := s.ent.RecordUsage(ctx, q, ConsumeInput{
 			OrganizationID: t.OrganizationID, WorkspaceID: t.WorkspaceID, Meter: FeatureMeetingTranscription,
@@ -649,7 +663,8 @@ func (s *MeetingService) completeTranscription(ctx context.Context, t db.Meeting
 		}
 	}
 	if err := s.recordTranscription(ctx, q, done, transcriptionActor, audit.ActionMeetingTranscriptionCompleted, "transcription.completed",
-		map[string]any{"audio_seconds": done.AudioSeconds.Int32, "segments": len(res.Segments), "usage_event_id": t.UsageEventID.String}); err != nil {
+		map[string]any{"audio_seconds": done.AudioSeconds.Int32, "segments": len(res.Segments), "usage_event_id": t.UsageEventID.String,
+			"replaced_live_segments": replaced}); err != nil {
 		return false, err
 	}
 	if err := tx.Commit(ctx); err != nil {

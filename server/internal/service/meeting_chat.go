@@ -25,8 +25,15 @@ const (
 
 // FeedQuery selects one page of an in-room feed. No cursor = the newest page;
 // Before = the page older than that cursor; After = what arrived since it.
+//
+// The transcript also reads forward (UNI-1995 #9), for a meeting that is
+// over: Asc with no cursor = its first page; From = the page after that
+// cursor, oldest first; Around = the page that holds that segment id (a
+// citation's "view in transcript"). The chat ignores these.
 type FeedQuery struct {
 	Before, After string
+	From, Around  string
+	Asc           bool
 	Limit         int
 }
 
@@ -52,6 +59,9 @@ type FeedPage[T any] struct {
 	// HasMoreAfter: a delta filled its page, so rows may lie past it. The
 	// client drops its copy and reads the newest page again.
 	HasMoreAfter bool
+	// NewerCursor reads the page after Items, oldest first (FeedQuery.From);
+	// set only on a forward read that has more.
+	NewerCursor string
 }
 
 // encodeFeedCursor is opaque to clients: the row's key time in Unix
@@ -80,10 +90,16 @@ func (q FeedQuery) validate() error {
 	if q.Limit < 0 {
 		return Invalid("limit không hợp lệ")
 	}
-	if q.Before != "" && q.After != "" {
-		return Invalid("chỉ dùng một trong before hoặc after")
+	n := 0
+	for _, c := range []string{q.Before, q.After, q.From, q.Around} {
+		if c != "" {
+			n++
+		}
 	}
-	for _, c := range []string{q.Before, q.After} {
+	if n > 1 || q.Asc && (q.Before != "" || q.After != "") {
+		return Invalid("chỉ dùng một trong before, after, from hoặc around")
+	}
+	for _, c := range []string{q.Before, q.After, q.From} {
 		if c == "" {
 			continue
 		}

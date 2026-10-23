@@ -147,6 +147,15 @@ func (s *MeetingService) transcriptPage(ctx context.Context, userID, meetingID s
 			return FeedPage[db.MeetingTranscriptSegment]{}, err
 		}
 		return pageFromNewest(rows, limit, transcriptFeedKeys, false), nil
+	case q.Around != "":
+		return s.transcriptAround(ctx, meetingID, rich, src.TranscriptionIds, q.Around, limit)
+	case q.From != "" || q.Asc:
+		var at time.Time
+		var id string
+		if q.From != "" {
+			at, id, _ = decodeFeedCursor(q.From)
+		}
+		return s.transcriptForward(ctx, meetingID, rich, src.TranscriptionIds, at, id, limit)
 	}
 	rows, err := s.q.ListTranscriptSegmentsLatest(ctx, db.ListTranscriptSegmentsLatestParams{
 		MeetingID: meetingID, RowLimit: int32(limit + 1), Rich: rich, TranscriptionIds: src.TranscriptionIds,

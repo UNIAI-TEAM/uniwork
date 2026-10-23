@@ -99,7 +99,7 @@ func (q *Queries) GetActiveMeetingRecording(ctx context.Context, meetingID strin
 }
 
 const getLatestMeetingSummary = `-- name: GetLatestMeetingSummary :one
-SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
+SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
 // tenant: parent meeting_id
@@ -119,6 +119,7 @@ func (q *Queries) GetLatestMeetingSummary(ctx context.Context, meetingID string)
 		&i.OrganizationID,
 		&i.Partial,
 		&i.CreatedByKind,
+		&i.TranscriptChangedAt,
 	)
 	return i, err
 }
@@ -170,6 +171,55 @@ func (q *Queries) GetMeetingRecordingByID(ctx context.Context, arg GetMeetingRec
 		&i.EndedAt,
 		&i.FileID,
 		&i.OrganizationID,
+	)
+	return i, err
+}
+
+const getVisibleTranscriptSegment = `-- name: GetVisibleTranscriptSegment :one
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
+WHERE meeting_id = $1 AND id = $2
+  AND (CASE WHEN $3::bool
+    THEN (source = 'AGENT' AND cardinality($4::text[]) = 0) OR transcription_id = ANY($4::text[])
+    ELSE source = 'CAPTION' END)
+`
+
+type GetVisibleTranscriptSegmentParams struct {
+	MeetingID        string   `json:"meeting_id"`
+	ID               string   `json:"id"`
+	Rich             bool     `json:"rich"`
+	TranscriptionIds []string `json:"transcription_ids"`
+}
+
+// tenant: parent meeting_id
+// One line of the meeting under the source rule: the anchor of an around=
+// read (a citation's "view in transcript").
+func (q *Queries) GetVisibleTranscriptSegment(ctx context.Context, arg GetVisibleTranscriptSegmentParams) (MeetingTranscriptSegment, error) {
+	row := q.db.QueryRow(ctx, getVisibleTranscriptSegment,
+		arg.MeetingID,
+		arg.ID,
+		arg.Rich,
+		arg.TranscriptionIds,
+	)
+	var i MeetingTranscriptSegment
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.ParticipantID,
+		&i.SpeakerName,
+		&i.Text,
+		&i.SpokenAt,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.Source,
+		&i.TranscriptionID,
+		&i.StartMs,
+		&i.EndMs,
+		&i.SpeakerLabel,
+		&i.ClientSegmentID,
+		&i.Language,
+		&i.OriginalText,
+		&i.EditedAt,
+		&i.EditedBy,
 	)
 	return i, err
 }
@@ -236,7 +286,7 @@ func (q *Queries) InsertMeetingRecording(ctx context.Context, arg InsertMeetingR
 const insertMeetingSummary = `-- name: InsertMeetingSummary :one
 INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind
+RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at
 `
 
 type InsertMeetingSummaryParams struct {
@@ -281,6 +331,7 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		&i.OrganizationID,
 		&i.Partial,
 		&i.CreatedByKind,
+		&i.TranscriptChangedAt,
 	)
 	return i, err
 }
@@ -288,7 +339,7 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 const insertTranscriptSegment = `-- name: InsertTranscriptSegment :one
 INSERT INTO meeting_transcript_segments (id, meeting_id, participant_id, speaker_name, text, spoken_at, organization_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language
+RETURNING id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by
 `
 
 type InsertTranscriptSegmentParams struct {
@@ -328,6 +379,9 @@ func (q *Queries) InsertTranscriptSegment(ctx context.Context, arg InsertTranscr
 		&i.SpeakerLabel,
 		&i.ClientSegmentID,
 		&i.Language,
+		&i.OriginalText,
+		&i.EditedAt,
+		&i.EditedBy,
 	)
 	return i, err
 }
@@ -477,13 +531,83 @@ func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, arg ListOve
 	return items, nil
 }
 
+const listTranscriptSegmentsAfter = `-- name: ListTranscriptSegmentsAfter :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
+WHERE meeting_id = $1
+  AND spoken_at >= $2::timestamptz
+  AND (spoken_at, id) > ($2::timestamptz, $3::text)
+  AND (CASE WHEN $4::bool
+    THEN (source = 'AGENT' AND cardinality($5::text[]) = 0) OR transcription_id = ANY($5::text[])
+    ELSE source = 'CAPTION' END)
+ORDER BY spoken_at, id
+LIMIT $6
+`
+
+type ListTranscriptSegmentsAfterParams struct {
+	MeetingID        string             `json:"meeting_id"`
+	AfterAt          pgtype.Timestamptz `json:"after_at"`
+	AfterID          string             `json:"after_id"`
+	Rich             bool               `json:"rich"`
+	TranscriptionIds []string           `json:"transcription_ids"`
+	RowLimit         int32              `json:"row_limit"`
+}
+
+// tenant: parent meeting_id
+// Oldest first, the page after the cursor row (UNI-1995 #9): an ended
+// meeting reads from its start. A zero cursor reads the first page.
+func (q *Queries) ListTranscriptSegmentsAfter(ctx context.Context, arg ListTranscriptSegmentsAfterParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsAfter,
+		arg.MeetingID,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.Rich,
+		arg.TranscriptionIds,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingTranscriptSegment{}
+	for rows.Next() {
+		var i MeetingTranscriptSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SpeakerName,
+			&i.Text,
+			&i.SpokenAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.Source,
+			&i.TranscriptionID,
+			&i.StartMs,
+			&i.EndMs,
+			&i.SpeakerLabel,
+			&i.ClientSegmentID,
+			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTranscriptSegmentsBefore = `-- name: ListTranscriptSegmentsBefore :many
-SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language FROM meeting_transcript_segments
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
 WHERE meeting_id = $1
   AND spoken_at <= $2::timestamptz
   AND (spoken_at, id) < ($2::timestamptz, $3::text)
   AND (CASE WHEN $4::bool
-    THEN source = 'AGENT' OR transcription_id = ANY($5::text[])
+    THEN (source = 'AGENT' AND cardinality($5::text[]) = 0) OR transcription_id = ANY($5::text[])
     ELSE source = 'CAPTION' END)
 ORDER BY spoken_at DESC, id DESC
 LIMIT $6
@@ -533,6 +657,9 @@ func (q *Queries) ListTranscriptSegmentsBefore(ctx context.Context, arg ListTran
 			&i.SpeakerLabel,
 			&i.ClientSegmentID,
 			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -545,11 +672,11 @@ func (q *Queries) ListTranscriptSegmentsBefore(ctx context.Context, arg ListTran
 }
 
 const listTranscriptSegmentsBetween = `-- name: ListTranscriptSegmentsBetween :many
-SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language FROM meeting_transcript_segments
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
 WHERE meeting_id = $1
   AND spoken_at >= $2::timestamptz AND spoken_at < $3::timestamptz
   AND (CASE WHEN $4::bool
-    THEN source = 'AGENT' OR transcription_id = ANY($5::text[])
+    THEN (source = 'AGENT' AND cardinality($5::text[]) = 0) OR transcription_id = ANY($5::text[])
     ELSE source = 'CAPTION' END)
 ORDER BY spoken_at, id
 LIMIT $6
@@ -599,6 +726,9 @@ func (q *Queries) ListTranscriptSegmentsBetween(ctx context.Context, arg ListTra
 			&i.SpeakerLabel,
 			&i.ClientSegmentID,
 			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -611,7 +741,7 @@ func (q *Queries) ListTranscriptSegmentsBetween(ctx context.Context, arg ListTra
 }
 
 const listTranscriptSegmentsByIDs = `-- name: ListTranscriptSegmentsByIDs :many
-SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language FROM meeting_transcript_segments
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
 WHERE organization_id = $1 AND meeting_id = $2
   AND id = ANY($3::text[])
 `
@@ -649,6 +779,9 @@ func (q *Queries) ListTranscriptSegmentsByIDs(ctx context.Context, arg ListTrans
 			&i.SpeakerLabel,
 			&i.ClientSegmentID,
 			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -661,10 +794,10 @@ func (q *Queries) ListTranscriptSegmentsByIDs(ctx context.Context, arg ListTrans
 }
 
 const listTranscriptSegmentsCreatedSince = `-- name: ListTranscriptSegmentsCreatedSince :many
-SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language FROM meeting_transcript_segments
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
 WHERE meeting_id = $1 AND created_at >= $2::timestamptz
   AND (CASE WHEN $3::bool
-    THEN source = 'AGENT' OR transcription_id = ANY($4::text[])
+    THEN (source = 'AGENT' AND cardinality($4::text[]) = 0) OR transcription_id = ANY($4::text[])
     ELSE source = 'CAPTION' END)
 ORDER BY created_at ASC, id ASC
 LIMIT $5
@@ -712,6 +845,9 @@ func (q *Queries) ListTranscriptSegmentsCreatedSince(ctx context.Context, arg Li
 			&i.SpeakerLabel,
 			&i.ClientSegmentID,
 			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -724,10 +860,10 @@ func (q *Queries) ListTranscriptSegmentsCreatedSince(ctx context.Context, arg Li
 }
 
 const listTranscriptSegmentsLatest = `-- name: ListTranscriptSegmentsLatest :many
-SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language FROM meeting_transcript_segments
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
 WHERE meeting_id = $1
   AND (CASE WHEN $2::bool
-    THEN source = 'AGENT' OR transcription_id = ANY($3::text[])
+    THEN (source = 'AGENT' AND cardinality($3::text[]) = 0) OR transcription_id = ANY($3::text[])
     ELSE source = 'CAPTION' END)
 ORDER BY spoken_at DESC, id DESC LIMIT $4
 `
@@ -742,7 +878,9 @@ type ListTranscriptSegmentsLatestParams struct {
 // tenant: parent meeting_id
 // Newest first; callers reverse the page into reading order (G18). The
 // source rule (parent spec §7.3, TranscriptSources) rides on every page:
-// rich = the scribe's lines plus the given transcriptions, else captions.
+// rich = the given transcriptions, else the scribe's lines; captions only
+// when neither. An uploaded recording replaces the live lines (UNI-1995 #11):
+// one transcript, never two copies of the same speech.
 func (q *Queries) ListTranscriptSegmentsLatest(ctx context.Context, arg ListTranscriptSegmentsLatestParams) ([]MeetingTranscriptSegment, error) {
 	rows, err := q.db.Query(ctx, listTranscriptSegmentsLatest,
 		arg.MeetingID,
@@ -773,6 +911,9 @@ func (q *Queries) ListTranscriptSegmentsLatest(ctx context.Context, arg ListTran
 			&i.SpeakerLabel,
 			&i.ClientSegmentID,
 			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
 		); err != nil {
 			return nil, err
 		}

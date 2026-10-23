@@ -126,9 +126,10 @@ INSERT INTO meeting_transcript_segments (
 
 -- name: TranscriptSources :one
 -- tenant: parent meeting_id
--- Parent spec §7.3: the transcript is the union of the scribe's lines and,
--- per uploaded file, its latest COMPLETE transcription; Web Speech captions
--- only when neither exists.
+-- Parent spec §7.3: per uploaded file, its latest COMPLETE transcription;
+-- the scribe's lines only while no upload completed (UNI-1995 #11: an upload
+-- is the high-accuracy re-pass that replaces them); Web Speech captions only
+-- when neither exists.
 SELECT
   EXISTS (SELECT 1 FROM meeting_transcript_segments s
     WHERE s.meeting_id = sqlc.arg('meeting_id') AND s.source = 'AGENT')::boolean AS has_agent,
