@@ -31,14 +31,15 @@ export function followThroughFrameKeys(type: string, payload: Record<string, str
   switch (type) {
     // A new summary replaces the pending AI action items; the action_item.*
     // events change the list itself (so no clerk converts an item twice).
+    // The minutes count the pending items their finalize warns about.
     case "summary.created":
-      return id ? [meetingKeys.summary(id), meetingKeys.activity(id), meetingKeys.actionItems(id)] : [];
+      return id ? [meetingKeys.summary(id), meetingKeys.activity(id), meetingKeys.actionItems(id), meetingKeys.minutes(id)] : [];
     case "action_item.created":
     case "action_item.dismissed":
     case "action_item.restored":
-      return id ? [meetingKeys.actionItems(id)] : [];
+      return id ? [meetingKeys.actionItems(id), meetingKeys.minutes(id)] : [];
     case "action_item.converted":
-      return id ? [meetingKeys.actionItems(id), meetingKeys.activity(id)] : [];
+      return id ? [meetingKeys.actionItems(id), meetingKeys.activity(id), meetingKeys.minutes(id)] : [];
     case "minutes.created":
     case "minutes.reopened":
       return id ? [meetingKeys.minutes(id)] : [];
