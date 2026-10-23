@@ -532,6 +532,12 @@ describe("the auth machine, the orders that broke", () => {
     expect(firstStart.model.user).toBeNull();
   });
 
+  // Sign in with Apple (ADR 0041) is the same sign-in with another first step: the method rides to the effect.
+  it("a sign-in names its method; the browser is the default", () => {
+    expect(reduce(SIGNED_OUT, { type: "loginStarted", method: "apple" }).effects).toEqual([{ type: "sessionLogin", method: "apple" }]);
+    expect(reduce(SIGNED_OUT, { type: "loginStarted" }).effects).toEqual([{ type: "sessionLogin", method: "browser" }]);
+  });
+
   // A sign-in after a sign-out asks /me again: the old session's /me, still on the wire, answers for the old person.
   it("a sign-in after a sign-out while the old session's /me is on the wire asks /me again and ignores the late answer", () => {
     const offline: AuthModel = { ...SIGNED_OUT, user: STORED, status: "signedInOffline", me: { boot: false, adopt: false, revalidate: true } };

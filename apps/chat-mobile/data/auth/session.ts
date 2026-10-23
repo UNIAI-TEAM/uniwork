@@ -233,6 +233,36 @@ export class MobileSession {
       return;
     }
     if (sessionEpochChanged(epoch)) return;
+    await this.adoptIssued(session, epoch);
+  }
+
+  /**
+   * A sign-in that issues the session without the browser (Sign in with Apple, apple-transport.ts › appleIssuer):
+   * `issue` answers null when the person closed it, and is told when a sign-out moved on meanwhile. A failure rejects,
+   * a server verdict with its TransportError, for the screen to explain.
+   */
+  async loginWith(issue: (stale: () => boolean) => Promise<DesktopSession | null>): Promise<void> {
+    if (this.state === "signing-in" || this.state === "signed-in" || this.state === "refreshing") return;
+    if (this.live) {
+      await this.refresh();
+      return;
+    }
+    const epoch = currentSessionEpoch();
+    this.state = "signing-in";
+    let session: DesktopSession | null;
+    try {
+      session = await issue(() => sessionEpochChanged(epoch));
+    } catch (error) {
+      if (!sessionEpochChanged(epoch)) this.failLogin(codeOf(error));
+      throw error;
+    }
+    if (sessionEpochChanged(epoch)) return;
+    if (session) await this.adoptIssued(session, epoch);
+    else this.failLogin("dismissed");
+  }
+
+  /** A session the server just issued: into the Keychain, then live. */
+  private async adoptIssued(session: DesktopSession, epoch: number): Promise<void> {
     const next = this.storedOf(session);
     const persisted = await this.persist(next, { epoch });
     if (!persisted.ok) {

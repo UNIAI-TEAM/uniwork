@@ -8,7 +8,8 @@ const sessionMock = vi.hoisted(() => ({
   discardStored: vi.fn(async () => undefined),
   status: vi.fn(() => "signed-out"),
 }));
-vi.mock("./flow", () => ({ session: sessionMock }));
+const loginWithApple = vi.hoisted(() => vi.fn<() => Promise<void>>(async () => undefined));
+vi.mock("./flow", () => ({ session: sessionMock, loginWithApple }));
 
 const workspaceClear = vi.hoisted(() => vi.fn(async () => undefined));
 const workspaceRestore = vi.hoisted(() => vi.fn<() => Promise<void>>(async () => undefined));
@@ -495,6 +496,21 @@ describe("auth store", () => {
     await useAuthStore.getState().login();
     expect(useAuthStore.getState().user).toBeNull();
     expect(cacheMock.restoreAccountCache).toHaveBeenCalledTimes(1);
+  });
+
+  it("login: Sign in with Apple runs Apple's sign-in, not the browser's, and loads /me the same way", async () => {
+    await useAuthStore.getState().login("apple");
+    expect(loginWithApple).toHaveBeenCalledTimes(1);
+    expect(sessionMock.login).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().user).toEqual(user);
+  });
+
+  it("login: a refused Sign in with Apple rejects with the verdict and lets nobody in", async () => {
+    loginWithApple.mockRejectedValueOnce(Object.assign(new Error("x"), { code: "apple_account_conflict" }));
+    sessionMock.status.mockReturnValue("signed-out");
+    await expect(useAuthStore.getState().login("apple")).rejects.toMatchObject({ code: "apple_account_conflict" });
+    expect(apiMock.getMe).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().user).toBeNull();
   });
 
   it("login: a dismissed browser leaves the store signed out without /me", async () => {

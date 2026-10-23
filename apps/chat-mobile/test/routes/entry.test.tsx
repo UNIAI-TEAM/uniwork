@@ -14,6 +14,7 @@ import AuthLayout from "@/app/(auth)/_layout";
 import Login from "@/app/(auth)/login";
 import Index from "@/app/index";
 import { ApiError, api } from "@/data/api";
+import { appleSignInOffered } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
@@ -30,6 +31,22 @@ jest.mock("@react-native-community/netinfo", () => {
   const netInfo = { configure: () => undefined, addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
   return { __esModule: true, default: netInfo, ...netInfo, useNetInfo: () => ({ isConnected: true }) };
 });
+
+// Sign in with Apple (ADR 0041): Apple's system button is a native view, here a pressable stand-in; whether it is
+// offered (an iPhone that has it, a server that takes it) is the composition root's answer, off unless a test says.
+jest.mock("expo-apple-authentication", () => {
+  const { Pressable, Text: RNText } = jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    AppleAuthenticationButtonType: { SIGN_IN: 0, CONTINUE: 1 },
+    AppleAuthenticationButtonStyle: { WHITE: 0, WHITE_OUTLINE: 1, BLACK: 2 },
+    AppleAuthenticationButton: ({ onPress }: { onPress: () => void }) => (
+      <Pressable accessibilityRole="button" testID="apple-native-button" onPress={onPress}>
+        <RNText>Continue with Apple</RNText>
+      </Pressable>
+    ),
+  };
+});
+jest.mock("@/data/auth/flow", () => ({ ...jest.requireActual("@/data/auth/flow"), appleSignInOffered: jest.fn(async () => false) }));
 
 const ChatStandIn = () => <Text testID="chat-tab">chat</Text>;
 
@@ -53,10 +70,13 @@ beforeEach(() => {
   jest.spyOn(chatApi, "unreadSummary").mockResolvedValue(EMPTY_UNREAD_SUMMARY);
 });
 
+const realLogin = useAuthStore.getState().login;
+
 afterEach(async () => {
   // Unmount first: a mounted gate would redirect on the reset below.
   await cleanup();
-  useAuthStore.setState({ user: null, isLoading: true });
+  useAuthStore.setState({ user: null, isLoading: true, login: realLogin });
+  jest.mocked(appleSignInOffered).mockResolvedValue(false);
   useWorkspaceStore.setState({ current: null });
   onlineManager.setOnline(true);
   jest.useRealTimers();
@@ -79,6 +99,31 @@ describe("the entry gate", () => {
     expect(title.props.maxFontSizeMultiplier).toBe(DISPLAY_MAX_FONT_SCALE);
     expect(screen.getByText(viText("mobile.login_hint")).props.maxFontSizeMultiplier).toBeUndefined();
     expect(screen.getByText(viText("auth.desktop.unichat_login_button")).props.maxFontSizeMultiplier).toBeUndefined();
+  });
+
+  it("offers Sign in with Apple above the browser, and says why a refused one cannot go on", async () => {
+    jest.mocked(appleSignInOffered).mockResolvedValue(true);
+    const login = jest.fn(async (method?: string) => {
+      if (method === "apple") throw Object.assign(new Error("refused"), { code: "apple_account_conflict" });
+    });
+    useAuthStore.setState({ user: null, isLoading: false, login });
+    await renderRoutes(ROUTES, "/login");
+    const apple = await screen.findByTestId("apple-native-button");
+    const tree = JSON.stringify(screen.toJSON());
+    expect(tree.indexOf("apple-native-button")).toBeLessThan(tree.indexOf("login-button"));
+    await fireEvent.press(apple);
+    expect(login).toHaveBeenCalledWith("apple");
+    expect(await screen.findByText(viText("chat.mobile.login_apple_conflict"))).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("login-button"));
+    expect(login).toHaveBeenLastCalledWith("browser");
+    expect(screen.queryByText(viText("chat.mobile.login_apple_conflict"))).toBeNull();
+  });
+
+  it("shows no Apple button where it is not offered", async () => {
+    useAuthStore.setState({ user: null, isLoading: false });
+    await renderRoutes(ROUTES, "/login");
+    expect(await screen.findByTestId("login-button")).toBeTruthy();
+    expect(screen.queryByTestId("apple-native-button")).toBeNull();
   });
 
   it("asks a signed-in person with no workspace yet to pick one, and opens the one picked", async () => {

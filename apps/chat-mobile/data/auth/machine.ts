@@ -31,6 +31,9 @@ export type AuthStatus =
 type BootStage = "notStarted" | "reading" | "restoringStored" | "awaitingMe" | "restoringMe" | "wiping" | "idle";
 /** awaitingWipe: /me answered while a wipe is under way; the restore starts once it is done (`adoptee` waits) */
 type AdoptionStage = "idle" | "awaitingMe" | "awaitingWipe" | "restoring";
+/** How the person signs in: the browser (PKCE, the web sign-in page) or Apple's native sheet (iPhone, ADR 0041). */
+export type LoginMethod = "browser" | "apple";
+
 /** Whose cache restore it is: the stored person's at boot, /me's person at boot (nobody stored), a sign-in's. */
 export type CacheFor = "stored" | "boot" | "adopt";
 
@@ -70,7 +73,7 @@ export type AuthEvent =
   | { type: "meAnswered"; user: User | null; sessionEnded: boolean; sessionsEnded: number }
   /** MobileSession.onChange: a token (restore, a sign-in, a rotation), or null when the server ended the session */
   | { type: "sessionEmitted"; token: boolean }
-  | { type: "loginStarted" }
+  | { type: "loginStarted"; method?: LoginMethod }
   | { type: "loginCompleted"; signedIn: boolean }
   | { type: "logout" }
   | { type: "accountDeleted"; workspaceIds: readonly string[] }
@@ -85,8 +88,8 @@ export type AuthEffect =
   | { type: "restoreCache"; user: User; for: readonly CacheFor[]; sessionsEnded: number }
   /** GET /me (a 401 the session already ended logs the session out) → meAnswered; detached: nobody awaits it */
   | { type: "loadMe"; detached: boolean; sessionsEnded: number }
-  /** the browser sign-in → loginCompleted */
-  | { type: "sessionLogin" }
+  /** the browser sign-in or Sign in with Apple → loginCompleted */
+  | { type: "sessionLogin"; method: LoginMethod }
   | { type: "reportUser"; userId: string | null }
   | { type: "rememberProfile"; user: User }
   | { type: "dropPushSubscription" }
@@ -304,7 +307,7 @@ function transition(m: AuthModel, e: AuthEvent): AuthStep {
       // the person behind the token is loaded.
       return m.user ? { model: { ...m, sessionEnded: false }, effects: [] } : adopt({ ...m, sessionEnded: false });
     case "loginStarted":
-      return { model: m, effects: [{ type: "sessionLogin" }] };
+      return { model: m, effects: [{ type: "sessionLogin", method: e.method ?? "browser" }] };
     case "loginCompleted":
       return e.signedIn ? adopt({ ...m, sessionEnded: false }) : { model: m, effects: [] };
     case "logout":

@@ -35,8 +35,17 @@ import { hydrateReportedMessagesStore, useReportedMessagesStore } from "../store
 import { hydratePendingOpsStore, usePendingOpsStore } from "../stores/pending-ops-store";
 import { useWorkspaceStore } from "../stores/workspace-store";
 import { openDeviceStore } from "../storage/device-store";
-import { session } from "./flow";
-import { initialAuthModel, reduce, type AuthEffect, type AuthEvent, type AuthModel, type AuthStatus, type CacheFor } from "./machine";
+import { loginWithApple, session } from "./flow";
+import {
+  initialAuthModel,
+  reduce,
+  type AuthEffect,
+  type AuthEvent,
+  type AuthModel,
+  type AuthStatus,
+  type CacheFor,
+  type LoginMethod,
+} from "./machine";
 import { forgetLastUser, readLastUser, rememberUser } from "./last-user";
 
 interface AuthState {
@@ -46,8 +55,11 @@ interface AuthState {
   status: AuthStatus;
   /** boot: restore the stored session, then /me */
   initialize: () => Promise<void>;
-  /** the browser sign-in, then /me; resolves without a user when the person dismissed it */
-  login: () => Promise<void>;
+  /**
+   * The browser sign-in (default) or Sign in with Apple, then /me; resolves without a user when the person dismissed
+   * it. Rejects when it failed: a Sign in with Apple verdict with its TransportError code (data/auth/transport.ts).
+   */
+  login: (method?: LoginMethod) => Promise<void>;
   /** a session adopted outside login() (a deep-link callback after a dismissed browser): /me, once, no restore */
   adoptSession: () => Promise<void>;
   /**
@@ -161,8 +173,8 @@ async function restoreCache(user: User, purposes: readonly CacheFor[], sessionsE
   return { type: "cacheRestored", user, for: purposes, sessionEnded: session.status() === "signed-out", sessionsEnded };
 }
 
-async function signIn(): Promise<AuthEvent> {
-  await session.login();
+async function signIn(method: LoginMethod): Promise<AuthEvent> {
+  await (method === "apple" ? loginWithApple() : session.login());
   return { type: "loginCompleted", signedIn: session.status() === "signed-in" };
 }
 
@@ -178,7 +190,7 @@ function perform(effect: AuthEffect): AuthEvent | undefined | Promise<AuthEvent 
     case "loadMe":
       return loadMe(effect.sessionsEnded);
     case "sessionLogin":
-      return signIn();
+      return signIn(effect.method);
     case "reportUser":
       setReportUser(effect.userId);
       return undefined;
@@ -268,8 +280,8 @@ export const useAuthStore = create<AuthState>(() => ({
     await settledWhen((m) => m.boot === "idle");
   },
 
-  login: async () => {
-    await dispatch({ type: "loginStarted" }).settled;
+  login: async (method) => {
+    await dispatch({ type: "loginStarted", method }).settled;
     await settledWhen((m) => m.adoption === "idle");
   },
 
