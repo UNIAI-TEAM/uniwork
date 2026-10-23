@@ -51,6 +51,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0037](0037-thu-muc-ngoai-my-folder-hien-cho-ca-workspace.md) | Thư mục ngoài My Folder hiện cho cả workspace (`workspace`/`view`, đặt theo vị trí, không share, không link); tài liệu bắt đầu riêng tư, không kế thừa; tạo bên trong: mọi thành viên sửa được, đổi tên/di chuyển/bỏ: người tạo + admin; bỏ thư mục đẩy tài liệu người thao tác không quản lý về gốc workspace (audit `folder_trashed`); vào My Folder 422 `folder_into_my_folder`; tạo trùng tên " (n)"; dữ liệu cũ vào My Folder bằng `uniwork-admin folders-into-my-folder`; thay 0036 |
 | [0042](0042-console-admin-go-tin-bi-bao-cao-qua-mot-cua.md) | Console `/admin` thay đổi content đúng một cách: gỡ một tin đã bị báo cáo qua `ReportedContentRemover.RemoveReportedMessageQ` (nối với `ChatService` ở `main.go`), cùng giao dịch với `admin_actions`, audit và đóng báo cáo; console vẫn không đọc content; việc gỡ thứ hai cần ADR mới; bổ sung cho luật F-11 |
 | [0043](0043-cong-chat-luong-mobile-chan-o-moi-muc.md) | Cổng chất lượng của `apps/chat-mobile` (sàn coverage vitest 100%, sàn jest-expo, lint) chặn ở mọi `GATE_LEVEL`; không loại file để qua sàn; bổ sung cho 0014 |
+| [0044](0044-hoi-uni-ghi-qua-de-xuat-tren-server-va-ba-che-do-quyen.md) | Hỏi UNI ghi qua đề xuất lưu trên server, ba chế độ quyền, lượt bị nhiễm thì phải hỏi; mở rộng 0033 sang kênh Hỏi UNI |
 
 ## Bản nháp
 
@@ -91,7 +92,6 @@ dự phòng. Chờ tài khoản Apple Developer.
 [0025](0025-mot-process-cho-api-va-worker.md) chưa có guard test (test chạy hai bản của mỗi
 job, land cùng việc làm worker an toàn đa replica); đến lúc đó 0025 không thêm luật vào `CLAUDE.md`.
 
-`drafts/0044-hoi-uni-ghi-qua-de-xuat-tren-server-va-ba-che-do-quyen.md` (UNI-2148, 2026-10-23, `proposed`):
-Hỏi UNI ghi qua đề xuất lưu trên server, ba chế độ quyền, lượt bị nhiễm thì phải hỏi; mở rộng 0033 sang
-kênh Hỏi UNI. Spec Hỏi UNI v2 gọi nó là "ADR 0034"; số đó đã dùng nên lấy 0044. Chờ chủ sản phẩm duyệt
-cùng kế hoạch `docs/superpowers/plans/2026-10-23-ask-uni-p3.md`.
+[0044](0044-hoi-uni-ghi-qua-de-xuat-tren-server-va-ba-che-do-quyen.md) (Hỏi UNI ghi qua đề xuất, UNI-2148)
+được chấp nhận ngày 2026-10-23 khi chủ sản phẩm duyệt kế hoạch P3. Spec Hỏi UNI v2 gọi nó là "ADR 0034";
+số đó đã dùng cho khóa BYOK của desktop nên bản nháp lấy 0044.

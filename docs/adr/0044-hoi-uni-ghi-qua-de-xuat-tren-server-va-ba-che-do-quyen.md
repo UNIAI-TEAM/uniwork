@@ -1,15 +1,13 @@
 # 0044 — Hỏi UNI ghi qua đề xuất lưu trên server, ba chế độ quyền, lượt bị nhiễm thì phải hỏi
 
-**Trạng thái:** proposed (UNI-2148, 2026-10-23). Viết theo spec
-`docs/superpowers/specs/2026-10-16-ask-uni-agent-design.md` §6.4, nơi nó được gọi là "ADR 0034": số đó đã
-là [0034](../0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) (khóa BYOK cho desktop), 0038–0041
-giữ cho các bản nháp khác, nên dùng 0044. Chấp nhận thì chuyển ra `docs/adr/`, thêm vào bảng của
-`README.md`; luật vào `CLAUDE.md` cùng PR với các test giữ luật bên dưới.
-**Mở rộng:** [0033](../0033-tool-ghi-qua-mcp-chay-truc-tiep-bang-actor-human.md) (tool ghi qua MCP chạy bằng
-actor human) sang kênh Hỏi UNI. [0010](../0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md) giữ
+**Trạng thái:** accepted (2026-10-23) — chấp nhận bởi bavinh2803 khi duyệt kế hoạch P3 (UNI-2148).
+Viết theo spec `docs/superpowers/specs/2026-10-16-ask-uni-agent-design.md` §6.4, nơi nó được gọi là "ADR 0034":
+số đó đã là [0034](0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) (khóa BYOK cho desktop), nên dùng 0044.
+**Mở rộng:** [0033](0033-tool-ghi-qua-mcp-chay-truc-tiep-bang-actor-human.md) (tool ghi qua MCP chạy bằng
+actor human) sang kênh Hỏi UNI. [0010](0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md) giữ
 nguyên cho agent runtime.
-**Liên quan:** [0007](../0007-actor-kind-agent-la-actor-hang-nhat.md) (actor),
-[0008](../0008-cach-ly-tenant-o-tang-service.md) (tenant), [0009](../0009-audit-va-outbox-cung-transaction.md)
+**Liên quan:** [0007](0007-actor-kind-agent-la-actor-hang-nhat.md) (actor),
+[0008](0008-cach-ly-tenant-o-tang-service.md) (tenant), [0009](0009-audit-va-outbox-cung-transaction.md)
 (audit + outbox), spec A-01 `2026-09-04-agent-actor-model-design.md` (bảng `agent_action_proposals`), spec
 `2026-10-21-ask-uni-ui-parity-design.md` §5 (chỗ chạm P3).
 
