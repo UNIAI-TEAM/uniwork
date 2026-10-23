@@ -863,6 +863,58 @@ kill (Nghe từ CallStyle, nối, gác máy); phần dưới là thứ chỉ má
 - [ ] Gỡ app trên iPhone khi đang đăng nhập rồi cài lại: mở app vào màn đăng nhập (không vào thẳng inbox cũ); web ›
   Thiết bị không còn phiên của máy cũ.
 
+**Cuộc gọi trên iPhone: PushKit + CallKit (UNI-2141, ADR 0038 §4, `docs/engineering/unichat-mobile/calls-ios.md`).**
+Test node/jest giữ phần JavaScript (đăng ký token VoIP, `NativeCallSession`, Nghe/Từ chối/Kết thúc của CallKit, đồng bộ
+engine → CallKit, tắt tiếng và giữ máy); `native-modules.test.ts` giữ hình của Swift (mọi VoIP push được báo cho CallKit
+trước completion, module `UniChatCallKit` và subscriber khởi động được autolink). Swift chỉ được biên dịch ở
+`mobile-verify › ios-release` (simulator, không ký): đỏ ở bước build thì đọc log Xcode của job (lỗi trong pod
+`UniChatCalls`), sửa, đẩy lại. Thứ tự bật (owner), mỗi bước một lần (phía server: `calls.md` › Cuộc gọi trên iPhone):
+
+1. **Apple Developer › Identifiers**: App ID `com.uniworkos.chat` và `com.uniworkos.chat.staging` bật capability **Push
+   Notifications** (EAS bật khi ký nếu thiếu; kiểm lại bằng tay). VoIP push dùng topic `<bundle id>.voip`, không cần App
+   ID riêng.
+2. **Apple Developer › Keys**: tạo khoá **Apple Push Notifications service (APNs)**, môi trường Sandbox & Production
+   (`AuthKey_<KeyID>.p8`, tải được đúng một lần), ghi Key ID; Team ID là `XJAM488A6D`. Cất `.p8` trong kho bí mật.
+3. **Server**: Secret `uniwork-apns` (`APNS_KEY_ID`, `APNS_TEAM_ID=XJAM488A6D`, `APNS_PRIVATE_KEY` = nội dung PEM của
+   `.p8`) trong namespace của server, deploy, log có "APNs VoIP push enabled". Thiếu khoá thì iPhone giữ hành vi cũ.
+4. **EAS** (`eas env:create`, môi trường `preview` cho profile `internal`, rồi `production`): `UNICHAT_IOS_CALLS=1`.
+   Không đặt trong `eas.json` (`app.config.test.ts › is set by no EAS profile`). Biến này đổi Info.plist (thêm `voip`,
+   `audio`) nên đổi fingerprint: cần bản store mới (`eas build -p ios --profile internal`), không OTA được.
+5. **App Store Connect**: App Review Information › Notes: "UniChat uses PushKit VoIP pushes only to ring incoming
+   voice/video calls between members of an organization through CallKit; background audio keeps an ongoing call
+   audible." kèm tài khoản demo gọi được. **Pricing and Availability**: bỏ storefront **Trung Quốc đại lục** (Apple không
+   duyệt app dùng CallKit ở đó). Mô tả App Store thêm lại dòng "Gọi thoại và video" / "Voice and video calls"
+   (`store/listing.md`).
+6. **Công tắc**: chạy checklist dưới trên bản TestFlight với `unichat_mobile_calls_ios` bật cho một người thử (console
+   `/admin` › Feature flags, override theo user); qua hết thì bật cho tổ chức rồi toàn cục. Tắt lại là rollback: server
+   thôi gửi VoIP, iPhone ẩn nút gọi.
+
+Kiểm sau deploy: `push_subscriptions` có hàng `transport = 'apns_voip'` cho iPhone đã mở bản mới, `apns_environment` đúng
+(TestFlight là `production`); metric `uniwork_push_apns_voip_total` không có `reason` `InvalidProviderToken` (sai khoá hay
+Team) hay `TopicDisallowed`/`DeviceTokenNotForTopic` (sai bundle id/topic). Checklist trên iPhone thật (bản TestFlight,
+hai tài khoản cùng tổ chức, A gọi B; B là iPhone):
+
+- [ ] B mở app một lần sau khi cài (đã đăng nhập), rồi kill app (vuốt khỏi đa nhiệm) và khoá máy; A gọi 1-1: màn cuộc
+  gọi đến của iOS hiện trên màn khoá trong 1–3 s với tên A, nhạc chuông của máy.
+- [ ] Trượt để nghe trên màn khoá: màn của iOS chuyển sang đang gọi, tiếng hai chiều có trong vài giây (app nối LiveKit ở
+  nền), A thấy B đã nghe; mở khoá và chạm biểu tượng UniChat trên màn của iOS: app mở đúng màn cuộc gọi.
+- [ ] Gác máy trên màn của iOS: A thấy cuộc gọi kết thúc; A gác trước: màn của iOS trên máy B đi mất.
+- [ ] Từ chối trên màn khoá (app đã kill): A thấy "từ chối" trong vài giây, không đợi hết chuông.
+- [ ] Không ai nghe: máy B thôi reo khi hết cửa sổ đổ chuông (khoảng 60 s), A thấy "không trả lời".
+- [ ] B có iPhone và máy thứ hai (Android hay web): nghe ở máy kia thì iPhone thôi reo trong vài giây (push `end`); nghe
+  trên iPhone thì cuộc gọi trên iPhone không bị cắt khi `end` của lượt đổ chuông tới.
+- [ ] Bật Không làm phiền / Tập trung: cuộc gọi theo luật của iOS cho cuộc gọi (không reo nếu iOS chặn), app không lỗi;
+  tắt đi, gọi lại thì reo. Công tắc chuông im lặng: chỉ rung.
+- [ ] App đang mở trên màn hình: cuộc gọi hiện banner của iOS, app không reo thêm tiếng thứ hai; nghe ở banner hay ở
+  app đều nối, màn của iOS và app cùng ở trạng thái đang gọi; từ chối trong app thì banner đi mất.
+- [ ] Trong cuộc gọi: tắt tiếng trên màn của iOS thì A không nghe B; bật lại thì nghe. Có cuộc điện thoại tới và B nghe
+  (giữ UniChat): màn UniChat hiện "Đang tạm giữ"; gác cuộc điện thoại rồi quay lại UniChat thì nghe lại.
+- [ ] Tai nghe Bluetooth / AirPods: nghe bằng nút tai nghe khi đổ chuông; tiếng đi qua tai nghe.
+- [ ] Cài đặt › Thông báo trong app › tắt push trên máy: hàng `apns_voip` của máy bị gỡ, A gọi thì iPhone không reo; bật
+  lại thì hàng quay lại. Đăng xuất: hàng bị gỡ.
+- [ ] Bản cài từ Xcode (ký development) đăng ký `apns_environment = 'sandbox'` và reo qua APNs sandbox.
+- [ ] `unichat_mobile_calls_ios` tắt: iPhone không reo, không có nút gọi; cuộc gọi đang diễn ra không bị cắt.
+
 ## Triệu chứng
 
 - Run release xanh với notice `EXPO_TOKEN is not set` — đúng khi chưa thiết lập; sau thiết lập là thiếu secret.

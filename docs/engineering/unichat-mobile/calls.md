@@ -209,7 +209,7 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   phát sự kiện, không hỏi quyền, token Expo đổi thì gỡ cái cũ; server lưu
   user agent `expo/android; call-ui`), bản Android cũ giữ push hiển thị, iPhone không nhận push đổ chuông khi công tắc
   `unichat_mobile_calls_ios` tắt (mặc định; server gộp nó vào `unichat_mobile_calls` của máy gửi `X-Client-OS: ios`, nên
-  iPhone cũng ẩn nút gọi — chưa có CallKit/PushKit); `chat.voice.ring_closed` (outbox, cùng transaction đóng hàng ring) → push data-only "kết thúc"
+  iPhone cũng ẩn nút gọi; bật nó là bước cuối của PushKit + CallKit, `calls-ios.md`); `chat.voice.ring_closed` (outbox, cùng transaction đóng hàng ring) → push data-only "kết thúc"
   tới máy Android; cuộc gọi 1-1 nhỡ là "Cuộc gọi nhỡ từ X" trên `missed_calls`. Phiên cuộc gọi của server (ai đang đổ
   chuông, đã nghe, đã từ chối) được ghi nhật ký vào Redis (`server/internal/service/chat_voice_journal.go`) nên restart
   hay deploy giữa lúc đổ chuông không làm mất danh sách chờ, push đổ chuông đang xếp hàng hay quyền gác máy của người

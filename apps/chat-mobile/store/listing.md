@@ -195,11 +195,13 @@ thu thập đúng từng dòng Apple App Privacy của bảng "Quyền riêng t�
 dùng API cần khai báo: UserDefaults `CA92.1`, file timestamp `C617.1` và `3B52.1`, system boot time `35F9.1`, disk space
 `E174.1`. Module Expo và Sentry mang manifest riêng; Xcode gộp lại khi archive (runbook › iOS privacy manifest).
 
-Không CallKit/VoIP push trên iOS (chưa có tài khoản Apple; kế hoạch PushKit + CallKit ở
-`docs/adr/drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md`), nên không có background mode `voip`, và
-**gọi điện tắt trên iPhone** bằng công tắc server `unichat_mobile_calls_ios` (mặc định tắt: iPhone không hiện nút gọi,
-không nhận push đổ chuông). Vì vậy mô tả App Store của bản iOS đầu tiên **bỏ dòng "Gọi thoại và video" / "Voice and
-video calls"** (Apple 2.3.1: metadata phải đúng với app) cho tới khi bật CallKit; mô tả Play giữ nguyên. Thông báo nhắc
+Gọi trên iPhone đi PushKit + CallKit (`docs/adr/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md` §4): chỉ
+bản build với `UNICHAT_IOS_CALLS=1` khai background mode `voip` (VoIP push đổ chuông qua màn cuộc gọi của iOS; lý do
+cho review: "rings incoming voice/video calls between members of an organization through CallKit") và `audio`, và
+**gọi điện vẫn tắt trên iPhone** cho tới khi công tắc server `unichat_mobile_calls_ios` bật (mặc định tắt: iPhone không
+hiện nút gọi, không nhận push đổ chuông). Bản App Store nào chưa có cả hai **bỏ dòng "Gọi thoại và video" / "Voice and
+video calls"** (Apple 2.3.1: metadata phải đúng với app); bản có cả hai thêm lại dòng đó và bỏ storefront Trung Quốc
+đại lục (CallKit không được duyệt ở đó; runbook › Cuộc gọi trên iPhone). Mô tả Play giữ nguyên. Thông báo nhắc
 tên và cuộc gọi nhỡ trên iPhone là "time-sensitive" (đi qua Chế độ tập trung; entitlement
 `com.apple.developer.usernotifications.time-sensitive`, EAS bật capability cho App ID khi ký) và mỗi push tin mang số
 chưa đọc cho biểu tượng app. Màn tắt khi áp tai trong cuộc gọi thoại (Android, cảm biến tiệm cận) dùng `WAKE_LOCK`, quyền
@@ -209,10 +211,10 @@ thường đã khai, không xin quyền mới. Gọi trên iPhone là **năng l�
 tác viết lúc offline khi mạng có lại mà app đang ở nền (lý do cho review: "sends messages the user wrote offline once the
 network is back, while the app is in the background"; `docs/engineering/unichat-mobile/offline-first.md` › Gửi tiếp ở
 nền) — và thêm `audio` (để cuộc gọi giữ tiếng khi rời app hay khoá máy; lý do cho review: "keeps an ongoing voice/video
-call audible") chỉ trong bản build với `UNICHAT_IOS_CALLS=1`, và `app.config.ts` từ chối biến đó khi `modules/unichat-calls` chưa có phần iOS (CallKit,
-PushKit). Bản build không có nó thì app luôn tắt gọi trên iPhone, `unichat_mobile_calls_ios` bật cũng vậy
+call audible") cùng `voip` chỉ trong bản build với `UNICHAT_IOS_CALLS=1`, và `app.config.ts` từ chối biến đó khi
+`modules/unichat-calls` không có phần iOS (CallKit, PushKit). Bản build không có nó thì app luôn tắt gọi trên iPhone, `unichat_mobile_calls_ios` bật cũng vậy
 (`lib/runtime-extra.ts › lackingFlags`): server không bật được tính năng mà reviewer chưa thấy. `expo-task-manager`
-tự thêm `fetch`, `expo-audio` có thể thêm `audio`; plugin `with-unichat-calls` gỡ cả hai (trừ `audio` ở bản có gọi) và
+tự thêm `fetch`, `expo-audio` có thể thêm `audio`; plugin `with-unichat-calls` gỡ cả hai (trừ `audio` và `voip` ở bản có gọi) và
 `app.config.test.ts` đọc Info.plist cuối của bản release.
 
 **Android, dịch vụ chạy nền (foreground service): đúng một, dịch vụ cuộc gọi** (`expo.modules.unichatcalls.CallService`,

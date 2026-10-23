@@ -1,4 +1,4 @@
-// Wires the native call support (docs/adr/drafts/0038) to the app: the
+// Wires the native call support (docs/adr/0038) to the app: the
 // pieces in this folder hold the policy and are tested on their own; this
 // file hands them the real call engine, session, socket-free API, i18n,
 // AppState and the native module.

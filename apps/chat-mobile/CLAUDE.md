@@ -64,6 +64,11 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   `android-manifest.test.ts › messagingServices`): push đổ chuông reo không cần JavaScript, phần còn lại đi tiếp với `tag` của server nhấc lên chỗ
   expo-notifications đọc (`PushTag.kt`: mỗi push của phòng thay thông báo của phòng);
   chữ và công tắc của chuông native ghi qua `data/calls/native-ring.ts` (chi tiết: `calls.md`).
+- iPhone (ADR 0038, `calls-ios.md`): mọi VoIP push vào `modules/unichat-calls/ios/CallCenter.swift` được báo cho CallKit trước completion
+  của PushKit, kể cả `end` và payload lạ (`native-modules.test.ts › every VoIP push is reported to CallKit`); module iOS
+  tên `UniChatCallKit`, khác `UniChatCalls` của Android, và call center chỉ chạy khi Info.plist khai `voip`
+  (`UNICHAT_IOS_CALLS=1`, `app.config.test.ts`). Hai nửa tới app qua một `NativeCallSession`
+  (`data/calls/native-call-session.ts`, `native-call-session.test.ts`).
 - Công tắc mobile mới: `MOBILE_FLAG_DEFAULTS` (`data/remote-config.ts`) và `server/internal/featureflags/keys.go` cùng
   PR, có `ReviewAt`.
 - Coverage: vitest (`lib/`, `data/` trừ hook React) 100/100/100/100; jest (`components/`, hook của `data/`, route theo
@@ -85,6 +90,7 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
 | Deep link, phản hồi thông báo | `docs/engineering/unichat-mobile/navigation.md` |
 | Tab Chat: key, cache, màn hình, file route | `docs/engineering/unichat-mobile/chat.md` |
 | Cuộc gọi, cuộc gọi native Android, kênh và push | `docs/engineering/unichat-mobile/calls.md` |
+| Cuộc gọi trên iPhone: PushKit, CallKit, token VoIP, `NativeCallSession` | `docs/engineering/unichat-mobile/calls-ios.md` |
 | Hiệu năng danh sách, timeline, ảnh, bundle | `docs/engineering/unichat-mobile/performance.md` |
 | Trợ năng, cảm giác, quy ước nền tảng, ngôn ngữ | `docs/engineering/unichat-mobile/ux-a11y-i18n.md` |
 | Lệnh, hai lớp test, CI | `docs/engineering/unichat-mobile/testing-ci.md` |
