@@ -27,6 +27,11 @@ var (
 		"SCHEDULED": "Đã lên lịch", "IN_PROGRESS": "Đang diễn ra", "OVERTIME": "Quá giờ",
 		"MISSED": "Không diễn ra", "ENDED": "Đã kết thúc", "CANCELED": "Đã hủy",
 	}
+	// Tasks and projects share the priority keys and labels (tasks.priority_*,
+	// projects.priority.*). Answers said "Mức ưu tiên: none" (UNI-2151).
+	viPriority = map[string]string{
+		"none": "Không ưu tiên", "low": "Thấp", "medium": "Trung bình", "high": "Cao", "urgent": "Khẩn cấp",
+	}
 )
 
 // taskStatusLabels names every status key of the workspace the way the web's
@@ -56,9 +61,18 @@ func statusLabel(labels map[string]string, key string) string {
 	return key
 }
 
-// statusKey is the key a status filter takes for what the model passed: the
-// key itself, or a label it read, in any case. Anything else stays as it is
-// and matches nothing.
+// priorityLabel is a task's or project's priority as the web shows it; an
+// empty one reads as "none" does (UNI-2151).
+func priorityLabel(key string) string {
+	if key == "" {
+		key = "none"
+	}
+	return statusLabel(viPriority, key)
+}
+
+// statusKey is the key a status or priority filter takes for what the model
+// passed: the key itself, or a label it read, in any case. Anything else stays
+// as it is and matches nothing.
 func statusKey(labels map[string]string, v string) string {
 	if _, ok := labels[v]; ok {
 		return v
