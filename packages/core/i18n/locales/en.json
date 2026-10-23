@@ -3654,7 +3654,7 @@
     "actionsTab": "Actions",
     "liveItemsUnseen_one": "{{count}} new action item from UNI",
     "liveItemsUnseen_other": "{{count}} new action items from UNI",
-    "liveItemsNew_one": "UNI noted an action item: {{title}}",
+    "liveItemsNew_one": "UNI noted {{count}} action item: {{title}}",
     "liveItemsNew_other": "UNI noted {{count}} new action items. Latest: {{title}}",
     "actionItemsEmpty": "No action items yet.",
     "sharedScreen": "Shared screen",
