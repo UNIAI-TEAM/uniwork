@@ -458,6 +458,11 @@ func TestSummarizeKeepsTheBetterStoredRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A clerk's own item is never in the stored record: it must not switch
+	// the "items lost" check off (reviewer, UNI-1995 #12).
+	if _, err := s.AddActionItem(ctx, ua.ID, m.ID, AddActionItemInput{Title: "Đặt phòng họp"}); err != nil {
+		t.Fatal(err)
+	}
 	for _, thin := range []struct{ name, text string }{
 		{"topics only, without points", `{"tldr":"Chốt ship.","topics":[{"title":"Phát hành","start_label":"S1","points":[]}],"decisions":[],"action_items":[],"open_questions":[]}`},
 		{"items lost while nothing was handled", `{"tldr":"Chốt ship.","topics":[],"decisions":[{"text":"Ship thứ Sáu","evidence":["S1"]}],"action_items":[],"open_questions":[]}`},
@@ -476,7 +481,7 @@ func TestSummarizeKeepsTheBetterStoredRecord(t *testing.T) {
 	}
 	// Once the item is handled, a record without items is the right answer.
 	var itemID string
-	if err := s.pool.QueryRow(ctx, `SELECT id FROM meeting_action_items WHERE meeting_id = $1`, m.ID).Scan(&itemID); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT id FROM meeting_action_items WHERE meeting_id = $1 AND source = 'AI'`, m.ID).Scan(&itemID); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.DismissActionItem(ctx, ua.ID, m.ID, itemID, "đã xong"); err != nil {

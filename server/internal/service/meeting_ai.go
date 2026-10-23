@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -353,8 +354,17 @@ func (s *MeetingService) StartSummary(ctx context.Context, userID, meetingID, lo
 		defer s.summaryRuns.Done()
 		defer cancel()
 		defer stop()
-		_, err := s.runSummary(runCtx, m, Human(userID), locale, budget)
-		release(err)
+		var err error
+		// No Recoverer stands above this goroutine: a panic ends this run as
+		// failed (the panel stops waiting) instead of the process.
+		defer func() {
+			if p := recover(); p != nil {
+				slog.Error("meetings: summary run panicked", "meeting_id", m.ID, "stack", string(debug.Stack()))
+				err = s.summaryFailure(m.ID, "", summaryStepError{reason: summaryReasonPanic, err: errors.New("panic")})
+			}
+			release(err)
+		}()
+		_, err = s.runSummary(runCtx, m, Human(userID), locale, budget)
 	}()
 	return s.SummaryWithRun(ctx, userID, meetingID)
 }
@@ -433,6 +443,7 @@ func (s *MeetingService) runSummary(ctx context.Context, m db.Meeting, actor Act
 	var closed []db.MeetingMotion
 	var existing []string
 	var drafts []db.MeetingActionItem
+	var handled bool
 	g, gctx := errgroup.WithContext(runCtx)
 	g.Go(func() error {
 		src, err := s.q.TranscriptSources(gctx, meetingID)
@@ -469,7 +480,7 @@ func (s *MeetingService) runSummary(ctx context.Context, m db.Meeting, actor Act
 	})
 	g.Go(func() error {
 		var err error
-		existing, drafts, err = s.summaryPromptItems(gctx, m)
+		existing, drafts, handled, err = s.summaryPromptItems(gctx, m)
 		return err
 	})
 	if err := g.Wait(); err != nil {
@@ -561,7 +572,7 @@ func (s *MeetingService) runSummary(ctx context.Context, m db.Meeting, actor Act
 	// A thinner answer than the stored record is a failed run, not a newer
 	// record: the stored summary stays and the run reports the failure.
 	if prev, err := s.q.GetLatestMeetingSummary(storeCtx, meetingID); err == nil {
-		if why := summaryRegression(prev, res, len(existing)+len(drafts) > 0); why != "" {
+		if why := summaryRegression(prev, res, handled); why != "" {
 			return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonIncomplete, err: errors.New(why)})
 		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {

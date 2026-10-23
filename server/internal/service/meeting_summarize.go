@@ -75,6 +75,7 @@ const (
 	summaryReasonEmpty         = "empty"
 	summaryReasonStore         = "store"
 	summaryReasonIncomplete    = "incomplete"
+	summaryReasonPanic         = "panic"
 )
 
 // The refusals Summarize answers with. The message is fixed and never quotes
@@ -526,16 +527,20 @@ func refineLiveItem(ctx context.Context, q *db.Queries, m db.Meeting, d db.Meeti
 // manual, live ones a person converted or set aside), never to propose again,
 // and the pending live items as drafts it may refine in place (benchmark
 // #21). The pending AI items are left out; the new summary replaces them.
-func (s *MeetingService) summaryPromptItems(ctx context.Context, m db.Meeting) ([]string, []db.MeetingActionItem, error) {
+// handled reports an AI or live item a person converted or set aside: the
+// only items a stored record may carry that the new one is told not to
+// repeat (summaryRegression). A clerk's own item never reaches a record, and
+// a pending draft is in the prompt to be refined.
+func (s *MeetingService) summaryPromptItems(ctx context.Context, m db.Meeting) (titles []string, drafts []db.MeetingActionItem, handled bool, err error) {
 	rows, err := s.q.ListMeetingActionItems(ctx, db.ListMeetingActionItemsParams{OrganizationID: m.OrganizationID, MeetingID: m.ID})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
-	titles := make([]string, 0, len(rows))
-	var drafts []db.MeetingActionItem
+	titles = make([]string, 0, len(rows))
 	for _, r := range rows {
 		it := r.MeetingActionItem
 		pending := actionItemStatus(it, r.TaskLive) == ActionItemPending
+		handled = handled || (!pending && it.Source != ActionItemSourceManual)
 		switch {
 		case pending && it.Source == ActionItemSourceAI:
 			continue
@@ -553,7 +558,7 @@ func (s *MeetingService) summaryPromptItems(ctx context.Context, m db.Meeting) (
 	if len(titles) > summaryExistingItems {
 		titles = titles[len(titles)-summaryExistingItems:]
 	}
-	return titles, drafts, nil
+	return titles, drafts, handled, nil
 }
 
 // summaryDraftLines labels the drafts for the prompt.

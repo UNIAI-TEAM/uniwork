@@ -564,6 +564,29 @@ func TestStartSummaryLeavesItsFailureForEveryViewer(t *testing.T) {
 	}
 }
 
+// A run outside the request has no chimw.Recoverer above it: a panic in it
+// must end as a failed run every viewer sees, not take the process down
+// with the lease left running (reviewer, UNI-1995 #12).
+func TestStartSummaryRecoversAPanickingRun(t *testing.T) {
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		panic("boom")
+	}}
+	s, ua, m, met := summaryFixture(t, fake, ai.Options{})
+	if _, err := s.StartSummary(context.Background(), ua.ID, m.ID, "vi"); err != nil {
+		t.Fatal(err)
+	}
+	if !s.StopSummaryRuns(10 * time.Second) {
+		t.Fatal("the run did not end")
+	}
+	v, err := s.SummaryWithRun(context.Background(), ua.ID, m.ID)
+	if err != nil || v.Run.Status != SummaryRunIdle || v.Run.FailureCode != "ai_failed" {
+		t.Fatalf("after a panicking run: %+v %v", v.Run, err)
+	}
+	if len(met.reasons) != 1 || met.reasons[0] != summaryReasonPanic {
+		t.Fatalf("reasons = %v, want [%s]", met.reasons, summaryReasonPanic)
+	}
+}
+
 func TestStopSummaryRunsCancelsWhatOutlivesTheGrace(t *testing.T) {
 	fake := &provider.Fake{Delay: time.Minute}
 	s, ua, m, _ := summaryFixture(t, fake, ai.Options{})
