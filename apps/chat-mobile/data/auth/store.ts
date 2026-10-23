@@ -156,12 +156,21 @@ let adopting: Promise<void> | null = null;
 /**
  * A sign-in's /me, and that person's cached rooms before the first screen.
  * login() and the session's onChange (adoptSession) both ask on every
- * interactive sign-in: they share one adoption.
+ * interactive sign-in: they share one adoption. The session also emits a
+ * fresh stored token during a cold start's restore, so this races
+ * initialize(): a /me without an answer (offline, a 5xx, a timeout) changes
+ * nothing, or it would write nobody over the stored person initialize let in
+ * (the sign-in screen on an offline relaunch); only a server verdict signs
+ * out (onChange(null), onUnauthorized). An answer about someone else than the
+ * person already in is stale and is not adopted either.
  */
-function adoptLoadedUser(set: (partial: Partial<AuthState>) => void): Promise<void> {
+function adoptLoadedUser(set: (partial: Partial<AuthState>) => void, get: () => AuthState): Promise<void> {
   adopting ??= (async () => {
     const user = await loadUser();
-    if (user) await restoreAccountCache(user.id);
+    if (!user) return;
+    const current = get().user;
+    if (current && current.id !== user.id) return;
+    await restoreAccountCache(user.id);
     set({ user: adoptUser(user) });
   })().finally(() => {
     adopting = null;
@@ -210,12 +219,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async () => {
     await session.login();
     if (session.status() !== "signed-in") return;
-    await adoptLoadedUser(set);
+    await adoptLoadedUser(set, get);
   },
 
   adoptSession: async () => {
     if (get().user) return;
-    await adoptLoadedUser(set);
+    await adoptLoadedUser(set, get);
   },
 
   logout: async () => {

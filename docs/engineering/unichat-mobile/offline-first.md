@@ -18,7 +18,11 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   Server đã kết thúc phiên trước khi ai được vào (refresh hết hạn, thiết bị bị thu hồi) mà máy còn người dùng đã lưu
   hay hàng đợi thì xoá như đăng xuất (outbox và tệp, lượt chờ, cache đĩa, workspace); màn chat chỉ hiện và thử lại
   tin chờ của chính người đang đăng nhập (`selectRoomSends` lọc theo người gửi). `login()` và `adoptSession()`
-  dùng chung một lần nhận người dùng; `restoreAccountCache` gộp hai lần gọi cho cùng người và chỉ lần gọi cuối
+  dùng chung một lần nhận người dùng. Lần nhận đó cũng chạy lúc mở lạnh (phiên phát token còn hạn ngay trong
+  `restore`, `app/_layout.tsx` gọi `adoptSession()`), song song `initialize()`: `/me` không trả lời (offline, 5xx,
+  timeout) thì không đổi gì, trả lời về người khác người đang vào thì bỏ qua — nếu không nó ghi `null` đè người dùng
+  đã lưu và lần mở lại khi offline rơi về màn đăng nhập (`maestro/flows/offline-send-relaunch.yaml`).
+  `restoreAccountCache` gộp hai lần gọi cho cùng người và chỉ lần gọi cuối
   được ghi đĩa (một lần dừng — đăng xuất, cài lại — làm lần khôi phục đang chạy không hydrate, không ghi).
   Splash (`expo-splash-screen`, plugin trong `app.config.ts`) giữ tới khi `isLoading` tắt, tối đa 8 s
   (`app/_layout.tsx`). **Kho trên máy**: `data/storage/device-store.ts` (thuần, mặc định bộ nhớ — test node không

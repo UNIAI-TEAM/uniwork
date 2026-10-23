@@ -255,6 +255,42 @@ describe("auth store", () => {
     lastUserMock.readLastUser.mockResolvedValue(null);
   });
 
+  // CI (offline-send-relaunch.yaml): a cold start in airplane mode opened the sign-in screen. MobileSession.restore
+  // adopts a fresh stored token and emits it synchronously; app/_layout.tsx answers that with adoptSession(), whose
+  // /me then failed offline after initialize had let the stored person in, and wrote null over them.
+  it("initialize offline: the session's own adopt at restore (onChange -> adoptSession) does not sign the stored person out", async () => {
+    const stored = { ...user, display_name: "Stored" };
+    lastUserMock.readLastUser.mockResolvedValueOnce(stored);
+    let fail: (error: unknown) => void = () => undefined;
+    apiMock.getMe.mockReturnValueOnce(new Promise((_, reject) => (fail = reject)));
+    sessionMock.restore.mockImplementationOnce(async () => {
+      void useAuthStore.getState().adoptSession();
+      return true;
+    });
+    await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState()).toMatchObject({ user: stored, isLoading: false });
+    // What data/api.ts makes of React Native's TypeError("Network request failed").
+    fail(new ApiError("Network request failed", 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(useAuthStore.getState().user).toEqual(stored);
+    expect(apiMock.getMe).toHaveBeenCalledTimes(1);
+    // Nothing the person left goes: not the session, not the outbox.
+    expect(sessionMock.logout).not.toHaveBeenCalled();
+    expect(wipeSessionTraces).not.toHaveBeenCalled();
+    expect(lastUserMock.forgetLastUser).not.toHaveBeenCalled();
+  });
+
+  it("adoptSession: /me answering about someone else than the person already in is not adopted", async () => {
+    let answer: (u: typeof user) => void = () => undefined;
+    apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const adopt = useAuthStore.getState().adoptSession();
+    useAuthStore.setState({ user: { ...user, id: "u2" } });
+    answer(user);
+    await adopt;
+    expect(useAuthStore.getState().user?.id).toBe("u2");
+    expect(cacheMock.restoreAccountCache).not.toHaveBeenCalled();
+  });
+
   it("initialize: a 401 ends the session only once the session itself is signed out; a blip keeps it", async () => {
     // Signed in while initialize reads the session; the 401's refresh then ends it.
     sessionMock.status.mockReturnValueOnce("signed-in").mockReturnValue("signed-out");
