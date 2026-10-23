@@ -109,10 +109,18 @@ func TestBrokenPDFIsUnreadable(t *testing.T) {
 // password: every viewer opens it without being asked for anything.
 func ownerOnlyPDF(t *testing.T) []byte {
 	t.Helper()
+	return withOwnerPassword(t, pdfFixture(t, "three-pages.pdf"))
+}
+
+// withOwnerPassword encrypts plain with an owner password and no user
+// password, object for object: nothing is merged or dropped on the way.
+func withOwnerPassword(t *testing.T, plain []byte) []byte {
+	t.Helper()
 	conf := model.NewStatelessConfiguration()
 	conf.OwnerPW = "owner"
+	conf.Optimize = false
 	var out bytes.Buffer
-	if err := api.Encrypt(context.Background(), bytes.NewReader(pdfFixture(t, "three-pages.pdf")), &out, conf); err != nil {
+	if err := api.Encrypt(context.Background(), bytes.NewReader(plain), &out, conf); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Contains(out.Bytes(), []byte("/Encrypt")) {
