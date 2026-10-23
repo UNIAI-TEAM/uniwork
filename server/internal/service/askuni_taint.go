@@ -23,6 +23,10 @@ func (t askTaint) tainted() bool { return t.conv || t.turn }
 // tainted: nobody knows what it read.
 func convTainted(c db.AiConversation) bool { return c.TaintedAt.Valid || !c.TaintTracked }
 
+// ConversationTainted is convTainted for the API: the conversation read
+// something that is not the asker's own words, or predates the tracking.
+func ConversationTainted(c db.AiConversation) bool { return convTainted(c) }
+
 // askerOwnWords says a chat message is the asker's own words. A forward copy
 // is sent as the forwarder but carries the original's body, and a voice-call
 // summary is AI text posted under the caller: neither counts, even when the

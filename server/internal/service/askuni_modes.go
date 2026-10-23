@@ -73,17 +73,31 @@ func (s *AskUNIService) askCeiling(ctx context.Context, orgID string) (string, e
 	return c.String, nil
 }
 
+// askActionsFlag is ask_uni_actions as tc's asker, organization and workspace
+// see it; false without a flag source.
+func (s *AskUNIService) askActionsFlag(ctx context.Context, tc ai.ToolContext) bool {
+	if s.flags == nil {
+		return false
+	}
+	f, _ := featureflags.Lookup(askActionsFlag)
+	fctx := featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: tc.ActorID, OrganizationID: tc.OrganizationID, WorkspaceID: tc.WorkspaceID})
+	return s.flags.IsEnabled(fctx, askActionsFlag, f.Default)
+}
+
+// AskActionsEnabled is the kill switch (R2) for the routes that name no
+// proposal: the person's mode and the organization's ceiling. orgID may be
+// empty (the mode route names no organization).
+func (s *AskUNIService) AskActionsEnabled(ctx context.Context, userID, orgID string) bool {
+	return s.askActionsFlag(ctx, ai.ToolContext{ActorID: userID, OrganizationID: orgID})
+}
+
 // askActions reads the flag, the ceiling and the saved mode; requested wins
 // over the saved mode. A failed ceiling read closes: Enabled false, ceiling off.
 func (s *AskUNIService) askActions(ctx context.Context, tc ai.ToolContext, requested string) AskActions {
 	out := AskActions{Ceiling: AskCeilingOff}
 	if ceiling, err := s.askCeiling(ctx, tc.OrganizationID); err == nil {
 		out.Ceiling = ceiling
-		if s.flags != nil {
-			f, _ := featureflags.Lookup(askActionsFlag)
-			fctx := featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: tc.ActorID, OrganizationID: tc.OrganizationID, WorkspaceID: tc.WorkspaceID})
-			out.Enabled = s.flags.IsEnabled(fctx, askActionsFlag, f.Default)
-		}
+		out.Enabled = s.askActionsFlag(ctx, tc)
 	}
 	if requested == "" {
 		if m, err := s.q.GetUserAskUniMode(ctx, tc.ActorID); err == nil && m.Valid {

@@ -27,6 +27,14 @@ import (
 //	GET    /api/v1/orgs/{orgID}/ai/usage
 //	GET    /api/v1/orgs/{org}/ai/ask-models
 //	PUT    /api/v1/orgs/{org}/ai/ask-models
+//	GET    /api/v1/orgs/{org}/ai/ask-write-policy
+//	PUT    /api/v1/orgs/{org}/ai/ask-write-policy
+//	POST   /api/v1/ai/proposals/{proposalID}/apply
+//	POST   /api/v1/ai/proposals/{proposalID}/reject
+//	POST   /api/v1/ai/proposals/{proposalID}/undo
+//	PATCH  /api/v1/ai/proposals/{proposalID}
+//	POST   /api/v1/ai/conversations/{conversationID}/messages/{messageID}/proposals/apply
+//	POST   /api/v1/ai/conversations/{conversationID}/messages/{messageID}/document
 func registerAI(r api, h Routes) {
 	r.Get("/workspaces/{workspaceID}/ai/capabilities", h.AiCapabilities, apiOp{
 		summary:     "AI capabilities",
@@ -161,5 +169,77 @@ func registerAI(r api, h Routes) {
 		tags:        []string{"ai"},
 		sdo:         sdo.AiUsageSDO{},
 		auth:        true,
+	})
+	r.Get("/orgs/{org}/ai/ask-write-policy", h.GetOrgAskWritePolicy, apiOp{
+		summary: "Ask UNI write ceiling of an organization",
+		description: "Trần chế độ ghi của Hỏi UNI trong tổ chức (off, ask, plan, auto); chưa đặt thì plan. Thành viên tổ chức. " +
+			"Cờ ask_uni_actions tắt thì 403 ai_actions_disabled, như mọi route hành động của Hỏi UNI.",
+		tags: []string{"ai"},
+		sdo:  sdo.AskWritePolicySDO{},
+		auth: true,
+	})
+	r.Put("/orgs/{org}/ai/ask-write-policy", h.SetOrgAskWritePolicy, apiOp{
+		summary: "Set the Ask UNI write ceiling of an organization",
+		description: "Owner/admin tổ chức đặt trần: off (UNI không đề xuất gì), ask, plan hoặc auto; giá trị khác -> 400, thành viên thường -> 403. " +
+			"Chế độ của mỗi lượt và mỗi lần áp dụng bị hạ xuống trần này. Không đổi gì thì không ghi audit; có đổi thì ghi organization.ask_uni_write_policy_changed. " +
+			"Cờ ask_uni_actions tắt thì 403 ai_actions_disabled.",
+		tags: []string{"ai"},
+		sdi:  sdi.AskWritePolicySDI{},
+		sdo:  sdo.AskWritePolicySDO{},
+		auth: true,
+	})
+	r.Post("/ai/proposals/{proposalID}/apply", h.ApplyAiProposal, apiOp{
+		summary: "Apply an Ask UNI proposal",
+		description: "Áp dụng một dòng đề xuất của chính người hỏi (nút Áp dụng): chạy lệnh nghiệp vụ như người hỏi, ghi audit ai_proposal.applied. Bấm hai lần chỉ chạy một lần. " +
+			"Dòng của người khác hoặc không có -> 404 (không lộ dòng có tồn tại). Dòng không còn pending 409 proposal_not_pending, quá 24 giờ 409 proposal_expired, trỏ tới dòng chưa áp dụng 409 proposal_ref_pending, " +
+			"cờ ask_uni_actions tắt hoặc trần off 403 ai_actions_disabled, quá 30 dòng mỗi phút 429 ai_write_rate_limited. " +
+			"Lệnh chạy nhưng bị từ chối (not_found, invalid_args, revision_conflict, lỗi của lệnh…) thì dòng thành failed và route trả 409 với mã đó, kèm chính dòng trong error.fields.proposal; " +
+			"khác với các từ chối trên, vốn không kèm dòng. Thành công trả 200 và dòng.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiProposalDTO{},
+		auth: true,
+	})
+	r.Post("/ai/proposals/{proposalID}/reject", h.RejectAiProposal, apiOp{
+		summary:     "Reject an Ask UNI proposal",
+		description: "Bỏ qua một dòng pending của chính người hỏi: pending → rejected, ghi audit ai_proposal.rejected. Dòng của người khác -> 404; không còn pending -> 409 proposal_not_pending; cờ tắt -> 403 ai_actions_disabled.",
+		tags:        []string{"ai"},
+		sdo:         sdo.AiProposalDTO{},
+		auth:        true,
+	})
+	r.Post("/ai/proposals/{proposalID}/undo", h.UndoAiProposal, apiOp{
+		summary: "Undo an applied Ask UNI proposal",
+		description: "Hoàn tác một dòng đã áp dụng và còn lệnh ngược; mỗi dòng hoàn tác một lần. Đối tượng đã bị sửa sau đó thì 409 undo_unavailable và dòng giữ nguyên applied; " +
+			"dòng không applied 409 proposal_not_pending. Ghi audit ai_proposal.undone. Dòng của người khác -> 404; cờ tắt -> 403 ai_actions_disabled.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiProposalDTO{},
+		auth: true,
+	})
+	r.Patch("/ai/proposals/{proposalID}", h.EditAiProposal, apiOp{
+		summary: "Edit an Ask UNI proposal",
+		description: "Sửa một dòng pending của chính người hỏi: changes ghép vào tham số rồi kiểm lại như một lần gọi mới (xem trước, mức và revision được dựng lại); trả dòng mới. " +
+			"Sửa bị từ chối thì không đổi gì (400 invalid_request). Không ghi audit: dòng là sổ sách AI cho tới khi áp dụng. Dòng của người khác -> 404; không còn pending / quá hạn -> 409; cờ tắt -> 403 ai_actions_disabled.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiProposalEditSDI{},
+		sdo:  sdo.AiProposalDTO{},
+		auth: true,
+	})
+	r.Post("/ai/conversations/{conversationID}/messages/{messageID}/proposals/apply", h.ApplyAiMessageProposals, apiOp{
+		summary: "Apply several Ask UNI proposals of an answer",
+		description: "Áp dụng các dòng được chọn của một câu trả lời (Áp dụng tất cả, hoặc duyệt kế hoạch), theo position; dừng ở dòng lỗi đầu tiên, các dòng chọn sau nó giữ pending. " +
+			"Chế độ Kế hoạch: dòng pending không được chọn chuyển rejected trong cùng lần gọi. Một dòng chọn trỏ tới dòng chưa chọn và chưa áp dụng thì 409 proposal_ref_pending trước khi chạy gì. " +
+			"proposal_ids rỗng hoặc quá 10 -> 400; id không thuộc câu trả lời của chính người hỏi -> 404. Thành công trả mọi dòng của câu trả lời. " +
+			"Dừng vì lệnh bị từ chối thì 409 với mã của dòng lỗi, kèm mọi dòng của câu trả lời trong error.fields.proposals.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiApplyProposalsSDI{},
+		sdo:  sdo.AiProposalListSDO{},
+		auth: true,
+	})
+	r.Post("/ai/conversations/{conversationID}/messages/{messageID}/document", h.SaveAiAnswerDocument, apiOp{
+		summary: "Save an Ask UNI answer as a document",
+		description: "Tạo tài liệu (trang riêng tư ở gốc) từ câu trả lời đã lưu của chính người hỏi: [S#] thành liên kết nội bộ, tiêu đề là tên hội thoại. Chạy như một dòng applied của tin đó (decision answer, position 0) và có Hoàn tác. " +
+			"Một tin chỉ tạo một lần: lần hai trả dòng đã có. Tin không phải câu trả lời của trợ lý, hoặc của người khác -> 404; cờ tắt -> 403 ai_actions_disabled; lệnh bị từ chối -> 409 như apply, kèm dòng.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiProposalDTO{},
+		auth: true,
 	})
 }

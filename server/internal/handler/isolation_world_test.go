@@ -1121,6 +1121,22 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		tn.ids["aiUniworkRun"], tn.orgID, tn.ids["aiUniworkConversation"], tn.userID); err != nil {
 		t.Fatalf("uniwork ai run: %v", err)
 	}
+	// Two Ask UNI proposals of the tenant under its seeded answer, as the agent
+	// loop's store writes them (R3): a rejected one, which every proposal route
+	// reads without changing (so a route's own-rows control answers 409
+	// proposal_not_pending, which proves it reached the row), and a pending one
+	// for the body-id control, which applies it.
+	for i, row := range []struct{ key, status string }{{"aiProposal", "rejected"}, {"aiProposalPending", "pending"}} {
+		tn.ids[row.key] = util.NewID()
+		if _, err := w.pool.Exec(ctx, `INSERT INTO agent_action_proposals
+			(id, organization_id, workspace_id, source, run_id, conversation_id, message_id, position, action_type,
+			 target_kind, payload, preview, risk_level, mode, status, expires_at, created_by, created_by_kind)
+			VALUES ($1, $2, $3, 'ask_uni', $4, $5, $6, $7, 'create_task', 'task', $8, '{}', 'l1', 'ask', $9, now() + interval '24 hours', $10, 'human')`,
+			tn.ids[row.key], tn.orgID, tn.wsID, util.NewID(), tn.ids["conversation"], tn.ids["aiAnswer"], i+1,
+			fmt.Sprintf(`{"title":"%s proposal"}`, m), row.status, tn.userID); err != nil {
+			t.Fatalf("ask uni proposal %s: %v", row.key, err)
+		}
+	}
 }
 
 // buildWorkspaceAliases leaves an old task prefix and an old slug on record and

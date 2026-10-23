@@ -644,6 +644,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "fileMessage")
 		}
 		return tn.get(t, "message")
+	case "{proposalID}":
+		return tn.get(t, "aiProposal")
 	case "{followUpID}":
 		return tn.get(t, "followUp")
 	case "{sessionID}":

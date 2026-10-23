@@ -61,6 +61,8 @@ func writeAskEvent(sw *sseWriter, ev service.AskEvent) {
 		sw.event("sources", sdo.AskStreamSourcesDTO{Sources: citationDTOs(ev.Sources)})
 	case "delta":
 		sw.event("delta", sdo.AskStreamDeltaDTO{Text: ev.Delta})
+	case "proposal":
+		sw.event("proposal", sdo.AskStreamProposalDTO{Proposals: aiProposalDTOs(ev.Proposals)})
 	case "citations":
 		sw.event("citations", sdo.AskStreamCitationsDTO{Citations: citationDTOs(ev.Citations)})
 	case "followups":
