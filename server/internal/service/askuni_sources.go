@@ -109,11 +109,33 @@ func (s *AskUNIService) Sources(ctx context.Context, in ai.SourceQuery) ([]ai.So
 	for _, src := range out {
 		seen[src.Href] = true
 	}
+	scoped := len(out)
 	for _, src := range found {
 		if !seen[src.Href] {
 			out = append(out, src)
 			seen[src.Href] = true
 		}
+	}
+	return withFoundMeetingRecord(out, scoped, func(id string) ([]ai.Source, error) { return s.meetingContext(ctx, tc, id) })
+}
+
+// withFoundMeetingRecord swaps the best meeting hit from out[from:] for its
+// record (UNI-1995 #17): the hit quotes the summary alone, so "which items,
+// who owns them?" had no answer. One meeting only, through the scoped reader,
+// so its gates apply unchanged; a gate that refuses the record keeps the hit.
+func withFoundMeetingRecord(out []ai.Source, from int, read func(meetingID string) ([]ai.Source, error)) ([]ai.Source, error) {
+	for i := from; i < len(out); i++ {
+		if out[i].Kind != "meeting" {
+			continue
+		}
+		rec, err := read(out[i].Href[strings.LastIndex(out[i].Href, "/")+1:])
+		if err != nil && !isGateRefusal(err) { // meeting_ai_restricted wraps ErrForbidden
+			return nil, err
+		}
+		if len(rec) == 1 {
+			out[i] = rec[0]
+		}
+		break
 	}
 	return out, nil
 }
@@ -557,7 +579,7 @@ func (s *AskUNIService) meetingContext(ctx context.Context, tc ai.ToolContext, m
 	if err != nil {
 		return nil, err
 	}
-	excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", statusLabel(viMeetingStatus, m.Status), m.StartsAt.Time.Format(time.RFC3339), m.Description)
+	excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s", statusLabel(viMeetingStatus, m.Status), m.StartsAt.Time.Format(time.RFC3339))
 	sum, err := s.meetings.Summary(ctx, tc.ActorID, meetingID)
 	if codedIs(err, "meeting_ai_restricted") {
 		sum, err = nil, nil // the meeting's items stay; its summary is for the people of the meeting
@@ -572,7 +594,11 @@ func (s *AskUNIService) meetingContext(ctx context.Context, tc ai.ToolContext, m
 	if record != "" {
 		excerpt += "\n" + record
 	}
-	return []ai.Source{{Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt}}, nil
+	// The description goes last: a long one must not push the record out.
+	if d := strings.TrimSpace(m.Description); d != "" {
+		excerpt += "\nMô tả: " + d
+	}
+	return []ai.Source{{Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt, MaxRunes: ai.MaxRecordExcerpt}}, nil
 }
 
 // memberContext lists names and roles only. Email and phone never enter a

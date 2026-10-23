@@ -128,4 +128,25 @@ describe("MeetingAskBox", () => {
     expect(await screen.findByText("Demo vào thứ Sáu [S1].")).toBeInTheDocument();
     expect(screen.getByTestId("meeting-ask-live")).toHaveTextContent("");
   });
+
+  it("lists each source once under the answer, however often the answer cites it (UNI-1995 #23)", async () => {
+    const cite = (source_id: string, title: string, quote: string) => ({ source_id, kind: "meeting", title, quote, href: `/o/w/meetings/${source_id}` });
+    const cited = {
+      ...answer.message,
+      content: "Ba việc [S2][S2][S1][S2].",
+      citations: [cite("S2", "Giao ban", "a"), cite("S2", "Giao ban", "b"), cite("S1", "Họp quý", "c"), cite("S2", "Giao ban", "d")],
+    };
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/ai/capabilities")) return Promise.resolve({ enabled: true, ask_uni: true });
+      if (p.endsWith("/ai/ask")) return Promise.resolve({ conversation_id: "c1", message: cited });
+      if (p.endsWith("/ai/conversations/c1/messages")) return Promise.resolve({ messages: [cited] });
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingAskBox workspaceId="w1" meetingId="m1" canShare={false} />));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Câu hỏi cho UNI về cuộc họp này" }), { target: { value: "Việc gì?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    const list = await screen.findByRole("list", { name: "Nguồn" });
+    expect(Array.from(list.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["[S2]Giao ban", "[S1]Họp quý"]);
+  });
 });
