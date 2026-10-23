@@ -15,6 +15,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/files/filescontract"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -69,7 +70,10 @@ func TestChatMediaRegistrySpecsMatchChatCaps(t *testing.T) {
 	if attach.Scope != files.ScopeOrgWorkspaceOptional {
 		t.Fatalf("chat_attachment scope = %s, want org_workspace_optional", attach.Scope)
 	}
-	for _, mime := range []string{"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/plain"} {
+	for _, mime := range []string{
+		"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf",
+		"text/plain", "text/csv", "text/markdown",
+	} {
 		if !attach.Policy.Allows(mime) {
 			t.Fatalf("chat_attachment allowlist is missing %q", mime)
 		}
@@ -451,6 +455,65 @@ func TestOpenChatFileMessageStreamsVerifiedBytes(t *testing.T) {
 	}
 	if reader.File.ContentType != "application/pdf" {
 		t.Fatalf("verified content type = %q", reader.File.ContentType)
+	}
+}
+
+func chatFileContractSample(t *testing.T, name string) filescontract.Sample {
+	t.Helper()
+	for _, s := range filescontract.Samples() {
+		if s.Name == name {
+			return s
+		}
+	}
+	t.Fatalf("no filescontract sample %q", name)
+	return filescontract.Sample{}
+}
+
+// UNI-1741: csv/md upload through FileService must hydrate and open, not 404.
+func TestSendFileMessageCSVIsReadableFS(t *testing.T) {
+	testSendFileMessageTextContractSampleIsReadableFS(t, "csv")
+}
+
+func TestSendFileMessageMarkdownIsReadableFS(t *testing.T) {
+	testSendFileMessageTextContractSampleIsReadableFS(t, "markdown")
+}
+
+func testSendFileMessageTextContractSampleIsReadableFS(t *testing.T, sampleName string) {
+	t.Helper()
+	sample := chatFileContractSample(t, sampleName)
+	s, _, q, ua, ub, w := chatFixtureFiles(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+	row, err := s.SendFileMessage(ctx, ua.ID, w.ID, dm.ID, SendFileMessageInput{
+		Filename: sample.Filename, Body: bytes.NewReader(sample.Body), ClientMsgID: "fs-" + sampleName + "-1",
+	})
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if row.File == nil || row.File.ContentType != sample.ContentType {
+		t.Fatalf("row file = %#v, want content_type %q", row.File, sample.ContentType)
+	}
+
+	got, reader, err := s.OpenChatFileMessage(ctx, ub.ID, w.ID, dm.ID, row.ID, false)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer reader.Close()
+	data, err := io.ReadAll(reader.Body)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if !bytes.Equal(data, sample.Body) {
+		t.Fatalf("streamed %d bytes, want %d", len(data), len(sample.Body))
+	}
+	if got.File == nil || got.File.ContentType != sample.ContentType {
+		t.Fatalf("open row file = %#v", got.File)
 	}
 }
 
