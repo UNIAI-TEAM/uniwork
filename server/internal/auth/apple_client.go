@@ -33,8 +33,11 @@ type AppleClient struct {
 
 // NewAppleClient parses the PEM (PKCS #8, as Apple's .p8 downloads are);
 // a value pasted into an env file with literal \n line breaks is accepted.
-// baseURL is AppleIssuer in production.
+// baseURL is AppleIssuer in production. The ids are trimmed: a Secret built
+// from a file often ends them in a newline, and a kid or iss carrying one
+// makes Apple refuse every client secret (APNs trims its own the same way).
 func NewAppleClient(teamID, keyID, privateKeyPEM, baseURL string) (*AppleClient, error) {
+	teamID, keyID = strings.TrimSpace(teamID), strings.TrimSpace(keyID)
 	if teamID == "" || keyID == "" || privateKeyPEM == "" {
 		return nil, errors.New("apple client: team id, key id and private key are required")
 	}

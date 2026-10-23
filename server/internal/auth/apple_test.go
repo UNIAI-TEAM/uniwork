@@ -237,8 +237,23 @@ func TestAppleClientRefusesAKeyItCannotSignWith(t *testing.T) {
 // as written, real line breaks and a trailing newline included.
 func TestAppleClientTakesThePEMAsTheSecretFileCarriesIt(t *testing.T) {
 	p8, _ := testP8(t)
-	if _, err := NewAppleClient("XJAM488A6D", "KEY123", p8+"\n", AppleIssuer); err != nil {
+	c, err := NewAppleClient("XJAM488A6D\n", "KEY123\n", p8+"\n", AppleIssuer)
+	if err != nil {
 		t.Fatalf("multi-line PEM: %v", err)
+	}
+	// A key id file written with echo ends in a newline; the client secret
+	// must still name the bare ids, or Apple refuses it.
+	secret, err := c.clientSecret("com.uniworkos.chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok, _, err := jwt.NewParser().ParseUnverified(secret, &jwt.RegisteredClaims{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	iss, _ := tok.Claims.GetIssuer()
+	if tok.Header["kid"] != "KEY123" || iss != "XJAM488A6D" {
+		t.Fatalf("kid %q, iss %q; want the trimmed ids", tok.Header["kid"], iss)
 	}
 }
 
