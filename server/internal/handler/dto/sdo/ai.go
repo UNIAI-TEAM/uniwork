@@ -101,7 +101,7 @@ type AiMessageDTO struct {
 	Model     string            `json:"model" description:"Model người hỏi chọn cho câu trả lời (haiku, sonnet, opus); rỗng khi là Tự động" example:"opus"`
 	// Attachments is filled by the list of messages only; the stored answer an
 	// ask or a done event returns is not the question, so it carries none.
-	Attachments []AiAttachmentDTO `json:"attachments" description:"File câu hỏi đã gắn, theo thứ tự gắn; chỉ có trên tin nhắn của người hỏi trong danh sách tin nhắn, rỗng ở mọi tin nhắn khác (kể cả câu trả lời trong done)"`
+	Attachments []AiAttachmentDTO `json:"attachments" description:"File câu hỏi đã gắn, theo thứ tự gắn; chỉ có trên tin nhắn của người hỏi trong danh sách tin nhắn, rỗng ở mọi tin nhắn khác (kể cả câu trả lời trong done)" example:"[{\"id\":\"01K4AIATT0000000000000001\",\"name\":\"bao-cao-quy-3.pdf\",\"mime\":\"application/pdf\",\"size\":184320,\"kind\":\"pdf\"}]"`
 	// FileNotes is stored on the answer; a question carries none.
 	FileNotes []AiFileNoteDTO `json:"file_notes" description:"Trên câu trả lời: các file của lượt hỏi UNI chỉ đọc một phần (vì vượt phần token dành cho file), theo thứ tự đọc; rỗng khi đọc đủ, khi không có file và ở tin nhắn của người hỏi" example:"[{\"name\":\"bao-cao-quy-3.pdf\",\"unit\":\"page\",\"read\":15,\"total\":80}]"`
 	CreatedAt string          `json:"created_at" example:"2026-09-06T08:00:00Z"`

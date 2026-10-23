@@ -576,33 +576,6 @@ func (q *Queries) AiLatestRate(ctx context.Context, arg AiLatestRateParams) (AiM
 	return i, err
 }
 
-const aiListAttachmentFileIDs = `-- name: AiListAttachmentFileIDs :many
-SELECT file_id FROM ai_attachments
-WHERE file_id = ANY($1::text[])
-`
-
-// tenant: system
-// The collector's question: which of these files an Ask UNI question still carries.
-func (q *Queries) AiListAttachmentFileIDs(ctx context.Context, fileIds []string) ([]string, error) {
-	rows, err := q.db.Query(ctx, aiListAttachmentFileIDs, fileIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var file_id string
-		if err := rows.Scan(&file_id); err != nil {
-			return nil, err
-		}
-		items = append(items, file_id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const aiListAttachmentsForMessages = `-- name: AiListAttachmentsForMessages :many
 SELECT id, organization_id, workspace_id, user_id, conversation_id, message_id, file_id, name, mime, size_bytes, kind, created_at FROM ai_attachments
 WHERE organization_id = $1
@@ -1048,6 +1021,33 @@ func (q *Queries) AiUsageByDay(ctx context.Context, arg AiUsageByDayParams) ([]A
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAiAttachmentFileIDs = `-- name: ListAiAttachmentFileIDs :many
+SELECT file_id FROM ai_attachments
+WHERE file_id = ANY($1::text[])
+`
+
+// tenant: system
+// The collector's question: which of these files an Ask UNI question still carries.
+func (q *Queries) ListAiAttachmentFileIDs(ctx context.Context, fileIds []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listAiAttachmentFileIDs, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var file_id string
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

@@ -349,7 +349,7 @@ func (s *AskUNIService) attachAskFiles(ctx context.Context, q *db.Queries, orgID
 	// ClaimInTx attaches a file a question already holds again, which is how
 	// other modules stay safe to retry; here a file belongs to one question, so
 	// the second of two that raced past the check is refused.
-	held, err := q.AiListAttachmentFileIDs(ctx, raw)
+	held, err := q.ListAiAttachmentFileIDs(ctx, raw)
 	if err != nil {
 		return err
 	}

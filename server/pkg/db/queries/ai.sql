@@ -196,7 +196,7 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND conversation_id = sqlc.arg('conversation_id')
 RETURNING file_id;
 
--- name: AiListAttachmentFileIDs :many
+-- name: ListAiAttachmentFileIDs :many
 -- tenant: system
 -- The collector's question: which of these files an Ask UNI question still carries.
 SELECT file_id FROM ai_attachments

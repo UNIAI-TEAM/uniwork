@@ -24,7 +24,7 @@ func (AskUniAttachmentProvider) HeldBy(ctx context.Context, q *db.Queries, ids [
 	if len(ids) == 0 {
 		return out, nil
 	}
-	held, err := q.AiListAttachmentFileIDs(ctx, fileIDStrings(ids))
+	held, err := q.ListAiAttachmentFileIDs(ctx, fileIDStrings(ids))
 	if err != nil {
 		return nil, err
 	}
