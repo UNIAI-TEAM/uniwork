@@ -79,3 +79,86 @@ func TestAuditResourcesOnlyBy(t *testing.T) {
 		t.Fatalf("got %v, want only %s", got, mine)
 	}
 }
+
+func newPendingProposal(t *testing.T, s *TaskService, orgID, wsID, userID string) db.AgentActionProposal {
+	t.Helper()
+	row, err := s.q.AiInsertProposal(context.Background(), db.AiInsertProposalParams{
+		ID: util.NewID(), OrganizationID: orgID, WorkspaceID: wsID,
+		Source: "ask_uni", RunID: util.NewID(),
+		MessageID: pgtype.Text{String: util.NewID(), Valid: true}, Position: 1,
+		ActionType: "task.create", TargetKind: "task", Payload: "{}", Preview: "{}",
+		RiskLevel: "l1", Mode: "ask", Status: "pending",
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
+		CreatedBy: userID, CreatedByKind: "human",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return row
+}
+
+func TestProposalSettleKeepsDecisionAndGuardsState(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	txt := func(v string) pgtype.Text { return pgtype.Text{String: v, Valid: true} }
+	row := newPendingProposal(t, s, w.OrganizationID, w.ID, ua.ID)
+	step := func(from, to string) {
+		t.Helper()
+		if _, err := s.q.AiClaimProposal(ctx, db.AiClaimProposalParams{ID: row.ID, OrganizationID: w.OrganizationID, FromStatus: from, ToStatus: to}); err != nil {
+			t.Fatalf("claim %s->%s: %v", from, to, err)
+		}
+	}
+
+	// A draft edit is refused once the row is no longer pending.
+	step("pending", "applying")
+	if _, err := s.q.AiUpdateProposalDraft(ctx, db.AiUpdateProposalDraftParams{
+		ID: row.ID, OrganizationID: w.OrganizationID, Payload: "x", Preview: "x", RiskLevel: "l2",
+	}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("draft on non-pending: err = %v, want pgx.ErrNoRows", err)
+	}
+
+	// Wrong from_status changes nothing.
+	if _, err := s.q.AiSettleProposalApply(ctx, db.AiSettleProposalApplyParams{
+		ID: row.ID, OrganizationID: w.OrganizationID, FromStatus: "pending", Status: "applied",
+		Result: `{"a":1}`, DecidedBy: txt(ub.ID),
+	}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("wrong from_status: err = %v, want pgx.ErrNoRows", err)
+	}
+
+	applied, err := s.q.AiSettleProposalApply(ctx, db.AiSettleProposalApplyParams{
+		ID: row.ID, OrganizationID: w.OrganizationID, FromStatus: "applying", Status: "applied",
+		Result: `{"id":"t1"}`, Undo: txt(`{"op":"delete"}`), Decision: txt("confirmed"), DecidedBy: txt(ua.ID),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if applied.DecidedBy.String != ua.ID || !applied.AppliedAt.Valid || !applied.DecidedAt.Valid || applied.Decision.String != "confirmed" {
+		t.Fatalf("apply settle: %+v", applied)
+	}
+
+	// Undo rollback (undoing -> applied) keeps applied_at, result and undo.
+	step("applied", "undoing")
+	back, err := s.q.AiSettleProposalUndo(ctx, db.AiSettleProposalUndoParams{
+		ID: row.ID, OrganizationID: w.OrganizationID, FromStatus: "undoing", Status: "applied", Error: txt("undo_unavailable"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Status != "applied" || !back.AppliedAt.Time.Equal(applied.AppliedAt.Time) ||
+		back.Undo.String != applied.Undo.String || back.Result != applied.Result || back.UndoneAt.Valid {
+		t.Fatalf("rollback changed the row: %+v", back)
+	}
+
+	// Undo settle (undoing -> undone) keeps the deciding person and sets undone_by.
+	step("applied", "undoing")
+	undone, err := s.q.AiSettleProposalUndo(ctx, db.AiSettleProposalUndoParams{
+		ID: row.ID, OrganizationID: w.OrganizationID, FromStatus: "undoing", Status: "undone", UndoneBy: txt(ub.ID),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if undone.DecidedBy.String != ua.ID || undone.UndoneBy.String != ub.ID || !undone.UndoneAt.Valid ||
+		!undone.AppliedAt.Time.Equal(applied.AppliedAt.Time) || undone.Result != applied.Result || undone.Undo.String != applied.Undo.String {
+		t.Fatalf("undo settle: %+v", undone)
+	}
+}

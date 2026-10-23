@@ -318,24 +318,23 @@ func (q *Queries) AiListProposalsForMessages(ctx context.Context, arg AiListProp
 	return items, nil
 }
 
-const aiSettleProposal = `-- name: AiSettleProposal :one
+const aiSettleProposalApply = `-- name: AiSettleProposalApply :one
 UPDATE agent_action_proposals SET
   status = $1,
   result = $2,
   undo = $3,
   error = $4,
-  decision = COALESCE($5, decision),
-  decided_by = COALESCE($6, decided_by),
-  decided_at = CASE WHEN $6::text IS NULL THEN decided_at ELSE COALESCE(decided_at, now()) END,
+  decision = $5,
+  decided_by = $6,
+  decided_at = now(),
   applied_at = CASE WHEN $1 = 'applied' THEN now() ELSE applied_at END,
-  undone_by = CASE WHEN $1 = 'undone' THEN $6 ELSE undone_by END,
-  undone_at = CASE WHEN $1 = 'undone' THEN now() ELSE undone_at END,
   updated_at = now()
 WHERE id = $7 AND organization_id = $8
+  AND status = $9
 RETURNING id, organization_id, workspace_id, source, run_id, agent_id, conversation_id, message_id, position, action_type, target_kind, target_id, payload, preview, risk_level, mode, tainted, target_revision, status, decision, result, undo, error, decided_by, decided_at, applied_at, undone_by, undone_at, expires_at, created_by, created_by_kind, created_at, updated_at
 `
 
-type AiSettleProposalParams struct {
+type AiSettleProposalApplyParams struct {
 	Status         string      `json:"status"`
 	Result         string      `json:"result"`
 	Undo           pgtype.Text `json:"undo"`
@@ -344,10 +343,13 @@ type AiSettleProposalParams struct {
 	DecidedBy      pgtype.Text `json:"decided_by"`
 	ID             string      `json:"id"`
 	OrganizationID string      `json:"organization_id"`
+	FromStatus     string      `json:"from_status"`
 }
 
-func (q *Queries) AiSettleProposal(ctx context.Context, arg AiSettleProposalParams) (AgentActionProposal, error) {
-	row := q.db.QueryRow(ctx, aiSettleProposal,
+// Apply path: applying -> applied | failed, and pending -> rejected. Guarded by
+// from_status so a settle never clobbers a row in another state.
+func (q *Queries) AiSettleProposalApply(ctx context.Context, arg AiSettleProposalApplyParams) (AgentActionProposal, error) {
+	row := q.db.QueryRow(ctx, aiSettleProposalApply,
 		arg.Status,
 		arg.Result,
 		arg.Undo,
@@ -356,6 +358,78 @@ func (q *Queries) AiSettleProposal(ctx context.Context, arg AiSettleProposalPara
 		arg.DecidedBy,
 		arg.ID,
 		arg.OrganizationID,
+		arg.FromStatus,
+	)
+	var i AgentActionProposal
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.Source,
+		&i.RunID,
+		&i.AgentID,
+		&i.ConversationID,
+		&i.MessageID,
+		&i.Position,
+		&i.ActionType,
+		&i.TargetKind,
+		&i.TargetID,
+		&i.Payload,
+		&i.Preview,
+		&i.RiskLevel,
+		&i.Mode,
+		&i.Tainted,
+		&i.TargetRevision,
+		&i.Status,
+		&i.Decision,
+		&i.Result,
+		&i.Undo,
+		&i.Error,
+		&i.DecidedBy,
+		&i.DecidedAt,
+		&i.AppliedAt,
+		&i.UndoneBy,
+		&i.UndoneAt,
+		&i.ExpiresAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const aiSettleProposalUndo = `-- name: AiSettleProposalUndo :one
+UPDATE agent_action_proposals SET
+  status = $1,
+  error = $2,
+  undone_by = CASE WHEN $1 = 'undone' THEN $3::text ELSE undone_by END,
+  undone_at = CASE WHEN $1 = 'undone' THEN now() ELSE undone_at END,
+  updated_at = now()
+WHERE id = $4 AND organization_id = $5
+  AND status = $6
+RETURNING id, organization_id, workspace_id, source, run_id, agent_id, conversation_id, message_id, position, action_type, target_kind, target_id, payload, preview, risk_level, mode, tainted, target_revision, status, decision, result, undo, error, decided_by, decided_at, applied_at, undone_by, undone_at, expires_at, created_by, created_by_kind, created_at, updated_at
+`
+
+type AiSettleProposalUndoParams struct {
+	Status         string      `json:"status"`
+	Error          pgtype.Text `json:"error"`
+	UndoneBy       pgtype.Text `json:"undone_by"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	FromStatus     string      `json:"from_status"`
+}
+
+// Undo path: undoing -> undone | applied. Never touches result, undo, decided_*
+// or applied_at, so a rollback keeps the undo command and the original apply.
+func (q *Queries) AiSettleProposalUndo(ctx context.Context, arg AiSettleProposalUndoParams) (AgentActionProposal, error) {
+	row := q.db.QueryRow(ctx, aiSettleProposalUndo,
+		arg.Status,
+		arg.Error,
+		arg.UndoneBy,
+		arg.ID,
+		arg.OrganizationID,
+		arg.FromStatus,
 	)
 	var i AgentActionProposal
 	err := row.Scan(

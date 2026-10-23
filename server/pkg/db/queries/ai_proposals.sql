@@ -27,20 +27,34 @@ WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
   AND status = sqlc.arg(from_status)
 RETURNING *;
 
--- name: AiSettleProposal :one
+-- name: AiSettleProposalApply :one
+-- Apply path: applying -> applied | failed, and pending -> rejected. Guarded by
+-- from_status so a settle never clobbers a row in another state.
 UPDATE agent_action_proposals SET
   status = sqlc.arg(status),
   result = sqlc.arg(result),
   undo = sqlc.narg(undo),
   error = sqlc.narg(error),
-  decision = COALESCE(sqlc.narg(decision), decision),
-  decided_by = COALESCE(sqlc.narg(decided_by), decided_by),
-  decided_at = CASE WHEN sqlc.narg(decided_by)::text IS NULL THEN decided_at ELSE COALESCE(decided_at, now()) END,
+  decision = sqlc.narg(decision),
+  decided_by = sqlc.arg(decided_by),
+  decided_at = now(),
   applied_at = CASE WHEN sqlc.arg(status) = 'applied' THEN now() ELSE applied_at END,
-  undone_by = CASE WHEN sqlc.arg(status) = 'undone' THEN sqlc.narg(decided_by) ELSE undone_by END,
+  updated_at = now()
+WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
+  AND status = sqlc.arg(from_status)
+RETURNING *;
+
+-- name: AiSettleProposalUndo :one
+-- Undo path: undoing -> undone | applied. Never touches result, undo, decided_*
+-- or applied_at, so a rollback keeps the undo command and the original apply.
+UPDATE agent_action_proposals SET
+  status = sqlc.arg(status),
+  error = sqlc.narg(error),
+  undone_by = CASE WHEN sqlc.arg(status) = 'undone' THEN sqlc.narg(undone_by)::text ELSE undone_by END,
   undone_at = CASE WHEN sqlc.arg(status) = 'undone' THEN now() ELSE undone_at END,
   updated_at = now()
 WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
+  AND status = sqlc.arg(from_status)
 RETURNING *;
 
 -- name: AiUpdateProposalDraft :one
