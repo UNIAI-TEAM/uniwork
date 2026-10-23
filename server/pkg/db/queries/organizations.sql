@@ -240,6 +240,9 @@ RETURNING id, mobile_app_lock_required_at, mobile_screen_capture_blocked_at;
 -- name: GetOrganizationAskWriteCeiling :one
 SELECT ask_uni_write_ceiling FROM organizations WHERE id = $1;
 
+-- name: GetOrganizationAskWriteCeilingForUpdate :one
+SELECT ask_uni_write_ceiling FROM organizations WHERE id = $1 FOR UPDATE;
+
 -- name: SetOrganizationAskWriteCeiling :exec
 UPDATE organizations SET
   ask_uni_write_ceiling = sqlc.arg(ceiling)::text,

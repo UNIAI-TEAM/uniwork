@@ -136,9 +136,15 @@ func (s *AskUNIService) SetAskWritePolicy(ctx context.Context, actorID, orgID, c
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	before, err := s.askCeiling(ctx, orgID)
+	// The old value is read under the row lock, so two admins cannot both
+	// record the same "from" in the append-only audit table.
+	stored, err := q.GetOrganizationAskWriteCeilingForUpdate(ctx, orgID)
 	if err != nil {
 		return "", err
+	}
+	before := AskModePlan
+	if stored.Valid && stored.String != "" {
+		before = stored.String
 	}
 	if before != ceiling {
 		if err := q.SetOrganizationAskWriteCeiling(ctx, db.SetOrganizationAskWriteCeilingParams{Ceiling: ceiling, ActorID: actorID, ID: orgID}); err != nil {

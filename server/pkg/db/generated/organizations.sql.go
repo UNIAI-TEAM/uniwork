@@ -289,6 +289,17 @@ func (q *Queries) GetOrganizationAskWriteCeiling(ctx context.Context, id string)
 	return ask_uni_write_ceiling, err
 }
 
+const getOrganizationAskWriteCeilingForUpdate = `-- name: GetOrganizationAskWriteCeilingForUpdate :one
+SELECT ask_uni_write_ceiling FROM organizations WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetOrganizationAskWriteCeilingForUpdate(ctx context.Context, id string) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getOrganizationAskWriteCeilingForUpdate, id)
+	var ask_uni_write_ceiling pgtype.Text
+	err := row.Scan(&ask_uni_write_ceiling)
+	return ask_uni_write_ceiling, err
+}
+
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by, ask_uni_write_ceiling, ask_uni_write_ceiling_updated_by, ask_uni_write_ceiling_updated_at FROM organizations WHERE id = $1
 `

@@ -106,19 +106,54 @@ func TestSetAskWritePolicyNeedsAnAdminAndAudits(t *testing.T) {
 	if got, err := s.SetAskWritePolicy(ctx, ua.ID, org, "auto"); err != nil || got != "auto" {
 		t.Fatalf("owner: %q %v", got, err)
 	}
-	var from, to, by string
-	var by2 pgtype.Text
+	var from, to string
+	var by pgtype.Text
 	if err := s.pool.QueryRow(ctx, `SELECT changes::jsonb->'ask_uni_write_ceiling'->>'from', changes::jsonb->'ask_uni_write_ceiling'->>'to' FROM audit_events WHERE organization_id = $1 AND action = 'organization.ask_uni_write_policy_changed'`, org).Scan(&from, &to); err != nil {
 		t.Fatal(err)
 	}
 	if from != "plan" || to != "auto" {
 		t.Fatalf("audit from/to %q/%q, want plan/auto", from, to)
 	}
-	if err := s.pool.QueryRow(ctx, `SELECT ask_uni_write_ceiling_updated_by FROM organizations WHERE id = $1`, org).Scan(&by2); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT ask_uni_write_ceiling_updated_by FROM organizations WHERE id = $1`, org).Scan(&by); err != nil {
 		t.Fatal(err)
 	}
-	by = by2.String
-	if by != ua.ID {
-		t.Fatalf("updated_by %q, want %q", by, ua.ID)
+	if by.String != ua.ID {
+		t.Fatalf("updated_by %q, want %q", by.String, ua.ID)
+	}
+	if _, err := s.SetAskWritePolicy(ctx, ua.ID, org, "auto"); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'organization.ask_uni_write_policy_changed'`, org).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("the same value again left %d audit rows (err %v), want 1", n, err)
+	}
+}
+
+// The 31st apply in a minute is refused with its own code; a closed gate
+// never spends the budget.
+func TestAskWriteGateBudget(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	s.SetFlags(actionsFlagFake{on: true})
+	tc := ai.ToolContext{ActorID: ua.ID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
+	for i := 1; i <= askWriteBudget; i++ {
+		if why := s.askWriteGate(ctx, tc).Refusal(ctx); why != "" {
+			t.Fatalf("apply %d refused: %q", i, why)
+		}
+	}
+	if why := s.askWriteGate(ctx, tc).Refusal(ctx); why != "ai_write_rate_limited" {
+		t.Fatalf("apply 31: %q, want ai_write_rate_limited", why)
+	}
+
+	other := ai.ToolContext{ActorID: "u-closed", OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
+	s.SetFlags(actionsFlagFake{on: false})
+	for i := 0; i < askWriteBudget+5; i++ {
+		if why := s.askWriteGate(ctx, other).Refusal(ctx); why != "ai_actions_disabled" {
+			t.Fatalf("closed gate: %q", why)
+		}
+	}
+	s.SetFlags(actionsFlagFake{on: true})
+	if why := s.askWriteGate(ctx, other).Refusal(ctx); why != "" {
+		t.Fatalf("a closed gate spent the budget: %q", why)
 	}
 }
