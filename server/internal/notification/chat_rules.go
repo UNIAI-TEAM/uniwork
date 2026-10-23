@@ -17,7 +17,8 @@ import (
 // delivery: a message deleted, or a recipient who left the room, since the
 // send gets nothing, and no message text is stored (titles name the sender
 // and the room only). The group key is the room - the thread for replies -
-// so unread messages merge into one row and one push.
+// so unread messages merge into one row; each still pushes, and the phone
+// groups the pushes by that key (Consumer.write, UNI-2141).
 func chatMessageRule(kind string) rule {
 	return func(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
 		userID, roomID, msgID := p["user_id"], p["room_id"], p["message_id"]

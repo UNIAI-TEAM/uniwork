@@ -53,7 +53,8 @@ const (
 	// params carry ids only.
 	KindDocumentBreakGlass = "document_break_glass"
 	// Chat (H1): one row per room or thread while unread, so a burst of
-	// messages is one notification and one push.
+	// messages is one inbox notification; each message still pushes, grouped
+	// on the phone by the row's group key (UNI-2141).
 	KindChatMentioned     = "chat_mentioned"
 	KindChatDM            = "chat_dm"
 	KindChatThreadReplied = "chat_thread_replied"

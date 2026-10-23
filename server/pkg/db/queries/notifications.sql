@@ -248,6 +248,21 @@ UPDATE notifications SET pushed_at = COALESCE(pushed_at, now()), phone_pushed_at
 WHERE id = $1
 RETURNING (read_at IS NOT NULL)::bool AS read;
 
+-- name: MarkChatNotificationPushed :one
+-- tenant: system
+-- MarkNotificationPushed for one message of a chat row (UNI-2141): every
+-- message of a room pushes, so the row remembers the newest message sent
+-- (pushed_message_id never moves back). phone_pushed_at is when a phone last
+-- ALERTED for the row: a quiet follow-up inside the alert window leaves it,
+-- so the window runs from the sound the person heard. Like
+-- MarkNotificationPhonePushed, it answers whether the row was read meanwhile.
+UPDATE notifications SET
+  pushed_at = COALESCE(pushed_at, now()),
+  pushed_message_id = GREATEST(COALESCE(pushed_message_id, ''), sqlc.arg('message_id')::text),
+  phone_pushed_at = CASE WHEN sqlc.arg('phone_alerted')::bool THEN now() ELSE phone_pushed_at END
+WHERE id = sqlc.arg('id')
+RETURNING (read_at IS NOT NULL)::bool AS read;
+
 -- name: ListDigestCandidateUsers :many
 -- tenant: system
 SELECT DISTINCT n.user_id FROM notifications n

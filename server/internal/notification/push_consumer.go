@@ -61,6 +61,18 @@ type PresenceChecker interface {
 // unnotified (audit "Calls, push & background", chat-push-swallowed).
 const pushActiveWindow = 45 * time.Second
 
+// chatAlertWindow: every chat message pushes (UNI-2141), but a burst in one
+// room (or thread) alerts once. A push that follows, within this long, the
+// last one a phone alerted for in the same open row shows quietly — no sound,
+// no vibration — and the next one after it alerts again, so a long exchange
+// still sounds about twice a minute rather than going silent. 30 seconds
+// holds the burst of one person typing several lines (a few seconds apart)
+// to one alert, while a reply that comes after a pause — someone answering
+// a question — sounds. It is shorter than pushActiveWindow, so a person who
+// put the phone away mid-conversation is not left silent for long, and a read
+// closes the row, so the first message after reading always alerts.
+const chatAlertWindow = 30 * time.Second
+
 // readingRoom says whether the recipient has a visible page that beat within
 // pushActiveWindow somewhere this room's messages show. A channel shows in its
 // own workspace only. A DM or group belongs to the organization and shows in
@@ -176,8 +188,20 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if err != nil {
 		return err
 	}
-	if n.PushedAt.Valid || n.ReadAt.Valid {
-		return nil // already delivered, or read on another device before the push went out
+	// A chat push names its message (Consumer.write): each message of an open
+	// row pushes once, newest wins. A row without one was written before
+	// pushes went per message and keeps the once-per-row rule.
+	messageID := ""
+	if isChatPushKind(n.Kind) {
+		messageID = p["message_id"]
+	}
+	switch {
+	case n.ReadAt.Valid:
+		return nil // read on another device before the push went out
+	case messageID != "" && n.PushedMessageID.Valid && n.PushedMessageID.String >= messageID:
+		return nil // this message already went out, or a newer one of the row did
+	case messageID == "" && n.PushedAt.Valid:
+		return nil // already delivered
 	}
 	// A ring the lane reaches after it stopped ringing is not worth a phone
 	// call, and its row is closed so the inbox does not keep "đang gọi".
@@ -201,7 +225,11 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if isChatPushKind(n.Kind) {
 		// The preview is read at delivery, so a message deleted in the
 		// meantime sends nothing.
-		chatMsg, err = c.q.GetChatMessageByID(ctx, n.ResourceID)
+		id := n.ResourceID
+		if messageID != "" {
+			id = messageID
+		}
+		chatMsg, err = c.q.GetChatMessageByID(ctx, id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return c.q.MarkNotificationPushed(ctx, n.ID)
 		}
@@ -236,6 +264,11 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		if n.Kind == KindChatDM && chatMsg.Kind == "voice_call_log" {
 			// Only an unanswered DM call notifies its log (ChatService.finalizeVoiceCall).
 			c.missedCall(&msg, user.Locale, params, n, chatMsg)
+		} else if messageID != "" {
+			msg.Quiet = c.chatQuiet(n)
+			if n.Count > 1 {
+				msg.Chat.Unread, msg.Chat.Summary = int(n.Count), chatUnreadSummary(user.Locale, int(n.Count))
+			}
 		}
 		// The row is in hand, so the link is built here instead of letting
 		// ResourceURL read it a second time.
@@ -310,10 +343,38 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if failed != nil {
 		return failed
 	}
+	if messageID != "" {
+		return c.markChatPushed(ctx, n, chatMsg, subs, messageID, phoneSent, phoneSent && !msg.Quiet)
+	}
 	if !phoneSent {
 		return c.q.MarkNotificationPushed(ctx, n.ID)
 	}
 	return c.markPhonePushed(ctx, n, chatMsg, subs)
+}
+
+// chatQuiet: a phone alerted for this row less than chatAlertWindow ago
+// (phone_pushed_at is the last alert, markChatPushed), so this message of the
+// same burst comes without a sound. A missed call is never quiet.
+func (c *PushConsumer) chatQuiet(n db.Notification) bool {
+	return n.PhonePushedAt.Valid && c.now().Sub(n.PhonePushedAt.Time) < chatAlertWindow
+}
+
+// markChatPushed records that messageID of a chat row went out, and when a
+// phone alerted for it, the start of the row's next alert window. A read that
+// closed the row while this push was on its way is answered as
+// markPhonePushed does: the room's notifications come out of the Android tray
+// again, since this one may have landed after the read's own room_read push.
+func (c *PushConsumer) markChatPushed(
+	ctx context.Context, n db.Notification, chatMsg db.ChatMessage, subs []db.PushSubscription, messageID string, phoneSent, alerted bool,
+) error {
+	read, err := c.q.MarkChatNotificationPushed(ctx, db.MarkChatNotificationPushedParams{ID: n.ID, MessageID: messageID, PhoneAlerted: alerted})
+	if err != nil {
+		return err
+	}
+	if !phoneSent || !read || (n.Kind != KindChatDM && n.Kind != KindChatMentioned) {
+		return nil // a thread reply is not closed by reading the room
+	}
+	return c.clearRoomTray(ctx, n, chatMsg, subs)
 }
 
 // markPhonePushed records that a phone was shown n, the mark a room read looks
@@ -328,6 +389,12 @@ func (c *PushConsumer) markPhonePushed(ctx context.Context, n db.Notification, c
 	if !read || (n.Kind != KindChatDM && n.Kind != KindChatMentioned) {
 		return nil // a thread reply or a call is not closed by reading the room
 	}
+	return c.clearRoomTray(ctx, n, chatMsg, subs)
+}
+
+// clearRoomTray sends the room_read push for chatMsg's room to the person's
+// Android phones with the call UI.
+func (c *PushConsumer) clearRoomTray(ctx context.Context, n db.Notification, chatMsg db.ChatMessage, subs []db.PushSubscription) error {
 	msg := PushMessage{TTL: roomClearedTTL, Cleared: RoomCleared{RoomID: chatMsg.RoomID, WorkspaceID: chatMsg.WorkspaceID}}
 	if c.badges != nil {
 		msg.Badge = c.unreadBadge(ctx, n.UserID)

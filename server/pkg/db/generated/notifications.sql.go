@@ -163,7 +163,7 @@ func (q *Queries) CountUnreadNotificationsByWorkspace(ctx context.Context, userI
 }
 
 const getNotification = `-- name: GetNotification :one
-SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at FROM notifications WHERE id = $1
+SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id FROM notifications WHERE id = $1
 `
 
 // tenant: system
@@ -192,6 +192,7 @@ func (q *Queries) GetNotification(ctx context.Context, id string) (Notification,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PhonePushedAt,
+		&i.PushedMessageID,
 	)
 	return i, err
 }
@@ -676,7 +677,7 @@ func (q *Queries) ListNotificationPreferencesByUsers(ctx context.Context, userId
 }
 
 const listNotifications = `-- name: ListNotifications :many
-SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at FROM notifications
+SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id FROM notifications
 WHERE user_id = $1
   AND archived_at IS NULL
   AND ($2::text IS NULL OR workspace_id = $2::text)
@@ -733,6 +734,7 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PhonePushedAt,
+			&i.PushedMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -745,7 +747,7 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 }
 
 const listUndigestedNotifications = `-- name: ListUndigestedNotifications :many
-SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at FROM notifications
+SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id FROM notifications
 WHERE user_id = $1 AND digested_at IS NULL AND read_at IS NULL AND archived_at IS NULL AND created_at > $2
 ORDER BY workspace_id NULLS FIRST, kind, created_at DESC
 `
@@ -787,6 +789,7 @@ func (q *Queries) ListUndigestedNotifications(ctx context.Context, arg ListUndig
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PhonePushedAt,
+			&i.PushedMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -829,6 +832,35 @@ func (q *Queries) MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotif
 		return nil, err
 	}
 	return items, nil
+}
+
+const markChatNotificationPushed = `-- name: MarkChatNotificationPushed :one
+UPDATE notifications SET
+  pushed_at = COALESCE(pushed_at, now()),
+  pushed_message_id = GREATEST(COALESCE(pushed_message_id, ''), $1::text),
+  phone_pushed_at = CASE WHEN $2::bool THEN now() ELSE phone_pushed_at END
+WHERE id = $3
+RETURNING (read_at IS NOT NULL)::bool AS read
+`
+
+type MarkChatNotificationPushedParams struct {
+	MessageID    string `json:"message_id"`
+	PhoneAlerted bool   `json:"phone_alerted"`
+	ID           string `json:"id"`
+}
+
+// tenant: system
+// MarkNotificationPushed for one message of a chat row (UNI-2141): every
+// message of a room pushes, so the row remembers the newest message sent
+// (pushed_message_id never moves back). phone_pushed_at is when a phone last
+// ALERTED for the row: a quiet follow-up inside the alert window leaves it,
+// so the window runs from the sound the person heard. Like
+// MarkNotificationPhonePushed, it answers whether the row was read meanwhile.
+func (q *Queries) MarkChatNotificationPushed(ctx context.Context, arg MarkChatNotificationPushedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, markChatNotificationPushed, arg.MessageID, arg.PhoneAlerted, arg.ID)
+	var read bool
+	err := row.Scan(&read)
+	return read, err
 }
 
 const markNotificationGroupsRead = `-- name: MarkNotificationGroupsRead :exec
@@ -1031,7 +1063,7 @@ DO UPDATE SET
   actor_id = EXCLUDED.actor_id,
   correlation_id = EXCLUDED.correlation_id,
   updated_at = now()
-RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at
+RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id
 `
 
 type UpsertNotificationParams struct {
@@ -1095,6 +1127,7 @@ func (q *Queries) UpsertNotification(ctx context.Context, arg UpsertNotification
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PhonePushedAt,
+		&i.PushedMessageID,
 	)
 	return i, err
 }
@@ -1144,7 +1177,7 @@ DO UPDATE SET
   actor_id = EXCLUDED.actor_id,
   correlation_id = EXCLUDED.correlation_id,
   updated_at = now()
-RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at
+RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id
 `
 
 type UpsertNotificationsForUsersParams struct {
@@ -1212,6 +1245,7 @@ func (q *Queries) UpsertNotificationsForUsers(ctx context.Context, arg UpsertNot
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PhonePushedAt,
+			&i.PushedMessageID,
 		); err != nil {
 			return nil, err
 		}

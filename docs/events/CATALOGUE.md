@@ -144,7 +144,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `member.removed` | 1 | `organization_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `member.role_changed` | 1 | `organization_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `notification.created` | 1 | `notification_id`, `user_id` | — | user | outbox |
-| `notification.push` | 1 | `notification_id`, `user_id` | — | - | outbox |
+| `notification.push` | 1 | `notification_id`, `user_id`, `message_id` | — | - | outbox |
 | `organization.created` | 1 | `organization_id` | — | user | outbox |
 | `organization.updated` | 1 | `organization_id` | — | user | outbox |
 | `organization.suspended` | 1 | `organization_id`, `user_id` | — | user | outbox |

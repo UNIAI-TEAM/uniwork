@@ -3,6 +3,7 @@ package notification
 import (
 	"encoding/json"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -56,6 +57,26 @@ func hiddenPushTitle(locale, kind, channel string) string {
 		return title
 	}
 	return titles[""]
+}
+
+// chatUnreadSummaries say how many messages a chat row holds, after the
+// title of an Android push that replaced the room's earlier ones.
+var chatUnreadSummaries = map[string]string{
+	"vi": "{{count}} tin nhắn mới",
+	"en": "{{count}} new messages",
+}
+
+// chatUnreadSummary is that line in locale (en when unknown); "" for a
+// single message.
+func chatUnreadSummary(locale string, count int) string {
+	if count < 2 {
+		return ""
+	}
+	s, ok := chatUnreadSummaries[locale]
+	if !ok {
+		s = chatUnreadSummaries["en"]
+	}
+	return strings.ReplaceAll(s, "{{count}}", strconv.Itoa(count))
 }
 
 var (
