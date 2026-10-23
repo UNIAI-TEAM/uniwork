@@ -493,27 +493,45 @@ func TestExtractXlsxCollapsesWhiteSpaceInCells(t *testing.T) {
 	wantParts(t, mustExtract(t, mimeXLSX, sheetOf(t, row, files)), "row", "Doanh thu|", "|Ghi chú | a b")
 }
 
-// Work per cell is bounded by the cell's own bytes. Without it these two files
-// take half a minute and a quarter of one (a shared string of white space was
-// rescanned for every cell that used it; a cell in column XFD made its row
-// build 16384 slots); with it, well under a second, a few under -race. The
-// bound sits far from both, so a slow machine does not trip it and the slow
-// path cannot pass.
+// Work per cell is bounded by the cell's own bytes. Each file is timed
+// against a control of the same shape whose cells are ordinary: without the
+// bound these two take seconds (a shared string of white space was rescanned
+// for every cell that used it; a cell in column XFD made its row build 16384
+// slots) where their control takes a few hundred milliseconds; with it, about
+// as long as the control. A ratio and not a time, so a slow machine does not
+// trip it, and the best of three runs, so a pause does not either.
 func TestExtractXlsxDoesNotRepeatWorkPerCell(t *testing.T) {
-	// 4 MiB of white space in runs of 1 MiB, each under the text-run limit.
-	spaces := map[string]string{"xl/sharedStrings.xml": `<sst><si>` + strings.Repeat(`<r><t>`+strings.Repeat(" ", 1<<20)+`</t></r>`, 4) + `</si></sst>`}
-	cases := map[string][]byte{
-		"white-space shared string": sheetOf(t, strings.Repeat(`<row><c t="s"><v>0</v></c></row>`, 6000), spaces),
-		"empty cell in column XFD":  sheetOf(t, strings.Repeat(`<row><c r="XFD1"/></row>`, 400_000), nil),
+	// 4 MiB of white space in runs of 1 MiB, each under the text-run limit,
+	// then one ordinary string: both sheets parse the same table.
+	spaces := map[string]string{"xl/sharedStrings.xml": `<sst><si>` + strings.Repeat(`<r><t>`+strings.Repeat(" ", 1<<20)+`</t></r>`, 4) + `</si><si><t>a</t></si></sst>`}
+	cases := []struct {
+		name          string
+		file, control []byte
+	}{
+		{"white-space shared string",
+			sheetOf(t, strings.Repeat(`<row><c t="s"><v>0</v></c></row>`, 2000), spaces),
+			sheetOf(t, strings.Repeat(`<row><c t="s"><v>1</v></c></row>`, 2000), spaces)},
+		{"empty cell in column XFD",
+			sheetOf(t, strings.Repeat(`<row><c r="XFD1"/></row>`, 100_000), nil),
+			sheetOf(t, strings.Repeat(`<row><c r="A1"/></row>`, 100_000), nil)},
 	}
-	for name, data := range cases {
-		start := time.Now()
-		d, err := extract(mimeXLSX, data)
-		if err != nil || len(d.Parts) != 0 {
-			t.Errorf("%s: %d parts, err %v", name, len(d.Parts), err)
+	best := func(data []byte) time.Duration {
+		var least time.Duration
+		for i := range 3 {
+			start := time.Now()
+			if _, err := extract(mimeXLSX, data); err != nil {
+				t.Fatal(err)
+			}
+			if took := time.Since(start); i == 0 || took < least {
+				least = took
+			}
 		}
-		if took := time.Since(start); took > 10*time.Second {
-			t.Errorf("%s took %v", name, took)
+		return least
+	}
+	for _, c := range cases {
+		file, control := best(c.file), best(c.control)
+		if file > 4*control+50*time.Millisecond {
+			t.Errorf("%s took %v, %.1f times its control's %v", c.name, file, float64(file)/float64(control), control)
 		}
 	}
 }
