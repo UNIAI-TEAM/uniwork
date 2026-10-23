@@ -186,3 +186,9 @@ WHERE user_id = $1;
 
 -- name: RevokeAllPushSubscriptionsForUser :exec
 UPDATE push_subscriptions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL;
+
+-- name: GetUserAskUniMode :one
+SELECT ask_uni_mode FROM users WHERE id = $1;
+
+-- name: SetUserAskUniMode :exec
+UPDATE users SET ask_uni_mode = sqlc.narg(mode)::text, updated_at = now() WHERE id = sqlc.arg(id);

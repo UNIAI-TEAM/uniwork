@@ -236,3 +236,14 @@ UPDATE organizations SET
   updated_at = now()
 WHERE id = sqlc.arg(id)
 RETURNING id, mobile_app_lock_required_at, mobile_screen_capture_blocked_at;
+
+-- name: GetOrganizationAskWriteCeiling :one
+SELECT ask_uni_write_ceiling FROM organizations WHERE id = $1;
+
+-- name: SetOrganizationAskWriteCeiling :exec
+UPDATE organizations SET
+  ask_uni_write_ceiling = sqlc.arg(ceiling)::text,
+  ask_uni_write_ceiling_updated_by = sqlc.arg(actor_id)::text,
+  ask_uni_write_ceiling_updated_at = now(),
+  updated_at = now()
+WHERE id = sqlc.arg(id);

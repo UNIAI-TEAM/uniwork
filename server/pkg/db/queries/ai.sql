@@ -68,8 +68,8 @@ GROUP BY 1, 2, 3, 4
 ORDER BY 1, 2, 3, 4;
 
 -- name: AiCreateConversation :one
-INSERT INTO ai_conversations (id, organization_id, workspace_id, user_id, title)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO ai_conversations (id, organization_id, workspace_id, user_id, title, taint_tracked)
+VALUES ($1, $2, $3, $4, $5, true)
 RETURNING *;
 
 -- name: AiGetConversation :one
@@ -201,3 +201,7 @@ RETURNING file_id;
 -- The collector's question: which of these files an Ask UNI question still carries.
 SELECT file_id FROM ai_attachments
 WHERE file_id = ANY(sqlc.arg('file_ids')::text[]);
+
+-- name: AiMarkConversationTainted :exec
+UPDATE ai_conversations SET tainted_at = COALESCE(tainted_at, now())
+WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id);

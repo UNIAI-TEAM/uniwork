@@ -154,3 +154,14 @@ FROM jsonb_to_recordset(sqlc.arg(rows)::jsonb) AS t(
   resource_type text, resource_id text, changes text, metadata text, correlation_id text,
   request_id text, ip_address text, user_agent text
 );
+
+-- name: AuditResourcesOnlyBy :many
+-- Resources of one type that have exactly one created_action row and whose
+-- every audit row was written by this human actor. Read-only.
+SELECT resource_id FROM audit_events
+WHERE organization_id = sqlc.arg(organization_id)
+  AND resource_type = sqlc.arg(resource_type)
+  AND resource_id = ANY(sqlc.arg(resource_ids)::text[])
+GROUP BY resource_id
+HAVING count(*) FILTER (WHERE action = sqlc.arg(created_action)) = 1
+   AND bool_and(actor_kind = 'human' AND actor_id = sqlc.arg(actor_id));
