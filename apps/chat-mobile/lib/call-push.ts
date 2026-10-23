@@ -1,5 +1,5 @@
 // The call pushes the server sends a phone (server notification/push_expo.go
-// › callData; docs/adr/drafts/0038): a ring ("call_invite"), its end
+// › callData; docs/adr/0038): a ring ("call_invite"), its end
 // ("call_end") and a missed DM call ("call_missed"). Android gets the ring and
 // its end as data-only messages that reach the app's background task
 // (data/calls/background.ts) and become its own ringing notification; an

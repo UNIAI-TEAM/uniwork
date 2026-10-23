@@ -33,6 +33,11 @@ jest.mock("@/data/sentry", () => ({ sentryNavigation: { registerNavigationContai
 // Started at import; each has its own test.
 jest.mock("@/data/boot", () => ({ bootRuntime: jest.fn() }));
 jest.mock("@/data/calls/call-wiring", () => ({ startNativeCalls: jest.fn() }));
+// The system's call UI (CallKit): the root layout hands it the URL opener an answered call's room goes through.
+jest.mock("@/data/calls/call-session", () => {
+  const started: { open: ((url: string) => void) | null } = { open: null };
+  return { started, startNativeCallSession: (open: (url: string) => void) => void (started.open = open) };
+});
 jest.mock("@/data/storage/native-device-store", () => ({ openNativeDeviceStore: jest.fn() }));
 jest.mock("@/data/query-persister", () => ({ installAccountCache: jest.fn(), createDevicePersister: jest.fn() }));
 jest.mock("@/data/app-startup", () => ({ startAppServices: jest.fn(), trackFirstScreen: jest.fn(), trackPushOpen: jest.fn() }));
@@ -151,6 +156,14 @@ describe("the root layout", () => {
     expect(takePendingDeepLink()).toBeNull();
     await act(async () => tap(notificationFor(`${APP_URL}/acme/hq/chat?room=r1`)));
     expect(takePendingDeepLink()).toMatchObject({ orgSlug: "acme", wsSlug: "hq", roomId: "r1" });
+  });
+
+  it("keeps the room of a call answered on CallKit's screen for after sign-in, as a notification tap's", async () => {
+    const { started } = jest.requireMock<{ started: { open: ((url: string) => void) | null } }>("@/data/calls/call-session");
+    await renderRoutes(ROUTES, "/");
+    await screen.findByTestId("login");
+    await act(async () => started.open?.(`${authConfig.scheme}://open?url=${encodeURIComponent("/acme/hq/chat?room=r1&call=c1")}`));
+    expect(takePendingDeepLink()).toMatchObject({ orgSlug: "acme", wsSlug: "hq", roomId: "r1", callId: "c1" });
   });
 
   it("opens the room a notification tap names for a signed-in person", async () => {

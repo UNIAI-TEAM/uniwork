@@ -62,10 +62,12 @@ function codeSigning(projectRoot: string, env: AppEnv): Pick<NonNullable<ExpoCon
 
 /**
  * Calls on iPhone are a capability of the binary, not of a server switch (Apple 2.5.4 and 2.3.1, audit
- * "ios-dormant-calls-bg-audio"): the `audio` background mode is declared only by a build that can place a call a
- * reviewer can try, and a binary built without it never shows calling, whatever unichat_mobile_calls_ios says
- * (data/remote-config.ts › setBuildLacks). UNICHAT_IOS_CALLS=1 turns it on, and only once the call module ships its iOS
- * half (CallKit and PushKit, docs/adr/drafts/0038): asked for before that, the config refuses to build.
+ * "ios-dormant-calls-bg-audio"): the `audio` and `voip` background modes are declared only by a build that can place a
+ * call a reviewer can try, and a binary built without them never shows calling, whatever unichat_mobile_calls_ios says
+ * (data/remote-config.ts › setBuildLacks). UNICHAT_IOS_CALLS=1 turns it on, and only where the call module ships its
+ * iOS half (CallKit and PushKit, docs/adr/0038): asked for without it, the config refuses to build. The module's call
+ * center starts only in a build that declares `voip` (ios/CallCenter.swift), so a build without the variable registers
+ * no VoIP token and reports nothing to CallKit.
  */
 export function iosCallsBuilt(projectRoot: string): boolean {
   if (process.env.UNICHAT_IOS_CALLS !== "1") return false;
@@ -305,10 +307,11 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       entitlements: { "com.apple.developer.usernotifications.time-sensitive": true },
       // HTTPS, WSS and WebRTC only: exempt encryption, so TestFlight does not hold every build on the export question.
       config: { usesNonExemptEncryption: false },
-      // A call keeps its audio when the person switches app or locks the phone, in a build that has calls
-      // (iosCallsBuilt); without them the binary declares no background mode a reviewer could not exercise.
+      // A build that has calls (iosCallsBuilt): `voip` for PushKit's pushes, which CallKit rings on a locked phone or a
+      // closed app, and `audio` so the call keeps its sound when the person switches app or locks the phone. Without
+      // calls the binary declares no background mode a reviewer could not exercise.
       // Vietnamese is the base language (the usage strings below are written in it; `locales.en` translates them).
-      infoPlist: { ...(iosCalls ? { UIBackgroundModes: ["audio"] } : {}), CFBundleDevelopmentRegion: "vi" },
+      infoPlist: { ...(iosCalls ? { UIBackgroundModes: ["audio", "voip"] } : {}), CFBundleDevelopmentRegion: "vi" },
       privacyManifests: IOS_PRIVACY_MANIFEST,
     },
     android: {
@@ -450,9 +453,10 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       "./plugins/with-android-backup-rules",
       // TLS pinning of the API, web and LiveKit hosts on every staging and production build (tlsPinning, tls-pins.json).
       ...(pinning ? [["./plugins/with-tls-pins", pinning] as [string, typeof pinning]] : []),
-      // Native calls on Android (docs/adr/drafts/0038, modules/unichat-calls): the
-      // ringing screen's full-screen intent, the call's foreground service
-      // (phoneCall, microphone, camera), Bluetooth audio and the Decline / Hang up actions.
+      // Native calls (docs/adr/0038, modules/unichat-calls). Android: the ringing
+      // screen's full-screen intent, the call's foreground service (phoneCall,
+      // microphone, camera), Bluetooth audio and the Decline / Hang up actions.
+      // iOS: the `audio` and `voip` background modes of a build with calls only.
       ["./plugins/with-unichat-calls", { iosCalls }],
       // Crash reporting: uploads source maps and native symbols from the EAS
       // build. Organization, project and token come from the build's

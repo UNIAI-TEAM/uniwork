@@ -196,6 +196,27 @@ describe("api client", () => {
     await expect(api.getMe()).rejects.toBe(bug);
   });
 
+  // docs/adr/0038: PushKit's token is a subscription of its own. The answer's shape is never read, so a drifted body
+  // (or none) leaves registration done; only an error status rejects (data/push.ts logs it and goes on).
+  it("posts an iPhone's VoIP token with its transport, APNs environment and bundle id, whatever the body says back", async () => {
+    const voip = {
+      endpoint: "ab12",
+      keys: { p256dh: "", auth: "" },
+      platform: "ios",
+      transport: "apns_voip" as const,
+      apns_environment: "sandbox",
+      apns_bundle_id: "com.uniworkos.chat.dev",
+    };
+    fetchMock.mockResolvedValueOnce(json(200, { subscription: 42, endpoint: null }));
+    await api.subscribePush(voip);
+    fetchMock.mockResolvedValueOnce(json(200, ["drifted"]));
+    await api.subscribePush(voip);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await api.subscribePush(voip);
+    const [first] = calls();
+    expect(JSON.parse(String(first?.init.body))).toEqual(voip);
+  });
+
   it("posts and deletes push subscriptions with the Expo token and platform; 204 is fine", async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await api.subscribePush({ endpoint: "ExponentPushToken[x]", keys: { p256dh: "", auth: "" }, platform: "ios" });

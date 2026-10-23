@@ -4,17 +4,20 @@
 // here — our microphone off (the other side hears silence, not our phone call) and every other participant at zero
 // volume (RemoteParticipant.setVolume, which a track subscribed meanwhile keeps), someone who joins meanwhile too.
 // The line given back, the others are heard again and the microphone comes back only if it was on. The call screen
-// says so (call-room.tsx).
+// says so (call-room.tsx). On iPhone CallKit holds the call itself when a phone call is answered over it (docs/adr/0038)
+// and says so through the same session: the same hold applies.
 import { ConnectionState, RoomEvent, type RemoteParticipant, type Room } from "livekit-client";
 import { useEffect, useState } from "react";
-import { nativeCalls } from "@/data/calls/native-calls";
+import { nativeCallSession } from "@/data/calls/native-call-session";
 import { bestEffort } from "@/data/report";
 
-/** Whether the phone's own call has the line now; false where nothing watches it (iOS, before Android 12). */
+/** Whether the phone's own call has the line now; false where nothing watches it (before Android 12, iOS without CallKit). */
 function useCallHeld(): boolean {
-  const [held, setHeld] = useState(() => nativeCalls.isCallHeld());
+  const [held, setHeld] = useState(() => nativeCallSession.isHeld());
   useEffect(() => {
-    return nativeCalls.onCallHeld(setHeld);
+    return nativeCallSession.subscribe((event) => {
+      if (event.type === "held") setHeld(event.held);
+    });
   }, []);
   return held;
 }

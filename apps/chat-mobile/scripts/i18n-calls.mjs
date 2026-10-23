@@ -1,4 +1,4 @@
-// Native calls on Android (UNI-2053 S4, docs/adr/drafts/0038): the
+// Native calls on Android (UNI-2053 S4, docs/adr/0038): the
 // notification channels' names, the ringing and ongoing call notifications,
 // the call's audio output, the full-screen permission row and the rows that
 // let a call reach a closed app (battery, vendor autostart). Merged into

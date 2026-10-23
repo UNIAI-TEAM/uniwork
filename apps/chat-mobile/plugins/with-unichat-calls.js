@@ -1,5 +1,5 @@
 // Declares what modules/unichat-calls needs in the app's Android manifest
-// (docs/adr/drafts/0038), here rather than in the module's own manifest so
+// (docs/adr/0038), here rather than in the module's own manifest so
 // scripts/android-manifest.mjs and android-manifest.test.ts see it:
 //
 // - USE_FULL_SCREEN_INTENT: the ringing screen over a locked phone. Play
@@ -24,7 +24,10 @@
 // iOS: expo-task-manager (the Android data-only call push runs as one of its
 // tasks) adds the "fetch" background mode through Expo's automatic plugin.
 // UniChat never fetches in the background, and App Review asks about a mode
-// an app does not use, so it is taken out again; "audio" stays for calls.
+// an app does not use, so it is taken out again. A build with calls
+// (UNICHAT_IOS_CALLS=1) declares "voip" (PushKit's pushes, rung by CallKit:
+// ios/CallCenter.swift starts only when it is declared) and "audio" (the
+// call's sound behind the lock screen); any other build declares neither.
 const { AndroidConfig, withAndroidManifest, withInfoPlist } = require("expo/config-plugins");
 
 const PACKAGE = "expo.modules.unichatcalls";
@@ -77,20 +80,32 @@ const AUTOSTART_PACKAGES = [
   "com.asus.mobilemanager",
 ];
 
+/** The background modes only a build with calls declares. */
+const CALL_MODES = ["audio", "voip"];
+
 /**
- * iOS: no `fetch` (expo-task-manager adds it; UniChat does no background fetch), and no `audio` unless the build has
- * calls (app.config.ts › iosCallsBuilt): a library plugin that adds it for its own feature (expo-audio's background
- * playback) must not leave the binary declaring a mode the reviewer cannot exercise. An emptied list is removed.
- * `processing` stays: expo-background-task's, for the outbox's scheduled drain (data/outbox-drain/).
- * @type {import("expo/config-plugins").ConfigPlugin<{ iosCalls?: boolean } | void>}
+ * iOS: no `fetch` (expo-task-manager adds it; UniChat does no background fetch), and `audio` and `voip` exactly when
+ * the build has calls (app.config.ts › iosCallsBuilt): a library plugin that adds one for its own feature (expo-audio's
+ * background playback) must not leave the binary declaring a mode the reviewer cannot exercise, and a build with calls
+ * must declare both, or iOS neither delivers its VoIP pushes nor keeps its call audible. `processing` stays:
+ * expo-background-task's, for the outbox's scheduled drain (data/outbox-drain/). Undefined for an emptied list.
+ * @param {unknown} modes
+ * @param {boolean} iosCalls
+ * @returns {string[] | undefined}
  */
+function iosBackgroundModes(modes, iosCalls) {
+  const listed = Array.isArray(modes) ? modes.filter((mode) => typeof mode === "string") : [];
+  const kept = listed.filter((mode) => mode !== "fetch" && !CALL_MODES.includes(mode));
+  if (iosCalls) kept.push(...CALL_MODES);
+  return kept.length > 0 ? kept : undefined;
+}
+
+/** @type {import("expo/config-plugins").ConfigPlugin<{ iosCalls?: boolean } | void>} */
 const withUniChatCalls = (config, options) => {
   const iosCalls = options?.iosCalls === true;
   config = withInfoPlist(config, (mod) => {
-    const modes = mod.modResults.UIBackgroundModes;
-    if (!Array.isArray(modes)) return mod;
-    const kept = modes.filter((mode) => mode !== "fetch" && (iosCalls || mode !== "audio"));
-    if (kept.length > 0) mod.modResults.UIBackgroundModes = kept;
+    const modes = iosBackgroundModes(mod.modResults.UIBackgroundModes, iosCalls);
+    if (modes) mod.modResults.UIBackgroundModes = modes;
     else delete mod.modResults.UIBackgroundModes;
     return mod;
   });
@@ -117,3 +132,4 @@ const withUniChatCalls = (config, options) => {
 module.exports = withUniChatCalls;
 module.exports.MESSAGING_SERVICE = MESSAGING_SERVICE;
 module.exports.AUTOSTART_PACKAGES = AUTOSTART_PACKAGES;
+module.exports.iosBackgroundModes = iosBackgroundModes;

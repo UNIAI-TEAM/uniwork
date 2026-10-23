@@ -19,6 +19,7 @@ mỗi file dưới đây là một phần, sửa hành vi phần nào thì sửa
 | [navigation.md](navigation.md) | Deep link và phản hồi thông báo |
 | [chat.md](chat.md) | Tab Chat: key, cache, màn hình, file route |
 | [calls.md](calls.md) | Cuộc gọi, cuộc gọi native Android, kênh thông báo, push đổ chuông, kind giàu |
+| [calls-ios.md](calls-ios.md) | Cuộc gọi trên iPhone: PushKit, CallKit, token VoIP, `NativeCallSession` |
 | [performance.md](performance.md) | Model hàng, danh sách tái chế, timeline dài, cửa sổ trượt, ảnh, bundle |
 | [ux-a11y-i18n.md](ux-a11y-i18n.md) | Trình đọc màn hình, cảm giác, chuyển động, quy ước nền tảng, cỡ chữ, quyền, ngôn ngữ |
 | [testing-ci.md](testing-ci.md) | Lệnh, hai lớp test, sàn coverage, máy thật, `mobile-verify.yml` |
