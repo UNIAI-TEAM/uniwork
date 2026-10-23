@@ -906,8 +906,14 @@ func (s *AskUNIService) Messages(ctx context.Context, userID, conversationID str
 	return out, nil
 }
 
+// DeleteConversation drops a conversation with its messages, feedback and
+// files: a file lives as long as the conversation holds it, so the rows go and
+// the file store is told to release them in the same transaction (the bytes
+// are its collector's to remove). Deleting is not audited, like the rest of
+// the asker's private history.
 func (s *AskUNIService) DeleteConversation(ctx context.Context, userID, conversationID string) error {
-	if _, err := s.ownConversation(ctx, userID, conversationID, ""); err != nil {
+	conv, err := s.ownConversation(ctx, userID, conversationID, "")
+	if err != nil {
 		return err
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -920,6 +926,13 @@ func (s *AskUNIService) DeleteConversation(ctx context.Context, userID, conversa
 		return err
 	}
 	if err := q.AiDeleteConversationFeedback(ctx, conversationID); err != nil {
+		return err
+	}
+	fileIDs, err := q.AiDeleteConversationAttachments(ctx, db.AiDeleteConversationAttachmentsParams{OrganizationID: conv.OrganizationID, ConversationID: conversationID})
+	if err != nil {
+		return err
+	}
+	if err := s.releaseAskFiles(ctx, q, fileIDs); err != nil {
 		return err
 	}
 	if err := q.AiDeleteConversation(ctx, conversationID); err != nil {

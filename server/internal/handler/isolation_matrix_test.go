@@ -833,6 +833,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		if under("/email-hub/") {
 			return tn.get(t, "emailAttachment")
 		}
+		if under("/ai/attachments/") {
+			// The row a sent Ask UNI question holds its file by, not the
+			// upload's file id.
+			return tn.get(t, "aiAttachment")
+		}
 		return tn.get(t, "attachment")
 	case "{recordingID}":
 		if under("/voice/") {

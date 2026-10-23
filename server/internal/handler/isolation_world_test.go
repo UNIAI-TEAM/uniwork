@@ -932,6 +932,12 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 		tn.ids[key] = isoString(t, out, "file_id")
 	}
 	w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/ai/ask", tn.token, map[string]any{"question": m + " question about a file", "attachment_ids": []any{tn.ids["aiUploadSent"]}})
+	// The download route's own row: the id the question lists the file under.
+	var attachmentID string
+	if err := w.pool.QueryRow(context.Background(), `SELECT id FROM ai_attachments WHERE organization_id = $1 AND file_id = $2`, tn.orgID, tn.ids["aiUploadSent"]).Scan(&attachmentID); err != nil {
+		t.Fatalf("ai attachment row: %v", err)
+	}
+	tn.ids["aiAttachment"] = attachmentID
 	w.call(t, "PUT", "/api/v1/ai/conversations/"+tn.ids["conversation"]+"/messages/"+tn.ids["aiAnswer"]+"/feedback", tn.token, map[string]any{"rating": "up"}, http.StatusNoContent)
 }
 

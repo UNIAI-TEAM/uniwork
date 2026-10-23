@@ -441,6 +441,105 @@ func TestAskWithAttachmentsOverHTTP(t *testing.T) {
 	wantError(t, "a non-member", res, out, http.StatusForbidden, "ai_context_forbidden")
 }
 
+// getAskFile sends GET .../ai/attachments/{attachmentID}/content.
+func getAskFile(t *testing.T, srv *httptest.Server, token, wsID, attachmentID string) (*http.Response, []byte) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/workspaces/"+wsID+"/ai/attachments/"+attachmentID+"/content", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := readAll(res)
+	return res, raw
+}
+
+// A file a question carries downloads as an attachment, never sniffed and
+// never cached, by the id its message lists it under, and only for the asker:
+// everyone else, and every id that names no file of theirs, hears one 404.
+func TestDownloadAskAttachmentHeaders(t *testing.T) {
+	env := attachWorld(t)
+	ctx := context.Background()
+	srv, owner, wsID := env.srv, env.owner, env.wsID
+	pdf := sizedAskPDF(400)
+	res, out := postAskFile(t, srv, owner, wsID, "note.pdf", pdf, false)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("upload: %d %v", res.StatusCode, out)
+	}
+	fileID := out["file_id"].(string)
+	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", owner, map[string]any{"question": "tóm tắt", "attachment_ids": []string{fileID}})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("ask: %d %v", res.StatusCode, out)
+	}
+	convID := out["conversation_id"].(string)
+	_, out = doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+convID+"/messages", owner, nil)
+	atts := out["messages"].([]any)[0].(map[string]any)["attachments"].([]any)
+	if len(atts) != 1 {
+		t.Fatalf("the question carries %v, want one file", atts)
+	}
+	attID := atts[0].(map[string]any)["id"].(string)
+
+	res, body := getAskFile(t, srv, owner, wsID, attID)
+	if res.StatusCode != http.StatusOK || !bytes.Equal(body, pdf) {
+		t.Fatalf("download = %d with %d bytes, want 200 with the %d uploaded", res.StatusCode, len(body), len(pdf))
+	}
+	for header, want := range map[string]string{
+		"Content-Disposition":    `attachment; filename="note.pdf"`,
+		"X-Content-Type-Options": "nosniff",
+		"Cache-Control":          "private, no-store",
+		"Content-Type":           "application/pdf",
+		"Content-Length":         fmt.Sprint(len(pdf)),
+	} {
+		if got := res.Header.Get(header); got != want {
+			t.Errorf("%s = %q, want %q", header, got, want)
+		}
+	}
+
+	// One answer for every attachment that is not the caller's: another member
+	// of the workspace, another tenant's owner in their own workspace, the
+	// upload's file id (not the row's), a row that never was.
+	var orgID string
+	if err := env.pool.QueryRow(ctx, `SELECT organization_id FROM workspaces WHERE id = $1`, wsID).Scan(&orgID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.New(env.pool).AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsID, OrganizationID: orgID, UserID: env.memberID, Role: "member"}); err != nil {
+		t.Fatal(err)
+	}
+	otherOwner, otherWS := registerOrgWorkspace(t, srv, "askatt-dl-other@example.com", "Other", "askatt-dl-other")
+	res, want := getAskFile(t, srv, owner, wsID, "01J8X4NOSUCHATTACH000000000")
+	if res.StatusCode != http.StatusNotFound || !strings.Contains(string(want), `"not_found"`) {
+		t.Fatalf("unknown id = %d %s, want 404 not_found", res.StatusCode, want)
+	}
+	for name, tc := range map[string]struct{ token, wsID, id string }{
+		"another member":       {env.member, wsID, attID},
+		"another tenant":       {otherOwner, otherWS, attID},
+		"the upload's file id": {owner, wsID, fileID},
+	} {
+		res, got := getAskFile(t, srv, tc.token, tc.wsID, tc.id)
+		if res.StatusCode != http.StatusNotFound || !bytes.Equal(got, want) || strings.Contains(string(got), tc.id) {
+			t.Errorf("%s = %d %s, want the same 404 as an unknown id (%s)", name, res.StatusCode, got, want)
+		}
+	}
+
+	// The flags gate adding files, not taking back what was attached.
+	env.flags.on.Store(false)
+	if res, body := getAskFile(t, srv, owner, wsID, attID); res.StatusCode != http.StatusOK || !bytes.Equal(body, pdf) {
+		t.Errorf("download with the flags off = %d, want 200 with the file", res.StatusCode)
+	}
+	env.flags.on.Store(true)
+
+	// The file goes with its conversation.
+	if res, _ := doJSON(t, srv, "DELETE", "/api/v1/ai/conversations/"+convID, owner, nil); res.StatusCode != http.StatusOK {
+		t.Fatalf("delete conversation = %d, want 200", res.StatusCode)
+	}
+	if res, got := getAskFile(t, srv, owner, wsID, attID); res.StatusCode != http.StatusNotFound || !bytes.Equal(got, want) {
+		t.Errorf("download after the conversation was deleted = %d %s, want the 404 of an unknown id", res.StatusCode, got)
+	}
+}
+
 // equalJSON is whether two decoded bodies are the same.
 func equalJSON(a, b map[string]any) bool {
 	x, _ := json.Marshal(a)

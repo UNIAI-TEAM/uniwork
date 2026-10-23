@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -140,6 +141,56 @@ func (s *AskUNIService) CancelAttachment(ctx context.Context, userID, workspaceI
 		Actor: Human(userID), Scope: files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}, FileID: files.FileID(fileID),
 	})
 	return askFileError(err)
+}
+
+// OpenAttachment streams a file a sent question of the asker's carries, by the
+// ai_attachments id the message listed it under. Another person's file,
+// another workspace's, another tenant's and an id that names nothing are one
+// bare ErrNotFound. Only membership and ownership gate it, not the flags: what
+// a person attached stays theirs to download after files are switched off.
+func (s *AskUNIService) OpenAttachment(ctx context.Context, userID, workspaceID, attachmentID string) (files.Reader, AskAttachment, error) {
+	w, err := s.requireMember(ctx, userID, workspaceID)
+	if err != nil {
+		return files.Reader{}, AskAttachment{}, err
+	}
+	if s.files == nil {
+		return files.Reader{}, AskAttachment{}, ErrNotFound
+	}
+	row, err := s.q.AiGetUserAttachment(ctx, db.AiGetUserAttachmentParams{
+		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, UserID: userID, ID: attachmentID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return files.Reader{}, AskAttachment{}, ErrNotFound
+	}
+	if err != nil {
+		return files.Reader{}, AskAttachment{}, err
+	}
+	r, err := s.files.Open(ctx, files.OpenInput{
+		Scope: files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}, FileID: files.FileID(row.FileID),
+	})
+	if err != nil {
+		return files.Reader{}, AskAttachment{}, askFileError(err)
+	}
+	return r, askAttachmentRow(row), nil
+}
+
+// releaseAskFiles tells the file store that no question holds these files any
+// more, in the transaction that removed their rows. One id can come back more
+// than once; the store sees it once. Without a file store the rows cannot go:
+// their files would stay claimed for good.
+func (s *AskUNIService) releaseAskFiles(ctx context.Context, q *db.Queries, fileIDs []string) error {
+	if len(fileIDs) == 0 {
+		return nil
+	}
+	if s.files == nil {
+		return errors.New("ask uni: releasing files requires FileService")
+	}
+	slices.Sort(fileIDs)
+	ids := make([]files.FileID, 0, len(fileIDs))
+	for _, id := range slices.Compact(fileIDs) {
+		ids = append(ids, files.FileID(id))
+	}
+	return releaseFilesInTx(ctx, s.files, q, ids)
 }
 
 // askFileError is err as the asker is told it. One answer for every file that

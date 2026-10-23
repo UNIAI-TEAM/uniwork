@@ -513,6 +513,7 @@ func New(d Deps) http.Handler {
 		AiCapabilities:       h.aiCapabilities,
 		UploadAiAttachment:   h.uploadAskAttachment,
 		CancelAiAttachment:   h.cancelAskAttachment,
+		DownloadAiAttachment: h.downloadAskAttachment,
 		GetOrgAskModels:      h.getOrgAskModels,
 		SetOrgAskModels:      h.setOrgAskModels,
 		AskUni:               h.askUni,

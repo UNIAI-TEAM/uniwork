@@ -14,6 +14,7 @@ import (
 //	GET    /api/v1/workspaces/{workspaceID}/ai/capabilities
 //	POST   /api/v1/workspaces/{workspaceID}/ai/attachments
 //	DELETE /api/v1/workspaces/{workspaceID}/ai/attachments/{fileID}
+//	GET    /api/v1/workspaces/{workspaceID}/ai/attachments/{attachmentID}/content
 //	POST   /api/v1/workspaces/{workspaceID}/ai/ask
 //	POST   /api/v1/workspaces/{workspaceID}/ai/ask/stream
 //	GET    /api/v1/workspaces/{workspaceID}/ai/conversations
@@ -50,6 +51,14 @@ func registerAI(r api, h Routes) {
 		tags:        []string{"ai"},
 		status:      http.StatusNoContent,
 		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/ai/attachments/{attachmentID}/content", h.DownloadAiAttachment, apiOp{
+		summary: "Download an Ask UNI file",
+		description: "Tải về file một câu hỏi đã gắn, theo id của file trên câu hỏi (attachments[].id của GET …/messages), luôn là attachment và không bị đoán loại. " +
+			"Chỉ người hỏi; file của người khác, của workspace khác, của tổ chức khác, của cuộc trò chuyện đã xóa hoặc id không có → cùng một 404. Không cần cờ ask_uni_attachments: file đã gắn vẫn tải được khi cờ tắt.",
+		tags:     []string{"ai"},
+		produces: "application/octet-stream",
+		auth:     true,
 	})
 	r.Post("/workspaces/{workspaceID}/ai/ask", h.AskUni, apiOp{
 		summary: "Ask UNI",

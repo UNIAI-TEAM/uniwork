@@ -462,6 +462,11 @@ func pathParamSDI(path string) any {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			FileID      string `path:"fileID" description:"ULID tệp đã tải lên, lấy từ file_id của POST …/ai/attachments" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
 		}{}
+	case "workspaceID,attachmentID":
+		return struct {
+			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			AttachmentID string `path:"attachmentID" description:"Id của file trên câu hỏi: attachments[].id của GET …/ai/conversations/{conversationID}/messages (không phải file_id lúc tải lên)" example:"01K4AIATT0000000000000001"`
+		}{}
 	case "workspaceID,sourceFileID":
 		return struct {
 			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`

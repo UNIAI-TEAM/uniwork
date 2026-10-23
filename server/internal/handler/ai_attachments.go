@@ -1,13 +1,16 @@
 package handler
 
 import (
+	"io"
 	"net/http"
 	"path"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 )
 
 const (
@@ -60,4 +63,24 @@ func (h *handlers) cancelAskAttachment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// downloadAskAttachment is GET /api/v1/workspaces/{workspaceID}/ai/attachments/{attachmentID}/content:
+// the bytes of a file a sent question carries, always as an attachment and
+// never sniffed (an upload may be any type the store admits).
+func (h *handlers) downloadAskAttachment(w http.ResponseWriter, r *http.Request) {
+	rd, att, err := h.AskUNI.OpenAttachment(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "attachmentID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	defer rd.Close()
+	w.Header().Set("Content-Type", att.MIME)
+	w.Header().Set("Content-Disposition", storage.AttachmentContentDisposition(att.Name))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Content-Length", strconv.FormatInt(rd.File.SizeBytes, 10))
+	if _, err := io.Copy(w, rd.Body); err != nil && r.Context().Err() == nil && h.Log != nil {
+		h.Log.Warn("ask attachment download interrupted", "attachment_id", att.ID, "err", err)
+	}
 }

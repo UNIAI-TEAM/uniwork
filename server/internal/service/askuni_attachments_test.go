@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
+	"slices"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
@@ -581,5 +583,163 @@ func TestStoreAttachesAFileToOneQuestionOnly(t *testing.T) {
 	var msgs, atts int
 	if err := s.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM ai_messages), (SELECT count(*) FROM ai_attachments)`).Scan(&msgs, &atts); err != nil || msgs != 2 || atts != 1 {
 		t.Fatalf("messages = %d, attachments = %d (%v), want the first question's 2 and 1", msgs, atts, err)
+	}
+}
+
+// ---- Download and drop with the conversation (UNI-2119, Task 9) -------------
+
+// sentAttachments asks one question carrying the files and returns the
+// conversation and the ids the question holds them by.
+func sentAttachments(t *testing.T, s *AskUNIService, userID, workspaceID string, fileIDs ...string) (string, []string) {
+	t.Helper()
+	ctx := context.Background()
+	res, err := s.Ask(ctx, userID, workspaceID, AskInput{Question: "tóm tắt", AttachmentIDs: fileIDs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msgs, err := s.Messages(ctx, userID, res.ConversationID)
+	if err != nil || len(msgs) == 0 || len(msgs[0].Attachments) != len(fileIDs) {
+		t.Fatalf("messages = %+v (%v), want the question to carry %d files", msgs, err, len(fileIDs))
+	}
+	ids := make([]string, len(fileIDs))
+	for i, a := range msgs[0].Attachments {
+		ids[i] = a.ID
+	}
+	return res.ConversationID, ids
+}
+
+func TestOpenAttachmentOnlyForTheAsker(t *testing.T) {
+	s, flags, ua, ub, w := attachFixture(t)
+	ctx := context.Background()
+	file := uploadPDFs(t, s, ua.ID, w.ID, "mine.pdf")[0]
+	_, ids := sentAttachments(t, s, ua.ID, w.ID, file)
+
+	read := func() (AskAttachment, []byte) {
+		t.Helper()
+		r, att, err := s.OpenAttachment(ctx, ua.ID, w.ID, ids[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return att, body
+	}
+	att, body := read()
+	if want := (AskAttachment{ID: ids[0], FileID: file, Name: "mine.pdf", MIME: "application/pdf", Kind: "pdf", Size: int64(len(pdfOfPages(1)))}); att != want || !bytes.Equal(body, pdfOfPages(1)) {
+		t.Fatalf("the asker got %+v with %d bytes, want %+v with the uploaded bytes", att, len(body), want)
+	}
+
+	// Another member of the workspace, the id of a row that never was, and the
+	// file id (an upload's name, not the row's) are one answer.
+	for name, tc := range map[string]struct{ user, id string }{
+		"another member":    {ub.ID, ids[0]},
+		"an unknown id":     {ua.ID, "01J8X4NOSUCHATTACH000000000"},
+		"the file id":       {ua.ID, file},
+		"an empty id":       {ua.ID, ""},
+		"another's unknown": {ub.ID, "01J8X4NOSUCHATTACH000000000"},
+	} {
+		if r, _, err := s.OpenAttachment(ctx, tc.user, w.ID, tc.id); !oneNotFound(err) {
+			_ = r.Close()
+			t.Errorf("%s: %v, want the bare not found", name, err)
+		}
+	}
+
+	// What a person attached stays theirs to download when files are switched
+	// off: the flags gate adding files, not taking them back.
+	flags.attachments = false
+	if _, body := read(); !bytes.Equal(body, pdfOfPages(1)) {
+		t.Fatal("the asker could not download their file with the flag off")
+	}
+}
+
+// pendingCleanups is how many files have a pending cleanup job: the file store
+// has been told nothing holds them any more.
+func pendingCleanups(t *testing.T, s *AskUNIService, fileIDs ...string) int {
+	t.Helper()
+	n := 0
+	for _, id := range fileIDs {
+		jobs, err := s.q.ListFileJobsByFile(context.Background(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := jobStatuses(jobs, fileJobCleanup); len(got) == 1 && got[0] == "pending" {
+			n++
+		}
+	}
+	return n
+}
+
+func TestDeleteConversationReleasesItsFiles(t *testing.T) {
+	s, _, ua, _, w := attachFixture(t)
+	ctx := context.Background()
+	gone, kept := uploadPDFs(t, s, ua.ID, w.ID, "a.pdf", "b.pdf"), uploadPDFs(t, s, ua.ID, w.ID, "other.pdf")
+	conv, ids := sentAttachments(t, s, ua.ID, w.ID, gone...)
+	_, keptIDs := sentAttachments(t, s, ua.ID, w.ID, kept...)
+	if n := pendingCleanups(t, s, append(slices.Clone(gone), kept...)...); n != 0 {
+		t.Fatalf("%d files are queued for cleanup before anything was deleted", n)
+	}
+
+	if err := s.DeleteConversation(ctx, ua.ID, conv); err != nil {
+		t.Fatal(err)
+	}
+	var rows int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM ai_attachments WHERE conversation_id = $1`, conv).Scan(&rows); err != nil || rows != 0 {
+		t.Fatalf("%d ai_attachments rows are left on the deleted conversation (%v)", rows, err)
+	}
+	if n := pendingCleanups(t, s, gone...); n != 2 {
+		t.Fatalf("%d of the deleted conversation's 2 files are queued for cleanup", n)
+	}
+	for _, id := range ids {
+		if _, _, err := s.OpenAttachment(ctx, ua.ID, w.ID, id); !oneNotFound(err) {
+			t.Errorf("a deleted conversation's file %s: %v, want the bare not found", id, err)
+		}
+	}
+	// Another conversation's file is the asker's still.
+	if n := pendingCleanups(t, s, kept...); n != 0 {
+		t.Fatalf("%d files of another conversation were released with it", n)
+	}
+	r, _, err := s.OpenAttachment(ctx, ua.ID, w.ID, keptIDs[0])
+	if err != nil {
+		t.Fatalf("another conversation's file: %v", err)
+	}
+	_ = r.Close()
+}
+
+// A file id is released once however many rows name it, in one call, and a
+// conversation with no file never calls the store at all.
+func TestDeleteConversationReleasesEachFileOnce(t *testing.T) {
+	s, _, ua, _, w := attachFixture(t)
+	ctx := context.Background()
+	spy := &releaseSpy{Service: s.files}
+	s.SetFiles(spy)
+	file := uploadPDFs(t, s, ua.ID, w.ID, "twice.pdf")[0]
+	conv, _ := sentAttachments(t, s, ua.ID, w.ID, file)
+	var msg string
+	if err := s.pool.QueryRow(ctx, `SELECT message_id FROM ai_attachments WHERE conversation_id = $1`, conv).Scan(&msg); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.q.AiInsertAttachment(ctx, db.AiInsertAttachmentParams{
+		ID: util.NewID(), OrganizationID: w.OrganizationID, WorkspaceID: w.ID, UserID: ua.ID, ConversationID: conv,
+		MessageID: msg, FileID: file, Name: "twice.pdf", Mime: "application/pdf", SizeBytes: 10, Kind: "pdf",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteConversation(ctx, ua.ID, conv); err != nil {
+		t.Fatal(err)
+	}
+	if want := [][]files.FileID{{files.FileID(file)}}; !slices.EqualFunc(spy.released, want, slices.Equal) {
+		t.Fatalf("released %v, want one call with the one file %v", spy.released, want)
+	}
+
+	spy.released = nil
+	plain, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "không file"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteConversation(ctx, ua.ID, plain.ConversationID); err != nil || len(spy.released) != 0 {
+		t.Fatalf("a conversation with no file: %v, released %v, want nothing", err, spy.released)
 	}
 }
