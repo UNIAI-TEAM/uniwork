@@ -17,6 +17,7 @@ import { api } from "@/data/api";
 import { trackFirstScreen } from "@/data/app-startup";
 import { authConfig, session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
+import { runChatNotificationAction } from "@/data/chat-notification-actions";
 import { queryClient } from "@/data/query-client";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { takePendingDeepLink } from "@/lib/deep-link";
@@ -39,7 +40,7 @@ jest.mock("@/data/app-startup", () => ({ startAppServices: jest.fn(), trackFirst
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
 jest.mock("expo-splash-screen", () => ({ preventAutoHideAsync: jest.fn(async () => true), hide: jest.fn() }));
 jest.mock("@/data/notification-channels", () => ({ ensureNotificationChannels: jest.fn(async () => undefined) }));
-jest.mock("@/data/chat-notification-actions", () => ({ registerChatMessageCategory: jest.fn(async () => undefined), runChatNotificationAction: jest.fn() }));
+jest.mock("@/data/chat-notification-actions", () => ({ registerChatMessageCategory: jest.fn(async () => undefined), runChatNotificationAction: jest.fn(async () => "read") }));
 jest.mock("expo-notifications", () => ({
   ...jest.requireActual("expo-notifications"),
   addPushTokenListener: jest.fn(() => ({ remove: jest.fn() })),
@@ -163,6 +164,24 @@ describe("the root layout", () => {
     expect(await screen.findByTestId("picker")).toBeOnTheScreen();
     await act(async () => tap(notificationFor(`${APP_URL}/acme/hq/chat?room=r1`)));
     // The chat tab with ?room= opens the room itself (test/routes/workspace.test.tsx).
+    expect(await screen.findByTestId("chat")).toBeOnTheScreen();
+    expect(routes.pathname()).toBe("/acme/hq/chat");
+  });
+
+  it("opens the room of a reply the app lock refused, behind the lock", async () => {
+    jest.mocked(runChatNotificationAction).mockResolvedValueOnce("locked");
+    useAuthStore.setState({ user: user as never });
+    let tap: (response: Notifications.NotificationResponse) => void = () => undefined;
+    jest.mocked(Notifications.addNotificationResponseReceivedListener).mockImplementation((cb) => {
+      tap = cb;
+      return { remove: jest.fn() } as never;
+    });
+    const routes = await renderRoutes(ROUTES, "/");
+    expect(await screen.findByTestId("picker")).toBeOnTheScreen();
+    const data = { url: `${APP_URL}/acme/hq/chat?room=r1`, workspace_id: "w1", room_id: "r1", message_id: "m1" };
+    const reply = { actionIdentifier: "reply", userText: "hi", notification: { request: { identifier: "n-locked", content: { data } } } };
+    await act(async () => tap(reply as unknown as Notifications.NotificationResponse));
+    expect(runChatNotificationAction).toHaveBeenCalledWith(expect.objectContaining({ action: "reply", text: "hi" }));
     expect(await screen.findByTestId("chat")).toBeOnTheScreen();
     expect(routes.pathname()).toBe("/acme/hq/chat");
   });

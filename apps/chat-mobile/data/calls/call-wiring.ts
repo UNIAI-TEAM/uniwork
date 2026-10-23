@@ -132,7 +132,10 @@ async function clearReadRoom(push: RoomReadPush): Promise<void> {
  */
 export async function runCallPushTask(payload: unknown): Promise<void> {
   const chatAction = chatNotificationAction(payload);
-  if (chatAction) return runChatNotificationAction(chatAction);
+  if (chatAction) {
+    await runChatNotificationAction(chatAction);
+    return;
+  }
   const data = taskPayloadData(payload);
   const roomRead = roomReadPushFromData(data);
   if (roomRead) return clearReadRoom(roomRead).catch(bestEffort("push", "read room's notifications not cleared", "breadcrumb"));

@@ -5,7 +5,9 @@
 // so that tap never depends on a listener being registered in time. Both can
 // hand over the same response: each (notification, action) runs once, and the
 // launch response is cleared once handled so a JavaScript reload does not
-// replay it. Pure: the platform's calls are passed in.
+// replay it. A reply the app lock refused (typed into a notification shown
+// before the lock was on) opens its room as a tap does, behind the lock.
+// Pure: the platform's calls are passed in.
 import type { NotificationResponse } from "expo-notifications";
 import { chatNotificationAction, type ChatNotificationAction } from "./chat-notification";
 
@@ -20,7 +22,8 @@ export type TappedResponse = Pick<NotificationResponse, "actionIdentifier"> & {
 export interface NotificationResponseDeps {
   /** A web link of a push (app/_layout.tsx › openUrl with navigate). */
   openUrl: (url: string) => void;
-  runChatAction: (action: ChatNotificationAction) => void;
+  /** Runs Reply or Mark as read; resolves true when it was refused for the app lock, and the room opens instead. */
+  runChatAction: (action: ChatNotificationAction) => Promise<boolean>;
   trackPushOpen: (data: unknown) => void;
   /** Notifications.clearLastNotificationResponse */
   clearLast: () => void;
@@ -33,15 +36,17 @@ export function createNotificationResponseHandler(deps: NotificationResponseDeps
     if (handled.has(key)) return;
     handled.add(key);
     deps.clearLast();
-    const chatAction = chatNotificationAction(response);
-    if (chatAction) {
-      deps.runChatAction(chatAction);
-      return;
-    }
     const data = response.notification.request.content.data;
-    deps.trackPushOpen(data);
-    const url = data?.url;
-    if (typeof url === "string") deps.openUrl(url);
+    const open = () => {
+      deps.trackPushOpen(data);
+      const url = data?.url;
+      if (typeof url === "string") deps.openUrl(url);
+    };
+    const chatAction = chatNotificationAction(response);
+    if (!chatAction) return open();
+    void Promise.resolve(deps.runChatAction(chatAction)).then((refused) => {
+      if (refused) open();
+    });
   };
 }
 
