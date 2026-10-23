@@ -12,6 +12,8 @@ import {
   type CapabilityEntry,
   type OfficeFormat,
 } from "@uniwork/office-contracts";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { BOUND_OPERATIONS } from "./worker/handlers.ts";
 
 /** Source formats whose conversion is bound, and the target each produces
@@ -61,7 +63,26 @@ const FEATURE_ROWS: Partial<Record<OfficeFormat, CapabilityEntry[]>> = {
   ],
 };
 
-function capabilityRows(format: OfficeFormat): CapabilityEntry[] {
+/** Formats whose export reaches pdf through the Docs renderer (renderPdf). */
+const PDF_VIA_DOCS: ReadonlySet<OfficeFormat> = new Set<OfficeFormat>(["docx", "page"]);
+
+/** Why the Docs PDF renderer cannot run here, or null when it can: the
+    staged `bundle/index.html` and `chromium` under UNIWORK_DOCS_PDF_ASSETS,
+    and the per-slot uid sandbox renderPdf refuses to run without. */
+export function docsPdfRendererMissing(dir: string | undefined, sandboxed: boolean): string | null {
+  if (!dir || !existsSync(join(dir, "bundle", "index.html")) || !existsSync(join(dir, "chromium"))) return "docs_pdf_assets_missing";
+  return sandboxed ? null : "sandbox_required";
+}
+
+/** follow-6: the pdf lane as its own row, so a caller can offer pdf only where
+    the renderer is staged instead of learning it from the first 409. */
+function exportPdfRow(missing: string | null): CapabilityEntry {
+  return missing === null
+    ? { operation: "export_pdf", supported: true, runtime: "internal_service", evidence_level: "pending", reason: "Docs web renderer staged (bundle + chromium) under the uid sandbox" }
+    : { operation: "export_pdf", supported: false, runtime: "none", evidence_level: "pending", reason: missing };
+}
+
+function capabilityRows(format: OfficeFormat, pdfMissing: string | null): CapabilityEntry[] {
   const ops = grantableOperations
     .filter((op) => op !== "capability")
     .map((op): CapabilityEntry => {
@@ -113,10 +134,12 @@ function capabilityRows(format: OfficeFormat): CapabilityEntry[] {
       }
       return { operation: op, supported: false, runtime: "none", evidence_level: "pending", reason: "not bound in this service build" };
     });
-  return [...ops, ...(FEATURE_ROWS[format] ?? [])];
+  const pdf = PDF_VIA_DOCS.has(format) && isBound("export", format) ? [exportPdfRow(pdfMissing)] : [];
+  return [...ops, ...pdf, ...(FEATURE_ROWS[format] ?? [])];
 }
 
-export function capabilityResult(format: OfficeFormat, maxInputBytes: number): Record<string, unknown> {
+/** `pdfMissing` is docsPdfRendererMissing's answer for this process. */
+export function capabilityResult(format: OfficeFormat, maxInputBytes: number, pdfMissing: string | null): Record<string, unknown> {
   return {
     job_id: "capability-" + format,
     state: "completed",
@@ -124,7 +147,7 @@ export function capabilityResult(format: OfficeFormat, maxInputBytes: number): R
     engine_version: ENGINE_VERSION_TRUSTED,
     job_transport: ENGINE_JOB_TRANSPORT,
     format,
-    capabilities: capabilityRows(format),
+    capabilities: capabilityRows(format, pdfMissing),
     limits: { max_input_bytes: maxInputBytes },
   };
 }

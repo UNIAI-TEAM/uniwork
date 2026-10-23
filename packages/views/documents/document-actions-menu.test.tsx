@@ -3,6 +3,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { usePageExportUnavailable } from "@uniwork/core/documents/hooks";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -498,9 +499,12 @@ describe("DocumentActionsMenu page export (UNI-2004)", () => {
     doc: Document,
     flags: Record<string, { default: boolean }>,
     orgFlags: Record<string, boolean> = Object.fromEntries(Object.entries(flags).map(([key, flag]) => [key, flag.default])),
+    served: readonly string[] | null = ["docx", "pdf"],
   ) => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(["office-public-config", ORG], { flags: orgFlags });
+    // The deployment renders both unless a test asks the server (served = null).
+    if (served) client.setQueryData(documentKeys.pageExportFormats(WS, doc.id), served);
     return render(
       wrapWithNav(
         <FeatureFlagsProvider service={new FeatureFlagService(new StaticProvider(flags))}>
@@ -513,6 +517,11 @@ describe("DocumentActionsMenu page export (UNI-2004)", () => {
       ),
     );
   };
+  // follow-6: what the server answers for the formats it renders.
+  const formats = (list: unknown) =>
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path === "/api/v1/documents/d1/export" ? { formats: list } : {}),
+    );
   const stubSave = () => {
     Object.assign(URL, { createObjectURL: vi.fn(() => "blob:page"), revokeObjectURL: vi.fn() });
     return vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
@@ -613,6 +622,20 @@ describe("DocumentActionsMenu page export (UNI-2004)", () => {
     unmount();
     renderWithFlags(page(), { page_export: { default: true } });
     await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeNull();
+  });
+
+  it("offers PDF only where the engine has the Docs renderer, and DOCX alone on an unreadable answer (follow-6)", async () => {
+    formats(["docx"]);
+    const { unmount } = renderWithFlags(page(), { page_export: { default: true } }, undefined, null);
+    await openMenu();
+    expect(await screen.findByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeNull();
+    unmount();
+    formats("docx, pdf");
+    renderWithFlags(page(), { page_export: { default: true } }, undefined, null);
+    await openMenu();
+    expect(await screen.findByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeNull();
   });
 

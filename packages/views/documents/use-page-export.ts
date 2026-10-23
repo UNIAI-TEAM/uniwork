@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError, errorClassOf, errorCode, errorFields } from "@uniwork/core/api";
 import type { PageExportFormat } from "@uniwork/core/api/endpoints/documents-page-export";
-import { useExportDocumentPage, usePageExportUnavailable } from "@uniwork/core/documents/hooks";
+import { useExportDocumentPage, usePageExportFormats, usePageExportUnavailable } from "@uniwork/core/documents/hooks";
 import type { Document } from "@uniwork/core/types/document";
 import { downloadBlob } from "../editor/utils/mermaid-export";
 
@@ -43,21 +43,29 @@ function fileName(title: string, format: PageExportFormat): string {
 /**
  * Exports a UniNote page (UNI-2004) and hands the file to the browser, named
  * by the server (the page title) or by the title the client has. One export
- * runs at a time; a format the deployment cannot render is reported once and
- * then left out of the menu for a while (usePageExportUnavailable).
+ * runs at a time. `formats` are the ones to offer: those the server says
+ * this deployment renders (follow-6; DOCX alone while that answer is
+ * unreadable, none while it loads), less any a refusal just reported
+ * (usePageExportUnavailable). `enabled` asks the server at all.
  */
-export function usePageExport(doc: Document): {
+export function usePageExport(
+  doc: Document,
+  enabled: boolean,
+): {
   exportPage: (format: PageExportFormat) => void;
   exporting: boolean;
-  unavailable: ReadonlySet<PageExportFormat>;
+  formats: readonly PageExportFormat[];
 } {
   const { t } = useTranslation();
   const mutation = useExportDocumentPage(doc.id);
   // The state flag lags a render; the ref stops a second click in the same tick.
   const running = useRef(false);
-  const formats = usePageExportUnavailable((s) => s.formats);
+  const refused = usePageExportUnavailable((s) => s.formats);
   const markUnavailable = usePageExportUnavailable((s) => s.markUnavailable);
-  const unavailable = useMemo<ReadonlySet<PageExportFormat>>(() => new Set(formats), [formats]);
+  const offered = usePageExportFormats(doc.workspace_id, doc.id, enabled);
+  // DOCX needs no renderer: it stays on offer when the answer cannot be read.
+  const served = offered.isPending ? null : (offered.data ?? ["docx"]);
+  const formats = (served ?? []).filter((f) => !refused.includes(f));
   const exportPage = (format: PageExportFormat) => {
     if (running.current) return;
     running.current = true;
@@ -82,5 +90,5 @@ export function usePageExport(doc: Document): {
         running.current = false;
       });
   };
-  return { exportPage, exporting: mutation.isPending, unavailable };
+  return { exportPage, exporting: mutation.isPending, formats };
 }

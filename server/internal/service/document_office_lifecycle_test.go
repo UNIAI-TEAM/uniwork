@@ -186,7 +186,7 @@ func (e *scriptedEngine) Capability(_ context.Context, format office.Format) (of
 		bound = map[office.Operation]bool{office.OperationOpen: true, office.OperationEdit: true, office.OperationSerialize: true}
 	}
 	rows := make([]office.CapabilityEntry, 0, len(bound))
-	for _, op := range []office.Operation{office.OperationCapability, office.OperationOpen, office.OperationEdit, office.OperationSerialize, office.OperationConvert, office.OperationExport} {
+	for _, op := range []office.Operation{office.OperationCapability, office.OperationOpen, office.OperationEdit, office.OperationSerialize, office.OperationConvert, office.OperationExport, office.CapabilityExportPDF} {
 		rows = append(rows, office.CapabilityEntry{
 			Operation: string(op), Supported: bound[op], Runtime: office.RuntimeInternalService, EvidenceLevel: office.EvidenceProven,
 		})

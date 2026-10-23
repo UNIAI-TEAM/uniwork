@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { ApiError } from "../http";
 import { setAccessToken } from "../session";
-import { exportDocumentPage } from "./documents-page-export";
+import { exportDocumentPage, getPageExportFormats } from "./documents-page-export";
 
 describe("exportDocumentPage", () => {
   beforeEach(() => {
@@ -57,5 +57,20 @@ describe("exportDocumentPage", () => {
     const err = await exportDocumentPage("d1", "docx").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(502);
+  });
+
+  it("getPageExportFormats reads the formats this deployment renders (follow-6)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ formats: ["docx", "pdf"] }));
+    expect(await getPageExportFormats("d/1")).toEqual(["docx", "pdf"]);
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d%2F1/export");
+    expect(init?.method ?? "GET").toBe("GET");
+  });
+
+  it("getPageExportFormats keeps only formats it knows and answers null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ formats: ["pdf", "odt", 3] }));
+    expect(await getPageExportFormats("d1")).toEqual(["pdf"]);
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ formats: "docx" }));
+    expect(await getPageExportFormats("d1")).toBeNull();
   });
 });
