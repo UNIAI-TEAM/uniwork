@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"image"
+	"image/png"
 	"io"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
@@ -151,6 +154,51 @@ func TestUploadAttachmentRefusesLegacyOffice(t *testing.T) {
 	_, err := s.UploadAttachment(context.Background(), ua.ID, w.ID, "x.xls", bytes.NewReader(ole))
 	if !codedIs(err, files.CodeTypeRejected) {
 		t.Fatalf("legacy XLS: %v, want %s", err, files.CodeTypeRejected)
+	}
+}
+
+// pngOf is a valid PNG of w by h pixels, small whatever its size.
+func pngOf(t *testing.T, w, h int) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	if err := png.Encode(&b, image.NewGray(image.Rect(0, 0, w, h))); err != nil {
+		t.Fatal(err)
+	}
+	return b.Bytes()
+}
+
+// An image the model would refuse is refused at upload, with a reason that
+// names the limit, and the upload is taken back; one within the limits goes.
+func TestUploadAttachmentRefusesAnImageTheModelCannotTake(t *testing.T) {
+	s, _, ua, _, w := attachFixture(t)
+	ctx := context.Background()
+	if _, err := s.UploadAttachment(ctx, ua.ID, w.ID, "nho.png", bytes.NewReader(pngOf(t, 800, 600))); err != nil {
+		t.Fatalf("an 800x600 PNG: %v", err)
+	}
+	big := append(pngOf(t, 10, 10), make([]byte, askMaxImageBytes)...) // a PNG padded past 7.5 MB
+	for name, tc := range map[string]struct {
+		body []byte
+		code string
+		says string
+	}{
+		"over 7.5 MB":            {big, ai.ErrAttachmentsTooLarge.Code, "7,5 MB"},
+		"wider than 8000 px":     {pngOf(t, 8001, 1), ai.ErrAttachmentsTooLarge.Code, "8000 × 8000"},
+		"taller than 8000 px":    {pngOf(t, 1, 8001), ai.ErrAttachmentsTooLarge.Code, "8000 × 8000"},
+		"header does not decode": {[]byte("\x89PNG\r\n\x1a\nkhông phải ảnh thật"), ai.ErrAttachmentUnreadable.Code, "hinh.png"},
+	} {
+		_, err := s.UploadAttachment(ctx, ua.ID, w.ID, "hinh.png", bytes.NewReader(tc.body))
+		var e *ai.Error
+		if !errors.As(err, &e) || e.Code != tc.code || e.Status != 422 || !strings.Contains(e.Msg, tc.says) {
+			t.Errorf("%s: %v, want %s naming %q", name, err, tc.code, tc.says)
+		}
+	}
+	var staged, canceled int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE status = $2), count(*) FILTER (WHERE status = $3) FROM file_upload_sessions WHERE purpose = $1`,
+		string(files.AiAttachment), string(files.SessionStaged), string(files.SessionCanceled)).Scan(&staged, &canceled); err != nil {
+		t.Fatal(err)
+	}
+	if staged != 1 || canceled != 4 {
+		t.Fatalf("sessions staged %d, canceled %d; want the good image staged and the four refused taken back", staged, canceled)
 	}
 }
 

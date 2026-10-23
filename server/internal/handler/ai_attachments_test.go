@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -159,6 +161,16 @@ func TestAskAttachmentRoutes(t *testing.T) {
 	wantError(t, "legacy XLS", res, out, http.StatusUnsupportedMediaType, "file_type_rejected")
 	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/attachments", owner, map[string]any{})
 	wantError(t, "no multipart body", res, out, http.StatusBadRequest, "invalid_request")
+	// An image past what the model takes is refused at upload, with the limit in the message.
+	var wide bytes.Buffer
+	if err := png.Encode(&wide, image.NewGray(image.Rect(0, 0, 8001, 1))); err != nil {
+		t.Fatal(err)
+	}
+	res, out = postAskFile(t, srv, owner, wsID, "rong.png", wide.Bytes(), false)
+	wantError(t, "an 8001-pixel image", res, out, http.StatusUnprocessableEntity, "ai_attachments_too_large")
+	if msg, _ := out["error"].(map[string]any)["message"].(string); !strings.Contains(msg, "8000") {
+		t.Errorf("the refusal does not name the limit: %v", out)
+	}
 
 	// Someone who is not in the workspace is refused on both routes.
 	res, out = postAskFile(t, srv, member, wsID, "note.pdf", pdf, false)

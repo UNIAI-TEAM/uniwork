@@ -3,13 +3,21 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"image"
+	_ "image/gif" // image.DecodeConfig reads the four types an attachment may be
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
+	"log/slog"
 	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	_ "golang.org/x/image/webp"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/attachtext"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -110,7 +118,52 @@ func (s *AskUNIService) UploadAttachment(ctx context.Context, userID, workspaceI
 		return AskAttachment{}, filesError(err)
 	}
 	f := up.File
-	return AskAttachment{FileID: string(f.ID), Name: f.Filename, MIME: f.ContentType, Kind: askAttachmentKind(f.ContentType), Size: f.SizeBytes}, nil
+	a := AskAttachment{FileID: string(f.ID), Name: f.Filename, MIME: f.ContentType, Kind: askAttachmentKind(f.ContentType), Size: f.SizeBytes}
+	if a.Kind == "image" {
+		scope := files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}
+		if err := s.checkAskImage(ctx, scope, a); err != nil {
+			// Refused, the upload is taken back rather than left for the sweep.
+			if cerr := s.files.CancelUpload(ctx, files.CancelInput{Actor: Human(userID), Scope: scope, FileID: f.ID}); cerr != nil {
+				slog.Warn("ask uni: cancel a refused image", "organization_id", w.OrganizationID, "file_id", f.ID, "err", cerr)
+			}
+			return AskAttachment{}, err
+		}
+	}
+	return a, nil
+}
+
+// The model's limits for one image (Anthropic): 10 MB once base64-encoded,
+// which is 7.5 MB of bytes, and 8000 pixels a side. Sending one past them
+// fails the whole turn with a provider error, so the upload is refused instead.
+const (
+	askMaxImageBytes  = 7_500_000
+	askMaxImagePixels = 8000
+)
+
+// checkAskImage refuses an image the model would not take: over
+// askMaxImageBytes, wider or taller than askMaxImagePixels, or one whose
+// header does not decode (ai_attachment_unreadable, naming it).
+func (s *AskUNIService) checkAskImage(ctx context.Context, scope files.Scope, a AskAttachment) error {
+	tooLarge := func(msg string) error {
+		e := ai.ErrAttachmentsTooLarge
+		return &ai.Error{Code: e.Code, Status: e.Status, Msg: msg}
+	}
+	if a.Size > askMaxImageBytes {
+		return tooLarge("ảnh đính kèm tối đa 7,5 MB")
+	}
+	r, err := s.files.Open(ctx, files.OpenInput{Scope: scope, FileID: files.FileID(a.FileID)})
+	if err != nil {
+		return fmt.Errorf("ask uni: open image %s: %w", a.FileID, err)
+	}
+	defer r.Close()
+	cfg, _, err := image.DecodeConfig(io.LimitReader(r.Body, askMaxImageBytes))
+	if err != nil {
+		return askFileUnreadable(a.Name, fmt.Errorf("%w: %v", attachtext.ErrUnreadable, err))
+	}
+	if cfg.Width > askMaxImagePixels || cfg.Height > askMaxImagePixels {
+		return tooLarge("ảnh đính kèm tối đa 8000 × 8000 điểm ảnh")
+	}
+	return nil
 }
 
 // CancelAttachment drops a file the asker uploaded and no question has

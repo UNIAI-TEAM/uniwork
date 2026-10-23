@@ -39,7 +39,8 @@ func registerAI(r api, h Routes) {
 		summary: "Upload a file for an Ask UNI question",
 		description: "Tải một file lên để gắn vào câu hỏi Hỏi UNI kế tiếp (multipart, field file, tối đa 20 MiB; ảnh PNG/JPEG/GIF/WebP, PDF, DOCX, XLSX, PPTX, ODT, TXT, CSV, Markdown; loại xét theo nội dung). " +
 			"File chưa thuộc câu hỏi nào cho tới khi câu hỏi gửi đi; không gửi thì tự dọn sau 24 giờ. Người tải lên là người duy nhất đọc, gắn hoặc hủy file. " +
-			"403 ai_attachments_unavailable khi cờ ask_uni_attachments tắt hoặc lượt hỏi không chạy agent (cờ ask_uni_agent tắt, thiếu công cụ đọc hay model), 413 too_large hoặc file_too_large, 415 file_type_rejected.",
+			"403 ai_attachments_unavailable khi cờ ask_uni_attachments tắt hoặc lượt hỏi không chạy agent (cờ ask_uni_agent tắt, thiếu công cụ đọc hay model), 413 too_large hoặc file_too_large, 415 file_type_rejected, " +
+			"422 ai_attachments_too_large khi ảnh quá 7,5 MB hay quá 8000 × 8000 điểm ảnh (giới hạn model nhận một ảnh), 422 ai_attachment_unreadable khi phần đầu ảnh không đọc được; file bị từ chối thì không giữ lại.",
 		tags: []string{"ai"},
 		sdi:  sdi.UploadAiAttachmentSDI{},
 		sdo:  sdo.AiAttachmentUploadSDO{},
