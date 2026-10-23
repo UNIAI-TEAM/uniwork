@@ -83,7 +83,7 @@ func TestExpoPushSenderMapsTickets(t *testing.T) {
 
 func TestPrefixSenderRoutesByEndpoint(t *testing.T) {
 	expo, web := &spySender{}, &spySender{}
-	s := NewPrefixSender(expo, web)
+	s := NewPrefixSender(expo, web, nil)
 	for _, ep := range []string{"ExponentPushToken[a]", "ExpoPushToken[b-_c]", "https://fcm.googleapis.com/fcm/send/x"} {
 		if err := s.Send(context.Background(), db.PushSubscription{Endpoint: ep}, PushMessage{Title: ep}); err != nil {
 			t.Fatal(err)
@@ -92,7 +92,7 @@ func TestPrefixSenderRoutesByEndpoint(t *testing.T) {
 	if len(expo.sent) != 2 || len(web.sent) != 1 || web.sent[0].Title != "https://fcm.googleapis.com/fcm/send/x" {
 		t.Fatalf("expo=%d web=%d", len(expo.sent), len(web.sent))
 	}
-	if err := NewPrefixSender(expo, nil).Send(context.Background(), db.PushSubscription{Endpoint: "https://x"}, PushMessage{}); !errors.Is(err, ErrPushSkipped) {
+	if err := NewPrefixSender(expo, nil, nil).Send(context.Background(), db.PushSubscription{Endpoint: "https://x"}, PushMessage{}); !errors.Is(err, ErrPushSkipped) {
 		t.Fatalf("nil web sender = %v, want ErrPushSkipped", err)
 	}
 	for ep, want := range map[string]bool{"ExponentPushToken[abc]": true, "ExpoPushToken[abc]": true, "ExponentPushToken[]": false, "ExponentPushToken[a b]": false, "xExponentPushToken[a]": false, "https://a": false} {

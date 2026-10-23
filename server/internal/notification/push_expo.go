@@ -418,12 +418,20 @@ func (s ExpoPushSender) Send(ctx context.Context, sub db.PushSubscription, msg P
 // a web subscription while VAPID is off.
 var ErrPushSkipped = errors.New("push: skipped, no sender for this subscription")
 
-// NewPrefixSender routes Expo tokens to expo and every other endpoint to web.
-func NewPrefixSender(expo, web PushSender) PushSender { return prefixSender{expo, web} }
+// NewPrefixSender routes an iPhone's PushKit token to voip, Expo tokens to
+// expo and every other endpoint to web. A nil voip (no APNs key) or web (no
+// VAPID) acknowledges its subscriptions without sending.
+func NewPrefixSender(expo, web, voip PushSender) PushSender { return prefixSender{expo, web, voip} }
 
-type prefixSender struct{ expo, web PushSender }
+type prefixSender struct{ expo, web, voip PushSender }
 
 func (s prefixSender) Send(ctx context.Context, sub db.PushSubscription, msg PushMessage) error {
+	if isVoIPSubscription(sub) {
+		if s.voip == nil {
+			return ErrPushSkipped
+		}
+		return s.voip.Send(ctx, sub, msg)
+	}
 	if isExpoPushToken(sub.Endpoint) {
 		return s.expo.Send(ctx, sub, msg)
 	}

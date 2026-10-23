@@ -60,6 +60,9 @@ be:
     # Expo access token for UniChat mobile push (enhanced push security). Optional:
     # create the Secret before turning enhanced push security on in the Expo project.
     expo: { name: uniwork-expo, key: EXPO_ACCESS_TOKEN }
+    # APNs token-auth key for iPhone VoIP call pushes (ADR 0038). Optional: without
+    # the Secret iPhones keep the Expo call push. APNS_PRIVATE_KEY is the .p8 file's PEM.
+    apns: { name: uniwork-apns, keyID: APNS_KEY_ID, teamID: APNS_TEAM_ID, privateKey: APNS_PRIVATE_KEY }
     # Office engine credentials (same Secret as officeEngine.secrets). Optional:
     # without them the BE has no engine and refuses office jobs.
     officeEngineServiceToken: { name: uniwork-office-engine, key: OFFICE_ENGINE_SERVICE_TOKEN }

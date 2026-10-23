@@ -371,7 +371,7 @@ func (q *Queries) IsNotificationRead(ctx context.Context, id string) (bool, erro
 }
 
 const listActivePushSubscriptions = `-- name: ListActivePushSubscriptions :many
-SELECT id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL
+SELECT id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id, transport, apns_environment, apns_bundle_id FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL
 `
 
 func (q *Queries) ListActivePushSubscriptions(ctx context.Context, userID string) ([]PushSubscription, error) {
@@ -394,6 +394,9 @@ func (q *Queries) ListActivePushSubscriptions(ctx context.Context, userID string
 			&i.RevokedAt,
 			&i.CreatedAt,
 			&i.SessionID,
+			&i.Transport,
+			&i.ApnsEnvironment,
+			&i.ApnsBundleID,
 		); err != nil {
 			return nil, err
 		}
@@ -436,7 +439,7 @@ func (q *Queries) ListChatMessageRooms(ctx context.Context, ids []string) ([]Lis
 }
 
 const listDeliverablePushSubscriptions = `-- name: ListDeliverablePushSubscriptions :many
-SELECT p.id, p.user_id, p.endpoint, p.p256dh, p.auth, p.user_agent, p.last_used_at, p.revoked_at, p.created_at, p.session_id FROM push_subscriptions p
+SELECT p.id, p.user_id, p.endpoint, p.p256dh, p.auth, p.user_agent, p.last_used_at, p.revoked_at, p.created_at, p.session_id, p.transport, p.apns_environment, p.apns_bundle_id FROM push_subscriptions p
 WHERE p.user_id = $1 AND p.revoked_at IS NULL
   AND (
     p.session_id IS NULL
@@ -475,6 +478,9 @@ func (q *Queries) ListDeliverablePushSubscriptions(ctx context.Context, userID s
 			&i.RevokedAt,
 			&i.CreatedAt,
 			&i.SessionID,
+			&i.Transport,
+			&i.ApnsEnvironment,
+			&i.ApnsBundleID,
 		); err != nil {
 			return nil, err
 		}
@@ -1360,24 +1366,31 @@ func (q *Queries) UpsertNotificationsForUsers(ctx context.Context, arg UpsertNot
 }
 
 const upsertPushSubscription = `-- name: UpsertPushSubscription :one
-INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, transport, apns_environment, apns_bundle_id, last_used_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
 ON CONFLICT (endpoint) WHERE revoked_at IS NULL DO UPDATE SET
   user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
-  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id, last_used_at = now()
-RETURNING id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id
+  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id,
+  transport = EXCLUDED.transport, apns_environment = EXCLUDED.apns_environment,
+  apns_bundle_id = EXCLUDED.apns_bundle_id, last_used_at = now()
+RETURNING id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id, transport, apns_environment, apns_bundle_id
 `
 
 type UpsertPushSubscriptionParams struct {
-	ID        string      `json:"id"`
-	UserID    string      `json:"user_id"`
-	Endpoint  string      `json:"endpoint"`
-	P256dh    string      `json:"p256dh"`
-	Auth      string      `json:"auth"`
-	UserAgent pgtype.Text `json:"user_agent"`
-	SessionID pgtype.Text `json:"session_id"`
+	ID              string      `json:"id"`
+	UserID          string      `json:"user_id"`
+	Endpoint        string      `json:"endpoint"`
+	P256dh          string      `json:"p256dh"`
+	Auth            string      `json:"auth"`
+	UserAgent       pgtype.Text `json:"user_agent"`
+	SessionID       pgtype.Text `json:"session_id"`
+	Transport       pgtype.Text `json:"transport"`
+	ApnsEnvironment pgtype.Text `json:"apns_environment"`
+	ApnsBundleID    pgtype.Text `json:"apns_bundle_id"`
 }
 
+// transport, apns_environment and apns_bundle_id are set only for an iPhone's
+// PushKit token ('apns_voip'); a browser or an Expo token leaves them NULL.
 func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubscriptionParams) (PushSubscription, error) {
 	row := q.db.QueryRow(ctx, upsertPushSubscription,
 		arg.ID,
@@ -1387,6 +1400,9 @@ func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubs
 		arg.Auth,
 		arg.UserAgent,
 		arg.SessionID,
+		arg.Transport,
+		arg.ApnsEnvironment,
+		arg.ApnsBundleID,
 	)
 	var i PushSubscription
 	err := row.Scan(
@@ -1400,6 +1416,9 @@ func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubs
 		&i.RevokedAt,
 		&i.CreatedAt,
 		&i.SessionID,
+		&i.Transport,
+		&i.ApnsEnvironment,
+		&i.ApnsBundleID,
 	)
 	return i, err
 }

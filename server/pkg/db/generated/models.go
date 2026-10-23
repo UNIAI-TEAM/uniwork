@@ -2197,16 +2197,19 @@ type ProjectResource struct {
 }
 
 type PushSubscription struct {
-	ID         string             `json:"id"`
-	UserID     string             `json:"user_id"`
-	Endpoint   string             `json:"endpoint"`
-	P256dh     string             `json:"p256dh"`
-	Auth       string             `json:"auth"`
-	UserAgent  pgtype.Text        `json:"user_agent"`
-	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
-	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	SessionID  pgtype.Text        `json:"session_id"`
+	ID              string             `json:"id"`
+	UserID          string             `json:"user_id"`
+	Endpoint        string             `json:"endpoint"`
+	P256dh          string             `json:"p256dh"`
+	Auth            string             `json:"auth"`
+	UserAgent       pgtype.Text        `json:"user_agent"`
+	LastUsedAt      pgtype.Timestamptz `json:"last_used_at"`
+	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	SessionID       pgtype.Text        `json:"session_id"`
+	Transport       pgtype.Text        `json:"transport"`
+	ApnsEnvironment pgtype.Text        `json:"apns_environment"`
+	ApnsBundleID    pgtype.Text        `json:"apns_bundle_id"`
 }
 
 type RefreshToken struct {

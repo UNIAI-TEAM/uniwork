@@ -187,11 +187,15 @@ ON CONFLICT (user_id, kind) DO UPDATE SET
   in_app = EXCLUDED.in_app, push = EXCLUDED.push, email = EXCLUDED.email, updated_at = now();
 
 -- name: UpsertPushSubscription :one
-INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+-- transport, apns_environment and apns_bundle_id are set only for an iPhone's
+-- PushKit token ('apns_voip'); a browser or an Expo token leaves them NULL.
+INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, transport, apns_environment, apns_bundle_id, last_used_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
 ON CONFLICT (endpoint) WHERE revoked_at IS NULL DO UPDATE SET
   user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
-  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id, last_used_at = now()
+  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id,
+  transport = EXCLUDED.transport, apns_environment = EXCLUDED.apns_environment,
+  apns_bundle_id = EXCLUDED.apns_bundle_id, last_used_at = now()
 RETURNING *;
 
 -- name: RevokePushSubscriptionsForSession :exec

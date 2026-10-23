@@ -584,6 +584,8 @@ var isoRefFieldExempt = map[string]string{
 	"FlagOverrideDeleteSDI.scope_id":              "platform console: an override names any organization or user by design (RequirePlatformRole)",
 	"CalendarSelectionSDI.calendar_ids":           "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
 	"SendChatMessageSDI.client_msg_id":            "the client's idempotency key, not a row",
+	"PushSubscribeSDI.apns_bundle_id":             "the iPhone app's Apple bundle identifier (the APNs topic), not a row",
+	"PushSubscribeSDI.bundle_id":                  "the iPhone app's Apple bundle identifier (the APNs topic), not a row",
 	"ShareChatMessageAsDocumentSDI.client_msg_id": "the client's idempotency key, not a row",
 	"SendChatDocumentLinkSDI.client_msg_id":       "the client's idempotency key, not a row",
 	"MintChatVoiceTokenSDI.call_id":               "a client-generated call id, not a row",

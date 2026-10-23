@@ -173,6 +173,15 @@ type Config struct {
 	// calls Load (cmd/migrate among them) would refuse to run over a push
 	// setting it never uses.
 	ExpoAccessToken string
+	// APNs token auth for iPhone VoIP pushes (ADR 0038): the .p8 key's id, the
+	// Apple team id and the key itself (PEM; escaped newlines are accepted).
+	// All three empty turns VoIP off and iPhones keep the Expo call push; only
+	// some of them set is logged at start and also leaves VoIP off.
+	// APNSVoIPTopic, when set, replaces "<bundle id>.voip" for every token.
+	APNSKeyID      string
+	APNSTeamID     string
+	APNSPrivateKey string
+	APNSVoIPTopic  string
 	// RUMSampleRate is the share of web sessions that report web-vitals to
 	// POST /api/v1/rum (F-11 §2.8); 0 turns reporting off client-side.
 	RUMSampleRate             float64
@@ -471,6 +480,10 @@ func Load() (Config, error) {
 		VAPIDPrivateKey:               os.Getenv("VAPID_PRIVATE_KEY"),
 		VAPIDSubject:                  os.Getenv("VAPID_SUBJECT"),
 		ExpoAccessToken:               os.Getenv("EXPO_ACCESS_TOKEN"),
+		APNSKeyID:                     os.Getenv("APNS_KEY_ID"),
+		APNSTeamID:                    os.Getenv("APNS_TEAM_ID"),
+		APNSPrivateKey:                os.Getenv("APNS_PRIVATE_KEY"),
+		APNSVoIPTopic:                 os.Getenv("APNS_VOIP_TOPIC"),
 		RUMSampleRate:                 parseRatio(os.Getenv("RUM_SAMPLE_RATE"), 0.2),
 		OfficeInstallerDevURL:         os.Getenv("OFFICE_INSTALLER_DEV_URL"),
 		OfficeInstallerBetaURL:        os.Getenv("OFFICE_INSTALLER_BETA_URL"),

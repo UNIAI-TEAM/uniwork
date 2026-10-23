@@ -42,6 +42,15 @@ type PushSubscribeSDI struct {
 	// ChatQuiet: the build created the chat_quiet channel and its FCM service
 	// lifts data.tag, so a room's pushes replace one notification (UNI-2141).
 	ChatQuiet bool `json:"chat_quiet,omitempty" description:"true khi bản Android đã tạo kênh chat_quiet: tin chat tới trong vòng 30 giây sau một tin đã reo của cùng phòng hiện im lặng trên kênh đó, và mỗi push của phòng thay thông báo của phòng (tiêu đề kèm số tin); thiếu thì máy không nhận các tin im lặng ấy và tiêu đề không kèm số tin" example:"true"`
+	// Transport "apns_voip" registers an iPhone's PushKit token (ADR 0038):
+	// endpoint is the token in hex, with the APNs environment of the build and
+	// the app's bundle id. Kind and bundle_id are the same fields under the
+	// other names the contract gave them; transport and apns_bundle_id win.
+	Transport       string `json:"transport,omitempty" enum:"apns_voip" description:"apns_voip khi endpoint là token PushKit (VoIP) của iPhone, dạng hex; bỏ trống với subscription trình duyệt và token Expo" example:"apns_voip"`
+	Kind            string `json:"kind,omitempty" enum:"apns_voip" description:"Tên khác của transport; transport thắng khi có cả hai" example:"apns_voip"`
+	APNsEnvironment string `json:"apns_environment,omitempty" enum:"production,sandbox" description:"Bắt buộc với apns_voip: production cho bản TestFlight/App Store, sandbox cho bản development" example:"production"`
+	APNsBundleID    string `json:"apns_bundle_id,omitempty" description:"Bắt buộc với apns_voip: bundle id của app; push VoIP đi tới topic <apns_bundle_id>.voip" example:"com.uniworkos.chat"`
+	BundleID        string `json:"bundle_id,omitempty" description:"Tên khác của apns_bundle_id; apns_bundle_id thắng khi có cả hai" example:"com.uniworkos.chat"`
 }
 
 // PushUnsubscribeSDI is DELETE /api/v1/me/push-subscriptions.

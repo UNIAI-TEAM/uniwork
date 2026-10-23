@@ -311,6 +311,22 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		}
 	}
 	iPhonesRing := n.Kind == KindChatCallIncoming && (c.mobileCallsIOS == nil || c.mobileCallsIOS(ctx, n.UserID, n.OrganizationID))
+	// An iPhone with a PushKit token rings through CallKit (ADR 0038): the VoIP
+	// push goes first, and the Expo token of each device session it reached
+	// gets no "đang gọi" banner on top. One it did not reach (no APNs key on
+	// the server, a dead or failing token) keeps today's visible push, and a
+	// failing token does not retry the row: the ring lasts a minute, the
+	// banner already reached that iPhone, and a retry would ring every other
+	// device again.
+	var rang voipResult
+	if iPhonesRing {
+		if rang, err = c.sendVoIP(ctx, subs, msg); err != nil {
+			return err
+		}
+		if rang.failed != nil {
+			slog.WarnContext(ctx, "push: VoIP ring failed, the iPhone gets the visible push", "user_id", n.UserID, "error", rang.failed)
+		}
+	}
 	var claim db.ClaimChatNotificationPushRow
 	if messageID != "" {
 		var claimed bool
@@ -321,8 +337,12 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		msg.Quiet = !claim.Alerted
 	}
 	var failed error
-	phoneSent := false
+	phoneSent := rang.sent
 	for _, sub := range subs {
+		// A PushKit token takes a ring and its end only, sent above.
+		if isVoIPSubscription(sub) {
+			continue
+		}
 		// Call invites are the phone's background path (spec M3 §2): open
 		// desktops ring through realtime; web push subscriptions are skipped.
 		if n.Kind == KindChatCallIncoming && !isExpoPushToken(sub.Endpoint) {
@@ -331,6 +351,9 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		if n.Kind == KindChatCallIncoming && !iPhonesRing && expoPlatform(sub) == "ios" {
 			c.count("skipped")
 			continue
+		}
+		if n.Kind == KindChatCallIncoming && expoPlatform(sub) == "ios" && sub.SessionID.Valid && rang.sessions[sub.SessionID.String] {
+			continue // this iPhone rings through CallKit
 		}
 		err := c.sender.Send(ctx, sub, msg)
 		switch {
@@ -512,8 +535,10 @@ const callEndTTL = int(callRingWindow / time.Second)
 // handleRingClosed tells a person's Android phones (the builds with the call
 // UI) that a call no longer
 // rings for them: they answered it on one device, declined it, or it ended.
-// A data-only push; the app removes its ringing screen and notification.
-// iPhones keep today's visible push, which this cannot recall. Nothing is
+// A data-only push; the app removes its ringing screen and notification. An
+// iPhone's PushKit token gets it as a VoIP push while unichat_mobile_calls_ios
+// is on, so its CallKit screen comes down (ADR 0038); an iPhone without one
+// keeps today's visible push, which this cannot recall. Nothing is
 // sent when the calls switch is off for the person: their phone was never
 // rung, and a ring that outlives a switch flipped mid-call times out alone.
 func (c *PushConsumer) handleRingClosed(ctx context.Context, ev outbox.Row) error {
@@ -533,7 +558,66 @@ func (c *PushConsumer) handleRingClosed(ctx context.Context, ev outbox.Row) erro
 		return err
 	}
 	msg := PushMessage{TTL: callEndTTL, Call: CallPush{Type: CallPushEnd, CallID: callID, RoomID: roomID, WorkspaceID: ev.WorkspaceID.String}}
-	return c.sendToCallUI(ctx, subs, msg)
+	var ended voipResult
+	if c.mobileCallsIOS == nil || c.mobileCallsIOS(ctx, userID, ev.OrganizationID.String) {
+		if ended, err = c.sendVoIP(ctx, subs, msg); err != nil {
+			return err
+		}
+	}
+	return errors.Join(ended.failed, c.sendToCallUI(ctx, subs, msg))
+}
+
+// voipResult is what sendVoIP did: whether any PushKit token took the push,
+// the device sessions those tokens were registered from, and the last
+// retryable failure.
+type voipResult struct {
+	sent     bool
+	sessions map[string]bool
+	failed   error
+}
+
+// sendVoIP sends a ring or its end to the person's PushKit tokens, naming
+// the call's organization and workspace by slug: the app opens the call by its
+// path. A dead token is revoked; a token the sender skips (no APNs key) is
+// counted and left for the Expo path. The error is only the slug lookup's.
+func (c *PushConsumer) sendVoIP(ctx context.Context, subs []db.PushSubscription, msg PushMessage) (voipResult, error) {
+	var out voipResult
+	if !slices.ContainsFunc(subs, isVoIPSubscription) {
+		return out, nil
+	}
+	if msg.Call.WorkspaceID != "" {
+		ws, err := c.q.GetWorkspaceWithOrg(ctx, msg.Call.WorkspaceID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return out, err
+		}
+		msg.Call.OrgSlug, msg.Call.WorkspaceSlug = ws.OrganizationSlug, ws.Slug
+	}
+	for _, sub := range subs {
+		if !isVoIPSubscription(sub) {
+			continue
+		}
+		err := c.sender.Send(ctx, sub, msg)
+		switch {
+		case err == nil:
+			c.count("sent")
+			out.sent = true
+			if sub.SessionID.Valid {
+				if out.sessions == nil {
+					out.sessions = map[string]bool{}
+				}
+				out.sessions[sub.SessionID.String] = true
+			}
+		case errors.Is(err, ErrPushSkipped):
+			c.count("skipped")
+		case errors.Is(err, ErrSubscriptionGone):
+			c.count("gone")
+			_ = c.q.RevokePushSubscription(ctx, sub.ID)
+		default:
+			c.count("failed")
+			out.failed = err
+		}
+	}
+	return out, nil
 }
 
 // roomClearedTTL: a tray cleanup that reaches a phone a day late finds
