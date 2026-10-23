@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -236,6 +237,43 @@ func TestFileServiceNullTenantAvatarBranch(t *testing.T) {
 		UserID: pgtype.Text{String: "01USRFS00000000000000000B", Valid: true},
 	}); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("avatar read for another user must be not-found, got %v", err)
+	}
+}
+
+// Every declared purpose opens a session in the scope its registry row gives
+// it, so a purpose added to the registry without restating the two
+// file_upload_sessions checks fails here instead of on its first upload.
+func TestFileServiceEveryPurposeOpensASession(t *testing.T) {
+	pool, ctx := fileServicePool(t)
+	registry := files.DefaultRegistry()
+
+	n := 0
+	open := func(purpose files.UploadPurpose, org, ws, user any) {
+		t.Helper()
+		n++
+		// The id names the purpose, so a refusal says which one it was.
+		id := fmt.Sprintf("01FPURP-%s-%d", purpose, n)
+		insertFile(t, pool, ctx, id, org, "local", nil, "purposes/"+id)
+		insertSession(t, pool, ctx, id, id, string(purpose), org, ws, user, "idem-"+id)
+	}
+	for _, purpose := range files.Purposes() {
+		spec, err := registry.Lookup(purpose)
+		if err != nil {
+			t.Fatalf("registry lookup %s: %v", purpose, err)
+		}
+		switch spec.Scope {
+		case files.ScopeUser:
+			open(purpose, nil, nil, fsUserA)
+		case files.ScopeOrg:
+			open(purpose, fsOrgA, nil, nil)
+		case files.ScopeOrgWorkspace:
+			open(purpose, fsOrgA, fsWsA, nil)
+		case files.ScopeOrgWorkspaceOptional:
+			open(purpose, fsOrgA, fsWsA, nil)
+			open(purpose, fsOrgA, nil, nil)
+		default:
+			t.Fatalf("purpose %s has scope shape %q this test does not know", purpose, spec.Scope)
+		}
 	}
 }
 
