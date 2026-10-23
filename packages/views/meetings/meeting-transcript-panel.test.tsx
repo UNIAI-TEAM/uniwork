@@ -261,4 +261,75 @@ describe("MeetingTranscriptPanel", () => {
     await waitFor(() => expect(within(list).getByText("câu t1")).toBeInTheDocument());
     expect(within(list).queryByRole("button", { name: "Tải lời thoại trước đó" })).not.toBeInTheDocument();
   });
+
+  it("deletes a stretch ending on a sub-second line by naming both lines (UNI-1995 #5)", async () => {
+    const lines = [
+      { id: "t1", meeting_id: "m1", text: "Bắt đầu", spoken_at: "2026-09-22T02:10:00.250Z", speaker_name: "Lan" },
+      { id: "t2", meeting_id: "m1", text: "Ngoài lề", spoken_at: "2026-09-22T02:10:00.900Z", speaker_name: "Lan" },
+      { id: "t3", meeting_id: "m1", text: "Tiếp", spoken_at: "2026-09-22T02:11:00Z", speaker_name: "Lan" },
+    ];
+    respond({ "/transcript": { segments: lines, deleted: 2 } });
+    render(wrapWithNav(<MeetingTranscriptPanel workspaceId="w1" meeting={meeting} canClerk />));
+    fireEvent.click(await screen.findByRole("button", { name: "Xem lời thoại (3 câu)" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /^Thao tác với câu của Lan/ })[0]!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Xóa từ câu này…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Xóa một đoạn lời thoại" });
+    const end = within(dialog).getByRole("combobox", { name: "Đến hết câu" });
+    fireEvent.click(end);
+    const option = await screen.findByRole("option", { name: /Ngoài lề/ });
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+    await waitFor(() => expect(end).toHaveTextContent("Ngoài lề"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa" }));
+    // No times leave the client: the server reads both lines' own.
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/transcript?from_segment_id=t1&to_segment_id=t2", { method: "DELETE" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Xóa một đoạn lời thoại" })).not.toBeInTheDocument());
+  });
+
+  it("asks before deleting the whole transcript, then deletes it (UNI-1995 #5)", async () => {
+    respond({ "/transcript": { segments: [{ id: "t1", meeting_id: "m1", text: "Một", spoken_at: "2026-09-22T02:10:00Z" }], deleted: 1 } });
+    render(wrapWithNav(<MeetingTranscriptPanel workspaceId="w1" meeting={meeting} canClerk />));
+    fireEvent.click(await screen.findByRole("button", { name: "Thao tác khác với lời thoại" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Xóa toàn bộ lời thoại" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Xóa toàn bộ lời thoại?" });
+    expect(within(dialog).getByText(/Tóm tắt, biên bản và việc cần làm vẫn giữ nguyên/)).toBeInTheDocument();
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meetings/m1/transcript", { method: "DELETE" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/transcript", { method: "DELETE" }));
+  });
+
+  it("lets a clerk delete an earlier upload with its recording, not only the latest (UNI-1995 #5)", async () => {
+    respond({
+      "/transcript": { segments: [] },
+      "/transcriptions": {
+        transcriptions: [
+          { id: "t2", meeting_id: "m1", filename: "phan-2.m4a", status: "COMPLETE", created_at: "2026-09-22T04:00:00Z", completed_at: "2026-09-22T04:10:00Z" },
+          { id: "t1", meeting_id: "m1", filename: "phan-1.m4a", status: "COMPLETE", created_at: "2026-09-22T03:00:00Z", completed_at: "2026-09-22T03:10:00Z" },
+        ],
+      },
+    });
+    render(wrapWithNav(<MeetingTranscriptPanel workspaceId="w1" meeting={meeting} canClerk />));
+    const earlier = await screen.findByRole("list", { name: "Các tệp ghi âm tải lên trước" });
+    expect(screen.getByRole("button", { name: "Xóa tệp ghi âm và lời thoại" })).toBeInTheDocument();
+    fireEvent.click(within(earlier).getByRole("button", { name: 'Xóa tệp "phan-1.m4a" và lời thoại của nó' }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Xóa tệp ghi âm này?" });
+    expect(within(dialog).getByText(/phan-1\.m4a/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/transcriptions/t1", { method: "DELETE" }));
+  });
+
+  it("says a cited line is gone when other lines remain (UNI-1995 #14)", async () => {
+    respond({ "/transcript": { segments: [{ id: "t9", meeting_id: "m1", text: "Câu khác", spoken_at: "2026-09-22T02:10:00Z" }] } });
+    render(
+      wrapWithNav(
+        <MeetingTranscriptPanel workspaceId="w1" meeting={meeting} canClerk={false} />,
+        fakeNav("/acme/team/meetings/m1?section=transcript&segment=gone"),
+      ),
+    );
+    expect(await screen.findByText("Câu được dẫn không còn trong lời thoại.")).toBeInTheDocument();
+    expect(requestMock.mock.calls.some(([p]) => String(p).includes("/transcript?around=gone"))).toBe(true);
+    expect(screen.getByTestId("meeting-transcript")).toHaveTextContent("Câu khác");
+  });
 });

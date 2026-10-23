@@ -4206,6 +4206,8 @@
       "delete": "Delete the recording and its transcript",
       "deleteTitle": "Delete this recording?",
       "deleteDescription": "\"{{file}}\" and the lines transcribed from it are deleted for good.",
+      "deleteNamed": "Delete \"{{file}}\" and its transcript",
+      "earlier": "Earlier uploads",
       "since": "since {{time}}",
       "at": "at {{time}}",
       "status": {

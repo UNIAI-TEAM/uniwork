@@ -4205,6 +4205,8 @@
       "delete": "Xóa tệp ghi âm và lời thoại",
       "deleteTitle": "Xóa tệp ghi âm này?",
       "deleteDescription": "Tệp \"{{file}}\" và các câu ghi lời từ nó bị xóa, không khôi phục được.",
+      "deleteNamed": "Xóa tệp \"{{file}}\" và lời thoại của nó",
+      "earlier": "Các tệp ghi âm tải lên trước",
       "since": "từ {{time}}",
       "at": "lúc {{time}}",
       "status": {

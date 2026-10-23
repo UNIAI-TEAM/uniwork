@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, CircleAlert, Ellipsis, FileHeadphone, ScrollText, Trash2, Upload } from "lucide-react";
+import { ChevronDown, CircleAlert, Ellipsis, FileHeadphone, Info, ScrollText, Trash2, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingCapabilities, useRecordings } from "@uniwork/core/meetings";
 import { useMeetingTranscriptions } from "@uniwork/core/meetings/transcriptions";
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
+import { Notice } from "../common/notice";
 import { PanelCard } from "../common/panel-card";
 import { useOptionalNavigation } from "../navigation";
 import { meetingLocale } from "./meeting-datetime";
@@ -111,6 +112,9 @@ export function MeetingTranscriptPanel({
       ? t("meetings.transcriptEmptyEnded")
       : t("meetings.transcriptEmpty");
   const more = reader.hasOlder || reader.hasNewer;
+  // The cited line is gone (edited out, or replaced by an upload, UNI-1995 #11):
+  // the server answered with the first page, which says nothing by itself.
+  const targetMissing = target !== "" && !reader.isPending && !transcript.some((s) => s.id === target);
 
   return (
     <PanelCard
@@ -140,6 +144,11 @@ export function MeetingTranscriptPanel({
           uploadFailed ? null : <p className="text-label text-muted-foreground">{target ? t("meetings.transcriptJumpMissing") : empty}</p>
         ) : (
           <Collapsible open={showTranscript} onOpenChange={setShowTranscript}>
+            {targetMissing ? (
+              <Notice tone="info" icon={Info} layout="inline" live="polite" className="mb-2">
+                {t("meetings.transcriptJumpMissing")}
+              </Notice>
+            ) : null}
             <div className="flex flex-wrap items-center gap-1">
               <CollapsibleTrigger
                 render={

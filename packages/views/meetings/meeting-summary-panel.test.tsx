@@ -479,3 +479,31 @@ describe("MeetingSummaryPanel › generating", () => {
     expect(card.className).not.toMatch(/border-brand/);
   });
 });
+
+describe("MeetingSummaryPanel after the transcript changed (UNI-1995 #5)", () => {
+  const changed = () =>
+    Promise.resolve({
+      summary: { id: "s1", meeting_id: "m1", summary: "Chốt lịch", created_at: "2026-09-22T02:31:00Z", transcript_changed_at: "2026-09-22T05:00:00Z" },
+    });
+
+  it("says so and offers a clerk Regenerate, behind the same confirm", async () => {
+    summaryRespond(changed, () => Promise.resolve({ segments: [{ id: "t1", meeting_id: "m1", text: "Một", spoken_at: "2026-09-22T02:10:00Z" }] }));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    expect(await screen.findByText("Lời thoại đã thay đổi sau khi tóm tắt này được tạo.")).toBeInTheDocument();
+    // The header's button and the notice's: the notice's comes second.
+    const buttons = screen.getAllByRole("button", { name: "Tạo lại tóm tắt" });
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[1]!);
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Tạo lại" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/summary", expect.objectContaining({ method: "POST" })),
+    );
+  });
+
+  it("tells a reader without offering Regenerate", async () => {
+    summaryRespond(changed);
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk={false} />));
+    expect(await screen.findByText("Lời thoại đã thay đổi sau khi tóm tắt này được tạo.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tạo lại tóm tắt" })).not.toBeInTheDocument();
+  });
+});

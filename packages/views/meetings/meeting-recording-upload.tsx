@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError, errorClassOf, errorCode } from "@uniwork/core/api";
 import { ChunkedUploadError } from "@uniwork/core/documents/chunked-upload";
-import { useDeleteMeetingTranscription } from "@uniwork/core/meetings/transcript";
 import { useMeetingTranscriptions, useUploadMeetingRecording } from "@uniwork/core/meetings/transcriptions";
 import type { MeetingTranscription } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -22,6 +21,7 @@ import { formatBytes } from "../documents/doclist/format";
 import { useFileDropZone } from "../editor/use-file-drop-zone";
 import { meetingLocale } from "./meeting-datetime";
 import { formatMeetingMoment } from "./meeting-detail-format";
+import { EarlierTranscriptions, TranscriptionDeleteButton } from "./transcript/meeting-transcription-delete";
 
 /** The meeting_audio cap on the server (parent spec §5.5); said as "2 GB". */
 const MAX_BYTES = 2 * 1024 ** 3;
@@ -397,8 +397,6 @@ export function MeetingTranscriptionStatus({
 }) {
   const { t, i18n } = useTranslation();
   const { data } = useMeetingTranscriptions(meetingId);
-  const remove = useDeleteMeetingTranscription(meetingId);
-  const [askDelete, setAskDelete] = useState(false);
   const latest: MeetingTranscription | undefined = data?.[0];
   const known = latest && STATUSES.has(latest.status) ? latest : undefined;
   const failed = known?.status === "FAILED";
@@ -413,66 +411,40 @@ export function MeetingTranscriptionStatus({
     failed && known?.error_code && ERRORS.has(known.error_code) ? ` ${t(`meetings.transcription.error.${known.error_code}`)}` : "";
   const deletable = canDelete && known && !busy;
   return (
-    // The delete button sits beside the live region, not in it; nothing shows while the region is empty.
-    <div className="flex items-center gap-1 has-[>[role=status]:empty]:hidden">
-      <div role="status" aria-live="polite" data-testid="meeting-transcription-status" className="min-w-0 flex-1 empty:hidden">
-        {!known ? null : failed ? (
-          <Notice
-            tone="destructive"
-            icon={CircleAlert}
-            layout="inline"
-            live="off"
-            action={
-              onRetry ? (
-                <Button type="button" size="sm" variant="outline" onClick={onRetry}>
-                  <Upload aria-hidden />
-                  {t("meetings.transcription.uploadAgain")}
-                </Button>
-              ) : undefined
-            }
-          >
-            {/* A long file name has no space to break at. */}
-            <span className="wrap-anywhere">{`${text}.${reason}`}</span>
-          </Notice>
-        ) : (
-          <p className="flex items-center gap-1.5 text-caption text-muted-foreground">
-            {busy ? <Spinner /> : <FileHeadphone aria-hidden className="size-3.5 shrink-0" />}
-            <span className="min-w-0 wrap-anywhere">{text}</span>
-          </p>
-        )}
+    <>
+      {/* The delete button sits beside the live region, not in it; nothing shows while the region is empty. */}
+      <div className="flex items-center gap-1 has-[>[role=status]:empty]:hidden">
+        <div role="status" aria-live="polite" data-testid="meeting-transcription-status" className="min-w-0 flex-1 empty:hidden">
+          {!known ? null : failed ? (
+            <Notice
+              tone="destructive"
+              icon={CircleAlert}
+              layout="inline"
+              live="off"
+              action={
+                onRetry ? (
+                  <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+                    <Upload aria-hidden />
+                    {t("meetings.transcription.uploadAgain")}
+                  </Button>
+                ) : undefined
+              }
+            >
+              {/* A long file name has no space to break at. */}
+              <span className="wrap-anywhere">{`${text}.${reason}`}</span>
+            </Notice>
+          ) : (
+            <p className="flex items-center gap-1.5 text-caption text-muted-foreground">
+              {busy ? <Spinner /> : <FileHeadphone aria-hidden className="size-3.5 shrink-0" />}
+              <span className="min-w-0 wrap-anywhere">{text}</span>
+            </p>
+          )}
+        </div>
+        {deletable ? (
+          <TranscriptionDeleteButton meetingId={meetingId} transcription={known} label={t("meetings.transcription.delete")} />
+        ) : null}
       </div>
-      {deletable ? (
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          className="text-muted-foreground"
-          aria-label={t("meetings.transcription.delete")}
-          onClick={() => setAskDelete(true)}
-        >
-          <Trash2 aria-hidden />
-        </Button>
-      ) : null}
-      {deletable && askDelete ? (
-        <ConfirmDialog
-          open
-          onOpenChange={(open) => {
-            if (!open && !remove.isPending) setAskDelete(false);
-          }}
-          title={t("meetings.transcription.deleteTitle")}
-          description={t("meetings.transcription.deleteDescription", { file: known.filename || "—" })}
-          confirmLabel={t("meetings.transcriptDeleteConfirm")}
-          pending={remove.isPending}
-          icon={Trash2}
-          onConfirm={() => {
-            if (remove.isPending) return;
-            remove.mutateAsync(known.id).then(
-              () => setAskDelete(false),
-              () => toast.error(t("meetings.transcriptChangeFailed")),
-            );
-          }}
-        />
-      ) : null}
-    </div>
+      {canDelete && data ? <EarlierTranscriptions meetingId={meetingId} transcriptions={data.slice(1)} /> : null}
+    </>
   );
 }
