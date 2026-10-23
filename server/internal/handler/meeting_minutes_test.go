@@ -86,6 +86,15 @@ func TestMeetingMinutesHTTP(t *testing.T) {
 		t.Fatalf("member reads the page: %v", out)
 	}
 
+	// A draft takes a facts-only refresh, and says how many items are pending.
+	res, out = doJSON(t, srv, "POST", base+"/refresh", host, nil)
+	if minutes, _ = out["minutes"].(map[string]any); res.StatusCode != http.StatusOK || minutes["pending_items"] != float64(0) {
+		t.Fatalf("refresh: %d %v", res.StatusCode, out)
+	}
+	if res, out = doJSON(t, srv, "POST", base+"/refresh", member, nil); res.StatusCode != http.StatusForbidden || errorCode(out) != "not_meeting_clerk" {
+		t.Fatalf("member refreshed: %d %v", res.StatusCode, out)
+	}
+
 	res, out = doJSON(t, srv, "POST", base+"/finalize", host, nil)
 	minutes, _ = out["minutes"].(map[string]any)
 	if res.StatusCode != http.StatusOK || minutes["finalized"] != true || minutes["finalized_version"] != float64(1) || minutes["finalized_version_id"] == nil {
@@ -94,6 +103,9 @@ func TestMeetingMinutesHTTP(t *testing.T) {
 	res, out = doJSON(t, srv, "GET", base, member, nil)
 	if minutes, _ = out["minutes"].(map[string]any); res.StatusCode != http.StatusOK || minutes["finalized"] != true || minutes["can_edit"] != false {
 		t.Fatalf("member reads finalized minutes: %d %v", res.StatusCode, out)
+	}
+	if res, out = doJSON(t, srv, "POST", base+"/refresh", host, nil); res.StatusCode != http.StatusConflict || errorCode(out) != "minutes_finalized" {
+		t.Fatalf("refresh of finalized minutes: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, srv, "POST", base+"/reopen", host, nil)
 	if minutes, _ = out["minutes"].(map[string]any); res.StatusCode != http.StatusOK || minutes["finalized"] != false || minutes["finalized_at"] != nil {

@@ -53,6 +53,9 @@ type MeetingMinutes struct {
 	// CanEdit is the caller's level on the page, edit or more, on a page
 	// that is not shelved (a shelved page refuses finalize and reopen).
 	CanEdit bool
+	// PendingItems counts the meeting's action items nobody has converted or
+	// dismissed yet: the clerk is warned before finalizing (benchmark #22).
+	PendingItems int
 	// Readable is false for a member who may not read the page (it was made
 	// private since): the meeting still says it has minutes and whether they
 	// are finalized, but names neither the page, its version nor its edits.
@@ -127,6 +130,15 @@ func (s *MeetingService) describeMinutes(ctx context.Context, userID string, m d
 		return nil, err
 	}
 	out.CanEdit = level.AtLeast(DocumentLevelEdit) && !doc.ShelvedAt.Valid
+	items, err := s.q.ListMeetingActionItems(ctx, db.ListMeetingActionItemsParams{OrganizationID: m.OrganizationID, MeetingID: m.ID})
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range items {
+		if actionItemStatus(r.MeetingActionItem, r.TaskLive) == ActionItemPending {
+			out.PendingItems++
+		}
+	}
 	out.Readable = level.AtLeast(DocumentLevelView)
 	if !out.Readable {
 		out.DocumentID, out.FinalizedVersionID, out.FinalizedVersion, out.EditedSinceFinalized = "", "", 0, false
@@ -389,7 +401,14 @@ func (s *MeetingService) minutesInputs(ctx context.Context, m db.Meeting, author
 	}
 	n.Summary = sum.Summary
 	decisions := DecodeSummaryDecisions(sum.Decisions)
-	at, err := s.segmentMoments(ctx, m, decisions, clock)
+	topics := DecodeSummaryTopics(sum.Topics)
+	cited := slices.Clone(decisions)
+	for _, t := range topics {
+		if t.Start != nil {
+			cited = append(cited, SummaryDecision{Evidence: []EvidenceRef{*t.Start}})
+		}
+	}
+	at, err := s.segmentMoments(ctx, m, cited, clock)
 	if err != nil {
 		return f, n, nil, err
 	}
@@ -402,10 +421,23 @@ func (s *MeetingService) minutesInputs(ctx context.Context, m db.Meeting, author
 		}
 		n.Decisions = append(n.Decisions, md)
 	}
+	for _, t := range topics {
+		mt := minutesTopic{Title: t.Title}
+		if t.Start != nil {
+			mt.At = at[t.Start.ID]
+		}
+		for _, p := range t.Points {
+			mt.Points = append(mt.Points, p.Text)
+		}
+		n.Topics = append(n.Topics, mt)
+	}
+	for _, q := range DecodeSummaryDecisions(sum.OpenQuestions) {
+		n.OpenQuestions = append(n.OpenQuestions, q.Text)
+	}
 	return f, n, editors, nil
 }
 
-// segmentMoments maps each transcript segment the decisions cite to the clock
+// segmentMoments maps each transcript segment the decisions (and topic starts) cite to the clock
 // time it was spoken at, as the meeting's own clock shows it.
 func (s *MeetingService) segmentMoments(ctx context.Context, m db.Meeting, decisions []SummaryDecision, clock func(time.Time) string) (map[string]string, error) {
 	out := map[string]string{}

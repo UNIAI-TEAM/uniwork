@@ -536,6 +536,7 @@ type MeetingMinutesDTO struct {
 	FinalizedVersion     *int32  `json:"finalized_version" description:"Số thứ tự phiên bản đã chốt trong lịch sử trang" example:"2"`
 	EditedSinceFinalized bool    `json:"edited_since_finalized" description:"Nội dung trang đã được lưu sau phiên bản đã chốt"`
 	CanEdit              bool    `json:"can_edit" description:"Người gọi có quyền sửa trang và trang không ở kho lưu trữ (cần cho chốt và bỏ chốt)"`
+	PendingItems         int     `json:"pending_items" description:"Số việc cần làm của cuộc họp chưa giao và chưa bỏ qua: giao diện cảnh báo trước khi chốt" example:"2"`
 }
 
 // MeetingMinutesSDO answers GET and the commands of /api/v1/meetings/{meetingID}/minutes.

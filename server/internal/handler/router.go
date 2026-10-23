@@ -653,6 +653,7 @@ func New(d Deps) http.Handler {
 		GetMeetingMinutes:              h.getMeetingMinutes,
 		CreateMeetingMinutes:           h.createMeetingMinutes,
 		FinalizeMeetingMinutes:         h.finalizeMeetingMinutes,
+		RefreshMeetingMinutes:          h.refreshMeetingMinutes,
 		ReopenMeetingMinutes:           h.reopenMeetingMinutes,
 		AddActionItem:                  h.addActionItem,
 		DismissActionItem:              h.dismissActionItem,

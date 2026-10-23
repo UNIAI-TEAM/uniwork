@@ -16,7 +16,7 @@ func toMinutesSDO(v *service.MeetingMinutes) sdo.MeetingMinutesSDO {
 	if v == nil {
 		return sdo.MeetingMinutesSDO{}
 	}
-	d := &sdo.MeetingMinutesDTO{EditedSinceFinalized: v.EditedSinceFinalized, CanEdit: v.CanEdit}
+	d := &sdo.MeetingMinutesDTO{EditedSinceFinalized: v.EditedSinceFinalized, CanEdit: v.CanEdit, PendingItems: v.PendingItems}
 	if v.Readable {
 		d.DocumentID = &v.DocumentID
 	}
@@ -59,6 +59,11 @@ func (h *handlers) createMeetingMinutes(w http.ResponseWriter, r *http.Request) 
 
 func (h *handlers) finalizeMeetingMinutes(w http.ResponseWriter, r *http.Request) {
 	v, err := h.Meetings.FinalizeMinutes(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	h.respondMinutes(w, v, err)
+}
+
+func (h *handlers) refreshMeetingMinutes(w http.ResponseWriter, r *http.Request) {
+	v, err := h.Meetings.RefreshMinutesFacts(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
 	h.respondMinutes(w, v, err)
 }
 
