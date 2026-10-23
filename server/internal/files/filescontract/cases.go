@@ -99,6 +99,7 @@ var cases = []contractCase{
 	{"provider/completed_output_becomes_a_ready_file", caseProviderComplete},
 	{"provider/complete_replays_and_checks_the_operation", caseProviderCompleteReplay},
 	{"provider/invalid_output_is_refused", caseProviderInvalidOutput},
+	{"provider/registered_filename_names_a_compound_file", caseProviderFilenameHint},
 	{"provider/output_that_disagrees_with_the_report_is_refused", caseProviderOutputVerification},
 	{"provider/storage_unavailable_is_refused_and_recovers", caseStorageUnavailable},
 	{"open/reads_bytes_and_range", caseOpen},
@@ -1202,6 +1203,43 @@ func caseProviderInvalidOutput(t *testing.T, h Harness) {
 	h.WriteProviderOutput(t, big, body, sampleType)
 	_, err = h.Service.CompleteProviderOutput(ctx, files.CompleteOutputInput{Actor: actorA(), Scope: smallScope, FileID: big.FileID, OperationID: "op-too-large"})
 	requireError(t, err, files.CodeTooLarge, http.StatusRequestEntityTooLarge)
+}
+
+// caseProviderFilenameHint: a provider registered with the person's filename
+// (a browser folder upload) gets the same extension hint as Upload, so a .doc
+// compound file completes as DOC; one registered without a name keeps only
+// what its bytes prove, which for a compound file is no type at all.
+func caseProviderFilenameHint(t *testing.T, h Harness) {
+	ctx := context.Background()
+	spec := purposeFor(t, h, files.ScopeOrgWorkspace, func(spec files.PurposeSpec) bool {
+		return spec.Policy.Allows("application/msword")
+	})
+	scope := scopeFor(spec)
+
+	named, err := h.Service.RegisterProviderOutput(ctx, files.ProviderOutputInput{
+		Actor: actorA(), Purpose: spec.Purpose, Scope: scope,
+		OperationID: "op-named-doc", Deadline: h.Now().Add(time.Hour), Filename: "Biên bản họp.doc",
+	})
+	if err != nil {
+		t.Fatalf("register a named provider output: %v", err)
+	}
+	h.WriteProviderOutput(t, named, cfbSample(), "application/msword")
+	file, err := h.Service.CompleteProviderOutput(ctx, files.CompleteOutputInput{
+		Actor: actorA(), Scope: scope, FileID: named.FileID, OperationID: "op-named-doc",
+	})
+	if err != nil {
+		t.Fatalf("complete a named .doc output: %v", err)
+	}
+	if file.ContentType != "application/msword" {
+		t.Errorf("content type = %q, want application/msword", file.ContentType)
+	}
+
+	bare := registerOK(t, h, spec, scope, "op-bare-doc")
+	h.WriteProviderOutput(t, bare, cfbSample(), "application/msword")
+	_, err = h.Service.CompleteProviderOutput(ctx, files.CompleteOutputInput{
+		Actor: actorA(), Scope: scope, FileID: bare.FileID, OperationID: "op-bare-doc",
+	})
+	requireError(t, err, files.CodeTypeRejected, http.StatusUnsupportedMediaType)
 }
 
 // caseProviderOutputVerification covers the second non-section-7 sentinel: a

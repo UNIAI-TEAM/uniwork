@@ -691,7 +691,7 @@ func (s *FileService) RegisterProviderOutput(ctx context.Context, in files.Provi
 		file, err := q.InsertFile(ctx, db.InsertFileParams{
 			ID: string(id), OrganizationID: fileText(in.Scope.OrganizationID), Storage: string(s.backend),
 			Bucket: fileText(s.bucket), ObjectKey: key,
-			OriginalFilename: files.SanitizeFilename("") + spec.Policy.ObjectKeySuffix, Metadata: []byte("{}"),
+			OriginalFilename: providerFilename(in.Filename, spec), Metadata: []byte("{}"),
 		})
 		if err != nil {
 			return fmt.Errorf("files: record provider intent: %w", err)
@@ -751,6 +751,16 @@ func (s *FileService) writeTarget(ctx context.Context, loc storage.ObjectLocator
 		expiresAt = signed.ExpiresAt
 	}
 	return files.WriteTarget{URL: signed.URL, Method: signed.Method, Headers: headers, ExpiresAt: expiresAt}, nil
+}
+
+// providerFilename is the name a provider output is recorded under: the
+// caller's filename when it gave one, else the generic name with the
+// purpose's ObjectKeySuffix.
+func providerFilename(name string, spec files.PurposeSpec) string {
+	if strings.TrimSpace(name) != "" {
+		return files.SanitizeFilename(name)
+	}
+	return files.SanitizeFilename("") + spec.Policy.ObjectKeySuffix
 }
 
 func providerKey(operationID string) string { return "provider:" + operationID }
@@ -815,9 +825,10 @@ func (s *FileService) CompleteProviderOutput(ctx context.Context, in files.Compl
 	if err != nil {
 		return files.File{}, files.StorageUnavailable(err)
 	}
-	// A provider output carries no filename (FS-C1 section 4): only the bytes
-	// speak, so the extension-hinted text types stay text/plain here.
-	contentType := spec.Policy.Canonical(files.DetectContentType(head, ""))
+	// The bytes speak; the recorded filename is only the hint Upload takes, and
+	// a provider registered without one (FS-C1 section 4) has none, so its
+	// compound files stay unknown and its text stays text/plain.
+	contentType := spec.Policy.Canonical(files.DetectContentType(head, rec.file.OriginalFilename))
 	if !spec.Policy.Allows(contentType) {
 		return files.File{}, files.TypeRejected(contentType)
 	}

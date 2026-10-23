@@ -214,6 +214,11 @@ type ProviderOutputInput struct {
 	Scope       Scope
 	OperationID string
 	Deadline    time.Time
+	// Filename is optional: the name the person's file carries when the
+	// provider is a browser writing it (a folder upload). Its extension is
+	// the same hint Upload takes - it names a compound file DOC/XLS/PPT and a
+	// text file CSV/Markdown, never a type the bytes do not prove.
+	Filename string
 }
 
 // ProviderOutput is what the provider needs: the id to report back and the
