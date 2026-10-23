@@ -16,6 +16,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/auth/appletest"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -55,6 +56,7 @@ type appleFixture struct {
 	apple  *AppleAuthService
 	issuer *appletest.Issuer
 	client *fakeAppleClient
+	out    *fakeOutbox
 }
 
 func newAppleFixture(t *testing.T) *appleFixture {
@@ -70,7 +72,9 @@ func newAppleFixture(t *testing.T) *appleFixture {
 	verifier := auth.NewAppleVerifier(auth.AppleIssuer, issuer.JWKSURL, []string{appleBundle, appleBundle + ".staging"}, nil)
 	apple := NewAppleAuthService(pool, q, desktop, verifier, client)
 	as.SetApple(apple)
-	return &appleFixture{pool: pool, q: q, auth: as, apple: apple, issuer: issuer, client: client}
+	out := &fakeOutbox{}
+	apple.SetMail(mail.Renderer{AppURL: "http://localhost:3000"}, out)
+	return &appleFixture{pool: pool, q: q, auth: as, apple: apple, issuer: issuer, client: client, out: out}
 }
 
 // input is a sign-in as the app sends it: the token for claims, the nonce
@@ -237,6 +241,68 @@ func TestAppleSignInRefusesTokensNotMeantForThisSignIn(t *testing.T) {
 	}
 	if len(f.client.exchanges) != 0 {
 		t.Fatalf("a refused token never reaches Apple's token endpoint: %v", f.client.exchanges)
+	}
+}
+
+// Linking by address adds a way into an account someone already has, and
+// every later sign-in on an account with sessions opens one more: the owner
+// hears of both, as a browser sign-in from a new device tells them (F-01).
+func TestAppleSignInTellsTheOwnerOfTheLinkAndOfEveryNewSession(t *testing.T) {
+	f := newAppleFixture(t)
+	ctx := WithSessionMeta(context.Background(), SessionMeta{UserAgent: "UniChat/1 CFNetwork", IP: "10.0.0.7"})
+	kinds := func() []string {
+		f.out.mu.Lock()
+		defer f.out.mu.Unlock()
+		var k []string
+		for _, m := range f.out.queued {
+			k = append(k, m.Kind+" "+m.To)
+		}
+		return k
+	}
+
+	// A new account is told nothing: it has no other session to protect.
+	in := f.input(t, appletest.Claims(appleBundle, "apple-new", "new@privaterelay.appleid.com", true, "a"), "a")
+	if _, err := f.apple.SignIn(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	if got := kinds(); len(got) != 0 {
+		t.Fatalf("a new account gets no alert, got %v", got)
+	}
+	// The next sign-in on it is a new phone session: the new-login alert names the device.
+	if _, err := f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-new", "new@privaterelay.appleid.com", true, "c"), "c")); err != nil {
+		t.Fatal(err)
+	}
+	if got := kinds(); len(got) != 1 || got[0] != "new_login new@privaterelay.appleid.com" {
+		t.Fatalf("a sign-in on an account with sessions sends new_login, got %v", got)
+	}
+	if m := f.out.last(t); !strings.Contains(m.Text, "UniChat (iOS)") || !strings.Contains(m.Text, "10.0.0.7") {
+		t.Fatalf("the alert names the device and the address: %s", m.Text)
+	}
+
+	// Linking an account made with a password tells its owner once, with the device.
+	reg, err := f.auth.Register(ctx, "owner@example.com", "password123", "O", "vi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(ctx, `UPDATE users SET email_verified_at = now() WHERE id = $1`, reg.User.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-owner", "owner@example.com", false, "d"), "d")); err != nil {
+		t.Fatal(err)
+	}
+	if got := kinds(); len(got) != 2 || got[1] != "apple_linked owner@example.com" {
+		t.Fatalf("the link is told to the owner, and only once: %v", got)
+	}
+	if m := f.out.last(t); !strings.Contains(m.Text, "UniChat (iOS)") || !strings.Contains(m.Text, "/settings?tab=security") || m.UserID != reg.User.ID {
+		t.Fatalf("the link mail names the device and the sessions page: %+v", m)
+	}
+
+	// A refused sign-in tells nobody anything.
+	if _, err := f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-thief", "owner@example.com", false, "e"), "e")); !errors.Is(err, ErrAppleAccountConflict) {
+		t.Fatalf("want conflict, got %v", err)
+	}
+	if got := kinds(); len(got) != 2 {
+		t.Fatalf("a refused sign-in sends nothing: %v", got)
 	}
 }
 

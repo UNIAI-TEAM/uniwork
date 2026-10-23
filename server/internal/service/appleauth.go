@@ -15,6 +15,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -70,6 +71,9 @@ type AppleAuthService struct {
 	client   AppleTokenClient
 	sealer   auth.SecretSealer
 	log      *slog.Logger
+	// render/out are nil-safe: without SetMail no alert goes out.
+	render mail.Renderer
+	out    mail.Enqueuer
 }
 
 // NewAppleAuthService seals the kept refresh token with a key derived from the
@@ -77,6 +81,12 @@ type AppleAuthService struct {
 func NewAppleAuthService(pool *pgxpool.Pool, q *db.Queries, desktop *DesktopAuthService, verifier AppleTokenVerifier, client AppleTokenClient) *AppleAuthService {
 	sealer, _ := auth.NewSecretSealer([]byte(desktop.cfg.JWTSecret))
 	return &AppleAuthService{pool: pool, q: q, desktop: desktop, verifier: verifier, client: client, sealer: sealer, log: slog.Default()}
+}
+
+// SetMail wires the owner alerts: the link notice and the new-login mail.
+func (s *AppleAuthService) SetMail(r mail.Renderer, out mail.Enqueuer) {
+	s.render = r
+	s.out = out
 }
 
 // AppleSignInInput is what the app sends after Apple's sheet: the identity
@@ -148,6 +158,16 @@ func (s *AppleAuthService) SignIn(ctx context.Context, in AppleSignInInput) (Des
 	if u.MfaEnabledAt.Valid {
 		return DesktopSession{}, appleMFARequired()
 	}
+	// Read before this sign-in adds its own: an account with a session
+	// somewhere is one whose owner must hear of a new one.
+	hadSessions := false
+	if how != "created" {
+		n, err := q.CountRefreshTokensForUser(ctx, u.ID)
+		if err != nil {
+			return DesktopSession{}, err
+		}
+		hadSessions = n > 0
+	}
 	if sealed != "" {
 		if err := q.SetAppleRefreshToken(ctx, db.SetAppleRefreshTokenParams{
 			ID: u.ID, AppleClientID: pgtype.Text{String: claims.Audience, Valid: true},
@@ -177,7 +197,40 @@ func (s *AppleAuthService) SignIn(ctx context.Context, in AppleSignInInput) (Des
 		return DesktopSession{}, err
 	}
 	committed = true
+	s.tellOwner(ctx, u, how, hadSessions, in)
 	return sess, nil
+}
+
+// tellOwner sends, after commit and best effort, what a browser sign-in
+// would have: the link notice when Apple was linked to the account by its
+// address (it names the new session too), else the new-login alert when the
+// account had a session before this one. A new account hears nothing.
+func (s *AppleAuthService) tellOwner(ctx context.Context, u db.User, how string, hadSessions bool, in AppleSignInInput) {
+	if s.out == nil || (how != "email" && !hadSessions) {
+		return
+	}
+	device := mail.SafeField(sanitizeDesktopLabel(in.DeviceLabel))
+	if device == "" {
+		device = mail.SafeField(sanitizeMetadata(in.Platform))
+	}
+	ip := mail.SafeField(sessionMetaFrom(ctx).IP)
+	at := s.desktop.now()
+	sessions := s.render.AppURL + "/settings?tab=security"
+	var msg mail.Message
+	var err error
+	if how == "email" {
+		msg, err = s.render.AppleLinked(u.Email, u.Locale, u.ID, mail.AppleLinkedData{Device: device, IP: ip, At: at, SessionsURL: sessions})
+	} else {
+		msg, err = s.render.NewLogin(u.Email, u.Locale, u.ID, mail.NewLoginData{UserAgent: device, IP: ip, At: at, SessionsURL: sessions, App: true})
+	}
+	if err == nil {
+		_, err = s.out.Enqueue(ctx, s.q, msg)
+	}
+	if err != nil {
+		s.log.Warn("apple sign-in alert not queued", "user", u.ID, "kind", msg.Kind, "err", err)
+		return
+	}
+	s.out.Kick()
 }
 
 // appleEmailUsable: the token carries an address Apple verified.

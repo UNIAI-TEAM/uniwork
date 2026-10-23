@@ -20,7 +20,8 @@ func (h *handlers) appleSignIn(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	sess, err := h.AppleAuth.SignIn(r.Context(), service.AppleSignInInput{
+	// The client's address goes on the context for the owner's alert mail.
+	sess, err := h.AppleAuth.SignIn(h.authCtx(r).Context(), service.AppleSignInInput{
 		IdentityToken: in.IdentityToken, Nonce: in.Nonce, AuthorizationCode: in.AuthorizationCode,
 		GivenName: in.GivenName, FamilyName: in.FamilyName, ClientID: in.ClientID, DeploymentID: in.DeploymentID,
 		DeviceLabel: in.DeviceLabel, Platform: in.Platform, Build: in.Build, Locale: requestLocale(r),

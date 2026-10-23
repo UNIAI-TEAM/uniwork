@@ -186,3 +186,45 @@ func TestMailColoursMatchWebTokens(t *testing.T) {
 		}
 	}
 }
+
+// A sign-in from the phone app names the device it came from, not a browser.
+func TestNewLoginFromTheAppNamesTheDevice(t *testing.T) {
+	r := Renderer{AppURL: "http://localhost:3000"}
+	at := time.Date(2026, 10, 23, 9, 30, 0, 0, time.UTC)
+	for loc, want := range map[string][2]string{"vi": {"Thiết bị", "Trình duyệt"}, "en": {"Device", "Browser"}} {
+		app, err := r.NewLogin("a@example.com", loc, "u1", NewLoginData{UserAgent: "iPhone của An", IP: "10.0.0.1", At: at, SessionsURL: "http://localhost:3000/settings?tab=security", App: true})
+		if err != nil || app.Kind != KindNewLogin {
+			t.Fatalf("%s: %v %+v", loc, err, app)
+		}
+		for _, body := range []string{app.HTML, app.Text} {
+			if !strings.Contains(body, want[0]) || strings.Contains(body, want[1]) || !strings.Contains(body, "iPhone của An") {
+				t.Fatalf("%s: the app sign-in names the device: %s", loc, body)
+			}
+		}
+		web, err := r.NewLogin("a@example.com", loc, "u1", NewLoginData{UserAgent: "Firefox", IP: "10.0.0.1", At: at, SessionsURL: "x"})
+		if err != nil || !strings.Contains(web.Text, want[1]) {
+			t.Fatalf("%s: the browser sign-in keeps its words: %v %s", loc, err, web.Text)
+		}
+	}
+}
+
+func TestAppleLinkedRendersBothLocales(t *testing.T) {
+	r := Renderer{AppURL: "http://localhost:3000"}
+	for _, loc := range []string{"vi", "en"} {
+		m, err := r.AppleLinked("a@example.com", loc, "u1", AppleLinkedData{
+			Device: "iPhone của An", IP: "10.0.0.1", At: time.Date(2026, 10, 23, 9, 30, 0, 0, time.UTC),
+			SessionsURL: "http://localhost:3000/settings?tab=security",
+		})
+		if err != nil || m.Kind != KindAppleLinked || m.UserID != "u1" || m.Locale != loc {
+			t.Fatalf("%s: %v %+v", loc, err, m)
+		}
+		if !strings.Contains(m.Subject, "Apple") || strings.ContainsAny(m.Subject, "\r\n") {
+			t.Fatalf("%s: subject %q", loc, m.Subject)
+		}
+		for _, body := range []string{m.HTML, m.Text} {
+			if !strings.Contains(body, "iPhone của An") || !strings.Contains(body, "10.0.0.1") || !strings.Contains(body, "/settings?tab=security") {
+				t.Fatalf("%s: body misses the device, address or sessions link: %s", loc, body)
+			}
+		}
+	}
+}

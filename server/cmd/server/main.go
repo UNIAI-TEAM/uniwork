@@ -698,6 +698,7 @@ func main() {
 		}
 		verifier := auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, cfg.AppleSignInAudiences, nil)
 		appleAuth = service.NewAppleAuthService(pool, q, desktopAuthSvc, verifier, appleClient)
+		appleAuth.SetMail(renderer, mailOutbox)
 		authSvc.SetApple(appleAuth)
 		log.Info("sign in with apple enabled", "audiences", strings.Join(cfg.AppleSignInAudiences, ","))
 	}
