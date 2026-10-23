@@ -21,6 +21,7 @@ type AiCapabilitiesSDO struct {
 // AiModelOptionDTO is one selectable Ask UNI model.
 type AiModelOptionDTO struct {
 	Key          string `json:"key" description:"haiku, sonnet hoặc opus" example:"sonnet"`
+	Provider     string `json:"provider" description:"Nhà cung cấp chạy model này: anthropic, openai, ollama" example:"anthropic"`
 	Speed        int    `json:"speed" description:"Độ nhanh, 1-5" example:"4"`
 	Intelligence int    `json:"intelligence" description:"Độ thông minh, 1-5" example:"4"`
 	Cost         int    `json:"cost" description:"Nấc chi phí, 1-5, theo giá vào + ra" example:"3"`
@@ -36,19 +37,39 @@ type AskModelsSDO struct {
 type AiCitationDTO struct {
 	SourceID string `json:"source_id" example:"S1"`
 	Quote    string `json:"quote" example:"Hạn: 2026-09-05"`
-	Kind     string `json:"kind" description:"task, meeting, chat, members" example:"task"`
+	Kind     string `json:"kind" description:"task, meeting, document, project, chat, member (một người), members (danh sách thành viên), email_thread" example:"task"`
 	Title    string `json:"title" example:"Viết spec F-09"`
 	Href     string `json:"href" description:"Đường dẫn nội bộ" example:"/acme/team/tasks/01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+	ObjectID string `json:"object_id,omitempty" description:"Mã của đối tượng nguồn trỏ tới; vắng khi nguồn không là một đối tượng" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+}
+
+// AiStepDTO is one tool the agent ran for an answer.
+type AiStepDTO struct {
+	Tool   string         `json:"tool" description:"Tên tool đã chạy" example:"search"`
+	Label  string         `json:"label" description:"Từ khóa tìm hoặc tên đối tượng tool mở; rỗng nếu không có" example:"quá hạn"`
+	Counts map[string]int `json:"counts" description:"Số nguồn mới tìm thấy theo loại" example:"{\"task\":3}"`
+}
+
+// AiContextRefDTO is an object a question named: its focus or an @-mention.
+type AiContextRefDTO struct {
+	Kind  string `json:"kind" description:"task, meeting, email_thread, document, project, room hoặc member" example:"task"`
+	ID    string `json:"id" description:"Mã của đối tượng" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+	Title string `json:"title" description:"Tên đối tượng lúc hỏi" example:"Viết spec F-09"`
 }
 
 // AiMessageDTO is one turn of a conversation.
 type AiMessageDTO struct {
-	ID        string          `json:"id" example:"01K4AIMSG0000000000000001"`
-	Role      string          `json:"role" description:"user hoặc assistant" example:"assistant"`
-	Content   string          `json:"content" example:"Có 1 việc quá hạn: [S1] Viết spec F-09."`
-	Citations []AiCitationDTO `json:"citations"`
-	Notice    string          `json:"notice,omitempty" description:"Mã thông báo thay cho nội dung: no_sources, empty_answer" example:"no_sources"`
-	CreatedAt string          `json:"created_at" example:"2026-09-06T08:00:00Z"`
+	ID        string            `json:"id" example:"01K4AIMSG0000000000000001"`
+	Role      string            `json:"role" description:"user hoặc assistant" example:"assistant"`
+	Content   string            `json:"content" example:"Có 1 việc quá hạn: [S1] Viết spec F-09."`
+	Citations []AiCitationDTO   `json:"citations"`
+	Notice    string            `json:"notice,omitempty" description:"Mã thông báo thay cho nội dung: no_sources, empty_answer" example:"no_sources"`
+	Steps     []AiStepDTO       `json:"steps" description:"Các bước tool agent đã chạy cho câu trả lời, theo thứ tự" example:"[{\"tool\":\"search\",\"label\":\"quá hạn\",\"counts\":{\"task\":3}}]"`
+	Followups []string          `json:"followups" description:"Câu hỏi gợi ý tiếp theo" example:"[\"Việc nào trễ nhất?\"]"`
+	Focus     *AiContextRefDTO  `json:"focus,omitempty" description:"Đối tượng câu hỏi đang xem; vắng khi không có" example:"{\"kind\":\"task\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\",\"title\":\"Viết spec F-09\"}"`
+	Mentions  []AiContextRefDTO `json:"mentions" description:"Các đối tượng người hỏi @-nhắc tới" example:"[{\"kind\":\"member\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\",\"title\":\"An\"}]"`
+	Model     string            `json:"model" description:"Model người hỏi chọn cho câu trả lời (haiku, sonnet, opus); rỗng khi là Tự động" example:"opus"`
+	CreatedAt string            `json:"created_at" example:"2026-09-06T08:00:00Z"`
 }
 
 // AiUsageDTO is what the call cost.
@@ -76,7 +97,8 @@ type AskStreamRunDTO struct {
 type AskStreamStepDTO struct {
 	Round  int            `json:"round" description:"Số thứ tự vòng gọi tool, từ 1" example:"1"`
 	Phase  string         `json:"phase" description:"tool hoặc retry" example:"tool"`
-	Tool   string         `json:"tool" description:"Tên tool vừa chạy; rỗng ở bước retry" example:"search_tasks"`
+	Tool   string         `json:"tool" description:"Tên tool vừa chạy; rỗng ở bước retry" example:"search"`
+	Label  string         `json:"label" description:"Từ khóa tìm hoặc tên đối tượng tool mở; rỗng nếu không có" example:"quá hạn"`
 	Counts map[string]int `json:"counts" description:"Số kết quả theo loại" example:"{\"task\":3}"`
 }
 
@@ -88,6 +110,25 @@ type AskStreamDeltaDTO struct {
 // AskStreamCitationsDTO is the data of event citations.
 type AskStreamCitationsDTO struct {
 	Citations []AiCitationDTO `json:"citations" description:"Nguồn trích dẫn đã kiểm của câu trả lời, theo thứ tự S1, S2…"`
+}
+
+// AskStreamSourcesDTO is the data of event sources: sources a step found
+// that had no S# before.
+type AskStreamSourcesDTO struct {
+	Sources []AiCitationDTO `json:"sources" description:"Nguồn mới của bước vừa chạy, mỗi nguồn một số S# mới"`
+}
+
+// AskStreamFollowupsDTO is the data of event followups, sent before done
+// when the answer suggests questions to ask next.
+type AskStreamFollowupsDTO struct {
+	Followups []string `json:"followups" description:"Câu hỏi gợi ý tiếp theo, tối đa 3, chỉ để đọc dữ liệu" example:"[\"Việc nào trễ nhất?\"]"`
+}
+
+// AskStreamTitleDTO is the data of event title, sent after done when UNI named
+// a new conversation; the stream may stay open briefly for it.
+type AskStreamTitleDTO struct {
+	ConversationID string `json:"conversation_id" description:"Hội thoại vừa được UNI đặt tên" example:"01J8Z3Q4X5Y6A7B8C9D0E1F2G3"`
+	Title          string `json:"title" description:"Tên ngắn UNI đặt cho hội thoại, tối đa 40 ký tự. Khung này đến sau done; luồng có thể mở thêm một lúc để chờ nó" example:"Việc trễ dự án Q4"`
 }
 
 // AskStreamUsageDTO is the tokens of a streamed turn.

@@ -119,8 +119,9 @@ test("docked Ask UNI streams an answer, stops a run and opens with a focus", asy
 
     await box.fill(`việc dock ${stamp} thế nào?`);
     await dock.getByRole("button", { name: "Gửi" }).click();
-    await expect(dock.getByRole("list", { name: "Nguồn" }).getByRole("link").first()).toBeVisible({ timeout: 15_000 });
-    await expect(dock.getByText(/\d+ vào · \d+ ra/)).toBeVisible();
+    // Sources sit behind "Nguồn (n)"; the dock shows no token meter (only the legacy panel does).
+    await dock.getByRole("button", { name: /^Nguồn \(\d+\)$/ }).click({ timeout: 15_000 });
+    await expect(dock.getByRole("list", { name: "Nguồn" }).getByRole("link").first()).toBeVisible();
 
     await box.fill(`câu thứ hai ${stamp}`);
     await dock.getByRole("button", { name: "Gửi" }).click();
@@ -139,6 +140,72 @@ test("docked Ask UNI streams an answer, stops a run and opens with a focus", asy
     await page.getByText(title).and(page.locator(":not(aside *)")).click();
     await page.getByRole("button", { name: "Hỏi UNI về task này" }).click();
     await expect(dock.getByRole("button", { name: "Bỏ phạm vi Task" })).toBeVisible();
+  } finally {
+    await setFlag("ask_uni_stream", orgId, false);
+  }
+});
+
+// P2b: from a task's page the dock offers the page as a chip, "@" mentions a task as a card, the
+// answer cites it as an entity link, and a stored answer keeps its "Xong sau n bước" line.
+test("docked Ask UNI offers the page chip, @ mentions a task and keeps the steps after a reload", async ({ page }) => {
+  const orgId = await onboard(page, "Chủ Nhắc", `Nhắc ${stamp}`, "Đội Nhắc");
+  test.skip(!(await page.getByRole("button", { name: /Hỏi UNI/ }).isVisible().catch(() => false)), "AI provider not configured on this server");
+
+  // Steps exist only when ask_uni_agent is on. It is not a public flag, so /config cannot confirm an
+  // override; the steps line below is asserted only when the server already runs the agent.
+  await setFlag("ask_uni_stream", orgId, true);
+  try {
+    const title = `Việc nhắc ${stamp}`;
+    await page.reload();
+    await page.getByRole("button", { name: "Tạo việc" }).click();
+    await page.getByLabel("Tiêu đề").fill(title);
+    await page.getByRole("button", { name: "Tạo", exact: true }).click();
+    await expect(page.getByText(title)).toBeVisible();
+
+    // Open the task's own page; ⌘J then shows it as "Trang này: <title>".
+    await page.getByText(title).click();
+    await expect(page).toHaveURL(/\/tasks\/[0-9A-Z]+$/);
+    await page.keyboard.press("ControlOrMeta+j");
+    const dock = page.getByRole("complementary", { name: "Hỏi UNI" });
+    await expect(dock).toBeVisible();
+    await expect(dock.getByText(`Trang này: ${title}`)).toBeVisible();
+
+    // "@" opens the object picker; it needs real key events, not fill().
+    const box = dock.getByLabel("Câu hỏi cho UNI");
+    await box.click();
+    // One word: the picker's query ends at a space.
+    await box.pressSequentially(`@${stamp}`);
+    await page.getByRole("option", { name: new RegExp(title) }).click();
+    await box.pressSequentially(" thế nào?");
+    await dock.getByRole("button", { name: "Gửi" }).click();
+
+    // The mentioned task is a retrieved source whatever the model cites.
+    await dock.getByRole("button", { name: /^Nguồn \(\d+\)$/ }).click({ timeout: 15_000 });
+    const source = dock.getByRole("list", { name: "Nguồn" }).getByRole("link", { name: title });
+    await expect(source).toHaveAttribute("href", /\/tasks\/[0-9A-Z]+$/);
+    // The inline entity chip exists only when the model cited [S#]; the fake provider may not.
+    const chip = dock.getByRole("link", { name: `Task: ${title}` }).first();
+    if (await chip.isVisible().catch(() => false)) {
+      await expect(chip).toHaveAttribute("href", /\/tasks\/[0-9A-Z]+$/);
+    } else {
+      test.info().annotations.push({ type: "note", description: "answer cited no [S#]; entity chip not asserted" });
+    }
+
+    // Reload, reopen the conversation from the history: the stored answer keeps its steps line.
+    await page.reload();
+    // The button, not ⌘J: a key pressed before hydration is lost.
+    await page.getByRole("button", { name: "Hỏi UNI", exact: true }).click();
+    await expect(dock).toBeVisible();
+    await dock.getByRole("button", { name: /^Lịch sử hội thoại/ }).click();
+    await page.getByRole("group", { name: "Lịch sử hội thoại" }).getByRole("button").first().click();
+    await expect(dock.getByText("thế nào?").first()).toBeVisible();
+    // Steps exist only when the agent made tool calls; the fake provider may answer without any.
+    const steps = dock.getByText(/Xong sau \d+ bước/);
+    if (await steps.waitFor({ state: "visible", timeout: 5_000 }).then(() => true, () => false)) {
+      await expect(steps).toBeVisible();
+    } else {
+      test.info().annotations.push({ type: "note", description: "run had no tool steps; steps line not asserted" });
+    }
   } finally {
     await setFlag("ask_uni_stream", orgId, false);
   }

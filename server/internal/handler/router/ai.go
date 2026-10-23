@@ -59,8 +59,9 @@ func registerAI(r api, h Routes) {
 	})
 	r.Get("/workspaces/{workspaceID}/ai/conversations", h.ListAiConversations, apiOp{
 		summary:     "My conversations",
-		description: "20 hội thoại gần nhất của chính người gọi trong workspace.",
+		description: "20 hội thoại gần nhất của chính người gọi trong workspace; có q thì tìm theo tiêu đề (gấp dấu), tối đa 50.",
 		tags:        []string{"ai"},
+		sdi:         sdi.ListAiConversationsSDI{},
 		sdo:         sdo.AiConversationListSDO{},
 		auth:        true,
 	})

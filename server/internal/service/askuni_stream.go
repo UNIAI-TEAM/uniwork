@@ -12,14 +12,17 @@ import (
 type AskSink func(AskEvent)
 
 // AskEvent is one event of a streamed turn. Name selects the field that
-// carries it: run, step, delta, citations, done or error.
+// carries it: run, step, sources, delta, citations, followups, done, title or error.
 type AskEvent struct {
 	Name      string
 	Run       *AskRunEvent
 	Step      *AskStepEvent
 	Delta     string
 	Citations []AskCitation
+	Sources   []AskCitation // the sources a step numbered for the first time
+	Followups []string      // the dock's follow-up questions; sent only when there are some
 	Done      *AskResult
+	Title     *AskTitleEvent // the generated name of a new conversation, after done
 	Code      string
 }
 
@@ -30,6 +33,7 @@ type AskStepEvent struct {
 	Round  int
 	Phase  string // "tool" | "retry"
 	Tool   string
+	Label  string // the query or the one object the tool named; "" otherwise
 	Counts map[string]int
 }
 
@@ -55,22 +59,28 @@ func (e AskSink) emitAnswer(res AskResult) {
 	if res.Message.Notice.String == "" {
 		e.emit(AskEvent{Name: "delta", Delta: res.Message.Content})
 	}
-	e.emitDone(res)
+	e.emitDone(res, nil)
 }
 
-// emitDone ends a turn whose text already streamed: its citations, then done.
-func (e AskSink) emitDone(res AskResult) {
+// emitDone ends a turn whose text already streamed: its citations, its
+// follow-up questions if any, then done.
+func (e AskSink) emitDone(res AskResult, followups []string) {
 	e.emit(AskEvent{Name: "citations", Citations: res.Citations})
+	if len(followups) > 0 {
+		e.emit(AskEvent{Name: "followups", Followups: followups})
+	}
 	e.emit(AskEvent{Name: "done", Done: &res})
 }
 
 // askDraft is what the current model call has streamed: raw as the gateway
 // handed it over, sent as the stripped text already emitted in deltas.
 type askDraft struct {
-	emit  AskSink
-	raw   strings.Builder
-	sent  string
-	stuck bool
+	emit AskSink
+	// cutFollowups stops the text at the dock's follow-up block (R6).
+	cutFollowups bool
+	raw          strings.Builder
+	sent         string
+	stuck        bool
 }
 
 // reset starts a new call: nothing of it streamed yet.
@@ -92,6 +102,9 @@ func (d *askDraft) add(text string) {
 		r = r[:i]
 	}
 	clean := ai.StripUntrustedTags(r)
+	if d.cutFollowups {
+		clean = cutAtFollowups(clean)
+	}
 	if !strings.HasPrefix(clean, d.sent) {
 		d.stuck = true
 		return
