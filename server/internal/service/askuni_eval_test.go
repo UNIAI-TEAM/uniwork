@@ -301,9 +301,16 @@ func lastPrompt(req provider.CompletionRequest) string {
 	return strings.Join(parts, "\n")
 }
 
+// freshRateLimit clears the service's in-memory ask counts. The seed has no
+// Redis, so Ask counts askRateLimit asks a minute per person in memory, and the
+// eval asks the same person far more often than that. The limit is
+// TestRateLimitWithoutRedis's to hold; every eval ask must reach the answer.
+func (e *evalWorld) freshRateLimit() { e.s.askMem.Clear() }
+
 // ask runs one case; convs carries conversation ids so follow-ups share one.
 func (e *evalWorld) ask(t *testing.T, c evalCase, convs map[string]string) evalRun {
 	t.Helper()
+	e.freshRateLimit()
 	q := evalRef.ReplaceAllStringFunc(c.Question, func(m string) string {
 		return e.refs[evalRef.FindStringSubmatch(m)[1]]
 	})
@@ -409,6 +416,7 @@ func checkControl(t *testing.T, e *evalWorld, c evalCase) {
 	if c.ControlQuestion != "" {
 		q = c.ControlQuestion
 	}
+	e.freshRateLimit()
 	res, err := e.s.Ask(context.Background(), user, wsID, AskInput{Question: q, Locale: c.Locale})
 	if err != nil {
 		t.Fatalf("control for %s: %v", c.ID, err)
