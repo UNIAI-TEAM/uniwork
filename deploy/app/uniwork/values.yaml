@@ -60,9 +60,16 @@ be:
     # Expo access token for UniChat mobile push (enhanced push security). Optional:
     # create the Secret before turning enhanced push security on in the Expo project.
     expo: { name: uniwork-expo, key: EXPO_ACCESS_TOKEN }
-    # APNs token-auth key for iPhone VoIP call pushes (ADR 0038). Optional: without
-    # the Secret iPhones keep the Expo call push. APNS_PRIVATE_KEY is the .p8 file's PEM.
-    apns: { name: uniwork-apns, keyID: APNS_KEY_ID, teamID: APNS_TEAM_ID, privateKey: APNS_PRIVATE_KEY }
+    # Apple keys of UniChat on the iPhone, one Secret (deploy/app/env/README.md › Apple).
+    # Optional: without the Secret the pod still starts with VoIP and Apple revoke off.
+    # The team id is not secret and lives in uniwork-be.env (APNS_TEAM_ID, APPLE_SIWA_TEAM_ID).
+    # apns: the APNs token-auth key for iPhone VoIP call pushes (ADR 0038); without it
+    # iPhones keep the Expo call push. privateKey is the .p8 file's PEM.
+    apns: { name: uniwork-apple, keyID: APNS_KEY_ID, privateKey: APNS_PRIVATE_KEY }
+    # siwa: the Sign in with Apple key (ADR 0041) that signs the client secret of Apple's
+    # token and revoke endpoints; without it sign-in works and account deletion cannot
+    # revoke the Apple grant. Sign-in itself turns on with APPLE_SIWA_AUDIENCES.
+    siwa: { name: uniwork-apple, keyID: APPLE_SIWA_KEY_ID, privateKey: APPLE_SIWA_PRIVATE_KEY }
     # Office engine credentials (same Secret as officeEngine.secrets). Optional:
     # without them the BE has no engine and refuses office jobs.
     officeEngineServiceToken: { name: uniwork-office-engine, key: OFFICE_ENGINE_SERVICE_TOKEN }

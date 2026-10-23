@@ -588,8 +588,9 @@ từng mục khi đã nộp:
   `.staging`) bật capability Sign In with Apple (EAS bật khi ký bằng credential nó quản lý; không thì Certificates,
   Identifiers & Profiles › Identifiers › App ID › Sign In with Apple, "Enable as a primary App ID", rồi tạo lại profile);
   một khoá ở Keys › "+" › Sign in with Apple › Configure với primary App ID `com.uniworkos.chat`, tải `.p8` (một lần);
-  server production có `APPLE_SIWA_AUDIENCES=com.uniworkos.chat` (staging thêm `com.uniworkos.chat.staging`),
-  `APPLE_SIWA_TEAM_ID=XJAM488A6D`, `APPLE_SIWA_KEY_ID`, `APPLE_SIWA_PRIVATE_KEY` (nội dung `.p8`) và đã deploy bản có
+  server production có `APPLE_SIWA_AUDIENCES=com.uniworkos.chat,com.uniworkos.chat.staging` và
+  `APPLE_SIWA_TEAM_ID=XJAM488A6D` (`deploy/app/env/uniwork-be.env`), `APPLE_SIWA_KEY_ID`, `APPLE_SIWA_PRIVATE_KEY`
+  (nội dung `.p8`, Secret `uniwork-apple`, `deploy/app/env/README.md › Apple`) và đã deploy bản có
   migration `users.apple_id`; `GET https://uniworkos.com/api/v1/auth/providers` trả `"apple":true`. Tên miền và địa
   chỉ gửi mail của UniWork đã đăng ký ở Certificates, Identifiers & Profiles › Services › Sign in with Apple for Email
   Communication (qua SPF/DKIM), không thì mail tới địa chỉ relay của "Ẩn email" bị Apple bỏ. Thử trên máy
@@ -887,8 +888,9 @@ trước completion, module `UniChatCallKit` và subscriber khởi động đư�
    ID riêng.
 2. **Apple Developer › Keys**: tạo khoá **Apple Push Notifications service (APNs)**, môi trường Sandbox & Production
    (`AuthKey_<KeyID>.p8`, tải được đúng một lần), ghi Key ID; Team ID là `XJAM488A6D`. Cất `.p8` trong kho bí mật.
-3. **Server**: Secret `uniwork-apns` (`APNS_KEY_ID`, `APNS_TEAM_ID=XJAM488A6D`, `APNS_PRIVATE_KEY` = nội dung PEM của
-   `.p8`) trong namespace của server, deploy, log có "APNs VoIP push enabled". Thiếu khoá thì iPhone giữ hành vi cũ.
+3. **Server**: Secret `uniwork-apple` (`APNS_KEY_ID`, `APNS_PRIVATE_KEY` = nội dung PEM của `.p8`; lệnh tạo và cách
+   xoay khoá ở `deploy/app/env/README.md › Apple`) trong namespace của server, `APNS_TEAM_ID=XJAM488A6D` đã nằm trong
+   `deploy/app/env/uniwork-be.env`; deploy, log có "APNs VoIP push enabled". Thiếu khoá thì iPhone giữ hành vi cũ.
 4. **EAS** (`eas env:create`, môi trường `preview` cho profile `internal`, rồi `production`): `UNICHAT_IOS_CALLS=1`.
    Không đặt trong `eas.json` (`app.config.test.ts › is set by no EAS profile`). Biến này đổi Info.plist (thêm `voip`,
    `audio`) nên đổi fingerprint: cần bản store mới (`eas build -p ios --profile internal`), không OTA được.

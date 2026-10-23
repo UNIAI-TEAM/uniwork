@@ -141,7 +141,7 @@ Mất / phải trả:
   cuộc gọi đang đổ chuông. Nhiều replica cùng sửa một cuộc gọi vẫn chưa đúng (bản đồ trong process vẫn là nguồn
   quyết định); deploy hiện chạy một replica.
 - iOS có trải nghiệm tương đương khi bản có CallKit tới tay người dùng và công tắc bật; tới lúc đó iPhone không reo.
-  Server giữ thêm một bí mật (khoá `.p8`, Secret Helm `uniwork-apns`) và một đường gửi thứ ba không qua Expo, với
+  Server giữ thêm một bí mật (khoá `.p8`, Secret Helm `uniwork-apple`) và một đường gửi thứ ba không qua Expo, với
   metric riêng `uniwork_push_apns_voip_total{result, reason}`. Token PushKit của bản development chỉ sống trên
   sandbox: một bản build khai sai môi trường nhận `BadDeviceToken` và bị thu hồi token, rồi đăng ký lại ở lần mở app
   sau. Một push VoIP mà app không báo CallKit là lỗi chết người với app (iOS ngừng giao VoIP), nên sender chỉ gửi lời

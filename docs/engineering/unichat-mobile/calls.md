@@ -306,6 +306,7 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   `TestVoiceSignalNamesTheDeviceThatClosedTheRing`, `service_voip_test.go`, `TestNotificationEndpoints`.
   **Việc của chủ sở hữu** trước khi bật công tắc: tạo khoá APNs (Apple Developer › Keys, bật Apple Push Notifications
   service, môi trường Sandbox & Production, tải `AuthKey_<KeyID>.p8` một lần), bật Push Notifications cho App ID
-  `com.uniworkos.chat` và `com.uniworkos.chat.staging`, tạo Secret `uniwork-apns` (khoá `APNS_KEY_ID`, `APNS_TEAM_ID` =
-  `XJAM488A6D`, `APNS_PRIVATE_KEY` = nội dung PEM) trong namespace của server rồi deploy, kiểm log "APNs VoIP push
+  `com.uniworkos.chat` và `com.uniworkos.chat.staging`, tạo Secret `uniwork-apple` (khoá `APNS_KEY_ID`,
+  `APNS_PRIVATE_KEY` = nội dung PEM; `APNS_TEAM_ID` = `XJAM488A6D` ở `deploy/app/env/uniwork-be.env`; lệnh ở
+  `deploy/app/env/README.md › Apple`) trong namespace của server rồi deploy, kiểm log "APNs VoIP push
   enabled", rồi bật `unichat_mobile_calls_ios` cho một người thử trước (override theo user ở console `/admin`).
