@@ -510,7 +510,10 @@ máy mở lạnh không có mạng vẫn theo công tắc và mức tối thiể
   `unichat_mobile_media_upload` (ẩn gửi ảnh/tệp trong menu đính kèm; tin đã xếp hàng vẫn đi),
   `unichat_mobile_voice_messages` (ẩn nút ghi tin thoại), `unichat_mobile_ai_catch_up` (ẩn banner "Bắt kịp nhanh"),
   `unichat_mobile_outbox_flush` (ngừng tự gửi lại tin và thao tác đang chờ khi có mạng lại / về foreground / socket nối
-  lại — chúng nằm yên trên máy; gửi từ ô soạn tin và nút Thử lại vẫn chạy; dùng khi bản app gây bão gửi lại),
+  lại — chúng nằm yên trên máy; gửi từ ô soạn tin và nút Thử lại vẫn chạy; dùng khi bản app gây bão gửi lại; tắt cả
+  đường nền bên dưới), `unichat_mobile_background_send` (ngừng gửi tiếp khi app đã rời màn hình: iOS không xin thêm
+  thời gian và bỏ task theo lịch, Android huỷ job WorkManager — phần còn nợ chờ lần mở app sau; dùng khi job nền làm hao
+  pin hay gửi lặp),
   `unichat_mobile_chat_sync` (ngừng đồng bộ theo nhật ký thay đổi `GET …/chat/sync`: reconnect lại refetch mọi
   timeline đang hiện như trước; dùng khi endpoint sync chậm hay trả sai — app không cần bản mới).
 - `unichat_mobile_timeline_recycled` thì ngược lại: mặc định **tắt** (FlatList đảo ngược); bật là A/B danh sách tin
@@ -575,9 +578,12 @@ từng mục khi đã nộp:
 - [ ] **Sign in with Apple (Apple 4.8, chỉ iOS)**: trang đăng nhập mà app mở có "Tiếp tục với Google" và cho tự đăng ký,
   nên bản iOS đầu tiên gửi review (cả TestFlight external) phải có Sign in with Apple —
   `docs/adr/drafts/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md`. Chưa land thì không nộp bản iOS để review.
-- [ ] **iOS background modes (Apple 2.5.4)**: Info.plist của bản nộp không có `UIBackgroundModes` khi gọi còn tắt trên
-  iPhone (`app.config.test.ts` đọc Info.plist cuối của bản release); bản có gọi build với `UNICHAT_IOS_CALLS=1` và ghi
-  chú review nói cách thử cuộc gọi.
+- [ ] **iOS background modes (Apple 2.5.4)**: Info.plist của bản nộp chỉ có `UIBackgroundModes: processing` khi gọi còn
+  tắt trên iPhone (`app.config.test.ts` đọc Info.plist cuối của bản release), và ghi chú review giải thích nó: "UniChat
+  schedules a background processing task (BGTaskScheduler) that sends messages the user wrote while offline once the
+  network is back; to try it, turn on Airplane Mode, send a message, leave the app, turn Airplane Mode off" (iOS chạy
+  task khi nó muốn: reviewer có thể không thấy nó chạy, ghi chú nói vậy). Bản có gọi build với `UNICHAT_IOS_CALLS=1`
+  và ghi chú review nói cách thử cuộc gọi.
 - [ ] **iOS privacy manifest**: bản iOS archive đầu tiên trên EAS — mở `.xcarchive` trong Xcode › Organizer › Generate
   Privacy Report, đối chiếu với `store/listing.md` › "iOS privacy manifest" (dữ liệu thu thập, không tracking, lý do API).
   Email ITMS-91053/91061 sau khi upload nghĩa là một lý do hay một SDK thiếu manifest: thêm vào
