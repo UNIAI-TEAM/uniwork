@@ -58,6 +58,7 @@ describe("ai panel store", () => {
       open: true,
       conversationId: "c1",
       pendingFocus: null,
+      focus: { kind: "meeting", id: "m1" },
       focusByConversation: { c1: { kind: "meeting", id: "m1" } },
       conversationByMeeting: { m1: "c1" },
     });

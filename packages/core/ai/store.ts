@@ -93,7 +93,7 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
     set(conversationId === null ? { conversationId, pendingFocus: null, focus: null } : { conversationId, pendingFocus: null }),
   openWithFocus: (focus) => set({ open: true, conversationId: null, pendingFocus: focus }),
   openConversation: (conversationId, focus) =>
-    set((s) => ({ open: true, conversationId, pendingFocus: null, ...remembered(s, conversationId, focus) })),
+    set((s) => ({ open: true, conversationId, pendingFocus: null, focus, ...remembered(s, conversationId, focus) })),
   rememberFocus: (conversationId, focus) => set((s) => remembered(s, conversationId, focus)),
   forgetConversation: (conversationId) =>
     set((s) => ({
