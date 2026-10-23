@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -66,11 +67,23 @@ func TestAuditResourcesOnlyBy(t *testing.T) {
 	mine, shared := mk("mine"), mk("shared")
 	edit(mine, ua.ID, "mine v2")
 	edit(shared, ub.ID, "shared v2")
+	// A write through an AI client records the person with metadata.via: not
+	// their own work, whether it created the task or edited it.
+	via := audit.WithVia(ctx, audit.Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: "Claude"})
+	viaMade, err := s.Create(via, Human(ua.ID), w.ID, CreateTaskInput{Title: "via made", Priority: "medium"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	viaEdited := mk("via edited")
+	viaTitle := "via edited v2"
+	if _, err := s.Update(via, Human(ua.ID), viaEdited, UpdateTaskInput{Title: &viaTitle}); err != nil {
+		t.Fatal(err)
+	}
 	unknown := util.NewID() // no task.created row at all
 
 	got, err := s.q.AuditResourcesOnlyBy(ctx, db.AuditResourcesOnlyByParams{
 		OrganizationID: w.OrganizationID, ResourceType: "task", CreatedAction: "task.created",
-		ActorID: ua.ID, ResourceIds: []string{mine, shared, unknown},
+		ActorID: ua.ID, ResourceIds: []string{mine, shared, unknown, viaMade.ID, viaEdited},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -23,6 +23,14 @@ func (t askTaint) tainted() bool { return t.conv || t.turn }
 // tainted: nobody knows what it read.
 func convTainted(c db.AiConversation) bool { return c.TaintedAt.Valid || !c.TaintTracked }
 
+// askerOwnWords says a chat message is the asker's own words. A forward copy
+// is sent as the forwarder but carries the original's body, and a voice-call
+// summary is AI text posted under the caller: neither counts, even when the
+// asker is the one named (fail closed, R8).
+func askerOwnWords(m ChatMessageRow, askerID string) bool {
+	return m.SenderID == askerID && m.ForwardedFrom == nil && m.VoiceCallSummary == nil
+}
+
 // markMine sets Mine on every item that has a Key (content the model saw)
 // by R8, one authorship query per kind. Fail closed: a kind whose query fails,
 // an unknown kind and an item without an ID stay not Mine. Notes and errors

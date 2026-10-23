@@ -326,24 +326,30 @@ func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, 
 }
 
 func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, error) {
-	found, _, err := s.searchWorkspaceMine(ctx, tc, query)
+	found, _, err := s.searchWorkspaceMarks(ctx, tc, query)
 	return found, err
 }
 
-// searchWorkspaceMine is searchWorkspace plus, by href, the chat hits whose
-// messages are all the asker's own (R8).
-func (s *AskUNIService) searchWorkspaceMine(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, map[string]bool, error) {
+// searchMarks are the taint facts of a search's hits, by href (R8): the chat
+// hits whose messages are all the asker's, and the task hits carrying a
+// comment somebody else wrote.
+type searchMarks struct{ chatMine, foreign map[string]bool }
+
+// searchWorkspaceMarks is searchWorkspace plus the marks the taint rules need.
+func (s *AskUNIService) searchWorkspaceMarks(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, searchMarks, error) {
 	items, err := s.searchWorkItems(ctx, tc, query)
 	if err != nil {
-		return nil, nil, err
+		return nil, searchMarks{}, err
 	}
-	if items, err = s.addIdentifierHits(ctx, tc, query, items); err != nil {
-		return nil, nil, err
+	marks := searchMarks{foreign: map[string]bool{}}
+	if items, err = s.addIdentifierHits(ctx, tc, query, items, marks.foreign); err != nil {
+		return nil, searchMarks{}, err
 	}
 	chat, chatMine, err := s.chatSources(ctx, tc, query)
 	if err != nil {
-		return nil, nil, err
+		return nil, searchMarks{}, err
 	}
+	marks.chatMine = chatMine
 	for _, c := range chat {
 		items = append(items, scored{src: c, score: 1, when: s.now()})
 	}
@@ -351,13 +357,13 @@ func (s *AskUNIService) searchWorkspaceMine(ctx context.Context, tc ai.ToolConte
 	if asksMembers(query) {
 		members, err := s.memberContext(ctx, tc, query)
 		if err != nil {
-			return nil, nil, err
+			return nil, searchMarks{}, err
 		}
 		for _, m := range members {
 			items = append(items, scored{src: m, score: 1})
 		}
 	}
-	return topSources(items, ai.MaxSources), chatMine, nil
+	return topSources(items, ai.MaxSources), marks, nil
 }
 
 // documentsOn mirrors McpToolService.documentsOn: DocumentService wired and the
@@ -461,7 +467,8 @@ var taskIdentifierRe = regexp.MustCompile(`(?i)\b([a-z][a-z0-9]{1,9})-(\d{1,9})\
 // addIdentifierHits boosts (or adds) the task a PREFIX-N reference in the
 // question names. Ask-only: searchWorkItems is shared with MCP search.
 // shortcut: GetByRefIn ignores retired prefixes (workspace_aliases); old-prefix questions fall back to keyword search until the lookup learns aliases.
-func (s *AskUNIService) addIdentifierHits(ctx context.Context, tc ai.ToolContext, query string, items []scored) ([]scored, error) {
+// foreign collects, by href, the added tasks whose comments are not all the asker's (R8).
+func (s *AskUNIService) addIdentifierHits(ctx context.Context, tc ai.ToolContext, query string, items []scored, foreign map[string]bool) ([]scored, error) {
 	for _, ref := range taskIdentifierRe.FindAllString(query, 5) {
 		t, err := s.tasks.GetByRefIn(ctx, Human(tc.ActorID), tc.WorkspaceID, ref)
 		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) {
@@ -481,14 +488,15 @@ func (s *AskUNIService) addIdentifierHits(ctx context.Context, tc ai.ToolContext
 		if found {
 			continue
 		}
-		srcs, err := s.taskContext(ctx, tc, t.ID)
+		src, hasForeign, err := s.taskSourceWithComments(ctx, tc, t.ID)
 		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) {
 			continue // gone or out of reach since GetByRefIn read it: skip the hit, keep the turn
 		}
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, scored{src: srcs[0], score: 10, when: t.UpdatedAt.Time})
+		foreign[src.Href] = hasForeign
+		items = append(items, scored{src: src, score: 10, when: t.UpdatedAt.Time})
 	}
 	return items, nil
 }
@@ -633,7 +641,7 @@ func (s *AskUNIService) chatSources(ctx context.Context, tc ai.ToolContext, quer
 		for _, m := range msgs {
 			// A member who declined AI processing never reaches the model (Apple 5.1.2(i)).
 			if score(m.Body, ts) > 0 && !optOuts.excludes(m.SenderID) {
-				allMine = allMine && m.SenderID == tc.ActorID
+				allMine = allMine && askerOwnWords(m, tc.ActorID)
 				fmt.Fprintf(&b, "- %s (%s): %s\n", m.SenderDisplayName, m.CreatedAt.Format("2006-01-02 15:04"), m.Body)
 			}
 		}

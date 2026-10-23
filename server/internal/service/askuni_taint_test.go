@@ -2,10 +2,15 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -91,16 +96,38 @@ func TestTaintFollowsWhoWroteWhatWasRead(t *testing.T) {
 	ownMeeting := x.meeting(t, x.ua.ID, x.w.ID, "Họp của tôi", "mô tả")
 	bMeeting := x.meeting(t, x.ub.ID, x.w.ID, "Họp của B", "mô tả")
 	ownDoc, bDoc := page(x.ua.ID, "Trang của tôi"), page(x.ub.ID, "Trang của B")
+	// The asker made the page and B edited it.
+	bEditedDoc := page(x.ua.ID, "Trang B sửa")
+	bTitleDoc := "Trang B sửa lại"
+	edit := DocumentLevelEdit
+	if _, err := docs.UpdateDocumentAccess(ctx, Human(x.ua.ID), bEditedDoc, UpdateDocumentAccessInput{Items: []DocumentAccessBatchItem{{PrincipalType: "user", PrincipalID: x.ub.ID, Level: &edit}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := docs.UpdateDocument(ctx, Human(x.ub.ID), bEditedDoc, UpdateDocumentInput{Revision: 1, Title: &bTitleDoc}); err != nil {
+		t.Fatal(err)
+	}
+	uploaded := x.textFile(t, "ghi-chu.md", []byte("# Ghi chú\n\nnội dung tệp"))
+	// A task the asker created through an AI client (metadata.via) is not their own work.
+	viaCtx := audit.WithVia(ctx, audit.Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: "Claude"})
+	viaTask, err := s.tasks.Create(viaCtx, Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Việc tạo qua MCP"})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	dm, err := s.chat.ResolveDM(ctx, x.ua.ID, x.w.ID, x.ub.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	send := func(by, body string) {
+	send := func(by, body string) ChatMessageRow {
 		t.Helper()
-		if _, err := s.chat.SendRoomMessage(ctx, by, x.w.ID, dm.ID, SendChatMessageInput{Body: body}); err != nil {
+		m, err := s.chat.SendRoomMessage(ctx, by, x.w.ID, dm.ID, SendChatMessageInput{Body: body})
+		if err != nil {
 			t.Fatal(err)
 		}
+		return m
+	}
+	readIn := func(room, query string) []agentItem {
+		return runAgentTool(t, s, tc, "read_chat_room", `{"room_id":"`+room+`","query":"`+query+`"}`)
 	}
 	readRoom := func() []agentItem {
 		return runAgentTool(t, s, tc, "read_chat_room", `{"room_id":"`+dm.ID+`","query":""}`)
@@ -115,11 +142,58 @@ func TestTaintFollowsWhoWroteWhatWasRead(t *testing.T) {
 		}
 		return items
 	}
-	var none []agentItem
+	// A chip the asker removed is not sent: the request names no focus and no mention.
+	removed, _, err := s.askContext(ctx, tc, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// Own words only, then B's words in the same room.
 	roomMine := readRoom()
-	send(x.ub.ID, "Tin của B")
+	bMsg := send(x.ub.ID, "Tin của B")
 	roomMixed := readRoom()
+	// The asker forwarded B's message, then their own, into a room of their own:
+	// the copies are sent as the asker and carry the original body.
+	fwdRoom, err := s.chat.CreateChannel(ctx, x.ua.ID, x.w.ID, CreateChannelInput{Name: "chuyen-tiep", Visibility: "private"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fwdOwnRoom, err := s.chat.CreateChannel(ctx, x.ua.ID, x.w.ID, CreateChannelInput{Name: "chuyen-tiep-cua-toi", Visibility: "private"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mineMsg := send(x.ua.ID, "Tin gốc của tôi")
+	for room, id := range map[string]string{fwdRoom.ID: bMsg.ID, fwdOwnRoom.ID: mineMsg.ID} {
+		if _, err := s.chat.ForwardChatMessage(ctx, x.ua.ID, x.w.ID, id, ForwardChatMessageInput{TargetRoomIDs: []string{room}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	roomForwarded, roomForwardedOwn := readIn(fwdRoom.ID, ""), readIn(fwdOwnRoom.ID, "")
+	// The asker placed a call; the AI summary of it is posted under the asker.
+	gw := ai.NewGateway(s.q, &provider.Fake{Reply: func(req provider.CompletionRequest) provider.CompletionResponse {
+		resp := ai.FakeReply(req)
+		resp.Text = strings.Replace(resp.Text, `"highlights":[]`, `"highlights":["Chốt demo thứ Sáu"]`, 1)
+		return resp
+	}}, NewAIQuota(NewEntitlementService(s.pool, s.q)), nil, ai.Options{})
+	s.chat.SetAIGateway(gw)
+	if err := s.chat.SignalVoiceInvite(ctx, x.ua.ID, x.w.ID, dm.ID, "taint-call", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.chat.SignalVoiceAccept(ctx, x.ub.ID, x.w.ID, dm.ID, "taint-call"); err != nil {
+		t.Fatal(err)
+	}
+	backdateVoiceCallAnswer(t, dm.ID, "taint-call", 45*time.Second)
+	if err := s.chat.SignalVoiceHangup(ctx, x.ub.ID, x.w.ID, dm.ID, "taint-call"); err != nil {
+		t.Fatal(err)
+	}
+	d := outbox.New(s.pool, s.q, outbox.Options{})
+	d.Register(NewChatVoiceSummaryConsumer(s.chat))
+	if err := d.Process(ctx, 50); err != nil {
+		t.Fatal(err)
+	}
+	roomSummary := readIn(dm.ID, "demo") // only the summary mentions it
+	if len(roomSummary) != 1 {
+		t.Fatalf("the summary-only read = %+v", roomSummary)
+	}
 
 	cases := []struct {
 		name  string
@@ -129,6 +203,10 @@ func TestTaintFollowsWhoWroteWhatWasRead(t *testing.T) {
 		{"get_task, asker made it and alone touched it, own comment", getTask(own.ID), false},
 		{"get_task with a comment of B", getTask(commented.ID), true},
 		{"get_task made by B", getTask(byB.ID), true},
+		{"get_task the asker created through an AI client (via)", getTask(viaTask.ID), true},
+		{"list_tasks that lists a task B made", runAgentTool(t, s, tc, "list_tasks", `{"status":"","project_id":"","assignee_id":"","priority":"","due_from":"","due_to":"","overdue":false,"limit":0}`), true},
+		{"a search task hit of B", runAgentTool(t, s, tc, "search", `{"query":"Việc của B"}`), true},
+		{"a PREFIX-N search hit of a task with a comment of B", runAgentTool(t, s, tc, "search", `{"query":"`+x.w.TaskPrefix+`-`+fmt.Sprint(commented.Number)+`"}`), true},
 		{"get_task the asker made and B edited", getTask(edited.ID), true},
 		{"get_project of the asker", runAgentTool(t, s, tc, "get_project", `{"project_id":"`+proj.ID+`"}`), false},
 		{"get_project made by B", runAgentTool(t, s, tc, "get_project", `{"project_id":"`+projB.ID+`"}`), true},
@@ -136,8 +214,13 @@ func TestTaintFollowsWhoWroteWhatWasRead(t *testing.T) {
 		{"get_meeting made by B", runAgentTool(t, s, tc, "get_meeting", `{"meeting_id":"`+bMeeting.ID+`"}`), true},
 		{"get_document of the asker", getDoc(ownDoc), false},
 		{"get_document of B", getDoc(bDoc), true},
+		{"get_document the asker made and B edited", getDoc(bEditedDoc), true},
+		{"get_document that is an uploaded text file", getDoc(uploaded), true},
 		{"read_chat_room with only the asker's messages", roomMine, false},
 		{"read_chat_room with a message of B", roomMixed, true},
+		{"read_chat_room where the asker forwarded B's message", roomForwarded, true},
+		{"read_chat_room where the asker forwarded their own message", roomForwardedOwn, true},
+		{"read_chat_room whose only message is a voice-call summary of the asker's call", roomSummary, true},
 		{"list_members", runAgentTool(t, s, tc, "list_members", `{"query":""}`), false},
 		{"member_workload", runAgentTool(t, s, tc, "member_workload", `{}`), false},
 		{"list_chat_rooms", runAgentTool(t, s, tc, "list_chat_rooms", `{}`), false},
@@ -156,7 +239,7 @@ func TestTaintFollowsWhoWroteWhatWasRead(t *testing.T) {
 		{"page chip: meeting of B", focus("meeting", bMeeting.ID), true},
 		{"page chip: room with a message of B", focus("room", dm.ID), true},
 		{"person chip", focus("member", x.ub.ID), false},
-		{"the chip was removed: nothing is sent", none, false},
+		{"the chip was removed: nothing is sent", removed, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -278,5 +361,46 @@ func TestP0TurnWithSourcesTaints(t *testing.T) {
 	}
 	if c := reloadConv(t, s, res.ConversationID); !c.TaintedAt.Valid {
 		t.Errorf("a P0 turn with sources left tainted_at unset: %+v", c)
+	}
+}
+
+// The AI summary of a meeting is text nobody on the audit trail wrote: the
+// asker's own meeting, summarised by the real path, taints through get_meeting
+// and through the chip.
+func TestTaintMeetingAISummary(t *testing.T) {
+	x, s, tc := askWriteWorld(t)
+	ctx := context.Background()
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: `{"summary":"Đã chốt.","decisions":["Ship thứ Sáu"],"action_items":[]}`, Model: "fake"}
+	}}
+	s.meetings.AI = ai.NewGateway(s.q, fake, NewAIQuota(s.meetings.ent), nil, ai.Options{})
+	m, err := s.meetings.CreateInstant(ctx, x.ua.ID, x.w.ID, "Họp có tóm tắt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.meetings.AddNote(ctx, x.ua.ID, m.ID, "Chốt lịch"); err != nil {
+		t.Fatal(err)
+	}
+	read := func() (viaTool, viaChip []agentItem) {
+		t.Helper()
+		chip, _, err := s.askContext(ctx, tc, &ai.Focus{Kind: "meeting", ID: m.ID}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return runAgentTool(t, s, tc, "get_meeting", `{"meeting_id":"`+m.ID+`"}`), chip
+	}
+	tool, chip := read()
+	if taintOf(t, s, tc, tool) || taintOf(t, s, tc, chip) {
+		t.Fatal("control: the asker's own meeting without a summary tainted the turn")
+	}
+	if _, err := s.meetings.Summarize(ctx, x.ua.ID, m.ID, "vi"); err != nil {
+		t.Fatal(err)
+	}
+	tool, chip = read()
+	if !taintOf(t, s, tc, tool) {
+		t.Error("get_meeting with an AI summary did not taint")
+	}
+	if !taintOf(t, s, tc, chip) {
+		t.Error("the meeting chip with an AI summary did not taint")
 	}
 }

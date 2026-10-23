@@ -253,14 +253,15 @@ func (s *AskUNIService) agentSearch(ctx context.Context, tc ai.ToolContext, raw 
 	if err := agentArgs(raw, &a); err != nil {
 		return nil, err
 	}
-	found, chatMine, err := s.searchWorkspaceMine(ctx, tc, a.Query)
+	found, marks, err := s.searchWorkspaceMarks(ctx, tc, a.Query)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]agentItem, 0, len(found))
 	for _, src := range found {
 		it := sourceItem(src)
-		it.Mine = it.Kind == "chat" && chatMine[src.Href]
+		it.Mine = it.Kind == "chat" && marks.chatMine[src.Href]
+		it.Foreign = marks.foreign[src.Href]
 		out = append(out, it)
 	}
 	return out, nil
@@ -524,7 +525,9 @@ func (s *AskUNIService) agentGetDocument(ctx context.Context, tc ai.ToolContext,
 		fields += "\nNote: " + d.Note
 	}
 	h := s.href(d.URL)
-	return []agentItem{{Kind: "document", ID: d.ID, Key: h, Title: d.Title, Href: h, Text: withText(fields, d.Content), Body: d.Content}}, nil
+	// An uploaded file is somebody's document from outside, like an attachment:
+	// no audit row says who wrote its text (R8).
+	return []agentItem{{Kind: "document", ID: d.ID, Key: h, Title: d.Title, Href: h, Text: withText(fields, d.Content), Body: d.Content, Foreign: d.Filename != ""}}, nil
 }
 
 // roomTitle is what the sidebar calls a room: its name, else the dm peer's.
@@ -590,7 +593,7 @@ func (s *AskUNIService) agentReadChatRoom(ctx context.Context, tc ai.ToolContext
 		if optOuts.excludes(m.SenderID) {
 			continue
 		}
-		mine = mine && m.SenderID == tc.ActorID
+		mine = mine && askerOwnWords(m, tc.ActorID)
 		body := oneLine(m.Body)
 		if body == "" {
 			body = "[" + m.Kind + "]"
