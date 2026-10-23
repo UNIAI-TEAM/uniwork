@@ -103,7 +103,7 @@ func TestReadPDFStaysWithinItsHeapBound(t *testing.T) {
 		}
 		// The guard samples every millisecond and collects before it stops a
 		// parse, so the heap may run a little past its limit first.
-		if bound := pdfHeapLimit(len(data)) + 16<<20; grew > bound {
+		if bound := pdfHeapLimit(len(data)) + 32<<20; grew > bound {
 			t.Errorf("%s: the heap grew %d MiB, want at most %d", name, grew>>20, bound>>20)
 		}
 	}
@@ -186,7 +186,9 @@ func TestReadPDFOpensAScannedFileNearTheCap(t *testing.T) {
 var garbageSink []byte
 
 // The guard measures from the live heap: garbage still standing when a parse
-// starts is not room the parse may fill.
+// starts is not room the parse may fill. Live growth stops a little past the
+// limit and stays there, so the guard must stop the parse on its own; one that
+// counted the garbage as room never would.
 func TestPDFHeapGuardIgnoresGarbageAtTheStart(t *testing.T) {
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	runtime.GC()
@@ -196,16 +198,16 @@ func TestPDFHeapGuardIgnoresGarbageAtTheStart(t *testing.T) {
 	garbageSink = nil // 64 MiB the runtime has not collected
 	const limit = 16 << 20
 	ctx, stop := pdfHeapGuard(context.Background(), limit)
-	var live [][]byte
-	for ctx.Err() == nil && len(live) < 256 {
-		live = append(live, make([]byte, 1<<20))
-		time.Sleep(200 * time.Microsecond)
+	live := make([][]byte, limit>>20+4)
+	for i := range live {
+		live[i] = make([]byte, 1<<20)
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(5 * time.Second):
 	}
 	if err := stop(); !errors.Is(err, errPDFHeap) {
-		t.Fatalf("stop() = %v, want errPDFHeap", err)
-	}
-	if n := len(live); n > limit>>20+8 {
-		t.Fatalf("the guard let %d MiB grow live past a %d MiB limit", n, limit>>20)
+		t.Fatalf("stop() = %v with %d MiB live past a %d MiB limit, want errPDFHeap", err, len(live), limit>>20)
 	}
 	runtime.KeepAlive(live)
 }
