@@ -3,14 +3,16 @@
 // and which answers the job; iOS's scheduled task (expo-background-task), dropped once nothing is owed. Both run the
 // drain of a task (task-env.ts: the runtime booted, the queues read, as nothing on screen did). Registered at the
 // app's entry (background-tasks.ts), so a headless runtime or a background launch has them.
+//
+// iOS's run never unregisters its own task: expo-task-manager could not complete it then (scheduled-drain.ts).
 import * as BackgroundTask from "expo-background-task";
 import * as TaskManager from "expo-task-manager";
 import { AppRegistry, Platform } from "react-native";
 import { pathOf } from "@/lib/unknown-shape";
 import { createLogger } from "../logger";
-import { scheduledDrain, type ScheduledDrain } from "./background-send";
 import { DRAIN_TASK, SCHEDULED_DRAIN_TASK, drainOwed, stillOwed, type DrainEnv, type DrainOutcome } from "./drain";
 import { nativeDrain, type NativeDrain } from "./native-drain";
+import { scheduledDrain, type ScheduledDrain } from "./scheduled-drain";
 import { taskDrainEnv } from "./task-env";
 
 const log = createLogger("outbox");
@@ -33,11 +35,10 @@ export async function runDrainTask(data: unknown, env: DrainTaskEnv = appDrainTa
   env.native.drainFinished(token, stillOwed(outcome));
 }
 
-/** iOS's scheduled drain: one drain; the task goes once nothing is owed. */
+/** iOS's scheduled drain: one drain; once nothing is owed, the task goes after the run has answered. */
 export async function runScheduledDrain(env: DrainTaskEnv = appDrainTaskEnv): Promise<DrainOutcome> {
-  const outcome = await drainOwed(env.task);
+  const outcome = await env.scheduled.run(() => drainOwed(env.task));
   log.info("outbox scheduled drain", { outcome });
-  if (!stillOwed(outcome)) await env.scheduled.drop();
   return outcome;
 }
 

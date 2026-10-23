@@ -3,42 +3,30 @@
 // queued offline goes when the network comes back, the app away.
 //
 // - iOS: as the app leaves the screen with something owed, time borrowed from the system (beginBackgroundTask, about
-//   30 s) to drain, given back at once; and a scheduled task (expo-background-task: a BGProcessingTask that needs a
-//   network, 15 minutes at the soonest) kept while something is still owed — best effort, iOS decides when it runs
-//   (often only on Wi-Fi, charging, or not at all for an app seldom used) and drops it when the person swipes the app
-//   away. A suspended iPhone app runs nothing else.
+//   30 s) to drain, given back at once; and a scheduled task (scheduled-drain.ts) kept while something is still owed —
+//   best effort, iOS decides when it runs (often only on Wi-Fi, charging, or not at all for an app seldom used) and
+//   drops it when the person swipes the app away. A suspended iPhone app runs nothing else. A run of that task that
+//   finds nothing owed leaves its drop for the screen's return (scheduled-drain.ts says why).
 // - Android: the WorkManager job (modules/unichat-background › OutboxDrain.kt), which needs a connected network: now,
 //   expedited (Android 12+), when there is one, or the moment one comes back, a reboot included; it runs the drain
 //   task in the running app or a headless one and comes back on its backoff while something is still owed.
 //
 // Both stand down when nothing is owed or the server's switches (outbox re-send, background send) are off. Back on
-// screen, the screens send (use-account-sync.ts) and Android's waiting job goes. The drain itself is drain.ts; the
+// screen, the screens send (use-account-sync.ts), Android's waiting job goes and iOS's task goes if a run left it
+// owing nothing. The drain itself is drain.ts; the
 // tasks that run it off screen are drain-tasks.ts.
-import * as BackgroundTask from "expo-background-task";
 import { Platform } from "react-native";
 import { createLogger } from "../logger";
 import { bestEffort } from "../report";
-import { SCHEDULED_DRAIN_TASK, drainOwed, stillOwed, type DrainEnv, type DrainOutcome } from "./drain";
+import { drainOwed, stillOwed, type DrainEnv, type DrainOutcome } from "./drain";
 import { backgroundSendOn, owesNow, runningDrainEnv } from "./drain-env";
 import { nativeDrain, type NativeDrain } from "./native-drain";
+import { scheduledDrain, type ScheduledDrain } from "./scheduled-drain";
 
 const log = createLogger("outbox");
 
 /** The name iOS shows for the borrowed time (in its logs and the debugger). */
 const GRACE_NAME = "unichat-outbox";
-/** iOS's scheduled drain, in minutes: expo-background-task's floor. */
-const SCHEDULED_INTERVAL_MINUTES = 15;
-
-/** iOS's scheduled drain, kept while something is owed. */
-export interface ScheduledDrain {
-  keep: () => Promise<void>;
-  drop: () => Promise<void>;
-}
-
-export const scheduledDrain: ScheduledDrain = {
-  keep: () => BackgroundTask.registerTaskAsync(SCHEDULED_DRAIN_TASK, { minimumInterval: SCHEDULED_INTERVAL_MINUTES }),
-  drop: () => BackgroundTask.unregisterTaskAsync(SCHEDULED_DRAIN_TASK),
-};
 
 export interface BackgroundSendEnv {
   os: string;
@@ -90,7 +78,11 @@ export async function keepSendingOffScreen(userId: string, env: BackgroundSendEn
   if (!stillOwed(outcome)) await env.scheduled.drop();
 }
 
-/** Back on screen: the screens send now, so Android's job waiting for a network goes. */
-export function backInFront(env: BackgroundSendEnv = appBackgroundSendEnv): void {
+/**
+ * Back on screen: the screens send now, so Android's job waiting for a network goes, and iOS's scheduled task goes
+ * if its last run found nothing owed. Rejects only with a failure of the platform's own call.
+ */
+export async function backInFront(env: BackgroundSendEnv = appBackgroundSendEnv): Promise<void> {
   if (env.os === "android") env.native.cancelDrain();
+  if (env.os === "ios") await env.scheduled.settle();
 }

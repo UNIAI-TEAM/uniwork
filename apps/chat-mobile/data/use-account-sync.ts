@@ -48,7 +48,7 @@ export function useAccountSync(userId: string | null): void {
     const appState = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         flush();
-        backInFront();
+        void backInFront().catch(bestEffort("outbox", "background send not stood down", "report"));
       }
       if (state !== "background") return;
       // The flush first: what it puts on the wire is "sending", which keepSendingOffScreen counts as owed.

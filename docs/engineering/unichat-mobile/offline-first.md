@@ -58,7 +58,10 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   outbox đi tiếp khi app đã khuất, như các app nhắn tin lớn. iOS: xin hệ thống thêm thời gian (`beginBackgroundTask`,
   khoảng 30 s; drain trả lại sau `GRACE_BUDGET_MS` = 25 s hay sớm hơn), xả bằng `owed.ts › deliverOwed` (flush rồi chờ
   tới khi không còn tin nào trên dây, `chat-send.ts › sendsSettled`), và giữ một task theo lịch (`expo-background-task`:
-  `BGProcessingTask` cần mạng, sớm nhất 15 phút) trong khi còn nợ, bỏ khi hết nợ — **best effort**: iOS quyết khi nào
+  `BGProcessingTask` cần mạng, sớm nhất 15 phút) trong khi còn nợ, bỏ khi hết nợ (`outbox-drain/scheduled-drain.ts`:
+  một lần chạy của task không bao giờ tự bỏ đăng ký — `expo-task-manager` chỉ báo xong `BGProcessingTask` qua đăng ký
+  đó, bỏ giữa chừng thì task treo tới khi iOS cho hết hạn và lần sau iOS lên lịch app ít hơn; lần chạy thấy hết nợ chỉ
+  ghi lại, task bị bỏ khi app về foreground hay lần rời foreground sau) — **best effort**: iOS quyết khi nào
   chạy (thường lúc máy rảnh, có Wi-Fi hay đang sạc; app ít dùng có thể không bao giờ), vuốt tắt app là hết, và app
   iPhone đã bị treo không chạy gì khác, nên tin viết offline trên iPhone chủ yếu đi khi mở lại app. Android: một job
   WorkManager (`OutboxDrain.kt`, tên duy nhất `unichat-outbox-drain`, lên lịch lại thì thay job cũ) cần mạng

@@ -1,6 +1,6 @@
 // The tasks that drain the outbox off screen (drain-tasks.ts): Android's headless task answers the job that started
-// it; iOS's scheduled task drops itself once nothing is owed; both registered at the app's entry, each on its own
-// platform only.
+// it; iOS's scheduled task runs the drain through its registration and never drops itself mid-run; both registered at
+// the app's entry, each on its own platform only.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const rn = vi.hoisted(() => ({ Platform: { OS: "android" }, AppRegistry: { registerHeadlessTask: vi.fn() } }));
@@ -10,7 +10,7 @@ vi.mock("expo-task-manager", () => taskManager);
 vi.mock("expo-background-task", () => ({ BackgroundTaskResult: { Success: 1, Failed: 2 } }));
 const app = vi.hoisted(() => ({ native: { tag: "native" }, scheduled: { tag: "scheduled" }, task: { tag: "task" } }));
 vi.mock("./native-drain", () => ({ nativeDrain: app.native }));
-vi.mock("./background-send", () => ({ scheduledDrain: app.scheduled }));
+vi.mock("./scheduled-drain", () => ({ scheduledDrain: app.scheduled }));
 vi.mock("./task-env", () => ({ taskDrainEnv: app.task }));
 
 import { installReportSink } from "../report";
@@ -34,7 +34,12 @@ function fakeEnv(outcome: DrainOutcome | "never" = "drained"): DrainTaskEnv {
       cancelDrain: vi.fn(),
       drainFinished: vi.fn((_token: string, _owed: boolean) => undefined),
     },
-    scheduled: { keep: vi.fn(async () => undefined), drop: vi.fn(async () => undefined) },
+    scheduled: {
+      keep: vi.fn(async () => undefined),
+      drop: vi.fn(async () => undefined),
+      run: vi.fn((drain: () => Promise<DrainOutcome>) => drain()),
+      settle: vi.fn(async () => undefined),
+    },
     task: drainEnv(outcome),
   };
 }
@@ -79,13 +84,25 @@ describe("Android's drain task", () => {
 });
 
 describe("iOS's scheduled drain", () => {
-  it("drops itself once nothing is owed, and stays while something is", async () => {
-    const drained = fakeEnv("drained");
-    await expect(runScheduledDrain(drained)).resolves.toBe("drained");
-    expect(drained.scheduled.drop).toHaveBeenCalled();
-    const owed = fakeEnv("owed");
-    await expect(runScheduledDrain(owed)).resolves.toBe("owed");
-    expect(owed.scheduled.drop).not.toHaveBeenCalled();
+  // expo-task-manager completes the BGProcessingTask only through the task's registration: a run that unregisters
+  // its own task is never answered and lasts until iOS expires it (and schedules the app less for it).
+  it("never unregisters its own task while it runs, drained or not: the executor answers first", async () => {
+    rn.Platform.OS = "ios";
+    for (const outcome of ["drained", "owed", "paused", "signed-out"] as const) {
+      vi.mocked(taskManager.defineTask).mockClear();
+      const env = fakeEnv(outcome);
+      registerOutboxDrainTasks(env);
+      const [, executor] = vi.mocked(taskManager.defineTask).mock.calls[0] as unknown as [string, () => Promise<number>];
+      await expect(executor()).resolves.toBe(1);
+      expect(env.scheduled.drop).not.toHaveBeenCalled();
+      expect(env.scheduled.settle).not.toHaveBeenCalled();
+    }
+  });
+
+  it("drains as a run of the scheduled task, which decides on the registration once the run has answered", async () => {
+    const env = fakeEnv("owed");
+    await expect(runScheduledDrain(env)).resolves.toBe("owed");
+    expect(env.scheduled.run).toHaveBeenCalledTimes(1);
   });
 });
 

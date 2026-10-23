@@ -19,7 +19,7 @@ jest.mock("./timeline-refresh", () => ({
 }));
 jest.mock("./auth/flow", () => ({ authConfig: { scheme: "uniworkchat" } }));
 const mockKeepSending = jest.fn(async () => undefined);
-const mockBackInFront = jest.fn();
+const mockBackInFront = jest.fn(async () => undefined);
 jest.mock("./outbox-drain/background-send", () => ({
   keepSendingOffScreen: (...args: unknown[]) => mockKeepSending(...(args as [])),
   backInFront: (...args: unknown[]) => mockBackInFront(...(args as [])),
@@ -58,7 +58,7 @@ beforeEach(() => {
   configureRuntime({ appUrl: "https://app.test" });
   mockFlushOwed.mockClear();
   mockKeepSending.mockReset().mockResolvedValue(undefined);
-  mockBackInFront.mockClear();
+  mockBackInFront.mockReset().mockResolvedValue(undefined);
   mockRefreshStale.mockReset().mockResolvedValue(undefined);
   mockHydrate.mockReset().mockResolvedValue(undefined);
   mockNet.listeners = [];
@@ -138,6 +138,9 @@ it("keeps sending off screen as the app leaves (after the flush that puts it on 
     expect(mockBackInFront).not.toHaveBeenCalled();
     await act(async () => onAppState?.("active"));
     expect(mockBackInFront).toHaveBeenCalledTimes(1);
+    mockBackInFront.mockRejectedValueOnce(new Error("not found"));
+    await act(async () => onAppState?.("active"));
+    expect(breadcrumbs).toContain("background send not stood down");
     // The platform's own call failing (a job not scheduled, a task not registered) is reported, never thrown.
     mockKeepSending.mockRejectedValueOnce(new Error("boom"));
     await act(async () => onAppState?.("background"));

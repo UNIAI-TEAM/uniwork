@@ -1,16 +1,16 @@
 // What keeps the outbox going once UniChat is off screen (background-send.ts): iOS borrows time as the app leaves and
 // keeps a scheduled task while something is still owed; Android hands it to a WorkManager job that needs a network;
-// both stand down when nothing is owed or the server's switches are off. Back on screen, Android's job goes.
+// both stand down when nothing is owed or the server's switches are off. Back on screen, Android's job goes and iOS's
+// task goes if its last run left it owing nothing.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const rn = vi.hoisted(() => ({ Platform: { OS: "android" } }));
 vi.mock("react-native", () => rn);
-const backgroundTask = vi.hoisted(() => ({
+vi.mock("expo-background-task", () => ({
   registerTaskAsync: vi.fn(async () => undefined),
   unregisterTaskAsync: vi.fn(async () => undefined),
   BackgroundTaskResult: { Success: 1, Failed: 2 },
 }));
-vi.mock("expo-background-task", () => backgroundTask);
 const envs = vi.hoisted(() => ({
   enabled: true,
   owes: true,
@@ -31,8 +31,9 @@ const native = vi.hoisted(() => ({
 vi.mock("./native-drain", () => ({ nativeDrain: native }));
 
 import { installReportSink } from "../report";
-import { appBackgroundSendEnv, backInFront, keepSendingOffScreen, scheduledDrain, type BackgroundSendEnv } from "./background-send";
-import { SCHEDULED_DRAIN_TASK, type DrainEnv, type DrainOutcome } from "./drain";
+import { appBackgroundSendEnv, backInFront, keepSendingOffScreen, type BackgroundSendEnv } from "./background-send";
+import type { DrainEnv, DrainOutcome } from "./drain";
+import { scheduledDrain } from "./scheduled-drain";
 
 const drainEnv = (outcome: DrainOutcome): DrainEnv => ({
   prepare: async () => "me",
@@ -56,7 +57,12 @@ function fakeEnv(os: string, over: Partial<BackgroundSendEnv> = {}) {
       cancelDrain: vi.fn(),
       drainFinished: vi.fn(),
     },
-    scheduled: { keep: vi.fn(async () => void order.push("keep")), drop: vi.fn(async () => void order.push("drop")) },
+    scheduled: {
+      keep: vi.fn(async () => void order.push("keep")),
+      drop: vi.fn(async () => void order.push("drop")),
+      run: vi.fn(),
+      settle: vi.fn(async () => void order.push("settle")),
+    },
     enabled: () => true,
     owes: () => true,
     running: vi.fn(() => {
@@ -152,13 +158,15 @@ describe("leaving the screen with something owed", () => {
 });
 
 describe("back on screen", () => {
-  it("Android: the job waiting for a network goes (the screens send now); iOS: nothing to undo", () => {
+  it("Android: the job waiting for a network goes (the screens send now); iOS: the drop a run left for later", async () => {
     const android = fakeEnv("android").env;
-    backInFront(android);
+    await backInFront(android);
     expect(android.native.cancelDrain).toHaveBeenCalled();
-    const ios = fakeEnv("ios").env;
-    backInFront(ios);
-    expect(ios.native.cancelDrain).not.toHaveBeenCalled();
+    expect(android.scheduled.settle).not.toHaveBeenCalled();
+    const ios = fakeEnv("ios");
+    await backInFront(ios.env);
+    expect(ios.env.native.cancelDrain).not.toHaveBeenCalled();
+    expect(ios.order).toEqual(["settle"]);
   });
 });
 
@@ -173,12 +181,5 @@ describe("the app's env", () => {
     envs.owes = false;
     expect(appBackgroundSendEnv.enabled()).toBe(false);
     expect(appBackgroundSendEnv.owes("me")).toBe(false);
-  });
-
-  it("keeps and drops iOS's scheduled drain through expo-background-task, every 15 minutes at the soonest", async () => {
-    await appBackgroundSendEnv.scheduled.keep();
-    expect(backgroundTask.registerTaskAsync).toHaveBeenCalledWith(SCHEDULED_DRAIN_TASK, { minimumInterval: 15 });
-    await appBackgroundSendEnv.scheduled.drop();
-    expect(backgroundTask.unregisterTaskAsync).toHaveBeenCalledWith(SCHEDULED_DRAIN_TASK);
   });
 });
