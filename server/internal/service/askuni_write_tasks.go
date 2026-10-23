@@ -15,8 +15,28 @@ import (
 // the MCP connector's own write method as the asker, and each leaves the
 // inverse that puts things back.
 
-// errAskNoItem is a server fault: a write that committed returned no object to undo.
-var errAskNoItem = errors.New("ask uni: write returned no object")
+// askNoUndoNote is what a row says when its write committed but the inverse
+// could not be built: apply never fails after a write (the row would read as
+// failed while the change stands), so the loss of the undo is told here.
+const askNoUndoNote = "saved, but it cannot be undone from here"
+
+// askInverseOrNote builds the inverse of a write that committed. When it cannot
+// it returns none and says so in out.Note.
+func askInverseOrNote(out *AskProposalResult, op string, args map[string]any) *askInverse {
+	inv, err := askInverseOf(op, args)
+	if err != nil {
+		askLoseUndo(out)
+		return nil
+	}
+	return inv
+}
+
+func askLoseUndo(out *AskProposalResult) {
+	if out.Note != "" {
+		out.Note += "; "
+	}
+	out.Note += askNoUndoNote
+}
 
 var errAskUndoUnavailable = CodedError{Code: "undo_unavailable", Status: 409, Msg: "the object changed after this was applied"}
 
@@ -505,12 +525,14 @@ func (s *AskUNIService) applyCreateTask(ctx context.Context, p McpPrincipal, row
 	if err != nil {
 		return AskProposalResult{}, nil, err
 	}
+	out := AskProposalResult{Revision: res.Revision, Changes: res.Changes, Note: res.Note}
 	task, ok := res.Item.(McpTask)
 	if !ok || task.ID == "" {
-		return AskProposalResult{}, nil, errAskNoItem
+		askLoseUndo(&out)
+		return out, nil, nil
 	}
-	inv, err := askInverseOf("delete_task", map[string]any{"task_id": task.ID, "revision": res.Revision})
-	return AskProposalResult{ObjectID: task.ID, Href: task.URL, Revision: res.Revision, Changes: res.Changes, Note: res.Note}, inv, err
+	out.ObjectID, out.Href = task.ID, task.URL
+	return out, askInverseOrNote(&out, "delete_task", map[string]any{"task_id": task.ID, "revision": res.Revision}), nil
 }
 
 func (s *AskUNIService) applyAddComment(ctx context.Context, p McpPrincipal, row askDraftRow) (AskProposalResult, *askInverse, error) {
@@ -525,12 +547,14 @@ func (s *AskUNIService) applyAddComment(ctx context.Context, p McpPrincipal, row
 	if err != nil {
 		return AskProposalResult{}, nil, err
 	}
+	out := AskProposalResult{Note: res.Note}
 	c, ok := res.Item.(McpComment)
 	if !ok || c.ID == "" {
-		return AskProposalResult{}, nil, errAskNoItem
+		askLoseUndo(&out)
+		return out, nil, nil
 	}
-	inv, err := askInverseOf("delete_task_comment", map[string]any{"comment_id": c.ID})
-	return AskProposalResult{ObjectID: c.ID, Href: c.URL, Note: res.Note}, inv, err
+	out.ObjectID, out.Href = c.ID, c.URL
+	return out, askInverseOrNote(&out, "delete_task_comment", map[string]any{"comment_id": c.ID}), nil
 }
 
 func (s *AskUNIService) applyUpdateTask(ctx context.Context, p McpPrincipal, row askDraftRow) (AskProposalResult, *askInverse, error) {
@@ -603,8 +627,7 @@ func (s *AskUNIService) applyUpdateTask(ctx context.Context, p McpPrincipal, row
 		}
 	}
 	back["workspace_id"] = in.WorkspaceID
-	inv, err := askInverseOf("update_task", back)
-	return out, inv, err
+	return out, askInverseOrNote(&out, "update_task", back), nil
 }
 
 func askInverseOf(op string, args map[string]any) (*askInverse, error) {

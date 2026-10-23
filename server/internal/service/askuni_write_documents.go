@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/document"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // Ask UNI's document write tools (spec P3, R4): prepare reads and rates, apply
@@ -44,6 +46,9 @@ func init() {
 	// restore_document_version puts the page's content back from the version
 	// saved before the edit, then its title; both only while the page still
 	// stands at the revision the edit left.
+	// shortcut: the restore and the rename are two writes; if the rename fails
+	// after the restore, the content is back but the title is not and the row
+	// reads undo_unavailable. Upgrade when one service call can do both.
 	askInverses["restore_document_version"] = func(ctx context.Context, s *AskUNIService, p McpPrincipal, args json.RawMessage) error {
 		var a struct {
 			WorkspaceID string `json:"workspace_id"`
@@ -101,7 +106,7 @@ func (s *AskUNIService) askDocumentTools() []askWriteTool {
 			prepare: s.prepareCreateDocument, apply: s.applyCreateDocument, inverse: "archive_document",
 		},
 		{
-			Tool:    tool("update_document", "Proposes an edit to one page: a new title, and content appended or replacing the page. Whoever can read the page sees it; a rename reaches the page's audience and anyone newly @mentioned is notified.", "the asker restores the page as it was", ai.RiskMedium, true, mcpSchemaUpdateDocument),
+			Tool:    tool("update_document", "Proposes an edit to one page: a new title, and content appended or replacing the page. Whoever can read the page sees it; a rename or a saved version can reach the page's audience, and anyone newly @mentioned in the content is notified.", "the asker restores the page as it was", ai.RiskMedium, true, mcpSchemaUpdateDocument),
 			prepare: s.prepareUpdateDocument, apply: s.applyUpdateDocument, inverse: "restore_document_version",
 		},
 		{
@@ -228,6 +233,7 @@ func (s *AskUNIService) prepareUpdateDocument(ctx context.Context, tc ai.ToolCon
 	}
 	row := askDraftRow{Tool: "update_document", Args: stored, TargetKind: "document", Level: askLevel2}
 	var beforeTitle, beforeMD string
+	var before json.RawMessage // the page's content as stored; empty while the page does not exist yet
 	if len(refs) > 0 {
 		// The page does not exist yet: every from is empty.
 		row.Preview.Target = AskContextRef{Kind: "document", Title: earlier[refs[0]-1].Preview.Target.Title}
@@ -247,7 +253,7 @@ func (s *AskUNIService) prepareUpdateDocument(ctx context.Context, tc ai.ToolCon
 			}
 			beforeMD = md
 		}
-		beforeTitle = d.Title
+		beforeTitle, before = d.Title, d.Content
 		rev := d.Revision
 		row.TargetID, row.TargetRevision = d.ID, &rev
 		row.Preview.Target = AskContextRef{Kind: "document", ID: d.ID, Title: d.Title}
@@ -264,12 +270,49 @@ func (s *AskUNIService) prepareUpdateDocument(ctx context.Context, tc ai.ToolCon
 		return askDraftRow{}, McpInvalidArgs{Msg: "nothing to change: the page already holds this"}
 	}
 	row.Preview.Refs = refs
+	n := s.names(ctx, tc, earlier)
+	// The people the save newly names are told; a saved version or a rename can
+	// also reach the page's audience, so more people than those may hear of it.
 	row.Preview.Audience = AskAudience{
-		Visibility: "document", Notifies: []AskContextRef{},
-		// A rename reaches the page's audience, and a new @mention is told.
-		NotifiesMore: in.Title != nil && title != beforeTitle || in.Content != nil && strings.Contains(*in.Content, "mention://"),
+		Visibility: "document", Notifies: n.notified(s.newMentions(ctx, tc, before, in)...),
+		NotifiesMore: in.Content != nil || in.Title != nil && title != beforeTitle,
 	}
 	return row, nil
+}
+
+// newMentions is who the content of an edit newly @mentions on the page, the
+// way a save decides it (newBodyMentionRecipients): the people the new body
+// names that the one the page holds does not, without the asker and only
+// members of the organization.
+func (s *AskUNIService) newMentions(ctx context.Context, tc ai.ToolContext, before json.RawMessage, in mcpUpdateDocumentIn) []string {
+	if in.Content == nil {
+		return nil
+	}
+	var after json.RawMessage
+	var err error
+	if in.Mode == "replace" {
+		after, err = document.MarkdownToPage(*in.Content, document.AssetsOf(before))
+	} else {
+		after, err = document.AppendMarkdown(before, *in.Content)
+	}
+	if err != nil {
+		return nil
+	}
+	had := bodyMentionUserIDs(before)
+	var added []string
+	for _, id := range bodyMentionUserIDs(after) {
+		if id != tc.ActorID && !slices.Contains(had, id) {
+			added = append(added, id)
+		}
+	}
+	if len(added) == 0 {
+		return nil
+	}
+	members, err := s.q.ListActiveOrganizationMemberIds(ctx, db.ListActiveOrganizationMemberIdsParams{OrganizationID: tc.OrganizationID, UserIds: added})
+	if err != nil {
+		return nil
+	}
+	return slices.DeleteFunc(added, func(id string) bool { return !slices.Contains(members, id) })
 }
 
 // orNil is a from that is not there yet: nil, not an empty string.
@@ -338,12 +381,14 @@ func (s *AskUNIService) applyCreateDocument(ctx context.Context, p McpPrincipal,
 	if err != nil {
 		return AskProposalResult{}, nil, err
 	}
+	out := AskProposalResult{Revision: res.Revision, Changes: res.Changes, Note: res.Note}
 	d, ok := res.Item.(McpDocument)
 	if !ok || d.ID == "" {
-		return AskProposalResult{}, nil, errAskNoItem
+		askLoseUndo(&out)
+		return out, nil, nil
 	}
-	inv, err := askInverseOf("archive_document", map[string]any{"workspace_id": in.WorkspaceID, "document_id": d.ID, "revision": res.Revision})
-	return AskProposalResult{ObjectID: d.ID, Href: d.URL, Revision: res.Revision, Changes: res.Changes, Note: res.Note}, inv, err
+	out.ObjectID, out.Href = d.ID, d.URL
+	return out, askInverseOrNote(&out, "archive_document", map[string]any{"workspace_id": in.WorkspaceID, "document_id": d.ID, "revision": res.Revision}), nil
 }
 
 func (s *AskUNIService) applyUpdateDocument(ctx context.Context, p McpPrincipal, row askDraftRow) (AskProposalResult, *askInverse, error) {
@@ -370,26 +415,36 @@ func (s *AskUNIService) applyUpdateDocument(ctx context.Context, p McpPrincipal,
 	}
 	out := AskProposalResult{ObjectID: before.ID, Revision: res.Revision, Changes: res.Changes, Note: res.Note}
 	after, ok := res.Item.(McpDocument)
+	contentWritten := slices.ContainsFunc(res.Changes, func(c McpChange) bool { return c.Field == "content" })
 	if !ok {
-		return out, nil, errAskNoItem
+		askLoseUndo(&out)
+		return out, nil, nil
 	}
 	out.Href = after.URL
-	back := map[string]any{"workspace_id": in.WorkspaceID, "document_id": before.ID, "revision": res.Revision, "version": 0, "title": ""}
+	version := 0
 	if res.UndoVersionID != "" {
 		v, err := strconv.Atoi(res.UndoVersionID)
 		if err != nil {
-			return out, nil, err
+			askLoseUndo(&out)
+			return out, nil, nil
 		}
-		back["version"] = v
+		version = v
 	}
+	title := ""
 	if after.Title != before.Title {
-		back["title"] = before.Title
+		title = before.Title
 	}
-	if back["version"] == 0 && back["title"] == "" {
+	if version == 0 && contentWritten {
+		// The content was rewritten but the version that holds it as it was is
+		// unknown: the title alone must not be undone as if that were all.
+		askLoseUndo(&out)
+		return out, nil, nil
+	}
+	if version == 0 && title == "" {
 		return out, nil, nil // nothing was written: no undo to offer
 	}
-	inv, err := askInverseOf("restore_document_version", back)
-	return out, inv, err
+	back := map[string]any{"workspace_id": in.WorkspaceID, "document_id": before.ID, "revision": res.Revision, "version": version, "title": title}
+	return out, askInverseOrNote(&out, "restore_document_version", back), nil
 }
 
 func (s *AskUNIService) applyAddDocumentComment(ctx context.Context, p McpPrincipal, row askDraftRow) (AskProposalResult, *askInverse, error) {
@@ -404,10 +459,12 @@ func (s *AskUNIService) applyAddDocumentComment(ctx context.Context, p McpPrinci
 	if err != nil {
 		return AskProposalResult{}, nil, err
 	}
+	out := AskProposalResult{Note: res.Note}
 	c, ok := res.Item.(McpComment)
 	if !ok || c.ID == "" {
-		return AskProposalResult{}, nil, errAskNoItem
+		askLoseUndo(&out)
+		return out, nil, nil
 	}
-	inv, err := askInverseOf("delete_document_comment", map[string]any{"comment_id": c.ID})
-	return AskProposalResult{ObjectID: c.ID, Href: c.URL, Note: res.Note}, inv, err
+	out.ObjectID, out.Href = c.ID, c.URL
+	return out, askInverseOrNote(&out, "delete_document_comment", map[string]any{"comment_id": c.ID}), nil
 }
