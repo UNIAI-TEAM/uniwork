@@ -113,8 +113,18 @@ describe("the generated store metadata", () => {
       expect(`${info.subtitle}\n${info.description}\n${info.keywords.join(",")}`).not.toMatch(/gọi|call/i);
     }
     expect(Object.values(apple.apple.info).map((info) => (info as { title?: string }).title)).toEqual(["UniWork Chat", "UniWork Chat"]);
+    for (const info of Object.values(apple.apple.info)) expect(info.description).toMatch(/VoiceOver/);
+    for (const info of Object.values(apple.apple.info)) expect(info.description).not.toMatch(/TalkBack/);
     expect(apple.apple.review.notes).toContain("terms#acceptable-use");
     expect(apple.apple.review.notes).not.toMatch(/password: /i);
+  });
+
+  it("names only Android's screen reader on Play", () => {
+    for (const locale of ["vi-VN", "en-US"]) {
+      const full = fs.readFileSync(path.join(__dirname, "store/play", locale, "full_description.txt"), "utf8");
+      expect(full).toMatch(/TalkBack/);
+      expect(full).not.toMatch(/VoiceOver/);
+    }
   });
 
   it("refuses copy over a store's limit", async () => {

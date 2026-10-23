@@ -6,6 +6,6 @@ UniWork Chat is the messaging app of UniWork, built for Vietnamese teams. Direct
 - A directory of your colleagues with their presence
 - Push notifications with message previews that you can reply to or mark as read in place, cleared once you have read them, and held back while you are reading the same workspace elsewhere
 - Drafts that wait for you, tappable links, and rooms that reopen at your first unread message (up to a few hundred unread)
-- Works with VoiceOver and TalkBack, large text and dark mode
+- Works with TalkBack, large text and dark mode
 
 Requires a UniWork account. You sign in securely in the browser; the app never stores your password.
