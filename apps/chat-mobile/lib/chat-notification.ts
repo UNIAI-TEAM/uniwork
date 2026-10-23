@@ -22,7 +22,7 @@ export interface ChatPushTarget {
 }
 
 /** A notification as it was shown: its title and the push's data. */
-export interface ShownChatPush {
+interface ShownChatPush {
   title: string;
   data: Record<string, unknown>;
 }
