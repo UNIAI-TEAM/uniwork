@@ -769,7 +769,7 @@ tên kênh "Miscellaneous"). Khi 0.3.1 đã có trên track người dùng thấ
 để mọi máy có cùng giao diện cuộc gọi (không dùng 0.3.0: bản Android 0.3.0 (11) chết khi mở, chỉ lên track nội bộ). Kiểm sau deploy: `push_subscriptions.user_agent = 'expo/android; call-ui'` tăng
 dần theo số máy đã cập nhật.
 
-**Cuộc gọi native trên Android (UNI-2053 S4, `docs/adr/drafts/0038-…`).** Test node/jest giữ chính sách (khi nào reo,
+**Cuộc gọi native trên Android (UNI-2053 S4, `docs/adr/0038-…`).** Test node/jest giữ chính sách (khi nào reo,
 khi nào dịch vụ chạy, ai được báo) với module native giả; test JVM Robolectric của module
 (`modules/unichat-calls/android/src/test`, chạy trong `android-release`) giữ token khởi chạy, hành động chờ, thông báo
 như hệ thống nhận, dịch vụ nền của cuộc gọi, nút Từ chối/Gác máy, màn khoá và tiếng reo theo chế độ chuông; test
