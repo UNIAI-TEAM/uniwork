@@ -942,6 +942,9 @@ func (s *DocumentService) mintFolderUploadTarget(ctx context.Context, actor Acto
 		Actor: actor, Purpose: files.DocumentFile,
 		Scope:       documentScope(batch.OrganizationID, batch.WorkspaceID),
 		OperationID: folderUploadOperationID(f), Deadline: batch.ExpiresAt.Time,
+		// The browser writes the person's file: its extension is what names a
+		// .doc/.xls/.ppt compound file (and .md/.csv text) at COMPLETE.
+		Filename: f.Filename,
 	})
 	if errors.Is(err, storage.ErrCapabilityUnsupported) {
 		// The store cannot presign (local, CI): the bytes go through the
