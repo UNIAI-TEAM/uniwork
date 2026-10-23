@@ -20,7 +20,7 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `AiCostSpike` | 2 | chi phí AI 1 giờ > 3× trung bình 7 ngày | [AiCostSpike.md](AiCostSpike.md) |
 | `WebhookInboxLagHigh` | 2 | webhook LiveKit chờ xử lý > 30 s | [WebhookInboxLagHigh.md](WebhookInboxLagHigh.md) |
 | `MeetingScribeCannotJoin` | 3 | thư ký AI không vào được phòng (> 2 lần trong 15 phút) | [MeetingScribeCannotJoin.md](MeetingScribeCannotJoin.md) |
-| `MeetingScribeCapacityHigh` | 2 | mọi worker thư ký AI trên 60% tải suốt 10 phút (nhận job tới 70%) | [MeetingScribeCapacityHigh.md](MeetingScribeCapacityHigh.md) |
+| `MeetingScribeCapacityHigh` | 2 | mọi worker thư ký AI trên 60% tải, hoặc lần gọi không worker nào nhận, suốt 10 phút | [MeetingScribeCapacityHigh.md](MeetingScribeCapacityHigh.md) |
 | `MeetingAutoSummaryFailing` | 3 | > 20% tóm tắt tự động sau họp thất bại trong 1 giờ (≥ 5 lượt) | [MeetingAutoSummaryFailing.md](MeetingAutoSummaryFailing.md) |
 | `QueueLagUnreadable` | 2 | không đọc được lag outbox hoặc webhook inbox suốt 5 phút | [QueueLagUnreadable.md](QueueLagUnreadable.md) |
 | `RealtimePublishSlow` | 3 | p95 commit → frame > 1 s | [RealtimePublishSlow.md](RealtimePublishSlow.md) |
