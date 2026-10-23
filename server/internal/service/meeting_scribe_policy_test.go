@@ -127,8 +127,17 @@ func TestSetMeetingSettingsScribePolicy(t *testing.T) {
 // second upsert writes the first one's field back to its old value.
 func TestSetMeetingSettingsConcurrentSavesKeepBothFields(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
-	ctx := context.Background()
+	// A bound, so a stuck save fails the test instead of the shard's 1 h timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
 	setScribePolicy(t, s, ua.ID, w.OrganizationID, ScribePolicyOn) // the row exists
+	// The lock probe gets its own connection up front: on the shared pool of a
+	// parallel run it could otherwise wait behind the two blocked saves forever.
+	probe, err := s.pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer probe.Release()
 	hold, err := s.pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +160,7 @@ func TestSetMeetingSettingsConcurrentSavesKeepBothFields(t *testing.T) {
 	// Both saves are under way (blocked on the held row or the lock).
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
 		var waiting int
-		if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM pg_locks WHERE NOT granted`).Scan(&waiting); err != nil {
+		if err := probe.QueryRow(ctx, `SELECT count(*) FROM pg_locks WHERE NOT granted`).Scan(&waiting); err != nil {
 			t.Fatal(err)
 		}
 		if waiting >= 2 {
