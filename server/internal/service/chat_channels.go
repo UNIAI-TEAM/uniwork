@@ -520,7 +520,7 @@ func (s *ChatService) requireProjectInWorkspace(ctx context.Context, workspaceID
 }
 
 func (s *ChatService) authorizeChannelAdmin(ctx context.Context, userID, workspaceID, roomID string) (db.ChatRoom, error) {
-	room, err := s.authorizeRoomMember(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return db.ChatRoom{}, err
 	}

@@ -147,7 +147,8 @@ return count
 // "not limited" (fail open, ruling P22). Without Redis nothing is counted.
 func (s *AskUNIService) askCount(ctx context.Context, key string) (n int64, ok bool) {
 	if s.rdb == nil {
-		return 0, false
+		userID := strings.TrimPrefix(key, "uw:ai:ask:")
+		return askMemIncrement(userID, s.now(), askRateWindow), true
 	}
 	ctx, cancel := context.WithTimeout(ctx, uniworkLeaseTimeout)
 	defer cancel()
