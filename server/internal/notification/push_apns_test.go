@@ -27,7 +27,8 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-const testVoIPToken = "4a6f1c2bd8e9f00112233445566778899aabbccddeeff00112233445566778899"
+// A PushKit token is 32 bytes of hex; a run of one digit keeps secret scanners quiet.
+const testVoIPToken = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 
 // testAPNsKey is a fresh P-256 key in the .p8 shape Apple hands out: a PKCS#8
 // "PRIVATE KEY" PEM block.

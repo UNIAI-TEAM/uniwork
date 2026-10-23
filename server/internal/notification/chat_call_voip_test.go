@@ -64,7 +64,7 @@ func (f *fixture) subscribeVoIP(t *testing.T, userID, token, session string) {
 }
 
 const (
-	voipToken   = "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+	voipToken   = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	iphoneExpo  = "ExponentPushToken[iphone-new]"
 	iphoneOld   = "ExponentPushToken[iphone-old]"
 	androidExpo = "ExponentPushToken[android]"
@@ -245,7 +245,7 @@ func newVoIPCalls(t *testing.T) voipCalls {
 	return voipCalls{f: f, chat: chat, pc: pc, spy: spy, dmID: dm.ID}
 }
 
-const voipToken2 = "bb11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+const voipToken2 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 // When the ring stops for someone, the PushKit tokens the ring reached get the
 // end as a VoIP push, saying why, so their CallKit screens come down; the
