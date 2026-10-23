@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -70,11 +71,12 @@ func TestScopedMeetingSourceKeepsEveryActionItem(t *testing.T) {
 }
 
 // UNI-1995 #17: asked without a scope, the meeting a question finds brings
-// its action items, not only its summary search excerpt; a member outside the
-// meeting gets the items and still not the summary.
+// its action items, not only its summary search excerpt. A member outside the
+// meeting keeps the meeting source and still gets no summary; whether the
+// items reach them is the action-item gate's call, not pinned here.
 func TestUnscopedQuestionBringsTheFoundMeetingsItems(t *testing.T) {
 	x := newMcpToolWorld(t)
-	_, titles := longRecordMeeting(t, x, "Giao ban tuần 43")
+	m, titles := longRecordMeeting(t, x, "Giao ban tuần 43")
 	addMember(t, x.tools.ask.meetings, x.w.ID, x.ub.ID)
 	for _, who := range []string{x.ua.ID, x.ub.ID} {
 		srcs, err := x.tools.ask.Sources(context.Background(), ai.SourceQuery{
@@ -85,20 +87,41 @@ func TestUnscopedQuestionBringsTheFoundMeetingsItems(t *testing.T) {
 			t.Fatal(err)
 		}
 		pack, _ := ai.BuildContext(srcs)
-		var ex string
+		ex, found := "", false
 		for _, s := range pack {
-			if s.Kind == "meeting" {
-				ex = s.Excerpt
+			if s.Kind == "meeting" && strings.HasSuffix(s.Href, "/meetings/"+m.ID) {
+				ex, found = s.Excerpt, true
 				break
 			}
 		}
-		for _, w := range titles {
-			if !strings.Contains(ex, "- "+w+" · chưa giao") {
-				t.Errorf("%s: the found meeting lacks %q:\n%s", who, w, ex)
+		if !found {
+			t.Fatalf("%s: no source for the meeting: %+v", who, pack)
+		}
+		if who == x.ua.ID {
+			for _, w := range titles {
+				if !strings.Contains(ex, "- "+w+" · chưa giao") {
+					t.Errorf("host: the found meeting lacks %q:\n%s", w, ex)
+				}
 			}
 		}
 		if hasSummary := strings.Contains(ex, "Nhóm rà soát tiến độ"); hasSummary != (who == x.ua.ID) {
 			t.Errorf("%s: summary quoted = %v:\n%s", who, hasSummary, ex)
 		}
+	}
+}
+
+// A refusal of the found meeting's record, whatever gate gives it, leaves the
+// plain search hit and the rest of the turn; any other failure still fails.
+func TestFoundMeetingRecordRefusedKeepsThePlainHit(t *testing.T) {
+	hit := ai.Source{Kind: "meeting", Title: "M1", Href: "/o/w/meetings/m1", Excerpt: "hit"}
+	for _, refusal := range []error{ErrForbidden, ErrNotFound, ErrMemberDeactivated, ErrOrganizationSuspended, errAIContentRestricted()} {
+		out, err := withFoundMeetingRecord([]ai.Source{hit}, 0, func(string) ([]ai.Source, error) { return nil, refusal })
+		if err != nil || len(out) != 1 || out[0] != hit {
+			t.Errorf("refused with %v: got %+v, %v; want the plain hit", refusal, out, err)
+		}
+	}
+	boom := errors.New("db down")
+	if _, err := withFoundMeetingRecord([]ai.Source{hit}, 0, func(string) ([]ai.Source, error) { return nil, boom }); !errors.Is(err, boom) {
+		t.Errorf("a failed read: %v, want it to fail the turn", err)
 	}
 }
