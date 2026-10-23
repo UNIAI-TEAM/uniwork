@@ -11,17 +11,22 @@ const script = path.join(import.meta.dirname, "maestro-retry.sh");
 /**
  * Runs the script with a fake `maestro` that fails its first `failures` calls, and a fake `adb` whose log is one line.
  * `logcat: true` points MAESTRO_LOGCAT at a file in the run's directory and returns what was written there.
+ * Fake `pkill`, `pgrep` (nothing left running) and `xcrun` record their calls in `sequence`, between the maestro runs.
  */
 function run(failures, env = {}, { logcat = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "maestro-retry-"));
   try {
     const count = path.join(dir, "count");
+    const sequence = path.join(dir, "sequence");
     fs.writeFileSync(count, "0");
     fs.writeFileSync(
       path.join(dir, "maestro"),
-      `#!/bin/sh\nn=$(($(cat "${count}") + 1))\necho "$n" > "${count}"\necho "maestro $*"\n[ "$n" -gt ${failures} ]\n`,
+      `#!/bin/sh\nn=$(($(cat "${count}") + 1))\necho "$n" > "${count}"\necho "maestro" >> "${sequence}"\necho "maestro $*"\n[ "$n" -gt ${failures} ]\n`,
       { mode: 0o755 },
     );
+    for (const [tool, status] of [["pkill", 0], ["pgrep", 1], ["xcrun", 0]]) {
+      fs.writeFileSync(path.join(dir, tool), `#!/bin/sh\necho "${tool} $*" >> "${sequence}"\nexit ${status}\n`, { mode: 0o755 });
+    }
     fs.writeFileSync(
       path.join(dir, "adb"),
       `#!/bin/sh\necho "adb $*" >> "${path.join(dir, "adb-calls")}"\necho "adb $* | E ReactNativeJS: TypeError: boom"\n`,
@@ -40,6 +45,7 @@ function run(failures, env = {}, { logcat = false } = {}) {
       summary: fs.existsSync(summary) ? fs.readFileSync(summary, "utf8") : "",
       logcat: fs.existsSync(log) ? fs.readFileSync(log, "utf8") : null,
       adb: fs.existsSync(path.join(dir, "adb-calls")) ? fs.readFileSync(path.join(dir, "adb-calls"), "utf8").trim().split("\n") : [],
+      sequence: fs.existsSync(sequence) ? fs.readFileSync(sequence, "utf8").trim().split("\n") : [],
     };
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -95,6 +101,22 @@ test("MAESTRO_ADB_REVERSE maps its ports again before every attempt, and without
   assert.equal(twice.status, 0);
   assert.deepEqual(twice.adb, ["adb reverse tcp:3000 tcp:3000", "adb reverse tcp:8080 tcp:8080", "adb reverse tcp:3000 tcp:3000", "adb reverse tcp:8080 tcp:8080"]);
   assert.deepEqual(run(0).adb, []);
+});
+
+// CI's iOS smoke timed out waiting for Maestro's XCTest driver on both attempts (run 39961695475): the first attempt's
+// xcodebuild was never stopped, so the retry started a second runner for the same bundle beside it.
+test("MAESTRO_IOS_UDID stops the last attempt's driver before every retry, and only then", () => {
+  const udid = "582B068E-0000-4000-8000-000000000000";
+  const spawn = `xcodebuild test-without-building .*-destination id=${udid}`;
+  const cleared = [`pkill -f ${spawn}`, `pgrep -f ${spawn}`, `xcrun simctl terminate ${udid} dev.mobile.maestro-driver-iosUITests.xctrunner`, `xcrun simctl bootstatus ${udid} -b`];
+  const retried = run(1, { MAESTRO_IOS_UDID: udid });
+  assert.equal(retried.status, 0);
+  assert.deepEqual(retried.sequence, ["maestro", ...cleared, "maestro"], "cleared between the attempts, not before the first");
+  assert.deepEqual(run(2, { MAESTRO_IOS_UDID: udid }).sequence, ["maestro", ...cleared, "maestro"], "nothing after the last attempt");
+  assert.deepEqual(run(0, { MAESTRO_IOS_UDID: udid }).sequence, ["maestro"], "a pass on the first attempt touches nothing");
+  const android = run(1, { MAESTRO_ADB_REVERSE: "3000" });
+  assert.deepEqual(android.sequence, ["maestro", "maestro"], "without MAESTRO_IOS_UDID (Android) nothing calls pkill or xcrun");
+  assert.deepEqual(android.adb, ["adb reverse tcp:3000 tcp:3000", "adb reverse tcp:3000 tcp:3000"]);
 });
 
 test("every flow that turns airplane mode on starts online, so a retry is not born offline", () => {

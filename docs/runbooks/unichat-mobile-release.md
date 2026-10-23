@@ -199,7 +199,11 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   `scripts/maestro-retry.sh`: hỏng thì chạy lại một lần; lần hai qua thì xanh nhưng để lại cảnh báo "Flaky device run"
   và một dòng `flaky:` trong step summary, hai lần hỏng thì đỏ. Một luồng cứ phải nhờ lần chạy lại (thấy trong các
   summary) là lỗi cần sửa — luồng chờ thiếu, hay app crash lúc có lúc không — không phải nhiễu. Tắt lượt chạy lại khi
-  điều tra: `MAESTRO_ATTEMPTS=1`.
+  điều tra: `MAESTRO_ATTEMPTS=1`. Trên iOS, driver XCTest của Maestro được chờ 5 phút
+  (`MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"` ở mỗi job iOS; mặc định 2 phút không đủ cho lần mở đầu trên simulator vừa
+  boot), và trước lần chạy lại `MAESTRO_IOS_UDID` cho script dừng `xcodebuild` và runner còn sót của lần trước. Thông báo
+  "iOS driver not ready in time" ở cả hai lần nghĩa là driver không lên nổi trong 5 phút, xem log xctest_runner trong
+  artifact `maestro-smoke-ios`.
 - Phiên bản công cụ ghim trong workflow: `EAS_CLI_VERSION` (release và OTA, cùng một số), `MAESTRO_VERSION` (nightly, tải zip release
   thay vì script cài), `EXPO_DOCTOR_VERSION`. Nâng trong một PR riêng.
 - Ngân sách bundle: hạ trần khi bundle nhỏ đi; chỉ nâng trong commit thêm sức nặng đó, ghi lý do trong body. Đo tại

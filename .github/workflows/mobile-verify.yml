@@ -686,6 +686,10 @@ jobs:
       SENTRY_DISABLE_AUTO_UPLOAD: "true"
       # The startup marks the cold-start timing reads (data/perf/marks-file.ts); outside the fingerprint, never in a store build.
       UNICHAT_PERF_MARKS: "1"
+      # Maestro's XCTest driver gets 5 minutes to answer, not its default 2: its first launch on a freshly booted
+      # simulator took 161 s and 176 s in the runs that went red (October 2026). A driver that answers sooner is used
+      # at once; scripts/maestro-retry.sh › MAESTRO_IOS_UDID clears a timed-out one before the retry.
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -729,7 +733,7 @@ jobs:
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid" -b
           xcrun simctl install "$udid" build/Build/Products/Release-iphonesimulator/*.app
-          echo "UDID=$udid" >> "$GITHUB_ENV"
+          { echo "UDID=$udid"; echo "MAESTRO_IOS_UDID=$udid"; } >> "$GITHUB_ENV"
           { echo "### UniChat iOS simulator Release build"; echo; du -sh build/Build/Products/Release-iphonesimulator/*.app | awk '{printf "- `%s`: %s\n", $2, $1}'; } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Install Maestro ${{ env.MAESTRO_VERSION }}
         run: |

@@ -543,6 +543,19 @@ test("the Android-only callers leave iOS out, and every iOS build uses the pinne
   assert.equal(envPin(wf, "XCODE_VERSION"), envPin(read("chat-mobile-verify.yml"), "XCODE_VERSION"), "one Xcode for the PR and the nightly");
 });
 
+// The iOS smoke went red on both attempts with "iOS driver not ready in time" (runs 39961695475, 39944349493): the
+// first launch of Maestro's XCTest driver on a fresh simulator took 161 s and 176 s, past Maestro's 120 s default,
+// and the retry started a second runner beside the first one's leftover xcodebuild.
+test("every iOS job gives Maestro's driver five minutes to start, and the retry clears a timed-out one", () => {
+  for (const [file, job] of [["mobile-verify.yml", "ios-release"], ["chat-mobile-verify.yml", "ios"], ["chat-mobile-store-screenshots.yml", "ios"]]) {
+    const text = jobsOf(read(file)).jobs.get(job) ?? "";
+    assert.ok(Number(envPin(text, "MAESTRO_DRIVER_STARTUP_TIMEOUT")?.replaceAll('"', "")) >= 300_000, `${file} › ${job} sets MAESTRO_DRIVER_STARTUP_TIMEOUT to 5 min or more`);
+    if (/maestro-retry\.sh --device "\$UDID"/.test(text)) {
+      assert.match(text, /\{ echo "UDID=\$udid"; echo "MAESTRO_IOS_UDID=\$udid"; \} >> "\$GITHUB_ENV"/, `${file} › ${job} hands the retry its simulator`);
+    }
+  }
+});
+
 // Runs the scope job's decide step as written in the workflow, with `node` stubbed
 // to say what the diff would say (native=false), so only the forcing rules decide.
 function decide(env) {
