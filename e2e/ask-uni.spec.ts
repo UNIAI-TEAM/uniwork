@@ -89,8 +89,8 @@ test("docked Ask UNI streams an answer, stops a run and opens with a focus", asy
   // The flag is set for the organization, and an organization override never reaches the web
   // shell: WebFeatureFlagsProvider (apps/web/platform/feature-flags.tsx) asks GET /api/v1/config
   // without organization_id, so ⌘J keeps opening the legacy dialog. Found when CI started running
-  // this spec under AI_PROVIDER=fake; unfix once the shell evaluates organization overrides.
-  test.fixme(true, "organization-scoped ask_uni_stream does not reach the web shell's flags");
+  // this spec under AI_PROVIDER=fake; tracked as UNI-2099 (in review): unfix when it lands.
+  test.fixme(true, "UNI-2099: organization-scoped ask_uni_stream does not reach the web shell's flags");
   const orgId = await onboard(page, "Chủ Dock", `Dock ${stamp}`, "Đội Dock");
   await askUniOrSkip(page);
 
